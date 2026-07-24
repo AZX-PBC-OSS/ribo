@@ -1,0 +1,174 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 1,
+    "sourceSpan": "Heating is a furnace, natural gas, in the hall closet"
+  },
+  "heatingFuel": {
+    "value": "natural_gas",
+    "confidence": 1,
+    "sourceSpan": "Heating is a furnace, natural gas, in the hall closet"
+  },
+  "heatingManufacturer": {
+    "value": "Carrier",
+    "confidence": 1,
+    "sourceSpan": "in the hall closet, a Carrier"
+  },
+  "heatingModelNumber": {
+    "value": "58STA",
+    "confidence": 1,
+    "sourceSpan": "I got the model, it's 58STA"
+  },
+  "heatingModelYear": {
+    "value": 2013,
+    "confidence": 1,
+    "sourceSpan": "the year reads twenty-thirteen"
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": "Didn't get an output number, the plate's tucked behind the ductwork where I can't see it."
+  },
+  "coolingEquipmentType": {
+    "value": "other",
+    "confidence": 0.8,
+    "sourceSpan": "Central AC on the same ducts as the furnace, shared, condenser's out back on the pad."
+  },
+  "ductLocation": {
+    "value": "basement_unconditioned",
+    "confidence": 1,
+    "sourceSpan": "The ducts run through the basement, which is unconditioned down there"
+  },
+  "ductSealing": {
+    "value": "well_sealed",
+    "confidence": 1,
+    "sourceSpan": "Sealing looked well-sealed, actually, mastic everywhere, nice and tight, someone did a proper job, I'd call that well sealed."
+  },
+  "ductInsulation": {
+    "value": "duct_board_1_5in",
+    "confidence": 1,
+    "sourceSpan": "they're insulated with that rigid duct board, the inch-and-a-half board"
+  },
+  "ductLeakageCfm25": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationSpokenRValue": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": "I couldn't confirm any insulation in the block cores, no easy access to check, so I'm not calling the wall insulation either way, leaving it."
+  },
+  "wallConstruction": {
+    "value": "concrete_block",
+    "confidence": 1,
+    "sourceSpan": "Exterior walls are concrete block, it's a masonry house, block with a stucco skim on the outside."
+  },
+  "blowerDoorCfm50": {
+    "value": 2900,
+    "confidence": 1,
+    "sourceSpan": "Blower door came in at twenty-nine hundred CFM50."
+  },
+  "windowGlazing": {
+    "value": "double_pane",
+    "confidence": 1,
+    "sourceSpan": "they're double pane, the newer replacements"
+  },
+  "windowFrame": {
+    "value": "wood_or_metal_clad",
+    "confidence": 1,
+    "sourceSpan": "these are the wood-frame ones with the metal cladding on the exterior, what we call clad"
+  },
+  "dhwFuel": {
+    "value": "natural_gas",
+    "confidence": 1,
+    "sourceSpan": "Water heater is a gas storage tank"
+  },
+  "dhwSystemType": {
+    "value": "storage",
+    "confidence": 1,
+    "sourceSpan": "Water heater is a gas storage tank"
+  },
+  "dhwAgeBand": {
+    "value": "11-15",
+    "confidence": 1,
+    "sourceSpan": "About fifteen years old, install tag reads twenty-ten."
+  },
+  "combustionVentType": {
+    "value": "power_vented_at_unit",
+    "confidence": 1,
+    "sourceSpan": "it's power-vented, there's a blower on top forcing it out the side wall, power vented right at the unit"
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "passed",
+      "confidence": 1,
+      "sourceSpan": "CO at both appliances was clean, zero ppm."
+    },
+    "venting": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "naturalConditionSpillage": {
+      "value": "not_tested",
+      "confidence": 1,
+      "sourceSpan": "Did not do any combustion spillage testing today, ran out of daylight, so worst case and natural spillage both not done, we'll get those next time."
+    },
+    "worstCaseDepressurization": {
+      "value": "not_tested",
+      "confidence": 0.9,
+      "sourceSpan": "Did not do any combustion spillage testing today, ran out of daylight, so worst case and natural spillage both not done, we'll get those next time."
+    },
+    "worstCaseSpillage": {
+      "value": "not_tested",
+      "confidence": 1,
+      "sourceSpan": "Did not do any combustion spillage testing today, ran out of daylight, so worst case and natural spillage both not done, we'll get those next time."
+    },
+    "draftPressure": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "gasLeak": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "moldMoisture": {
+      "value": "warning",
+      "confidence": 1,
+      "sourceSpan": "I did see some mold, black spotting on the bathroom ceiling and around the tub surround, there's a moisture problem in that bath, I'd flag mold and moisture as a warning, they need the bath fan fixed."
+    },
+    "asbestos": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "lead": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "electrical": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  }
+}

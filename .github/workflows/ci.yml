@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Supersede in-flight runs for the same ref: only the newest push matters.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck, lint, format, build, test # keep in sync with check.sh's stages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.34.5 # keep in sync with the root package.json "packageManager"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The `playwright` npm package contains no browser binaries, so this is a
+      # separate step and check.sh's `test` stage fails without it (a Chromium
+      # launch error, not a missing module). `--with-deps` also installs the
+      # Linux shared libraries headless Chromium needs on a bare runner.
+      # Chromium only: the browser project targets it exclusively (see
+      # docs/implementation/10-build-and-packaging.md §2.1).
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: ./check.sh
+
+      # TODO(phase-later): add the publishing gates from
+      # docs/implementation/10-build-and-packaging.md section 8 ("CI gates").
+      # They are omitted here only because Phase 0 has nothing publishable yet;
+      # wire them up as soon as the packages actually build:
+      #   - publint --strict
+      #   - attw --pack .
+      #   - pnpm changeset status
+      #   - pnpm pack --dry-run, asserting no .ts file reaches the tarball
+      #   - pnpm ls react --depth=Infinity, failing on more than one resolved React
+      #   - the pack-and-consume matrix

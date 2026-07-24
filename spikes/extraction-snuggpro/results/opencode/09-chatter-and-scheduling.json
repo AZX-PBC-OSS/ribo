@@ -1,0 +1,174 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 0.6,
+    "sourceSpan": "the furnace"
+  },
+  "heatingFuel": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "the furnace and the attic and all that, we said next Tuesday for the full assessment"
+  },
+  "heatingManufacturer": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "the furnace and the attic and all that, we said next Tuesday for the full assessment"
+  },
+  "heatingModelNumber": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "the furnace and the attic and all that, we said next Tuesday for the full assessment"
+  },
+  "heatingModelYear": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "the furnace and the attic and all that, we said next Tuesday for the full assessment"
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "the furnace and the attic and all that, we said next Tuesday for the full assessment"
+  },
+  "coolingEquipmentType": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "ductLocation": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "ductSealing": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "ductInsulation": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "ductLeakageCfm25": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "the attic and all that, we said next Tuesday for the full assessment"
+  },
+  "atticInsulationType": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "the attic and all that, we said next Tuesday for the full assessment"
+  },
+  "atticInsulationSpokenRValue": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "the attic and all that, we said next Tuesday for the full assessment"
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "wallConstruction": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "blowerDoorCfm50": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "windowGlazing": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "windowFrame": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "dhwFuel": {
+    "value": "natural_gas",
+    "confidence": 1.0,
+    "sourceSpan": "natural gas"
+  },
+  "dhwSystemType": {
+    "value": "instantaneous",
+    "confidence": 1.0,
+    "sourceSpan": "tankless, on-demand"
+  },
+  "dhwAgeBand": {
+    "value": "0-5",
+    "confidence": 0.9,
+    "sourceSpan": "Yeah, two years"
+  },
+  "combustionVentType": {
+    "value": "power_vented_at_unit",
+    "confidence": 1.0,
+    "sourceSpan": "power vented right at the unit"
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "venting": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "naturalConditionSpillage": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "worstCaseDepressurization": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "worstCaseSpillage": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "draftPressure": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "gasLeak": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "moldMoisture": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "asbestos": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "lead": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "electrical": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    }
+  }
+}

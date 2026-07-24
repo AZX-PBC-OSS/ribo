@@ -1,0 +1,74 @@
+{
+  "transcript": "transcripts/08-no-fuel-silent-drop.txt",
+  "stresses": "HAZARD 1 SILENT-DROP trap: equipment stated (furnace) with NO fuel -- the auditor explicitly did not check the fuel -> heatingEquipmentType=furnace_central_ac but heatingFuel=null (with span). Also HAZARD 2 R-value-only (R-30 -> band null + spokenRValue 30), HAZARD 4-style enum paraphrase \"some insulation but really thin\" -> wallInsulated=poorly (not yes), duct insulation \"no insulation ... bare metal\" -> none, and \"very leaky\". Partial model number G-something -> null.",
+  "fields": {
+    "heatingEquipmentType": {
+      "value": "furnace_central_ac",
+      "sourceSpan": "heating is a furnace, forced air"
+    },
+    "heatingFuel": {
+      "value": null,
+      "sourceSpan": "I can't tell you the fuel on this one"
+    },
+    "heatingManufacturer": { "value": "Lennox", "sourceSpan": "It's a Lennox" },
+    "heatingModelNumber": {
+      "value": null,
+      "sourceSpan": "I couldn't get the full model number off the corner it was jammed into"
+    },
+    "heatingModelYear": { "value": null, "sourceSpan": "there's no year I could read" },
+    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
+    "coolingEquipmentType": {
+      "value": "central_ac_standalone_ducts",
+      "sourceSpan": "The AC's got its own ducts up in the attic, standalone"
+    },
+    "ductLocation": {
+      "value": "attic_unconditioned",
+      "sourceSpan": "The AC's got its own ducts up in the attic"
+    },
+    "ductSealing": { "value": "very_leaky", "sourceSpan": "I'd call the sealing very leaky" },
+    "ductInsulation": {
+      "value": "none",
+      "sourceSpan": "the ducts up here have no insulation on them at all, bare metal"
+    },
+    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
+    "atticInsulationDepthIn": { "value": null, "sourceSpan": null },
+    "atticInsulationType": {
+      "value": "fiberglass",
+      "sourceSpan": "Attic insulation is fiberglass batts"
+    },
+    "atticInsulationSpokenRValue": { "value": 30, "sourceSpan": "I'd estimate R-thirty, R-30" },
+    "wallInsulated": {
+      "value": "poorly",
+      "sourceSpan": "there's some insulation in there but it's really thin, patchy"
+    },
+    "wallConstruction": { "value": null, "sourceSpan": null },
+    "blowerDoorCfm50": { "value": null, "sourceSpan": null },
+    "windowGlazing": { "value": null, "sourceSpan": null },
+    "windowFrame": { "value": null, "sourceSpan": null },
+    "dhwFuel": { "value": null, "sourceSpan": null },
+    "dhwSystemType": { "value": null, "sourceSpan": null },
+    "dhwAgeBand": { "value": null, "sourceSpan": null },
+    "combustionVentType": { "value": null, "sourceSpan": null },
+    "healthSafety": {
+      "ambientCo": { "value": null, "sourceSpan": null },
+      "venting": { "value": null, "sourceSpan": null },
+      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
+      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
+      "worstCaseSpillage": { "value": null, "sourceSpan": null },
+      "draftPressure": { "value": null, "sourceSpan": null },
+      "gasLeak": { "value": null, "sourceSpan": null },
+      "moldMoisture": { "value": null, "sourceSpan": null },
+      "asbestos": { "value": null, "sourceSpan": null },
+      "lead": { "value": null, "sourceSpan": null },
+      "electrical": { "value": null, "sourceSpan": null }
+    }
+  },
+  "notes": {
+    "heatingFuel": "THE silent-drop trap. Equipment is unambiguous (furnace) but the auditor explicitly says he never checked the fuel and won't guess. Correct = null with span. Any fuel value here (natural_gas is the tempting default for a furnace) is a hallucination of exactly the kind the fuel axis is meant to expose. This is the highest-weight null in the corpus for hazard 1.",
+    "wallInsulated": "3-state paraphrase: \"some insulation but it's really thin, patchy\" -> poorly, NOT yes. Collapsing poorly->yes is the specific enum-mapping error README section 4 flags.",
+    "atticInsulationDepthIn": "R-value only (R-30, explicitly eyeballed, \"didn't measure the depth\") -> band null. Converting R-30 to a depth band is the forbidden conversion.",
+    "heatingModelNumber": "\"G-something\" is a non-committal partial, not a model number -> null. \"G\" alone is not a usable value.",
+    "coolingEquipmentType": "central_ac_standalone_ducts: the AC is explicitly its own attic ductwork, separate from the furnace. Genuinely standalone, unlike the shared-duct case in transcript 13.",
+    "_general": "No safety, DHW, blower door, or windows discussed -> all null. \"a couple inches of old batt\" is a wall-cavity observation supporting poorly, not an attic depth."
+  }
+}

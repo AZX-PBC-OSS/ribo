@@ -1,0 +1,174 @@
+{
+  "heatingEquipmentType": {
+    "value": "boiler",
+    "confidence": 1,
+    "sourceSpan": "it's a boiler"
+  },
+  "heatingFuel": {
+    "value": "fuel_oil",
+    "confidence": 1,
+    "sourceSpan": "it runs on oil"
+  },
+  "heatingManufacturer": {
+    "value": "Weil-McLain",
+    "confidence": 1,
+    "sourceSpan": "Weil-McLain"
+  },
+  "heatingModelNumber": {
+    "value": "WGO",
+    "confidence": 1,
+    "sourceSpan": "the model's a WGO"
+  },
+  "heatingModelYear": {
+    "value": 1999,
+    "confidence": 1,
+    "sourceSpan": "it says nineteen ninety-nine on the burner tag"
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": 105000,
+    "confidence": 1,
+    "sourceSpan": "Hundred and five thousand BTU output on the rating plate."
+  },
+  "coolingEquipmentType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductLocation": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductSealing": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductInsulation": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductLeakageCfm25": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": "No attic access from inside, it's a flat roof, so I've got nothing on attic insulation."
+  },
+  "atticInsulationType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": "No attic access from inside, it's a flat roof, so I've got nothing on attic insulation."
+  },
+  "atticInsulationSpokenRValue": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": "No attic access from inside, it's a flat roof, so I've got nothing on attic insulation."
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "wallConstruction": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "blowerDoorCfm50": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "windowGlazing": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "windowFrame": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "dhwFuel": {
+    "value": "electricity",
+    "confidence": 1,
+    "sourceSpan": "standalone electric tank"
+  },
+  "dhwSystemType": {
+    "value": "storage",
+    "confidence": 1,
+    "sourceSpan": "Hot water is a standalone electric tank"
+  },
+  "dhwAgeBand": {
+    "value": "11-15",
+    "confidence": 0.9,
+    "sourceSpan": "it's maybe twelve years old"
+  },
+  "combustionVentType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "passed",
+      "confidence": 1,
+      "sourceSpan": "that's a pass on CO."
+    },
+    "venting": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "naturalConditionSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "worstCaseDepressurization": {
+      "value": "not_tested",
+      "confidence": 1,
+      "sourceSpan": "I did not do the worst-case depressurization test today"
+    },
+    "worstCaseSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "draftPressure": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "gasLeak": {
+      "value": "passed",
+      "confidence": 1,
+      "sourceSpan": "came back completely clean, no leaks."
+    },
+    "moldMoisture": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "asbestos": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "lead": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "electrical": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  }
+}

@@ -1,0 +1,174 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 1,
+    "sourceSpan": "Heat's a gas furnace"
+  },
+  "heatingFuel": {
+    "value": "natural_gas",
+    "confidence": 1,
+    "sourceSpan": "Heat's a gas furnace"
+  },
+  "heatingManufacturer": {
+    "value": "Trane",
+    "confidence": 1,
+    "sourceSpan": "it's a Trane"
+  },
+  "heatingModelNumber": {
+    "value": "TUD100",
+    "confidence": 1,
+    "sourceSpan": "it's a TUD100"
+  },
+  "heatingModelYear": {
+    "value": 2017,
+    "confidence": 1,
+    "sourceSpan": "the manufacture date stamped is twenty seventeen"
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": 100000,
+    "confidence": 1,
+    "sourceSpan": "Output's a hundred thousand BTU on the plate"
+  },
+  "coolingEquipmentType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductLocation": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductSealing": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductInsulation": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductLeakageCfm25": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationType": {
+    "value": "fiberglass",
+    "confidence": 1,
+    "sourceSpan": "Insulation up here is blown fiberglass"
+  },
+  "atticInsulationSpokenRValue": {
+    "value": 38,
+    "confidence": 1,
+    "sourceSpan": "R-38"
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": "I can't tell you on the wall insulation"
+  },
+  "wallConstruction": {
+    "value": "other",
+    "confidence": 1,
+    "sourceSpan": "it's brick veneer"
+  },
+  "blowerDoorCfm50": {
+    "value": 3200,
+    "confidence": 1,
+    "sourceSpan": "We came in at thirty-two hundred CFM50"
+  },
+  "windowGlazing": {
+    "value": "double_pane",
+    "confidence": 1,
+    "sourceSpan": "Windows are all double pane"
+  },
+  "windowFrame": {
+    "value": "vinyl",
+    "confidence": 1,
+    "sourceSpan": "vinyl frames"
+  },
+  "dhwFuel": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "dhwSystemType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "dhwAgeBand": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "combustionVentType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "passed",
+      "confidence": 1,
+      "sourceSpan": "Ambient CO right next to the furnace while it was running read zero, so that's clean, no carbon monoxide, good"
+    },
+    "venting": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "naturalConditionSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "worstCaseDepressurization": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "worstCaseSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "draftPressure": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "gasLeak": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "moldMoisture": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "asbestos": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "lead": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "electrical": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 1.0,
+    "sourceSpan": "Heating is a furnace, natural gas"
+  },
+  "heatingFuel": {
+    "value": "natural_gas",
+    "confidence": 1.0,
+    "sourceSpan": "Heating is a furnace, natural gas"
+  },
+  "heatingManufacturer": { "value": "Carrier", "confidence": 1.0, "sourceSpan": "a Carrier" },
+  "heatingModelNumber": { "value": "58STA", "confidence": 1.0, "sourceSpan": "it's 58STA" },
+  "heatingModelYear": {
+    "value": 2013,
+    "confidence": 1.0,
+    "sourceSpan": "the year reads twenty-thirteen"
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "Didn't get an output number, the plate's tucked behind the ductwork where I can't see it"
+  },
+  "coolingEquipmentType": {
+    "value": "central_ac_standalone_ducts",
+    "confidence": 0.9,
+    "sourceSpan": "Central AC on the same ducts as the furnace, shared"
+  },
+  "ductLocation": {
+    "value": "basement_unconditioned",
+    "confidence": 1.0,
+    "sourceSpan": "The ducts run through the basement, which is unconditioned down there"
+  },
+  "ductSealing": {
+    "value": "well_sealed",
+    "confidence": 1.0,
+    "sourceSpan": "I'd call that well sealed"
+  },
+  "ductInsulation": {
+    "value": "duct_board_1_5in",
+    "confidence": 1.0,
+    "sourceSpan": "they're insulated with that rigid duct board, the inch-and-a-half board"
+  },
+  "ductLeakageCfm25": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "atticInsulationDepthIn": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "atticInsulationType": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "atticInsulationSpokenRValue": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "I couldn't confirm any insulation in the block cores, no easy access to check, so I'm not calling the wall insulation either way, leaving it"
+  },
+  "wallConstruction": {
+    "value": "concrete_block",
+    "confidence": 1.0,
+    "sourceSpan": "Exterior walls are concrete block"
+  },
+  "blowerDoorCfm50": {
+    "value": 2900,
+    "confidence": 1.0,
+    "sourceSpan": "Blower door came in at twenty-nine hundred CFM50"
+  },
+  "windowGlazing": {
+    "value": "double_pane",
+    "confidence": 1.0,
+    "sourceSpan": "they're double pane"
+  },
+  "windowFrame": {
+    "value": "wood_or_metal_clad",
+    "confidence": 1.0,
+    "sourceSpan": "wood-frame ones with the metal cladding on the exterior, what we call clad"
+  },
+  "dhwFuel": {
+    "value": "natural_gas",
+    "confidence": 1.0,
+    "sourceSpan": "Water heater is a gas storage tank"
+  },
+  "dhwSystemType": {
+    "value": "storage",
+    "confidence": 1.0,
+    "sourceSpan": "Water heater is a gas storage tank"
+  },
+  "dhwAgeBand": { "value": "11-15", "confidence": 0.9, "sourceSpan": "About fifteen years old" },
+  "combustionVentType": {
+    "value": "power_vented_at_unit",
+    "confidence": 1.0,
+    "sourceSpan": "power vented right at the unit"
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "passed",
+      "confidence": 1.0,
+      "sourceSpan": "CO at both appliances was clean, zero ppm"
+    },
+    "venting": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "naturalConditionSpillage": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "worst case and natural spillage both not done"
+    },
+    "worstCaseDepressurization": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "worstCaseSpillage": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "worst case and natural spillage both not done"
+    },
+    "draftPressure": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "gasLeak": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "moldMoisture": {
+      "value": "warning",
+      "confidence": 1.0,
+      "sourceSpan": "I'd flag mold and moisture as a warning"
+    },
+    "asbestos": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "lead": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "electrical": { "value": null, "confidence": 1.0, "sourceSpan": null }
+  }
+}

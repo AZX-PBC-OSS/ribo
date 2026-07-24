@@ -1,0 +1,146 @@
+{
+  "heatingEquipmentType": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "didn't see the heating"
+  },
+  "heatingFuel": { "value": null, "confidence": 0.95, "sourceSpan": "didn't see the heating" },
+  "heatingManufacturer": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "didn't see the heating"
+  },
+  "heatingModelNumber": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "didn't see the heating"
+  },
+  "heatingModelYear": { "value": null, "confidence": 0.95, "sourceSpan": "didn't see the heating" },
+  "heatingOutputCapacityBtuh": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "didn't see the heating"
+  },
+  "coolingEquipmentType": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "ductLocation": { "value": null, "confidence": 0.9, "sourceSpan": "nothing on the inside today" },
+  "ductSealing": { "value": null, "confidence": 0.9, "sourceSpan": "nothing on the inside today" },
+  "ductInsulation": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "nothing on the inside today"
+  },
+  "ductLeakageCfm25": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "nothing on the inside today"
+  },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "Didn't get into the attic"
+  },
+  "atticInsulationType": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "Didn't get into the attic"
+  },
+  "atticInsulationSpokenRValue": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "Didn't get into the attic"
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "nothing on the inside today"
+  },
+  "wallConstruction": {
+    "value": "frame_2x6",
+    "confidence": 0.7,
+    "sourceSpan": "looks like a two-by-six frame from the addition framing I could see through the garage window"
+  },
+  "blowerDoorCfm50": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "nothing on the inside today"
+  },
+  "windowGlazing": {
+    "value": "double_pane",
+    "confidence": 0.65,
+    "sourceSpan": "Windows from outside look like double pane"
+  },
+  "windowFrame": {
+    "value": "vinyl",
+    "confidence": 1.0,
+    "sourceSpan": "white vinyl all the way around"
+  },
+  "dhwFuel": { "value": null, "confidence": 0.9, "sourceSpan": "nothing on the inside today" },
+  "dhwSystemType": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "nothing on the inside today"
+  },
+  "dhwAgeBand": { "value": null, "confidence": 0.9, "sourceSpan": "nothing on the inside today" },
+  "combustionVentType": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "nothing on the inside today"
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "not_tested",
+      "confidence": 0.85,
+      "sourceSpan": "nothing on the inside today"
+    },
+    "venting": {
+      "value": "not_tested",
+      "confidence": 0.85,
+      "sourceSpan": "nothing on the inside today"
+    },
+    "naturalConditionSpillage": {
+      "value": "not_tested",
+      "confidence": 0.85,
+      "sourceSpan": "nothing on the inside today"
+    },
+    "worstCaseDepressurization": {
+      "value": "not_tested",
+      "confidence": 0.85,
+      "sourceSpan": "nothing on the inside today"
+    },
+    "worstCaseSpillage": {
+      "value": "not_tested",
+      "confidence": 0.85,
+      "sourceSpan": "nothing on the inside today"
+    },
+    "draftPressure": {
+      "value": "not_tested",
+      "confidence": 0.85,
+      "sourceSpan": "nothing on the inside today"
+    },
+    "gasLeak": {
+      "value": "not_tested",
+      "confidence": 0.85,
+      "sourceSpan": "nothing on the inside today"
+    },
+    "moldMoisture": {
+      "value": "not_tested",
+      "confidence": 0.85,
+      "sourceSpan": "nothing on the inside today"
+    },
+    "asbestos": {
+      "value": "not_tested",
+      "confidence": 0.85,
+      "sourceSpan": "nothing on the inside today"
+    },
+    "lead": {
+      "value": "not_tested",
+      "confidence": 0.85,
+      "sourceSpan": "nothing on the inside today"
+    },
+    "electrical": {
+      "value": "not_tested",
+      "confidence": 0.85,
+      "sourceSpan": "nothing on the inside today"
+    }
+  }
+}

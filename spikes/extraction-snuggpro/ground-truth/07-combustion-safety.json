@@ -1,0 +1,76 @@
+{
+  "transcript": "transcripts/07-combustion-safety.txt",
+  "stresses": "HAZARD 3 stress test: six of the eleven tests get non-null states in one file -- ambientCo failed, worstCaseSpillage failed, draftPressure passed, gasLeak warning, venting warning, naturalConditionSpillage passed -- plus mold/asbestos/lead explicitly out of scope -> not_tested, and worstCaseDepressurization/electrical silent -> null. Tests the passed/failed/warning/not_tested/null five-way and the natural-vs-worst-case spillage split. Unit trap: \"minus fifty pascals\" is a depressurization reference, NOT a blower-door CFM50.",
+  "fields": {
+    "heatingEquipmentType": { "value": "furnace_central_ac", "sourceSpan": "a gas furnace" },
+    "heatingFuel": { "value": "natural_gas", "sourceSpan": "a gas furnace" },
+    "heatingManufacturer": { "value": null, "sourceSpan": null },
+    "heatingModelNumber": { "value": null, "sourceSpan": null },
+    "heatingModelYear": { "value": null, "sourceSpan": null },
+    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
+    "coolingEquipmentType": { "value": null, "sourceSpan": null },
+    "ductLocation": { "value": null, "sourceSpan": null },
+    "ductSealing": { "value": null, "sourceSpan": null },
+    "ductInsulation": { "value": null, "sourceSpan": null },
+    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
+    "atticInsulationDepthIn": { "value": null, "sourceSpan": null },
+    "atticInsulationType": { "value": null, "sourceSpan": null },
+    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
+    "wallInsulated": { "value": null, "sourceSpan": null },
+    "wallConstruction": { "value": null, "sourceSpan": null },
+    "blowerDoorCfm50": { "value": null, "sourceSpan": null },
+    "windowGlazing": { "value": null, "sourceSpan": null },
+    "windowFrame": { "value": null, "sourceSpan": null },
+    "dhwFuel": { "value": "natural_gas", "sourceSpan": "a gas storage water heater" },
+    "dhwSystemType": { "value": "storage", "sourceSpan": "a gas storage water heater" },
+    "dhwAgeBand": { "value": null, "sourceSpan": null },
+    "combustionVentType": { "value": null, "sourceSpan": null },
+    "healthSafety": {
+      "ambientCo": {
+        "value": "failed",
+        "sourceSpan": "I'm calling that a fail on ambient CO"
+      },
+      "venting": {
+        "value": "warning",
+        "sourceSpan": "I'm flagging venting as a warning too"
+      },
+      "naturalConditionSpillage": {
+        "value": "passed",
+        "sourceSpan": "no spillage under natural conditions"
+      },
+      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
+      "worstCaseSpillage": {
+        "value": "failed",
+        "sourceSpan": "Worst case spillage is a fail"
+      },
+      "draftPressure": {
+        "value": "passed",
+        "sourceSpan": "good steady draft, that one passes"
+      },
+      "gasLeak": {
+        "value": "warning",
+        "sourceSpan": "I'd call that a warning"
+      },
+      "moldMoisture": {
+        "value": "not_tested",
+        "sourceSpan": "none of that was in scope for this combustion visit, I didn't look at any of it today"
+      },
+      "asbestos": {
+        "value": "not_tested",
+        "sourceSpan": "none of that was in scope for this combustion visit, I didn't look at any of it today"
+      },
+      "lead": {
+        "value": "not_tested",
+        "sourceSpan": "none of that was in scope for this combustion visit, I didn't look at any of it today"
+      },
+      "electrical": { "value": null, "sourceSpan": null }
+    }
+  },
+  "notes": {
+    "worstCaseDepressurization": "Intended null. The auditor DEPRESSURIZED the house (to about -50 Pa) only as the METHOD to run the worst-case spillage test; he reports a result for spillage, not a discrete pass/fail on the depressurization test itself. Arguable: a model reading the -50 Pa achievement as a passed depressurization is defensible -- score passed here as a mild reading, not a hallucination. failed/warning are wrong.",
+    "naturalConditionSpillage": "passed and DISTINCT from worstCaseSpillage=failed: the appliance was fine under natural operation and only spilled under induced worst-case depressurization. The two spillage tests are separate matrix keys and must not be collapsed.",
+    "gasLeak": "A real but small leak at the range shutoff, auditor grades it warning (not failed): borderline, needs a plumber, not evacuate-now. Reading it as failed is a severity error, score per severity.",
+    "combustionVentType": "Intended null. \"shared B-vent\" is atmospheric/natural-draft venting, not one of the four members. Same rule as transcript 06: null correct, other defensible, a named member wrong.",
+    "_general": "Unit distractors that must NOT become field values: \"thirty-five ppm\" (the CO reading behind ambientCo=failed), \"minus fifty pascals\" (the worst-case depressurization reference pressure -- NOT blowerDoorCfm50; there is no blower-door number in this transcript, blowerDoorCfm50 is null). Shell was done on a separate file, so the entire envelope/attic/window set is correctly null here."
+  }
+}

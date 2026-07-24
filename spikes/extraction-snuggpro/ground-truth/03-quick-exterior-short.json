@@ -1,0 +1,57 @@
+{
+  "transcript": "transcripts/03-quick-exterior-short.txt",
+  "stresses": "ABSENT-HEAVY short visit (exterior only). Core hallucination test: almost every field is null. Contains a HEDGE trap on glazing (leans double pane but explicitly \"not certain\" -> null) set against a confident frame (\"that I'm sure of\" -> vinyl). Attic and heating explicitly not seen.",
+  "fields": {
+    "heatingEquipmentType": {
+      "value": null,
+      "sourceSpan": "didn't see the heating"
+    },
+    "heatingFuel": { "value": null, "sourceSpan": null },
+    "heatingManufacturer": { "value": null, "sourceSpan": null },
+    "heatingModelNumber": { "value": null, "sourceSpan": null },
+    "heatingModelYear": { "value": null, "sourceSpan": null },
+    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
+    "coolingEquipmentType": { "value": null, "sourceSpan": null },
+    "ductLocation": { "value": null, "sourceSpan": null },
+    "ductSealing": { "value": null, "sourceSpan": null },
+    "ductInsulation": { "value": null, "sourceSpan": null },
+    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
+    "atticInsulationDepthIn": {
+      "value": null,
+      "sourceSpan": "Didn't get into the attic"
+    },
+    "atticInsulationType": { "value": null, "sourceSpan": "Didn't get into the attic" },
+    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
+    "wallInsulated": { "value": null, "sourceSpan": null },
+    "wallConstruction": {
+      "value": "frame_2x6",
+      "sourceSpan": "looks like a two-by-six frame"
+    },
+    "blowerDoorCfm50": { "value": null, "sourceSpan": null },
+    "windowGlazing": { "value": null, "sourceSpan": "so I'm not certain" },
+    "windowFrame": { "value": "vinyl", "sourceSpan": "Vinyl frames though, that I'm sure of" },
+    "dhwFuel": { "value": null, "sourceSpan": null },
+    "dhwSystemType": { "value": null, "sourceSpan": null },
+    "dhwAgeBand": { "value": null, "sourceSpan": null },
+    "combustionVentType": { "value": null, "sourceSpan": null },
+    "healthSafety": {
+      "ambientCo": { "value": null, "sourceSpan": null },
+      "venting": { "value": null, "sourceSpan": null },
+      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
+      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
+      "worstCaseSpillage": { "value": null, "sourceSpan": null },
+      "draftPressure": { "value": null, "sourceSpan": null },
+      "gasLeak": { "value": null, "sourceSpan": null },
+      "moldMoisture": { "value": null, "sourceSpan": null },
+      "asbestos": { "value": null, "sourceSpan": null },
+      "lead": { "value": null, "sourceSpan": null },
+      "electrical": { "value": null, "sourceSpan": null }
+    }
+  },
+  "notes": {
+    "windowGlazing": "Intended null: the auditor leans double pane but explicitly refuses to commit (\"I'm not certain\"). Score null CORRECT; double_pane is WRONG-but-grounded (quoted, not asserted), report separately from invented values. This is paired with the frame to test whether a model can hold a hedge and a certainty apart in the same sentence.",
+    "windowFrame": "Deliberately certain by contrast (\"that I'm sure of\") -> vinyl is a real value. A model that nulls this after nulling glazing is over-correcting.",
+    "wallConstruction": "frame_2x6 from \"looks like a two-by-six frame\" observed via the garage framing. Mildly hedged (\"looks like\") but a direct visual observation, so non-null is acceptable; null is a defensible miss, not a hallucination.",
+    "_general": "Absent-heavy transcript: the correct emission for the entire mechanical/attic/DHW/safety set is null. This is the headline hallucination probe. \"single story ranch\" and \"next week\" carry no field values."
+  }
+}

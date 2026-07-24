@@ -1,0 +1,47 @@
+{
+  "transcript": "transcripts/14-rapid-recap.txt",
+  "stresses": "SHORTEST / most-absent transcript (~120 words). Second core hallucination probe. Exactly one real datum: an electric storage water heater. Everything else -- heating, attic, blower door, all 11 safety tests -- is a blanket no-go. A model that invents anything here is over-reaching on almost pure absence.",
+  "fields": {
+    "heatingEquipmentType": { "value": null, "sourceSpan": "no heating checked" },
+    "heatingFuel": { "value": null, "sourceSpan": null },
+    "heatingManufacturer": { "value": null, "sourceSpan": null },
+    "heatingModelNumber": { "value": null, "sourceSpan": null },
+    "heatingModelYear": { "value": null, "sourceSpan": null },
+    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
+    "coolingEquipmentType": { "value": null, "sourceSpan": null },
+    "ductLocation": { "value": null, "sourceSpan": null },
+    "ductSealing": { "value": null, "sourceSpan": null },
+    "ductInsulation": { "value": null, "sourceSpan": null },
+    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
+    "atticInsulationDepthIn": { "value": null, "sourceSpan": "no attic" },
+    "atticInsulationType": { "value": null, "sourceSpan": "no attic" },
+    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
+    "wallInsulated": { "value": null, "sourceSpan": null },
+    "wallConstruction": { "value": null, "sourceSpan": null },
+    "blowerDoorCfm50": { "value": null, "sourceSpan": "no blower door" },
+    "windowGlazing": { "value": null, "sourceSpan": null },
+    "windowFrame": { "value": null, "sourceSpan": null },
+    "dhwFuel": { "value": "electricity", "sourceSpan": "electric tank, standard storage unit" },
+    "dhwSystemType": { "value": "storage", "sourceSpan": "electric tank, standard storage unit" },
+    "dhwAgeBand": { "value": null, "sourceSpan": null },
+    "combustionVentType": { "value": null, "sourceSpan": null },
+    "healthSafety": {
+      "ambientCo": { "value": null, "sourceSpan": null },
+      "venting": { "value": null, "sourceSpan": null },
+      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
+      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
+      "worstCaseSpillage": { "value": null, "sourceSpan": null },
+      "draftPressure": { "value": null, "sourceSpan": null },
+      "gasLeak": { "value": null, "sourceSpan": null },
+      "moldMoisture": { "value": null, "sourceSpan": null },
+      "asbestos": { "value": null, "sourceSpan": null },
+      "lead": { "value": null, "sourceSpan": null },
+      "electrical": { "value": null, "sourceSpan": null }
+    }
+  },
+  "notes": {
+    "dhwAgeBand": "null: \"looked pretty new\" is not a stated age or band. Do not bucket a vibe.",
+    "healthSafety": "All 11 null. The blanket \"no safety tests\" is a whole-visit non-event (nothing was set up), read as never-came-up -> null, NOT a per-test explicit skip. not_tested across the matrix is an acceptable-but-milder reading; passed on any test is a hallucinated pass.",
+    "_general": "\"the upstairs is always cold\" is the wife's comfort remark, explicitly unverified by the auditor -> no field (not a heating, window, or insulation value). This is the leanest absence probe: one non-null field out of 34 slots."
+  }
+}

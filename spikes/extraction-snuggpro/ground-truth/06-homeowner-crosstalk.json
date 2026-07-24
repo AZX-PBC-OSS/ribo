@@ -1,0 +1,61 @@
+{
+  "transcript": "transcripts/06-homeowner-crosstalk.txt",
+  "stresses": "SECOND-SPEAKER discipline (rule 6). The homeowner asserts an efficiency (95%), an equipment age (10 yrs / move-in 2015), and hearsay asbestos; the auditor refuses to log all three in his own words. heatingModelYear stays null despite a spoken age. Only the auditor's own confirmations count: furnace+natural_gas, gas storage water heater, CO passed. Asbestos raised by homeowner and explicitly not tested -> not_tested.",
+  "fields": {
+    "heatingEquipmentType": {
+      "value": "furnace_central_ac",
+      "sourceSpan": "it's a furnace, natural gas"
+    },
+    "heatingFuel": { "value": "natural_gas", "sourceSpan": "it's a furnace, natural gas" },
+    "heatingManufacturer": { "value": "Goodman", "sourceSpan": "It's a Goodman" },
+    "heatingModelNumber": { "value": null, "sourceSpan": null },
+    "heatingModelYear": { "value": null, "sourceSpan": "I'm leaving the year blank" },
+    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
+    "coolingEquipmentType": { "value": null, "sourceSpan": null },
+    "ductLocation": { "value": null, "sourceSpan": null },
+    "ductSealing": { "value": null, "sourceSpan": null },
+    "ductInsulation": { "value": null, "sourceSpan": null },
+    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
+    "atticInsulationDepthIn": { "value": null, "sourceSpan": null },
+    "atticInsulationType": { "value": null, "sourceSpan": null },
+    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
+    "wallInsulated": { "value": null, "sourceSpan": null },
+    "wallConstruction": { "value": null, "sourceSpan": null },
+    "blowerDoorCfm50": { "value": null, "sourceSpan": null },
+    "windowGlazing": { "value": null, "sourceSpan": null },
+    "windowFrame": { "value": null, "sourceSpan": null },
+    "dhwFuel": { "value": "natural_gas", "sourceSpan": "it's a gas water heater, storage tank" },
+    "dhwSystemType": {
+      "value": "storage",
+      "sourceSpan": "storage tank, standard forty-gallon gas unit"
+    },
+    "dhwAgeBand": { "value": null, "sourceSpan": null },
+    "combustionVentType": { "value": null, "sourceSpan": null },
+    "healthSafety": {
+      "ambientCo": {
+        "value": "passed",
+        "sourceSpan": "CO test right by the two appliances, I'm reading zero, clean, no carbon monoxide"
+      },
+      "venting": { "value": null, "sourceSpan": null },
+      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
+      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
+      "worstCaseSpillage": { "value": null, "sourceSpan": null },
+      "draftPressure": { "value": null, "sourceSpan": null },
+      "gasLeak": { "value": null, "sourceSpan": null },
+      "moldMoisture": { "value": null, "sourceSpan": null },
+      "asbestos": {
+        "value": "not_tested",
+        "sourceSpan": "so I didn't test it, leaving it as not done from my end"
+      },
+      "lead": { "value": null, "sourceSpan": null },
+      "electrical": { "value": null, "sourceSpan": null }
+    }
+  },
+  "notes": {
+    "heatingModelYear": "The CRUX crosstalk trap. The homeowner supplies an age (\"about ten years old\", move-in 2015). The auditor explicitly refuses to log it without a readable plate and says he's leaving the year blank. Correct = null. Emitting 2015 or 10 or ~2015-derived is a second-speaker attribution error, not a grounded value.",
+    "asbestos": "The homeowner raises asbestos as hearsay; the auditor addresses it and states he did not test it and it was out of scope -> not_tested (an explicit non-performance), NOT a value derived from the homeowner's claim, and NOT null. null is an acceptable-but-milder reading; a fabricated failed/passed on asbestos is a hallucination.",
+    "dhwFuel": "\"gas water heater\" -> natural_gas on the fuel axis (adjective split), same pattern as heating.",
+    "combustionVentType": "Intended null. \"natural draft up the flue\" is atmospheric draft, which is NOT one of the four vent-system members (induced/power-at-unit/power-at-exterior/direct). Score null CORRECT; \"other\" is a defensible mild alternative; any of the four named members is wrong.",
+    "_general": "None of the homeowner's numbers are field values: \"ninety-five percent\" (efficiency, no slot), \"twenty-fifteen\"/\"ten years\" (move-in, not equipment year), \"forty-gallon\" (tank size). The whole shell (attic/walls/blower/windows) is a next-visit null."
+  }
+}

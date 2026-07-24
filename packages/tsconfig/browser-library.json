@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./base.json",
+  "compilerOptions": {
+    // Browser-targeted library code: MediaRecorder, IndexedDB, fetch, Blob,
+    // AudioContext, Worker. `lib` controls which types exist, not which layer
+    // a package belongs to — the "headless" boundary (no React, no DOM
+    // rendering) is enforced by ESLint in eslint.config.mjs, not by omitting
+    // the DOM lib. No JSX here: that lives in react-library.json.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  }
+}

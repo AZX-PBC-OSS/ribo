@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+pnpm-lock.yaml
+
+# Generated docs output: VitePress build/cache and the TypeDoc-generated API Reference markdown
+# (not hand-formatted — Prettier must not gate it).
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+docs/reference/
+
+# Search-plan spike: raw per-node model dumps (gitignored; regenerable, noisy)
+spikes/extraction-search-plan/results/*/*/

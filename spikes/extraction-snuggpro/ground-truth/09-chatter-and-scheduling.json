@@ -1,0 +1,60 @@
+{
+  "transcript": "transcripts/09-chatter-and-scheduling.txt",
+  "stresses": "MEASURE-RELEVANCE / chatter-heavy short visit (dog, scheduling, kid, rain, a previous job). Only the DHW is real. \"tankless\" -> instantaneous (enum paraphrase), \"power vented ... at the unit\" -> power_vented_at_unit. dhwAgeBand uses homeowner info the auditor DOES confirm in his own words (\"Yeah, two years\") -> 0-5 -- the deliberate contrast with transcript 06 where he refuses. A previous job's \"three furnaces\" is a distractor that must not populate heating.",
+  "fields": {
+    "heatingEquipmentType": { "value": null, "sourceSpan": null },
+    "heatingFuel": { "value": null, "sourceSpan": null },
+    "heatingManufacturer": { "value": null, "sourceSpan": null },
+    "heatingModelNumber": { "value": null, "sourceSpan": null },
+    "heatingModelYear": { "value": null, "sourceSpan": null },
+    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
+    "coolingEquipmentType": { "value": null, "sourceSpan": null },
+    "ductLocation": { "value": null, "sourceSpan": null },
+    "ductSealing": { "value": null, "sourceSpan": null },
+    "ductInsulation": { "value": null, "sourceSpan": null },
+    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
+    "atticInsulationDepthIn": { "value": null, "sourceSpan": null },
+    "atticInsulationType": { "value": null, "sourceSpan": null },
+    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
+    "wallInsulated": { "value": null, "sourceSpan": null },
+    "wallConstruction": { "value": null, "sourceSpan": null },
+    "blowerDoorCfm50": { "value": null, "sourceSpan": null },
+    "windowGlazing": { "value": null, "sourceSpan": null },
+    "windowFrame": { "value": null, "sourceSpan": null },
+    "dhwFuel": {
+      "value": "natural_gas",
+      "sourceSpan": "It's tankless, on-demand, natural gas, a Navien"
+    },
+    "dhwSystemType": {
+      "value": "instantaneous",
+      "sourceSpan": "It's tankless, on-demand, natural gas, a Navien"
+    },
+    "dhwAgeBand": {
+      "value": "0-5",
+      "sourceSpan": "Yeah, two years, so no concern on that one at all"
+    },
+    "combustionVentType": {
+      "value": "power_vented_at_unit",
+      "sourceSpan": "power vented right at the unit"
+    },
+    "healthSafety": {
+      "ambientCo": { "value": null, "sourceSpan": null },
+      "venting": { "value": null, "sourceSpan": null },
+      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
+      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
+      "worstCaseSpillage": { "value": null, "sourceSpan": null },
+      "draftPressure": { "value": null, "sourceSpan": null },
+      "gasLeak": { "value": null, "sourceSpan": null },
+      "moldMoisture": { "value": null, "sourceSpan": null },
+      "asbestos": { "value": null, "sourceSpan": null },
+      "lead": { "value": null, "sourceSpan": null },
+      "electrical": { "value": null, "sourceSpan": null }
+    }
+  },
+  "notes": {
+    "dhwSystemType": "\"tankless\"/\"on-demand\" -> instantaneous. The spoken word never equals the stored token.",
+    "dhwAgeBand": "The homeowner says \"two years ago\"; the auditor CONFIRMS in his own words (\"Yeah, two years, so no concern\"). Rule 6 makes this a usable value -> 2 yr -> 0-5. This is the intended contrast with transcript 06, where the auditor refuses the homeowner's age. A model that treats all second-speaker numbers identically will get exactly one of these two wrong.",
+    "heatingEquipmentType": "null. \"three furnaces\" belongs to a DIFFERENT house (the previous Cedar job) and the furnace here is deferred to next Tuesday. No heating value.",
+    "_general": "No DHW manufacturer/model field exists in this schema, so \"Navien\" / \"Navien NPE-something\" is correctly dropped (heatingManufacturer/heatingModelNumber are the HEATING unit's, not the DHW's). Chatter with no fields: the dog, \"scheduled for two\", the kid's schedule, rain, the ladder."
+  }
+}

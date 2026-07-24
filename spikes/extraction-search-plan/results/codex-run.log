@@ -1,0 +1,15 @@
+[codex] ok   01-attic-r-value-shell  plan=0s locate=0s decide=0s  gated-out=0 (all cached)
+[codex] ok   02-oil-boiler-basement  plan=16s locate=14s decide=31s  gated-out=0
+[codex] ok   03-quick-exterior-short  plan=13s locate=10s decide=18s  gated-out=0
+[codex] ok   04-fuel-stated-separately  plan=11s locate=14s decide=27s  gated-out=0
+[codex] ok   05-full-walkthrough  plan=23s locate=27s decide=34s  gated-out=0
+[codex] ok   06-homeowner-crosstalk  plan=9s locate=8s decide=29s  gated-out=0
+[codex] ok   07-combustion-safety  plan=13s locate=12s decide=31s  gated-out=0
+[codex] ok   08-no-fuel-silent-drop  plan=0s locate=0s decide=0s  gated-out=0 (all cached)
+[codex] ok   09-chatter-and-scheduling  plan=16s locate=8s decide=26s  gated-out=0
+[codex] ok   10-crawlspace-loose-units  plan=14s locate=15s decide=19s  gated-out=0
+[codex] ok   11-ambiguous-attic  plan=17s locate=11s decide=29s  gated-out=0
+[codex] ok   12-wrong-field-old-unit  plan=14s locate=11s decide=28s  gated-out=0
+[codex] ok   13-enum-paraphrase  plan=0s locate=0s decide=0s  gated-out=0 (all cached)
+[codex] ok   14-rapid-recap  plan=21s locate=12s decide=27s  gated-out=0
+[codex] done

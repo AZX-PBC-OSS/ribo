@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Solution-style config: no files of its own, it just ties together the three
+  // real projects. Browser source (src/), the Node-side build config
+  // (vite.config.ts) and the Node+DOM offline test (e2e/) run in different
+  // environments and need different `lib`/`types`, so they cannot share one
+  // tsconfig. `tsc -b` checks all three.
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" },
+    { "path": "./tsconfig.e2e.json" }
+  ]
+}

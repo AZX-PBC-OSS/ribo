@@ -1,0 +1,126 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 0.85,
+    "sourceSpan": "a gas furnace"
+  },
+  "heatingFuel": { "value": "natural_gas", "confidence": 0.9, "sourceSpan": "a gas furnace" },
+  "heatingManufacturer": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "heatingModelNumber": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "heatingModelYear": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "heatingOutputCapacityBtuh": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "coolingEquipmentType": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "ductLocation": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "ductSealing": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "ductInsulation": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "ductLeakageCfm25": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "this recording is just the combustion safety worklist, I did the shell separately on another file"
+  },
+  "atticInsulationType": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "this recording is just the combustion safety worklist, I did the shell separately on another file"
+  },
+  "atticInsulationSpokenRValue": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "this recording is just the combustion safety worklist, I did the shell separately on another file"
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "this recording is just the combustion safety worklist, I did the shell separately on another file"
+  },
+  "wallConstruction": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "this recording is just the combustion safety worklist, I did the shell separately on another file"
+  },
+  "blowerDoorCfm50": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "this recording is just the combustion safety worklist, I did the shell separately on another file"
+  },
+  "windowGlazing": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "this recording is just the combustion safety worklist, I did the shell separately on another file"
+  },
+  "windowFrame": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "this recording is just the combustion safety worklist, I did the shell separately on another file"
+  },
+  "dhwFuel": {
+    "value": "natural_gas",
+    "confidence": 0.9,
+    "sourceSpan": "a gas storage water heater"
+  },
+  "dhwSystemType": {
+    "value": "storage",
+    "confidence": 1.0,
+    "sourceSpan": "a gas storage water heater"
+  },
+  "dhwAgeBand": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "combustionVentType": {
+    "value": "other",
+    "confidence": 0.9,
+    "sourceSpan": "both venting into a shared B-vent up through the roof"
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "failed",
+      "confidence": 1.0,
+      "sourceSpan": "ambient CO in the room climbed to thirty-five ppm with both firing, that is over my threshold, I'm calling that a fail on ambient CO"
+    },
+    "venting": {
+      "value": "warning",
+      "confidence": 1.0,
+      "sourceSpan": "the B-vent connector's got a bit of a sag to it and one joint isn't screwed together, I'm flagging venting as a warning too"
+    },
+    "naturalConditionSpillage": {
+      "value": "passed",
+      "confidence": 1.0,
+      "sourceSpan": "no spillage under natural conditions"
+    },
+    "worstCaseDepressurization": {
+      "value": "failed",
+      "confidence": 0.7,
+      "sourceSpan": "I depressurized the house with the exhaust fans and the dryer running, got it to about minus fifty pascals, and the water heater spilled at the draft hood, sustained, did not clear"
+    },
+    "worstCaseSpillage": {
+      "value": "failed",
+      "confidence": 1.0,
+      "sourceSpan": "Worst case spillage is a fail"
+    },
+    "draftPressure": {
+      "value": "passed",
+      "confidence": 1.0,
+      "sourceSpan": "good steady draft, that one passes"
+    },
+    "gasLeak": {
+      "value": "warning",
+      "confidence": 1.0,
+      "sourceSpan": "There's a small leak at the range shutoff valve, the sniffer lit up on it, not huge but it's real, I'd call that a warning"
+    },
+    "moldMoisture": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today"
+    },
+    "asbestos": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today"
+    },
+    "lead": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today"
+    },
+    "electrical": { "value": null, "confidence": 0.9, "sourceSpan": null }
+  }
+}

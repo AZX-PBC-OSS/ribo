@@ -1,0 +1,174 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 0.9,
+    "sourceSpan": "a gas furnace"
+  },
+  "heatingFuel": {
+    "value": "natural_gas",
+    "confidence": 0.95,
+    "sourceSpan": "a gas furnace"
+  },
+  "heatingManufacturer": {
+    "value": "Bryant",
+    "confidence": 1,
+    "sourceSpan": "it's a Bryant"
+  },
+  "heatingModelNumber": {
+    "value": "926T",
+    "confidence": 1,
+    "sourceSpan": "model 926T"
+  },
+  "heatingModelYear": {
+    "value": 2024,
+    "confidence": 1,
+    "sourceSpan": "the year on it is twenty twenty-four"
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": 60000,
+    "confidence": 1,
+    "sourceSpan": "Output is sixty thousand BTU"
+  },
+  "coolingEquipmentType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductLocation": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductSealing": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductInsulation": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductLeakageCfm25": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationSpokenRValue": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "wallConstruction": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "blowerDoorCfm50": {
+    "value": 4100,
+    "confidence": 1,
+    "sourceSpan": "Blower door I ran after: forty-one hundred CFM50"
+  },
+  "windowGlazing": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "windowFrame": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "dhwFuel": {
+    "value": "natural_gas",
+    "confidence": 0.95,
+    "sourceSpan": "a gas storage tank"
+  },
+  "dhwSystemType": {
+    "value": "storage",
+    "confidence": 1,
+    "sourceSpan": "a gas storage tank"
+  },
+  "dhwAgeBand": {
+    "value": "26-30",
+    "confidence": 1,
+    "sourceSpan": "twenty-six, twenty-seven years old"
+  },
+  "combustionVentType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "passed",
+      "confidence": 1,
+      "sourceSpan": "CO check by the new furnace, clean, zero ppm"
+    },
+    "venting": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "naturalConditionSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "worstCaseDepressurization": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "worstCaseSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "draftPressure": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "gasLeak": {
+      "value": "passed",
+      "confidence": 1,
+      "sourceSpan": "Gas sniff on the new furnace and the water heater connections, all clean, no leaks anywhere"
+    },
+    "moldMoisture": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "asbestos": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "lead": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "electrical": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  }
+}

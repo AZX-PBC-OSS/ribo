@@ -1,0 +1,79 @@
+{
+  "transcript": "transcripts/04-fuel-stated-separately.txt",
+  "stresses": "HAZARD 1 fuel stated SEPARATELY from equipment (\"it's a boiler ... and it runs on oil\") -> boiler + fuel_oil across two clauses. DHW fuel differs from heating fuel (electric tank, not off the oil boiler) -> tests independent-axis discipline. HAZARD 3 three-way: gas-leak clean -> passed, worst-case explicitly skipped -> not_tested, CO 4ppm below action -> passed. Attic explicitly inaccessible -> null with span.",
+  "fields": {
+    "heatingEquipmentType": { "value": "boiler", "sourceSpan": "it's a boiler, hot water boiler" },
+    "heatingFuel": { "value": "fuel_oil", "sourceSpan": "it runs on oil" },
+    "heatingManufacturer": {
+      "value": "Weil-McLain",
+      "sourceSpan": "Weil-McLain, the model's a WGO"
+    },
+    "heatingModelNumber": { "value": "WGO", "sourceSpan": "the model's a WGO" },
+    "heatingModelYear": {
+      "value": 1999,
+      "sourceSpan": "it says nineteen ninety-nine on the burner tag"
+    },
+    "heatingOutputCapacityBtuh": {
+      "value": 105000,
+      "sourceSpan": "Hundred and five thousand BTU output on the rating plate"
+    },
+    "coolingEquipmentType": { "value": null, "sourceSpan": null },
+    "ductLocation": { "value": null, "sourceSpan": null },
+    "ductSealing": { "value": null, "sourceSpan": null },
+    "ductInsulation": { "value": null, "sourceSpan": null },
+    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
+    "atticInsulationDepthIn": {
+      "value": null,
+      "sourceSpan": "I've got nothing on attic insulation"
+    },
+    "atticInsulationType": {
+      "value": null,
+      "sourceSpan": "I've got nothing on attic insulation"
+    },
+    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
+    "wallInsulated": { "value": null, "sourceSpan": null },
+    "wallConstruction": { "value": null, "sourceSpan": null },
+    "blowerDoorCfm50": { "value": null, "sourceSpan": null },
+    "windowGlazing": { "value": null, "sourceSpan": null },
+    "windowFrame": { "value": null, "sourceSpan": null },
+    "dhwFuel": {
+      "value": "electricity",
+      "sourceSpan": "separate electric water heater, Rheem"
+    },
+    "dhwSystemType": {
+      "value": "storage",
+      "sourceSpan": "Hot water is a standalone electric tank"
+    },
+    "dhwAgeBand": { "value": "11-15", "sourceSpan": "it's maybe twelve years old" },
+    "combustionVentType": { "value": null, "sourceSpan": null },
+    "healthSafety": {
+      "ambientCo": {
+        "value": "passed",
+        "sourceSpan": "the ambient carbon monoxide by the burner read four ppm, which is fine, below any action level, so that's a pass on CO"
+      },
+      "venting": { "value": null, "sourceSpan": null },
+      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
+      "worstCaseDepressurization": {
+        "value": "not_tested",
+        "sourceSpan": "I did not do the worst-case depressurization test today"
+      },
+      "worstCaseSpillage": { "value": null, "sourceSpan": null },
+      "draftPressure": { "value": null, "sourceSpan": null },
+      "gasLeak": {
+        "value": "passed",
+        "sourceSpan": "sniffed all the fittings, came back completely clean, no leaks"
+      },
+      "moldMoisture": { "value": null, "sourceSpan": null },
+      "asbestos": { "value": null, "sourceSpan": null },
+      "lead": { "value": null, "sourceSpan": null },
+      "electrical": { "value": null, "sourceSpan": null }
+    }
+  },
+  "notes": {
+    "heatingFuel": "The fuel is stated in a SEPARATE clause from the equipment (\"it's a boiler ... and it runs on oil\"), not fused as an adjective. Both axes still fill: boiler + fuel_oil. The fused span for equipment and the separate span for fuel are different substrings here, unlike the adjective cases.",
+    "dhwFuel": "electricity, and deliberately NOT fuel_oil: the DHW is a standalone electric tank the auditor stresses is \"not tied to the boiler.\" Do not let the heating fuel bleed onto the DHW axis.",
+    "worstCaseDepressurization": "Explicit skip -> not_tested (\"I did not do the worst-case ... today\"), distinct from the silent tests which are null. This is the not_tested vs null distinction the matrix exists to keep.",
+    "ambientCo": "4 ppm reported explicitly below action level, auditor calls it a pass -> passed. The number 4 is not a field value.",
+    "_general": "Distractors: \"fifty gallon\" (tank size), \"early two-thousand-tens\" (a vague date, not the age band source; band comes from the stated \"twelve years old\"), \"four ppm\" (a reading behind the CO pass, not a numeric field)."
+  }
+}

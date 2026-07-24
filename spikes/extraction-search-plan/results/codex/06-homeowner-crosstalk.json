@@ -1,0 +1,174 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 1,
+    "sourceSpan": "it's a furnace"
+  },
+  "heatingFuel": {
+    "value": "natural_gas",
+    "confidence": 1,
+    "sourceSpan": "natural gas"
+  },
+  "heatingManufacturer": {
+    "value": "Goodman",
+    "confidence": 1,
+    "sourceSpan": "It's a Goodman."
+  },
+  "heatingModelNumber": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "heatingModelYear": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": "I can't read the plate, so I'm leaving the year blank."
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "coolingEquipmentType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductLocation": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductSealing": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductInsulation": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductLeakageCfm25": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationSpokenRValue": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "wallConstruction": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "blowerDoorCfm50": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "windowGlazing": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "windowFrame": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "dhwFuel": {
+    "value": "natural_gas",
+    "confidence": 1,
+    "sourceSpan": "it's a gas water heater"
+  },
+  "dhwSystemType": {
+    "value": "storage",
+    "confidence": 1,
+    "sourceSpan": "storage tank"
+  },
+  "dhwAgeBand": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "combustionVentType": {
+    "value": "other",
+    "confidence": 1,
+    "sourceSpan": "natural draft up the flue"
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "passed",
+      "confidence": 1,
+      "sourceSpan": "CO test right by the two appliances, I'm reading zero, clean, no carbon monoxide."
+    },
+    "venting": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "naturalConditionSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "worstCaseDepressurization": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "worstCaseSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "draftPressure": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "gasLeak": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "moldMoisture": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "asbestos": {
+      "value": "not_tested",
+      "confidence": 1,
+      "sourceSpan": "I have not tested for asbestos myself, and it wasn't in scope today, so I didn't test it, leaving it as not done from my end."
+    },
+    "lead": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "electrical": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  }
+}

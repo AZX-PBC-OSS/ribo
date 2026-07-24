@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@azx/tsconfig/base.json",
+  "compilerOptions": {
+    // Required so the solution config below can reference this project.
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+
+    // vite.config.ts runs in Node, and Vite 8's own .d.ts files reference
+    // `node:http`, `NodeJS.*` and `Buffer`. The shared base ships no `types`,
+    // because @types/node is ambient: enabling it everywhere would let shipped
+    // browser code reference Node globals and still typecheck. This override is
+    // scoped to the single build-config file in `include` below, which is the
+    // only file here that genuinely runs in Node.
+    "types": ["node"],
+
+    // rolldown (Vite 8's bundler) types use `Symbol.asyncDispose`, which the
+    // base's `lib: ["ES2023"]` does not declare. Widened here for that reason —
+    // and `DOM` is added because `vite-extract.ts` does a type-only
+    // `import type { ChatClient, ChatRequest } from "@azx/ribo-extractor-openai"`.
+    // Under `@azx/source` + `bundler` resolution that package resolves to TS
+    // SOURCE, whose `index.ts` re-exports `singleShotExtractor`, transitively
+    // pulling `@azx/ribo-core`'s DOM-using source (`MediaRecorder`, `AudioContext`,
+    // …) into THIS project's type graph. Those names need the `DOM` lib to
+    // resolve. The values are erased at build (the runtime `openAiChat` is loaded
+    // via `ssrLoadModule`, never bundled), so this is purely a type-checking need.
+    // Both widenings are scoped to this project — it contains only vite.config.ts
+    // and vite-extract.ts (server-side build tooling) — so neither can leak into
+    // the browser-targeted packages.
+    "lib": ["ESNext", "DOM"]
+  },
+  "include": ["vite.config.ts", "vite-extract.ts", "vite-extract.test.ts"]
+}

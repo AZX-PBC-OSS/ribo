@@ -1,0 +1,82 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 0.75,
+    "sourceSpan": "heating is a furnace"
+  },
+  "heatingFuel": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "I honestly did not check the fuel on it"
+  },
+  "heatingManufacturer": {
+    "value": "Lennox",
+    "confidence": 1.0,
+    "sourceSpan": "It's a Lennox, though"
+  },
+  "heatingModelNumber": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "I couldn't get the full model number off the corner it was jammed into"
+  },
+  "heatingModelYear": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "there's no year I could read"
+  },
+  "heatingOutputCapacityBtuh": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "coolingEquipmentType": {
+    "value": "central_ac_standalone_ducts",
+    "confidence": 1.0,
+    "sourceSpan": "Central AC, standalone ducts."
+  },
+  "ductLocation": {
+    "value": "attic_unconditioned",
+    "confidence": 0.85,
+    "sourceSpan": "ducts up in the attic"
+  },
+  "ductSealing": {
+    "value": "very_leaky",
+    "confidence": 1.0,
+    "sourceSpan": "I'd call the sealing very leaky"
+  },
+  "ductInsulation": {
+    "value": "none",
+    "confidence": 1.0,
+    "sourceSpan": "the ducts up here have no insulation on them at all, bare metal"
+  },
+  "ductLeakageCfm25": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "I didn't measure the depth with a ruler, I'm eyeballing the R"
+  },
+  "atticInsulationType": {
+    "value": "fiberglass",
+    "confidence": 1.0,
+    "sourceSpan": "Attic insulation is fiberglass batts"
+  },
+  "atticInsulationSpokenRValue": { "value": 30, "confidence": 1.0, "sourceSpan": "R-30" },
+  "wallInsulated": { "value": "poorly", "confidence": 1.0, "sourceSpan": "So some, but poor" },
+  "wallConstruction": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "blowerDoorCfm50": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "windowGlazing": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "windowFrame": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "dhwFuel": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "dhwSystemType": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "dhwAgeBand": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "combustionVentType": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "healthSafety": {
+    "ambientCo": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "venting": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "naturalConditionSpillage": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "worstCaseDepressurization": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "worstCaseSpillage": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "draftPressure": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "gasLeak": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "moldMoisture": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "asbestos": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "lead": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "electrical": { "value": null, "confidence": 1.0, "sourceSpan": null }
+  }
+}

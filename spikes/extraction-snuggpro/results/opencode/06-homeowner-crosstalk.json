@@ -1,0 +1,174 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 0.85,
+    "sourceSpan": "it's a furnace"
+  },
+  "heatingFuel": {
+    "value": "natural_gas",
+    "confidence": 1.0,
+    "sourceSpan": "natural gas, I can see the gas line coming in"
+  },
+  "heatingManufacturer": {
+    "value": "Goodman",
+    "confidence": 1.0,
+    "sourceSpan": "It's a Goodman"
+  },
+  "heatingModelNumber": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "heatingModelYear": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "I'm not getting a clean model year off this one, it's worn right where the date is, so I'll leave the year"
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "coolingEquipmentType": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "ductLocation": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "ductSealing": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "ductInsulation": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "ductLeakageCfm25": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "Attic and the rest of the shell we'll do on the next visit"
+  },
+  "atticInsulationType": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "Attic and the rest of the shell we'll do on the next visit"
+  },
+  "atticInsulationSpokenRValue": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "Attic and the rest of the shell we'll do on the next visit"
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "Attic and the rest of the shell we'll do on the next visit"
+  },
+  "wallConstruction": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "Attic and the rest of the shell we'll do on the next visit"
+  },
+  "blowerDoorCfm50": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "Attic and the rest of the shell we'll do on the next visit"
+  },
+  "windowGlazing": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "Attic and the rest of the shell we'll do on the next visit"
+  },
+  "windowFrame": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "Attic and the rest of the shell we'll do on the next visit"
+  },
+  "dhwFuel": {
+    "value": "natural_gas",
+    "confidence": 0.9,
+    "sourceSpan": "a gas water heater"
+  },
+  "dhwSystemType": {
+    "value": "storage",
+    "confidence": 1.0,
+    "sourceSpan": "storage tank"
+  },
+  "dhwAgeBand": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "combustionVentType": {
+    "value": "other",
+    "confidence": 0.9,
+    "sourceSpan": "natural draft up the flue"
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "passed",
+      "confidence": 1.0,
+      "sourceSpan": "I'm reading zero, clean, no carbon monoxide"
+    },
+    "venting": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "naturalConditionSpillage": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "worstCaseDepressurization": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "worstCaseSpillage": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "draftPressure": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "gasLeak": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "moldMoisture": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "asbestos": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "I have not tested for asbestos myself, and it wasn't in scope today, so I didn't test it"
+    },
+    "lead": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "electrical": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    }
+  }
+}

@@ -1,0 +1,33 @@
+Okay, full walkthrough on the Castellano property, forty-one Maple, I'm going to run through the whole thing on one recording so bear with me, there's a lot here and the light's going.
+
+Starting in the mechanical closet off the kitchen. The heating system is a propane furnace, forced air, high-efficiency looking thing, condensing, there's the PVC flue going out the side wall so it's direct-vented, sealed combustion, pulls its air from outside. It's a Carrier, the model number is 59TP6, I'll spell that, five nine T P six, and the data plate year is twenty nineteen. Output capacity is eighty thousand BTU. There's a sticker on it claiming ninety-six percent but I'm not writing efficiency down, that's a lookup, you don't type that.
+
+Now — important, listen to this part — the homeowner's got a quote to swap this out for a heat pump next year, and there's an old floor furnace, a gravity job, sitting disconnected down in the basement, the ancient one they took out of service years ago. That old thing was an oil pot burner, it's decommissioned, capped, cold. I am not logging that as the system. The working system, the one that heats this house today, is the propane Carrier in the closet. Don't let the old oil unit end up in the record.
+
+[homeowner] Do you need the manual for the furnace?
+
+No, I've got what I need off the plate, thanks.
+
+Cooling is central AC, it's got a standalone air handler up in the attic with its own duct runs, condenser outside on a pad. So central AC, standalone ducts. And that ductwork in the attic is leaky, I could feel it, air pouring off the boots, pretty leaky, I'd call it very leaky honestly. I put the duct blaster on it and the duct leakage came in at one-fifty CFM25, a hundred fifty at twenty-five pascals. The ducts are wrapped in that thin fiberglass, the inch-and-a-quarter stuff, not much.
+
+Blower door next, set up in the front door. I got twenty-eight hundred CFM50 on the fan. I worked the house volume so that's about six point one ACH50, but the fan number, the one for the blower door, is twenty-eight hundred CFM50.
+
+Attic, same trip up as the air handler, access in the garage ceiling. It's cellulose up there, blown gray cellulose, and I actually measured the depth with the ruler — I'm getting eleven, twelve inches in the field, call it a good foot of cellulose, a solid eleven, twelve inches. And since the homeowner asked, at that depth it works out to roughly R-38, but understand the depth is what I actually measured, the eleven, twelve inches, the R-value's just the conversion.
+
+Water heater — it's a propane tankless unit, mounted on the wall in the closet, a Rinnai, on-demand, no age tag I could find on it, it's newer though. Tankless.
+
+Health and safety, this is the part that really matters on this house, so pay attention. Ambient CO throughout the house was zero to two ppm, clean, no CO issue anywhere. But — I ran the natural condition spillage test on the water heater, and it spilled, it backdrafted under natural conditions, flue gases rolling right out the draft diverter, and that is a hard fail, a fail on spillage under natural conditions. There's also some moisture staining on the basement wall, efflorescence and a bit of soft drywall in the one corner, I'd flag that as a moisture concern, worth watching, call it a warning on moisture, not a crisis but keep an eye. And there's old pipe wrap on the basement lines that looks like it could be asbestos — I did not test it, I'm not equipped to sample asbestos, so that one is not tested, defer it to an abatement pro.
+
+Windows are a mix but predominantly double pane, and the frames are that wood with the aluminum cladding on the outside, clad windows, wood clad.
+
+Walls, I opened one cavity on the addition, there's fiberglass batt in there, decent, I'd call the walls insulated, yes, properly insulated.
+
+[homeowner] What about the sunroom, is that going to show up cold?
+
+Yeah, the sunroom's a whole separate conversation, that's single-glazed on three sides and basically unconditioned, but it's not on the main envelope so I'm treating it as outside the thermal boundary, I'll footnote it.
+
+Couple of behavioral things while I'm thinking of it, none of these are measures, just notes for the report. The thermostat is a smart one, a Nest, but it's set to hold at seventy-two, not scheduled, so there's a behavior conversation there. Lighting is mostly LED already, they did that themselves, good. There's a chest freezer out in the garage that's probably from the nineties, and a second fridge, a beer fridge, also in the garage — those are plug loads I'll mention but they're not in my capture set. Dryer vents straight out the rim joist, short clean run, that's fine. Bath fans, both baths, they actually vent to the outside properly on this house, which is a nice change.
+
+Down in the basement, other than the moisture corner and the old floor furnace, the foundation is poured concrete, there's a little bit of rim-joist spray foam somebody did, and the crawlspace under the sunroom is a dirt-floor vented crawl with no vapor barrier, which I'd want addressed but it's a recommendation, not one of my fields.
+
+That's the whole house. The big items: the spillage fail on the water heater, the leaky attic ducts, and the general air sealing at twenty-eight hundred. Ending recording, that's forty-one Maple.

@@ -1,0 +1,174 @@
+{
+  "heatingEquipmentType": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no heating checked"
+  },
+  "heatingFuel": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no heating checked"
+  },
+  "heatingManufacturer": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no heating checked"
+  },
+  "heatingModelNumber": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no heating checked"
+  },
+  "heatingModelYear": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no heating checked"
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no heating checked"
+  },
+  "coolingEquipmentType": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "nothing else today"
+  },
+  "ductLocation": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "nothing else today"
+  },
+  "ductSealing": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "nothing else today"
+  },
+  "ductInsulation": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "nothing else today"
+  },
+  "ductLeakageCfm25": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "nothing else today"
+  },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no attic"
+  },
+  "atticInsulationType": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no attic"
+  },
+  "atticInsulationSpokenRValue": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no attic"
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "nothing else today"
+  },
+  "wallConstruction": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "nothing else today"
+  },
+  "blowerDoorCfm50": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no blower door"
+  },
+  "windowGlazing": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "nothing else today"
+  },
+  "windowFrame": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "nothing else today"
+  },
+  "dhwFuel": {
+    "value": "electricity",
+    "confidence": 1.0,
+    "sourceSpan": "electric tank"
+  },
+  "dhwSystemType": {
+    "value": "storage",
+    "confidence": 1.0,
+    "sourceSpan": "standard storage unit"
+  },
+  "dhwAgeBand": {
+    "value": null,
+    "confidence": 0.9,
+    "sourceSpan": "looked pretty new"
+  },
+  "combustionVentType": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "nothing else today"
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "no safety tests"
+    },
+    "venting": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "no safety tests"
+    },
+    "naturalConditionSpillage": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "no safety tests"
+    },
+    "worstCaseDepressurization": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "no safety tests"
+    },
+    "worstCaseSpillage": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "no safety tests"
+    },
+    "draftPressure": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "no safety tests"
+    },
+    "gasLeak": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "no safety tests"
+    },
+    "moldMoisture": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "no safety tests"
+    },
+    "asbestos": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "no safety tests"
+    },
+    "lead": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "no safety tests"
+    },
+    "electrical": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "no safety tests"
+    }
+  }
+}

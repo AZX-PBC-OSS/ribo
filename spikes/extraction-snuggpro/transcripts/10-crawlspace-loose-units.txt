@@ -1,0 +1,13 @@
+Crawlspace and mechanicals, the Ruiz house — and just to be clear I'm only doing this one, not the identical mirror-image house next door.
+
+Ducts run in the crawlspace, unconditioned crawl, dirt floor down there. They're insulated, looks like fiberglass wrap, the two-inch stuff, in decent shape. Sealing's okay, not great, somewhat leaky I'd say, some loose mastic at a couple of the joints.
+
+I duct-blasted it. Now let me be careful reading my numbers back because I always get asked which is which. The duct leakage, that's the duct blaster at twenty-five pascals, read two hundred and ten. Two-ten CFM25 on the ducts. Separately, the blower door, the whole-house one at fifty pascals, that came in at thirty-six hundred CFM50. And if you want air changes, that works out to about eight ACH50, but the number you write down for the blower door is the thirty-six hundred.
+
+Heating down here is a heat pump, it's a central heat pump on the shared ducts, the air handler's in the crawl. Electric, obviously, it's a heat pump. A Bosch, no model or year I could get to, it's crammed up in a tight spot.
+
+The neighbor's unit, that mirror-image house, theirs is an oil boiler, I happen to know because I did their audit last month — but that's got nothing to do with this house, ignore that, this house is the heat pump.
+
+Water heater's a heat pump water heater, actually, a hybrid, sitting in the crawl too, electric, that's a nice find. It's maybe six or seven years old. Heat pump water heater.
+
+No attic on this one, it's all crawlspace and the heat pump. Ending.

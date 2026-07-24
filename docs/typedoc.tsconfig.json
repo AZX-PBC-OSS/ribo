@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "TypeDoc-only. Isolated from every package's own tsconfig so `docs:api` never enters `pnpm typecheck`. Extends browser-library.json for the DOM lib the engine/adapter APIs reference and the `@azx/source` condition so cross-package imports resolve to src/.",
+  "extends": "../packages/tsconfig/browser-library.json",
+  "include": [
+    "../packages/ribo-core/src",
+    "../packages/ribo-adapter-snuggpro/src",
+    "../packages/ribo-extractor-openai/src",
+    "../packages/ribo-transcriber-ondevice/src"
+  ]
+}

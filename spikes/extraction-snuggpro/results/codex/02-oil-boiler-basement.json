@@ -1,0 +1,174 @@
+{
+  "heatingEquipmentType": {
+    "value": "boiler",
+    "confidence": 1,
+    "sourceSpan": "it's an oil boiler"
+  },
+  "heatingFuel": {
+    "value": "fuel_oil",
+    "confidence": 1,
+    "sourceSpan": "it's an oil boiler"
+  },
+  "heatingManufacturer": {
+    "value": "Burnham",
+    "confidence": 1,
+    "sourceSpan": "Burnham"
+  },
+  "heatingModelNumber": {
+    "value": "V8",
+    "confidence": 1,
+    "sourceSpan": "Model plate says V8"
+  },
+  "heatingModelYear": {
+    "value": 2004,
+    "confidence": 1,
+    "sourceSpan": "the tag year is two thousand four"
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": "I don't see an output on the plate that I can read, it's painted over, so no BTU number from me."
+  },
+  "coolingEquipmentType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductLocation": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductSealing": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductInsulation": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductLeakageCfm25": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationDepthIn": {
+    "value": "4-6",
+    "confidence": 1,
+    "sourceSpan": "about six inches of it across most of the attic"
+  },
+  "atticInsulationType": {
+    "value": "cellulose",
+    "confidence": 1,
+    "sourceSpan": "it's cellulose"
+  },
+  "atticInsulationSpokenRValue": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "wallConstruction": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "blowerDoorCfm50": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": "No blower door today, I'll come back with the fan"
+  },
+  "windowGlazing": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "windowFrame": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "dhwFuel": {
+    "value": "fuel_oil",
+    "confidence": 1,
+    "sourceSpan": "So that runs on the oil too, same as the boiler."
+  },
+  "dhwSystemType": {
+    "value": "space_heating_boiler_with_tank",
+    "confidence": 1,
+    "sourceSpan": "Hot water's made right off the boiler, it's an indirect tank"
+  },
+  "dhwAgeBand": {
+    "value": "6-10",
+    "confidence": 0.95,
+    "sourceSpan": "I'd say that tank's about eight years old"
+  },
+  "combustionVentType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "venting": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "naturalConditionSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "worstCaseDepressurization": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "worstCaseSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "draftPressure": {
+      "value": "passed",
+      "confidence": 1,
+      "sourceSpan": "Draft on the boiler flue — I got good draft, nice steady pull up the chimney, that passes."
+    },
+    "gasLeak": {
+      "value": "passed",
+      "confidence": 0.95,
+      "sourceSpan": "no gas smell obviously it's oil, but no leaks at the fittings either, all dry."
+    },
+    "moldMoisture": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "asbestos": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "lead": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "electrical": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  }
+}

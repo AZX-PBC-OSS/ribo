@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1f883d" />
+    <!--
+      iOS reads its Home Screen icon from here, not from the web app manifest,
+      and it does not accept SVG. Without it the installed app gets a screenshot
+      of the page as its icon. The manifest's `display: standalone` is what
+      makes the install a web app rather than a bookmark — see vite.config.ts;
+      the pair is the Add-to-Home-Screen mitigation from Task 3, and the mitigation
+      is real only if both halves are present.
+    -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>ribo playground</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

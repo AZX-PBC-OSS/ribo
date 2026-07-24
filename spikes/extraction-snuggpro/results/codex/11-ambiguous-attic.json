@@ -1,0 +1,174 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 1.0,
+    "sourceSpan": "Forced-air furnace, gas."
+  },
+  "heatingFuel": {
+    "value": "natural_gas",
+    "confidence": 1.0,
+    "sourceSpan": "Forced-air furnace, gas."
+  },
+  "heatingManufacturer": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "heatingModelNumber": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "heatingModelYear": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "coolingEquipmentType": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "ductLocation": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "ductSealing": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "ductInsulation": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "ductLeakageCfm25": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "I'm giving you the R-value, not a depth."
+  },
+  "atticInsulationType": {
+    "value": "fiberglass",
+    "confidence": 1.0,
+    "sourceSpan": "fiberglass batts between the joists"
+  },
+  "atticInsulationSpokenRValue": {
+    "value": 13,
+    "confidence": 1.0,
+    "sourceSpan": "R-13, final answer."
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "wallConstruction": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "blowerDoorCfm50": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no blower door"
+  },
+  "windowGlazing": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "windowFrame": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "dhwFuel": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no water heater"
+  },
+  "dhwSystemType": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no water heater"
+  },
+  "dhwAgeBand": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no water heater"
+  },
+  "combustionVentType": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": null
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "not_tested",
+      "confidence": 1.0,
+      "sourceSpan": "I did not do an actual ambient CO measurement at the appliance"
+    },
+    "venting": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "naturalConditionSpillage": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "worstCaseDepressurization": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "worstCaseSpillage": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "draftPressure": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "gasLeak": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "moldMoisture": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "asbestos": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "lead": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    },
+    "electrical": {
+      "value": null,
+      "confidence": 1.0,
+      "sourceSpan": null
+    }
+  }
+}

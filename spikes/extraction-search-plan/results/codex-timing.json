@@ -1,0 +1,114 @@
+[
+  {
+    "slug": "01-attic-r-value-shell",
+    "plan": 12.737,
+    "locate": 10.736,
+    "decide": 19.76,
+    "total": 43.233000000000004,
+    "spansDropped": 0
+  },
+  {
+    "slug": "02-oil-boiler-basement",
+    "plan": 15.963,
+    "locate": 14.074,
+    "decide": 31.252,
+    "total": 61.289,
+    "spansDropped": 0
+  },
+  {
+    "slug": "03-quick-exterior-short",
+    "plan": 13.439,
+    "locate": 10.414,
+    "decide": 18.455,
+    "total": 42.308,
+    "spansDropped": 0
+  },
+  {
+    "slug": "04-fuel-stated-separately",
+    "plan": 10.826,
+    "locate": 14.056,
+    "decide": 26.768,
+    "total": 51.65,
+    "spansDropped": 0
+  },
+  {
+    "slug": "05-full-walkthrough",
+    "plan": 22.576,
+    "locate": 26.857,
+    "decide": 33.83,
+    "total": 83.263,
+    "spansDropped": 0
+  },
+  {
+    "slug": "06-homeowner-crosstalk",
+    "plan": 9.155,
+    "locate": 8.213,
+    "decide": 29.328,
+    "total": 46.696,
+    "spansDropped": 0
+  },
+  {
+    "slug": "07-combustion-safety",
+    "plan": 12.927,
+    "locate": 12.497,
+    "decide": 31.001,
+    "total": 56.425,
+    "spansDropped": 0
+  },
+  {
+    "slug": "08-no-fuel-silent-drop",
+    "plan": 10.397,
+    "locate": 12.459,
+    "decide": 28.753,
+    "total": 51.609,
+    "spansDropped": 0
+  },
+  {
+    "slug": "09-chatter-and-scheduling",
+    "plan": 15.609,
+    "locate": 7.708,
+    "decide": 25.937,
+    "total": 49.254000000000005,
+    "spansDropped": 0
+  },
+  {
+    "slug": "10-crawlspace-loose-units",
+    "plan": 14.076,
+    "locate": 15.081,
+    "decide": 18.936,
+    "total": 48.093,
+    "spansDropped": 0
+  },
+  {
+    "slug": "11-ambiguous-attic",
+    "plan": 16.744,
+    "locate": 10.586,
+    "decide": 29.094,
+    "total": 56.424,
+    "spansDropped": 0
+  },
+  {
+    "slug": "12-wrong-field-old-unit",
+    "plan": 14.413,
+    "locate": 10.792,
+    "decide": 28.386,
+    "total": 53.590999999999994,
+    "spansDropped": 0
+  },
+  {
+    "slug": "13-enum-paraphrase",
+    "plan": 16.018,
+    "locate": 15.56,
+    "decide": 29.211,
+    "total": 60.789,
+    "spansDropped": 0
+  },
+  {
+    "slug": "14-rapid-recap",
+    "plan": 21.348,
+    "locate": 11.506,
+    "decide": 26.819,
+    "total": 59.673,
+    "spansDropped": 0
+  }
+]

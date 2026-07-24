@@ -1,0 +1,11 @@
+# Raw per-node model outputs — regenerable, noisy, per-model. The scored summaries
+# (results/<model>-score.json, results/comparison.json) and the final per-transcript
+# DECIDE outputs (results/<model>/NN-slug.json) ARE committed; the raw node dumps and
+# intermediates are not.
+results/*/*/plan.txt
+results/*/*/locate.txt
+results/*/*/decide.txt
+results/*/*/plan.json
+results/*/*/locate.json
+results/*/*/decide.json
+results/*/*/gated.json

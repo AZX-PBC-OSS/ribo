@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+
+    // Resolves workspace packages to TypeScript source inside this repo.
+    // Published packages default to dist/ because nobody outside sets this
+    // condition. See docs/implementation/10-build-and-packaging.md §3.
+    // Requires moduleResolution of bundler | node16 | nodenext.
+    "customConditions": ["@azx/source"],
+
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    // Deliberately OFF: zod's `z.infer<typeof Schema>` cannot be emitted under
+    // isolatedDeclarations — types are inferred from runtime values. See 10 §3.1.
+    "isolatedDeclarations": false,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "noEmit": true
+  }
+}

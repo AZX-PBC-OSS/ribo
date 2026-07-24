@@ -1,0 +1,174 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 1,
+    "sourceSpan": "The heating system is a propane furnace"
+  },
+  "heatingFuel": {
+    "value": "propane",
+    "confidence": 1,
+    "sourceSpan": "The heating system is a propane furnace"
+  },
+  "heatingManufacturer": {
+    "value": "Carrier",
+    "confidence": 1,
+    "sourceSpan": "It's a Carrier"
+  },
+  "heatingModelNumber": {
+    "value": "59TP6",
+    "confidence": 1,
+    "sourceSpan": "the model number is 59TP6"
+  },
+  "heatingModelYear": {
+    "value": 2019,
+    "confidence": 1,
+    "sourceSpan": "the data plate year is twenty nineteen"
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": 80000,
+    "confidence": 1,
+    "sourceSpan": "Output capacity is eighty thousand BTU"
+  },
+  "coolingEquipmentType": {
+    "value": "central_ac_standalone_ducts",
+    "confidence": 1,
+    "sourceSpan": "central AC, standalone ducts"
+  },
+  "ductLocation": {
+    "value": "attic_unconditioned",
+    "confidence": 1,
+    "sourceSpan": "standalone air handler up in the attic with its own duct runs"
+  },
+  "ductSealing": {
+    "value": "very_leaky",
+    "confidence": 1,
+    "sourceSpan": "I'd call it very leaky honestly"
+  },
+  "ductInsulation": {
+    "value": "fiberglass_1_25in",
+    "confidence": 1,
+    "sourceSpan": "The ducts are wrapped in that thin fiberglass, the inch-and-a-quarter stuff"
+  },
+  "ductLeakageCfm25": {
+    "value": 150,
+    "confidence": 1,
+    "sourceSpan": "the duct leakage came in at one-fifty CFM25"
+  },
+  "atticInsulationDepthIn": {
+    "value": "10-12",
+    "confidence": 1,
+    "sourceSpan": "a solid eleven, twelve inches"
+  },
+  "atticInsulationType": {
+    "value": "cellulose",
+    "confidence": 1,
+    "sourceSpan": "It's cellulose up there, blown gray cellulose"
+  },
+  "atticInsulationSpokenRValue": {
+    "value": 38,
+    "confidence": 1,
+    "sourceSpan": "roughly R-38"
+  },
+  "wallInsulated": {
+    "value": "yes",
+    "confidence": 1,
+    "sourceSpan": "I'd call the walls insulated, yes, properly insulated"
+  },
+  "wallConstruction": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "blowerDoorCfm50": {
+    "value": 2800,
+    "confidence": 1,
+    "sourceSpan": "I got twenty-eight hundred CFM50 on the fan"
+  },
+  "windowGlazing": {
+    "value": "double_pane",
+    "confidence": 1,
+    "sourceSpan": "Windows are a mix but predominantly double pane"
+  },
+  "windowFrame": {
+    "value": "wood_or_metal_clad",
+    "confidence": 1,
+    "sourceSpan": "the frames are that wood with the aluminum cladding on the outside"
+  },
+  "dhwFuel": {
+    "value": "propane",
+    "confidence": 1,
+    "sourceSpan": "it's a propane tankless unit"
+  },
+  "dhwSystemType": {
+    "value": "instantaneous",
+    "confidence": 1,
+    "sourceSpan": "it's a propane tankless unit"
+  },
+  "dhwAgeBand": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": "no age tag I could find on it"
+  },
+  "combustionVentType": {
+    "value": "direct_vented",
+    "confidence": 1,
+    "sourceSpan": "it's direct-vented, sealed combustion, pulls its air from outside"
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "passed",
+      "confidence": 1,
+      "sourceSpan": "Ambient CO throughout the house was zero to two ppm, clean, no CO issue anywhere"
+    },
+    "venting": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "naturalConditionSpillage": {
+      "value": "failed",
+      "confidence": 1,
+      "sourceSpan": "a hard fail, a fail on spillage under natural conditions"
+    },
+    "worstCaseDepressurization": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "worstCaseSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "draftPressure": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "gasLeak": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "moldMoisture": {
+      "value": "warning",
+      "confidence": 1,
+      "sourceSpan": "I'd flag that as a moisture concern, worth watching, call it a warning on moisture"
+    },
+    "asbestos": {
+      "value": "not_tested",
+      "confidence": 1,
+      "sourceSpan": "I did not test it, I'm not equipped to sample asbestos"
+    },
+    "lead": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "electrical": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  }
+}

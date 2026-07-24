@@ -1,0 +1,73 @@
+name: Release
+
+# Rapid 0.x versioning via Changesets.
+#
+# On every push to `main`, the Changesets action collects the accumulated
+# `.changeset/*.md` entries and opens (or updates) a "Version Packages" PR that
+# bumps versions and writes changelogs. Merging that PR is how a release is cut.
+#
+# PUBLISHING IS DORMANT ON PURPOSE. The npm/registry decision is not yet made and
+# there is no NPM_TOKEN, so this workflow deliberately does NOT pass a `publish`
+# input to the action — it only ever produces the version PR, never runs
+# `changeset publish`. See the commented block at the bottom for exactly what to
+# turn on once a registry and token exist. Until then nothing is published.
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # create the "Version Packages" branch/PR and push changelog commits
+  pull-requests: write # open/update the version PR
+
+jobs:
+  release:
+    name: version (publish gated off — no registry yet)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.34.5 # keep in sync with the root package.json "packageManager"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Opens/updates the "Version Packages" PR from accumulated changesets and
+      # runs the repo's `changeset:version` script on it. No `publish:` input is
+      # passed, so the action stops at the version PR — it never publishes.
+      #
+      # To ACTIVATE publishing later (once a registry is chosen and a token is
+      # added as the NPM_TOKEN secret), also set `.changeset/config.json`'s
+      # `access` appropriately and un-comment the two lines marked below:
+      - name: Create Version Packages PR (publish dormant)
+        uses: changesets/action@v1
+        with:
+          version: pnpm changeset:version
+          # publish: pnpm changeset:publish   # <-- DORMANT: enable only when NPM_TOKEN exists
+          commit: "chore: version packages"
+          title: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # NPM_TOKEN: ${{ secrets.NPM_TOKEN }} # <-- DORMANT: no registry/token decided yet
+
+      # Guard so publishing can never silently happen without an explicit token.
+      # This step is a no-op today (NPM_TOKEN is unset) and exists to document the
+      # gate; the actual publish is driven by the action's `publish:` input above,
+      # not here.
+      - name: Publish gate (no-op until NPM_TOKEN is configured)
+        if: ${{ secrets.NPM_TOKEN != '' }}
+        run: |
+          echo "NPM_TOKEN is present — publishing would be active."
+          echo "Enable the commented 'publish:' / 'NPM_TOKEN:' lines on the"
+          echo "Changesets step above to actually publish. Doing nothing here."

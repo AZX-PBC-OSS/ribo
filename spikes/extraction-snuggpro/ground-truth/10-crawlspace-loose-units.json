@@ -1,0 +1,74 @@
+{
+  "transcript": "transcripts/10-crawlspace-loose-units.txt",
+  "stresses": "UNIT-DISAMBIGUATION crux: three leakage references in one breath -- 210 CFM25 (duct), 3600 CFM50 (blower door), ~8 ACH50 (NO field) -- must land on ductLeakageCfm25 and blowerDoorCfm50 respectively and NOT cross-contaminate. HAZARD 1 heat-pump on shared ducts -> central_heat_pump on both heating and cooling axes, fuel electricity. WRONG-FIELD trap: the identical neighbor's OIL BOILER is in the audio and must not populate this all-electric house. HPWH -> heat_pump_water_heater; \"six or seven years\" -> 6-10.",
+  "fields": {
+    "heatingEquipmentType": {
+      "value": "central_heat_pump",
+      "sourceSpan": "it's a central heat pump on the shared ducts"
+    },
+    "heatingFuel": {
+      "value": "electricity",
+      "sourceSpan": "Electric, obviously, it's a heat pump"
+    },
+    "heatingManufacturer": { "value": "Bosch", "sourceSpan": "A Bosch" },
+    "heatingModelNumber": { "value": null, "sourceSpan": "no model or year I could get to" },
+    "heatingModelYear": { "value": null, "sourceSpan": "no model or year I could get to" },
+    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
+    "coolingEquipmentType": {
+      "value": "central_heat_pump",
+      "sourceSpan": "it's a central heat pump on the shared ducts"
+    },
+    "ductLocation": {
+      "value": "crawlspace_unconditioned",
+      "sourceSpan": "Ducts run in the crawlspace, unconditioned crawl"
+    },
+    "ductSealing": { "value": "somewhat_leaky", "sourceSpan": "somewhat leaky I'd say" },
+    "ductInsulation": {
+      "value": "fiberglass_2in",
+      "sourceSpan": "fiberglass wrap, the two-inch stuff"
+    },
+    "ductLeakageCfm25": { "value": 210, "sourceSpan": "Two-ten CFM25 on the ducts" },
+    "atticInsulationDepthIn": { "value": null, "sourceSpan": "No attic on this one" },
+    "atticInsulationType": { "value": null, "sourceSpan": "No attic on this one" },
+    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
+    "wallInsulated": { "value": null, "sourceSpan": null },
+    "wallConstruction": { "value": null, "sourceSpan": null },
+    "blowerDoorCfm50": {
+      "value": 3600,
+      "sourceSpan": "that came in at thirty-six hundred CFM50"
+    },
+    "windowGlazing": { "value": null, "sourceSpan": null },
+    "windowFrame": { "value": null, "sourceSpan": null },
+    "dhwFuel": {
+      "value": "electricity",
+      "sourceSpan": "a hybrid, sitting in the crawl too, electric"
+    },
+    "dhwSystemType": {
+      "value": "heat_pump_water_heater",
+      "sourceSpan": "Water heater's a heat pump water heater, actually, a hybrid"
+    },
+    "dhwAgeBand": { "value": "6-10", "sourceSpan": "It's maybe six or seven years old" },
+    "combustionVentType": { "value": null, "sourceSpan": null },
+    "healthSafety": {
+      "ambientCo": { "value": null, "sourceSpan": null },
+      "venting": { "value": null, "sourceSpan": null },
+      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
+      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
+      "worstCaseSpillage": { "value": null, "sourceSpan": null },
+      "draftPressure": { "value": null, "sourceSpan": null },
+      "gasLeak": { "value": null, "sourceSpan": null },
+      "moldMoisture": { "value": null, "sourceSpan": null },
+      "asbestos": { "value": null, "sourceSpan": null },
+      "lead": { "value": null, "sourceSpan": null },
+      "electrical": { "value": null, "sourceSpan": null }
+    }
+  },
+  "notes": {
+    "ductLeakageCfm25": "210, explicitly the duct-blaster-at-25-Pa number. Must NOT receive the 3600 (that's CFM50) or the 8 (ACH50). The auditor narrates the disambiguation on purpose.",
+    "blowerDoorCfm50": "3600, explicitly the whole-house blower door at 50 Pa. The ~8 ACH50 has NO field in this schema and must be dropped, not filed here.",
+    "heatingFuel": "electricity, NOT fuel_oil. The neighbor's oil boiler is a WRONG-FIELD distractor the auditor explicitly excludes (\"nothing to do with this house, ignore that\"). heatingEquipmentType must be central_heat_pump, never boiler.",
+    "coolingEquipmentType": "central_heat_pump: the same shared-duct heat pump provides cooling, so it fills the cooling axis too (the schema comment notes central_heat_pump is shared between heating and cooling). The same span justifies both.",
+    "dhwAgeBand": "\"six or seven years\" -> 6-10.",
+    "_general": "This house has no combustion appliances (all electric), so combustionVentType and every safety test are null. Distractors: \"minus\"-nothing here, but the ACH50 (8) is the key no-field number."
+  }
+}

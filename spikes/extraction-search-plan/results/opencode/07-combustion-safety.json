@@ -1,0 +1,174 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 0.85,
+    "sourceSpan": "a gas furnace"
+  },
+  "heatingFuel": {
+    "value": "natural_gas",
+    "confidence": 0.95,
+    "sourceSpan": "a gas furnace"
+  },
+  "heatingManufacturer": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "heatingModelNumber": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "heatingModelYear": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "heatingOutputCapacityBtuh": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "coolingEquipmentType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductLocation": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductSealing": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductInsulation": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "ductLeakageCfm25": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationType": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "atticInsulationSpokenRValue": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "wallConstruction": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "blowerDoorCfm50": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "windowGlazing": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "windowFrame": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "dhwFuel": {
+    "value": "natural_gas",
+    "confidence": 0.95,
+    "sourceSpan": "a gas storage water heater"
+  },
+  "dhwSystemType": {
+    "value": "storage",
+    "confidence": 0.95,
+    "sourceSpan": "a gas storage water heater"
+  },
+  "dhwAgeBand": {
+    "value": null,
+    "confidence": 1,
+    "sourceSpan": null
+  },
+  "combustionVentType": {
+    "value": "other",
+    "confidence": 0.9,
+    "sourceSpan": "a shared B-vent up through the roof"
+  },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "failed",
+      "confidence": 1,
+      "sourceSpan": "ambient CO in the room climbed to thirty-five ppm with both firing, that is over my threshold, I'm calling that a fail on ambient CO"
+    },
+    "venting": {
+      "value": "warning",
+      "confidence": 1,
+      "sourceSpan": "I'm flagging venting as a warning too, it needs to be re-supported and fastened"
+    },
+    "naturalConditionSpillage": {
+      "value": "passed",
+      "confidence": 1,
+      "sourceSpan": "no spillage under natural conditions, it only let go under worst case. So natural condition passes"
+    },
+    "worstCaseDepressurization": {
+      "value": "warning",
+      "confidence": 0.55,
+      "sourceSpan": "I depressurized the house with the exhaust fans and the dryer running, got it to about minus fifty pascals"
+    },
+    "worstCaseSpillage": {
+      "value": "failed",
+      "confidence": 1,
+      "sourceSpan": "the water heater spilled at the draft hood, sustained, did not clear. Worst case spillage is a fail"
+    },
+    "draftPressure": {
+      "value": "passed",
+      "confidence": 1,
+      "sourceSpan": "Draft pressure on the furnace, once it was the only thing running, was adequate, good steady draft, that one passes"
+    },
+    "gasLeak": {
+      "value": "warning",
+      "confidence": 1,
+      "sourceSpan": "There's a small leak at the range shutoff valve, the sniffer lit up on it, not huge but it's real, I'd call that a warning"
+    },
+    "moldMoisture": {
+      "value": "not_tested",
+      "confidence": 1,
+      "sourceSpan": "Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today"
+    },
+    "asbestos": {
+      "value": "not_tested",
+      "confidence": 1,
+      "sourceSpan": "Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today"
+    },
+    "lead": {
+      "value": "not_tested",
+      "confidence": 1,
+      "sourceSpan": "Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today"
+    },
+    "electrical": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  }
+}

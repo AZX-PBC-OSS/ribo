@@ -1,0 +1,22 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
+  "entryPoints": [
+    "../packages/ribo-core/src/index.ts",
+    "../packages/ribo-adapter-snuggpro/src/index.ts",
+    "../packages/ribo-extractor-openai/src/index.ts",
+    "../packages/ribo-transcriber-ondevice/src/index.ts"
+  ],
+  "tsconfig": "./typedoc.tsconfig.json",
+  "out": "./reference",
+  "name": "API Reference",
+  "readme": "none",
+  "hideGenerator": true,
+  "excludeInternal": true,
+  "excludePrivate": true,
+  "githubPages": false,
+  "disableSources": true,
+  "useCodeBlocks": true,
+  "expandObjects": true,
+  "docsRoot": "."
+}

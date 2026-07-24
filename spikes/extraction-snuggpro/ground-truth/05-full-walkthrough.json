@@ -1,0 +1,109 @@
+{
+  "transcript": "transcripts/05-full-walkthrough.txt",
+  "stresses": "THE LONG ONE (~830 words), near-complete coverage, dense. HAZARD 1 propane-furnace adjective split. HAZARD 2 BOTH a depth (\"eleven, twelve inches\" -> 10-12) AND an R-value (\"R-38\") stated -> band from depth, R-value still captured. HAZARD 3 four states in one file: CO passed, natural-condition spillage failed, moisture warning, asbestos not_tested; other 7 tests silent -> null. HAZARD 4 spoken \"ninety-six percent\" with no AFUE slot -> dropped. WRONG-FIELD trap: a decommissioned OLD oil floor furnace present in the audio that must NOT populate heating. Distractors: 6.1 ACH50 (no field), sunroom single glazing vs predominant double.",
+  "fields": {
+    "heatingEquipmentType": {
+      "value": "furnace_central_ac",
+      "sourceSpan": "The heating system is a propane furnace"
+    },
+    "heatingFuel": {
+      "value": "propane",
+      "sourceSpan": "The heating system is a propane furnace"
+    },
+    "heatingManufacturer": {
+      "value": "Carrier",
+      "sourceSpan": "It's a Carrier, the model number is 59TP6"
+    },
+    "heatingModelNumber": { "value": "59TP6", "sourceSpan": "the model number is 59TP6" },
+    "heatingModelYear": { "value": 2019, "sourceSpan": "the data plate year is twenty nineteen" },
+    "heatingOutputCapacityBtuh": {
+      "value": 80000,
+      "sourceSpan": "Output capacity is eighty thousand BTU"
+    },
+    "coolingEquipmentType": {
+      "value": "central_ac_standalone_ducts",
+      "sourceSpan": "So central AC, standalone ducts"
+    },
+    "ductLocation": {
+      "value": "attic_unconditioned",
+      "sourceSpan": "standalone air handler up in the attic with its own duct runs"
+    },
+    "ductSealing": { "value": "very_leaky", "sourceSpan": "I'd call it very leaky honestly" },
+    "ductInsulation": {
+      "value": "fiberglass_1_25in",
+      "sourceSpan": "wrapped in that thin fiberglass, the inch-and-a-quarter stuff"
+    },
+    "ductLeakageCfm25": {
+      "value": 150,
+      "sourceSpan": "the duct leakage came in at one-fifty CFM25"
+    },
+    "atticInsulationDepthIn": {
+      "value": "10-12",
+      "sourceSpan": "a solid eleven, twelve inches"
+    },
+    "atticInsulationType": {
+      "value": "cellulose",
+      "sourceSpan": "It's cellulose up there, blown gray cellulose"
+    },
+    "atticInsulationSpokenRValue": {
+      "value": 38,
+      "sourceSpan": "at that depth it works out to roughly R-38"
+    },
+    "wallInsulated": { "value": "yes", "sourceSpan": "I'd call the walls insulated, yes" },
+    "wallConstruction": { "value": null, "sourceSpan": null },
+    "blowerDoorCfm50": {
+      "value": 2800,
+      "sourceSpan": "I got twenty-eight hundred CFM50 on the fan"
+    },
+    "windowGlazing": { "value": "double_pane", "sourceSpan": "predominantly double pane" },
+    "windowFrame": {
+      "value": "wood_or_metal_clad",
+      "sourceSpan": "the frames are that wood with the aluminum cladding on the outside, clad windows, wood clad"
+    },
+    "dhwFuel": { "value": "propane", "sourceSpan": "it's a propane tankless unit" },
+    "dhwSystemType": {
+      "value": "instantaneous",
+      "sourceSpan": "it's a propane tankless unit"
+    },
+    "dhwAgeBand": { "value": null, "sourceSpan": "no age tag I could find on it" },
+    "combustionVentType": {
+      "value": "direct_vented",
+      "sourceSpan": "there's the PVC flue going out the side wall so it's direct-vented, sealed combustion"
+    },
+    "healthSafety": {
+      "ambientCo": {
+        "value": "passed",
+        "sourceSpan": "Ambient CO throughout the house was zero to two ppm, clean, no CO issue anywhere"
+      },
+      "venting": { "value": null, "sourceSpan": null },
+      "naturalConditionSpillage": {
+        "value": "failed",
+        "sourceSpan": "I ran the natural condition spillage test on the water heater, and it spilled"
+      },
+      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
+      "worstCaseSpillage": { "value": null, "sourceSpan": null },
+      "draftPressure": { "value": null, "sourceSpan": null },
+      "gasLeak": { "value": null, "sourceSpan": null },
+      "moldMoisture": {
+        "value": "warning",
+        "sourceSpan": "I'd flag that as a moisture concern, worth watching, call it a warning on moisture"
+      },
+      "asbestos": {
+        "value": "not_tested",
+        "sourceSpan": "I did not test it, I'm not equipped to sample asbestos, so that one is not tested"
+      },
+      "lead": { "value": null, "sourceSpan": null },
+      "electrical": { "value": null, "sourceSpan": null }
+    }
+  },
+  "notes": {
+    "atticInsulationDepthIn": "BOTH-case: a measured depth (\"eleven, twelve inches\") AND an R-value (\"R-38\") are stated. The band comes from the DEPTH -> 10-12 (11-12 in falls in the 10-12 band). Do NOT source the band from R-38.",
+    "atticInsulationSpokenRValue": "38 is still captured in the holding-pen even though a depth exists, per prompt rule 8 (\"if both, fill the band from the depth and still record the R-value\").",
+    "heatingEquipmentType": "WRONG-FIELD trap: the transcript describes a DECOMMISSIONED old floor furnace / oil pot burner in the basement, and the auditor repeatedly says not to log it. Heating must be the WORKING propane Carrier furnace. A model that emits fuel_oil (from the old unit) or stove_or_insert/direct_heater (the old gravity unit) has taken a value present in the audio but explicitly excluded by the auditor.",
+    "heatingFuel": "propane, NOT fuel_oil. fuel_oil is only attached to the dead unit the auditor excludes.",
+    "coolingEquipmentType": "central_ac_standalone_ducts: the AC has its own attic air handler and duct runs, explicitly standalone. Distinct from a shared-duct AC (which would be folded into heatingEquipmentType=furnace_central_ac). Here they are genuinely separate systems.",
+    "combustionVentType": "direct_vented for the furnace (PVC, sealed combustion, side-wall). This is the furnace's CAZ vent type. The water heater is tankless and spilled but no vent-system-type token was spoken for it.",
+    "dhwAgeBand": "null with a span: the auditor explicitly could not find an age tag (\"no age tag I could find\"). \"it's newer\" is not a band. Do not bucket a guess.",
+    "_general": "No-field distractors that must be dropped: \"ninety-six percent\" (an AFUE/efficiency, no capture slot per HAZARD 4 -- must not land in heatingOutputCapacityBtuh); \"six point one ACH50\" (ACH50 has NO field in this schema, and is NOT the blower-door CFM50 slot -- 2800 is); the sunroom being \"single-glazed on three sides\" (predominant house glazing is double pane, and the sunroom is called outside the thermal boundary); \"poured concrete\" foundation (not exterior wall construction); Nest thermostat, LED lighting, chest freezer, beer fridge, dryer and bath-fan venting (real notes, no fields). \"forty-one Maple\" is a house number."
+  }
+}

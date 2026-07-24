@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@azx/tsconfig/browser-library.json",
+  "compilerOptions": {
+    // Required so the solution config can reference this project.
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.e2e.tsbuildinfo",
+
+    // The e2e test is a Node program (it drives Vite's build/preview API and
+    // Playwright) that *also* contains browser code: every `page.evaluate`
+    // callback is compiled against DOM types even though it is serialised and
+    // run in Chromium. So this project is the one place in the repo that needs
+    // both, and it is scoped to `e2e/` alone so neither leaks into `src/`.
+    "types": ["node"],
+
+    // Vite 8's types reach for `Symbol.asyncDispose` (rolldown), which
+    // `lib: ["ES2023"]` does not declare. Same widening, and same reason, as
+    // tsconfig.node.json.
+    "lib": ["ESNext", "DOM", "DOM.Iterable"]
+  },
+  "include": ["e2e"]
+}

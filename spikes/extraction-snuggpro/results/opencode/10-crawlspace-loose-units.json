@@ -1,0 +1,90 @@
+{
+  "heatingEquipmentType": {
+    "value": "central_heat_pump",
+    "confidence": 1.0,
+    "sourceSpan": "it's a central heat pump on the shared ducts"
+  },
+  "heatingFuel": {
+    "value": "electricity",
+    "confidence": 1.0,
+    "sourceSpan": "Electric, obviously, it's a heat pump"
+  },
+  "heatingManufacturer": { "value": "Bosch", "confidence": 1.0, "sourceSpan": "A Bosch" },
+  "heatingModelNumber": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no model or year I could get to"
+  },
+  "heatingModelYear": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "no model or year I could get to"
+  },
+  "heatingOutputCapacityBtuh": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "coolingEquipmentType": {
+    "value": "central_heat_pump",
+    "confidence": 0.9,
+    "sourceSpan": "it's a central heat pump on the shared ducts"
+  },
+  "ductLocation": {
+    "value": "crawlspace_unconditioned",
+    "confidence": 1.0,
+    "sourceSpan": "Ducts run in the crawlspace, unconditioned crawl"
+  },
+  "ductSealing": {
+    "value": "somewhat_leaky",
+    "confidence": 0.95,
+    "sourceSpan": "somewhat leaky I'd say"
+  },
+  "ductInsulation": {
+    "value": "fiberglass_2in",
+    "confidence": 0.9,
+    "sourceSpan": "fiberglass wrap, the two-inch stuff"
+  },
+  "ductLeakageCfm25": {
+    "value": 210,
+    "confidence": 1.0,
+    "sourceSpan": "Two-ten CFM25 on the ducts"
+  },
+  "atticInsulationDepthIn": {
+    "value": null,
+    "confidence": 1.0,
+    "sourceSpan": "No attic on this one"
+  },
+  "atticInsulationType": { "value": null, "confidence": 1.0, "sourceSpan": "No attic on this one" },
+  "atticInsulationSpokenRValue": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "wallInsulated": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "wallConstruction": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "blowerDoorCfm50": { "value": 3600, "confidence": 1.0, "sourceSpan": "thirty-six hundred CFM50" },
+  "windowGlazing": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "windowFrame": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "dhwFuel": {
+    "value": "electricity",
+    "confidence": 1.0,
+    "sourceSpan": "electric, that's a nice find"
+  },
+  "dhwSystemType": {
+    "value": "heat_pump_water_heater",
+    "confidence": 1.0,
+    "sourceSpan": "Water heater's a heat pump water heater"
+  },
+  "dhwAgeBand": {
+    "value": "6-10",
+    "confidence": 0.9,
+    "sourceSpan": "It's maybe six or seven years old"
+  },
+  "combustionVentType": { "value": null, "confidence": 1.0, "sourceSpan": null },
+  "healthSafety": {
+    "ambientCo": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "venting": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "naturalConditionSpillage": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "worstCaseDepressurization": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "worstCaseSpillage": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "draftPressure": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "gasLeak": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "moldMoisture": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "asbestos": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "lead": { "value": null, "confidence": 1.0, "sourceSpan": null },
+    "electrical": { "value": null, "confidence": 1.0, "sourceSpan": null }
+  }
+}

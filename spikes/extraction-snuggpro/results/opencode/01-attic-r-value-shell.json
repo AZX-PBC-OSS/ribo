@@ -1,0 +1,62 @@
+{
+  "heatingEquipmentType": {
+    "value": "furnace_central_ac",
+    "confidence": 0.95,
+    "sourceSpan": "gas furnace"
+  },
+  "heatingFuel": { "value": "natural_gas", "confidence": 0.95, "sourceSpan": "gas furnace" },
+  "heatingManufacturer": { "value": "Trane", "confidence": 1.0, "sourceSpan": "a Trane" },
+  "heatingModelNumber": { "value": "TUD100", "confidence": 0.95, "sourceSpan": "TUD100" },
+  "heatingModelYear": { "value": 2017, "confidence": 0.95, "sourceSpan": "twenty seventeen" },
+  "heatingOutputCapacityBtuh": {
+    "value": 100000,
+    "confidence": 0.95,
+    "sourceSpan": "a hundred thousand BTU"
+  },
+  "coolingEquipmentType": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "ductLocation": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "ductSealing": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "ductInsulation": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "ductLeakageCfm25": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "atticInsulationDepthIn": { "value": null, "confidence": 0.95, "sourceSpan": null },
+  "atticInsulationType": {
+    "value": "fiberglass",
+    "confidence": 0.95,
+    "sourceSpan": "blown fiberglass"
+  },
+  "atticInsulationSpokenRValue": { "value": 38, "confidence": 1.0, "sourceSpan": "R-38" },
+  "wallInsulated": {
+    "value": null,
+    "confidence": 0.95,
+    "sourceSpan": "I can't tell you on the wall insulation"
+  },
+  "wallConstruction": { "value": "other", "confidence": 0.7, "sourceSpan": "it's brick veneer" },
+  "blowerDoorCfm50": {
+    "value": 3200,
+    "confidence": 0.98,
+    "sourceSpan": "thirty-two hundred CFM50"
+  },
+  "windowGlazing": { "value": "double_pane", "confidence": 0.98, "sourceSpan": "double pane" },
+  "windowFrame": { "value": "vinyl", "confidence": 0.98, "sourceSpan": "vinyl frames" },
+  "dhwFuel": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "dhwSystemType": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "dhwAgeBand": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "combustionVentType": { "value": null, "confidence": 0.9, "sourceSpan": null },
+  "healthSafety": {
+    "ambientCo": {
+      "value": "passed",
+      "confidence": 0.95,
+      "sourceSpan": "read zero, so that's clean"
+    },
+    "venting": { "value": null, "confidence": 0.9, "sourceSpan": null },
+    "naturalConditionSpillage": { "value": null, "confidence": 0.9, "sourceSpan": null },
+    "worstCaseDepressurization": { "value": null, "confidence": 0.9, "sourceSpan": null },
+    "worstCaseSpillage": { "value": null, "confidence": 0.9, "sourceSpan": null },
+    "draftPressure": { "value": null, "confidence": 0.9, "sourceSpan": null },
+    "gasLeak": { "value": null, "confidence": 0.9, "sourceSpan": null },
+    "moldMoisture": { "value": null, "confidence": 0.9, "sourceSpan": null },
+    "asbestos": { "value": null, "confidence": 0.9, "sourceSpan": null },
+    "lead": { "value": null, "confidence": 0.9, "sourceSpan": null },
+    "electrical": { "value": null, "confidence": 0.9, "sourceSpan": null }
+  }
+}

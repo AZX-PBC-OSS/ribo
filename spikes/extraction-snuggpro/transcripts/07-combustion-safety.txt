@@ -1,0 +1,17 @@
+CAZ testing at the Nguyen house, this recording is just the combustion safety worklist, I did the shell separately on another file.
+
+Two combustion appliances, a gas furnace and a gas storage water heater, both in the utility room, both venting into a shared B-vent up through the roof.
+
+Ambient CO — I let them run and sampled. The furnace flue itself was fine but ambient CO in the room climbed to thirty-five ppm with both firing, that is over my threshold, I'm calling that a fail on ambient CO, and I shut the furnace down.
+
+Spillage, worst case — I depressurized the house with the exhaust fans and the dryer running, got it to about minus fifty pascals, and the water heater spilled at the draft hood, sustained, did not clear. Worst case spillage is a fail.
+
+Draft pressure on the furnace, once it was the only thing running, was adequate, good steady draft, that one passes.
+
+Gas leak — I sniffed all the connections, the furnace, the water heater, the range. There's a small leak at the range shutoff valve, the sniffer lit up on it, not huge but it's real, I'd call that a warning, needs a plumber, but it's not an evacuate-the-house level.
+
+Venting — the B-vent connector's got a bit of a sag to it and one joint isn't screwed together, I'm flagging venting as a warning too, it needs to be re-supported and fastened.
+
+Natural condition spillage, meaning before I depressurized anything, under normal operation — that one was actually fine, no spillage under natural conditions, it only let go under worst case. So natural condition passes.
+
+Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today. Ending the safety recording.

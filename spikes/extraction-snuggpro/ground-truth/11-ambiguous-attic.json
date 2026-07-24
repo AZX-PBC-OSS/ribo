@@ -1,0 +1,63 @@
+{
+  "transcript": "transcripts/11-ambiguous-attic.txt",
+  "stresses": "SELF-CORRECTION / last-value-wins probe. Attic R-value: \"R-11, no wait ... R-13\" -> 13 (11 retracted). Equipment: \"I thought boiler at first ... no, it's a furnace\" -> furnace (boiler retracted). And the health trap: a personal CO monitor that \"never went off\" but is explicitly NOT a real test -> ambientCo must NOT be passed. Short visit, most fields null.",
+  "fields": {
+    "heatingEquipmentType": {
+      "value": "furnace_central_ac",
+      "sourceSpan": "it's a furnace, a gas furnace"
+    },
+    "heatingFuel": { "value": "natural_gas", "sourceSpan": "it's a furnace, a gas furnace" },
+    "heatingManufacturer": { "value": null, "sourceSpan": null },
+    "heatingModelNumber": { "value": null, "sourceSpan": null },
+    "heatingModelYear": { "value": null, "sourceSpan": null },
+    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
+    "coolingEquipmentType": { "value": null, "sourceSpan": null },
+    "ductLocation": { "value": null, "sourceSpan": null },
+    "ductSealing": { "value": null, "sourceSpan": null },
+    "ductInsulation": { "value": null, "sourceSpan": null },
+    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
+    "atticInsulationDepthIn": {
+      "value": null,
+      "sourceSpan": "I'm giving you the R-value, not a depth"
+    },
+    "atticInsulationType": {
+      "value": "fiberglass",
+      "sourceSpan": "fiberglass batts between the joists"
+    },
+    "atticInsulationSpokenRValue": {
+      "value": 13,
+      "sourceSpan": "they're R-13 kraft-faced batts"
+    },
+    "wallInsulated": { "value": null, "sourceSpan": null },
+    "wallConstruction": { "value": null, "sourceSpan": null },
+    "blowerDoorCfm50": { "value": null, "sourceSpan": "no blower door" },
+    "windowGlazing": { "value": null, "sourceSpan": null },
+    "windowFrame": { "value": null, "sourceSpan": null },
+    "dhwFuel": { "value": null, "sourceSpan": null },
+    "dhwSystemType": { "value": null, "sourceSpan": "no water heater" },
+    "dhwAgeBand": { "value": null, "sourceSpan": null },
+    "combustionVentType": { "value": null, "sourceSpan": null },
+    "healthSafety": {
+      "ambientCo": {
+        "value": "not_tested",
+        "sourceSpan": "I did not do an actual ambient CO measurement at the appliance, so don't log that as a CO test"
+      },
+      "venting": { "value": null, "sourceSpan": null },
+      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
+      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
+      "worstCaseSpillage": { "value": null, "sourceSpan": null },
+      "draftPressure": { "value": null, "sourceSpan": null },
+      "gasLeak": { "value": null, "sourceSpan": null },
+      "moldMoisture": { "value": null, "sourceSpan": null },
+      "asbestos": { "value": null, "sourceSpan": null },
+      "lead": { "value": null, "sourceSpan": null },
+      "electrical": { "value": null, "sourceSpan": null }
+    }
+  },
+  "notes": {
+    "atticInsulationSpokenRValue": "Last-value-wins: R-11 is retracted (\"no wait ... R-13\"), so 13. Emitting 11 is a retracted (wrong) value; report separately from invented. atticInsulationDepthIn stays null -- the auditor explicitly gives an R-value and refuses a depth.",
+    "heatingEquipmentType": "Retraction: \"boiler\" is withdrawn (\"no, it's a furnace ... scratch the boiler\") -> furnace_central_ac. boiler is a retracted wrong value.",
+    "ambientCo": "THE health trap. A belt CO monitor \"never went off\" is tempting -> passed, but the auditor explicitly says it is NOT a real test and not to log it. Intended not_tested (he addressed CO and declined the real measurement). null is an acceptable-but-milder reading. passed is a HALLUCINATED PASS -- the exact failure mode the matrix exists to catch -- score it as such, not as a correct clean.",
+    "_general": "Short visit: attic + a furnace peek only. \"No tests, no blower door, no water heater\" -> those are null (blower door and DHW carry the explicit-absence spans)."
+  }
+}

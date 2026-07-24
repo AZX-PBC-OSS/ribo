@@ -1,0 +1,92 @@
+{
+  "transcript": "transcripts/13-enum-paraphrase.txt",
+  "stresses": "ENUM-PARAPHRASE cluster: \"clad\" -> wood_or_metal_clad, \"power vented ... at the unit\" -> power_vented_at_unit, \"well sealed\" -> well_sealed, \"rigid duct board, inch-and-a-half\" -> duct_board_1_5in, \"concrete block\" -> concrete_block. Every stored token differs from the spoken form. HAZARD 3: CO passed, mold warning, worst-case + natural spillage explicitly not done -> not_tested. dhwAgeBand boundary case (\"fifteen years\" at the 11-15 top edge). Shared-duct AC ambiguity on coolingEquipmentType.",
+  "fields": {
+    "heatingEquipmentType": {
+      "value": "furnace_central_ac",
+      "sourceSpan": "Heating is a furnace, natural gas"
+    },
+    "heatingFuel": { "value": "natural_gas", "sourceSpan": "Heating is a furnace, natural gas" },
+    "heatingManufacturer": { "value": "Carrier", "sourceSpan": "a Carrier, I got the model" },
+    "heatingModelNumber": { "value": "58STA", "sourceSpan": "it's 58STA" },
+    "heatingModelYear": { "value": 2013, "sourceSpan": "the year reads twenty-thirteen" },
+    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": "Didn't get an output number" },
+    "coolingEquipmentType": {
+      "value": null,
+      "sourceSpan": "Central AC on the same ducts as the furnace, shared"
+    },
+    "ductLocation": {
+      "value": "basement_unconditioned",
+      "sourceSpan": "The ducts run through the basement, which is unconditioned down there"
+    },
+    "ductSealing": { "value": "well_sealed", "sourceSpan": "I'd call that well sealed" },
+    "ductInsulation": {
+      "value": "duct_board_1_5in",
+      "sourceSpan": "that rigid duct board, the inch-and-a-half board"
+    },
+    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
+    "atticInsulationDepthIn": { "value": null, "sourceSpan": null },
+    "atticInsulationType": { "value": null, "sourceSpan": null },
+    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
+    "wallInsulated": {
+      "value": null,
+      "sourceSpan": "I'm not calling the wall insulation either way, leaving it"
+    },
+    "wallConstruction": {
+      "value": "concrete_block",
+      "sourceSpan": "Exterior walls are concrete block"
+    },
+    "blowerDoorCfm50": {
+      "value": 2900,
+      "sourceSpan": "Blower door came in at twenty-nine hundred CFM50"
+    },
+    "windowGlazing": {
+      "value": "double_pane",
+      "sourceSpan": "they're double pane, the newer replacements"
+    },
+    "windowFrame": {
+      "value": "wood_or_metal_clad",
+      "sourceSpan": "the wood-frame ones with the metal cladding on the exterior, what we call clad"
+    },
+    "dhwFuel": { "value": "natural_gas", "sourceSpan": "Water heater is a gas storage tank" },
+    "dhwSystemType": { "value": "storage", "sourceSpan": "Water heater is a gas storage tank" },
+    "dhwAgeBand": { "value": "11-15", "sourceSpan": "About fifteen years old" },
+    "combustionVentType": {
+      "value": "power_vented_at_unit",
+      "sourceSpan": "power vented right at the unit"
+    },
+    "healthSafety": {
+      "ambientCo": {
+        "value": "passed",
+        "sourceSpan": "CO at both appliances was clean, zero ppm"
+      },
+      "venting": { "value": null, "sourceSpan": null },
+      "naturalConditionSpillage": {
+        "value": "not_tested",
+        "sourceSpan": "worst case and natural spillage both not done"
+      },
+      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
+      "worstCaseSpillage": {
+        "value": "not_tested",
+        "sourceSpan": "worst case and natural spillage both not done"
+      },
+      "draftPressure": { "value": null, "sourceSpan": null },
+      "gasLeak": { "value": null, "sourceSpan": null },
+      "moldMoisture": {
+        "value": "warning",
+        "sourceSpan": "I'd flag mold and moisture as a warning"
+      },
+      "asbestos": { "value": null, "sourceSpan": null },
+      "lead": { "value": null, "sourceSpan": null },
+      "electrical": { "value": null, "sourceSpan": null }
+    }
+  },
+  "notes": {
+    "coolingEquipmentType": "Intended null. The AC shares the furnace's ducts, so it is captured by heatingEquipmentType=furnace_central_ac (the Snugg 'Furnace / Central AC (shared ducts)' combined type). The cooling enum has no 'central AC shared ducts' member, and central_ac_standalone_ducts would be WRONG (it is explicitly NOT standalone). Score null CORRECT; central_ac_standalone_ducts is a wrong member; other is a defensible mild alternative. This is the shared-vs-standalone contrast with transcript 08, where the AC genuinely was standalone.",
+    "dhwAgeBand": "BOUNDARY case: \"about fifteen years\" sits at the top edge of 11-15. Intended 11-15. If a model buckets 15 into 16-20, score it as a boundary error (its own bucket), not a flat wrong -- exactly the edge normalization.md predicts.",
+    "windowFrame": "\"clad\" / \"wood with the metal cladding\" -> wood_or_metal_clad. Pure paraphrase; the spoken form never equals the token.",
+    "ductInsulation": "\"rigid duct board, the inch-and-a-half board\" -> duct_board_1_5in.",
+    "wallInsulated": "null with span: the auditor explicitly declines (\"not calling it either way\"). wallConstruction (concrete_block) is asserted and separate.",
+    "_general": "\"stucco skim\", \"condenser out back\", \"bath fan\", \"twenty-ten\" (install date, corroborates the age band, not the source) carry no field values."
+  }
+}

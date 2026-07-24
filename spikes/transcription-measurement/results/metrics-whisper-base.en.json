@@ -1,0 +1,222 @@
+{
+  "generatedAt": "2026-07-23T21:34:45.156Z",
+  "model": "Xenova/whisper-base.en",
+  "device": "wasm",
+  "dtype": "fp32",
+  "modelMeta": {
+    "model": "Xenova/whisper-base.en",
+    "coldPrimeMs": 85695.79999999702,
+    "warmReprimeMs": 1.3999999910593033,
+    "warmCachePrimeMs": 786.6000000089407,
+    "coldDownloadPeakFileBytes": 208558935,
+    "warmCacheDownloadPeakFileBytes": 208558935,
+    "jsHeapPeakBytes": 21700000,
+    "transcripts": 14
+  },
+  "peakChromiumRssBytes": 3493855232,
+  "corpus": {
+    "transcripts": 14,
+    "totalAudioSec": 1252.6,
+    "totalProcessMs": 198858,
+    "corpusRtf": 0.159,
+    "corpusWer": 0.0802,
+    "totalRefWords": 3817
+  },
+  "perTranscript": [
+    {
+      "slug": "01-attic-r-value-shell",
+      "audioSec": 74.54,
+      "processMs": 10692,
+      "rtf": 0.143,
+      "wer": 0.1244,
+      "sub": 16,
+      "del": 10,
+      "ins": 1,
+      "refWords": 217,
+      "segments": 4
+    },
+    {
+      "slug": "02-oil-boiler-basement",
+      "audioSec": 65.86,
+      "processMs": 10341,
+      "rtf": 0.157,
+      "wer": 0.1068,
+      "sub": 16,
+      "del": 6,
+      "ins": 0,
+      "refWords": 206,
+      "segments": 4
+    },
+    {
+      "slug": "03-quick-exterior-short",
+      "audioSec": 32.88,
+      "processMs": 5206,
+      "rtf": 0.158,
+      "wer": 0.037,
+      "sub": 2,
+      "del": 2,
+      "ins": 0,
+      "refWords": 108,
+      "segments": 2
+    },
+    {
+      "slug": "04-fuel-stated-separately",
+      "audioSec": 64.02,
+      "processMs": 10283,
+      "rtf": 0.161,
+      "wer": 0.089,
+      "sub": 11,
+      "del": 6,
+      "ins": 0,
+      "refWords": 191,
+      "segments": 4
+    },
+    {
+      "slug": "05-full-walkthrough",
+      "audioSec": 312.41,
+      "processMs": 53797,
+      "rtf": 0.172,
+      "wer": 0.0914,
+      "sub": 55,
+      "del": 24,
+      "ins": 8,
+      "refWords": 952,
+      "segments": 21
+    },
+    {
+      "slug": "06-homeowner-crosstalk",
+      "audioSec": 80.09,
+      "processMs": 13189,
+      "rtf": 0.165,
+      "wer": 0.0417,
+      "sub": 6,
+      "del": 3,
+      "ins": 2,
+      "refWords": 264,
+      "segments": 5
+    },
+    {
+      "slug": "07-combustion-safety",
+      "audioSec": 98.01,
+      "processMs": 15892,
+      "rtf": 0.162,
+      "wer": 0.0435,
+      "sub": 9,
+      "del": 3,
+      "ins": 1,
+      "refWords": 299,
+      "segments": 6
+    },
+    {
+      "slug": "08-no-fuel-silent-drop",
+      "audioSec": 76.66,
+      "processMs": 11058,
+      "rtf": 0.144,
+      "wer": 0.1098,
+      "sub": 19,
+      "del": 5,
+      "ins": 3,
+      "refWords": 246,
+      "segments": 4
+    },
+    {
+      "slug": "09-chatter-and-scheduling",
+      "audioSec": 70.11,
+      "processMs": 10776,
+      "rtf": 0.154,
+      "wer": 0.0138,
+      "sub": 3,
+      "del": 0,
+      "ins": 0,
+      "refWords": 217,
+      "segments": 4
+    },
+    {
+      "slug": "10-crawlspace-loose-units",
+      "audioSec": 94.42,
+      "processMs": 13460,
+      "rtf": 0.143,
+      "wer": 0.1056,
+      "sub": 20,
+      "del": 10,
+      "ins": 0,
+      "refWords": 284,
+      "segments": 5
+    },
+    {
+      "slug": "11-ambiguous-attic",
+      "audioSec": 65.82,
+      "processMs": 10379,
+      "rtf": 0.158,
+      "wer": 0.0918,
+      "sub": 13,
+      "del": 5,
+      "ins": 0,
+      "refWords": 196,
+      "segments": 4
+    },
+    {
+      "slug": "12-wrong-field-old-unit",
+      "audioSec": 73.53,
+      "processMs": 10452,
+      "rtf": 0.142,
+      "wer": 0.1132,
+      "sub": 15,
+      "del": 9,
+      "ins": 0,
+      "refWords": 212,
+      "segments": 4
+    },
+    {
+      "slug": "13-enum-paraphrase",
+      "audioSec": 104.11,
+      "processMs": 15764,
+      "rtf": 0.151,
+      "wer": 0.0689,
+      "sub": 15,
+      "del": 5,
+      "ins": 1,
+      "refWords": 305,
+      "segments": 6
+    },
+    {
+      "slug": "14-rapid-recap",
+      "audioSec": 40.09,
+      "processMs": 7569,
+      "rtf": 0.189,
+      "wer": 0.0167,
+      "sub": 1,
+      "del": 0,
+      "ins": 1,
+      "refWords": 120,
+      "segments": 3
+    }
+  ],
+  "hintDelta": [
+    {
+      "slug": "01-attic-r-value-shell",
+      "unhintedWer": 0.1382,
+      "hintedWer": 0.1244,
+      "delta": 0.0138
+    },
+    {
+      "slug": "05-full-walkthrough",
+      "unhintedWer": 0.0935,
+      "hintedWer": 0.0914,
+      "delta": 0.0021
+    },
+    {
+      "slug": "07-combustion-safety",
+      "unhintedWer": 0.2241,
+      "hintedWer": 0.0435,
+      "delta": 0.1806
+    },
+    {
+      "slug": "12-wrong-field-old-unit",
+      "unhintedWer": 0.1179,
+      "hintedWer": 0.1132,
+      "delta": 0.0047
+    }
+  ],
+  "peakChromiumRssNote": "Peak RSS summed over Playwright Chromium processes (ms-playwright match only; excludes the developer Google Chrome). ps RSS double-counts shared pages, so this is a CEILING for the whole headless browser, not the model alone. Measured on a clean isolated short run (metrics-whisper-base.en-mem.json); the full-corpus run shares the same model footprint."
+}

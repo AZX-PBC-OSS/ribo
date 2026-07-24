@@ -1,0 +1,221 @@
+{
+  "generatedAt": "2026-07-23T21:42:40.356Z",
+  "model": "Xenova/whisper-tiny.en",
+  "device": "wasm",
+  "dtype": "fp32",
+  "modelMeta": {
+    "model": "Xenova/whisper-tiny.en",
+    "coldPrimeMs": 47255.90000000596,
+    "warmReprimeMs": 1.800000011920929,
+    "warmCachePrimeMs": 639.6000000238419,
+    "coldDownloadPeakFileBytes": 118578063,
+    "warmCacheDownloadPeakFileBytes": 118578063,
+    "jsHeapPeakBytes": 21700000,
+    "transcripts": 14
+  },
+  "peakChromiumRssBytes": 2530738176,
+  "corpus": {
+    "transcripts": 14,
+    "totalAudioSec": 1252.6,
+    "totalProcessMs": 94514,
+    "corpusRtf": 0.075,
+    "corpusWer": 0.0859,
+    "totalRefWords": 3817
+  },
+  "perTranscript": [
+    {
+      "slug": "01-attic-r-value-shell",
+      "audioSec": 74.54,
+      "processMs": 5140,
+      "rtf": 0.069,
+      "wer": 0.1198,
+      "sub": 17,
+      "del": 8,
+      "ins": 1,
+      "refWords": 217,
+      "segments": 4
+    },
+    {
+      "slug": "02-oil-boiler-basement",
+      "audioSec": 65.86,
+      "processMs": 5029,
+      "rtf": 0.076,
+      "wer": 0.1262,
+      "sub": 20,
+      "del": 5,
+      "ins": 1,
+      "refWords": 206,
+      "segments": 4
+    },
+    {
+      "slug": "03-quick-exterior-short",
+      "audioSec": 32.88,
+      "processMs": 2494,
+      "rtf": 0.076,
+      "wer": 0.037,
+      "sub": 2,
+      "del": 2,
+      "ins": 0,
+      "refWords": 108,
+      "segments": 2
+    },
+    {
+      "slug": "04-fuel-stated-separately",
+      "audioSec": 64.02,
+      "processMs": 4910,
+      "rtf": 0.077,
+      "wer": 0.1152,
+      "sub": 15,
+      "del": 6,
+      "ins": 1,
+      "refWords": 191,
+      "segments": 4
+    },
+    {
+      "slug": "05-full-walkthrough",
+      "audioSec": 312.41,
+      "processMs": 25534,
+      "rtf": 0.082,
+      "wer": 0.0872,
+      "sub": 55,
+      "del": 23,
+      "ins": 5,
+      "refWords": 952,
+      "segments": 21
+    },
+    {
+      "slug": "06-homeowner-crosstalk",
+      "audioSec": 80.09,
+      "processMs": 6264,
+      "rtf": 0.078,
+      "wer": 0.0795,
+      "sub": 13,
+      "del": 4,
+      "ins": 4,
+      "refWords": 264,
+      "segments": 5
+    },
+    {
+      "slug": "07-combustion-safety",
+      "audioSec": 98.01,
+      "processMs": 7456,
+      "rtf": 0.076,
+      "wer": 0.0569,
+      "sub": 13,
+      "del": 3,
+      "ins": 1,
+      "refWords": 299,
+      "segments": 6
+    },
+    {
+      "slug": "08-no-fuel-silent-drop",
+      "audioSec": 76.66,
+      "processMs": 5266,
+      "rtf": 0.069,
+      "wer": 0.0854,
+      "sub": 16,
+      "del": 3,
+      "ins": 2,
+      "refWords": 246,
+      "segments": 4
+    },
+    {
+      "slug": "09-chatter-and-scheduling",
+      "audioSec": 70.11,
+      "processMs": 5117,
+      "rtf": 0.073,
+      "wer": 0.023,
+      "sub": 4,
+      "del": 0,
+      "ins": 1,
+      "refWords": 217,
+      "segments": 4
+    },
+    {
+      "slug": "10-crawlspace-loose-units",
+      "audioSec": 94.42,
+      "processMs": 6328,
+      "rtf": 0.067,
+      "wer": 0.1197,
+      "sub": 24,
+      "del": 9,
+      "ins": 1,
+      "refWords": 284,
+      "segments": 5
+    },
+    {
+      "slug": "11-ambiguous-attic",
+      "audioSec": 65.82,
+      "processMs": 4945,
+      "rtf": 0.075,
+      "wer": 0.0867,
+      "sub": 16,
+      "del": 0,
+      "ins": 1,
+      "refWords": 196,
+      "segments": 4
+    },
+    {
+      "slug": "12-wrong-field-old-unit",
+      "audioSec": 73.53,
+      "processMs": 4985,
+      "rtf": 0.068,
+      "wer": 0.1274,
+      "sub": 18,
+      "del": 8,
+      "ins": 1,
+      "refWords": 212,
+      "segments": 4
+    },
+    {
+      "slug": "13-enum-paraphrase",
+      "audioSec": 104.11,
+      "processMs": 7520,
+      "rtf": 0.072,
+      "wer": 0.0754,
+      "sub": 16,
+      "del": 5,
+      "ins": 2,
+      "refWords": 305,
+      "segments": 6
+    },
+    {
+      "slug": "14-rapid-recap",
+      "audioSec": 40.09,
+      "processMs": 3526,
+      "rtf": 0.088,
+      "wer": 0.0167,
+      "sub": 1,
+      "del": 0,
+      "ins": 1,
+      "refWords": 120,
+      "segments": 3
+    }
+  ],
+  "hintDelta": [
+    {
+      "slug": "01-attic-r-value-shell",
+      "unhintedWer": 0.1705,
+      "hintedWer": 0.1198,
+      "delta": 0.0507
+    },
+    {
+      "slug": "05-full-walkthrough",
+      "unhintedWer": 0.0935,
+      "hintedWer": 0.0872,
+      "delta": 0.0063
+    },
+    {
+      "slug": "07-combustion-safety",
+      "unhintedWer": 0.0535,
+      "hintedWer": 0.0569,
+      "delta": -0.0033
+    },
+    {
+      "slug": "12-wrong-field-old-unit",
+      "unhintedWer": 0.1415,
+      "hintedWer": 0.1274,
+      "delta": 0.0142
+    }
+  ]
+}

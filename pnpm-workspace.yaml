@@ -1,0 +1,125 @@
+packages:
+  - "packages/*"
+  - "playground"
+
+# Pinned EXACT (no carets) so upgrades are deliberate, reviewable, one-line changes.
+# See docs/implementation/10-build-and-packaging.md §9 (maintainability).
+catalog:
+  # --- runtime ---
+  react: "19.2.8"
+  react-dom: "19.2.8"
+  zod: "4.4.3"
+  # The durable outbox (docs/implementation/09-offline-first.md). RxDB is a
+  # `dependencies` entry of @azx/ribo-core, not a devDependency: the queue is in
+  # the package's public surface, so consumers need it at runtime.
+  #
+  # The free Dexie `RxStorage` is NOT a separate package — it ships inside rxdb
+  # as `rxdb/plugins/storage-dexie`, and rxdb declares `dexie` as a direct
+  # (non-peer) dependency. Deliberately not catalogued here: adding our own
+  # `dexie` entry would pin a second copy alongside rxdb's, and two Dexie
+  # instances over one IndexedDB database is a data-corruption footgun. If we
+  # ever `import "dexie"` directly, catalogue it at *exactly* rxdb's pin.
+  rxdb: "17.4.0"
+  # Required peer of rxdb, and unavoidable in the public surface: RxDB query and
+  # collection APIs hand back rxjs Observables. Declared explicitly rather than
+  # leaned on transitively — see the Phase 1 zod incident.
+  rxjs: "7.8.2"
+  # --- playground "Try it" extraction panel (Phase 4 local dev tool) ---
+  # CodeMirror is the JSON Schema / source-text editor in the playground's
+  # dev-only "Try it" panel. `@uiw/react-codemirror` is the React wrapper (it
+  # bundles the basic-setup + one-dark theme + core codemirror as its own
+  # dependencies, resolved from its node_modules — not the playground's — so only
+  # the two specifiers the panel imports directly are catalogued). Browser
+  # runtime deps of `playground` ONLY; no package under packages/ renders UI.
+  "@uiw/react-codemirror": "4.25.11"
+  "@codemirror/lang-json": "6.0.2"
+  # ajv validates the model's output against the pasted JSON Schema — the trust
+  # boundary of the `/api/extract` dev endpoint (playground/vite-extract.ts). It
+  # runs in the Vite dev/preview server (Node), never in the browser bundle, so
+  # it is a devDependency of `playground` ONLY.
+  ajv: "8.20.0"
+  # On-device Whisper runtime, a `dependencies` entry of
+  # @azx/ribo-transcriber-ondevice ONLY (Phase 3). Deliberately kept out of
+  # @azx/ribo-core: transformers pulls `onnxruntime-node` and `sharp` as hard
+  # dependencies with postinstall build scripts, and no ribo-core consumer that
+  # never transcribes on-device should inherit them. Pinned EXACT to the version
+  # whose tarballs docs/implementation/01 + 11 were verified against by
+  # inspection (the Safari/Chromium ORT two-build split, the `prepareAudios`
+  # Float32Array branch) — a different build is a different set of facts.
+  "@huggingface/transformers": "4.2.0"
+
+  # --- types ---
+  # Held on the 24.x line to match `engines.node: ">=24"` — @types/node majors
+  # track Node majors, so a newer major would type APIs this repo cannot rely on.
+  "@types/node": "24.13.3"
+  "@types/react": "19.2.17"
+  "@types/react-dom": "19.2.3"
+
+  # --- toolchain ---
+  # TypeScript is deliberately held at 6.x: typescript-eslint@8.65.0 declares
+  # `typescript: ">=4.8.4 <6.1.0"`, so TS 7 is not yet lintable. Revisit when
+  # typescript-eslint adds TS 7 support (10 §9 — "TS 7 as a fast-follow").
+  typescript: "6.0.3"
+  vite: "8.1.5"
+  vitest: "4.1.10"
+  # Both must track `vitest` exactly: each declares `vitest: "4.1.10"` as a hard
+  # (non-range) peer, so bumping one without the others fails to install.
+  #
+  # Vitest 4 split the provider out of @vitest/browser: `browser.provider` is now
+  # a factory imported from @vitest/browser-playwright, not the string
+  # "playwright". Passing the string throws at startup ("configuration was
+  # changed to accept a factory"), so the second package is not optional.
+  "@vitest/browser": "4.1.10"
+  "@vitest/browser-playwright": "4.1.10"
+  # The provider drives `playwright` (not `@playwright/test`). NOTE: the npm
+  # package ships no browser binaries — `pnpm exec playwright install chromium`
+  # is a separate step, and CI must run it before ./check.sh.
+  playwright: "1.61.1"
+  jsdom: "29.1.1"
+  "@vitejs/plugin-react": "6.0.4"
+  eslint-plugin-react-hooks: "7.1.1"
+  # Phase 2.5's service worker (docs/superpowers/plans/2026-07-23-phase-2.5-offline-app-load.md).
+  # A devDependency of `playground` ONLY — the service worker is origin-global and
+  # therefore app-owned; no package under packages/ may register, ship or assume one.
+  #
+  vite-plugin-pwa: "1.3.0"
+  # NOT optional, and not duplication. `virtual:pwa-register` — the module our
+  # `src/update-store.ts` imports — contains a bare `import("workbox-window")`,
+  # and that specifier is resolved from the *playground's* node_modules, not from
+  # vite-plugin-pwa's. Under pnpm's isolated layout the playground cannot see its
+  # dependency's dependencies, so without this entry `pnpm build` dies with
+  # "Rolldown failed to resolve import 'workbox-window'".
+  #
+  # Pinned to EXACTLY the version vite-plugin-pwa@1.3.0 resolves for its own
+  # `workbox-window` dependency (`^7.4.1` → 7.4.1). A second, different Workbox
+  # runtime talking to a service worker generated by the first is a real
+  # mismatch, not a duplication annoyance — bump the two together or not at all.
+  workbox-window: "7.4.1"
+
+  # --- docs site (root-only tooling; the `docs:*` scripts, never a package dep) ---
+  # VitePress builds the static docs site; TypeDoc generates the Reference section
+  # from each package's public `src/index.ts` barrel. Pinned EXACT like everything
+  # else so a docs-toolchain bump is one reviewable line. The chain is peer-locked:
+  # typedoc-plugin-markdown wants typedoc `0.28.x`; typedoc-vitepress-theme wants
+  # typedoc-plugin-markdown `>=4.11.0`; typedoc itself accepts our `typescript`
+  # `6.0.x`. Bump them together after checking those ranges still line up.
+  vitepress: "1.6.4"
+  typedoc: "0.28.20"
+  typedoc-plugin-markdown: "4.12.0"
+  typedoc-vitepress-theme: "1.1.3"
+
+  # --- release (root-only tooling; the `changeset*` scripts, never a package dep) ---
+  # Changesets drives INDEPENDENT versioning of the five publishable `@azx/ribo-*`
+  # packages (each versions on its own; the private `playground` and `@azx/tsconfig`
+  # are excluded). Pinned EXACT like everything else so a bump is one reviewable line.
+  # Config lives in `.changeset/config.json`; the policy is documented in CONTRIBUTING.md
+  # ("Releasing") and docs/design/releasing.md. Publishing infra (registry, `.npmrc`)
+  # is still deferred — `changeset publish` is wired but nothing is published yet.
+  "@changesets/cli": "2.31.1"
+# NOTE (pnpm 11 upgrade): when we move to pnpm 11, add here —
+#   dedupePeerDependents: true
+#   strictPeerDependencies: true
+#   minimumReleaseAge: 1440
+#   minimumReleaseAgeExclude: ["@azx/*"]
+# The last two matter because pnpm 11 defaults minimumReleaseAge to one day,
+# which would make our own freshly published canaries invisible to `pnpm add`.

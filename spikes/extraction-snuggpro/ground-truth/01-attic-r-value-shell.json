@@ -1,0 +1,65 @@
+{
+  "transcript": "transcripts/01-attic-r-value-shell.txt",
+  "stresses": "HAZARD 2 R-value-only attic (R-38, no depth -> band null + spokenRValue). HAZARD 1 fuel-as-adjective (\"gas furnace\"). HAZARD 3 single clean CO -> passed, all other 10 tests silent -> null. Wall insulation explicitly declined (null with span). Brick-veneer construction does not map cleanly to full_brick.",
+  "fields": {
+    "heatingEquipmentType": { "value": "furnace_central_ac", "sourceSpan": "Heat's a gas furnace" },
+    "heatingFuel": { "value": "natural_gas", "sourceSpan": "Heat's a gas furnace" },
+    "heatingManufacturer": { "value": "Trane", "sourceSpan": "it's a Trane" },
+    "heatingModelNumber": { "value": "TUD100", "sourceSpan": "it's a TUD100" },
+    "heatingModelYear": {
+      "value": 2017,
+      "sourceSpan": "the manufacture date stamped is twenty seventeen"
+    },
+    "heatingOutputCapacityBtuh": {
+      "value": 100000,
+      "sourceSpan": "Output's a hundred thousand BTU on the plate"
+    },
+    "coolingEquipmentType": { "value": null, "sourceSpan": null },
+    "ductLocation": { "value": null, "sourceSpan": null },
+    "ductSealing": { "value": null, "sourceSpan": null },
+    "ductInsulation": { "value": null, "sourceSpan": null },
+    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
+    "atticInsulationDepthIn": { "value": null, "sourceSpan": null },
+    "atticInsulationType": {
+      "value": "fiberglass",
+      "sourceSpan": "Insulation up here is blown fiberglass"
+    },
+    "atticInsulationSpokenRValue": { "value": 38, "sourceSpan": "I'd put it at about R-38" },
+    "wallInsulated": {
+      "value": null,
+      "sourceSpan": "I can't tell you on the wall insulation"
+    },
+    "wallConstruction": { "value": null, "sourceSpan": null },
+    "blowerDoorCfm50": { "value": 3200, "sourceSpan": "thirty-two hundred CFM50" },
+    "windowGlazing": { "value": "double_pane", "sourceSpan": "Windows are all double pane" },
+    "windowFrame": { "value": "vinyl", "sourceSpan": "vinyl frames" },
+    "dhwFuel": { "value": null, "sourceSpan": null },
+    "dhwSystemType": { "value": null, "sourceSpan": null },
+    "dhwAgeBand": { "value": null, "sourceSpan": null },
+    "combustionVentType": { "value": null, "sourceSpan": null },
+    "healthSafety": {
+      "ambientCo": {
+        "value": "passed",
+        "sourceSpan": "Ambient CO right next to the furnace while it was running read zero, so that's clean"
+      },
+      "venting": { "value": null, "sourceSpan": null },
+      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
+      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
+      "worstCaseSpillage": { "value": null, "sourceSpan": null },
+      "draftPressure": { "value": null, "sourceSpan": null },
+      "gasLeak": { "value": null, "sourceSpan": null },
+      "moldMoisture": { "value": null, "sourceSpan": null },
+      "asbestos": { "value": null, "sourceSpan": null },
+      "lead": { "value": null, "sourceSpan": null },
+      "electrical": { "value": null, "sourceSpan": null }
+    }
+  },
+  "notes": {
+    "atticInsulationDepthIn": "R-value-only case: the auditor states R-38 and never a depth. Correct output is band null. A model that converts R-38 -> \"10-12\" (or any band) on its own is the forbidden conversion normalization.md predicts; count it as an R->depth conversion, not a correct band.",
+    "atticInsulationSpokenRValue": "The R-value holding-pen. 38, from \"about R-38\". The \"about\" is a hedge but the number is asserted.",
+    "wallInsulated": "null with a span: the auditor explicitly declines to state it (\"I can't tell you\"). Not a silent absence. any of yes/poorly/no is a hallucination here.",
+    "wallConstruction": "Intended null. The auditor says \"brick veneer\" (over frame), which is NOT the same as the Snugg member full_brick (solid masonry). full_brick is a WRONG member; frame_2x6 is arguable but unstated. Score null CORRECT; full_brick WRONG-member; frame_2x6 or other as mild.",
+    "coolingEquipmentType": "Gas furnace, forced hot air, no AC mentioned. null.",
+    "_general": "Distractor numbers that are not field values: \"twenty-two Linden Street\" (house number), the CO reading \"zero\" (a ppm, drives ambientCo=passed but is not itself a numeric field). \"about R-38\" is an R-value, never a depth band."
+  }
+}
