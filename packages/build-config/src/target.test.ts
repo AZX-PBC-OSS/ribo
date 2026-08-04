@@ -8,12 +8,21 @@ describe("toOxcTargets", () => {
   });
 
   test("drops Android families, which browserslist reports as current-only", () => {
-    // This is the real shape of `baseline widely available`: and_chr reports only
-    // 150 while desktop chrome goes down to 121. Folding and_chr into a per-family
-    // minimum would emit chrome150 — a floor high enough to break every device the
-    // target exists to protect. Neither and_chr nor and_ff has an oxc token, and
-    // desktop Chrome/Firefox already bind the same syntax.
+    // This is the real shape of `baseline widely available`: and_chr reports only 150
+    // while desktop chrome goes down to 121. Folding and_chr into a per-family minimum
+    // would emit chrome150 — a floor high enough to break every device the target
+    // exists to protect. Neither and_chr nor and_ff has an oxc token, and desktop
+    // Chrome/Firefox already bind the same syntax.
     expect(toOxcTargets(["chrome 121", "and_chr 150", "and_ff 152"])).toEqual(["chrome121"]);
+
+    // The assertion above documents the real shape but cannot FAIL under the bug: with
+    // and_chr folded into chrome, min(121, 150) is still 121. These two use an Android
+    // version BELOW its desktop counterpart, so folding would yield chrome115 / firefox118
+    // and the test breaks — which is what makes the guard real. The inputs are synthetic
+    // (browserslist reports Android above desktop); that is fine, this is a unit test of
+    // the mapping, not of browserslist.
+    expect(toOxcTargets(["chrome 121", "and_chr 115"])).toEqual(["chrome121"]);
+    expect(toOxcTargets(["firefox 122", "and_ff 118"])).toEqual(["firefox122"]);
   });
 
   test("takes the low end of a version range", () => {
