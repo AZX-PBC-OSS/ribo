@@ -138,6 +138,21 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@24.13.3)(@vitest/browser-playwright@4.1.10)(vite@8.1.5(@types/node@24.13.3)(terser@5.49.0)(yaml@2.9.0))
 
+  packages/build-config:
+    devDependencies:
+      '@azx/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@24.13.3)(@vitest/browser-playwright@4.1.10)(vite@8.1.5(@types/node@24.13.3)(terser@5.49.0)(yaml@2.9.0))
+
   packages/ribo-adapter-snuggpro:
     dependencies:
       zod:

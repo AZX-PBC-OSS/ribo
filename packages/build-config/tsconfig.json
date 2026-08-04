@@ -1,0 +1,14 @@
+{
+  "extends": "@azx/tsconfig/base.json",
+  "compilerOptions": {
+    // This package's code runs in NODE at build time — it is a tsdown config
+    // factory, never shipped code. It also imports tsdown's types, which reach
+    // through to rolldown's, and those use `Symbol.asyncDispose`, absent from
+    // base.json's ES2023 lib. Same two widenings, for the same reason, as
+    // playground/tsconfig.node.json (AGENTS.md §5.3). Scoped here so base.json
+    // stays the environment-free root of the config chain.
+    "types": ["node"],
+    "lib": ["ESNext"]
+  },
+  "include": ["src"]
+}
