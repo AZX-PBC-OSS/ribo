@@ -20,11 +20,13 @@
     "changeset:publish": "changeset publish",
     "docs:api": "typedoc --options docs/typedoc.json",
     "docs:dev": "pnpm run docs:api && vitepress dev docs",
-    "docs:build": "pnpm run docs:api && vitepress build docs"
+    "docs:build": "pnpm run docs:api && vitepress build docs",
+    "target:refresh": "node scripts/refresh-target.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
     "@eslint/js": "10.0.1",
+    "browserslist": "catalog:",
     "eslint": "10.7.0",
     "globals": "17.7.0",
     "prettier": "3.9.6",

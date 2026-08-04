@@ -39,6 +39,9 @@ catalogs:
     ajv:
       specifier: 8.20.0
       version: 8.20.0
+    browserslist:
+      specifier: 4.28.7
+      version: 4.28.7
     playwright:
       specifier: 1.61.1
       version: 1.61.1
@@ -101,6 +104,9 @@ importers:
       '@vitest/browser-playwright':
         specifier: 'catalog:'
         version: 4.1.10(playwright@1.61.1)(vite@8.1.5(@types/node@24.13.3)(terser@5.49.0)(yaml@2.9.0))(vitest@4.1.10)
+      browserslist:
+        specifier: 'catalog:'
+        version: 4.28.7
       eslint:
         specifier: 10.7.0
         version: 10.7.0

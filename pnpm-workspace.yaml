@@ -56,6 +56,14 @@ catalog:
   "@types/react-dom": "19.2.3"
 
   # --- toolchain ---
+  # Resolves the Baseline syntax floor for the library builds. Used ONLY by
+  # scripts/refresh-target.mjs — never at build time, which reads the committed
+  # tokens in packages/build-config/src/target.generated.ts.
+  #
+  # Already present transitively (vite-plugin-pwa -> workbox-build ->
+  # @babel/preset-env), but declared explicitly rather than leaned on: see the
+  # rxjs entry above and the Phase 1 zod incident it references.
+  browserslist: "4.28.7"
   # TypeScript is deliberately held at 6.x: typescript-eslint@8.65.0 declares
   # `typescript: ">=4.8.4 <6.1.0"`, so TS 7 is not yet lintable. Revisit when
   # typescript-eslint adds TS 7 support (10 §9 — "TS 7 as a fast-follow").
