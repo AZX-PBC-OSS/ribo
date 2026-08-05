@@ -39,6 +39,18 @@ export const sharedTsdown: UserConfig = {
     // `z.infer<typeof Schema>` cannot satisfy (base.json turns it off for this
     // reason, and doc 10 §3.1 records one package hitting 374 errors).
     generator: "tsc",
+    // Declaration maps are OFF. Their `sources` point at `../src/*.ts`, but
+    // `files: ["dist"]` (and the tarball gate in scripts/pkg-gates.mjs)
+    // deliberately exclude `src/` from every published tarball, so a consumer's
+    // "Go to Definition" on any ribo type would target a path absent from the
+    // package — a broken affordance, worse than shipping no map. Inlining
+    // `sourcesContent` was rejected: it bloats the tarball and effectively ships
+    // source, contradicting the no-source-in-tarball rule. JS sourcemaps below
+    // are unaffected — they ship WITH `sourcesContent` and resolve in the
+    // consumer's debugger. Note the top-level `sourcemap: true` is forced on by
+    // `declarationMap` in `packages/tsconfig/base.json`, so this MUST be set on
+    // the `dts` block specifically, not by changing the top-level flag.
+    sourcemap: false,
   },
 
   // React must be externalized BY REGEX. A bare "react" does not match
@@ -52,15 +64,23 @@ export const sharedTsdown: UserConfig = {
   // The host minifies. A minified library only obstructs their debugging.
   minify: false,
 
-  // Optional tsdown peers, run in-build: a broken `exports` block fails the build
-  // that produced it rather than a later CI step.
-  publint: true,
+  // Optional tsdown peers, run in-build so a bad package contract fails the build
+  // that produced it rather than a later CI step. Both are set to FAIL the build:
+  // publint with `{ strict: true }` — warnings and suggestions are fatal, matching
+  // the `publint --strict` the CI TODO this branch replaced (non-strict `publint:
+  // true` makes warnings and suggestions non-fatal). attw with `level: "error"` —
+  // tsdown's default `level: "warn"` with `failOnWarn: false` prints WARN and exits
+  // 0; only `logger.error` sets `process.exitCode = 1`. `esm-only` (below)
+  // suppresses only the `node10`/`node16-cjs` resolution KINDS; every other attw
+  // problem class (untyped resolution, false ESM/CJS, named-export mismatch,
+  // "package has no types") is live, and every one is now fatal.
+  publint: { strict: true },
   // `esm-only`, not a bare `true`: attw's default profile resolves under Node10
   // and Node16 (CJS) too, which reports `No resolution (node10)` and `CJS
   // resolves to ESM (node16-cjs)` for a package that is deliberately ESM-only.
   // Those are false positives here — there is no CJS build and never will be
   // (doc 10 §3) — so the profile suppresses them without weakening real checks.
-  attw: { profile: "esm-only" },
+  attw: { profile: "esm-only", level: "error" },
 
   // NOTE what is deliberately absent: `experimental.resolveNewUrlToAsset`.
   // Rolldown's own tracking issue says it "does not work well when bundling

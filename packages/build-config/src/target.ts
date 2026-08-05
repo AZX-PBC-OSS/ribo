@@ -45,6 +45,8 @@ export function toOxcTargets(browsers: readonly string[]): string[] {
   const lowest = new Map<string, string>();
 
   for (const entry of browsers) {
+    // Assumes browserslist's single-space `"family version"` pairs; a tab or
+    // double space would mis-split, but browserslist's output format is stable.
     const [family, range] = entry.split(" ");
     if (family === undefined || range === undefined) continue;
 
