@@ -51,8 +51,9 @@ run_stage "resolve" pnpm check:resolve
 # gates (so their output is not buried) and before `test`, because a module
 # resolution failure explains most test failures that would follow.
 run_stage "build:app" pnpm build:app
-# The two publishing gates publint and attw do not cover: no TypeScript source in
-# any tarball, and exactly one resolved React. Runs here rather than in CI alone so
+# The three publishing gates publint and attw do not cover: no TypeScript source in
+# any tarball, exactly one resolved React, and react/react-dom declared as peer
+# deps (not regular deps) where used. Runs here rather than in CI alone so
 # `./check.sh` stays the single "am I done?" signal.
 run_stage "pkg:gates" pnpm check:pkg
 # Runs ALL THREE Vitest projects in one pass: `unit` (node), `browser`

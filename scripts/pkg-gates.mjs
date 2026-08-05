@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 /**
- * @file The two publishing gates from doc 10 §8 that publint and attw do not cover.
+ * @file The three publishing gates from doc 10 §8 that publint and attw do not cover.
  *
  *   1. No TypeScript source in any tarball. `.d.ts` files are expected; a `.ts`
  *      that is not a declaration means `files`/`exports` leaked source, and a host
  *      app would be handed TypeScript it cannot compile.
  *   2. Exactly one resolved React. Duplicate React silently breaks hooks in a
  *      consumer's app, and a published library is the usual way it happens.
+ *   3. React/react-dom declared as peer dependencies, not regular dependencies,
+ *      in any publishable package that uses them. A published library moving
+ *      React out of `peerDependencies` is the actual mechanism by which a
+ *      consumer ends up with two Reacts — the copy count in gate 2 alone cannot
+ *      see that, since this workspace's single catalog version makes duplication
+ *      impossible to detect here.
  */
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
