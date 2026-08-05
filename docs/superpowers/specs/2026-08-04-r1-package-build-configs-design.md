@@ -182,9 +182,12 @@ floor **higher** than reality breaks a supported device — an auditor's tablet,
 cannot hot-fix them. §2.1's matrix remains the **support** policy; the generated tokens are the
 **syntax** floor; the two are allowed to differ so long as the floor is the lower one.
 
-One-time empirical check during implementation: build once at this floor and once at an explicitly
-modern target, and diff the output. If the diff is empty the looser floor is free and the question is
-closed permanently. If it is not empty, revisit with real byte counts rather than argument.
+**Measured 2026-08-04 (R1 implementation).** Built all five packages at the
+generated Baseline floor and again at `["chrome138", "edge138", "safari18"]`
+(roughly §2.1's matrix). The emitted JavaScript was **byte-identical** — this
+codebase uses no syntax newer than the Baseline floor, so the looser floor costs
+nothing and the question is closed. Re-measure only if a package starts using
+notably newer syntax.
 
 ---
 
