@@ -210,7 +210,11 @@ and ships no stylesheet, so the subpath was removed along with `sideEffects: ["*
 `dist/index.js`. Now it resolves quietly to the built artifact: HMR into library source dies, CI
 stays green, and nothing announces it. `pnpm check:resolve`
 (`scripts/assert-source-condition.mjs`) is the gate that replaces that lost property, and it
-asserts **both** directions — with the condition to `src/`, without it to `dist/`.
+asserts **both** directions — with the condition to `src/`, without it to `dist/`. Deleting
+`customConditions` from `packages/tsconfig/base.json` lost the same property for the same reason
+(`dist/*.d.ts` now exists): a local run with a warm `dist/` silently typechecks against built
+declarations instead of source — CI still catches it, because typecheck runs before any build on a
+clean checkout.
 
 ### 5.2 Inject `createWorker`; never construct a Worker in library code
 
