@@ -1,6 +1,6 @@
 # Phase 4 — Extraction + Write-back Implementation Plan
 
-> **For agentic workers:** Use superpowers:subagent-driven-development. Steps use checkbox (`- [ ]`) syntax.
+The plan for extraction and write-back — the pluggable `Extractor<F>` seam, the single-shot managed-LLM extractor, field-level review, and the write-back scaffold gated on Helix egress signing. Phase 4 is complete; write-back remains gated.
 
 **Goal:** replace the two remaining stubs — extraction and write-back — with the real thing. Speak into the field app, get a real on-device transcript (Phase 3), extract structured Snugg Pro fields **with provenance**, review them, and write the accepted ones back to Snugg Pro. Ends with: a queued recording drains all the way to `done` with real data in Snugg Pro.
 
@@ -37,51 +37,51 @@ Everything in [`AGENTS.md`](../../../AGENTS.md) applies, plus:
 
 **Files:** `packages/ribo-core/src/extractor.ts` + tests
 
-- [ ] Define `Extractor<F>` (`extract(transcript: string): Promise<ExtractionResult<F>>`), `ExtractionResult<F>` (`{ fields: F; raw?: unknown; usage: { calls: number } }`), and `ExtractionTarget<F>` (`Pick<ToolAdapter<F, unknown>, "name" | "schema" | "instructions" | "examples">`).
-- [ ] `toExtractStep<F>(extractor): ExtractStep` — adapt any `Extractor` to the relay's injected step (`{ transcript } => extractor.extract(transcript.text).fields`). Keeps `RelayOptions.extract` unchanged.
-- [ ] `FakeExtractor` — returns fixed fields (parallel to `FakeTranscriber`), so the relay and playground can be driven with no network. Prove it substitutes into `createRelay` with no relay changes.
-- [ ] Headless (no `fetch`, no LLM import here — the seam only). Tests are node unit tests.
+- Define `Extractor<F>` (`extract(transcript: string): Promise<ExtractionResult<F>>`), `ExtractionResult<F>` (`{ fields: F; raw?: unknown; usage: { calls: number } }`), and `ExtractionTarget<F>` (`Pick<ToolAdapter<F, unknown>, "name" | "schema" | "instructions" | "examples">`).
+- `toExtractStep<F>(extractor): ExtractStep` — adapt any `Extractor` to the relay's injected step (`{ transcript } => extractor.extract(transcript.text).fields`). Keeps `RelayOptions.extract` unchanged.
+- `FakeExtractor` — returns fixed fields (parallel to `FakeTranscriber`), so the relay and playground can be driven with no network. Prove it substitutes into `createRelay` with no relay changes.
+- Headless (no `fetch`, no LLM import here — the seam only). Tests are node unit tests.
 
 ### Task 2: The Snugg Pro adapter target
 
 **Files:** `packages/ribo-adapter-snuggpro/src/*`
 
-- [ ] Surface the spike-proven artifacts as a `ToolAdapter<F, C>`: `schema` from `spikes/extraction-snuggpro/schema.ts` (the real field model — split fuel axis, depth bands + spoken-R-value holding pen, the 11-test health matrix, no AFUE slot), `instructions` from `prompt.md`'s normalization intent, `examples` optional. `F = z.infer<typeof schema>`.
-- [ ] `C` is the real write context (whatever identifies the Snugg Pro destination — a job/assessment id + client), never `unknown` (see `adapter.ts`'s note and `@ts-expect-error` test).
-- [ ] Keep the deterministic normalization pass (`normalization.md`) as code the extractor runs **after** the model — the model never converts R-value→band or does unit math.
+- Surface the spike-proven artifacts as a `ToolAdapter<F, C>`: `schema` from `spikes/extraction-snuggpro/schema.ts` (the real field model — split fuel axis, depth bands + spoken-R-value holding pen, the 11-test health matrix, no AFUE slot), `instructions` from `prompt.md`'s normalization intent, `examples` optional. `F = z.infer<typeof schema>`.
+- `C` is the real write context (whatever identifies the Snugg Pro destination — a job/assessment id + client), never `unknown` (see `adapter.ts`'s note and `@ts-expect-error` test).
+- Keep the deterministic normalization pass (`normalization.md`) as code the extractor runs **after** the model — the model never converts R-value→band or does unit math.
 
 ### Task 3: The single-shot managed extractor (the built default)
 
 **Files:** `packages/ribo-adapter-snuggpro/src/extractors/single-shot.ts` + tests
 
-- [ ] `singleShotExtractor({ target, chat, model })` implementing `Extractor<F>`: one OpenAI-compatible call, `response_format: { type: "json_schema", json_schema: { schema, strict: true } }` (Helix keeps `response_format` + the allowlist — A2). `z.toJSONSchema(schema, { target: "draft-2020-12" })`; remember `confidence` is a bare `z.number()` (`.min()/.max()` emit keywords strict mode rejects — the spike found this).
-- [ ] `ChatClient` is a **thin injected transport** interface (`complete(req) => { content }`), so tests use a fake and `ribo-core`/adapter never depend on a provider SDK.
-- [ ] Parse the response with `target.schema` — trust boundary. On parse failure, fail the step as **transient** (retryable) unless the error is clearly terminal.
-- [ ] **Gate it against the spike corpus:** run `singleShotExtractor` over `spikes/extraction-snuggpro/transcripts/` through `score.mjs` and assert the four hazards hold and hallucination stays within the measured band. This is the acceptance test for extraction quality, and it must be watched to fail (mutate a field, see the score drop).
+- `singleShotExtractor({ target, chat, model })` implementing `Extractor<F>`: one OpenAI-compatible call, `response_format: { type: "json_schema", json_schema: { schema, strict: true } }` (Helix keeps `response_format` + the allowlist — A2). `z.toJSONSchema(schema, { target: "draft-2020-12" })`; remember `confidence` is a bare `z.number()` (`.min()/.max()` emit keywords strict mode rejects — the spike found this).
+- `ChatClient` is a **thin injected transport** interface (`complete(req) => { content }`), so tests use a fake and `ribo-core`/adapter never depend on a provider SDK.
+- Parse the response with `target.schema` — trust boundary. On parse failure, fail the step as **transient** (retryable) unless the error is clearly terminal.
+- **Gate it against the spike corpus:** run `singleShotExtractor` over `spikes/extraction-snuggpro/transcripts/` through `score.mjs` and assert the four hazards hold and hallucination stays within the measured band. This is the acceptance test for extraction quality, and it must be watched to fail (mutate a field, see the score drop).
 
 ### Task 4: Wire into the relay and the playground
 
 **Files:** `playground/src/*`, relay wiring
 
-- [ ] Replace the extraction stub: `createRelay({ ..., extract: toExtractStep(singleShotExtractor({...})) })`. The queue already has the `extracting` step and rests it offline — use it.
-- [ ] Playground review card: show the extracted fields with their `sourceSpan` provenance, so a reviewer can confirm every value was said out loud. Remember the span is verbatim to the (possibly mis-heard) transcript — Task 4's `Lennox`→"Linux" caveat: a valid span proves the model didn't invent the quote, not that the audio was heard right.
-- [ ] Default the playground to `FakeExtractor` or a configured `ChatClient` so the demo runs without a live key, and say which is active.
+- Replace the extraction stub: `createRelay({ ..., extract: toExtractStep(singleShotExtractor({...})) })`. The queue already has the `extracting` step and rests it offline — use it.
+- Playground review card: show the extracted fields with their `sourceSpan` provenance, so a reviewer can confirm every value was said out loud. Remember the span is verbatim to the (possibly mis-heard) transcript — Task 4's `Lennox`→"Linux" caveat: a valid span proves the model didn't invent the quote, not that the audio was heard right.
+- Default the playground to `FakeExtractor` or a configured `ChatClient` so the demo runs without a live key, and say which is active.
 
 ### Task 5: Document the alternative strategies (not built)
 
 **Files:** this plan / a short design note
 
-- [ ] **Plan-then-execute** (`plannedExtractor`): a cheap pass decides which topical field _groups_ the auditor raised, focused passes extract only those, merge onto an all-null skeleton. Fewer fields per call ⇒ less room to invent on unraised topics. (An agentic variant swaps the plan/extract calls for a tool-use loop with a `set_field(key, value, span)` tool.) Note plainly: the SDK does **not** mandate a relevance pass — this is one extractor's private strategy.
-- [ ] **Managed "does-it-all" endpoint** (`managedEndpointExtractor`): POST the transcript to a bespoke Helix-routed service that owns extraction end to end; the client stays dumb and validates the response against the **same** `schema`. Strategy is entirely server-side and swappable with no client ship.
-- [ ] Record the `CapableExtractor` elevation trigger (runtime-conditional selection) so a future maintainer knows exactly when the plain builder should grow a capability probe.
+- **Plan-then-execute** (`plannedExtractor`): a cheap pass decides which topical field _groups_ the auditor raised, focused passes extract only those, merge onto an all-null skeleton. Fewer fields per call ⇒ less room to invent on unraised topics. (An alternative using a tool-use loop swaps the plan/extract calls for `set_field(key, value, span)` tool calls.) Note plainly: the SDK does **not** mandate a relevance pass — this is one extractor's private strategy.
+- **Managed "does-it-all" endpoint** (`managedEndpointExtractor`): POST the transcript to a bespoke Helix-routed service that owns extraction end to end; the client stays dumb and validates the response against the **same** `schema`. Strategy is entirely server-side and swappable with no client ship.
+- Record the `CapableExtractor` elevation trigger (runtime-conditional selection) so a future maintainer knows exactly when the plain builder should grow a capability probe.
 
 ### Task 6: Write-back — scaffold now, land on A1
 
 **Files:** `packages/ribo-adapter-snuggpro/src/*`, relay `WriteStep`
 
-- [ ] Implement `ToolAdapter.write(fields, ctx)` against the Snugg Pro API shape (`docs/implementation/12-snuggpro-data-model.md`): map the accepted fields to Snugg's write endpoints, send the relay's stable `Idempotency-Key` (already threaded through `WriteStepInput`).
-- [ ] **Gate the actual egress on A1.** The request must be HMAC-SHA256 signed by the Helix egress layer (Kyle, A1). Until then, the write path is exercised against a signing-shaped fake and the real call is behind a config flag that is **off**. Do not sign in client code, and do not fake a signature to green a demo.
-- [ ] Only accepted (human-reviewed) fields are written — extraction proposes, the reviewer disposes. A `null` the reviewer leaves is not written.
+- Implement `ToolAdapter.write(fields, ctx)` against the Snugg Pro API shape (`docs/implementation/12-snuggpro-data-model.md`): map the accepted fields to Snugg's write endpoints, send the relay's stable `Idempotency-Key` (already threaded through `WriteStepInput`).
+- **Gate the actual egress on A1.** The request must be HMAC-SHA256 signed by the Helix egress layer (Kyle, A1). Until then, the write path is exercised against a signing-shaped fake and the real call is behind a config flag that is **off**. Do not sign in client code, and do not fake a signature to green a demo.
+- Only accepted (human-reviewed) fields are written — extraction proposes, the reviewer disposes. A `null` the reviewer leaves is not written.
 
 ---
 

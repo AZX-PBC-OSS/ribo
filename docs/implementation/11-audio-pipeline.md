@@ -193,7 +193,7 @@ carries. So:
   transferable, plus the `prompt_ids`/generation kwargs; text out. This is a **new, private** message
   contract this package owns.
 
-**Consequences for the Phase 3 plan** ([`plans/2026-07-23-phase-3-ondevice-transcription.md`](../superpowers/plans/2026-07-23-phase-3-ondevice-transcription.md)):
+**Consequences for the on-device transcription phase (Phase 3):**
 
 - **Task 3 gains an explicit decode step** on the main-thread side of `OnDeviceTranscriber`, before the
   worker call — it is not free plumbing the pipeline does for us. The "wrap `@huggingface/transformers`

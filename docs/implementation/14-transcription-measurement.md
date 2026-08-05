@@ -1,9 +1,9 @@
 # 14 — On-device transcription: the measured spike
 
 Phase 3's central bet — _"speak into the device, get a real transcript back, computed locally"_ —
-checked with **our own measured numbers**. This is Task 4 of the
-[Phase 3 plan](../superpowers/plans/2026-07-23-phase-3-ondevice-transcription.md). Nothing here is
-cited from a vendor post or a public benchmark; every figure comes from a run of the harness in
+checked with **our own measured numbers**. This is Task 4 of the on-device transcription phase
+(Phase 3). Nothing here is cited from a vendor post or a public benchmark; every figure comes from
+a run of the harness in
 [`spikes/transcription-measurement/`](../../spikes/transcription-measurement/README.md). Where a
 number could not be produced in this environment it is called out and a manual recipe is given.
 

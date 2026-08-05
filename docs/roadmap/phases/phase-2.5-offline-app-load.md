@@ -1,6 +1,6 @@
 # Phase 2.5 — Offline App Load Implementation Plan
 
-> **For agentic workers:** Use superpowers:subagent-driven-development. Steps use checkbox (`- [ ]`) syntax.
+The plan for offline app load — a service worker precaching the shell, storage persistence, and eviction handling. Phase 2.5 is complete.
 
 **Goal:** the app opens with no signal. Today capture and persistence already work offline (Phase 2) — but the page itself cannot cold-start without a network, which makes the rest moot. Ends with: load the app, kill the network, reload, and it still boots and still shows the queue.
 
@@ -27,10 +27,10 @@ Everything in [`AGENTS.md`](../../../AGENTS.md) applies, plus:
 
 **Files:** `playground/vite.config.ts`, `playground/src/*`, manifest
 
-- [ ] Add a service worker that precaches the app shell (HTML/JS/CSS) and serves it cache-first, so a cold start with no network still boots. `vite-plugin-pwa` is the default choice — it generates the precache manifest from the real build output, which hand-rolling gets wrong as soon as filenames hash. If you choose otherwise, justify it.
-- [ ] **Do not precache anything large.** The Whisper model is Phase 3 and is explicitly not this phase's problem; a 150 MB precache would make first load unusable.
-- [ ] Register it from the app, not from any package under `packages/`.
-- [ ] Confirm the production build still passes `check.sh`'s build stage, and that dev mode remains usable (service workers plus HMR are a classic source of "why am I seeing stale code" confusion — if dev registration is disabled, say so visibly).
+- Add a service worker that precaches the app shell (HTML/JS/CSS) and serves it cache-first, so a cold start with no network still boots. `vite-plugin-pwa` is the default choice — it generates the precache manifest from the real build output, which hand-rolling gets wrong as soon as filenames hash. If you choose otherwise, justify it.
+- **Do not precache anything large.** The Whisper model is Phase 3 and is explicitly not this phase's problem; a 150 MB precache would make first load unusable.
+- Register it from the app, not from any package under `packages/`.
+- Confirm the production build still passes `check.sh`'s build stage, and that dev mode remains usable (service workers plus HMR are a classic source of "why am I seeing stale code" confusion — if dev registration is disabled, say so visibly).
 
 ### Task 2: Update strategy — never reload mid-recording
 
@@ -38,9 +38,9 @@ Everything in [`AGENTS.md`](../../../AGENTS.md) applies, plus:
 
 The default Workbox pattern is `skipWaiting` + reload-on-activate. **That is unsafe here.** This app records audio; a forced reload mid-capture destroys a field recording that cannot be recreated — the user was standing in someone's attic.
 
-- [ ] When a new version is waiting, **surface it and let the user choose the moment.** No automatic reload.
-- [ ] **Refuse to apply an update while a recording is in progress**, even if the user asks — or at minimum require an unmistakable confirmation. Losing capture to a version upgrade is the worst possible failure for this product.
-- [ ] Handle the stale-shell risk explicitly: an old cached shell running against newer persisted data. Note what happens and whether the schema parse (which is a trust boundary in both directions) catches it.
+- When a new version is waiting, **surface it and let the user choose the moment.** No automatic reload.
+- **Refuse to apply an update while a recording is in progress**, even if the user asks — or at minimum require an unmistakable confirmation. Losing capture to a version upgrade is the worst possible failure for this product.
+- Handle the stale-shell risk explicitly: an old cached shell running against newer persisted data. Note what happens and whether the schema parse (which is a trust boundary in both directions) catches it.
 
 ### Task 3: Storage persistence and the eviction problem
 
@@ -48,17 +48,17 @@ The default Workbox pattern is `skipWaiting` + reload-on-activate. **That is uns
 
 Per [`09`](../../implementation/09-offline-first.md): iOS evicts script-writable storage after ~7 days of no interaction, and it takes **IndexedDB and Cache together** — so the queue and the cached shell vanish in one go.
 
-- [ ] Call `navigator.storage.persist()` early and record the outcome. Surface whether persistence was **granted** — it is a request, not a guarantee, and a UI that assumes it succeeded is lying.
-- [ ] Show remaining quota via `navigator.storage.estimate()` — Phase 3's model download needs headroom, and finding out afterwards is too late.
-- [ ] **Add-to-Home-Screen nudge for iOS**, since installed web apps get a use-resetting eviction counter. Keep it honest and non-nagging.
+- Call `navigator.storage.persist()` early and record the outcome. Surface whether persistence was **granted** — it is a request, not a guarantee, and a UI that assumes it succeeded is lying.
+- Show remaining quota via `navigator.storage.estimate()` — Phase 3's model download needs headroom, and finding out afterwards is too late.
+- **Add-to-Home-Screen nudge for iOS**, since installed web apps get a use-resetting eviction counter. Keep it honest and non-nagging.
 
 ### Task 4: Eviction detection and honest recovery
 
 **Files:** `playground/src/*`
 
-- [ ] On launch, detect that storage was wiped — an empty queue is indistinguishable from a fresh install unless you leave a marker.
-- [ ] **Say so plainly.** "Your queued recordings were removed by the browser to free space" is a very different message from silently showing an empty list, and the second one destroys trust the first time it happens.
-- [ ] Treat this as the expected iOS path, not an exceptional error.
+- On launch, detect that storage was wiped — an empty queue is indistinguishable from a fresh install unless you leave a marker.
+- **Say so plainly.** "Your queued recordings were removed by the browser to free space" is a very different message from silently showing an empty list, and the second one destroys trust the first time it happens.
+- Treat this as the expected iOS path, not an exceptional error.
 
 ### Task 5: The offline boot test — the acceptance criterion
 
@@ -66,9 +66,9 @@ Per [`09`](../../implementation/09-offline-first.md): iOS evicts script-writable
 
 Everything above is unverified until this exists. **A registered service worker is not evidence the app boots offline.**
 
-- [ ] Write a test that loads the app, **cuts the network** (`context.setOffline(true)`), reloads, and asserts the app boots and renders the queue with previously captured items.
-- [ ] **Prove the test can fail:** temporarily disable the service worker, confirm the offline reload fails, restore it. Paste both. A green offline test that has never seen a red is not evidence.
-- [ ] Wire it into `check.sh` if it can run reliably headlessly; if it cannot, document exactly how to run it and say plainly that it is not gated.
+- Write a test that loads the app, **cuts the network** (`context.setOffline(true)`), reloads, and asserts the app boots and renders the queue with previously captured items.
+- **Prove the test can fail:** temporarily disable the service worker, confirm the offline reload fails, restore it. Paste both. A green offline test that has never seen a red is not evidence.
+- Wire it into `check.sh` if it can run reliably headlessly; if it cannot, document exactly how to run it and say plainly that it is not gated.
 
 ---
 

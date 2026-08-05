@@ -1,6 +1,7 @@
 {
   "name": "@azx/ribo-core",
   "version": "0.0.0",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -25,7 +26,8 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsdown"
   },
   "dependencies": {
     "rxdb": "catalog:",
@@ -33,7 +35,11 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@arethetypeswrong/core": "catalog:",
+    "@azx/build-config": "workspace:*",
     "@azx/tsconfig": "workspace:*",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

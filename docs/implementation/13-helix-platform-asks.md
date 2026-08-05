@@ -30,15 +30,15 @@ dependency (we just aren't worried it won't land), and an **[open]** ask can be 
 
 ## Priority table (blocks-pilot first)
 
-| #   | Ask                                                                                    | Blocks pilot                               | Status                                   | Source                                                                                         |
-| --- | -------------------------------------------------------------------------------------- | ------------------------------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| A1  | **Egress signs each request (HMAC), not a static header**                              | **Yes** — Phase 4 Snugg Pro write-back     | **[open]**                               | [12 §1](12-snuggpro-data-model.md), corrects [05]/[06]                                         |
-| A2  | **OpenAI-compatible LLM route with `response_format` (json_schema) + model allowlist** | **Yes** — extraction                       | **[confirmed]** (coming)                 | [06](06-field-app-helix.md), [03](03-ribo-core.md)                                             |
-| A3  | **CSP allows `blob:` in `script-src` / `worker-src`**                                  | **Yes** — on-device transcription on Helix | **[open]**                               | [10 §4.1](10-build-and-packaging.md), [06](06-field-app-helix.md)                              |
-| A4  | **Service worker servable at root scope**                                              | **Yes** — offline app load                 | **[confirmed]** (verify scope at deploy) | [phase 2.5 plan](../superpowers/plans/2026-07-23-phase-2.5-offline-app-load.md)                |
-| A5  | **A gateway health endpoint the app can probe**                                        | Quality — connectivity/queue reliability   | **[open]** (decision)                    | [`connectivity.ts`](../../packages/ribo-core/src/connectivity.ts), [09](09-offline-first.md)   |
-| A6  | **Per-app COOP/COEP headers (opt-in)**                                                 | No — iOS perf lever only                   | **[deferred]**                           | [06](06-field-app-helix.md), [10 §4](10-build-and-packaging.md)                                |
-| A7  | **Forward trusted `(app, user)` identity to a first-party backend**                    | No — future server-side move               | **[deferred]**                           | [09](09-offline-first.md), [design spec §6/§7](../superpowers/specs/2026-07-21-ribo-design.md) |
+| #   | Ask                                                                                    | Blocks pilot                               | Status                                   | Source                                                                                       |
+| --- | -------------------------------------------------------------------------------------- | ------------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------- |
+| A1  | **Egress signs each request (HMAC), not a static header**                              | **Yes** — Phase 4 Snugg Pro write-back     | **[open]**                               | [12 §1](12-snuggpro-data-model.md), corrects [05]/[06]                                       |
+| A2  | **OpenAI-compatible LLM route with `response_format` (json_schema) + model allowlist** | **Yes** — extraction                       | **[confirmed]** (coming)                 | [06](06-field-app-helix.md), [03](03-ribo-core.md)                                           |
+| A3  | **CSP allows `blob:` in `script-src` / `worker-src`**                                  | **Yes** — on-device transcription on Helix | **[open]**                               | [10 §4.1](10-build-and-packaging.md), [06](06-field-app-helix.md)                            |
+| A4  | **Service worker servable at root scope**                                              | **Yes** — offline app load                 | **[confirmed]** (verify scope at deploy) | [09](09-offline-first.md)                                                                    |
+| A5  | **A gateway health endpoint the app can probe**                                        | Quality — connectivity/queue reliability   | **[open]** (decision)                    | [`connectivity.ts`](../../packages/ribo-core/src/connectivity.ts), [09](09-offline-first.md) |
+| A6  | **Per-app COOP/COEP headers (opt-in)**                                                 | No — iOS perf lever only                   | **[deferred]**                           | [06](06-field-app-helix.md), [10 §4](10-build-and-packaging.md)                              |
+| A7  | **Forward trusted `(app, user)` identity to a first-party backend**                    | No — future server-side move               | **[deferred]**                           | [09](09-offline-first.md)                                                                    |
 
 ---
 
@@ -67,8 +67,8 @@ Two facts make this impossible for the fetch-proxy as designed:
 1. **It injects a _constant_ header.** A signed request cannot be a constant — the signature is a
    function of a per-request `X-Date`, so a static `X-Api-Key` recipe produces a value Snugg Pro
    rejects.
-2. **It drops `Authorization`.** `Authorization` (and `cookie`) are on the proxy's header drop-list
-   ([design spec §6](../superpowers/specs/2026-07-21-ribo-design.md), constraints), and `X-Date` is
+2. **It drops `Authorization`.** `Authorization` (and `cookie`) are on the proxy's header drop-list,
+   and `X-Date` is
    non-safelisted — so the app cannot supply either from the browser even if it wanted to, and it
    must not (that would mean the browser holds the key).
 
@@ -143,11 +143,11 @@ an auditor standing in an attic.
 **What we need.** Helix must serve an **app-owned** service worker, at a scope that covers the app
 root (`/`), so the app can precache its shell and cold-start offline.
 
-**Why.** The offline app-load design ([phase 2.5 plan](../superpowers/plans/2026-07-23-phase-2.5-offline-app-load.md))
+**Why.** The offline app-load design ([09](09-offline-first.md))
 has the app register a service worker that precaches the shell (HTML/JS/CSS) and serves it
 cache-first. The service worker is **the app's, never the SDK's** — a service worker is
-origin-global, and `ribo-core` must not register or ship one ([phase 2.5 plan](../superpowers/plans/2026-07-23-phase-2.5-offline-app-load.md),
-Global Constraints). Root scope matters because the SW must intercept the navigation request for
+origin-global, and `ribo-core` must not register or ship one.
+Root scope matters because the SW must intercept the navigation request for
 `/` itself; a worker served under a sub-path cannot control the app root.
 
 **What it blocks.** Cold-start offline — the app opening with no signal. Without it, capture and
@@ -225,7 +225,7 @@ without re-authenticating.
 
 **Why.** The offline design already anticipates this: the outbox is the seam that later becomes RxDB
 replication against our own API behind Helix's gateway, "at which point the external write can
-migrate server-side" ([design spec §7](../superpowers/specs/2026-07-21-ribo-design.md)), and the
+migrate server-side" ([09](09-offline-first.md)), and the
 read-sync backend "**trusts the gateway's attested `(app, user)` identity and does not re-auth**"
 ([09 §](09-offline-first.md)). Today the app gets the signed-in auditor via `GET /_api/me`
 ([06](06-field-app-helix.md)), and the fetch-proxy authorizes per call and mints a 30 s attested
@@ -263,10 +263,6 @@ deploy substrate" dependency the custom-STT-service discussion raised ([02](02-s
 - [10 — Build & packaging](10-build-and-packaging.md) — §4 COOP/COEP downgrade, §4.1 `blob:` CSP.
 - [12 — Snugg Pro data model & write API](12-snuggpro-data-model.md) — the HMAC-signing finding that
   drives A1.
-- [Phase 2.5 plan — offline app load](../superpowers/plans/2026-07-23-phase-2.5-offline-app-load.md) —
-  app-owned service worker at root scope.
 - [`packages/ribo-core/src/connectivity.ts`](../../packages/ribo-core/src/connectivity.ts) /
   [`playground/src/connectivity-store.ts`](../../playground/src/connectivity-store.ts) — the
   reachability-probe target problem behind A5.
-- [Design spec](../superpowers/specs/2026-07-21-ribo-design.md) — §6 Helix integration, §7
-  server-side migration seam.

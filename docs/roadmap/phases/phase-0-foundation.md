@@ -1,6 +1,6 @@
 # Phase 0 — Foundation Implementation Plan
 
-> **For agentic workers:** Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+The plan for the initial workspace scaffold — pnpm monorepo, three package skeletons, a playground, lint/typecheck/test, and `AGENTS.md`. Phase 0 is complete.
 
 > **⚠️ CORRECTION (2026-07-23) — this plan is a historical record, not current guidance.**
 > It was written and executed with one rule that has since been **reversed**: everywhere below
@@ -45,7 +45,7 @@ Copied from [`docs/implementation/10-build-and-packaging.md`](../../implementati
 - Create: `package.json`, `pnpm-workspace.yaml`, `.npmrc`, `.editorconfig`, `.prettierrc.json`, `.prettierignore`
 - Modify: `.gitignore`
 
-- [ ] **Step 1: Root `package.json`** — private, ESM, with placeholder scripts wired in later tasks.
+- **Step 1: Root `package.json`** — private, ESM, with placeholder scripts wired in later tasks.
 
 ```jsonc
 {
@@ -65,7 +65,7 @@ Copied from [`docs/implementation/10-build-and-packaging.md`](../../implementati
 }
 ```
 
-- [ ] **Step 2: `pnpm-workspace.yaml`** — workspace globs, catalog, and the pnpm settings that guard React duplication and canary installs.
+- **Step 2: `pnpm-workspace.yaml`** — workspace globs, catalog, and the pnpm settings that guard React duplication and canary installs.
 
 ```yaml
 packages:
@@ -95,7 +95,7 @@ minimumReleaseAgeExclude:
 
 > **TypeScript version note:** `10 §9` says treat TypeScript 7 as a **fast-follow, not a day-one dependency** — the ecosystem (ESLint parser, editor plugins) lags a new major. Pick the most recent version with full ESLint/editor support and record the reasoning.
 
-- [ ] **Step 3: `.npmrc`** — registry + auth only. pnpm 11 keeps _settings_ in `pnpm-workspace.yaml`; `.npmrc` is for registry/auth.
+- **Step 3: `.npmrc`** — registry + auth only. pnpm 11 keeps _settings_ in `pnpm-workspace.yaml`; `.npmrc` is for registry/auth.
 
 ```ini
 @azx:registry=https://<private-registry-host>/
@@ -104,16 +104,16 @@ minimumReleaseAgeExclude:
 
 > If the registry host isn't decided yet, leave a clearly-marked TODO comment and open an issue — do **not** guess a hostname.
 
-- [ ] **Step 4: `.editorconfig`, `.prettierrc.json`, `.prettierignore`** — mirror Helix's versions of these files so formatting is identical across repos.
+- **Step 4: `.editorconfig`, `.prettierrc.json`, `.prettierignore`** — mirror Helix's versions of these files so formatting is identical across repos.
 
-- [ ] **Step 5: Extend `.gitignore`** — add `dist/`, `coverage/`, `.turbo/`, `*.tsbuildinfo`, `.vite/`.
+- **Step 5: Extend `.gitignore`** — add `dist/`, `coverage/`, `.turbo/`, `*.tsbuildinfo`, `.vite/`.
 
-- [ ] **Step 6: Verify**
+- **Step 6: Verify**
 
 Run: `pnpm install`
 Expected: completes with no errors; `node_modules/` created; no peer-dependency warnings.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add -A && git commit -m "chore: root workspace and tooling config"
@@ -131,7 +131,7 @@ git add -A && git commit -m "chore: root workspace and tooling config"
 
 - Produces: `@azx/tsconfig/base.json` and `@azx/tsconfig/react-library.json`, extended by every other package.
 
-- [ ] **Step 1: `packages/tsconfig/package.json`** — private, no build.
+- **Step 1: `packages/tsconfig/package.json`** — private, no build.
 
 ```jsonc
 {
@@ -142,7 +142,7 @@ git add -A && git commit -m "chore: root workspace and tooling config"
 }
 ```
 
-- [ ] **Step 2: `base.json`** — the load-bearing bits are `customConditions` (source-first resolution) and no DOM lib.
+- **Step 2: `base.json`** — the load-bearing bits are `customConditions` (source-first resolution) and no DOM lib.
 
 ```jsonc
 {
@@ -170,7 +170,7 @@ git add -A && git commit -m "chore: root workspace and tooling config"
 
 > `customConditions` requires `moduleResolution` of `bundler`/`node16`/`nodenext`. `isolatedDeclarations` is deliberately **off** — zod's `z.infer` cannot be emitted under it (`10 §3.1`).
 
-- [ ] **Step 3: `react-library.json`**
+- **Step 3: `react-library.json`**
 
 ```jsonc
 {
@@ -179,12 +179,12 @@ git add -A && git commit -m "chore: root workspace and tooling config"
 }
 ```
 
-- [ ] **Step 4: Verify** — `pnpm install` resolves the workspace package.
+- **Step 4: Verify** — `pnpm install` resolves the workspace package.
 
 Run: `pnpm install && pnpm ls @azx/tsconfig -r`
 Expected: `@azx/tsconfig` listed as a workspace link.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "chore: shared tsconfig package"
@@ -199,18 +199,18 @@ git add -A && git commit -m "chore: shared tsconfig package"
 - Create: `eslint.config.mjs`
 - Modify: root `package.json` (devDependencies)
 
-- [ ] **Step 1: Flat-config ESLint** covering TS + React, with the rules that enforce our conventions:
+- **Step 1: Flat-config ESLint** covering TS + React, with the rules that enforce our conventions:
   - `@typescript-eslint` recommended-type-checked
   - `import/no-extraneous-dependencies` — catches a lib importing something not declared
   - `react-hooks` rules for `ribo-ui`
   - **A rule banning deep imports across packages** (force use of public entry points)
 
-- [ ] **Step 2: Verify**
+- **Step 2: Verify**
 
 Run: `pnpm lint`
 Expected: exits 0 (no files to lint yet is acceptable).
 
-- [ ] **Step 3: Commit**
+- **Step 3: Commit**
 
 ```bash
 git add -A && git commit -m "chore: eslint flat config and prettier"
@@ -226,7 +226,7 @@ Three packages, **identical shape**, differing only where noted. Each is an inde
 
 - Create: `packages/<pkg>/package.json`, `packages/<pkg>/tsconfig.json`, `packages/<pkg>/src/index.ts`, `packages/<pkg>/src/index.test.ts`
 
-- [ ] **Step 1: `package.json`** — the `exports` block is load-bearing; copy it exactly.
+- **Step 1: `package.json`** — the `exports` block is load-bearing; copy it exactly.
 
 ```jsonc
 {
@@ -261,13 +261,13 @@ Per-package differences:
 - **Task 5 — `ribo-ui`:** `"sideEffects": ["*.css"]`; add `peerDependencies` `{ "react": "^18.3 || ^19", "react-dom": "^18.3 || ^19", "@azx/ribo-core": "workspace:^" }` and matching `devDependencies` using `catalog:`. `tsconfig.json` extends `@azx/tsconfig/react-library.json`.
 - **Task 6 — `ribo-adapter-snuggpro`:** add `"dependencies": { "@azx/ribo-core": "workspace:^" }`. Extends `base.json`.
 
-- [ ] **Step 2: `src/index.ts`** — a real but trivial export so there's something to typecheck and test. No placeholder comments; export something meaningful, e.g. the package name constant:
+- **Step 2: `src/index.ts`** — a real but trivial export so there's something to typecheck and test. No placeholder comments; export something meaningful, e.g. the package name constant:
 
 ```ts
 export const PACKAGE_NAME = "@azx/<pkg>" as const;
 ```
 
-- [ ] **Step 3: Write the test**
+- **Step 3: Write the test**
 
 ```ts
 import { expect, test } from "vitest";
@@ -278,12 +278,12 @@ test("exports its package name", () => {
 });
 ```
 
-- [ ] **Step 4: Verify**
+- **Step 4: Verify**
 
 Run: `pnpm --filter @azx/<pkg> typecheck && pnpm vitest run packages/<pkg>`
 Expected: typecheck clean, 1 test passing.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(<pkg>): package skeleton"
@@ -301,9 +301,9 @@ git add -A && git commit -m "feat(<pkg>): package skeleton"
 
 - Consumes: `@azx/ribo-core` (`PACKAGE_NAME`) — proves source-first resolution works.
 
-- [ ] **Step 1: `package.json`** — private, depends on all three libs via `workspace:*`.
+- **Step 1: `package.json`** — private, depends on all three libs via `workspace:*`.
 
-- [ ] **Step 2: `vite.config.ts`** — the two load-bearing settings:
+- **Step 2: `vite.config.ts`** — the two load-bearing settings:
 
 ```ts
 import { defineConfig } from "vite";
@@ -320,14 +320,14 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 3: Minimal `App.tsx`** that imports and renders `PACKAGE_NAME` from `@azx/ribo-core` — this is the assertion that the `@azx/source` condition actually resolves.
+- **Step 3: Minimal `App.tsx`** that imports and renders `PACKAGE_NAME` from `@azx/ribo-core` — this is the assertion that the `@azx/source` condition actually resolves.
 
-- [ ] **Step 4: Verify**
+- **Step 4: Verify**
 
 Run: `pnpm --filter playground dev`
 Expected: dev server boots; page renders the string `@azx/ribo-core`. Then edit `packages/ribo-core/src/index.ts` and confirm **HMR updates the page without a rebuild step** — that's the source-first setup working.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(playground): vite app consuming ribo-core from source"
@@ -341,14 +341,14 @@ git add -A && git commit -m "feat(playground): vite app consuming ribo-core from
 
 - Create: `vitest.config.ts` (root)
 
-- [ ] **Step 1: Two projects** — `unit` (node/jsdom, for pure logic) and `browser` (Playwright/Chromium, for MediaRecorder/IndexedDB/Workers/WASM in later phases). Browser project may have zero matching tests in Phase 0; it must still be configured and runnable.
+- **Step 1: Two projects** — `unit` (node/jsdom, for pure logic) and `browser` (Playwright/Chromium, for MediaRecorder/IndexedDB/Workers/WASM in later phases). Browser project may have zero matching tests in Phase 0; it must still be configured and runnable.
 
-- [ ] **Step 2: Verify**
+- **Step 2: Verify**
 
 Run: `pnpm test`
 Expected: all package tests discovered and passing; both projects report.
 
-- [ ] **Step 3: Commit**
+- **Step 3: Commit**
 
 ```bash
 git add -A && git commit -m "test: vitest unit and browser projects"
@@ -362,14 +362,14 @@ git add -A && git commit -m "test: vitest unit and browser projects"
 
 - Create: `check.sh` (executable)
 
-- [ ] **Step 1: One command that agents and CI both use.** Mirrors Helix's `check-and-lint.sh`. Must `set -euo pipefail`, run typecheck → lint → format:check → test, and print a clear pass/fail summary.
+- **Step 1: One command that agents and CI both use.** Mirrors Helix's `check-and-lint.sh`. Must `set -euo pipefail`, run typecheck → lint → format:check → test, and print a clear pass/fail summary.
 
-- [ ] **Step 2: Verify**
+- **Step 2: Verify**
 
 Run: `./check.sh`
 Expected: exits 0 with every stage reported.
 
-- [ ] **Step 3: Commit**
+- **Step 3: Commit**
 
 ```bash
 git add -A && git commit -m "chore: single verification command"
@@ -385,7 +385,7 @@ git add -A && git commit -m "chore: single verification command"
 
 This is the highest-leverage artifact in the phase — it's what makes the repo tractable for agent work.
 
-- [ ] **Step 1: Write it**, covering:
+- **Step 1: Write it**, covering:
   - **Commands** — `pnpm install`, `./check.sh`, `pnpm --filter playground dev`, how to run one package's tests.
   - **Architecture map** — the four-tier layering, one line per package, and links into `docs/implementation/`.
   - **Conventions** — ESM-only; small focused files with one responsibility; small functions; zod at boundaries; `ribo-core` never imports React or touches the DOM; adapters are the only tool-specific surface.
@@ -393,9 +393,9 @@ This is the highest-leverage artifact in the phase — it's what makes the repo 
   - **How to add a package** — copy the exports block, set `sideEffects`, peer-dep rules.
   - **Definition of done** — `./check.sh` green.
 
-- [ ] **Step 2: Verify** — a fresh reader can go from clone to running playground using only `AGENTS.md`. Have a subagent with no prior context follow it and report where it got stuck.
+- **Step 2: Verify** — a fresh reader can go from clone to running playground using only `AGENTS.md`. Have someone with no prior context follow it and report where they got stuck.
 
-- [ ] **Step 3: Commit**
+- **Step 3: Commit**
 
 ```bash
 git add -A && git commit -m "docs: AGENTS.md conventions and architecture map"
@@ -409,13 +409,13 @@ git add -A && git commit -m "docs: AGENTS.md conventions and architecture map"
 
 - Create: `.github/workflows/ci.yml`
 
-- [ ] **Step 1: Workflow** — on push/PR: setup pnpm + Node 24, `pnpm install --frozen-lockfile`, `./check.sh`. Cache the pnpm store.
+- **Step 1: Workflow** — on push/PR: setup pnpm + Node 24, `pnpm install --frozen-lockfile`, `./check.sh`. Cache the pnpm store.
 
 > The publishing gates from `10 §8` (`publint`, `attw`, pack-and-consume matrix) land in a later phase, once packages actually build. Add a TODO comment in the workflow pointing at `10 §8` so it isn't forgotten.
 
-- [ ] **Step 2: Verify** — push the branch and confirm the workflow goes green.
+- **Step 2: Verify** — push the branch and confirm the workflow goes green.
 
-- [ ] **Step 3: Commit**
+- **Step 3: Commit**
 
 ```bash
 git add -A && git commit -m "ci: typecheck, lint, format and test on push"

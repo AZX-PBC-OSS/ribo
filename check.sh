@@ -31,12 +31,31 @@ run_stage() {
 run_stage "typecheck" pnpm typecheck
 run_stage "lint" pnpm lint
 run_stage "format:check" pnpm format:check
+# Two build stages, not one, so a failure is attributable: a library build that
+# cannot emit is a different diagnosis from an app that cannot bundle.
+#
+# `build:packages` produces every publishable `dist/` and runs publint (strict)
+# + attw (level: error) in-build, so a broken `exports` block fails here rather
+# than in a later job.
+run_stage "build:packages" pnpm build:packages
+# Replaces the guard that building destroyed. Runs AFTER build:packages (for
+# diagnostic clarity — a resolve failure reads better against a built tree) and
+# BEFORE build:app because a resolution failure explains most bundling failures
+# that would follow it. NOTE: `import.meta.resolve` does exports resolution
+# without stat-ing the target, so this gate does NOT prove `dist/` exists — file
+# existence is covered by publint in the build stage, not here.
+run_stage "resolve" pnpm check:resolve
 # The playground's production build is the only gate that exercises Vite's
 # resolver, the `@azx/source` condition, the JSX transform, React dedup and
-# real bundling. `tsc` cannot see any of that. It runs after the cheap static
+# real bundling. `tsc` cannot see any of that. Both run after the cheap static
 # gates (so their output is not buried) and before `test`, because a module
-# resolution failure explains most test failures that would follow it.
-run_stage "build" pnpm build
+# resolution failure explains most test failures that would follow.
+run_stage "build:app" pnpm build:app
+# The three publishing gates publint and attw do not cover: no TypeScript source in
+# any tarball, exactly one resolved React, and react/react-dom declared as peer
+# deps (not regular deps) where used. Runs here rather than in CI alone so
+# `./check.sh` stays the single "am I done?" signal.
+run_stage "pkg:gates" pnpm check:pkg
 # Runs ALL THREE Vitest projects in one pass: `unit` (node), `browser`
 # (Playwright/Chromium) and `e2e`. The reporter is configured in vitest.config.ts
 # to tag every file with its project, so this stage's output shows which projects
@@ -73,7 +92,7 @@ run_stage "test" pnpm test
 printf '\n----------------------------------------\n'
 
 if [ -z "$failed" ]; then
-  printf 'check.sh: PASS — typecheck, lint, format:check, build, test\n'
+  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, pkg:gates, test\n'
   exit 0
 fi
 

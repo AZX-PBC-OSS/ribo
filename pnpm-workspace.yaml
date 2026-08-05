@@ -56,6 +56,25 @@ catalog:
   "@types/react-dom": "19.2.3"
 
   # --- toolchain ---
+  # Resolves the Baseline syntax floor for the library builds. Used ONLY by
+  # scripts/refresh-target.mjs — never at build time, which reads the committed
+  # tokens in packages/build-config/src/target.generated.ts.
+  #
+  # Already present transitively (vite-plugin-pwa -> workbox-build ->
+  # @babel/preset-env), but declared explicitly rather than leaned on: see the
+  # rxjs entry above and the Phase 1 zod incident it references.
+  browserslist: "4.28.7"
+  # The library build tool for all five publishable packages. Pinned EXACT and
+  # not carets: tsdown is pre-1.0 and ships several times a week, so the residual
+  # risk is API churn from healthy development (doc 10 §9). Declares
+  # `typescript: "^5 || ^6 || ^7"`, so it is fine with the TS 6.0.3 hold above.
+  tsdown: "0.22.14"
+  # Both are OPTIONAL PEERS of tsdown, not independent tools: tsdown runs them
+  # in-build when `publint: true` / `attw: { profile: "esm-only" }` are set, so a bad exports block
+  # fails the build that produced it. Note this is @arethetypeswrong/CORE — the
+  # `cli` package is a different thing and is not what tsdown peers on.
+  publint: "0.3.23"
+  "@arethetypeswrong/core": "0.18.5"
   # TypeScript is deliberately held at 6.x: typescript-eslint@8.65.0 declares
   # `typescript: ">=4.8.4 <6.1.0"`, so TS 7 is not yet lintable. Revisit when
   # typescript-eslint adds TS 7 support (10 §9 — "TS 7 as a fast-follow").
@@ -78,7 +97,7 @@ catalog:
   jsdom: "29.1.1"
   "@vitejs/plugin-react": "6.0.4"
   eslint-plugin-react-hooks: "7.1.1"
-  # Phase 2.5's service worker (docs/superpowers/plans/2026-07-23-phase-2.5-offline-app-load.md).
+  # Phase 2.5's service worker.
   # A devDependency of `playground` ONLY — the service worker is origin-global and
   # therefore app-owned; no package under packages/ may register, ship or assume one.
   #

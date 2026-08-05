@@ -1,8 +1,8 @@
 # Docs Site + OSS Front Door — Implementation Plan
 
-> **For agentic workers:** Use superpowers:subagent-driven-development. Steps use checkbox (`- [ ]`) syntax.
+The plan for the public docs site and OSS front door. Records the VitePress tooling choice, the content architecture, and the decisions around what stays internal.
 
-**Goal:** make Ribo read like a real open-source project — a front door a newcomer can land on, and a docs site that explains the pipeline and the pluggable seams. The internal docs (`docs/implementation/*`, `docs/superpowers/*`) are strong but written inward; this repackages the good parts outward.
+**Goal:** make Ribo read like a real open-source project — a front door a newcomer can land on, and a docs site that explains the pipeline and the pluggable seams. The internal docs (`docs/implementation/*`, `docs/roadmap/*`) are strong but written inward; this repackages the good parts outward.
 
 **Decisions (locked with the user):**
 
@@ -10,7 +10,7 @@
 - **License: MIT.** Copyright holder `AZX-PBC`, year 2026.
 - **API reference is GENERATED, narrative is hand-written.** TypeDoc (`typedoc-plugin-markdown` + a VitePress theme) points at each package's public `index.ts` barrel and emits the Reference section from the TSDoc already in the code. Narrative pages are authored by hand. Neither half does the other's job.
 - **Static + host-agnostic.** `docs:build` emits a static site deployable on Helix _or_ anywhere. Base path configurable so a subpath deploy works.
-- **Internal process docs stay internal.** `docs/superpowers/**` (plans, specs) and `docs/open-questions.md` are `srcExclude`d from the public build. The `docs/implementation/*` findings are _repackaged_ into Deep Dives, not dumped.
+- **Internal process docs stay internal.** `docs/roadmap/**` (plans, specs) and `docs/open-questions.md` are `srcExclude`d from the public build. The `docs/implementation/*` findings are _repackaged_ into Deep Dives, not dumped.
 
 ## Content architecture
 
@@ -36,22 +36,22 @@ Everything in [`AGENTS.md`](../../../AGENTS.md) applies, plus:
 
 **Files:** `docs/.vitepress/*`, root `README.md`, `LICENSE`, `CONTRIBUTING.md`, `packages/*/README.md`, `package.json` scripts
 
-- [ ] VitePress site rooted at `docs/`, config in `docs/.vitepress/config.ts`: nav + sidebar for the content architecture above (stub pages are fine — content lands in Task 2). `srcExclude` the internal `superpowers/**` and `open-questions.md`.
-- [ ] Wire TypeDoc → markdown → VitePress: a `docs:api` script that generates the Reference section from each package's public `index.ts`. Verify it produces clean pages (the barrels are curated, so the surface is small).
-- [ ] Scripts: `docs:dev`, `docs:build` (static output), `docs:api`. Confirm `docs:build` emits a static site and that a configurable base path works (Helix subpath).
-- [ ] `LICENSE` — MIT, `Copyright (c) 2026 AZX-PBC`.
-- [ ] Rewrite root `README.md` to CURRENT reality: what Ribo does, the working pipeline (through Phase 4), quick start, an architecture-at-a-glance, and links into the docs site + `AGENTS.md`. Kill the stale "Phase 0 scaffolding, no real behavior yet" line.
-- [ ] A `README.md` per package (`ribo-core`, `ribo-adapter-snuggpro`, `ribo-transcriber-ondevice`, `ribo-ui`): one-paragraph what-it-is, install, the public API at a glance, a minimal example. Accurate to the real exports.
-- [ ] `CONTRIBUTING.md` — derived from `AGENTS.md` + `check.sh`: setup (Node 24, pnpm), the one "am I done?" signal, the conventions that matter (headless boundary, catalog pinning, the export-surface tests).
-- [ ] `check.sh` stays green.
+- VitePress site rooted at `docs/`, config in `docs/.vitepress/config.ts`: nav + sidebar for the content architecture above (stub pages are fine — content lands in Task 2). `srcExclude` the internal `roadmap/**` and `open-questions.md`.
+- Wire TypeDoc → markdown → VitePress: a `docs:api` script that generates the Reference section from each package's public `index.ts`. Verify it produces clean pages (the barrels are curated, so the surface is small).
+- Scripts: `docs:dev`, `docs:build` (static output), `docs:api`. Confirm `docs:build` emits a static site and that a configurable base path works (Helix subpath).
+- `LICENSE` — MIT, `Copyright (c) 2026 AZX-PBC`.
+- Rewrite root `README.md` to CURRENT reality: what Ribo does, the working pipeline (through Phase 4), quick start, an architecture-at-a-glance, and links into the docs site + `AGENTS.md`. Kill the stale "Phase 0 scaffolding, no real behavior yet" line.
+- A `README.md` per package (`ribo-core`, `ribo-adapter-snuggpro`, `ribo-transcriber-ondevice`, `ribo-ui`): one-paragraph what-it-is, install, the public API at a glance, a minimal example. Accurate to the real exports.
+- `CONTRIBUTING.md` — derived from `AGENTS.md` + `check.sh`: setup (Node 24, pnpm), the one "am I done?" signal, the conventions that matter (headless boundary, catalog pinning, the export-surface tests).
+- `check.sh` stays green.
 
 ### Task 2: Narrative content
 
 **Files:** `docs/guide/*`, `docs/capabilities/*`, `docs/offline-first/*`, `docs/deep-dives/*`
 
-- [ ] Author the Guide, Capabilities, Offline-first, and Deep-dives pages per the architecture, repackaging `docs/implementation/*` for an external reader. Each capability page centers the seam (`Transcriber`, `Extractor`, `ToolAdapter`) with a real code example from the packages.
-- [ ] Deep dives cite the MEASURED numbers (doc 14) and the real Snugg Pro model (doc 12) — a floor, not marketing.
-- [ ] Cross-link narrative → generated Reference so a concept links to its API.
+- Author the Guide, Capabilities, Offline-first, and Deep-dives pages per the architecture, repackaging `docs/implementation/*` for an external reader. Each capability page centers the seam (`Transcriber`, `Extractor`, `ToolAdapter`) with a real code example from the packages.
+- Deep dives cite the MEASURED numbers (doc 14) and the real Snugg Pro model (doc 12) — a floor, not marketing.
+- Cross-link narrative → generated Reference so a concept links to its API.
 
 ---
 

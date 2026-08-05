@@ -52,3 +52,14 @@ spikes/transcription-measurement/results/extract/
 # These must not re-enter the public tree.
 docs/implementation/snuggpro-openapi.json
 snugg-pro.html
+
+# Agent scratch: isolated git worktrees created by the harness, and the
+# subagent-driven-development workspace (ledger, task briefs, review packages).
+# Both are regenerable coordination state, never part of the source tree.
+.claude/worktrees/
+.superpowers/
+
+# The design specs and per-phase plans are committed as the project roadmap
+# under docs/roadmap/ — tracked, but excluded from the published docs site via
+# srcExclude in docs/.vitepress/config.ts. Distinct from .superpowers/ above,
+# which is agent coordination scratch (ledger, task briefs) and stays ignored.

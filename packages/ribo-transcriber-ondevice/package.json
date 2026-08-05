@@ -1,6 +1,7 @@
 {
   "name": "@azx/ribo-transcriber-ondevice",
   "version": "0.0.0",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -34,17 +35,19 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsdown"
   },
   "dependencies": {
+    "@azx/ribo-core": "workspace:^",
     "@huggingface/transformers": "catalog:"
   },
-  "peerDependencies": {
-    "@azx/ribo-core": "workspace:^"
-  },
   "devDependencies": {
-    "@azx/ribo-core": "workspace:*",
+    "@arethetypeswrong/core": "catalog:",
+    "@azx/build-config": "workspace:*",
     "@azx/tsconfig": "workspace:*",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
