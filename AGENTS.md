@@ -383,12 +383,19 @@ Checklist:
   you and they must be looking at **one** copy of core — so declare
   `"@azx/ribo-core": "workspace:^"` in `peerDependencies` and mirror it in `devDependencies` as
   `"workspace:*"` (peers are not installed for you; the dev entry is what makes the workspace link
-  exist for typecheck and tests). This is what `ribo-ui-react` does. If your package is a **leaf** that
-  merely calls core and hands nothing back across a boundary, a plain
-  `"dependencies": { "@azx/ribo-core": "workspace:^" }` is right — that is what
-  `ribo-adapter-snuggpro` does. Use `workspace:^` for the published-facing declaration (pnpm
-  rewrites it to `^<version>` on publish, and Changesets keeps the three libs in lockstep) and
-  `workspace:*` for dev-only links.
+  exist for typecheck and tests). This is what `ribo-ui-react` does: its hooks will hold core's
+  `Controller` / `ReviewPresenter` instances and hand them back across the boundary. The
+  distinguishing test is **runtime object-identity sharing**, not "leaf vs. not": if a consumer
+  hands core's runtime objects to your package, use `peerDependencies` + `devDependencies`
+  (`ribo-ui-react`); if your package only references core's **types** — even when those types
+  appear in its own emitted declarations — a plain `"dependencies": { "@azx/ribo-core": "workspace:^" }`
+  is right. That type-only case still needs `dependencies` (not `devDependencies`): a consumer's
+  TypeScript must resolve core's `.d.ts`, and devDependencies are never installed for consumers.
+  `ribo-adapter-snuggpro`, `ribo-extractor-openai` and `ribo-transcriber-ondevice` are all
+  plain-`dependencies` — they import core type-only and exchange plain data (`Recording`,
+  `Transcript`), not class instances with identity. Use `workspace:^` for the published-facing
+  declaration (pnpm rewrites it to `^<version>` on publish, and Changesets keeps the three libs in
+  lockstep) and `workspace:*` for dev-only links.
 - **`@azx/tsconfig` must be in `devDependencies`** as `workspace:*`. Easy to forget because the
   package is only referenced from `tsconfig.json` — and we have already shipped this bug once.
   Without it, `extends: "@azx/tsconfig/base.json"` fails to resolve.

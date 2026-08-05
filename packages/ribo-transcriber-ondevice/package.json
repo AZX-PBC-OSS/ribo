@@ -39,15 +39,12 @@
     "build": "tsdown"
   },
   "dependencies": {
+    "@azx/ribo-core": "workspace:^",
     "@huggingface/transformers": "catalog:"
-  },
-  "peerDependencies": {
-    "@azx/ribo-core": "workspace:^"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "catalog:",
     "@azx/build-config": "workspace:*",
-    "@azx/ribo-core": "workspace:*",
     "@azx/tsconfig": "workspace:*",
     "publint": "catalog:",
     "tsdown": "catalog:",
