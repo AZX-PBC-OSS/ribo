@@ -30,9 +30,10 @@ const failures = [];
  * The list is every non-empty line strictly BETWEEN the `Tarball Contents` and
  * `Tarball Details` boundary lines. Returns `{ ok: false, reason }` if either
  * boundary is missing, if `Tarball Details` does not come after `Tarball
- * Contents`, or if the section has no entries — in all those cases the offender
- * filter would find nothing regardless, so the gate must refuse to pass rather
- * than report a vacuous zero offenders.
+ * Contents`, if the section has no entries, or if any entry is not a bare
+ * relative path (no whitespace, with a dotted extension) — in all those cases
+ * the offender filter cannot be trusted to find real source leaks, so the gate
+ * must refuse to pass rather than report a vacuous zero offenders.
  */
 function parseTarballContents(output) {
   const lines = output.split("\n").map((line) => line.trim());
@@ -47,6 +48,19 @@ function parseTarballContents(output) {
   const files = lines.slice(start + 1, end).filter((line) => line.length > 0);
   if (files.length === 0) {
     return { ok: false, reason: "no entries between the boundaries" };
+  }
+  // Every entry must be a bare relative path: no whitespace, with a dotted
+  // extension. pnpm's current format is exactly that; a future rendering like
+  // `dist/index.js (1.2 kB)` would defeat the $-anchored extension test below
+  // and report every package clean, so an unrecognized line means pnpm's
+  // format changed and the gate must go red rather than quietly succeed.
+  const BARE_PATH = /^\S+\.[A-Za-z0-9]+$/;
+  const badShape = files.find((line) => !BARE_PATH.test(line));
+  if (badShape) {
+    return {
+      ok: false,
+      reason: `entry is not a bare relative path: "${badShape}"`,
+    };
   }
   return { ok: true, files };
 }
@@ -69,10 +83,13 @@ for (const pkg of PACKAGES) {
   }
 
   // A declaration is `.d.ts` / `.d.mts` / `.d.cts`; anything else ending in a
-  // TypeScript extension — including `.tsx` — is source that must not ship.
-  // `.d.tsx` is not a real thing, so it is not exempted.
+  // TypeScript extension — `.ts`, `.mts`, `.cts`, `.tsx` — is source that must
+  // not ship. The list is exact so the matcher does not also claim to cover
+  // non-existent forms like `.mtsx`/`.ctsx`. `.d.tsx` is not a real thing, so
+  // it is not exempted. The declaration exemption stays a prefix pattern so the
+  // hashed shared chunk `protocol-*.d.ts` is still covered.
   const offenders = parsed.files.filter(
-    (line) => /\.(m|c)?tsx?$/.test(line) && !/\.d\.(m|c)?ts$/.test(line),
+    (line) => /\.(ts|mts|cts|tsx)$/.test(line) && !/\.d\.(m|c)?ts$/.test(line),
   );
 
   if (offenders.length > 0) {
