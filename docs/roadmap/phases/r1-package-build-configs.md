@@ -174,7 +174,7 @@ Expected: FAIL — cannot resolve `./target.js`.
  * `resolveTarget` in tsdown 0.22.14, whose only inference path is `engines.node`
  * — so the query result has to be translated here. Called only by
  * `scripts/refresh-target.mjs`; builds read the generated tokens and never run
- * this. See docs/roadmap/design/2026-08-04-r1-package-build-configs-design.md §3.
+ * this. See docs/roadmap/design/r1-package-build-configs-design.md §3.
  */
 
 /**
@@ -516,7 +516,7 @@ In `packages/build-config/package.json`, add to `devDependencies`:
  *
  * Do not "simplify" the explicit settings below. Every one of them overrides a
  * default that would be wrong for a browser library, and two of them defuse
- * silent footguns. See docs/roadmap/design/2026-08-04-r1-package-build-configs-design.md.
+ * silent footguns. See docs/roadmap/design/r1-package-build-configs-design.md.
  */
 import type { UserConfig } from "tsdown";
 
@@ -1649,7 +1649,7 @@ The design spec §3.3 accepts a floor looser than doc 10 §2.1's support matrix 
 
 **Files:**
 
-- Modify: `docs/roadmap/design/2026-08-04-r1-package-build-configs-design.md` (record the result in §3.3)
+- Modify: `docs/roadmap/design/r1-package-build-configs-design.md` (record the result in §3.3)
 
 **Interfaces:**
 
@@ -1694,7 +1694,7 @@ Expected: `git diff --stat` prints nothing.
 
 - **Step 4: Record the finding in the spec**
 
-In §3.3 of `docs/roadmap/design/2026-08-04-r1-package-build-configs-design.md`, replace the paragraph beginning "One-time empirical check during implementation" with the measured result. If the outputs were identical:
+In §3.3 of `docs/roadmap/design/r1-package-build-configs-design.md`, replace the paragraph beginning "One-time empirical check during implementation" with the measured result. If the outputs were identical:
 
 ```markdown
 **Measured 2026-08-04 (R1 implementation).** Built all five packages at the
@@ -1713,7 +1713,7 @@ Run: `./check.sh`
 Expected: PASS.
 
 ```bash
-git add docs/roadmap/design/2026-08-04-r1-package-build-configs-design.md
+git add docs/roadmap/design/r1-package-build-configs-design.md
 git commit -m "docs: record the measured cost of the Baseline syntax floor"
 ```
 

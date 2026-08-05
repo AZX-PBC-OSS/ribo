@@ -3,8 +3,9 @@
 **Date:** 2026-08-04
 **Author:** AZX
 **Status:** Approved for planning
-**Task:** **R1** of the Voice-to-Text MVP design (`franklin-field-app`
-`docs/roadmap/design/2026-07-28-voice-to-text-mvp-design.md`)
+**Task:** **R1** of the Voice-to-Text MVP design, which lives in the separate
+`franklin-field-app` repo (file `docs/roadmap/design/2026-07-28-voice-to-text-mvp-design.md`
+there; not openable from this repo)
 **Authority it implements:** [`10-build-and-packaging.md`](../../implementation/10-build-and-packaging.md)
 (with one recorded deviation, §3.3)
 
