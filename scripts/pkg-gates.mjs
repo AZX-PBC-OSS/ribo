@@ -31,9 +31,10 @@ const failures = [];
  * `Tarball Details` boundary lines. Returns `{ ok: false, reason }` if either
  * boundary is missing, if `Tarball Details` does not come after `Tarball
  * Contents`, if the section has no entries, or if any entry is not a bare
- * relative path (no whitespace, with a dotted extension) — in all those cases
- * the offender filter cannot be trusted to find real source leaks, so the gate
- * must refuse to pass rather than report a vacuous zero offenders.
+ * relative path (no whitespace; a dotted extension is deliberately not
+ * required — extensionless entries like LICENSE are legitimate) — in all those
+ * cases the offender filter cannot be trusted to find real source leaks, so the
+ * gate must refuse to pass rather than report a vacuous zero offenders.
  */
 function parseTarballContents(output) {
   const lines = output.split("\n").map((line) => line.trim());
@@ -49,12 +50,17 @@ function parseTarballContents(output) {
   if (files.length === 0) {
     return { ok: false, reason: "no entries between the boundaries" };
   }
-  // Every entry must be a bare relative path: no whitespace, with a dotted
-  // extension. pnpm's current format is exactly that; a future rendering like
-  // `dist/index.js (1.2 kB)` would defeat the $-anchored extension test below
-  // and report every package clean, so an unrecognized line means pnpm's
-  // format changed and the gate must go red rather than quietly succeed.
-  const BARE_PATH = /^\S+\.[A-Za-z0-9]+$/;
+  // A bare path only — no whitespace. This deliberately does NOT require a dotted
+  // extension: extensionless entries like LICENSE are legitimate, and rejecting them
+  // would fail the gate on valid output. What we ARE guarding is trailing text after
+  // the path (a hypothetical `dist/index.js (1.2 kB)` format), which would defeat the
+  // $-anchored extension match below and let every package pass.
+  //
+  // Known limitation, accepted: a filename genuinely containing a space would be
+  // reported as format-not-understood. That case is indistinguishable from
+  // path-plus-trailing-text, so failing loudly is the correct direction, and no file
+  // in this repo has one.
+  const BARE_PATH = /^\S+$/;
   const badShape = files.find((line) => !BARE_PATH.test(line));
   if (badShape) {
     return {
