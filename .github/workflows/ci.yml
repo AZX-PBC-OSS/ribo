@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   check:
-    name: typecheck, lint, format, build, test # keep in sync with check.sh's stages
+    name: typecheck, lint, format, build, resolve, pkg gates, test # keep in sync with check.sh's stages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -37,13 +37,15 @@ jobs:
 
       - run: ./check.sh
 
-      # TODO(phase-later): add the publishing gates from
-      # docs/implementation/10-build-and-packaging.md section 8 ("CI gates").
-      # They are omitted here only because Phase 0 has nothing publishable yet;
-      # wire them up as soon as the packages actually build:
-      #   - publint --strict
-      #   - attw --pack .
-      #   - pnpm changeset status
-      #   - pnpm pack --dry-run, asserting no .ts file reaches the tarball
-      #   - pnpm ls react --depth=Infinity, failing on more than one resolved React
-      #   - the pack-and-consume matrix
+      # `changeset status` is CI-only: it needs a git remote and a base ref to diff
+      # against, so it does not belong in a local ./check.sh run. Scoped to pull
+      # requests because on a push to `main` the base ref IS the current ref, so
+      # there is nothing to diff and the check reports a spurious failure.
+      # `origin/main` matches `baseBranch` in .changeset/config.json.
+      - if: github.event_name == 'pull_request'
+        run: pnpm changeset status --since=origin/main
+      # TODO(R3): add the pack-and-consume matrix from
+      # docs/implementation/10-build-and-packaging.md section 8 — pack the
+      # tarballs, install into a scratch app, build, and assert the worker spawns
+      # and WASM loads. The source-condition playground never touches dist/, so
+      # every WASM/worker failure mode is production-build-only.

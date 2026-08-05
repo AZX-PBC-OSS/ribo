@@ -48,6 +48,10 @@ run_stage "resolve" pnpm check:resolve
 # gates (so their output is not buried) and before `test`, because a module
 # resolution failure explains most test failures that would follow.
 run_stage "build:app" pnpm build:app
+# The two publishing gates publint and attw do not cover: no TypeScript source in
+# any tarball, and exactly one resolved React. Runs here rather than in CI alone so
+# `./check.sh` stays the single "am I done?" signal.
+run_stage "pkg:gates" pnpm check:pkg
 # Runs ALL THREE Vitest projects in one pass: `unit` (node), `browser`
 # (Playwright/Chromium) and `e2e`. The reporter is configured in vitest.config.ts
 # to tag every file with its project, so this stage's output shows which projects
@@ -84,7 +88,7 @@ run_stage "test" pnpm test
 printf '\n----------------------------------------\n'
 
 if [ -z "$failed" ]; then
-  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, test\n'
+  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, pkg:gates, test\n'
   exit 0
 fi
 
