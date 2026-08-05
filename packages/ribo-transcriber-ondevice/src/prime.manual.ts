@@ -71,7 +71,6 @@ test("real whisper-tiny.en: downloads with progress, caches, second load is warm
   // absence-of-progress is NOT the signal — the time gap and the is-cached flip are.)
   const warm = await timedPrime();
 
-  // eslint-disable-next-line no-console -- surfacing the numbers is the point of the manual run
   console.log(`[prime.manual] cold=${cold.ms.toFixed(0)}ms warm=${warm.ms.toFixed(0)}ms`);
   expect(warm.ms).toBeLessThan(cold.ms);
 }, 300_000);

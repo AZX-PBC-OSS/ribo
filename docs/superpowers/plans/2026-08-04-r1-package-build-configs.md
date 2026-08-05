@@ -548,7 +548,7 @@ export const sharedTsdown: UserConfig = {
   // `react/jsx-runtime`, and missing it breaks consumer builds. tsdown already
   // externalizes `dependencies` and `peerDependencies`; this is belt-and-braces
   // for the subpath case.
-  external: [/^react($|\/)/, /^react-dom($|\/)/],
+  deps: { neverBundle: [/^react($|\/)/, /^react-dom($|\/)/] },
 
   sourcemap: true,
 

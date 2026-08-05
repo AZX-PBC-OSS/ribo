@@ -55,6 +55,11 @@ export const sharedTsdown: UserConfig = {
   // Optional tsdown peers, run in-build: a broken `exports` block fails the build
   // that produced it rather than a later CI step.
   publint: true,
+  // `esm-only`, not a bare `true`: attw's default profile resolves under Node10
+  // and Node16 (CJS) too, which reports `No resolution (node10)` and `CJS
+  // resolves to ESM (node16-cjs)` for a package that is deliberately ESM-only.
+  // Those are false positives here — there is no CJS build and never will be
+  // (doc 10 §3) — so the profile suppresses them without weakening real checks.
   attw: { profile: "esm-only" },
 
   // NOTE what is deliberately absent: `experimental.resolveNewUrlToAsset`.

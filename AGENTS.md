@@ -20,7 +20,8 @@ adapter. The first target is home-energy audits in Snugg Pro.
 `@azx/ribo-transcriber-ondevice` runs real WASM Whisper on-device; `@azx/ribo-adapter-snuggpro` is
 the real Snugg Pro `ToolAdapter`; `@azx/ribo-extractor-openai` is the tool-agnostic single-shot
 managed-LLM extractor (its OpenAI-compatible transport and the single-shot strategy). `ribo-ui-react`
-is still a `PACKAGE_NAME` stub. **Write-back is scaffolded but gated** on a Helix platform ask (egress HMAC
+is still a `PACKAGE_NAME` stub — it builds, but populating it as a headless hook layer is a
+separate task. **Write-back is scaffolded but gated** on a Helix platform ask (egress HMAC
 signing — `docs/implementation/13-helix-platform-asks.md`). The consuming **field app lives in a
 separate repo** and is not built here; the `playground/` app is this repo's stand-in for a consumer.
 
@@ -38,7 +39,9 @@ command below is run from the repo root and has been verified against this tree.
 
 ```bash
 pnpm install                          # bootstrap the workspace
-./check.sh                            # THE "am I done?" signal — typecheck, lint, format, build, test
+./check.sh                            # THE "am I done?" signal — see §7 for the full stage list
+pnpm build:packages                   # build all five publishable packages (tsdown)
+pnpm target:refresh                   # regenerate the syntax floor from browserslist
 pnpm --filter playground dev          # dev server on http://localhost:5173
 pnpm vitest run packages/ribo-core    # one package's tests (path filter, not --filter)
 pnpm --filter @azx/ribo-core typecheck # one package's typecheck
@@ -49,12 +52,14 @@ The two `--filter` arguments above look inconsistent but are both correct: `--fi
 unscoped), while the libraries are scoped `@azx/*`. Not a typo.
 
 Root scripts, if you need a stage on its own: `pnpm typecheck` (runs each package's own
-`typecheck` in parallel), `pnpm lint`, `pnpm format:check`, `pnpm build` (the playground's
-production build), `pnpm test`.
+`typecheck` in parallel), `pnpm lint`, `pnpm format:check`, `pnpm build:packages` (the five
+library builds), `pnpm build:app` (the playground's production build), `pnpm build` (both,
+in order), `pnpm check:resolve`, `pnpm check:pkg`, `pnpm target:refresh`, `pnpm test`.
 
-Two of the root scripts **write to the working tree** and are not safe to run for information:
-`pnpm format` (Prettier `--write`) and `pnpm lint:fix` (ESLint `--fix`). Use `pnpm format:check`
-and `pnpm lint` when you only want to know.
+Three of the root scripts **write to the working tree** and are not safe to run for information:
+`pnpm format` (Prettier `--write`), `pnpm lint:fix` (ESLint `--fix`), and `pnpm target:refresh`
+(regenerates `packages/build-config/src/target.generated.ts`). Use `pnpm format:check` and
+`pnpm lint` when you only want to know.
 
 Notes:
 
@@ -62,10 +67,10 @@ Notes:
   (`vitest.config.ts`) and discovers `packages/*/src/**/*.test.{ts,tsx}`; select a subset with a
   path argument as shown above. (Each package still carries `"vitest": "catalog:"` in
   `devDependencies` — see §6 for why that is not cruft.)
-- `pnpm typecheck` prints `Scope: 7 of 8 workspace projects`: the eight are the root plus the seven
-  members, and `pnpm -r` excludes the root. Of those seven, only **six** actually run a typecheck —
-  `packages/tsconfig` ships JSON only and defines no `typecheck` script. A package without that
-  script is silently absent from the gate (§6).
+- `pnpm typecheck` prints `Scope: 8 of 9 workspace projects`: the nine are the root plus the eight
+  members, and `pnpm -r` excludes the root. Of those eight, only **seven** actually run a
+  typecheck — `packages/tsconfig` ships JSON only and defines no `typecheck` script. A package
+  without that script is silently absent from the gate (§6).
 - The playground consumes **every** library **from TypeScript source**, so editing
   `packages/ribo-core/src/index.ts` hot-updates the page with no build step. If that stops
   working, suspect the `@azx/source` condition (§5) rather than Vite.
@@ -78,13 +83,13 @@ Four tiers. Dependencies only ever point **inward toward `ribo-core`**: `ribo-ui
 `ribo-adapter-snuggpro` and `ribo-extractor-openai` each depend on `ribo-core` and never on each
 other; the field app composes them. Nothing depends on the field app.
 
-| Tier                         | Location                         | Responsibility                                                                                               |
-| ---------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `@azx/ribo-core`             | `packages/ribo-core`             | Headless engine: capture state machine, transcription, extraction, queue. No React, no DOM rendering.        |
-| `@azx/ribo-ui-react`         | `packages/ribo-ui-react`         | React components over the core engine — recorder, review UI. Ships CSS. (The `react` variant; still a stub.) |
-| `@azx/ribo-adapter-snuggpro` | `packages/ribo-adapter-snuggpro` | The **only** tool-specific surface: Snugg Pro field mapping and write-back.                                  |
-| `@azx/ribo-extractor-openai` | `packages/ribo-extractor-openai` | Tool-agnostic extractor plasmid: single-shot managed-LLM extraction over an OpenAI-compatible transport.     |
-| Field app                    | **separate repo**                | The deployed Helix app that composes these packages. Not built here.                                         |
+| Tier                         | Location                         | Responsibility                                                                                           |
+| ---------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `@azx/ribo-core`             | `packages/ribo-core`             | Headless engine: capture state machine, transcription, extraction, queue. No React, no DOM rendering.    |
+| `@azx/ribo-ui-react`         | `packages/ribo-ui-react`         | React hooks over the core engine — recorder, review. (The `react` variant; still a stub.)                |
+| `@azx/ribo-adapter-snuggpro` | `packages/ribo-adapter-snuggpro` | The **only** tool-specific surface: Snugg Pro field mapping and write-back.                              |
+| `@azx/ribo-extractor-openai` | `packages/ribo-extractor-openai` | Tool-agnostic extractor plasmid: single-shot managed-LLM extraction over an OpenAI-compatible transport. |
+| Field app                    | **separate repo**                | The deployed Helix app that composes these packages. Not built here.                                     |
 
 Supporting, non-published: `packages/tsconfig` (`@azx/tsconfig`, the shared compiler options) and
 `playground/` (a Vite app that imports **every** published package, so its production build is a real
@@ -193,16 +198,19 @@ namespaced so that only we can turn it on.
 Also note `"types"` must come **before** any JS condition in the block — publint enforces this,
 and getting it wrong silently breaks consumer type resolution.
 
-**Subpath exports, and what is actually live today.** Two subpaths exist beyond `.`:
-`@azx/ribo-transcriber-ondevice/worker` (§5.2) and `@azx/ribo-ui-react/styles.css`. **No library is
-built yet** — there is no `dist/` for any package until the tsdown/Vite library builds land in a
-later phase — so `dist/index.js`, `dist/worker.js` and `dist/styles.css` do **not** exist. Only
-the `@azx/source` branches resolve today, which is why in-repo consumption works and nothing else
-does. Two consequences worth knowing: `packages/ribo-transcriber-ondevice/src/worker.ts` is a
-Phase 3 Task 1 stub that exists so the `./worker` condition has something to point at (the real
-inference lands in Tasks 2–3); and `./styles.css` has **no `@azx/source` branch at all** (there
-is no source stylesheet yet), so importing `@azx/ribo-ui-react/styles.css` in-repo will fail until
-`ribo-ui-react` gains a real stylesheet and a build.
+**Subpath exports.** One subpath exists beyond `.`: `@azx/ribo-transcriber-ondevice/worker`
+(§5.2). All five packages build (`pnpm build:packages`), so `dist/index.js`, `dist/index.d.ts`
+and `dist/worker.js` all exist and **both** branches of every `exports` block resolve — which is
+what `pnpm check:resolve` asserts on every `./check.sh` run. `@azx/ribo-ui-react` no longer has a
+`./styles.css` subpath: it is a headless hook layer and ships no stylesheet, so the subpath was
+removed along with `sideEffects: ["*.css"]`.
+
+**The condition no longer fails loudly.** Before the packages built, deleting
+`resolve.conditions` from `playground/vite.config.ts` hard-failed the build on a missing
+`dist/index.js`. Now it resolves quietly to the built artifact: HMR into library source dies, CI
+stays green, and nothing announces it. `pnpm check:resolve`
+(`scripts/assert-source-condition.mjs`) is the gate that replaces that lost property, and it
+asserts **both** directions — with the condition to `src/`, without it to `dist/`.
 
 ### 5.2 Inject `createWorker`; never construct a Worker in library code
 
@@ -342,6 +350,7 @@ that matter:
 {
   "name": "@azx/<pkg>",
   "version": "0.0.0",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false, // or ["*.css"] — see below
   "files": ["dist"], // only dist is published
@@ -360,11 +369,15 @@ that matter:
       "./package.json": "./package.json",
     },
   },
-  "scripts": { "typecheck": "tsc --noEmit" },
+  "scripts": { "typecheck": "tsc --noEmit", "build": "tsdown" },
   "devDependencies": {
     "@azx/tsconfig": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:",
+    "tsdown": "catalog:",
+    "publint": "catalog:",
+    "@arethetypeswrong/core": "catalog:",
+    "@azx/build-config": "workspace:*",
   },
 }
 ```
@@ -414,6 +427,13 @@ Checklist:
 - **Add the `"typecheck"` script** (`tsc --noEmit`). `pnpm -r --parallel typecheck` only runs in
   packages that _define_ it, so a package without one is **silently absent** from the gate — it
   will never fail, and never be checked.
+- **Add a `tsdown.config.ts`** that spreads `sharedTsdown` from `@azx/build-config` and declares
+  only its own `entry` in **object form**. Do not inline build settings — the shared base is what
+  keeps one syntax target across all five packages.
+- **Add the four build devDependencies**: `tsdown`, `publint` and `@arethetypeswrong/core` as
+  `catalog:`, and `@azx/build-config` as `workspace:*`. All four are per-package because pnpm does
+  not hoist: `pnpm run build` resolves the `tsdown` binary from the package's own
+  `node_modules/.bin`, and tsdown resolves its optional peers the same way.
 - Add `src/index.ts` and a colocated `src/index.test.ts`. Root Vitest picks it up automatically;
   no per-package test script.
 - If the playground should consume it, add it there as `workspace:*` and import it from
@@ -424,25 +444,35 @@ Checklist:
 
 ## 7. Definition of done
 
-**`./check.sh` is green.** It runs typecheck → lint → format:check → **build** → test and prints a
-PASS/FAIL summary; CI runs the same script, so there is no second bar to clear. Run it before you
-claim a task is finished, and paste the summary line rather than asserting success.
+**`./check.sh` is green.** It runs typecheck → lint → format:check → build:packages → resolve →
+build:app → pkg:gates → test and prints a PASS/FAIL summary; CI runs the same script, so there is
+no second bar to clear. Run it before you claim a task is finished, and paste the summary line
+rather than asserting success.
 
-The `build` stage is the playground's production Vite build, and it is the only gate that
-exercises Vite's resolver, the `@azx/source` condition, the JSX transform, React dedup and real
-bundling — `tsc` sees none of that. So most §5 breakage is caught by `./check.sh` alone. Note what
-it still does **not** do: the app is compiled, never executed. There is no runtime smoke test.
+The two build stages are `build:packages` (tsdown produces every publishable `dist/`, running
+publint and attw in-build) and `build:app` (the playground's production Vite build, the only gate
+that exercises Vite's resolver, the `@azx/source` condition, the JSX transform, React dedup and
+real bundling — `tsc` sees none of that). So most §5 breakage is caught by `./check.sh` alone.
+Note what it still does **not** do: the app is compiled, never executed. There is no runtime
+smoke test.
 
-If you touched anything under §5, verify source-first resolution end to end. Two headless options,
-both verified against this tree:
+If you touched anything under §5, `./check.sh`'s **resolve** stage already verifies source-first
+resolution end to end, in both directions, for all five packages — that is what
+`scripts/assert-source-condition.mjs` does, and it is a gate rather than a manual step. To run it
+alone:
 
 ```bash
-# 1. Production build resolved to library source (dist/ does not exist yet, so
-#    a bundle containing these strings can only have come from src/).
-pnpm build && grep -c '@azx/ribo-core' playground/dist/assets/*.js
+pnpm build:packages && pnpm check:resolve
+```
 
-# 2. Dev server: fetch the transformed module and confirm the imports point at
-#    packages/*/src/index.ts rather than a dist file.
+The old recipe — grepping `playground/dist/assets/*.js` for `@azx/ribo-core` — no longer proves
+anything. It worked only because `dist/` did not exist, so a bundle containing library strings
+could only have come from `src/`. Now both are possible, which is precisely why the resolve stage
+exists.
+
+To watch the dev server resolve into source by hand:
+
+```bash
 pnpm --filter playground dev &
 curl -s http://localhost:5173/src/App.tsx | head -3   # expect /@fs/.../packages/ribo-core/src/index.ts
 ```

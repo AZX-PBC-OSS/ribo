@@ -67,7 +67,7 @@ in a **new private workspace package, `@azx/build-config`** — `files: []`, nev
 already establishes for compiler options, so it needs no new concept.
 
 ```
-packages/build-config/index.ts          shared tsdown base + BROWSER_TARGET
+packages/build-config/src/index.ts     shared tsdown base + BROWSER_TARGET
 packages/ribo-core/tsdown.config.ts     { ...sharedTsdown, entry: { index: "src/index.ts" } }
 packages/ribo-transcriber-ondevice/tsdown.config.ts
                                         { ...sharedTsdown, entry: { index: …, worker: … } }
@@ -122,10 +122,10 @@ So the floor must be handed to tsdown as tokens. We **generate** them:
 - `scripts/refresh-target.mjs`, run as the root script `pnpm target:refresh`, resolves
   `browserslist("baseline widely available")` — a query browserslist 4.28.7 supports natively —
   reduces the result to a minimum per browser family, maps family names to oxc tokens, and writes
-  `packages/build-config/target.generated.ts`, **committed**, exporting `BROWSER_TARGET`. Its header
+  `packages/build-config/src/target.generated.ts`, **committed**, exporting `BROWSER_TARGET`. Its header
   records the query, the resolution date and the resolved `caniuse-lite` version, and marks the file
   generated so nobody hand-edits it.
-- `packages/build-config/index.ts` re-exports `BROWSER_TARGET` as part of the shared base. Builds
+- `packages/build-config/src/index.ts` re-exports `BROWSER_TARGET` as part of the shared base. Builds
   perform **zero** resolution.
 
 This is the pattern Vite itself uses: its `ESBUILD_BASELINE_WIDELY_AVAILABLE_TARGET` carries the
