@@ -37,6 +37,11 @@ run_stage "format:check" pnpm format:check
 # `build:packages` produces every publishable `dist/` and runs publint + attw
 # in-build, so a broken `exports` block fails here rather than in a later job.
 run_stage "build:packages" pnpm build:packages
+# Replaces the guard that building destroyed. Runs AFTER build:packages because
+# the `without the condition` direction needs `dist/` to exist, and BEFORE
+# build:app because a resolution failure explains most bundling failures that
+# would follow it.
+run_stage "resolve" pnpm check:resolve
 # The playground's production build is the only gate that exercises Vite's
 # resolver, the `@azx/source` condition, the JSX transform, React dedup and
 # real bundling. `tsc` cannot see any of that. Both run after the cheap static
@@ -79,7 +84,7 @@ run_stage "test" pnpm test
 printf '\n----------------------------------------\n'
 
 if [ -z "$failed" ]; then
-  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, build:app, test\n'
+  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, test\n'
   exit 0
 fi
 
