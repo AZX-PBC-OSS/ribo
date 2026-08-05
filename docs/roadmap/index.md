@@ -59,6 +59,33 @@ design that is not in this repo. R1 is done; the rest proceed in dependency orde
 5. **F1 — the field app** (separate repo). The deployed Helix app that composes the published packages.
    Not built here; the `playground/` app is this repo's stand-in for a consumer.
 
+### Deployment
+
+Two things in this repo build but are not deployed anywhere. The docs site is startable now; the
+playground is not.
+
+- **Docs site.** `pnpm docs:build` produces a static VitePress site and nothing deploys it — the repo
+  has no deploy workflow at all. Static output only (no service worker, no LLM, no workers), so it is
+  a hosting target plus a CI step and depends on nothing already in flight. It can be anonymously
+  readable rather than sign-in gated, since the platform recently gained an operator flag for public
+  apps — an open choice, not a decision. The site already excludes the roadmap, the implementation
+  notes and the open questions from what it publishes (`srcExclude` in `docs/.vitepress/config.ts`),
+  so deploying it does not publish those.
+- **Playground, with extraction on the platform LLM route.** The playground registers a
+  **service worker** (`VitePWA` in `playground/vite.config.ts`), and the platform bans service workers
+  except under a per-app grant, so the deploy needs that grant. It runs **on-device Whisper** through
+  an injected `createWorker`, which needs `blob:` allowed in the CSP's `script-src`. Its "Try it"
+  extraction panel is served by `playground/vite-extract.ts`, a **Vite server plugin** mounted only on
+  the dev and preview servers, so a deployed static build has no backend for it. That resolves without
+  new coupling: `openAiChat({ apiKey, baseUrl, fetchImpl })` in `@azx/ribo-extractor-openai` already
+  takes the endpoint as a parameter and POSTs to `${baseUrl}/chat/completions`, and the platform now
+  exposes an OpenAI-compatible gateway — so the deployed build points the existing extractor at that
+  route, configuration not Helix-specific code. `fetchImpl` is the seam for same-origin cookie auth,
+  so no API key ships to the browser; the dev-server plugin stays as it is for local work.
+
+The service-worker grant and `blob:` in `script-src` are the same platform capabilities the field app
+needs, so the playground deploy waits on them. The docs site waits on nothing.
+
 ## What is deliberately out of scope
 
 So nobody re-litigates it:
