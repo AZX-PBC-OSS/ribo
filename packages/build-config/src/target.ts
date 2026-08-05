@@ -5,7 +5,8 @@
  * `resolveTarget` in tsdown 0.22.14, whose only inference path is `engines.node`
  * — so the query result has to be translated here. Called only by
  * `scripts/refresh-target.mjs`; builds read the generated tokens and never run
- * this. See docs/superpowers/specs/2026-08-04-r1-package-build-configs-design.md §3.
+ * this. The toolchain and syntax-target rationale lives in
+ * `docs/implementation/10-build-and-packaging.md`.
  */
 
 /**

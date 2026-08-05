@@ -58,3 +58,11 @@ snugg-pro.html
 # Both are regenerable coordination state, never part of the source tree.
 .claude/worktrees/
 .superpowers/
+
+# Internal specs and plans, kept on disk for local reference but untracked.
+# Distinct from .superpowers/ above: .superpowers/ is coordination scratch
+# (ledger, task briefs), while docs/superpowers/ is internal design specs and
+# per-phase plans. Both are implementation detail; neither belongs in a
+# public repo, and the directory was never published to the docs site either
+# (excluded via srcExclude in docs/.vitepress/config.ts).
+docs/superpowers/

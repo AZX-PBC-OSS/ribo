@@ -25,10 +25,9 @@ separate task. **Write-back is scaffolded but gated** on a Helix platform ask (e
 signing — `docs/implementation/13-helix-platform-asks.md`). The consuming **field app lives in a
 separate repo** and is not built here; the `playground/` app is this repo's stand-in for a consumer.
 
-Background reading: [design spec](docs/superpowers/specs/2026-07-21-ribo-design.md) ·
-[implementation proposal](docs/implementation/00-overview.md) ·
-[Phase 0 plan](docs/superpowers/plans/2026-07-23-phase-0-foundation.md) ·
-[Phase 1 plan](docs/superpowers/plans/2026-07-23-phase-1-contracts.md).
+Background reading: [implementation proposal](docs/implementation/00-overview.md). (The
+original design spec and per-phase plans are internal and are not tracked in this repo; §1 above
+summarises the architecture and current status.)
 
 ## 2. Commands
 

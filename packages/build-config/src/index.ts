@@ -8,7 +8,12 @@
  *
  * Do not "simplify" the explicit settings below. Every one of them overrides a
  * default that would be wrong for a browser library, and two of them defuse
- * silent footguns. See docs/superpowers/specs/2026-08-04-r1-package-build-configs-design.md.
+ * silent footguns: `target` (tsdown would silently infer a Node target the day
+ * `engines.node` is added as publishing metadata) and `dts.generator` (the dts
+ * plugin would silently switch to the experimental TypeScript Go compiler once
+ * TypeScript 7 is installed). The per-setting comments below state why each
+ * option is set and what breaks if it changes; the broader packaging rationale
+ * lives in `docs/implementation/10-build-and-packaging.md`.
  */
 import type { UserConfig } from "tsdown";
 
