@@ -1,0 +1,85 @@
+# Phase 2.5 — Offline App Load Implementation Plan
+
+The plan for offline app load — a service worker precaching the shell, storage persistence, and eviction handling. Phase 2.5 is complete.
+
+**Goal:** the app opens with no signal. Today capture and persistence already work offline (Phase 2) — but the page itself cannot cold-start without a network, which makes the rest moot. Ends with: load the app, kill the network, reload, and it still boots and still shows the queue.
+
+**Architecture:** an app-owned service worker precaching the shell, plus storage-persistence and eviction handling. Proven in `playground/` first so the field app inherits a working pattern rather than a design.
+
+**Tech Stack:** service worker (via `vite-plugin-pwa`/Workbox unless there's a good reason not to), `navigator.storage`, Playwright for the offline test.
+
+## Global Constraints
+
+Everything in [`AGENTS.md`](../../../AGENTS.md) applies, plus:
+
+- **The service worker belongs to the app, not the SDK.** A service worker is _origin-global_; a library that installs one collides with whatever the host already runs. `ribo-core` must not register, ship, or assume a service worker. If the SDK ever needs assets cached, it exposes a manifest and the app decides — same principle that keeps Mantine out of `ribo-ui`.
+- **This phase does NOT cache the Whisper model.** That is Phase 3, SDK-side, via the Cache API directly from page context — which needs no service worker at all. Keep the two separate so Phase 3 isn't blocked on service-worker questions.
+- Dependencies catalog-pinned exact, declared in the right manifest.
+
+## Decided
+
+- **Priming UX: explicit and user-initiated.** No silent background downloads. A field tool that quietly consumes an employee's cellular data is a support ticket and a trust problem. (This mostly governs Phase 3's model download, but the same principle applies to anything large here.)
+- **Service workers can be served from Helix** — confirmed. Still verify scope in practice when the field app deploys.
+
+---
+
+### Task 1: Service worker + precached shell
+
+**Files:** `playground/vite.config.ts`, `playground/src/*`, manifest
+
+- Add a service worker that precaches the app shell (HTML/JS/CSS) and serves it cache-first, so a cold start with no network still boots. `vite-plugin-pwa` is the default choice — it generates the precache manifest from the real build output, which hand-rolling gets wrong as soon as filenames hash. If you choose otherwise, justify it.
+- **Do not precache anything large.** The Whisper model is Phase 3 and is explicitly not this phase's problem; a 150 MB precache would make first load unusable.
+- Register it from the app, not from any package under `packages/`.
+- Confirm the production build still passes `check.sh`'s build stage, and that dev mode remains usable (service workers plus HMR are a classic source of "why am I seeing stale code" confusion — if dev registration is disabled, say so visibly).
+
+### Task 2: Update strategy — never reload mid-recording
+
+**Files:** `playground/src/*`
+
+The default Workbox pattern is `skipWaiting` + reload-on-activate. **That is unsafe here.** This app records audio; a forced reload mid-capture destroys a field recording that cannot be recreated — the user was standing in someone's attic.
+
+- When a new version is waiting, **surface it and let the user choose the moment.** No automatic reload.
+- **Refuse to apply an update while a recording is in progress**, even if the user asks — or at minimum require an unmistakable confirmation. Losing capture to a version upgrade is the worst possible failure for this product.
+- Handle the stale-shell risk explicitly: an old cached shell running against newer persisted data. Note what happens and whether the schema parse (which is a trust boundary in both directions) catches it.
+
+### Task 3: Storage persistence and the eviction problem
+
+**Files:** `playground/src/*`
+
+Per [`09`](../../implementation/09-offline-first.md): iOS evicts script-writable storage after ~7 days of no interaction, and it takes **IndexedDB and Cache together** — so the queue and the cached shell vanish in one go.
+
+- Call `navigator.storage.persist()` early and record the outcome. Surface whether persistence was **granted** — it is a request, not a guarantee, and a UI that assumes it succeeded is lying.
+- Show remaining quota via `navigator.storage.estimate()` — Phase 3's model download needs headroom, and finding out afterwards is too late.
+- **Add-to-Home-Screen nudge for iOS**, since installed web apps get a use-resetting eviction counter. Keep it honest and non-nagging.
+
+### Task 4: Eviction detection and honest recovery
+
+**Files:** `playground/src/*`
+
+- On launch, detect that storage was wiped — an empty queue is indistinguishable from a fresh install unless you leave a marker.
+- **Say so plainly.** "Your queued recordings were removed by the browser to free space" is a very different message from silently showing an empty list, and the second one destroys trust the first time it happens.
+- Treat this as the expected iOS path, not an exceptional error.
+
+### Task 5: The offline boot test — the acceptance criterion
+
+**Files:** a Playwright test
+
+Everything above is unverified until this exists. **A registered service worker is not evidence the app boots offline.**
+
+- Write a test that loads the app, **cuts the network** (`context.setOffline(true)`), reloads, and asserts the app boots and renders the queue with previously captured items.
+- **Prove the test can fail:** temporarily disable the service worker, confirm the offline reload fails, restore it. Paste both. A green offline test that has never seen a red is not evidence.
+- Wire it into `check.sh` if it can run reliably headlessly; if it cannot, document exactly how to run it and say plainly that it is not gated.
+
+---
+
+## Definition of done
+
+- Load the app, go offline, reload → **it boots**, and the queue still lists previously captured recordings with playable audio.
+- The offline test exists, has been seen to fail without the service worker, and is either gated in CI or documented as manual.
+- An update never reloads the page on its own, and never mid-recording.
+- Persistence is requested and its **actual grant status** is visible.
+- Eviction is detected and reported honestly.
+
+## Deliberately NOT in Phase 2.5
+
+Whisper model caching and priming (Phase 3, SDK-side, no service worker needed), background sync (unsupported on iOS — the queue drains in-foreground by design), push notifications, and any service worker code inside `packages/`.

@@ -29,9 +29,10 @@ export default defineConfig({
   description:
     "A reusable voice-capture SDK for field data collection: capture, on-device transcription, extraction, and human review with provenance.",
   cleanUrls: true,
-  // The internal process docs live under docs/ but are not part of the public site. Plans and specs
-  // stay internal; the implementation findings are repackaged into Deep Dives (Task 2), not served raw.
-  srcExclude: ["superpowers/**", "implementation/**", "open-questions.md"],
+  // The internal process docs live under docs/ but are not part of the public site. The roadmap
+  // (design specs and per-phase plans) stays committed but unpublished; the implementation findings
+  // are repackaged into Deep Dives (Task 2), not served raw.
+  srcExclude: ["roadmap/**", "implementation/**", "open-questions.md"],
   themeConfig: {
     nav: [
       { text: "Guide", link: "/guide/" },

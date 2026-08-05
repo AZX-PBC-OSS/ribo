@@ -1,7 +1,7 @@
 # Ribo — Implementation Proposal: Overview
 
 **Status:** Proposal for review
-**Parent design:** lives outside this repo (internal design spec, not tracked here); this directory is the self-contained implementation proposal that follows from it.
+**Parent design:** [Ribo — Design](../roadmap/design/ribo-design.md); this directory is the self-contained implementation proposal that follows from it.
 
 This directory proposes _how_ we build Ribo. It is design-level — approach, interfaces, deploy shape, relative sizing, and open decisions per component — intended to get build sign-off (AZX DRB / Rich) before we generate executable task plans. It is **not** a task-by-task build plan; those come per subsystem once this and the feasibility spike are approved.
 

@@ -59,10 +59,7 @@ snugg-pro.html
 .claude/worktrees/
 .superpowers/
 
-# Internal specs and plans, kept on disk for local reference but untracked.
-# Distinct from .superpowers/ above: .superpowers/ is coordination scratch
-# (ledger, task briefs), while docs/superpowers/ is internal design specs and
-# per-phase plans. Both are implementation detail; neither belongs in a
-# public repo, and the directory was never published to the docs site either
-# (excluded via srcExclude in docs/.vitepress/config.ts).
-docs/superpowers/
+# The design specs and per-phase plans are committed as the project roadmap
+# under docs/roadmap/ — tracked, but excluded from the published docs site via
+# srcExclude in docs/.vitepress/config.ts. Distinct from .superpowers/ above,
+# which is agent coordination scratch (ledger, task briefs) and stays ignored.
