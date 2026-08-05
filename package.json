@@ -8,7 +8,9 @@
   },
   "scripts": {
     "typecheck": "pnpm -r --parallel typecheck",
-    "build": "pnpm --filter playground build",
+    "build:packages": "pnpm -r --filter \"./packages/*\" build",
+    "build:app": "pnpm --filter playground build",
+    "build": "pnpm build:packages && pnpm build:app",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
