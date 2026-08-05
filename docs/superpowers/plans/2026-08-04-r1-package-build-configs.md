@@ -1045,7 +1045,7 @@ git commit -m "build: split the build into build:packages and build:app in check
 
 R1 removes a safety net and this replaces it. Until now the `@azx/source` condition was protected by absence: AGENTS.md §7 verifies it with "`dist/` does not exist yet, so a bundle containing these strings can only have come from `src/`", and deleting `resolve.conditions` from `playground/vite.config.ts` made the build hard-fail on a missing file. Now that `dist/` exists, that same deletion silently resolves to `dist/index.js` — HMR into library source dies, CI stays green, nobody finds out for weeks. That is precisely the AGENTS.md §5 "tidied away on a quiet afternoon" failure, aimed at the mechanism §5 warns about most.
 
-The gate has two complementary checks. First, it asserts BOTH directions of five root exports plus the `./worker` subpath (six targets total) with Node's own resolver: with `--conditions=@azx/source` each must resolve to its `src/` file (what this workspace gets), and without it to its `dist/` file (what every consumer gets). Second — and this is the check the first one cannot do — it loads the playground's Vite config through Vite's own `resolveConfig` and asserts the resolved `resolve.conditions` includes `@azx/source`. The Node assertions pass `--conditions` directly to Node and so bypass Vite entirely; deleting `resolve.conditions` from `playground/vite.config.ts` (the exact regression this task exists to catch) leaves them green while playground HMR silently resolves libraries from `dist/`. The Vite assertion is what catches that. `resolveConfig` is used rather than grepping the file because it reports what Vite actually computes after config merging and plugins, not merely what the source text happens to say. `vite` is already a root devDependency, so there is nothing to install.
+The gate has two complementary checks. First, it derives the publishable packages from the workspace (and fails loudly if that set is not the expected five, so adding a package cannot leave it silently ungated), then asserts BOTH directions of each root export plus the `./worker` subpath (six targets total) with Node's own resolver: with `--conditions=@azx/source` each must resolve to its `src/` file (what this workspace gets), and without it to its `dist/` file (what every consumer gets). Second — and this is the check the first one cannot do — it loads the playground's Vite config through Vite's own `resolveConfig` and asserts the resolved `resolve.conditions` includes `@azx/source`. The Node assertions pass `--conditions` directly to Node and so bypass Vite entirely; deleting `resolve.conditions` from `playground/vite.config.ts` (the exact regression this task exists to catch) leaves them green while playground HMR silently resolves libraries from `dist/`. The Vite assertion is what catches that. `resolveConfig` is used rather than grepping the file because it reports what Vite actually computes after config merging and plugins, not merely what the source text happens to say. `vite` is already a root devDependency, so there is nothing to install.
 
 **Files:**
 
@@ -1105,42 +1105,63 @@ The script has two halves. The per-package loop asserts the `exports` block with
  * File existence is covered by publint in the build stage, not here.
  */
 import { execFileSync } from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveConfig } from "vite";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+// Derive the publishable packages from the workspace rather than hard-coding a
+// list: removing a package fails loudly below (count mismatch), but ADDING one
+// would be silently ungated while the green line still reads as success. The
+// non-private packages under packages/ are the publishable set.
+const packagesDir = path.join(repoRoot, "packages");
+const publishedPackages = [];
+for (const dir of readdirSync(packagesDir, { withFileTypes: true })) {
+  if (!dir.isDirectory()) continue;
+  const manifestPath = path.join(packagesDir, dir.name, "package.json");
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  } catch {
+    continue;
+  }
+  if (manifest.private) continue;
+  publishedPackages.push(manifest.name);
+}
+publishedPackages.sort();
+
+const EXPECTED_PUBLISHED_COUNT = 5;
+if (publishedPackages.length !== EXPECTED_PUBLISHED_COUNT) {
+  console.error(
+    `assert-source-condition: discovered ${publishedPackages.length} publishable packages, ` +
+      `expected ${EXPECTED_PUBLISHED_COUNT} (${publishedPackages.join(", ")}). ` +
+      "If you added or removed a package, update EXPECTED_PUBLISHED_COUNT and the " +
+      "worker subpath entry below if needed.",
+  );
+  process.exit(1);
+}
 
 // Each target is a specifier plus the suffixes its `@azx/source` and `default`
 // branches must resolve to. The root exports all land on index; the one
 // published subpath (`./worker`) lands on worker.ts/worker.js — its filename is
 // part of the published contract, so it gets the same guarantee as the roots
 // rather than being left to the "every exports block" hand-wave.
-const TARGETS = [
-  { specifier: "@azx/ribo-core", sourceSuffix: "/src/index.ts", distSuffix: "/dist/index.js" },
-  { specifier: "@azx/ribo-ui-react", sourceSuffix: "/src/index.ts", distSuffix: "/dist/index.js" },
-  {
-    specifier: "@azx/ribo-adapter-snuggpro",
-    sourceSuffix: "/src/index.ts",
-    distSuffix: "/dist/index.js",
-  },
-  {
-    specifier: "@azx/ribo-extractor-openai",
-    sourceSuffix: "/src/index.ts",
-    distSuffix: "/dist/index.js",
-  },
-  {
-    specifier: "@azx/ribo-transcriber-ondevice",
-    sourceSuffix: "/src/index.ts",
-    distSuffix: "/dist/index.js",
-  },
-  {
-    specifier: "@azx/ribo-transcriber-ondevice/worker",
-    sourceSuffix: "/src/worker.ts",
-    distSuffix: "/dist/worker.js",
-  },
-];
+const TARGETS = publishedPackages.map((name) => ({
+  specifier: name,
+  sourceSuffix: "/src/index.ts",
+  distSuffix: "/dist/index.js",
+}));
+// The one published subpath, kept as an explicit extra target (its suffixes
+// differ from the root exports, so it cannot be derived generically).
+TARGETS.push({
+  specifier: "@azx/ribo-transcriber-ondevice/worker",
+  sourceSuffix: "/src/worker.ts",
+  distSuffix: "/dist/worker.js",
+});
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // Every package is a dependency of `playground`, so its node_modules is the only
 // directory from which all five resolve by name.
 const from = path.join(repoRoot, "playground");
@@ -1236,7 +1257,7 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `source condition: ${TARGETS.length} export targets (5 root + ./worker subpath) ` +
+  `source condition: ${TARGETS.length} export targets (${publishedPackages.length} root + ./worker subpath) ` +
     "resolve correctly in both directions, and playground Vite requests @azx/source",
 );
 ```
@@ -1324,7 +1345,7 @@ with Node's own resolver instead."
 
 ## Task 8: The tarball and duplicate-React gates
 
-The last two CI gates doc 10 §8 names that publint and attw do not cover, plus the CI-only `changeset status`. This closes `ci.yml`'s `TODO(phase-later)` block except its pack-and-consume line, which is R3's.
+The CI gates doc 10 §8 names that publint and attw do not cover — no TypeScript source in any tarball, exactly one resolved React, and react/react-dom declared as peer deps where used — plus the CI-only `changeset status`. This closes `ci.yml`'s `TODO(phase-later)` block except its pack-and-consume line, which is R3's.
 
 **Files:**
 
@@ -1354,20 +1375,44 @@ The last two CI gates doc 10 §8 names that publint and attw do not cover, plus 
  *      consumer's app, and a published library is the usual way it happens.
  */
 import { execFileSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PACKAGES = [
-  "ribo-core",
-  "ribo-ui-react",
-  "ribo-adapter-snuggpro",
-  "ribo-extractor-openai",
-  "ribo-transcriber-ondevice",
-];
-
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
+
+// Derive the publishable packages from the workspace rather than hard-coding a
+// list: removing a package fails loudly below (count mismatch), but ADDING one
+// would be silently ungated while the green line still reads as success. The
+// non-private packages under packages/ are the publishable set. We keep both the
+// directory name (for `pnpm pack --dry-run` cwd) and the parsed manifest (for
+// the React peer-dep gate below).
+const packagesDir = path.join(repoRoot, "packages");
+const publishable = [];
+for (const dir of readdirSync(packagesDir, { withFileTypes: true })) {
+  if (!dir.isDirectory()) continue;
+  const manifestPath = path.join(packagesDir, dir.name, "package.json");
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  } catch {
+    continue;
+  }
+  if (manifest.private) continue;
+  publishable.push({ dir: dir.name, name: manifest.name, manifest });
+}
+publishable.sort((a, b) => a.name.localeCompare(b.name));
+
+const EXPECTED_PUBLISHED_COUNT = 5;
+if (publishable.length !== EXPECTED_PUBLISHED_COUNT) {
+  console.error(
+    `pkg-gates: discovered ${publishable.length} publishable packages, expected ` +
+      `${EXPECTED_PUBLISHED_COUNT} (${publishable.map((p) => p.name).join(", ")}). ` +
+      "If you added or removed a package, update EXPECTED_PUBLISHED_COUNT.",
+  );
+  process.exit(1);
+}
 
 /**
  * Parses the file list from `pnpm pack --dry-run` output.
@@ -1417,8 +1462,8 @@ function parseTarballContents(output) {
 }
 
 // --- Gate 1: no TypeScript source in the tarball -----------------------------
-for (const pkg of PACKAGES) {
-  const cwd = path.join(repoRoot, "packages", pkg);
+for (const { dir, name } of publishable) {
+  const cwd = path.join(repoRoot, "packages", dir);
   const output = execFileSync("pnpm", ["pack", "--dry-run"], { cwd, encoding: "utf8" });
 
   // Defensive: if the output format is not understood, the offender filter would
@@ -1427,7 +1472,7 @@ for (const pkg of PACKAGES) {
   const parsed = parseTarballContents(output);
   if (!parsed.ok) {
     failures.push(
-      `${pkg}: pnpm pack --dry-run output format not understood ` +
+      `${name}: pnpm pack --dry-run output format not understood ` +
         `(${parsed.reason}) — gate is not vacuous, refusing to pass`,
     );
     continue;
@@ -1444,7 +1489,7 @@ for (const pkg of PACKAGES) {
   );
 
   if (offenders.length > 0) {
-    failures.push(`${pkg}: TypeScript source in the tarball -> ${offenders.join(", ")}`);
+    failures.push(`${name}: TypeScript source in the tarball -> ${offenders.join(", ")}`);
   }
 }
 
@@ -1453,6 +1498,11 @@ for (const pkg of PACKAGES) {
 // output: the directory names ARE the resolved versions, so this cannot drift with
 // a reporter change. Peer-suffixed entries like `react-dom@19.2.8(react@19.2.8)`
 // do not match, because the pattern is anchored.
+//
+// Known limitation, accepted: this proves uniqueness only for pnpm-managed
+// virtual-store entries. A consumer using npm or yarn would have a different
+// layout, but this gate runs in OUR workspace, which is pnpm-only — so the
+// limitation does not reduce what the gate can see here.
 const reactVersions = new Set(
   readdirSync(path.join(repoRoot, "node_modules/.pnpm"))
     .filter((entry) => /^react@\d/.test(entry))
@@ -1473,6 +1523,42 @@ if (reactVersions.size === 0) {
   );
 }
 
+// --- Gate 3: React must be peer, not a dependency ----------------------------
+// The duplicate-React failure mode this gate's header names — a published
+// library causing duplicate React in a consumer's app — comes from `react`
+// moving out of `peerDependencies` into `dependencies` (or vanishing entirely
+// while the package still uses it). Gate 2 above counts resolved copies in THIS
+// workspace, where a single catalog version makes duplication impossible to
+// detect; this gate catches the manifest-level mistake that would duplicate
+// React in a CONSUMER's app. For every publishable package: if it depends on
+// react or react-dom at all, they must appear in `peerDependencies` and NOT in
+// `dependencies`.
+const REACT_DEPS = ["react", "react-dom"];
+for (const { name, manifest } of publishable) {
+  const deps = Object.keys(manifest.dependencies ?? {});
+  const peerDeps = Object.keys(manifest.peerDependencies ?? {});
+  const devDeps = Object.keys(manifest.devDependencies ?? {});
+  for (const dep of REACT_DEPS) {
+    const referenced = deps.includes(dep) || peerDeps.includes(dep) || devDeps.includes(dep);
+    if (!referenced) continue;
+    if (deps.includes(dep)) {
+      failures.push(
+        `${name}: "${dep}" is in dependencies, not peerDependencies. ` +
+          "A published library bundling React as a regular dependency causes " +
+          "duplicate React in a consumer's app (doc 10 §5). Move it to " +
+          "peerDependencies and mirror it in devDependencies as catalog:.",
+      );
+    }
+    if (!peerDeps.includes(dep)) {
+      failures.push(
+        `${name}: "${dep}" is referenced but missing from peerDependencies. ` +
+          "A consumer must be told which React version to provide, or they may " +
+          "install a different one and duplicate it.",
+      );
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error("Package gates failed:\n");
   for (const failure of failures) console.error(`  - ${failure}`);
@@ -1480,8 +1566,9 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `package gates: ${PACKAGES.length} tarballs carry no TypeScript source; ` +
-    `one resolved React (${[...reactVersions].join(", ")})`,
+  `package gates: ${publishable.length} tarballs carry no TypeScript source; ` +
+    `one resolved React (${[...reactVersions].join(", ")}); ` +
+    `react/react-dom declared as peer deps where used`,
 );
 ```
 
@@ -1496,7 +1583,7 @@ In the root `package.json`'s `scripts`:
 - [ ] **Step 3: Run it**
 
 Run: `pnpm build:packages && pnpm check:pkg`
-Expected: `package gates: 5 tarballs carry no TypeScript source; one resolved React (19.2.8)`.
+Expected: `package gates: 5 tarballs carry no TypeScript source; one resolved React (19.2.8); react/react-dom declared as peer deps where used`.
 
 If gate 1 fails, the cause is almost certainly a package whose `files` or `exports` reaches outside `dist/` — fix the manifest, not the gate.
 
