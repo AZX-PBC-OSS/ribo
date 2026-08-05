@@ -34,13 +34,16 @@ run_stage "format:check" pnpm format:check
 # Two build stages, not one, so a failure is attributable: a library build that
 # cannot emit is a different diagnosis from an app that cannot bundle.
 #
-# `build:packages` produces every publishable `dist/` and runs publint + attw
-# in-build, so a broken `exports` block fails here rather than in a later job.
+# `build:packages` produces every publishable `dist/` and runs publint (strict)
+# + attw (level: error) in-build, so a broken `exports` block fails here rather
+# than in a later job.
 run_stage "build:packages" pnpm build:packages
-# Replaces the guard that building destroyed. Runs AFTER build:packages because
-# the `without the condition` direction needs `dist/` to exist, and BEFORE
-# build:app because a resolution failure explains most bundling failures that
-# would follow it.
+# Replaces the guard that building destroyed. Runs AFTER build:packages (for
+# diagnostic clarity — a resolve failure reads better against a built tree) and
+# BEFORE build:app because a resolution failure explains most bundling failures
+# that would follow it. NOTE: `import.meta.resolve` does exports resolution
+# without stat-ing the target, so this gate does NOT prove `dist/` exists — file
+# existence is covered by publint in the build stage, not here.
 run_stage "resolve" pnpm check:resolve
 # The playground's production build is the only gate that exercises Vite's
 # resolver, the `@azx/source` condition, the JSX transform, React dedup and

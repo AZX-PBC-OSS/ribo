@@ -11,10 +11,16 @@ concurrency:
 
 jobs:
   check:
-    name: typecheck, lint, format, build, resolve, pkg gates, test # keep in sync with check.sh's stages
+    name: typecheck, lint, format:check, build:packages, resolve, build:app, pkg gates, test # keep in sync with check.sh's stages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Full history so @changesets/git can find the merge-base of HEAD and
+          # origin/main for `changeset status --since=origin/main` below. The
+          # default fetch-depth of 1 omits origin/main, which makes that step
+          # throw "Failed to find where HEAD diverged from origin/main".
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v6
         with:
