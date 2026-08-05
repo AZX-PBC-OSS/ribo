@@ -64,6 +64,17 @@ catalog:
   # @babel/preset-env), but declared explicitly rather than leaned on: see the
   # rxjs entry above and the Phase 1 zod incident it references.
   browserslist: "4.28.7"
+  # The library build tool for all five publishable packages. Pinned EXACT and
+  # not carets: tsdown is pre-1.0 and ships several times a week, so the residual
+  # risk is API churn from healthy development (doc 10 §9). Declares
+  # `typescript: "^5 || ^6 || ^7"`, so it is fine with the TS 6.0.3 hold above.
+  tsdown: "0.22.14"
+  # Both are OPTIONAL PEERS of tsdown, not independent tools: tsdown runs them
+  # in-build when `publint: true` / `attw: true` are set, so a bad exports block
+  # fails the build that produced it. Note this is @arethetypeswrong/CORE — the
+  # `cli` package is a different thing and is not what tsdown peers on.
+  publint: "0.3.23"
+  "@arethetypeswrong/core": "0.18.5"
   # TypeScript is deliberately held at 6.x: typescript-eslint@8.65.0 declares
   # `typescript: ">=4.8.4 <6.1.0"`, so TS 7 is not yet lintable. Revisit when
   # typescript-eslint adds TS 7 support (10 §9 — "TS 7 as a fast-follow").

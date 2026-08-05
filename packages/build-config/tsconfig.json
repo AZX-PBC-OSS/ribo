@@ -8,7 +8,12 @@
     // playground/tsconfig.node.json (AGENTS.md §5.3). Scoped here so base.json
     // stays the environment-free root of the config chain.
     "types": ["node"],
-    "lib": ["ESNext"]
+    "lib": ["ESNext"],
+    // `index.ts` imports the generated floor with an explicit `.ts` specifier
+    // because tsdown loads config files through native Node, which does no
+    // `.js`->`.ts` extension substitution. Permitted only because base.json
+    // sets `noEmit: true`; scripts/refresh-target.mjs does the same.
+    "allowImportingTsExtensions": true
   },
   "include": ["src"]
 }
