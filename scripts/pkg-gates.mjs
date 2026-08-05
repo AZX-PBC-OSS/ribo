@@ -9,20 +9,44 @@
  *      consumer's app, and a published library is the usual way it happens.
  */
 import { execFileSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PACKAGES = [
-  "ribo-core",
-  "ribo-ui-react",
-  "ribo-adapter-snuggpro",
-  "ribo-extractor-openai",
-  "ribo-transcriber-ondevice",
-];
-
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
+
+// Derive the publishable packages from the workspace rather than hard-coding a
+// list: removing a package fails loudly below (count mismatch), but ADDING one
+// would be silently ungated while the green line still reads as success. The
+// non-private packages under packages/ are the publishable set. We keep both the
+// directory name (for `pnpm pack --dry-run` cwd) and the parsed manifest (for
+// the React peer-dep gate below).
+const packagesDir = path.join(repoRoot, "packages");
+const publishable = [];
+for (const dir of readdirSync(packagesDir, { withFileTypes: true })) {
+  if (!dir.isDirectory()) continue;
+  const manifestPath = path.join(packagesDir, dir.name, "package.json");
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  } catch {
+    continue;
+  }
+  if (manifest.private) continue;
+  publishable.push({ dir: dir.name, name: manifest.name, manifest });
+}
+publishable.sort((a, b) => a.name.localeCompare(b.name));
+
+const EXPECTED_PUBLISHED_COUNT = 5;
+if (publishable.length !== EXPECTED_PUBLISHED_COUNT) {
+  console.error(
+    `pkg-gates: discovered ${publishable.length} publishable packages, expected ` +
+      `${EXPECTED_PUBLISHED_COUNT} (${publishable.map((p) => p.name).join(", ")}). ` +
+      "If you added or removed a package, update EXPECTED_PUBLISHED_COUNT.",
+  );
+  process.exit(1);
+}
 
 /**
  * Parses the file list from `pnpm pack --dry-run` output.
@@ -72,8 +96,8 @@ function parseTarballContents(output) {
 }
 
 // --- Gate 1: no TypeScript source in the tarball -----------------------------
-for (const pkg of PACKAGES) {
-  const cwd = path.join(repoRoot, "packages", pkg);
+for (const { dir, name } of publishable) {
+  const cwd = path.join(repoRoot, "packages", dir);
   const output = execFileSync("pnpm", ["pack", "--dry-run"], { cwd, encoding: "utf8" });
 
   // Defensive: if the output format is not understood, the offender filter would
@@ -82,7 +106,7 @@ for (const pkg of PACKAGES) {
   const parsed = parseTarballContents(output);
   if (!parsed.ok) {
     failures.push(
-      `${pkg}: pnpm pack --dry-run output format not understood ` +
+      `${name}: pnpm pack --dry-run output format not understood ` +
         `(${parsed.reason}) — gate is not vacuous, refusing to pass`,
     );
     continue;
@@ -99,7 +123,7 @@ for (const pkg of PACKAGES) {
   );
 
   if (offenders.length > 0) {
-    failures.push(`${pkg}: TypeScript source in the tarball -> ${offenders.join(", ")}`);
+    failures.push(`${name}: TypeScript source in the tarball -> ${offenders.join(", ")}`);
   }
 }
 
@@ -108,6 +132,11 @@ for (const pkg of PACKAGES) {
 // output: the directory names ARE the resolved versions, so this cannot drift with
 // a reporter change. Peer-suffixed entries like `react-dom@19.2.8(react@19.2.8)`
 // do not match, because the pattern is anchored.
+//
+// Known limitation, accepted: this proves uniqueness only for pnpm-managed
+// virtual-store entries. A consumer using npm or yarn would have a different
+// layout, but this gate runs in OUR workspace, which is pnpm-only — so the
+// limitation does not reduce what the gate can see here.
 const reactVersions = new Set(
   readdirSync(path.join(repoRoot, "node_modules/.pnpm"))
     .filter((entry) => /^react@\d/.test(entry))
@@ -128,6 +157,42 @@ if (reactVersions.size === 0) {
   );
 }
 
+// --- Gate 3: React must be peer, not a dependency ----------------------------
+// The duplicate-React failure mode this gate's header names — a published
+// library causing duplicate React in a consumer's app — comes from `react`
+// moving out of `peerDependencies` into `dependencies` (or vanishing entirely
+// while the package still uses it). Gate 2 above counts resolved copies in THIS
+// workspace, where a single catalog version makes duplication impossible to
+// detect; this gate catches the manifest-level mistake that would duplicate
+// React in a CONSUMER's app. For every publishable package: if it depends on
+// react or react-dom at all, they must appear in `peerDependencies` and NOT in
+// `dependencies`.
+const REACT_DEPS = ["react", "react-dom"];
+for (const { name, manifest } of publishable) {
+  const deps = Object.keys(manifest.dependencies ?? {});
+  const peerDeps = Object.keys(manifest.peerDependencies ?? {});
+  const devDeps = Object.keys(manifest.devDependencies ?? {});
+  for (const dep of REACT_DEPS) {
+    const referenced = deps.includes(dep) || peerDeps.includes(dep) || devDeps.includes(dep);
+    if (!referenced) continue;
+    if (deps.includes(dep)) {
+      failures.push(
+        `${name}: "${dep}" is in dependencies, not peerDependencies. ` +
+          "A published library bundling React as a regular dependency causes " +
+          "duplicate React in a consumer's app (doc 10 §5). Move it to " +
+          "peerDependencies and mirror it in devDependencies as catalog:.",
+      );
+    }
+    if (!peerDeps.includes(dep)) {
+      failures.push(
+        `${name}: "${dep}" is referenced but missing from peerDependencies. ` +
+          "A consumer must be told which React version to provide, or they may " +
+          "install a different one and duplicate it.",
+      );
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error("Package gates failed:\n");
   for (const failure of failures) console.error(`  - ${failure}`);
@@ -135,6 +200,7 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `package gates: ${PACKAGES.length} tarballs carry no TypeScript source; ` +
-    `one resolved React (${[...reactVersions].join(", ")})`,
+  `package gates: ${publishable.length} tarballs carry no TypeScript source; ` +
+    `one resolved React (${[...reactVersions].join(", ")}); ` +
+    `react/react-dom declared as peer deps where used`,
 );

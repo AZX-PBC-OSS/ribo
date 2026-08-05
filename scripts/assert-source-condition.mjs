@@ -29,46 +29,70 @@
  * file because it reports what Vite actually computes after config merging and
  * plugins, not merely what the source text happens to say.
  *
- * The per-package assertions can only work once `dist/` exists, which is why this
- * runs after the `build:packages` stage.
+ * The per-package assertions run after the `build:packages` stage for diagnostic
+ * clarity (a resolve failure reads better against a built tree), NOT because
+ * `dist/` must exist: `import.meta.resolve` does exports resolution without
+ * stat-ing the target, so the gate would pass identically on an unbuilt tree.
+ * File existence is covered by publint in the build stage, not here.
  */
 import { execFileSync } from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveConfig } from "vite";
 
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+// Derive the publishable packages from the workspace rather than hard-coding a
+// list: removing a package fails loudly below (count mismatch), but ADDING one
+// would be silently ungated while the green line still reads as success. The
+// non-private packages under packages/ are the publishable set.
+const packagesDir = path.join(repoRoot, "packages");
+const publishedPackages = [];
+for (const dir of readdirSync(packagesDir, { withFileTypes: true })) {
+  if (!dir.isDirectory()) continue;
+  const manifestPath = path.join(packagesDir, dir.name, "package.json");
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  } catch {
+    continue;
+  }
+  if (manifest.private) continue;
+  publishedPackages.push(manifest.name);
+}
+publishedPackages.sort();
+
+const EXPECTED_PUBLISHED_COUNT = 5;
+if (publishedPackages.length !== EXPECTED_PUBLISHED_COUNT) {
+  console.error(
+    `assert-source-condition: discovered ${publishedPackages.length} publishable packages, ` +
+      `expected ${EXPECTED_PUBLISHED_COUNT} (${publishedPackages.join(", ")}). ` +
+      "If you added or removed a package, update EXPECTED_PUBLISHED_COUNT and the " +
+      "worker subpath entry below if needed.",
+  );
+  process.exit(1);
+}
+
 // Each target is a specifier plus the suffixes its `@azx/source` and `default`
-// branches must resolve to. The five root exports all land on index; the one
+// branches must resolve to. The root exports all land on index; the one
 // published subpath (`./worker`) lands on worker.ts/worker.js — its filename is
 // part of the published contract, so it gets the same guarantee as the roots
 // rather than being left to the "every exports block" hand-wave.
-const TARGETS = [
-  { specifier: "@azx/ribo-core", sourceSuffix: "/src/index.ts", distSuffix: "/dist/index.js" },
-  { specifier: "@azx/ribo-ui-react", sourceSuffix: "/src/index.ts", distSuffix: "/dist/index.js" },
-  {
-    specifier: "@azx/ribo-adapter-snuggpro",
-    sourceSuffix: "/src/index.ts",
-    distSuffix: "/dist/index.js",
-  },
-  {
-    specifier: "@azx/ribo-extractor-openai",
-    sourceSuffix: "/src/index.ts",
-    distSuffix: "/dist/index.js",
-  },
-  {
-    specifier: "@azx/ribo-transcriber-ondevice",
-    sourceSuffix: "/src/index.ts",
-    distSuffix: "/dist/index.js",
-  },
-  {
-    specifier: "@azx/ribo-transcriber-ondevice/worker",
-    sourceSuffix: "/src/worker.ts",
-    distSuffix: "/dist/worker.js",
-  },
-];
+const TARGETS = publishedPackages.map((name) => ({
+  specifier: name,
+  sourceSuffix: "/src/index.ts",
+  distSuffix: "/dist/index.js",
+}));
+// The one published subpath, kept as an explicit extra target (its suffixes
+// differ from the root exports, so it cannot be derived generically).
+TARGETS.push({
+  specifier: "@azx/ribo-transcriber-ondevice/worker",
+  sourceSuffix: "/src/worker.ts",
+  distSuffix: "/dist/worker.js",
+});
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // Every package is a dependency of `playground`, so its node_modules is the only
 // directory from which all five resolve by name.
 const from = path.join(repoRoot, "playground");
@@ -164,6 +188,6 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `source condition: ${TARGETS.length} export targets (5 root + ./worker subpath) ` +
+  `source condition: ${TARGETS.length} export targets (${publishedPackages.length} root + ./worker subpath) ` +
     "resolve correctly in both directions, and playground Vite requests @azx/source",
 );
