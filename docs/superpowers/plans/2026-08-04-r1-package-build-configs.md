@@ -479,12 +479,14 @@ In `pnpm-workspace.yaml`'s `# --- toolchain ---` section:
 # `typescript: "^5 || ^6 || ^7"`, so it is fine with the TS 6.0.3 hold above.
 tsdown: "0.22.14"
 # Both are OPTIONAL PEERS of tsdown, not independent tools: tsdown runs them
-# in-build when `publint: true` / `attw: { profile: "esm-only" }` are set
-# (`esm-only`, not a bare `true`: the default `strict` profile reports
-# node10/CJS resolution failures that are expected for a deliberately
-# ESM-only package), so a bad exports block
-# fails the build that produced it. Note this is @arethetypeswrong/CORE — the
-# `cli` package is a different thing and is not what tsdown peers on.
+# in-build when `publint: { strict: true }` / `attw: { profile: "esm-only",
+# level: "error" }` are set (`esm-only`, not a bare `true`: the default
+# `strict` profile reports node10/CJS resolution failures that are expected
+# for a deliberately ESM-only package; `level: "error"` is required because
+# tsdown's default `level: "warn"` with `failOnWarn: false` exits 0), so a bad
+# exports block fails the build that produced it. Note this is
+# @arethetypeswrong/CORE — the `cli` package is a different thing and is not
+# what tsdown peers on.
 publint: "0.3.23"
 "@arethetypeswrong/core": "0.18.5"
 ```
@@ -545,6 +547,17 @@ export const sharedTsdown: UserConfig = {
     // `z.infer<typeof Schema>` cannot satisfy (base.json turns it off for this
     // reason, and doc 10 §3.1 records one package hitting 374 errors).
     generator: "tsc",
+    // Declaration maps are OFF. Their `sources` point at `../src/*.ts`, but
+    // `files: ["dist"]` (and the tarball gate) deliberately exclude `src/` from
+    // every published tarball, so a consumer's "Go to Definition" on any ribo
+    // type would target a path absent from the package — a broken affordance,
+    // worse than shipping no map. Inlining `sourcesContent` was rejected: it
+    // bloats the tarball and effectively ships source. JS sourcemaps below are
+    // unaffected — they ship WITH `sourcesContent` and resolve in the consumer's
+    // debugger. The top-level `sourcemap: true` is forced on by `declarationMap`
+    // in `packages/tsconfig/base.json`, so this MUST be set on the `dts` block
+    // specifically, not by changing the top-level flag.
+    sourcemap: false,
   },
 
   // React must be externalized BY REGEX. A bare "react" does not match
@@ -558,13 +571,17 @@ export const sharedTsdown: UserConfig = {
   // The host minifies. A minified library only obstructs their debugging.
   minify: false,
 
-  // Optional tsdown peers, run in-build: a broken `exports` block fails the build
-  // that produced it rather than a later CI step.
-  publint: true,
-  // `esm-only`, not a bare `true`: attw's default `strict` profile resolves
-  // under Node10 and Node16 (CJS) too, which reports `No resolution (node10)`
-  // and `CJS resolves to ESM (node16-cjs)` for a deliberately ESM-only package.
-  attw: { profile: "esm-only" },
+  // Optional tsdown peers, run in-build so a bad package contract fails the build
+  // that produced it rather than a later CI step. Both are set to FAIL the build:
+  // publint with `{ strict: true }` (warnings and suggestions are fatal, matching
+  // the `publint --strict` the CI TODO this branch replaced), and attw with
+  // `level: "error"` (tsdown's default `level: "warn"` with `failOnWarn: false`
+  // prints WARN and exits 0; only `logger.error` sets `process.exitCode = 1`).
+  publint: { strict: true },
+  // `esm-only`, not a bare `true`: attw's default profile resolves under Node10
+  // and Node16 (CJS) too, which reports `No resolution (node10)` and `CJS
+  // resolves to ESM (node16-cjs)` for a deliberately ESM-only package.
+  attw: { profile: "esm-only", level: "error" },
 
   // NOTE what is deliberately absent: `experimental.resolveNewUrlToAsset`.
   // Rolldown's own tracking issue says it "does not work well when bundling
@@ -1028,7 +1045,7 @@ git commit -m "build: split the build into build:packages and build:app in check
 
 R1 removes a safety net and this replaces it. Until now the `@azx/source` condition was protected by absence: AGENTS.md §7 verifies it with "`dist/` does not exist yet, so a bundle containing these strings can only have come from `src/`", and deleting `resolve.conditions` from `playground/vite.config.ts` made the build hard-fail on a missing file. Now that `dist/` exists, that same deletion silently resolves to `dist/index.js` — HMR into library source dies, CI stays green, nobody finds out for weeks. That is precisely the AGENTS.md §5 "tidied away on a quiet afternoon" failure, aimed at the mechanism §5 warns about most.
 
-The gate has two complementary checks. First, it asserts BOTH directions of every publishable package's `exports` block with Node's own resolver: with `--conditions=@azx/source` it must resolve to `src/index.ts` (what this workspace gets), and without it to `dist/index.js` (what every consumer gets). Second — and this is the check the first one cannot do — it loads the playground's Vite config through Vite's own `resolveConfig` and asserts the resolved `resolve.conditions` includes `@azx/source`. The Node assertions pass `--conditions` directly to Node and so bypass Vite entirely; deleting `resolve.conditions` from `playground/vite.config.ts` (the exact regression this task exists to catch) leaves them green while playground HMR silently resolves libraries from `dist/`. The Vite assertion is what catches that. `resolveConfig` is used rather than grepping the file because it reports what Vite actually computes after config merging and plugins, not merely what the source text happens to say. `vite` is already a root devDependency, so there is nothing to install.
+The gate has two complementary checks. First, it asserts BOTH directions of five root exports plus the `./worker` subpath (six targets total) with Node's own resolver: with `--conditions=@azx/source` each must resolve to its `src/` file (what this workspace gets), and without it to its `dist/` file (what every consumer gets). Second — and this is the check the first one cannot do — it loads the playground's Vite config through Vite's own `resolveConfig` and asserts the resolved `resolve.conditions` includes `@azx/source`. The Node assertions pass `--conditions` directly to Node and so bypass Vite entirely; deleting `resolve.conditions` from `playground/vite.config.ts` (the exact regression this task exists to catch) leaves them green while playground HMR silently resolves libraries from `dist/`. The Vite assertion is what catches that. `resolveConfig` is used rather than grepping the file because it reports what Vite actually computes after config merging and plugins, not merely what the source text happens to say. `vite` is already a root devDependency, so there is nothing to install.
 
 **Files:**
 
@@ -1055,9 +1072,10 @@ The script has two halves. The per-package loop asserts the `exports` block with
  * @file Asserts the `@azx/source` export condition end to end — both that the
  * packages OFFER a source branch and that the playground actually ASKS for it.
  *
- *   1. Per-package `exports` (Node's own resolver):
- *        with `--conditions=@azx/source` -> src/index.ts   (what this workspace gets)
- *        without it                      -> dist/index.js  (what every consumer gets)
+ *   1. Per-package `exports` (Node's own resolver), for each root export AND
+ *      the one published subpath (`@azx/ribo-transcriber-ondevice/worker`):
+ *        with `--conditions=@azx/source` -> the src/ file   (what this workspace gets)
+ *        without it                      -> the dist/ file  (what every consumer gets)
  *   2. Playground Vite config (Vite's own resolveConfig):
  *        `resolve.conditions` includes `@azx/source` — the dev-server path where
  *        HMR into library source matters.
@@ -1080,8 +1098,11 @@ The script has two halves. The per-package loop asserts the `exports` block with
  * file because it reports what Vite actually computes after config merging and
  * plugins, not merely what the source text happens to say.
  *
- * The per-package assertions can only work once `dist/` exists, which is why this
- * runs after the `build:packages` stage.
+ * The per-package assertions run after the `build:packages` stage for diagnostic
+ * clarity (a resolve failure reads better against a built tree), NOT because
+ * `dist/` must exist: `import.meta.resolve` does exports resolution without
+ * stat-ing the target, so the gate would pass identically on an unbuilt tree.
+ * File existence is covered by publint in the build stage, not here.
  */
 import { execFileSync } from "node:child_process";
 import path from "node:path";
@@ -1089,12 +1110,34 @@ import { fileURLToPath } from "node:url";
 
 import { resolveConfig } from "vite";
 
-const PACKAGES = [
-  "@azx/ribo-core",
-  "@azx/ribo-ui-react",
-  "@azx/ribo-adapter-snuggpro",
-  "@azx/ribo-extractor-openai",
-  "@azx/ribo-transcriber-ondevice",
+// Each target is a specifier plus the suffixes its `@azx/source` and `default`
+// branches must resolve to. The root exports all land on index; the one
+// published subpath (`./worker`) lands on worker.ts/worker.js — its filename is
+// part of the published contract, so it gets the same guarantee as the roots
+// rather than being left to the "every exports block" hand-wave.
+const TARGETS = [
+  { specifier: "@azx/ribo-core", sourceSuffix: "/src/index.ts", distSuffix: "/dist/index.js" },
+  { specifier: "@azx/ribo-ui-react", sourceSuffix: "/src/index.ts", distSuffix: "/dist/index.js" },
+  {
+    specifier: "@azx/ribo-adapter-snuggpro",
+    sourceSuffix: "/src/index.ts",
+    distSuffix: "/dist/index.js",
+  },
+  {
+    specifier: "@azx/ribo-extractor-openai",
+    sourceSuffix: "/src/index.ts",
+    distSuffix: "/dist/index.js",
+  },
+  {
+    specifier: "@azx/ribo-transcriber-ondevice",
+    sourceSuffix: "/src/index.ts",
+    distSuffix: "/dist/index.js",
+  },
+  {
+    specifier: "@azx/ribo-transcriber-ondevice/worker",
+    sourceSuffix: "/src/worker.ts",
+    distSuffix: "/dist/worker.js",
+  },
 ];
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -1119,18 +1162,18 @@ function resolveFrom(specifier, useSourceCondition) {
 const exportsFailures = [];
 const viteFailures = [];
 
-for (const pkg of PACKAGES) {
+for (const { specifier, sourceSuffix, distSuffix } of TARGETS) {
   for (const [useCondition, expectedSuffix] of [
-    [true, "/src/index.ts"],
-    [false, "/dist/index.js"],
+    [true, sourceSuffix],
+    [false, distSuffix],
   ]) {
     const label = useCondition ? "with @azx/source" : "without @azx/source";
     let resolved;
     try {
-      resolved = resolveFrom(pkg, useCondition);
+      resolved = resolveFrom(specifier, useCondition);
     } catch (error) {
       exportsFailures.push(
-        `${pkg} (${label}): did not resolve at all — ${error.message.split("\n")[0]}`,
+        `${specifier} (${label}): did not resolve at all — ${error.message.split("\n")[0]}`,
       );
       continue;
     }
@@ -1138,7 +1181,7 @@ for (const pkg of PACKAGES) {
     // and the symlink path when it does not, so a full-path match would be brittle.
     if (!resolved.endsWith(expectedSuffix)) {
       exportsFailures.push(
-        `${pkg} (${label}): expected a path ending ${expectedSuffix}, got ${resolved}`,
+        `${specifier} (${label}): expected a path ending ${expectedSuffix}, got ${resolved}`,
       );
     }
   }
@@ -1172,11 +1215,12 @@ if (failures.length > 0) {
   if (exportsFailures.length > 0) {
     console.error(
       "Package `exports` problem — a publishable package's manifest is wrong. Open the " +
-        "failing package's `package.json` and check its `exports` block: the `@azx/source` " +
-        "branch must point at `./src/index.ts` and the `default` at `./dist/index.js`. If the " +
-        "`with` direction failed, also check `customConditions` in `packages/tsconfig/base.json`. " +
-        "If the `without` direction failed, the packages are unbuilt or the `default` is wrong " +
-        "— run `pnpm build:packages` first.",
+        "failing package's `package.json` and check the `exports` block named in the failure: " +
+        "the `@azx/source` branch must point at the `src/` file and the `default` at the matching " +
+        "`dist/` artifact (root exports use `index`, the `./worker` subpath uses `worker`). If " +
+        "the `with` direction failed, also check `customConditions` in " +
+        "`packages/tsconfig/base.json`. If the `without` direction failed, the packages are " +
+        "unbuilt or the `default` is wrong — run `pnpm build:packages` first.",
     );
   }
   if (viteFailures.length > 0) {
@@ -1192,8 +1236,8 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `source condition: ${PACKAGES.length} packages resolve correctly in both directions, ` +
-    "and playground Vite requests @azx/source",
+  `source condition: ${TARGETS.length} export targets (5 root + ./worker subpath) ` +
+    "resolve correctly in both directions, and playground Vite requests @azx/source",
 );
 ```
 
@@ -1208,7 +1252,7 @@ In the root `package.json`'s `scripts`:
 - [ ] **Step 3: Verify it passes against the built tree**
 
 Run: `pnpm build:packages && pnpm check:resolve`
-Expected: `source condition: 5 packages resolve correctly in both directions, and playground Vite requests @azx/source`.
+Expected: `source condition: 6 export targets (5 root + ./worker subpath) resolve correctly in both directions, and playground Vite requests @azx/source`.
 
 - [ ] **Step 4: Prove the gate actually catches the regression**
 
@@ -1245,10 +1289,12 @@ Both restores must leave `git status --short` empty.
 Insert between the `build:packages` and `build:app` stages:
 
 ```bash
-# Replaces the guard that building destroyed. Runs AFTER build:packages because
-# the `without the condition` direction needs `dist/` to exist, and BEFORE
-# build:app because a resolution failure explains most bundling failures that
-# would follow it.
+# Replaces the guard that building destroyed. Runs AFTER build:packages (for
+# diagnostic clarity — a resolve failure reads better against a built tree) and
+# BEFORE build:app because a resolution failure explains most bundling failures
+# that would follow it. NOTE: `import.meta.resolve` does exports resolution
+# without stat-ing the target, so this gate does NOT prove `dist/` exists — file
+# existence is covered by publint in the build stage, not here.
 run_stage "resolve" pnpm check:resolve
 ```
 
@@ -1624,11 +1670,11 @@ The status paragraph says write-back is scaffolded and describes the packages; a
 
 Two edits. First, the "Subpath exports, and what is actually live today" paragraph is now wrong in three ways: `dist/` exists, `./styles.css` is gone, and only one subpath remains. Replace it with:
 
-> **Subpath exports.** One subpath exists beyond `.`: `@azx/ribo-transcriber-ondevice/worker` (§5.2). All five packages build (`pnpm build:packages`), so `dist/index.js`, `dist/index.d.ts` and `dist/worker.js` all exist and **both** branches of every `exports` block resolve — which is what `pnpm check:resolve` asserts on every `./check.sh` run. `@azx/ribo-ui-react` no longer has a `./styles.css` subpath: it is a headless hook layer and ships no stylesheet, so the subpath was removed along with `sideEffects: ["*.css"]`.
+> **Subpath exports.** One subpath exists beyond `.`: `@azx/ribo-transcriber-ondevice/worker` (§5.2). All five packages build (`pnpm build:packages`), so `dist/index.js`, `dist/index.d.ts` and `dist/worker.js` all exist and **both** branches of the five root `exports` plus the `./worker` subpath resolve — which is what `pnpm check:resolve` asserts on every `./check.sh` run. `@azx/ribo-ui-react` no longer has a `./styles.css` subpath: it is a headless hook layer and ships no stylesheet, so the subpath was removed along with `sideEffects: ["*.css"]`.
 
 Second, add the new hazard, since this is the section that exists to record load-bearing mechanisms:
 
-> **The condition no longer fails loudly.** Before the packages built, deleting `resolve.conditions` from `playground/vite.config.ts` hard-failed the build on a missing `dist/index.js`. Now it resolves quietly to the built artifact: HMR into library source dies, CI stays green, and nothing announces it. `pnpm check:resolve` (`scripts/assert-source-condition.mjs`) is the gate that replaces that lost property, and it asserts **both** directions — with the condition to `src/`, without it to `dist/`.
+> **The condition no longer fails loudly.** Before the packages built, deleting `resolve.conditions` from `playground/vite.config.ts` hard-failed the build on a missing `dist/index.js`. Now it resolves quietly to the built artifact: HMR into library source dies, CI stays green, and nothing announces it. `pnpm check:resolve` (`scripts/assert-source-condition.mjs`) is the gate that replaces that lost property, and it asserts **both** directions — with the condition to `src/`, without it to `dist/`. Deleting `customConditions` from `packages/tsconfig/base.json` lost the same property for the same reason (`dist/*.d.ts` now exists): a local run with a warm `dist/` silently typechecks against built declarations instead of source — CI still catches it, because typecheck runs before any build on a clean checkout.
 
 - [ ] **Step 4: Update §6.2 (The package skeleton)**
 

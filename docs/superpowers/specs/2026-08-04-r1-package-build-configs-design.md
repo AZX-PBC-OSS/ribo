@@ -92,18 +92,18 @@ Turborepo first if the repo feels heavy; at five packages it earns nothing.
 
 ### 2.3 Shared build settings, and why each one
 
-| Setting                             | Value                                                                          | Why                                                                                                                                                                                                                                                                                            |
-| ----------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `platform`                          | `"browser"`                                                                    | tsdown defaults to `node`. All five are browser libraries (AGENTS.md §4).                                                                                                                                                                                                                      |
-| `format`                            | `["esm"]`                                                                      | ESM-only is the package contract (doc 10 §3). **Never UMD** — `import.meta.url` is `undefined` there, silently breaking worker/WASM URL resolution (doc 10 §2.1).                                                                                                                              |
-| `dts`                               | tsc generator, `isolatedDeclarations` **off**                                  | zod's `z.infer<typeof Schema>` cannot be emitted under isolated declarations — types are inferred from runtime values, which isolated declarations forbid. Doc 10 §3.1 records one real package hitting 374 errors.                                                                            |
-| `target`                            | `BROWSER_TARGET` (§3)                                                          | See §3. Must be explicit — see the footgun in §3.2.                                                                                                                                                                                                                                            |
-| `deps.neverBundle`                  | deps + peerDeps (automatic), **plus** `/^react($\|\/)/`, `/^react-dom($\|\/)/` | A bare `"react"` does not match `react/jsx-runtime` and breaks consumer builds (doc 10 §3.1). tsdown deprecated the older `external` option.                                                                                                                                                   |
-| `sourcemap`                         | `true`                                                                         | Cheap, and consumers debugging our code is the point.                                                                                                                                                                                                                                          |
-| `minify`                            | `false`                                                                        | The host minifies. A minified library only obstructs their debugging.                                                                                                                                                                                                                          |
-| `publint`                           | `true`                                                                         | Optional tsdown peer, run in-build: a bad `exports` block fails the build that produced it.                                                                                                                                                                                                    |
-| `attw`                              | `{ profile: "esm-only" }`                                                      | ESM-only package; the default `strict` profile reports `No resolution (node10)` and `CJS resolves to ESM (node16-cjs)` failures that are expected here.                                                                                                                                        |
-| `experimental.resolveNewUrlToAsset` | **left off** (default)                                                         | Rolldown's own tracking issue says it "does not work well when bundling libraries". With it off, `new URL("./worker.js", import.meta.url)` passes through roughly verbatim — which is what we want, since native ESM and webpack 5 do their own static analysis of that pattern (doc 10 §3.1). |
+| Setting                             | Value                                                                          | Why                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `platform`                          | `"browser"`                                                                    | tsdown defaults to `node`. All five are browser libraries (AGENTS.md §4).                                                                                                                                                                                                                                                                                                                                                         |
+| `format`                            | `["esm"]`                                                                      | ESM-only is the package contract (doc 10 §3). **Never UMD** — `import.meta.url` is `undefined` there, silently breaking worker/WASM URL resolution (doc 10 §2.1).                                                                                                                                                                                                                                                                 |
+| `dts`                               | tsc generator, `isolatedDeclarations` **off**, declaration maps **off**        | zod's `z.infer<typeof Schema>` cannot be emitted under isolated declarations — types are inferred from runtime values, which isolated declarations forbid. Doc 10 §3.1 records one real package hitting 374 errors. Declaration maps are off because their `sources` point at `../src/*.ts`, which `files: ["dist"]` and the tarball gate exclude — a consumer's "Go to Definition" would target a path absent from the package.  |
+| `target`                            | `BROWSER_TARGET` (§3)                                                          | See §3. Must be explicit — see the footgun in §3.2.                                                                                                                                                                                                                                                                                                                                                                               |
+| `deps.neverBundle`                  | deps + peerDeps (automatic), **plus** `/^react($\|\/)/`, `/^react-dom($\|\/)/` | A bare `"react"` does not match `react/jsx-runtime` and breaks consumer builds (doc 10 §3.1). tsdown deprecated the older `external` option.                                                                                                                                                                                                                                                                                      |
+| `sourcemap`                         | `true`                                                                         | Cheap, and consumers debugging our code is the point.                                                                                                                                                                                                                                                                                                                                                                             |
+| `minify`                            | `false`                                                                        | The host minifies. A minified library only obstructs their debugging.                                                                                                                                                                                                                                                                                                                                                             |
+| `publint`                           | `{ strict: true }`                                                             | Optional tsdown peer, run in-build: a bad `exports` block fails the build that produced it. `strict` makes warnings and suggestions fatal, matching the `publint --strict` the replaced CI TODO specified (non-strict `true` leaves them non-fatal).                                                                                                                                                                              |
+| `attw`                              | `{ profile: "esm-only", level: "error" }`                                      | ESM-only package; the default `strict` profile reports `No resolution (node10)` and `CJS resolves to ESM (node16-cjs)` failures that are expected here. `level: "error"` is required — tsdown's default `level: "warn"` with `failOnWarn: false` prints WARN and exits 0; only `error` sets `process.exitCode = 1`. `esm-only` suppresses only the node10/node16-cjs kinds; every other attw problem class is live and now fatal. |
+| `experimental.resolveNewUrlToAsset` | **left off** (default)                                                         | Rolldown's own tracking issue says it "does not work well when bundling libraries". With it off, `new URL("./worker.js", import.meta.url)` passes through roughly verbatim — which is what we want, since native ESM and webpack 5 do their own static analysis of that pattern (doc 10 §3.1).                                                                                                                                    |
 
 ---
 
@@ -210,7 +210,8 @@ Root scripts split so a failure is attributable:
 typecheck → lint → format:check → build:packages → resolve → build:app → pkg:gates → test
 ```
 
-`resolve` sits after `build:packages` because it needs `dist/` to exist (§5.2), and before
+`resolve` sits after `build:packages` for diagnostic clarity (§5.2 — NOT because `dist/` must
+exist: `import.meta.resolve` does exports resolution without stat-ing the target), and before
 `build:app` because a resolution failure explains most bundling failures that would follow it — the
 same reasoning the existing script applies to putting `build` before `test`.
 
@@ -230,8 +231,12 @@ weeks later." `ci.yml`'s own TODO says to wire them "as soon as the packages act
 ### 5.1 publint and attw run inside the build
 
 tsdown declares optional peers on `publint ^0.3.8` and `@arethetypeswrong/core ^0.18.1`, so both run
-as part of `pnpm build` rather than as a separate CI job. A broken `exports` block then fails the
-build that produced it, which is strictly better than failing a later step.
+as part of `pnpm build` rather than as a separate CI job. With `publint: { strict: true }` and
+`attw: { level: "error" }`, a broken `exports` block FAILS the build that produced it — strictly
+better than failing a later step. Note both settings are load-bearing: tsdown's default `attw` level
+is `"warn"` with `failOnWarn: false` (prints WARN, exits 0), and non-strict `publint: true` leaves
+warnings and suggestions non-fatal. Without `level: "error"` and `strict: true`, every attw/publint
+problem is silently non-fatal.
 
 **The known risk, to verify first.** The `@azx/source` condition points at `./src/index.ts`, which is
 not in `files: ["dist"]`. Both tools may flag that as an exports-references-unpublished-file error.
@@ -253,7 +258,9 @@ HMR into library source dies, CI stays green, and nobody finds out for weeks. Th
 AGENTS.md §5 "tidied away on a quiet afternoon" failure mode, applied to the mechanism §5 warns about
 most.
 
-The replacement asserts **both directions** of the `exports` block with Node's own resolver:
+The replacement has two complementary checks. First, it asserts **both directions** of the
+`exports` block with Node's own resolver — for five root exports plus the `./worker` subpath (six
+targets total):
 
 ```
 node --conditions=@azx/source -e '…import.meta.resolve("@azx/ribo-core")…'
@@ -262,18 +269,35 @@ node -e '…import.meta.resolve("@azx/ribo-core")…'
   => …/packages/ribo-core/dist/index.js
 ```
 
-This tests the thing that actually matters — the `exports` block — is bundler-independent, catches a
-broken condition _and_ a broken default in one pass, and becomes **possible** only once `dist/`
-exists. So R1 both removes the old guard and installs a better one. It runs as the `resolve` stage of
-`check.sh`, across all five packages.
+Second — and this is the check the first one cannot do — it loads the playground's Vite config
+through Vite's own `resolveConfig` and asserts the resolved `resolve.conditions` includes
+`@azx/source`. The Node assertions pass `--conditions` directly to Node and so bypass Vite entirely;
+deleting `resolve.conditions` from `playground/vite.config.ts` (the exact regression this gate exists
+to catch) leaves them green while playground HMR silently resolves libraries from `dist/`. The Vite
+assertion fills that gap. `resolveConfig` is used rather than grepping the file because it reports
+what Vite actually computes after config merging and plugins, not merely what the source text
+happens to say.
+
+The per-package assertions test the thing that actually matters — the `exports` block — are
+bundler-independent, and catch a broken condition _and_ a broken default in one pass. The gate runs
+after the `build:packages` stage for diagnostic clarity (a resolve failure reads better against a
+built tree), NOT because `dist/` must exist: `import.meta.resolve` does exports resolution without
+stat-ing the target, so the gate would pass identically on an unbuilt tree. File existence is covered
+by publint in the build stage. So R1 both removes the old guard and installs a better one. It runs as
+the `resolve` stage of `check.sh`, across five root exports plus the `./worker` subpath.
 
 ### 5.3 Tarball and duplicate-React gates
 
 A `pkg:gates` script, run by `check.sh` so local and CI agree:
 
 - `pnpm pack --dry-run` per package, asserting **no `.ts` file reaches any tarball**.
-- `pnpm ls react --depth=Infinity`, failing on more than one resolved copy — one of doc 10 §5's
-  stacked defenses against duplicate React.
+- Exactly one resolved React, detected by reading `node_modules/.pnpm` directly rather than parsing
+  `pnpm ls react --depth=Infinity` output — the directory names ARE the resolved versions, so this
+  cannot drift with a reporter change. One of doc 10 §5's stacked defenses against duplicate React.
+- For every publishable package, if it depends on `react`/`react-dom` at all, they must appear in
+  `peerDependencies` and NOT in `dependencies` — the manifest-level mistake that causes duplicate
+  React in a _consumer's_ app (as opposed to the workspace-level count above, which a single catalog
+  version makes impossible to detect locally).
 
 ---
 
@@ -345,8 +369,9 @@ are **R5's**, and R1 must not pre-empt them.
 
 1. All five packages produce `dist/` with `index.js`, `index.d.ts` and sourcemaps;
    `ribo-transcriber-ondevice` additionally produces `worker.js` / `worker.d.ts`.
-2. publint and attw pass for all five.
-3. The resolver assertion passes in **both** directions for all five.
+2. publint (strict) and attw (level: error) pass for all five.
+3. The resolver assertion passes in **both** directions for five root exports plus the `./worker`
+   subpath, and the playground's Vite `resolveConfig` includes `@azx/source`.
 4. No `.ts` in any tarball; exactly one resolved React.
 5. The playground still resolves to **source**, and its production build still passes — R1 must not
    change the primary dev loop.
