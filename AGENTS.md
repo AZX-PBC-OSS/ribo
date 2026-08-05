@@ -200,10 +200,10 @@ and getting it wrong silently breaks consumer type resolution.
 
 **Subpath exports.** One subpath exists beyond `.`: `@azx/ribo-transcriber-ondevice/worker`
 (§5.2). All five packages build (`pnpm build:packages`), so `dist/index.js`, `dist/index.d.ts`
-and `dist/worker.js` all exist and **both** branches of every `exports` block resolve — which is
-what `pnpm check:resolve` asserts on every `./check.sh` run. `@azx/ribo-ui-react` no longer has a
-`./styles.css` subpath: it is a headless hook layer and ships no stylesheet, so the subpath was
-removed along with `sideEffects: ["*.css"]`.
+and `dist/worker.js` all exist and **both** branches of the five root `exports` plus the
+`./worker` subpath resolve — which is what `pnpm check:resolve` asserts on every `./check.sh`
+run. `@azx/ribo-ui-react` no longer has a `./styles.css` subpath: it is a headless hook layer
+and ships no stylesheet, so the subpath was removed along with `sideEffects: ["*.css"]`.
 
 **The condition no longer fails loudly.** Before the packages built, deleting
 `resolve.conditions` from `playground/vite.config.ts` hard-failed the build on a missing

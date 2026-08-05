@@ -479,7 +479,10 @@ In `pnpm-workspace.yaml`'s `# --- toolchain ---` section:
 # `typescript: "^5 || ^6 || ^7"`, so it is fine with the TS 6.0.3 hold above.
 tsdown: "0.22.14"
 # Both are OPTIONAL PEERS of tsdown, not independent tools: tsdown runs them
-# in-build when `publint: true` / `attw: true` are set, so a bad exports block
+# in-build when `publint: true` / `attw: { profile: "esm-only" }` are set
+# (`esm-only`, not a bare `true`: the default `strict` profile reports
+# node10/CJS resolution failures that are expected for a deliberately
+# ESM-only package), so a bad exports block
 # fails the build that produced it. Note this is @arethetypeswrong/CORE — the
 # `cli` package is a different thing and is not what tsdown peers on.
 publint: "0.3.23"
@@ -558,7 +561,10 @@ export const sharedTsdown: UserConfig = {
   // Optional tsdown peers, run in-build: a broken `exports` block fails the build
   // that produced it rather than a later CI step.
   publint: true,
-  attw: true,
+  // `esm-only`, not a bare `true`: attw's default `strict` profile resolves
+  // under Node10 and Node16 (CJS) too, which reports `No resolution (node10)`
+  // and `CJS resolves to ESM (node16-cjs)` for a deliberately ESM-only package.
+  attw: { profile: "esm-only" },
 
   // NOTE what is deliberately absent: `experimental.resolveNewUrlToAsset`.
   // Rolldown's own tracking issue says it "does not work well when bundling

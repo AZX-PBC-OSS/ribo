@@ -3,9 +3,10 @@
  * @file Asserts the `@azx/source` export condition end to end — both that the
  * packages OFFER a source branch and that the playground actually ASKS for it.
  *
- *   1. Per-package `exports` (Node's own resolver):
- *        with `--conditions=@azx/source` -> src/index.ts   (what this workspace gets)
- *        without it                      -> dist/index.js  (what every consumer gets)
+ *   1. Per-package `exports` (Node's own resolver), for each root export AND
+ *      the one published subpath (`@azx/ribo-transcriber-ondevice/worker`):
+ *        with `--conditions=@azx/source` -> the src/ file   (what this workspace gets)
+ *        without it                      -> the dist/ file  (what every consumer gets)
  *   2. Playground Vite config (Vite's own resolveConfig):
  *        `resolve.conditions` includes `@azx/source` — the dev-server path where
  *        HMR into library source matters.
@@ -37,12 +38,34 @@ import { fileURLToPath } from "node:url";
 
 import { resolveConfig } from "vite";
 
-const PACKAGES = [
-  "@azx/ribo-core",
-  "@azx/ribo-ui-react",
-  "@azx/ribo-adapter-snuggpro",
-  "@azx/ribo-extractor-openai",
-  "@azx/ribo-transcriber-ondevice",
+// Each target is a specifier plus the suffixes its `@azx/source` and `default`
+// branches must resolve to. The five root exports all land on index; the one
+// published subpath (`./worker`) lands on worker.ts/worker.js — its filename is
+// part of the published contract, so it gets the same guarantee as the roots
+// rather than being left to the "every exports block" hand-wave.
+const TARGETS = [
+  { specifier: "@azx/ribo-core", sourceSuffix: "/src/index.ts", distSuffix: "/dist/index.js" },
+  { specifier: "@azx/ribo-ui-react", sourceSuffix: "/src/index.ts", distSuffix: "/dist/index.js" },
+  {
+    specifier: "@azx/ribo-adapter-snuggpro",
+    sourceSuffix: "/src/index.ts",
+    distSuffix: "/dist/index.js",
+  },
+  {
+    specifier: "@azx/ribo-extractor-openai",
+    sourceSuffix: "/src/index.ts",
+    distSuffix: "/dist/index.js",
+  },
+  {
+    specifier: "@azx/ribo-transcriber-ondevice",
+    sourceSuffix: "/src/index.ts",
+    distSuffix: "/dist/index.js",
+  },
+  {
+    specifier: "@azx/ribo-transcriber-ondevice/worker",
+    sourceSuffix: "/src/worker.ts",
+    distSuffix: "/dist/worker.js",
+  },
 ];
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -67,18 +90,18 @@ function resolveFrom(specifier, useSourceCondition) {
 const exportsFailures = [];
 const viteFailures = [];
 
-for (const pkg of PACKAGES) {
+for (const { specifier, sourceSuffix, distSuffix } of TARGETS) {
   for (const [useCondition, expectedSuffix] of [
-    [true, "/src/index.ts"],
-    [false, "/dist/index.js"],
+    [true, sourceSuffix],
+    [false, distSuffix],
   ]) {
     const label = useCondition ? "with @azx/source" : "without @azx/source";
     let resolved;
     try {
-      resolved = resolveFrom(pkg, useCondition);
+      resolved = resolveFrom(specifier, useCondition);
     } catch (error) {
       exportsFailures.push(
-        `${pkg} (${label}): did not resolve at all — ${error.message.split("\n")[0]}`,
+        `${specifier} (${label}): did not resolve at all — ${error.message.split("\n")[0]}`,
       );
       continue;
     }
@@ -86,7 +109,7 @@ for (const pkg of PACKAGES) {
     // and the symlink path when it does not, so a full-path match would be brittle.
     if (!resolved.endsWith(expectedSuffix)) {
       exportsFailures.push(
-        `${pkg} (${label}): expected a path ending ${expectedSuffix}, got ${resolved}`,
+        `${specifier} (${label}): expected a path ending ${expectedSuffix}, got ${resolved}`,
       );
     }
   }
@@ -120,11 +143,12 @@ if (failures.length > 0) {
   if (exportsFailures.length > 0) {
     console.error(
       "Package `exports` problem — a publishable package's manifest is wrong. Open the " +
-        "failing package's `package.json` and check its `exports` block: the `@azx/source` " +
-        "branch must point at `./src/index.ts` and the `default` at `./dist/index.js`. If the " +
-        "`with` direction failed, also check `customConditions` in `packages/tsconfig/base.json`. " +
-        "If the `without` direction failed, the packages are unbuilt or the `default` is wrong " +
-        "— run `pnpm build:packages` first.",
+        "failing package's `package.json` and check the `exports` block named in the failure: " +
+        "the `@azx/source` branch must point at the `src/` file and the `default` at the matching " +
+        "`dist/` artifact (root exports use `index`, the `./worker` subpath uses `worker`). If " +
+        "the `with` direction failed, also check `customConditions` in " +
+        "`packages/tsconfig/base.json`. If the `without` direction failed, the packages are " +
+        "unbuilt or the `default` is wrong — run `pnpm build:packages` first.",
     );
   }
   if (viteFailures.length > 0) {
@@ -140,6 +164,6 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `source condition: ${PACKAGES.length} packages resolve correctly in both directions, ` +
-    "and playground Vite requests @azx/source",
+  `source condition: ${TARGETS.length} export targets (5 root + ./worker subpath) ` +
+    "resolve correctly in both directions, and playground Vite requests @azx/source",
 );
