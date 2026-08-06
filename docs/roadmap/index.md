@@ -44,23 +44,30 @@ The original design spec (D1–D10 decisions, architecture, data flow, risks) is
 The post-Phase-4 work is organized as tasks **R1–R5** and **F1**, defined in a Voice-to-Text MVP
 design that is not in this repo. R1 is done; the rest proceed in dependency order:
 
-1. **R2 — populate the headless hook layer** (`@azx/ribo-ui-react`). The package builds but is still a
+1. **R1.5 — field-shape contracts.** Surfaced while planning R2, and blocking its review hook.
+   `ToolAdapter<F, C>`'s one type parameter does two jobs: the extractor needs the provenance-envelope
+   shape (JSON Schema, response parse, few-shot examples, normalization) while `write` and `review.ts`
+   need plain values. R1.5 declares the values schema and **derives** the extraction schema from it,
+   and moves review onto flat dotted leaf paths — necessary because Snugg Pro's nested `healthSafety`
+   matrix would otherwise get one envelope for all 11 tests instead of one each.
+   → [design](design/r1.5-field-shape-contracts-design.md)
+2. **R2 — populate the headless hook layer** (`@azx/ribo-ui-react`). The package builds but is still a
    `PACKAGE_NAME` stub. R2 fills it with six hooks and a provider over the core engine — and closes the
    gap it surfaced: review is a contract in core with no callers, because the relay goes straight from
    `extracting` to `writing`. Phase A makes review a real gate (`awaiting-review`, a persisted outcome,
    pause/resume on `Recorder`); Phase B builds the hooks and migrates the playground onto them.
    → [design](design/r2-headless-hook-layer-design.md)
-2. **R3 — pack-and-consume test tier.** The scratch-app matrix from doc 10 §8: pack each tarball,
+3. **R3 — pack-and-consume test tier.** The scratch-app matrix from doc 10 §8: pack each tarball,
    install into a fresh app, build, and assert the worker spawns and WASM loads. The source-condition
    playground never touches `dist/`, so every WASM/worker failure mode is production-build-only. This
    is the only test that exercises a real tarball in a real host build.
-3. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
+4. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
    Includes the `.npmrc` registry config, `publishConfig.access` change, and release-workflow
    activation. Nothing is published today.
-4. **R5 — correct the docs the newer decisions falsify.** Doc 10 §3.1's Vite-library-mode mandate and
+5. **R5 — correct the docs the newer decisions falsify.** Doc 10 §3.1's Vite-library-mode mandate and
    doc 04's styled-components design are superseded by the tsdown-for-all and headless-hook-layer
    decisions; R5 rewrites them. Also covers any AGENTS.md statements R1–R4 have made false.
-5. **F1 — the field app** (separate repo). The deployed Helix app that composes the published packages.
+6. **F1 — the field app** (separate repo). The deployed Helix app that composes the published packages.
    Not built here; the `playground/` app is this repo's stand-in for a consumer.
 
 ## What is deliberately out of scope
@@ -83,6 +90,8 @@ So nobody re-litigates it:
 - [R1 — Package Build Configs — Design](design/r1-package-build-configs-design.md) — the R1 design:
   one build tool (tsdown) for all five packages, the generated Baseline syntax floor, and the package-
   contract gates.
+- [R1.5 — Field-Shape Contracts — Design](design/r1.5-field-shape-contracts-design.md) — the R1.5
+  design: one declared values schema, a derived extraction schema, and leaf-path review.
 - [R2 — Headless Hook Layer — Design](design/r2-headless-hook-layer-design.md) — the R2 design: the
   review gate in the outbox state machine, pause/resume, and the six hooks plus provider that make
   `@azx/ribo-ui-react` real.
