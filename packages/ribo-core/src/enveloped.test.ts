@@ -222,14 +222,38 @@ describe("enveloped() — return type is shape-preserving", () => {
   // `Enveloped<V>` (the standalone, exported, plain-value-space alias) and `EnvelopedShape`/`Actual`
   // above (the schema-space mechanism behind `enveloped()`'s own return type) are DELIBERATELY two
   // separate mechanisms — see enveloped.ts's file header. Separate means neither is proven correct
-  // by the other passing: this test is `Enveloped<V>`'s own proof, put directly against the
-  // function's real inferred output rather than against a hand-written `Expected`, so the two
-  // mechanisms can't silently drift apart. It is also the test that catches `Enveloped<V>` quietly
-  // inheriting `V`'s optionality (a homomorphic mapped type over a patch does this by default
-  // unless every key is explicitly de-optionalized with `-?`) — a bare `toEqualTypeOf<Expected>()`
-  // against a hand-written literal would not have caught that, because nothing forced `Expected`
-  // itself to be checked against a real patch's optionality.
-  test("Enveloped<V> (the exported alias) matches the function's actual return type", () => {
-    expectTypeOf<Enveloped<z.infer<typeof patch>>>().toEqualTypeOf<Actual>();
+  // by the other passing: this test puts `Enveloped<V>` directly against the function's real
+  // inferred output rather than against a hand-written `Expected`, so the two mechanisms can't
+  // silently drift apart.
+  //
+  // MUTUAL `extends`, not `toEqualTypeOf` — deliberately. `Enveloped<V>` carries `readonly` (see
+  // enveloped.ts's doc comment: every sibling field-map type in this package does, as a public
+  // immutability signal, regardless of the underlying leaf's own mutability), but
+  // `z.infer<ReturnType<typeof enveloped<...>>>` never does, since nothing in the implementation
+  // calls `.readonly()`. `toEqualTypeOf` treats that difference as a mismatch; TypeScript's
+  // structural `extends` relation does not consider `readonly` at all, so checking `extends` in
+  // BOTH directions still proves the two types describe the same required/optional shape (a
+  // one-directional `extends` alone would not: `{ a?: X }` failing to extend `{ a: X }` is exactly
+  // what catches `Enveloped<V>` quietly re-inheriting the patch's optionality, which is why both
+  // directions are asserted) while tolerating the deliberate `readonly` difference.
+  test("Enveloped<V> is mutually assignable with the function's actual return type", () => {
+    expectTypeOf<Enveloped<z.infer<typeof patch>>>().toExtend<Actual>();
+    expectTypeOf<Actual>().toExtend<Enveloped<z.infer<typeof patch>>>();
+  });
+
+  // The one thing mutual `extends` cannot see, pinned separately: `Enveloped<V>`'s `readonly`
+  // modifier itself. Without this, `Enveloped<V>` could quietly lose `readonly` (as it did during
+  // this task's first review pass) and nothing else in this file would catch it.
+  test("Enveloped<V> is readonly, unlike the function's own return type", () => {
+    const value: Enveloped<z.infer<typeof patch>> = {
+      rValue: { value: 19, confidence: 1, sourceSpan: null },
+      nested: { leaf: { value: "x", confidence: 1, sourceSpan: null } },
+    };
+
+    // @ts-expect-error readonly property — this line must fail to compile, or `Enveloped<V>` has
+    // silently stopped being readonly. (A no-op at runtime: `@ts-expect-error` and the reassignment
+    // both vanish from emitted JS; the assertion lives entirely in `pnpm typecheck`. A fresh object,
+    // not `value.rValue` itself, so the assignment isn't also flagged as a no-op self-assignment.)
+    value.rValue = { value: 20, confidence: 1, sourceSpan: null };
   });
 });

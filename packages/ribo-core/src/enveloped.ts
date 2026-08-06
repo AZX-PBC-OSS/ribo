@@ -182,25 +182,28 @@ export const enveloped = <T extends z.ZodObject>(
  * `V` verbatim onto the result. `V` is a patch by construction (design §2.1), so every one of its
  * keys — including every nested key — already carries `?`; without `-?` here, `Enveloped<V>` would
  * silently inherit that optionality and every key of the "closed and required at every level"
- * extraction schema (design §2.2) would type as possibly-`undefined`. `ExtractedFields<F>` in
- * `review.ts` uses the same homomorphic-mapped-type shape with no `-?` and that is fine there —
- * `F` there is already envelope-shaped with no optional keys, so there is nothing for it to
- * inherit. It is `V` being a patch specifically that makes the omission dangerous here.
+ * extraction schema (design §2.2) would type as possibly-`undefined`.
  *
- * No `readonly` here either, for the same homomorphic reason but the opposite direction: this type
- * is meant to equal `z.infer<ReturnType<typeof enveloped<...>>>` exactly (that equality is what
- * `enveloped.test.ts`'s `Enveloped<V> matches the function's actual return type` test asserts), and
- * `z.infer` of a plain `z.ZodObject` never marks its properties `readonly` — nothing in
- * `enveloped()`'s implementation ever calls `.readonly()`. Keeping `readonly` here (as the design
- * doc's pseudocode literally shows, and as `ExtractedFields`/`ReviewFields`/etc. all do) makes this
- * alias a strict subtype of the real return type rather than equal to it, which
- * `expectTypeOf(...).toEqualTypeOf(...)` treats as a mismatch even though plain structural
- * `extends` in both directions holds. Confirmed by removing `readonly` and watching the
- * `toEqualTypeOf` assertion's TS2554 ("Expected 1 arguments, but got 0" — `expect-type`'s way of
- * surfacing a mismatch at the call site) disappear.
+ * `readonly` IS kept, deliberately, even though `z.infer<ReturnType<typeof enveloped<...>>>` (the
+ * function's real inferred return type) never carries it — nothing in `enveloped()`'s
+ * implementation calls `.readonly()`. Every sibling field-map type in this package is explicitly
+ * `readonly` regardless of its leaf's own mutability — `ExtractedFields<F>` (`review.ts`) wraps the
+ * same non-readonly `Extracted<F[K]>` leaf in an explicit readonly mapping, and `ReviewFields<F>`
+ * / `FieldDecisions<F>` / `ReviewedValues<F>` do the same. `Enveloped<V>` sits at the identical
+ * public boundary (`ToolAdapter.extractionSchema: ZodType<Enveloped<V>>`) and keeping `readonly`
+ * here is what makes it consistent with that convention rather than the one silently-mutable
+ * exception, discoverable only by reading this comment.
+ *
+ * That `readonly` is exactly what a plain structural `extends` check cannot see — TypeScript's
+ * `extends` relation ignores the `readonly` modifier entirely, so a *mutual* `extends` against the
+ * real return type (used in `enveloped.test.ts` instead of `toEqualTypeOf`, specifically so this
+ * alias still cannot silently drift from what `enveloped()` actually returns) is blind to whether
+ * `readonly` is present or absent. `enveloped.test.ts` therefore carries a second, narrow
+ * assertion — a `@ts-expect-error` on an attempted property reassignment — that exists purely to
+ * pin `readonly` itself, since nothing else in this file's test suite can.
  */
 export type Enveloped<V> = {
-  [K in keyof V]-?: [NonNullable<V[K]>] extends [object]
+  readonly [K in keyof V]-?: [NonNullable<V[K]>] extends [object]
     ? Enveloped<NonNullable<V[K]>>
     : Extracted<NonNullable<V[K]>>;
 };
