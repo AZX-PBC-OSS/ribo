@@ -365,11 +365,10 @@ test("passes through the statuses of the 09 state machine, in order", async () =
 //
 // The gate is an *omission*: `awaiting-review` is not in ACTIVE_OUTBOX_STATUSES,
 // so `nextPending()` never hands a parked item back and the drain walks past it.
-// `schema.test.ts` pins the list itself; these tests pin the behaviour it buys —
-// including, in the first two, what would happen if someone put the status back in
-// the list (the relay would pick the parked item up, `nextStep()` would see
-// `extracted` and say `write`, and the assertions here would see `dead` instead of
-// `awaiting-review`).
+// `schema.test.ts` pins the list itself; all four tests below pin the behaviour it
+// buys, and all four fail if someone puts the status back in the list: the relay
+// would pick the parked item up, `nextStep()` would see `extracted` and say
+// `write`, and every `awaiting-review` assertion here would see `dead` instead.
 
 test("a successful extraction parks the item for review instead of writing it", async () => {
   const outbox = await openTestOutbox(uniqueName());
@@ -409,6 +408,11 @@ test("an item that reaches writing with no review outcome fails terminally", asy
   const harness = buildRelay(outbox);
   const item = await outbox.enqueue({ recording, audio: audio() });
   await drainToReview(harness.relay);
+  // Asserted, not assumed: without this the test passes even when the relay never
+  // parked the item at all, because a `dead` item is `dead` whichever way it got
+  // there. This is the line that makes the hand-patch below a *jump over the gate*
+  // rather than an incidental status change.
+  expect((await outbox.get(item.id))?.status).toBe("awaiting-review");
 
   // The gate jumped by hand — exactly the shape a bug in it would take.
   await outbox.patch(item.id, { status: "writing" });
@@ -431,6 +435,9 @@ test("an item whose review discarded the draft never reaches the tool", async ()
   const harness = buildRelay(outbox);
   const item = await outbox.enqueue({ recording, audio: audio() });
   await drainToReview(harness.relay);
+  // Same reason as the test above: the park has to be asserted, or a relay that
+  // never parked would satisfy every assertion below it.
+  expect((await outbox.get(item.id))?.status).toBe("awaiting-review");
 
   await outbox.patch(item.id, {
     status: "writing",
@@ -723,17 +730,19 @@ test("processes serially, lowest seq first", async () => {
 
 test("a parked head-of-queue item holds the queue, preserving capture order", async () => {
   const outbox = await openTestOutbox(uniqueName());
-  // The failure is injected at `extract` rather than at `write`. The guarantee is
-  // about every step the relay owns, and two fresh captures keep the crisp
-  // evidence the write-step version used to give: `second` is still `queued`,
-  // untouched, rather than merely un-advanced from a seeded status.
   const harness = buildRelay(outbox, {
-    extract: async ({ item }) => {
+    write: async ({ item }) => {
       if (item.recording.id === "first") throw Object.assign(new Error("gw"), { status: 502 });
-      return { atticInsulation: "the attic is R-19" };
+      return {};
     },
   });
-  const first = await outbox.enqueue({ recording: { ...recording, id: "first" }, audio: audio() });
+  // Only the head is seeded past the review gate. `first` is seq 0 and needs
+  // exactly one step — the write that fails — while `second` is an untouched fresh
+  // capture. That asymmetry is deliberate: the evidence for "second waited" is that
+  // it is still literally `queued`, which a second seeded row could not show, and
+  // keeping the failure at `write` is what pins the park for the write step rather
+  // than only for the steps before it.
+  const first = await seedReviewedWriting(outbox, { recording: { ...recording, id: "first" } });
   const second = await outbox.enqueue({
     recording: { ...recording, id: "second" },
     audio: audio(),
@@ -749,15 +758,15 @@ test("a parked head-of-queue item holds the queue, preserving capture order", as
 
 test("a dead item does not block the queue behind it", async () => {
   const outbox = await openTestOutbox(uniqueName());
-  // Injected at `extract` for the same reason as the test above — the two are a
-  // pair and differ only in whether the failure is transient.
   const harness = buildRelay(outbox, {
-    extract: async ({ item }) => {
+    write: async ({ item }) => {
       if (item.recording.id === "first") throw Object.assign(new Error("bad"), { status: 400 });
-      return { atticInsulation: "the attic is R-19" };
+      return {};
     },
   });
-  const first = await outbox.enqueue({ recording: { ...recording, id: "first" }, audio: audio() });
+  // Seeded head, fresh follower, for the same reason as the test above — the two
+  // are a pair and differ only in whether the head's write failure is transient.
+  const first = await seedReviewedWriting(outbox, { recording: { ...recording, id: "first" } });
   const second = await outbox.enqueue({
     recording: { ...recording, id: "second" },
     audio: audio(),

@@ -103,19 +103,22 @@ export const outboxDocumentSchema = z.strictObject({
   /** Stable id, and the RxDB primary key. */
   id: z.string().min(1),
   /**
-   * Monotonic ordering key. The relay processes strictly ascending `seq`, which
-   * is what "serial, lowest first" in `09` buys: capture order is the order items
-   * are *offered* to the relay, and it stays write order for every step the relay
-   * decides on its own.
+   * Monotonic ordering key. The relay processes the lowest-`seq` **active** item
+   * first, which is what "serial, lowest first" in `09` buys: capture order is the
+   * order items are *offered* to the relay, and it stays write order for every step
+   * the relay decides on its own.
    *
    * **Review is the one step a human orders, so writes follow review order.** An
-   * item parked at `awaiting-review` leaves the active set, the next capture
-   * drains past it, and whichever recording is reviewed first writes first — even
-   * if it was captured second. This used to read "capture order is write order"
-   * and that is no longer true; it is narrowed on purpose rather than defended,
-   * because holding writes to capture order would let one un-reviewed recording
-   * block every write behind it, which is the exact stall the parked design
-   * exists to avoid.
+   * item parked at `awaiting-review` leaves the active set, the next capture drains
+   * past it, and — once the recordings ahead of it have parked, finished or died —
+   * whichever recording is reviewed first writes first, even if it was captured
+   * second. (A lower-`seq` sibling resting in `failed` is still active, and still
+   * holds the queue until its backoff elapses; `relay.ts`'s `#drain` explains why
+   * that one must not be overtaken.) This used to read "capture order is write
+   * order" and that is no longer true; it is narrowed on purpose rather than
+   * defended, because holding writes to capture order would let one un-reviewed
+   * recording block every write behind it, which is the exact stall the parked
+   * design exists to avoid.
    */
   seq: z.number().int().nonnegative(),
   status: z.enum(OUTBOX_STATUSES),
