@@ -24,7 +24,18 @@ export type ExtractStep = (input: ExtractStepInput) => Promise<ExtractedFieldMap
 
 export interface WriteStepInput {
   item: OutboxItem;
-  extracted: ExtractedFieldMap;
+  /**
+   * The values review settled on — flat, already unwrapped from their provenance
+   * envelopes by `resolveReview`, which is the shape `ToolAdapter.write(fields, ctx)`
+   * wants.
+   *
+   * **This replaced an `extracted` field carrying the model's raw envelope map,
+   * and the rename is the point.** Two similarly-named fields here would make
+   * "wrote the un-reviewed values" a one-word typo with a silent symptom and a
+   * customer's audit as the blast radius. The raw envelopes are still available as
+   * `item.extracted` for provenance and diagnostics.
+   */
+  reviewed: ExtractedFieldMap;
   /**
    * Send this as `Idempotency-Key`. It is stable across every retry of this item,
    * which is the only thing standing between an ambiguous success and a
@@ -114,6 +125,13 @@ type Step = "transcribe" | "extract" | "write";
  * when the tab died and is therefore untrustworthy — an item stuck at
  * `transcribing` may have finished transcribing microseconds before the crash.
  * The outputs cannot lie: a persisted transcript means transcription is done.
+ *
+ * An item parked at `awaiting-review` has `extracted`, so this returns `"write"`
+ * for it as well. That is not a hole, and making this status-aware is not the
+ * fix: `awaiting-review` is absent from `ACTIVE_OUTBOX_STATUSES`, so the relay is
+ * never handed a parked item in the first place — that omission is the review
+ * gate, and `#write`'s refusal to write without a `reviewOutcome` is the defence
+ * in depth behind it. Two half-gates would leave neither obviously in charge.
  */
 function nextStep(item: OutboxItem): Step {
   if (!item.transcript) return "transcribe";
@@ -286,13 +304,28 @@ class QueueRelay implements Relay {
 
   async #extract(item: OutboxItem): Promise<void> {
     const extracted = await this.#options.extract({ item, transcript: item.transcript! });
-    await this.#patch(item.id, { extracted, status: "writing", attempts: 0 });
+    // Parks for a human rather than advancing to `writing`. `awaiting-review` is
+    // not in ACTIVE_OUTBOX_STATUSES, so `nextPending()` stops selecting this item
+    // and the drain moves on to the next capture. `Outbox.submitReview` is the
+    // only thing that moves it forward.
+    await this.#patch(item.id, { extracted, status: "awaiting-review", attempts: 0 });
   }
 
   async #write(item: OutboxItem): Promise<void> {
+    const outcome = item.reviewOutcome;
+    if (outcome === undefined || outcome.status === "discarded") {
+      // Unreachable through the state machine: `awaiting-review` is not active, so
+      // only `submitReview` moves an item to `writing`, and a discard moves it to
+      // `discarded` instead. Reaching here means the invariant broke, and writing
+      // un-reviewed data to a customer's tool is not an acceptable way to find out.
+      throw new TerminalQueueError(
+        `outbox item ${item.id} reached the write step with no review outcome. Nothing is written that a human has not reviewed; move items forward with Outbox.submitReview.`,
+      );
+    }
+
     const writeResult = await this.#options.write({
       item,
-      extracted: item.extracted!,
+      reviewed: outcome.fields,
       idempotencyKey: item.idempotencyKey,
     });
     await this.#patch(item.id, {
