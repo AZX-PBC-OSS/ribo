@@ -124,7 +124,7 @@ export type RecorderPhase = "idle" | "recording" | "paused" | "stopping";
  */
 export interface RecorderState {
   readonly phase: RecorderPhase;
-  /** Milliseconds since `start()`. Zero whenever idle. */
+  /** Milliseconds since `start()`. Zero whenever idle; frozen while paused. */
   readonly elapsedMs: number;
   /**
    * Normalized input level in `[0, 1]` — RMS of the most recent analyser frame.

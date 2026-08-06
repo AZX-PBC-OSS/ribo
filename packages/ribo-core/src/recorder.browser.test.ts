@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { baseRecordingSchema } from "./recording.js";
 import {
   DEFAULT_MIME_TYPE_PREFERENCES,
@@ -41,8 +41,6 @@ afterEach(async () => {
 
 /** Wait without fake timers — real `MediaRecorder` needs real time to pass. */
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** A `getUserMedia` that rejects the way the browser does, for the sad paths. */
 const rejectingGetUserMedia = (name: string, message: string) => () =>
@@ -305,16 +303,16 @@ describe("Recorder pause and resume", () => {
   test("elapsed time excludes the paused span", async () => {
     const recorder = new Recorder();
     await recorder.start();
-    await delay(150);
+    await sleep(150);
     recorder.pause();
     const atPause = recorder.elapsedMs;
 
-    await delay(300);
+    await sleep(300);
     // The whole point: a paused recorder is not accruing duration.
     expect(recorder.elapsedMs).toBe(atPause);
 
     recorder.resume();
-    await delay(150);
+    await sleep(150);
     const { recording } = await recorder.stop();
 
     // ~300ms of real recording across a 300ms pause. Generous bounds: this asserts
@@ -326,10 +324,37 @@ describe("Recorder pause and resume", () => {
   test("level reads zero while paused", async () => {
     const recorder = new Recorder();
     await recorder.start();
-    await delay(150);
+    await sleep(150);
     recorder.pause();
     expect(recorder.level).toBe(0);
     await recorder.stop();
+  });
+
+  test("#tick does not resample the analyser while paused", async () => {
+    // The microphone stays open while paused (see Recorder.pause), so the analyser
+    // keeps tapping a live stream unless #tick's own guard stops it. A `level`-based
+    // assertion cannot prove this reliably: measured against this Chromium's fake
+    // audio device, the synthetic tone reads as ~0 RMS for roughly the first second
+    // of a stream (it ramps up only after that), so `expect(recorder.level).toBe(0)`
+    // would pass at this timing whether or not the guard exists — confirmed by
+    // temporarily deleting the guard and re-running this suite, which left the
+    // level-based assertion above green. Spying on the analyser call itself proves
+    // the guard fires, independent of what the fake signal happens to be doing.
+    const spy = vi.spyOn(AnalyserNode.prototype, "getByteTimeDomainData");
+    const recorder = new Recorder();
+    await recorder.start();
+    await sleep(150);
+    recorder.pause();
+    const callsAtPause = spy.mock.calls.length;
+
+    // Two-plus tick intervals (default tickMs is 100): #tick's ticker keeps firing
+    // while paused, so this proves the guard returns early rather than the ticker
+    // having stopped.
+    await sleep(250);
+    expect(spy.mock.calls.length).toBe(callsAtPause);
+
+    await recorder.stop();
+    spy.mockRestore();
   });
 
   test("stop works from paused, and releases the microphone", async () => {
