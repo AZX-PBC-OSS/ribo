@@ -30,7 +30,11 @@ pnpm add @azx/ribo-core
   not a callback, so a UI finds parked items with an ordinary query and reports back through
   `Outbox.submitReview`.
 - **Work-safety** — `workSafety`, `summarizeWork`: the one honest "is my work safe?" answer.
-- **Write-back** — the `ToolAdapter<F, C>` type (implemented by adapter packages).
+- **Write-back** — the `ToolAdapter<V, C>` type (implemented by adapter packages). It carries **two**
+  field schemas: `schema`, the writable patch and the source of truth for `V`, and `extractionSchema`,
+  what the model must produce — derived from the patch with `enveloped()`, never hand-written. Plus
+  `ctxSchema`, which parses a persisted `Recording.ctx` into the write's destination, and a `write`
+  that takes `WriteMetadata` (the queue's idempotency key) as a third parameter beside `ctx`.
 
 ## Minimal example
 

@@ -14,9 +14,17 @@
  * as {@link snuggCtxSchema} and {@link SnuggWriteContext} is inferred back off it,
  * the pattern `recording.ts` documents for `recordingSchema(jobContext)`: "because
  * zod is the source of truth, the generic lives on the schema factory and the type
- * is inferred back off it — there is no hand-written interface to drift". (The
- * `readonly` modifiers the hand-written interface used to carry go with it;
- * `Recording` does not carry them either, for the same reason.)
+ * is inferred back off it — there is no hand-written interface to drift".
+ *
+ * The `readonly` modifiers the hand-written interface used to carry are KEPT, via
+ * `Readonly<>` over the inferred type. Inferring the shape and marking it readonly
+ * are independent choices, and only the first is what the `recordingSchema` pattern
+ * is about — there is still no hand-written interface to drift from. Dropping
+ * `readonly` would have been a silent regression from the interface this replaced,
+ * and it would put this type out of step with every sibling at the same public
+ * boundary: `ToolAdapter`'s members are `readonly`, and `Enveloped<V>` keeps
+ * `readonly` on `extractionSchema` for precisely this consistency reason (see its
+ * note in `ribo-core/src/enveloped.ts`). Costs nothing at runtime.
  *
  * Shapes tracked to the real Snugg Pro write API (doc 12 §1). The exact assessment
  * PATCH endpoint and its JSON body are still `[unknown]` in doc 12 — this context
@@ -60,5 +68,10 @@ export const snuggCtxSchema = z.object({
   apiBaseUrl: z.url(),
 });
 
-/** Inferred from {@link snuggCtxSchema} — never hand-declared alongside it. */
-export type SnuggWriteContext = z.infer<typeof snuggCtxSchema>;
+/**
+ * Inferred from {@link snuggCtxSchema} — never hand-declared alongside it — and
+ * `Readonly` because a write's destination is not something a caller should be
+ * mutating in place. See the file header on why the modifier survives the move
+ * from a hand-written interface to an inferred type.
+ */
+export type SnuggWriteContext = Readonly<z.infer<typeof snuggCtxSchema>>;

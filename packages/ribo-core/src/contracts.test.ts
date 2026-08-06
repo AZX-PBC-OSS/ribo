@@ -43,7 +43,18 @@ import type {
 
 // --- The host: one tool's fields, and the context needed to write them -------
 
-/** What the adapter extracts and writes. `AtticFields` is inferred from it, never re-declared. */
+/**
+ * What the adapter extracts and writes. `AtticFields` is inferred from it, never re-declared.
+ *
+ * DELIBERATELY still fully-required — this is NOT yet a patch, and it is the one schema in the
+ * repo that is not. R1.5 §2.1 makes a `ToolAdapter`'s `schema` a patch (every leaf optional and
+ * nullable), and `ribo-adapter-snuggpro`'s `snuggValuesSchema` is the real instance of that. This
+ * composition test is left behind on purpose: it drives `buildReviewRequest`/`resolveReview`, which
+ * R1.5 Task 3 did not touch, so converting it here would have meant rewriting review semantics in a
+ * commit about adapter types. It moves when `resolveReview` does (Task 4/5).
+ *
+ * Read the second test below with that in mind — see the note on its closing assertion.
+ */
 const atticSchema = z.object({
   rValue: z.number(),
   area: z.number(),
@@ -218,7 +229,14 @@ test("review does not narrow nullability — the adapter schema rejects an unsta
   if (outcome.status !== "accepted") throw new Error("unreachable");
   expect(outcome.fields.area).toBeNull();
 
-  // Core carries the null through; the adapter decides it is not writable.
+  // Core carries the null through, and THIS TEST'S schema decides it is not writable.
+  //
+  // NOT a statement of the R1.5 write contract, and do not read it as one. Under design §2.1 a
+  // present `null` in a patch IS writable — it means "write this field as empty" (Snugg Pro's
+  // `Not Tested`), as distinct from an absent key meaning "the reviewer rejected this, do not
+  // touch it". What this asserts is narrower and still true: `atticSchema` above is deliberately
+  // fully-required rather than a patch (see its comment), so a null fails ITS parse. A real
+  // adapter's patch would accept this null and write it.
   expect(atticSchema.safeParse(outcome.fields).success).toBe(false);
 });
 

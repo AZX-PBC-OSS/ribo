@@ -150,8 +150,12 @@ type EnvelopedShape<S extends RawShape> = {
  * recursed rather than swallowed into one envelope, and the whole thing closed and fully required
  * at every level. See the file header for the full walk and rationale.
  *
- * Additive as of R1.5 Task 2: nothing calls this yet. Task 3 switches `ToolAdapter` to declare a
- * patch and derive its extraction schema through this function.
+ * This is the ONE supported way to build a `ToolAdapter`'s `extractionSchema`. R1.5 Task 3 switched
+ * `ToolAdapter` to declare a patch as `schema` and derive `extractionSchema` through this function;
+ * declaring the two by hand is how they drifted apart unnoticed, which is the defect R1.5 exists to
+ * fix. `ribo-adapter-snuggpro`'s `snuggExtractionSchema` is the real instance, and its derivation is
+ * pinned byte-for-byte against a frozen JSON Schema fixture by that package's
+ * `extraction-shape.test.ts`.
  */
 export const enveloped = <T extends z.ZodObject>(
   values: T,

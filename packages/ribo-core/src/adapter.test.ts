@@ -171,8 +171,12 @@ test("a mismatched ctx does not compile", async () => {
   // @ts-expect-error - ctx must be JobContext; a foreign shape is not assignable.
   await adapter.write({ rValue: 13, area: 400 }, { assessmentId: "job-7" }, meta);
 
-  // @ts-expect-error - ctx is required and typed, so it cannot be omitted.
-  await adapter.write({ rValue: 13, area: 400 });
+  // @ts-expect-error - ctx is required and typed: `undefined` is not a JobContext.
+  // All three arguments are PRESENT on purpose — `write(fields)` would also error,
+  // but as `TS2554: Expected 3 arguments, but got 1`, which says nothing about `C`
+  // and would keep this directive satisfied even if `C` were loosened to `unknown`.
+  // The arity requirement has its own pin below.
+  await adapter.write({ rValue: 13, area: 400 }, undefined, meta);
 
   // @ts-expect-error - a bare string is not a JobContext either.
   await adapter.write({ rValue: 13, area: 400 }, "job-7", meta);

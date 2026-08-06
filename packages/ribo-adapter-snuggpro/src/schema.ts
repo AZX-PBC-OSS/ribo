@@ -272,6 +272,18 @@ export const HealthTestState = z.enum(["passed", "failed", "warning", "not_teste
  * ("CO was clean" is the span behind `ambientCo: passed`). One envelope over the
  * whole matrix would make the eleven tests un-reviewable individually, which is
  * the point of field-level review.
+ *
+ * NAME KEPT ON PURPOSE, though its meaning moved. Before the R1.5 patch/extraction
+ * split this exported the ENVELOPED matrix; it now exports the PATCH one, while its
+ * two siblings were renamed for exactly that kind of change (`SnuggFieldsSchema` ->
+ * `snuggValuesSchema` + `snuggExtractionSchema`). The asymmetry is deliberate: those
+ * two are the top-level field SHAPES a consumer chooses between, and the rename is
+ * what forces that choice to be made consciously, whereas this is a component of the
+ * patch with no extraction-side counterpart to be confused with — `enveloped()`
+ * derives the matrix's extraction form inline and never exports it, so there is no
+ * second `HealthSafetyMatrix` for this one to be mistaken for. Recorded here so a
+ * later task does not rediscover it as a surprise; renaming it remains free
+ * (pre-1.0, no external consumers) if a second adapter ever makes it ambiguous.
  */
 export const HealthSafetyMatrix = z
   .object({

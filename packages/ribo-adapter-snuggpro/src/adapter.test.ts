@@ -1,6 +1,7 @@
 import { isSpanGrounded } from "@azx/ribo-core";
 import { expect, test } from "vitest";
 import { SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
+import type { SnuggWriteContext } from "./context.js";
 import type { SnuggValues } from "./schema.js";
 
 test("carries a stable name, instructions and a parsing schema", () => {
@@ -11,25 +12,33 @@ test("carries a stable name, instructions and a parsing schema", () => {
   expect(snuggProAdapter.instructions).toContain("SEPARATE axis");
 });
 
+// The adapter's own few-shot example, resolved ONCE and non-optionally. Written
+// this way rather than as `examples?.[0]` at each use because the assertions below
+// are negative ones: `safeParse(undefined).success` is also `false`, so an
+// `examples` that went missing would leave them passing while asserting nothing.
+// Throwing at module scope fails the whole file loudly instead.
+const example = snuggProAdapter.examples?.[0];
+if (!example) throw new Error("expected the Snugg Pro adapter to carry a few-shot example");
+
 test("the EXTRACTION schema parses the adapter's own few-shot examples", () => {
   // A few-shot example's `fields` become the ASSISTANT turn the model imitates,
   // so they are the enveloped shape and it is `extractionSchema` — not `schema` —
   // that must accept them. This assertion moved rather than weakened: before the
   // split there was one schema and it was the enveloped one.
-  const example = snuggProAdapter.examples?.[0];
-  expect(example).toBeDefined();
-  expect(() => snuggProAdapter.extractionSchema.parse(example?.fields)).not.toThrow();
+  expect(() => snuggProAdapter.extractionSchema.parse(example.fields)).not.toThrow();
 });
 
 test("the PATCH schema rejects those same examples — the two schemas are not interchangeable", () => {
   // What keeps the assertion above from being satisfied by an adapter that simply
   // pointed `extractionSchema` back at `schema`: the patch is plain values and a
   // model response is envelopes, so exactly one of the two can parse this.
-  const example = snuggProAdapter.examples?.[0];
-  expect(snuggProAdapter.schema.safeParse(example?.fields).success).toBe(false);
+  expect(snuggProAdapter.schema.safeParse(example.fields).success).toBe(false);
 });
 
 test("every example sourceSpan is verbatim in its transcript (grounding holds)", () => {
+  // Pinned non-empty: an empty `examples` would make the loop below a no-op and
+  // this test green without checking a single span.
+  expect(snuggProAdapter.examples ?? []).not.toHaveLength(0);
   for (const example of snuggProAdapter.examples ?? []) {
     const walk = (envelope: { value: unknown; sourceSpan: string | null }) => {
       if (envelope.sourceSpan !== null) {
@@ -100,6 +109,21 @@ async function _ctxIsReal(fields: SnuggValues): Promise<void> {
   // @ts-expect-error - ctx must be a SnuggWriteContext; a foreign shape is rejected.
   await snuggProAdapter.write(fields, { jobId: "job-7" }, meta);
 
-  // @ts-expect-error - ctx is required and typed; it cannot be omitted.
-  await snuggProAdapter.write(fields);
+  // @ts-expect-error - ctx is required and typed: `undefined` is not a
+  // SnuggWriteContext. Written with all three arguments PRESENT on purpose —
+  // `write(fields)` would also error, but as `TS2554: Expected 3 arguments, but
+  // got 1`, which says nothing about `C` and would keep this directive satisfied
+  // even if `C` were loosened to `unknown`.
+  await snuggProAdapter.write(fields, undefined, meta);
+}
+
+/**
+ * `SnuggWriteContext` is `readonly`, and nothing else can pin that: TypeScript's
+ * `extends` relation ignores the modifier entirely, so no assignability check sees
+ * it. Same reason `enveloped.test.ts` carries a narrow reassignment probe for
+ * `Enveloped<V>` — a write's destination should not be mutable in place.
+ */
+function _ctxIsReadonly(ctx: SnuggWriteContext): void {
+  // @ts-expect-error - assessmentId is readonly; a caller cannot retarget the write.
+  ctx.assessmentId = "somewhere-else";
 }
