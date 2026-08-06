@@ -50,7 +50,8 @@ design that is not in this repo. R1 is done; the rest proceed in dependency orde
    need plain values. R1.5 declares the values schema and **derives** the extraction schema from it,
    and moves review onto flat dotted leaf paths — necessary because Snugg Pro's nested `healthSafety`
    matrix would otherwise get one envelope for all 11 tests instead of one each.
-   → [design](design/r1.5-field-shape-contracts-design.md)
+   → [design](design/r1.5-field-shape-contracts-design.md) ·
+   [plan](phases/r1.5-field-shape-contracts.md)
 2. **R2 — populate the headless hook layer** (`@azx/ribo-ui-react`). The package builds but is still a
    `PACKAGE_NAME` stub. R2 fills it with six hooks and a provider over the core engine — and closes the
    gap it surfaced: review is a contract in core with no callers, because the relay goes straight from
@@ -105,4 +106,6 @@ So nobody re-litigates it:
 - [Phase 3 — On-Device Transcription](phases/phase-3-ondevice-transcription.md)
 - [Phase 4 — Extraction + Write-back](phases/phase-4-extraction-writeback.md)
 - [R1 — Package Build Configs](phases/r1-package-build-configs.md)
+- [R1.5 — Field-Shape Contracts](phases/r1.5-field-shape-contracts.md)
+- [R2 — Headless Hook Layer](phases/r2-headless-hook-layer.md)
 - [Docs Site + OSS Front Door](phases/docs-site.md)
