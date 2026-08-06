@@ -671,11 +671,31 @@ test("a second submission for the same item fails rather than rewriting it", asy
 
 test("two submissions in flight at once settle as one winner and one refusal", async () => {
   // The sequential test above cannot reach the case the guard is actually built
-  // for. These two are in flight together, so they meet RxDB's incremental-write
-  // queue mid-batch — either chained modifier-over-modifier within one batch, or
-  // as a 409 whose modifier is re-run against the revision already in the
-  // database. Both routes have to reach the same answer: exactly one submission
-  // wins, and the queue never ends up carrying the loser's decision.
+  // for. These two are in flight together, and they take the **409-and-re-run**
+  // path — deterministically, not incidentally, which is the whole reason this test
+  // is worth its lines.
+  //
+  // Why it cannot be the cheaper "both folded into one batch, modifiers chained"
+  // route (rxdb 17's `incremental-write.ts`): `addWrite` calls `triggerRun()`
+  // synchronously inside its promise executor, and `triggerRun` swaps the pending
+  // map out synchronously too, before its first `await`. So by the time the first
+  // submission's `addWrite` returns, the batch is already closed, and the second
+  // always lands in a fresh one carrying a `lastKnownDocumentState` read before the
+  // first write committed — a genuinely stale revision. Nor is the ordering luck:
+  // both `submitReview` calls issue `findOne(id).exec()` in the same synchronous
+  // burst and RxDB caches the query, so their continuations run in one microtask
+  // drain, well inside the first write's IndexedDB transaction.
+  //
+  // What that buys: the second submission's modifier runs once against the stale
+  // revision (where the status still reads `awaiting-review`, so the guard passes),
+  // the write is rejected 409, and RxDB re-runs the modifier against the document
+  // actually in the database — where the status is `writing` and the guard finally
+  // refuses. The refusal therefore comes from the retry, which is the mechanism the
+  // cross-tab case depends on and the one no test can drive directly.
+  //
+  // Deleting the guard makes this fail as `['fulfilled', 'fulfilled']`: the discard
+  // lands on top of the accept and the accepted outcome the relay was about to write
+  // is simply gone. That is a lost update, not merely a missing rejection.
   const outbox = await open(uniqueName());
   const item = await outbox.enqueue({ recording, audio: audioBlob() });
   await outbox.patch(item.id, { status: "awaiting-review" });
