@@ -255,6 +255,40 @@ Two reasons, and the second is the one that would otherwise cost a day:
    R2 is the first task to cross a package boundary in a test, and the browser tier is where that
    works.
 
+### 2.9 The write step consumes reviewed values, and refuses an item that has none
+
+Without this, the whole gate is decorative. `nextStep` derives the step from **which outputs are
+present, not from status** (`relay.ts:118`) — that is what makes a crash resumable — and `#write`
+currently passes `extracted: item.extracted`, the model's raw envelope map. So an auditor who corrects
+the R-value would have the correction persisted to `reviewOutcome` and then **ignored at write time**,
+with the original model output going to the host tool.
+
+Two changes fix it:
+
+1. **`WriteStepInput.extracted` is replaced by `reviewed: ExtractedFieldMap`** — the flat reviewed
+   values, which is what `resolveReview` already produces and what `ToolAdapter.write(fields: F, ctx: C)`
+   already wants (it takes plain values, never envelopes). The raw envelopes stay reachable as
+   `input.item.extracted` for provenance and diagnostics.
+
+   Replaced rather than added alongside. Two similarly-named fields on the same input would make
+   "wrote the un-reviewed map" a one-word typo whose symptom is silent and whose blast radius is a
+   customer's audit. One field, named for what it is, cannot be misused.
+
+2. **`#write` throws a `TerminalQueueError` if `item.reviewOutcome` is absent.** Since the gate is
+   unconditional (§2.3), reaching a write with no recorded review is a bug in the state machine, and
+   the honest response is a terminal failure rather than a write. This makes "nothing is written that a
+   human has not seen" enforced at the write boundary as well as by status routing — cheap
+   defence-in-depth for the one invariant in the system whose violation is invisible and unrecoverable.
+
+Also worth recording, because it looks like it needs handling and does not: an `edited` outcome in which
+every field was rejected reaches `#write` with `reviewed: {}`. That is correct and needs no special
+case — the adapter's `schema.parse` is the trust boundary that decides whether an empty field set is
+writable (§2.5).
+
+Blast radius is small: every `WriteStep` in the repo today ignores its input. Two playground stubs
+(`QueuePanel.tsx:219`, `TranscribePanel.tsx:257`) and the test doubles need their signatures updated,
+and `ribo-adapter-snuggpro`'s `write` is itself still a stub.
+
 ---
 
 ## 3. Phase A — the review gate in core
@@ -288,9 +322,20 @@ migration is cheap, not a reason to omit it.
 
 ### 3.3 `queue/relay.ts`
 
-One line: `#extract` patches `status: "awaiting-review"` instead of `"writing"`. The relay never
-learns what review is — it simply stops seeing the item. No new step, no new dispatch case, no change
-to `STEP_STATUS` or the crash-resumability reasoning.
+`#extract` patches `status: "awaiting-review"` instead of `"writing"`. The relay never learns what
+review is — it simply stops seeing the item. No new step, no new dispatch case, no change to
+`STEP_STATUS` or the crash-resumability reasoning.
+
+`#write` changes per §2.9: it passes `reviewed` (the flat values off `item.reviewOutcome`) rather than
+`extracted`, and throws a `TerminalQueueError` when `reviewOutcome` is absent.
+
+`STEP_STATUS.write` stays `"writing"`, and that is safe even though `nextStep` is status-blind. An item
+parked at `awaiting-review` has `extracted` present, so `nextStep` would return `"write"` and `#step`
+would patch it to `writing` and write it — un-reviewed. The **only** thing preventing that is
+`awaiting-review`'s absence from `ACTIVE_OUTBOX_STATUSES`, which keeps `nextPending()` from ever
+selecting it. That is the entire safety mechanism, it is one omission in one array, and it therefore
+gets both an explanatory comment at the omission site and a dedicated test (§6.1). §2.9's write-time
+guard is the second line of defence for exactly this reason.
 
 ### 3.4 `queue/outbox.ts`
 
@@ -451,6 +496,10 @@ caveat banners survive verbatim — the extractor-mode warning (sample data vs l
 Lennox/"Linux" grounding caveat are hard-won and honest, and a grounded span still proves only that
 the model quoted the transcript, never that the audio was heard correctly.
 
+Two write stubs also change signature per §2.9 — `QueuePanel.tsx:219` and `TranscribePanel.tsx:257`
+both build a relay with `write: () => Promise.resolve({ writtenBy: … })`. They ignore their input, so
+the change is mechanical, but their `WriteStepInput` now carries `reviewed` rather than `extracted`.
+
 Net effect is on the order of 150–250 lines of duplicated subscription code removed, and every hook
 gains a consumer inside `pnpm build:app` — the only composition check CI runs.
 
@@ -460,14 +509,15 @@ gains a consumer inside `pnpm build:app` — the only composition check CI runs.
 
 ### 6.1 Core (Phase A)
 
-| Suite                      | What it gains                                                                                                                                                                     |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema.test.ts`           | The three-way drift pin extends to `reviewOutcome` and both new statuses. Goes red first, by design.                                                                              |
-| `work-safety.test.ts`      | **The §3.6 regression:** an outbox holding only `awaiting-review` items must report `pending > 0` and must not report `safe`. This test is the reason that section exists.        |
-| `relay.browser.test.ts`    | Extraction parks the item at `awaiting-review`, **and** the relay then drains the next item past it rather than stalling. The second assertion is the point of the parked design. |
-| `outbox.browser.test.ts`   | `submitReview` transitions: accepted/edited → `writing` with the outcome persisted; discarded → `discarded` with the audio dropped.                                               |
-| `recorder.browser.test.ts` | Paused elapsed-time accounting against the real fake-device stream: record, pause, wait, resume, stop, and assert `durationMs` excludes the paused span. Real clock, not a mock.  |
-| migration                  | The collection opens at version 1 and a document written before the bump survives.                                                                                                |
+| Suite                      | What it gains                                                                                                                                                                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `schema.test.ts`           | The three-way drift pin extends to `reviewOutcome` and both new statuses. Goes red first, by design.                                                                                                                                             |
+| `work-safety.test.ts`      | **The §3.6 regression:** an outbox holding only `awaiting-review` items must report `pending > 0` and must not report `safe`. This test is the reason that section exists.                                                                       |
+| `relay.browser.test.ts`    | Extraction parks the item at `awaiting-review`, **and** the relay then drains the next item past it rather than stalling. The second assertion is the point of the parked design.                                                                |
+| `outbox.browser.test.ts`   | `submitReview` transitions: accepted/edited → `writing` with the outcome persisted; discarded → `discarded` with the audio dropped.                                                                                                              |
+| `relay.browser.test.ts`    | **The §2.9 guard, both halves:** an `edited` outcome reaches the write step as `reviewed` values — the auditor's corrected value, not the model's — and an item forced to `writing` with no `reviewOutcome` fails terminally instead of writing. |
+| `recorder.browser.test.ts` | Paused elapsed-time accounting against the real fake-device stream: record, pause, wait, resume, stop, and assert `durationMs` excludes the paused span. Real clock, not a mock.                                                                 |
+| migration                  | The collection opens at version 1 and a document written before the bump survives.                                                                                                                                                               |
 
 On the migration test: if driving a genuine v0 → v1 upgrade through RxDB proves fiddly, the honest
 fallback is testing the strategy function directly and **saying so in the plan** — not quietly
