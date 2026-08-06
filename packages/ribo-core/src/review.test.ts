@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { extractedSchema } from "./provenance.js";
 import type { Extracted } from "./provenance.js";
-import { buildReviewRequest, resolveReview } from "./review.js";
+import { buildReviewRequest, resolveReview, reviewOutcomeSchema } from "./review.js";
 import type {
   ExtractedFields,
   FieldDecisions,
@@ -411,4 +411,27 @@ test("Extracted<T> lines up with ExtractedFields<F>", () => {
   const rValue: Extracted<number> = extracted.rValue;
 
   expect(rValue.value).toBe(19);
+});
+
+test("reviewOutcomeSchema accepts what resolveReview produces, for all three branches", () => {
+  const accepted = { status: "accepted", fields: { atticRValue: 19 } };
+  expect(reviewOutcomeSchema.parse(accepted)).toEqual(accepted);
+
+  const edited = {
+    status: "edited",
+    fields: { atticRValue: 30 },
+    editedFields: ["atticRValue"],
+    rejectedFields: ["blowerDoorCfm50"],
+  };
+  expect(reviewOutcomeSchema.parse(edited)).toEqual(edited);
+
+  const discarded = { status: "discarded", reason: "misspoke" };
+  expect(reviewOutcomeSchema.parse(discarded)).toEqual(discarded);
+  expect(reviewOutcomeSchema.parse({ status: "discarded" })).toEqual({ status: "discarded" });
+});
+
+test("reviewOutcomeSchema rejects an edited outcome missing its touched-field lists", () => {
+  // `editedFields`/`rejectedFields` are what name the human's work. An `edited`
+  // outcome without them is indistinguishable from `accepted` and must not parse.
+  expect(() => reviewOutcomeSchema.parse({ status: "edited", fields: {} })).toThrow();
 });

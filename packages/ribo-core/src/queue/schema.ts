@@ -2,6 +2,7 @@ import type { RxJsonSchema } from "rxdb";
 import { z } from "zod";
 
 import { baseRecordingSchema } from "../recording.js";
+import { reviewOutcomeSchema } from "../review.js";
 import { transcriptSchema } from "../transcript.js";
 
 /** The RxDB collection name. One collection; the queue is not sharded. */
@@ -42,15 +43,28 @@ export const OUTBOX_STATUSES = [
   "queued",
   "transcribing",
   "extracting",
+  "awaiting-review",
   "writing",
   "done",
   "failed",
   "dead",
+  "discarded",
 ] as const;
 
 export type OutboxStatus = (typeof OUTBOX_STATUSES)[number];
 
-/** Statuses the relay will still act on. Everything else is finished. */
+/**
+ * Statuses the relay will still act on. Everything else is finished — or, in the
+ * case of `awaiting-review`, waiting on a human.
+ *
+ * **`awaiting-review` is missing from this list on purpose, and that omission is
+ * the review gate.** `nextPending()` selects `list({ status: ACTIVE_OUTBOX_STATUSES })`,
+ * so a parked item is never handed to the relay, and the next capture drains past
+ * it. Add `awaiting-review` here and the relay will pick a parked item up,
+ * `nextStep()` will see `extracted` present and return `"write"`, and un-reviewed
+ * model output goes to the host tool. `schema.test.ts` pins this, and
+ * `relay.browser.test.ts` proves the behaviour end to end.
+ */
 export const ACTIVE_OUTBOX_STATUSES = [
   "queued",
   "transcribing",
@@ -60,7 +74,11 @@ export const ACTIVE_OUTBOX_STATUSES = [
 ] as const satisfies readonly OutboxStatus[];
 
 /** Statuses no further work will ever be done for. */
-export const FINISHED_OUTBOX_STATUSES = ["done", "dead"] as const satisfies readonly OutboxStatus[];
+export const FINISHED_OUTBOX_STATUSES = [
+  "done",
+  "dead",
+  "discarded",
+] as const satisfies readonly OutboxStatus[];
 
 /**
  * The persisted shape of one outbox document — exactly the fields that live in
@@ -112,6 +130,12 @@ export const outboxDocumentSchema = z.strictObject({
   extracted: z.record(z.string(), z.unknown()).optional(),
   /** Step output — whatever the tool adapter returned from the write. */
   writeResult: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * What the human decided. Present once review has been submitted; absent means
+   * this item has not been reviewed, which `relay.ts` treats as a hard error at
+   * write time rather than a default-accept.
+   */
+  reviewOutcome: reviewOutcomeSchema.optional(),
 });
 
 /** Inferred from {@link outboxDocumentSchema} — never hand-declared alongside it. */
@@ -198,7 +222,7 @@ export type OutboxPatch = Partial<
  * claiming to persist something it does not.
  */
 export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
-  version: 0,
+  version: 1,
   primaryKey: "id",
   type: "object",
   properties: {
@@ -217,6 +241,7 @@ export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
     transcript: { type: "object" },
     extracted: { type: "object" },
     writeResult: { type: "object" },
+    reviewOutcome: { type: "object" },
   },
   required: [
     "id",

@@ -1,10 +1,21 @@
+import { addRxPlugin, createRxDatabase } from "rxdb";
+import type { RxCollection, RxDatabase, RxJsonSchema } from "rxdb";
+import { RxDBAttachmentsPlugin } from "rxdb/plugins/attachments";
+import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 import { firstValueFrom } from "rxjs";
 import { afterEach, expect, test, vi } from "vitest";
 
 import type { Recording } from "../recording.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 import { removeOutboxDatabase } from "./database.js";
-import { ACTIVE_OUTBOX_STATUSES, FINISHED_OUTBOX_STATUSES, type OutboxItem } from "./schema.js";
+import {
+  ACTIVE_OUTBOX_STATUSES,
+  FINISHED_OUTBOX_STATUSES,
+  OUTBOX_COLLECTION_NAME,
+  outboxRxSchema,
+  type OutboxDocument,
+  type OutboxItem,
+} from "./schema.js";
 
 // Browser-mode, not jsdom, and that is the entire point of this file.
 // `fake-indexeddb` (what jsdom tests would reach for) is an in-memory shim: a
@@ -66,8 +77,11 @@ function audioBlob(): Blob {
 // durability test below for why nothing weaker is enough.
 // ---------------------------------------------------------------------------
 
-function idbDatabaseName(outboxName: string): string {
-  return `rxdb-dexie-${outboxName}--0--outbox`;
+function idbDatabaseName(outboxName: string, schemaVersion = outboxRxSchema.version): string {
+  // The `--N--` segment is RxDB's schema version. Read it from the schema rather
+  // than hardcoding it, so a version bump does not send this test looking in a
+  // database that was never created.
+  return `rxdb-dexie-${outboxName}--${String(schemaVersion)}--outbox`;
 }
 
 function promisify<T>(request: IDBRequest<T>): Promise<T> {
@@ -184,6 +198,124 @@ test("step outputs written before a close are readable after a reopen", async ()
     idempotencyKey: enqueued.idempotencyKey,
     seq: enqueued.seq,
   });
+});
+
+// ---------------------------------------------------------------------------
+// The v0 → v1 schema migration.
+//
+// A reopen does not test this: `openOutbox` can only ever create a v1 store, so
+// two opens against the same name both see version 1, nothing migrates, and the
+// test would pass whether or not the migration plugin and strategy exist at all
+// — the exact "passes while production is broken" shape this file's own header
+// warns about for the durability test above.
+//
+// A genuine test needs a database whose *stored* version is 0. The task brief
+// for this change suggested faking that by writing a raw row into the physical
+// `rxdb-dexie-<name>--0--outbox` IndexedDB database, the same way `readRawStore`
+// above reads one. That was tried and rejected: RxDB decides whether a
+// collection needs migrating from a bookkeeping document in its own *internal*
+// store (one per `<collection>-<version>`, holding that version's schema), not
+// from the presence of rows in the versioned physical database. A hand-written
+// `docs` row with no matching internal meta document is invisible to
+// `mustMigrate()` — RxDB just creates a fresh v1 collection and never looks at
+// the row, so the test would report a pass while testing nothing, which is a
+// worse failure mode than the reopen it was meant to replace.
+//
+// So the v0 store here is seeded through RxDB's own public API instead: a real
+// collection, created at `version: 0` with the schema this file *used* to have
+// before this change, populates that internal bookkeeping for real. Opening a
+// v1 database over the same name then runs the actual migration path, not an
+// imitation of it.
+// ---------------------------------------------------------------------------
+
+/** The outbox's RxDB schema exactly as it was before this task's version bump. */
+const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<Omit<OutboxDocument, "reviewOutcome">> = {
+  version: 0,
+  primaryKey: "id",
+  type: "object",
+  properties: {
+    id: { type: "string", maxLength: 64 },
+    seq: { type: "number", minimum: 0, maximum: 1_000_000_000, multipleOf: 1 },
+    status: { type: "string", maxLength: 16 },
+    idempotencyKey: { type: "string", maxLength: 64 },
+    attempts: { type: "integer", minimum: 0 },
+    nextAttemptAt: { type: "string", maxLength: 32 },
+    enqueuedAt: { type: "string", maxLength: 32 },
+    lastError: { type: "string" },
+    recording: { type: "object" },
+    transcript: { type: "object" },
+    extracted: { type: "object" },
+    writeResult: { type: "object" },
+  },
+  required: [
+    "id",
+    "seq",
+    "status",
+    "idempotencyKey",
+    "attempts",
+    "nextAttemptAt",
+    "enqueuedAt",
+    "recording",
+  ],
+  indexes: ["seq"],
+  attachments: {},
+};
+
+/** The v0 document shape: everything the current schema has, minus `reviewOutcome`. */
+function v0Document(): Omit<OutboxDocument, "reviewOutcome"> {
+  return {
+    id: "a",
+    seq: 0,
+    status: "queued",
+    idempotencyKey: "k",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: {
+      id: "r",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      durationMs: 1,
+      mimeType: "audio/webm",
+      ctx: {},
+    },
+  };
+}
+
+/**
+ * Builds a real outbox collection at schema version 0 and writes one document
+ * into it, through RxDB's own API rather than raw IndexedDB — see the note
+ * above for why that is the part that makes this a genuine migration fixture.
+ */
+async function seedVersionZeroOutbox(
+  name: string,
+  document: Omit<OutboxDocument, "reviewOutcome">,
+): Promise<void> {
+  addRxPlugin(RxDBAttachmentsPlugin);
+  const database: RxDatabase<{ outbox: RxCollection<Omit<OutboxDocument, "reviewOutcome">> }> =
+    await createRxDatabase({
+      name,
+      storage: getRxStorageDexie(),
+      multiInstance: true,
+      eventReduce: true,
+      cleanupPolicy: {},
+    });
+  await database.addCollections({
+    [OUTBOX_COLLECTION_NAME]: { schema: OUTBOX_RX_SCHEMA_V0 },
+  });
+  await database.collections.outbox.insert(document);
+  await database.close();
+}
+
+test("an outbox stored at schema version 0 opens and migrates to version 1", async () => {
+  const name = uniqueName();
+  await seedVersionZeroOutbox(name, v0Document());
+
+  const outbox = await open(name);
+  const items = await outbox.list({});
+
+  expect(items).toHaveLength(1);
+  expect(items[0]?.reviewOutcome).toBeUndefined();
+  expect(items[0]?.status).toBe("queued");
 });
 
 // ---------------------------------------------------------------------------

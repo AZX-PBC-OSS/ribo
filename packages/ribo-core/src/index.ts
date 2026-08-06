@@ -123,11 +123,12 @@ export { summarizeWork, workSafety } from "./work-safety.js";
 export type { StoragePersistence, WorkOnDevice, WorkSafety } from "./work-safety.js";
 
 // Human review, field by field.
-export { buildReviewRequest, resolveReview } from "./review.js";
+export { buildReviewRequest, resolveReview, reviewOutcomeSchema } from "./review.js";
 export type {
   ExtractedFields,
   FieldDecision,
   FieldDecisions,
+  PersistedReviewOutcome,
   ReviewedValues,
   ReviewField,
   ReviewFields,

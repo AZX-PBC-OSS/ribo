@@ -53,6 +53,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "recordingSchema",
     "removeOutboxDatabase",
     "resolveReview",
+    "reviewOutcomeSchema",
     "summarizeWork",
     "toExtractStep",
     "transcriptSchema",

@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { isSpanGrounded } from "./provenance.js";
 import type { Extracted } from "./provenance.js";
 import type { Transcript } from "./transcript.js";
@@ -236,3 +238,36 @@ export const resolveReview = <F extends Record<string, unknown>>(
     rejectedFields,
   };
 };
+
+/**
+ * The **persisted** mirror of {@link ReviewOutcome} — loose, because the outbox
+ * document schema cannot be generic in `F`.
+ *
+ * Same reasoning as `extracted` in `queue/schema.ts`: one document schema
+ * describes every host tool's field set, so the typed `ReviewOutcome<F>` lives at
+ * the hook boundary and erases to this on the way to disk. `queue/schema.ts`
+ * imports it from here rather than redeclaring it, so the concept has one owner.
+ *
+ * Strict objects on each branch: an `edited` outcome that lost `editedFields` is
+ * indistinguishable from `accepted`, and silently under-reporting review effort is
+ * exactly the failure `resolveReview`'s doc comment refuses.
+ */
+export const reviewOutcomeSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("accepted"),
+    fields: z.record(z.string(), z.unknown()),
+  }),
+  z.strictObject({
+    status: z.literal("edited"),
+    fields: z.record(z.string(), z.unknown()),
+    editedFields: z.array(z.string()),
+    rejectedFields: z.array(z.string()),
+  }),
+  z.strictObject({
+    status: z.literal("discarded"),
+    reason: z.string().optional(),
+  }),
+]);
+
+/** The persisted, field-set-agnostic outcome. `ReviewOutcome<F>` is the typed form. */
+export type PersistedReviewOutcome = z.infer<typeof reviewOutcomeSchema>;
