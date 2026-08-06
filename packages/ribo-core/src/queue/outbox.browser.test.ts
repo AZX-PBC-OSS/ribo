@@ -584,6 +584,45 @@ test("a discarded review is terminal and drops the audio", async () => {
   expect(updated.reviewOutcome).toEqual({ status: "discarded", reason: "misspoke" });
 });
 
+test("a discard commits the status BEFORE it drops the audio", async () => {
+  // The end-state test above passes whichever order the two writes happen in, so on
+  // its own it guards nothing: the ordering is the thing at risk, because dropping
+  // first would remove the need for `submitReview`'s post-drop re-read and therefore
+  // reads like a tidy-up waiting to happen.
+  //
+  // It is not a tidy-up. A crash between the two steps in the reverse order leaves
+  // an `awaiting-review` row whose recording is already gone — it looks reviewable,
+  // the audio is unrecoverable, and nothing on the row says why. Committing the
+  // status first makes the worst case a `discarded` row that still holds its bytes,
+  // which is merely untidy.
+  //
+  // `items$` re-emits across an attachment change (that is what `hasAudio` is for,
+  // proven in its own test above), so the emission sequence is the observable form
+  // of the ordering.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  const seen: [string, boolean][] = [];
+  const subscription = outbox.items$.subscribe((items) => {
+    const row = items.find((entry) => entry.id === item.id);
+    if (row) seen.push([row.status, row.hasAudio]);
+  });
+
+  try {
+    await outbox.submitReview(item.id, { status: "discarded", reason: "misspoke" });
+    await vi.waitFor(() => expect(seen.at(-1)).toEqual(["discarded", false]));
+  } finally {
+    subscription.unsubscribe();
+  }
+
+  // The row was observably `discarded` while the audio was still there...
+  expect(seen).toContainEqual(["discarded", true]);
+  // ...and never `awaiting-review` with the audio already gone, which is exactly
+  // what the reverse order would publish.
+  expect(seen).not.toContainEqual(["awaiting-review", false]);
+});
+
 test("an edited review that rejected every field still goes to writing", async () => {
   // resolveReview's rule: rejecting every field is a statement about the
   // extraction, not the recording, so it must not be collapsed into a discard —
@@ -662,6 +701,31 @@ test("a review cannot be submitted for an item that was never parked", async () 
     /queued/,
   );
 });
+
+// The scenario the guard exists for, stated as itself. `submitReview`'s doc comment
+// names a stale tab submitting a review for an item that has since reached `done` —
+// which would patch a completed row back to `writing` and cause a second write to a
+// customer's audit — and the tests above only ever reach it via `queued` or via a
+// row this method itself moved on. Every finished status, driven from the constant,
+// so a status added to it is covered without anyone remembering to come back here.
+test.each([...FINISHED_OUTBOX_STATUSES])(
+  "a review cannot be submitted for a %s item",
+  async (status) => {
+    const outbox = await open(uniqueName());
+    const item = await outbox.enqueue({ recording, audio: audioBlob() });
+    await outbox.patch(item.id, { status });
+
+    await expect(
+      outbox.submitReview(item.id, { status: "accepted", fields: { atticRValue: 19 } }),
+    ).rejects.toThrow(new RegExp(`"${status}"`));
+
+    // Nothing moved. The row is the most important part: a finished item taken back
+    // to `writing` is the double-write this guard is here to prevent.
+    const settled = await outbox.get(item.id);
+    expect(settled?.status).toBe(status);
+    expect(settled?.reviewOutcome).toBeUndefined();
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Filtered reads

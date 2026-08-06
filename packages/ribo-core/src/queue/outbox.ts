@@ -253,14 +253,29 @@ export class Outbox {
    *
    * Applied through `incrementalModify`, which RxDB re-runs against the **current**
    * revision on write conflict, so the status check and the mutation cannot be
-   * split by another writer. (Verified in rxdb 17.4.0's `incremental-write.ts`: on a
-   * 409 the queue item is re-queued with `lastKnownDocumentState` replaced by the
-   * conflict's `documentInDb`, and the modifier runs again over that. Two writes
-   * batched from the *same* instance are likewise chained modifier-over-modifier,
-   * so the second sees the first's output.) `patch()` is not usable here: it reads
-   * with `findOne`, validates, then writes, and (contrary to what one might assume
-   * from `enqueue`) it does **not** go through this class's `#serialized` chain —
-   * that chain guards only the sequence-number allocation in `enqueue`.
+   * split by another writer. Verified in rxdb 17.4.0's `incremental-write.ts`: on a
+   * 409 the queue item is put back on the queue with `lastKnownDocumentState`
+   * replaced by the conflict's `documentInDb`, and the modifier runs again over
+   * that. `patch()` is not usable here: it reads with `findOne`, validates, then
+   * writes, and (contrary to what one might assume from `enqueue`) it does **not**
+   * go through this class's `#serialized` chain — that chain guards only the
+   * sequence-number allocation in `enqueue`.
+   *
+   * The genuinely-concurrent case is covered in `outbox.browser.test.ts` and it
+   * really does traverse that retry, not a cheaper path: `addWrite` calls
+   * `triggerRun()` synchronously inside its promise executor, and `triggerRun`
+   * takes the pending-write map over synchronously before its first `await`, so a
+   * second submission always lands in a *fresh* batch carrying a
+   * `lastKnownDocumentState` captured before the first write committed. The two
+   * cannot be folded into one batch and chained modifier-over-modifier.
+   *
+   * The cross-*tab* case is the one this guard exists for and the one no test
+   * drives. It is testable — RxDB's `ignoreDuplicate: true` opens two instances
+   * over one database name, which is how RxDB tests its own multi-instance
+   * behaviour — but it requires `addRxPlugin(RxDBDevModePlugin)` first or it throws
+   * DB9, and that plugin is a process-global side effect the rest of this
+   * package's tests would then run under. Judged not worth it while the
+   * single-instance 409 exercises the same retry.
    *
    * - `accepted` / `edited` → `writing`, with `attempts` reset so the write gets a
    *   clean backoff budget. The relay picks the item up on its next drain and
@@ -283,6 +298,16 @@ export class Outbox {
    * @throws if the item does not exist, or is not `awaiting-review`. A duplicate
    * submission — two clicks, or two tabs — therefore fails loudly on the second
    * rather than silently rewriting a row that has moved on.
+   *
+   * **A rejection does not always mean nothing happened.** Every rejection before
+   * the `incrementalModify` resolves leaves the row untouched, but a `discarded`
+   * submission whose `dropAudio` then fails rejects with the status *already
+   * committed* and the audio still on the device. A caller holding a review screen
+   * open must not read a rejection as "still awaiting review": re-submitting will
+   * fail with `is "discarded"`, because the review did land. The failure is
+   * surfaced rather than swallowed on purpose — silently failing to destroy a
+   * recording of someone's home is the worse outcome of the two, and the retry is
+   * `dropAudio(id)` on its own.
    */
   async submitReview(id: string, outcome: PersistedReviewOutcome): Promise<OutboxItem> {
     const parsed = reviewOutcomeSchema.parse(outcome);
@@ -324,7 +349,12 @@ export class Outbox {
     // facts about the attachment store, and that handle was projected before the
     // drop. A discard removes the attachment, never the row, so it is still there.
     const settled = await this.#collection.findOne(id).exec();
-    return this.#toItem(settled!);
+    // Not reachable through this method — and asserted rather than `!`-ed for the
+    // same reason the re-read exists at all: the point is to stop depending on what
+    // RxDB happens to do, and an opaque `TypeError` from inside `#toItem` is a poor
+    // way to learn it changed.
+    if (!settled) throw new Error(`outbox: item "${id}" vanished while its review was recorded`);
+    return this.#toItem(settled);
   }
 
   /** The captured audio, or `undefined` once it has been dropped. */
@@ -443,6 +473,19 @@ export class Outbox {
  * Keyed off the schema's own `shape` rather than a hand-written list of metadata
  * names: a field added to the schema is then included automatically, and a
  * metadata field a future RxDB adds cannot leak in and defeat the strict parse.
+ *
+ * **It does weaken the parse in one direction, and that is the trade.**
+ * `outboxDocumentSchema` is a trust boundary in *both* directions
+ * (`schema.ts`: documents may have been written by an older build or another tab),
+ * and a `strictObject` normally makes an unrecognized *persisted* key a hard
+ * failure. Projecting first turns that into a silent omission: the stray key is
+ * left out of the parse and still rides out on the returned document, so it
+ * survives the write unexamined. `patch()` does not have this hole — it parses the
+ * whole projection. The alternative was naming RxDB's four metadata keys here
+ * instead, which fails the other way round: the day RxDB adds a fifth, every
+ * `submitReview` starts throwing `unrecognized_keys` on a healthy document. A
+ * strange persisted field passing through is recoverable; a method that cannot
+ * write at all is not.
  */
 function persistedFieldsOf(data: Record<string, unknown>): Record<string, unknown> {
   const fields: Record<string, unknown> = {};

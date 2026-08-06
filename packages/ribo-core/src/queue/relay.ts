@@ -336,15 +336,30 @@ class QueueRelay implements Relay {
       // discard and destroying audio nobody asked to throw away. So the refusal
       // belongs here, at the one place that decides what may reach the host tool.
       //
-      // Refused rather than left to `ToolAdapter.schema.parse`: `write` is
-      // host-supplied, this package never sees the adapter, and "a real schema
-      // would reject an empty field set" is a guarantee enforced nowhere. A human
-      // who means "there is nothing to record here" edits the field to `null`,
-      // which keeps the key (`review.ts` draws exactly that distinction);
-      // rejecting every field means write nothing, and there is no such thing as
-      // writing nothing to a customer's audit.
+      // Refused rather than left to `ToolAdapter.schema.parse`: the relay is never
+      // handed an adapter — `RelayOptions` has no field for one, and `write` is a
+      // bare host-supplied function — so "a real schema would reject an empty field
+      // set" is a guarantee nothing on this path enforces. A human who means "there
+      // is nothing to record here" edits the field to `null`, which keeps the key
+      // (`review.ts` draws exactly that distinction); rejecting every field means
+      // write nothing, and there is no such thing as writing nothing to a
+      // customer's audit.
+      //
+      // The cause is branched because both branches are reachable and they are
+      // different events: an `accepted` outcome with no fields is `resolveReview`
+      // answering a request that had no fields at all — an extraction that found
+      // nothing — and blaming a reviewer for rejecting fields they were never shown
+      // would send an operator looking in the wrong place.
+      const cause =
+        outcome.status === "edited"
+          ? "the review rejected every field"
+          : "the extraction produced no fields to review";
+      // The remedy names what the API can actually do. `submitReview` is not a
+      // route back: it accepts only `awaiting-review`, and this item is about to be
+      // `dead`, so re-parking is a deliberate `patch` (see `Outbox.patch`) and
+      // nothing else.
       throw new TerminalQueueError(
-        `outbox item ${item.id} was reviewed with no fields left to write — every field was rejected. An empty field set is not written; re-review the item, or discard it if the recording itself is not worth keeping.`,
+        `outbox item ${item.id} reached the write step with nothing to write — ${cause}. An empty field set is never written. To try again, re-park the item with Outbox.patch(id, { status: "awaiting-review" }) and review it afresh; to abandon it, Outbox.remove(id).`,
       );
     }
 

@@ -464,6 +464,27 @@ test("an item reviewed with every field rejected is never written", async () => 
   });
 });
 
+test("an accepted review of an extraction that found nothing says so, not that fields were rejected", async () => {
+  // The other way `#write` can be handed an empty field set, and a different event:
+  // `resolveReview` returns `accepted` with no fields when the *request* had none,
+  // i.e. the extractor found nothing at all. Both end `dead`, but an operator
+  // reading "the review rejected every field" off this row would go looking for a
+  // reviewer who never saw a field to reject.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = buildRelay(outbox, { extract: async () => ({}) });
+  const item = await outbox.enqueue({ recording, audio: audio() });
+  await drainToReview(harness.relay);
+
+  await outbox.submitReview(item.id, { status: "accepted", fields: {} });
+  await harness.relay.syncNow();
+
+  expect(harness.writeCalls).toHaveLength(0);
+  const dead = await outbox.get(item.id);
+  expect(dead?.status).toBe("dead");
+  expect(dead?.lastError).toMatch(/extraction produced no fields/i);
+  expect(dead?.lastError).not.toMatch(/rejected/i);
+});
+
 test("an item that reaches writing with no review outcome fails terminally", async () => {
   // Defence in depth for the one invariant whose violation is invisible: reaching
   // a write unreviewed is a state-machine bug, so it must not silently write.
