@@ -17,8 +17,8 @@ export type { Extracted } from "./provenance.js";
 
 // Deriving the extraction schema from a writable patch schema — every leaf
 // enveloped, nested objects recursed rather than swallowed whole, closed and
-// fully required throughout. Additive: nothing consumes this yet (R1.5 Task 3
-// switches `ToolAdapter` to use it).
+// fully required throughout. `ToolAdapter.extractionSchema` is declared against
+// `Enveloped<V>` and built with `enveloped(schema)`.
 export { enveloped } from "./enveloped.js";
 export type { Enveloped } from "./enveloped.js";
 
@@ -109,8 +109,10 @@ export type {
 // and this line says only that all of them are public.
 export * from "./queue/index.js";
 
-// Write-back: the only tool-specific surface, with a typed host context.
-export type { ToolAdapter, ToolAdapterExample } from "./adapter.js";
+// Write-back: the only tool-specific surface, with a typed host context, both
+// field shapes (the writable patch and the derived extraction schema) and the
+// per-attempt write metadata that carries the idempotency key.
+export type { ToolAdapter, ToolAdapterExample, WriteMetadata } from "./adapter.js";
 
 // Extraction: the pluggable seam a transcript becomes structured fields through,
 // the function that collapses any extractor onto the relay's injected step, and

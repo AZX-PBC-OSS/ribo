@@ -1,15 +1,42 @@
 /**
- * Extraction schema for the Snugg Pro energy-audit capture model — the *bounded*
- * pilot field set, built against the REAL Snugg Pro data model documented in
+ * The Snugg Pro energy-audit capture field set — the *bounded* pilot fields,
+ * built against the REAL Snugg Pro data model documented in
  * docs/implementation/12-snuggpro-data-model.md.
+ *
+ * TWO SHAPES LIVE HERE, and telling them apart is the whole point of this file
+ * (design `r1.5-field-shape-contracts-design.md` §2.1–§2.3):
+ *
+ *   - `snuggValuesSchema` — the WRITABLE PATCH. What a review produces and what
+ *     `write` sends to Snugg Pro. Hand-written, and the source of truth: every
+ *     other shape here is derived from it. Every leaf is
+ *     `X.nullable().optional()`, and both halves are load-bearing —
+ *       * `.nullable()` because a `null` is a real, WRITTEN value: Snugg Pro's
+ *         `Not Tested` state (see `HealthTestState` below). "Write this field
+ *         as empty" is a different instruction from "leave this field alone".
+ *       * `.optional()` because a REJECTED field must be absent from the patch
+ *         entirely. `resolveReview` omits a rejected leaf, and a patch is what
+ *         makes that well-defined: rejecting one leaf of 34 must still write
+ *         the other 33, not fail the whole write.
+ *
+ *   - `snuggExtractionSchema` — what the MODEL is asked to produce. NOT
+ *     hand-written: `enveloped()` derives it from the patch, stripping the
+ *     `.optional()`/`.nullable()` that make the patch a patch and wrapping each
+ *     leaf in `ribo-core`'s provenance envelope. The result is closed and fully
+ *     required at every level, because `provenance.ts`'s anti-hallucination rule
+ *     needs the model to emit an explicit `null` rather than omit a key.
+ *
+ * The two therefore differ in optionality BY CONSTRUCTION, and that is the
+ * design rather than a leak. The derivation is pinned byte-for-byte by
+ * `extraction-shape.test.ts` against a frozen JSON Schema fixture: the split
+ * changed the types, not what is sent to the model.
  *
  * This is the production port of `spikes/extraction-snuggpro/schema.ts`, kept
  * structurally FAITHFUL to that spike on purpose: the spike's committed corpus +
  * ground-truth are the regression gate the extractor (Phase 4 Task 3) is judged
  * against, so any structural drift here silently breaks that gate. The enum
- * members, the field set, the nested health matrix, and the `Extracted` envelope
- * are byte-faithful to the spike. See `schema.fidelity.test.ts` for the check
- * that the spike ground-truth still parses.
+ * members, the field set and the nested health matrix are byte-faithful to the
+ * spike; the envelope is now `ribo-core`'s `extractedSchema`, applied by
+ * `enveloped()`, rather than a local copy of it.
  *
  * The schema puts the four Snugg Pro hazards IN, on purpose:
  *
@@ -29,49 +56,38 @@
  *      lookup, not typed. So there is no `heatingAfue` slot. We capture what is
  *      actually captured: manufacturer, model #, model year, output capacity.
  *
- * Contract, restated from docs 03 + 05 so it travels with the file:
+ * Contract, restated from docs 03 + 05 so it travels with the file. Note which
+ * schema each rule is about — three of the four are properties of the DERIVED
+ * extraction schema, which is exactly why it is derived rather than typed out:
  *
- *   1. Every field is `nullable` + REQUIRED. Never `.optional()`. The model must
- *      explicitly emit `null` for "not mentioned" rather than silently omitting the
- *      key. The anti-hallucination rule enforced at the schema level.
- *   2. Every field is wrapped in a provenance envelope: `{ value, confidence,
- *      sourceSpan }`.
- *   3. Strict-structured-output compatible: no top-level `.optional()`, no unions
- *      of objects, no numeric/string constraint keywords (`minimum` / `maximum` /
- *      `pattern` are rejected by strict mode), all object shapes closed and all
- *      properties required. Nested objects (the health matrix) obey the same rules.
+ *   1. In the EXTRACTION schema every field is `nullable` + REQUIRED, never
+ *      `.optional()`. The model must explicitly emit `null` for "not mentioned"
+ *      rather than silently omitting the key — the anti-hallucination rule
+ *      enforced at the schema level. `enveloped()` is what guarantees it: the
+ *      patch's optionality is stripped, not carried through.
+ *   2. In the EXTRACTION schema every field is wrapped in a provenance envelope:
+ *      `{ value, confidence, sourceSpan }` — `ribo-core`'s `extractedSchema`,
+ *      which documents why `sourceSpan` is nullable independently of `value` and
+ *      why `confidence` is a bare `z.number()`. Both matter here concretely: an
+ *      auditor who says "no ducts, it's hydronic" or "I couldn't get to the
+ *      attic" produces a `null` value WITH a verbatim span, and a `.min()`/
+ *      `.max()` on `confidence` would emit the `minimum`/`maximum` keywords
+ *      strict structured-output mode rejects (clamped in `normalization.ts`).
+ *   3. The EXTRACTION schema is strict-structured-output compatible: no
+ *      `.optional()` anywhere, no unions of objects, no numeric/string constraint
+ *      keywords (`minimum` / `maximum` / `pattern` are rejected by strict mode),
+ *      all object shapes closed and all properties required. Nested objects (the
+ *      health matrix) obey the same rules. The PATCH is deliberately the opposite
+ *      — open and optional at every level — and never reaches the model.
  *   4. Extract what was SAID; normalize in code. The enums below are the Snugg
  *      target vocabulary the LLM maps ONTO — but unit coercion, spoken-number ->
  *      int, and band bucketing given a number are a deterministic TypeScript pass
  *      that runs after extraction (see `normalization.ts`).
  */
 
+import { enveloped } from "@azx/ribo-core";
+import type { Enveloped } from "@azx/ribo-core";
 import { z } from "zod";
-
-/**
- * Provenance envelope. `sourceSpan` must be a VERBATIM substring of the transcript
- * — it is what the review card shows the auditor as justification.
- *
- * `sourceSpan` is nullable independently of `value`: a field can legitimately have
- * `value: null` with a non-null `sourceSpan` when the auditor explicitly declined
- * to state it, or explicitly reported that something was not done or does not exist
- * ("no ducts, it's hydronic", "I couldn't get to the attic").
- *
- * `confidence` is a bare `z.number()` on purpose. 0..1 is the intent, but `.min()`
- * / `.max()` emit JSON Schema `minimum` / `maximum`, which strict structured-output
- * mode does not accept. Range-clamp in normalization (see `clampConfidence`).
- */
-const Extracted = <T extends z.ZodTypeAny>(value: T) =>
-  z
-    .object({
-      /** null = not stated in the transcript. Never a guess, never an inference. */
-      value: value.nullable(),
-      /** 0..1. Drives review-card flagging. Clamped during normalization. */
-      confidence: z.number(),
-      /** Verbatim transcript quote justifying `value`, or null. */
-      sourceSpan: z.string().nullable(),
-    })
-    .strict();
 
 // --- Enumerations -----------------------------------------------------------
 // Values are the Snugg Pro field-sheet vocabulary from doc 12, snake_cased. They
@@ -232,87 +248,98 @@ export const CombustionVentType = z.enum([
  *   not_tested  — the auditor explicitly said the test was skipped / deferred /
  *                 could not be done.
  *
- * A test the auditor NEVER MENTIONS is `value: null` (the envelope's "absent"),
- * NOT `not_tested`. Distinguishing "explicitly skipped" from "never came up" is
+ * A test the auditor NEVER MENTIONS is `null` (the envelope's "absent"), NOT
+ * `not_tested`. Distinguishing "explicitly skipped" from "never came up" is
  * information the review card wants; the deterministic write layer renders BOTH as
  * Snugg's `Not Tested` state (Snugg has no null), but the extraction keeps them
- * apart. See normalization.ts for why this split is a hypothesis the corpus tests.
+ * apart. This is why the patch leaf is `.nullable()` and not merely `.optional()`:
+ * a `null` here is an instruction to WRITE `Not Tested`, while an absent key means
+ * "the reviewer rejected this — do not touch it in Snugg Pro at all". See
+ * normalization.ts for why the passed/not_tested split is a hypothesis the corpus
+ * tests.
  */
 export const HealthTestState = z.enum(["passed", "failed", "warning", "not_tested"]);
 
 /**
- * The 11 named tests, verbatim set from doc 12 §4 / row 24. Each is its own
- * provenance envelope so the review card can show the auditor the exact quote that
- * set the state — "CO was clean" is the span behind `ambientCo: passed`.
+ * The 11 named tests, verbatim set from doc 12 §4 / row 24 — the PATCH shape: a
+ * plain 4-state value per test, each `.nullable().optional()` like every other
+ * leaf.
  *
- * Closed object, every key required, per strict mode. This is one nested field on
- * the top-level schema, not eleven top-level fields.
+ * It is one nested object on the field set, not eleven top-level fields, and
+ * `enveloped()` RECURSES into it rather than wrapping it whole — so the derived
+ * extraction schema carries eleven independent provenance envelopes, one per test,
+ * and the review card can show the auditor the exact quote that set each state
+ * ("CO was clean" is the span behind `ambientCo: passed`). One envelope over the
+ * whole matrix would make the eleven tests un-reviewable individually, which is
+ * the point of field-level review.
  */
 export const HealthSafetyMatrix = z
   .object({
-    ambientCo: Extracted(HealthTestState),
-    venting: Extracted(HealthTestState),
-    naturalConditionSpillage: Extracted(HealthTestState),
-    worstCaseDepressurization: Extracted(HealthTestState),
-    worstCaseSpillage: Extracted(HealthTestState),
-    draftPressure: Extracted(HealthTestState),
-    gasLeak: Extracted(HealthTestState),
-    moldMoisture: Extracted(HealthTestState),
-    asbestos: Extracted(HealthTestState),
-    lead: Extracted(HealthTestState),
-    electrical: Extracted(HealthTestState),
+    ambientCo: HealthTestState.nullable().optional(),
+    venting: HealthTestState.nullable().optional(),
+    naturalConditionSpillage: HealthTestState.nullable().optional(),
+    worstCaseDepressurization: HealthTestState.nullable().optional(),
+    worstCaseSpillage: HealthTestState.nullable().optional(),
+    draftPressure: HealthTestState.nullable().optional(),
+    gasLeak: HealthTestState.nullable().optional(),
+    moldMoisture: HealthTestState.nullable().optional(),
+    asbestos: HealthTestState.nullable().optional(),
+    lead: HealthTestState.nullable().optional(),
+    electrical: HealthTestState.nullable().optional(),
   })
   .strict();
 
-// --- The bounded field set --------------------------------------------------
+// --- The bounded field set, as a writable patch -----------------------------
 // 23 scalar/enum top-level fields + the health matrix (11 named test states).
+// Every leaf is `X.nullable().optional()` and every object is `.strict()`; see
+// the file header for why both halves of that are load-bearing.
 
-export const SnuggFieldsSchema = z
+export const snuggValuesSchema = z
   .object({
     // --- Heating (HAZARD 1: fuel split onto its own axis) --------------------
     /** The EQUIPMENT axis only. "Oil boiler" -> `boiler`. Fuel goes in `heatingFuel`. */
-    heatingEquipmentType: Extracted(HeatingEquipmentType),
+    heatingEquipmentType: HeatingEquipmentType.nullable().optional(),
 
     /**
      * The FUEL axis, independent of equipment. "Oil boiler" -> `fuel_oil`; "gas
      * pack" -> `natural_gas` (+ equipment `furnace_central_ac`). Never fold this
      * into the equipment name.
      */
-    heatingFuel: Extracted(HeatingFuel),
+    heatingFuel: HeatingFuel.nullable().optional(),
 
     // --- Heating efficiency inputs (HAZARD 4: capture make/model/BTU, NOT AFUE) -
     /** Heating unit manufacturer as stated, e.g. "Carrier", "Weil-McLain". */
-    heatingManufacturer: Extracted(z.string()),
+    heatingManufacturer: z.string().nullable().optional(),
 
     /** Heating unit model number / model name as stated. */
-    heatingModelNumber: Extracted(z.string()),
+    heatingModelNumber: z.string().nullable().optional(),
 
     /** Heating unit model YEAR (the unit's year), e.g. 2011. Not the home's age. */
-    heatingModelYear: Extracted(z.number()),
+    heatingModelYear: z.number().nullable().optional(),
 
     /**
      * Rated heating output capacity in BTU/h, e.g. "eighty thousand BTU" -> 80000.
      * This is a real capture field; AFUE is NOT — do not record a spoken efficiency
      * ("ninety-two percent furnace") anywhere. There is deliberately no AFUE slot.
      */
-    heatingOutputCapacityBtuh: Extracted(z.number()),
+    heatingOutputCapacityBtuh: z.number().nullable().optional(),
 
     // --- Cooling -------------------------------------------------------------
     /** Cooling equipment type. A heat pump used for both is `central_heat_pump`. */
-    coolingEquipmentType: Extracted(CoolingEquipmentType),
+    coolingEquipmentType: CoolingEquipmentType.nullable().optional(),
 
     // --- Ductwork ------------------------------------------------------------
     /** Where the ducts run. */
-    ductLocation: Extracted(DuctLocation),
+    ductLocation: DuctLocation.nullable().optional(),
 
     /** Qualitative duct tightness. "Pretty leaky" -> `very_leaky` / `somewhat_leaky`. */
-    ductSealing: Extracted(DuctSealing),
+    ductSealing: DuctSealing.nullable().optional(),
 
     /** Duct insulation, the Snugg material/thickness member. */
-    ductInsulation: Extracted(DuctInsulation),
+    ductInsulation: DuctInsulation.nullable().optional(),
 
     /** Duct leakage in CFM at 25 Pa (duct blaster). Not blower-door CFM50. */
-    ductLeakageCfm25: Extracted(z.number()),
+    ductLeakageCfm25: z.number().nullable().optional(),
 
     // --- Attic (HAZARD 2: depth band + material, NOT R-value) ----------------
     /**
@@ -322,10 +349,10 @@ export const SnuggFieldsSchema = z
      * `atticInsulationSpokenRValue` — the R->depth conversion is a reviewed
      * deterministic step, not an LLM guess. See prompt.md.
      */
-    atticInsulationDepthIn: Extracted(AtticInsulationDepthBand),
+    atticInsulationDepthIn: AtticInsulationDepthBand.nullable().optional(),
 
     /** Attic insulation material. */
-    atticInsulationType: Extracted(AtticInsulationType),
+    atticInsulationType: AtticInsulationType.nullable().optional(),
 
     /**
      * The spoken R-value, verbatim as a number, when the auditor gives one for the
@@ -333,54 +360,85 @@ export const SnuggFieldsSchema = z
      * so a real utterance is not lost while `atticInsulationDepthIn` stays honest.
      * The deterministic pass (or the auditor) resolves it into a depth band.
      */
-    atticInsulationSpokenRValue: Extracted(z.number()),
+    atticInsulationSpokenRValue: z.number().nullable().optional(),
 
     // --- Walls ---------------------------------------------------------------
     /** 3-state, not boolean. "Thin / some but not much" -> `poorly`. */
-    wallInsulated: Extracted(WallInsulated),
+    wallInsulated: WallInsulated.nullable().optional(),
 
     /** Wall construction type. */
-    wallConstruction: Extracted(WallConstruction),
+    wallConstruction: WallConstruction.nullable().optional(),
 
     // --- Air leakage ---------------------------------------------------------
     /**
      * Blower-door result in CFM at 50 Pa. Do NOT derive from ACH50, and do NOT put
      * an ACH50 or CFM25 reading here — those are different references.
      */
-    blowerDoorCfm50: Extracted(z.number()),
+    blowerDoorCfm50: z.number().nullable().optional(),
 
     // --- Windows -------------------------------------------------------------
     /** Predominant glazing. Snugg has no triple-pane box; a triple is `other`. */
-    windowGlazing: Extracted(WindowGlazing),
+    windowGlazing: WindowGlazing.nullable().optional(),
 
     /** Window frame material. "Clad" -> `wood_or_metal_clad`. */
-    windowFrame: Extracted(WindowFrame),
+    windowFrame: WindowFrame.nullable().optional(),
 
     // --- Domestic hot water --------------------------------------------------
     /** DHW fuel — its own axis, same as heating. "Gas water heater" -> `natural_gas`. */
-    dhwFuel: Extracted(DhwFuel),
+    dhwFuel: DhwFuel.nullable().optional(),
 
     /** DHW system type. "Tankless" -> `instantaneous`; "indirect off the boiler" ->
      * `space_heating_boiler_with_tank`. */
-    dhwSystemType: Extracted(DhwSystemType),
+    dhwSystemType: DhwSystemType.nullable().optional(),
 
     /** DHW age BAND. "About twelve years" -> `11-15`. Banded, like the attic depth. */
-    dhwAgeBand: Extracted(DhwAgeBand),
+    dhwAgeBand: DhwAgeBand.nullable().optional(),
 
     // --- Combustion appliance zone ------------------------------------------
     /** Vent system type. "Power-vented water heater" -> `power_vented_at_unit`. */
-    combustionVentType: Extracted(CombustionVentType),
+    combustionVentType: CombustionVentType.nullable().optional(),
 
     // --- Health & safety (HAZARD 3: fixed 4-state matrix) --------------------
     /**
      * The 11-test matrix. Each named test is passed / failed / warning /
      * not_tested, or `null` when the test never came up. "CO was clean" sets
-     * `ambientCo.value = passed`; silence on asbestos is `asbestos.value = null`.
-     * This replaces the old single free-text `safetyIssue`, which could hold
-     * neither a matrix nor a clean result.
+     * `ambientCo = passed`; silence on asbestos is `asbestos = null`. This
+     * replaces the old single free-text `safetyIssue`, which could hold neither a
+     * matrix nor a clean result.
+     *
+     * `.optional()` on the object itself, like every other leaf: a review in which
+     * every health test was rejected writes no health matrix at all rather than an
+     * empty one.
      */
-    healthSafety: HealthSafetyMatrix,
+    healthSafety: HealthSafetyMatrix.optional(),
   })
   .strict();
 
-export type SnuggFields = z.infer<typeof SnuggFieldsSchema>;
+/**
+ * The writable patch: what a review produces and what `write` sends to Snugg Pro.
+ * Inferred from {@link snuggValuesSchema}, never hand-declared — zod is the source
+ * of truth. Every key is optional (absent = rejected, do not touch) and every
+ * value nullable (present `null` = write it empty).
+ */
+export type SnuggValues = z.infer<typeof snuggValuesSchema>;
+
+/**
+ * What the MODEL is asked to produce, derived from the patch — never hand-written.
+ * `enveloped()` strips the patch's `.optional()`/`.nullable()`, wraps each leaf in
+ * `ribo-core`'s provenance envelope, recurses into the health matrix rather than
+ * swallowing it into one envelope, and closes every object with every key
+ * required. See the file header, and `extraction-shape.test.ts` for the frozen
+ * JSON Schema this derivation must keep producing.
+ */
+export const snuggExtractionSchema = enveloped(snuggValuesSchema);
+
+/**
+ * The extraction shape as a type: every leaf of {@link SnuggValues} carried with
+ * its provenance. Expressed through `ribo-core`'s `Enveloped<V>` — the same type
+ * `ToolAdapter.extractionSchema` is declared against — rather than
+ * `z.infer<typeof snuggExtractionSchema>`, so the adapter, the extractor and this
+ * package all name the extraction shape identically. `enveloped.test.ts` pins the
+ * two as mutually assignable, so this cannot drift from what `enveloped()` really
+ * returns.
+ */
+export type SnuggExtraction = Enveloped<SnuggValues>;

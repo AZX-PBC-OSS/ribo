@@ -5,8 +5,8 @@ import {
   normalizeFields,
   yearsToDhwAgeBand,
 } from "./normalization.js";
-import { AtticInsulationDepthBand, DhwAgeBand, SnuggFieldsSchema } from "./schema.js";
-import type { SnuggFields } from "./schema.js";
+import { AtticInsulationDepthBand, DhwAgeBand, snuggExtractionSchema } from "./schema.js";
+import type { SnuggExtraction } from "./schema.js";
 
 describe("clampConfidence", () => {
   test("passes an in-range value through unchanged", () => {
@@ -94,8 +94,11 @@ describe("yearsToDhwAgeBand", () => {
 
 describe("normalizeFields", () => {
   // A minimal, all-null field set with a couple of out-of-range confidences.
+  // ENVELOPED, because that is what `normalizeFields` runs on: it sits between the
+  // model's response and review, and `confidence` — the only thing it touches —
+  // is an envelope field that exists nowhere in the writable patch.
   const envelope = (confidence: number) => ({ value: null, confidence, sourceSpan: null });
-  const base = (): SnuggFields =>
+  const base = (): SnuggExtraction =>
     ({
       heatingEquipmentType: { value: "boiler", confidence: 1.4, sourceSpan: "oil boiler" },
       heatingFuel: { value: "fuel_oil", confidence: -0.5, sourceSpan: "oil boiler" },
@@ -133,7 +136,7 @@ describe("normalizeFields", () => {
         lead: envelope(1),
         electrical: envelope(1),
       },
-    }) as SnuggFields;
+    }) as SnuggExtraction;
 
   test("clamps confidence on top-level and nested health-matrix envelopes", () => {
     const out = normalizeFields(base());
@@ -156,7 +159,11 @@ describe("normalizeFields", () => {
     expect(out).not.toBe(input);
   });
 
-  test("output still satisfies the schema", () => {
-    expect(() => SnuggFieldsSchema.parse(normalizeFields(base()))).not.toThrow();
+  test("output still satisfies the EXTRACTION schema", () => {
+    // The extraction schema and not the patch: normalization runs inside the
+    // extractor's trust boundary, so both its input and its output are the shape
+    // the model emits. A patch-shaped assertion here would not even type-check,
+    // which is the point — the pass has no values-shaped signature to have.
+    expect(() => snuggExtractionSchema.parse(normalizeFields(base()))).not.toThrow();
   });
 });

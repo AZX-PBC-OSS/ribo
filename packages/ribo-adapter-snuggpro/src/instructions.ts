@@ -187,7 +187,7 @@ member that is an approximate fit. For \`value: null\`, express your confidence 
 
 ### Output
 
-Return a **single JSON object** conforming exactly to \`SnuggFieldsSchema\` in \`schema.ts\`.
+Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` in \`schema.ts\`.
 
 - Every field in the schema must be present as a key. Never omit a key — "not mentioned" is expressed
   by \`value: null\`, not by absence. This includes every one of the 11 keys inside \`healthSafety\`.

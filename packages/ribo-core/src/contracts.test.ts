@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   buildReviewRequest,
+  enveloped,
   extractedSchema,
   FakeTranscriber,
   firstCapable,
@@ -64,6 +65,12 @@ interface Write {
 const makeAdapter = (sink: Write[]): ToolAdapter<AtticFields, JobContext> => ({
   name: "snuggpro-attic-insulation",
   schema: atticSchema,
+  // Derived, never declared beside the patch — `enveloped()` is the one supported
+  // way to build it, so the two shapes cannot drift.
+  extractionSchema: enveloped(atticSchema),
+  // The host's context as a SCHEMA: `recording.ctx` came back out of storage, so
+  // the destination of a write is parsed, not merely typed.
+  ctxSchema: jobContextSchema,
   instructions: "Extract the attic insulation R-value, the area in square feet, and any notes.",
   write: async (fields, ctx) => {
     sink.push({ fields, ctx });
@@ -173,8 +180,12 @@ test("the contracts compose: record → transcribe → extract → review → wr
   //    `schema.parse` is what decides they are a legal `AtticFields`.
   const fields = adapter.schema.parse(outcome.fields);
 
-  // 7. Write, with a `ctx` the type system checks — it comes off the recording's own context.
-  await adapter.write(fields, recording.ctx);
+  // 7. Write, with a `ctx` the type system checks — it comes off the recording's own context —
+  //    and a `meta` that does not: the idempotency key is the queue's, not the recording's,
+  //    which is why it is a third parameter rather than another key on `ctx`.
+  await adapter.write(fields, adapter.ctxSchema.parse(recording.ctx), {
+    idempotencyKey: "outbox-item-1",
+  });
 
   expect(written).toEqual([
     {
@@ -218,10 +229,16 @@ test("review does not narrow nullability — the adapter schema rejects an unsta
 
 test("the adapter's ctx is typed end to end — a foreign context does not compile", async () => {
   const adapter = makeAdapter([]);
+  // Hoisted so the call below stays on ONE line: `@ts-expect-error` applies to the
+  // line that follows it, and a call Prettier wraps would attach the directive to
+  // `await adapter.write(` — where nothing is wrong — instead of to the bad ctx.
+  const fields = { rValue: 19, area: 400, notes: "" };
+  const meta = { idempotencyKey: "outbox-item-1" };
 
   // @ts-expect-error - `ToolAdapter<AtticFields, JobContext>` needs a `jobId`. This is the hole
-  // that `ctx: unknown` left open, and the reason `C` is a real type parameter.
-  await adapter.write({ rValue: 19, area: 400, notes: "" }, { assessmentId: "a-1" });
+  // that `ctx: unknown` left open, and the reason `C` is a real type parameter. A valid `meta`
+  // is supplied so the ctx is the only thing wrong with the call.
+  await adapter.write(fields, { assessmentId: "a-1" }, meta);
 
   expect(adapter.name).toBe("snuggpro-attic-insulation");
 });

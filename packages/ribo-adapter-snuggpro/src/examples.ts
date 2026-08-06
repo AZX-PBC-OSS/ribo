@@ -12,8 +12,10 @@
  * (BTU unreadable, blower door deferred).
  *
  * Every `sourceSpan` is a verbatim substring of `transcript` (the review card's
- * grounding check). The whole object is type-checked against `SnuggFields`, so a
- * drift in the schema breaks this file — it doubles as a fixture.
+ * grounding check). The whole object is type-checked against `SnuggExtraction` —
+ * the ENVELOPED shape, which is what a few-shot example must be, since its fields
+ * become the assistant turn the model imitates — so a drift in the schema breaks
+ * this file. It doubles as a fixture.
  *
  * Transcript sourced from the spike corpus (`02-oil-boiler-basement`); the values
  * mirror that transcript's ground truth. Confidence is illustrative (the spike
@@ -21,7 +23,7 @@
  */
 
 import type { ToolAdapterExample } from "@azx/ribo-core";
-import type { SnuggFields } from "./schema.js";
+import type { SnuggExtraction } from "./schema.js";
 
 const transcript = `Basement first on the Delgado job. Down here we've got the heating plant — it's an oil boiler, Burnham, cast iron sections. Model plate says V8, V-eight series, and the tag year is two thousand four. I don't see an output on the plate that I can read, it's painted over, so no BTU number from me.
 
@@ -44,7 +46,7 @@ const env = <const V>(value: V, sourceSpan: string | null, confidence = 1) => ({
   sourceSpan,
 });
 
-const fields: SnuggFields = {
+const fields: SnuggExtraction = {
   // Heating — the fuel axis-split: one fused span, two independent fields.
   heatingEquipmentType: env("boiler", "it's an oil boiler"),
   heatingFuel: env("fuel_oil", "it's an oil boiler"),
@@ -105,4 +107,6 @@ const fields: SnuggFields = {
   },
 };
 
-export const snuggExamples: readonly ToolAdapterExample<SnuggFields>[] = [{ transcript, fields }];
+export const snuggExamples: readonly ToolAdapterExample<SnuggExtraction>[] = [
+  { transcript, fields },
+];

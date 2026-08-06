@@ -5,7 +5,7 @@ import { singleShotExtractor } from "@azx/ribo-extractor-openai";
 import type { ChatClient, ChatRequest } from "@azx/ribo-extractor-openai";
 
 import { snuggProAdapter } from "./adapter.js";
-import type { SnuggFields } from "./schema.js";
+import type { SnuggValues } from "./schema.js";
 // A plain JSON import (resolveJsonModule, set in @azx/tsconfig/base.json) rather
 // than `node:fs` — this package's tsconfig has no Node types (AGENTS.md §4/§6:
 // "headless" means no React/DOM rendering, not "no Node", but the package still
@@ -15,11 +15,14 @@ import type { SnuggFields } from "./schema.js";
 import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { type: "json" };
 
 /**
- * R1.5 Task 1 — pin the JSON Schema the model is actually asked for, BEFORE the
- * R1.5 refactor splits `SnuggFieldsSchema` into a hand-written "writable patch"
- * schema plus a derived extraction schema. R1.5 claims that split leaves the wire
- * artifact unchanged; this file is the evidence for that claim, captured while
- * `SnuggFieldsSchema` is still the single hand-written source.
+ * R1.5 Task 1 — pin the JSON Schema the model is actually asked for. Captured
+ * BEFORE the R1.5 refactor split the old single `SnuggFieldsSchema` into the
+ * hand-written writable patch (`snuggValuesSchema`) plus the schema derived from
+ * it (`snuggExtractionSchema = enveloped(snuggValuesSchema)`). R1.5 claims that
+ * split leaves the wire artifact unchanged; this file is the evidence for that
+ * claim, and the fixture below is unchanged from the pre-split capture. Task 3
+ * moved the types and this test kept passing against the untouched fixture —
+ * which is the whole proof.
  *
  * ============================================================================
  * IF THIS TEST FAILS: the derivation changed what is sent to the model. Go fix
@@ -29,11 +32,11 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  * refresh. (See AGENTS.md-adjacent task brief, R1.5 §Task 1.)
  * ============================================================================
  *
- * Why capture it this way, not by calling `z.toJSONSchema(SnuggFieldsSchema, ...)`
+ * Why capture it this way, not by calling `z.toJSONSchema(snuggExtractionSchema, ...)`
  * inline: `singleShotExtractor` (packages/ribo-extractor-openai/src/single-shot.ts)
  * is the ONLY code path that produces the object that actually lands in
  * `response_format.json_schema.schema` — today that is exactly
- * `z.toJSONSchema(target.schema, { target: "draft-2020-12" })` with no
+ * `z.toJSONSchema(target.extractionSchema, { target: "draft-2020-12" })` with no
  * post-processing, but re-deriving the call by hand here would silently stop
  * catching it the day someone adds post-processing in single-shot.ts. Running the
  * real extractor against a fake `ChatClient` (network-free, no key) captures
@@ -97,7 +100,7 @@ function fakeChat(): { chat: ChatClient; requests: ChatRequest[] } {
   const chat: ChatClient = {
     complete: (request) => {
       requests.push(request);
-      // The body need not satisfy SnuggFieldsSchema — we only need the REQUEST,
+      // The body need not satisfy snuggExtractionSchema — we only need the REQUEST,
       // which is captured before the response is parsed. `extract` is allowed to
       // reject afterwards; that rejection is swallowed by the caller below.
       return Promise.resolve({ content: "{}" });
@@ -109,17 +112,18 @@ function fakeChat(): { chat: ChatClient; requests: ChatRequest[] } {
 /** Drive the real singleShotExtractor + real adapter wiring, capture the request sent. */
 async function captureJsonSchema(): Promise<Record<string, unknown>> {
   const { chat, requests } = fakeChat();
-  // `snuggProAdapter` (name/schema/instructions/examples/write) satisfies
-  // ExtractionTarget<SnuggFields> structurally (Pick of the first four) — this is
-  // exactly how a real caller composes the extractor (see src/index.ts's closing
-  // comment), not a hand-rolled stand-in target.
-  const target: ExtractionTarget<SnuggFields> = snuggProAdapter;
+  // `snuggProAdapter` satisfies ExtractionTarget<SnuggValues> structurally (a Pick
+  // of name/extractionSchema/instructions/examples) — this is exactly how a real
+  // caller composes the extractor (see src/index.ts's closing comment), not a
+  // hand-rolled stand-in target. Note the argument is the VALUES type: the target
+  // exposes `ZodType<Enveloped<SnuggValues>>`, so both sides name the same `V`.
+  const target: ExtractionTarget<SnuggValues> = snuggProAdapter;
   const extractor = singleShotExtractor({ target, chat, model: "gpt-test" });
 
   try {
     await extractor.extract("A dictated audit transcript, contents irrelevant here.");
   } catch {
-    // Expected: the canned "{}" response does not satisfy SnuggFieldsSchema. The
+    // Expected: the canned "{}" response does not satisfy snuggExtractionSchema. The
     // request was already captured by the fake ChatClient before this throws.
   }
 

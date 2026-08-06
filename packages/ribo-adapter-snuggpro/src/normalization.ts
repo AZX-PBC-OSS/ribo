@@ -15,6 +15,9 @@
  *     boundary rule — never a per-transcript model guess.
  *   - `normalizeFields` — the pass itself: clamps `confidence` on every provenance
  *     envelope (top-level and the nested health matrix). It does NOT touch `value`.
+ *     It runs on the EXTRACTION shape (`SnuggExtraction`), between the model's
+ *     response and review — `confidence` is an envelope field and exists nowhere
+ *     else, so a values-shaped signature here could not be written at all.
  *
  * What deliberately does NOT live here:
  *   - R-value -> depth band. `normalization.md` §"Hazard 2 in detail" is explicit:
@@ -30,7 +33,7 @@
  *     rename is gated on a real API key (Task 6), not this pass.
  */
 
-import type { AtticInsulationDepthBand, DhwAgeBand, SnuggFields } from "./schema.js";
+import type { AtticInsulationDepthBand, DhwAgeBand, SnuggExtraction } from "./schema.js";
 
 type AtticBand = (typeof AtticInsulationDepthBand.options)[number];
 type AgeBand = (typeof DhwAgeBand.options)[number];
@@ -102,21 +105,26 @@ const clampEnvelope = <E extends { confidence: number }>(envelope: E): E => ({
 
 /**
  * The deterministic pass the extractor runs after the model. Returns a new
- * `SnuggFields` with every envelope's `confidence` clamped to 0..1 — top-level
+ * `SnuggExtraction` with every envelope's `confidence` clamped to 0..1 — top-level
  * fields and each of the 11 health-matrix tests. `value` and `sourceSpan` are the
  * model's faithful "what was said" and are left untouched; this pass never invents,
  * converts, or re-files a value. Pure and model-free.
+ *
+ * Enveloped in, enveloped out: this is `SingleShotOptions.normalize`, which runs
+ * inside the extractor's trust boundary, long before review turns envelopes into
+ * writable values. Every key is present — the extraction shape is required at
+ * every level — so there is nothing to skip over.
  */
-export const normalizeFields = (fields: SnuggFields): SnuggFields => {
+export const normalizeFields = (fields: SnuggExtraction): SnuggExtraction => {
   const { healthSafety, ...top } = fields;
 
   const clampedTop = Object.fromEntries(
     Object.entries(top).map(([key, envelope]) => [key, clampEnvelope(envelope)]),
-  ) as Omit<SnuggFields, "healthSafety">;
+  ) as Omit<SnuggExtraction, "healthSafety">;
 
   const clampedHealth = Object.fromEntries(
     Object.entries(healthSafety).map(([key, envelope]) => [key, clampEnvelope(envelope)]),
-  ) as SnuggFields["healthSafety"];
+  ) as SnuggExtraction["healthSafety"];
 
   return { ...clampedTop, healthSafety: clampedHealth };
 };

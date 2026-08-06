@@ -19,10 +19,17 @@ pnpm add @azx/ribo-adapter-snuggpro @azx/ribo-core
 ## Public API at a glance
 
 - **The adapter** — `snuggProAdapter` (a `ToolAdapter`), `SNUGGPRO_ADAPTER_NAME`.
-- **The field schema** — `SnuggFieldsSchema`, the `SnuggFields` type, and its enums
+- **The field schemas — two of them, one derived from the other.** `snuggValuesSchema` (type
+  `SnuggValues`) is the hand-written **writable patch**: what a review produces and what `write`
+  sends, with every leaf optional (absent = the reviewer rejected it, leave it alone) and nullable
+  (a present `null` = write it empty). `snuggExtractionSchema` (type `SnuggExtraction`) is what the
+  **model** is asked for, derived from the patch with `ribo-core`'s `enveloped()` — every leaf
+  wrapped in a provenance envelope, closed and fully required. Plus the enums both are built from
   (`HeatingEquipmentType`, `HeatingFuel`, `DhwSystemType`, `AtticInsulationDepthBand`,
   `HealthSafetyMatrix`, and the rest).
-- **The write context** — `SnuggWriteContext` (the real `C` the adapter's `write` needs).
+- **The write context** — `snuggCtxSchema` and the `SnuggWriteContext` inferred from it (the real
+  `C` the adapter's `write` needs, parsed rather than merely typed because it comes back out of
+  storage).
 - **Extraction inputs** — `snuggProInstructions` (normalization intent) and `snuggExamples` (few-shot).
 - **The deterministic pass** — `normalizeFields`, `clampConfidence`, `inchesToAtticDepthBand`,
   `yearsToDhwAgeBand`.
