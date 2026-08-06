@@ -15,6 +15,13 @@
 export { extractedSchema, isSpanGrounded } from "./provenance.js";
 export type { Extracted } from "./provenance.js";
 
+// Deriving the extraction schema from a writable patch schema — every leaf
+// enveloped, nested objects recursed rather than swallowed whole, closed and
+// fully required throughout. Additive: nothing consumes this yet (R1.5 Task 3
+// switches `ToolAdapter` to use it).
+export { enveloped } from "./enveloped.js";
+export type { Enveloped } from "./enveloped.js";
+
 // Capture records and their transcripts.
 export { baseRecordingSchema, recordingSchema } from "./recording.js";
 export type { Recording } from "./recording.js";

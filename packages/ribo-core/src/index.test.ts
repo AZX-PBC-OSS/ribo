@@ -38,6 +38,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "buildReviewRequest",
     "createConnectivity",
     "createRelay",
+    "enveloped",
     "extractedSchema",
     "firstCapable",
     "fullJitterDelay",
