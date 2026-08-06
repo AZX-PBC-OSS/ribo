@@ -61,6 +61,17 @@ const stripOptionalNullable = (field: z.ZodType): z.ZodType => {
  * this is an allowlist, not a denylist, so a zod type this table doesn't name (array, record,
  * union, or anything added to zod after this was written) falls through to the throw below rather
  * than being silently accepted.
+ *
+ * Known edge, not fixed here because design §3's table names KINDS, not constraint-free kinds:
+ * `z.number().min(0)` is still `instanceof z.ZodNumber`, and `z.string().regex(...)` is still
+ * `instanceof z.ZodString`, so both pass this allowlist and get wrapped — but both still emit
+ * `minimum` / `pattern` into the JSON Schema, which `provenance.ts`'s rule 2 says OpenAI strict
+ * mode rejects. This is the honest answer to "is any unsupported shape indistinguishable from a
+ * supported one": the indistinguishable case is not across kinds (array vs. object vs. union are
+ * all cleanly separable by `instanceof`) but *within* an allowed kind — a constrained `ZodString`/
+ * `ZodNumber` cannot be told apart from an unconstrained one through the public surface used here.
+ * `ribo-adapter-snuggpro/src/extraction-shape.test.ts`'s `assertStrictModeCompatible` is what
+ * actually catches this today, downstream, on the real Snugg Pro field set.
  */
 const isSupportedLeaf = (field: z.ZodType): boolean =>
   field instanceof z.ZodEnum ||
@@ -103,7 +114,7 @@ const envelopeObject = (obj: z.ZodObject, path: string): z.ZodObject => {
   const shape = obj.shape;
   const enveloped: RawShape = {};
   for (const key of Object.keys(shape)) {
-    enveloped[key] = envelopeField(shape[key] as z.ZodType, childPath(path, key));
+    enveloped[key] = envelopeField(shape[key], childPath(path, key));
   }
   return z.strictObject(enveloped);
 };
@@ -165,9 +176,31 @@ export const enveloped = <T extends z.ZodObject>(
  * versa — see `enveloped.test.ts`'s type-level test, which goes through
  * `z.infer<ReturnType<typeof enveloped<...>>>` specifically because this alias would not catch a
  * shape-losing return type on its own.
+ *
+ * `-?` on the mapped key is required, not decorative. `[K in keyof V]` over a bare type parameter
+ * is a *homomorphic* mapped type, which by default copies the `?` (and `readonly`) modifiers from
+ * `V` verbatim onto the result. `V` is a patch by construction (design §2.1), so every one of its
+ * keys — including every nested key — already carries `?`; without `-?` here, `Enveloped<V>` would
+ * silently inherit that optionality and every key of the "closed and required at every level"
+ * extraction schema (design §2.2) would type as possibly-`undefined`. `ExtractedFields<F>` in
+ * `review.ts` uses the same homomorphic-mapped-type shape with no `-?` and that is fine there —
+ * `F` there is already envelope-shaped with no optional keys, so there is nothing for it to
+ * inherit. It is `V` being a patch specifically that makes the omission dangerous here.
+ *
+ * No `readonly` here either, for the same homomorphic reason but the opposite direction: this type
+ * is meant to equal `z.infer<ReturnType<typeof enveloped<...>>>` exactly (that equality is what
+ * `enveloped.test.ts`'s `Enveloped<V> matches the function's actual return type` test asserts), and
+ * `z.infer` of a plain `z.ZodObject` never marks its properties `readonly` — nothing in
+ * `enveloped()`'s implementation ever calls `.readonly()`. Keeping `readonly` here (as the design
+ * doc's pseudocode literally shows, and as `ExtractedFields`/`ReviewFields`/etc. all do) makes this
+ * alias a strict subtype of the real return type rather than equal to it, which
+ * `expectTypeOf(...).toEqualTypeOf(...)` treats as a mismatch even though plain structural
+ * `extends` in both directions holds. Confirmed by removing `readonly` and watching the
+ * `toEqualTypeOf` assertion's TS2554 ("Expected 1 arguments, but got 0" — `expect-type`'s way of
+ * surfacing a mismatch at the call site) disappear.
  */
 export type Enveloped<V> = {
-  readonly [K in keyof V]: [NonNullable<V[K]>] extends [object]
+  [K in keyof V]-?: [NonNullable<V[K]>] extends [object]
     ? Enveloped<NonNullable<V[K]>>
     : Extracted<NonNullable<V[K]>>;
 };

@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, test } from "vitest";
 import { z } from "zod";
 
-import { enveloped } from "./enveloped.js";
+import { enveloped, type Enveloped } from "./enveloped.js";
 import { extractedSchema, type Extracted } from "./provenance.js";
 
 describe("enveloped() — flat patch", () => {
@@ -162,28 +162,31 @@ describe("enveloped() — output is fully required and closed, even though the i
 });
 
 describe("enveloped() — throws on shapes strict structured-output mode cannot express", () => {
-  test("array — throws naming the field path", () => {
+  // Every case below pins BOTH halves of the message: the path (what a caller needs to find the
+  // field) and the zod constructor name (the diagnostic half — real in 4.4.3, and worth pinning so
+  // a future edit to the message can't quietly drop it while the path-only regex keeps passing).
+  test("array — throws naming the field path and the constructor name", () => {
     const patch = z.object({ tags: z.array(z.string()) });
-    expect(() => enveloped(patch)).toThrowError(/"tags"/);
+    expect(() => enveloped(patch)).toThrowError(/"tags".*\(ZodArray\)/);
   });
 
-  test("record — throws naming the field path", () => {
+  test("record — throws naming the field path and the constructor name", () => {
     const patch = z.object({ notes: z.record(z.string(), z.string()) });
-    expect(() => enveloped(patch)).toThrowError(/"notes"/);
+    expect(() => enveloped(patch)).toThrowError(/"notes".*\(ZodRecord\)/);
   });
 
-  test("union of objects — throws naming the field path", () => {
+  test("union of objects — throws naming the field path and the constructor name", () => {
     const patch = z.object({
       target: z.union([z.object({ a: z.string() }), z.object({ b: z.string() })]),
     });
-    expect(() => enveloped(patch)).toThrowError(/"target"/);
+    expect(() => enveloped(patch)).toThrowError(/"target".*\(ZodUnion\)/);
   });
 
   test("the path is the DOTTED path for a shape nested inside an object", () => {
     const patch = z.object({
       healthSafety: z.object({ tests: z.array(z.string()) }),
     });
-    expect(() => enveloped(patch)).toThrowError(/"healthSafety\.tests"/);
+    expect(() => enveloped(patch)).toThrowError(/"healthSafety\.tests".*\(ZodArray\)/);
   });
 });
 
@@ -214,5 +217,19 @@ describe("enveloped() — return type is shape-preserving", () => {
       nested: { leaf: { value: "x", confidence: 1, sourceSpan: null } },
     });
     expect(parsed.nested.leaf.value).toBe("x");
+  });
+
+  // `Enveloped<V>` (the standalone, exported, plain-value-space alias) and `EnvelopedShape`/`Actual`
+  // above (the schema-space mechanism behind `enveloped()`'s own return type) are DELIBERATELY two
+  // separate mechanisms — see enveloped.ts's file header. Separate means neither is proven correct
+  // by the other passing: this test is `Enveloped<V>`'s own proof, put directly against the
+  // function's real inferred output rather than against a hand-written `Expected`, so the two
+  // mechanisms can't silently drift apart. It is also the test that catches `Enveloped<V>` quietly
+  // inheriting `V`'s optionality (a homomorphic mapped type over a patch does this by default
+  // unless every key is explicitly de-optionalized with `-?`) — a bare `toEqualTypeOf<Expected>()`
+  // against a hand-written literal would not have caught that, because nothing forced `Expected`
+  // itself to be checked against a real patch's optionality.
+  test("Enveloped<V> (the exported alias) matches the function's actual return type", () => {
+    expectTypeOf<Enveloped<z.infer<typeof patch>>>().toEqualTypeOf<Actual>();
   });
 });
