@@ -34,6 +34,10 @@ export interface WriteStepInput {
    * "wrote the un-reviewed values" a one-word typo with a silent symptom and a
    * customer's audit as the blast radius. The raw envelopes are still available as
    * `item.extracted` for provenance and diagnostics.
+   *
+   * Never empty. A review that rejected every field never reaches a write step —
+   * see the guard in `#write` — so an implementation does not have to decide what
+   * writing nothing would mean.
    */
   reviewed: ExtractedFieldMap;
   /**
@@ -320,6 +324,27 @@ class QueueRelay implements Relay {
       // un-reviewed data to a customer's tool is not an acceptable way to find out.
       throw new TerminalQueueError(
         `outbox item ${item.id} reached the write step with no review outcome. Nothing is written that a human has not reviewed; move items forward with Outbox.submitReview.`,
+      );
+    }
+
+    if (Object.keys(outcome.fields).length === 0) {
+      // Reachable, unlike the guard above: `resolveReview` classifies "the human
+      // rejected every field" as `edited` with no fields — deliberately, because
+      // rejecting everything is a statement about the *extraction* where discarding
+      // is a statement about the recording — and `submitReview` unparks that
+      // outcome to `writing` like any other edit rather than collapsing it into a
+      // discard and destroying audio nobody asked to throw away. So the refusal
+      // belongs here, at the one place that decides what may reach the host tool.
+      //
+      // Refused rather than left to `ToolAdapter.schema.parse`: `write` is
+      // host-supplied, this package never sees the adapter, and "a real schema
+      // would reject an empty field set" is a guarantee enforced nowhere. A human
+      // who means "there is nothing to record here" edits the field to `null`,
+      // which keeps the key (`review.ts` draws exactly that distinction);
+      // rejecting every field means write nothing, and there is no such thing as
+      // writing nothing to a customer's audit.
+      throw new TerminalQueueError(
+        `outbox item ${item.id} was reviewed with no fields left to write — every field was rejected. An empty field set is not written; re-review the item, or discard it if the recording itself is not worth keeping.`,
       );
     }
 

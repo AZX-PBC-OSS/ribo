@@ -535,6 +535,135 @@ test("removeMany deletes the named items and is idempotent", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// submitReview — the only way out of `awaiting-review`
+// ---------------------------------------------------------------------------
+
+test("an accepted review moves the item to writing and persists the outcome", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review", extracted: { atticRValue: {} } });
+
+  const outcome = { status: "accepted", fields: { atticRValue: 19 } } as const;
+  const updated = await outbox.submitReview(item.id, outcome);
+
+  expect(updated.status).toBe("writing");
+  expect(updated.reviewOutcome).toEqual(outcome);
+  expect(updated.attempts).toBe(0);
+});
+
+test("an edited review moves the item to writing with the touched fields named", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  const updated = await outbox.submitReview(item.id, {
+    status: "edited",
+    fields: { atticRValue: 30 },
+    editedFields: ["atticRValue"],
+    rejectedFields: ["blowerDoorCfm50"],
+  });
+
+  expect(updated.status).toBe("writing");
+  expect(updated.reviewOutcome).toMatchObject({ editedFields: ["atticRValue"] });
+});
+
+test("a discarded review is terminal and drops the audio", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  expect(await outbox.getAudio(item.id)).toBeDefined();
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  const updated = await outbox.submitReview(item.id, {
+    status: "discarded",
+    reason: "misspoke",
+  });
+
+  expect(updated.status).toBe("discarded");
+  expect(updated.hasAudio).toBe(false);
+  expect(await outbox.getAudio(item.id)).toBeUndefined();
+  expect(updated.reviewOutcome).toEqual({ status: "discarded", reason: "misspoke" });
+});
+
+test("an edited review that rejected every field still goes to writing", async () => {
+  // resolveReview's rule: rejecting every field is a statement about the
+  // extraction, not the recording, so it must not be collapsed into a discard —
+  // which would also drop audio the human never asked to throw away. The refusal
+  // to *write* an empty field set lives in the relay's `#write`, which is where
+  // every other "may this reach the host tool?" question is already asked;
+  // `relay.browser.test.ts` pins it.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  const updated = await outbox.submitReview(item.id, {
+    status: "edited",
+    fields: {},
+    editedFields: [],
+    rejectedFields: ["atticRValue"],
+  });
+
+  expect(updated.status).toBe("writing");
+});
+
+test("submitting a review for an unknown id rejects", async () => {
+  const outbox = await open(uniqueName());
+  await expect(outbox.submitReview("nope", { status: "accepted", fields: {} })).rejects.toThrow(
+    /nope/,
+  );
+});
+
+test("a second submission for the same item fails rather than rewriting it", async () => {
+  // Two tabs, or two clicks. The second must not patch a row that has moved on —
+  // most importantly it must not take a `done` item back to `writing`, which would
+  // cause a second write to the host tool.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  await outbox.submitReview(item.id, { status: "accepted", fields: { atticRValue: 19 } });
+  await expect(
+    outbox.submitReview(item.id, { status: "discarded", reason: "changed my mind" }),
+  ).rejects.toThrow(/awaiting-review/);
+
+  const settled = await outbox.get(item.id);
+  expect(settled?.status).toBe("writing");
+  expect(settled?.hasAudio).toBe(true);
+});
+
+test("two submissions in flight at once settle as one winner and one refusal", async () => {
+  // The sequential test above cannot reach the case the guard is actually built
+  // for. These two are in flight together, so they meet RxDB's incremental-write
+  // queue mid-batch — either chained modifier-over-modifier within one batch, or
+  // as a 409 whose modifier is re-run against the revision already in the
+  // database. Both routes have to reach the same answer: exactly one submission
+  // wins, and the queue never ends up carrying the loser's decision.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  const results = await Promise.allSettled([
+    outbox.submitReview(item.id, { status: "accepted", fields: { atticRValue: 19 } }),
+    outbox.submitReview(item.id, { status: "discarded", reason: "changed my mind" }),
+  ]);
+
+  expect(results.map((result) => result.status)).toEqual(["fulfilled", "rejected"]);
+  const settled = await outbox.get(item.id);
+  expect(settled?.status).toBe("writing");
+  // The discard lost, so the recording is still on the device: a refused
+  // submission must have no side effects at all, audio included.
+  expect(settled?.hasAudio).toBe(true);
+  expect(await outbox.getAudio(item.id)).toBeDefined();
+});
+
+test("a review cannot be submitted for an item that was never parked", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await expect(outbox.submitReview(item.id, { status: "accepted", fields: {} })).rejects.toThrow(
+    /queued/,
+  );
+});
+
+// ---------------------------------------------------------------------------
 // Filtered reads
 // ---------------------------------------------------------------------------
 

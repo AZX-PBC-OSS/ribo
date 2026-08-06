@@ -202,10 +202,8 @@ function buildRelay(
 // is the gate, and every test below either stops at it or is helped over it by one
 // of these three helpers.
 //
-// `Outbox.submitReview` — the production way over — does not exist yet, so
-// `acceptReview` writes the same facts by hand. It is the only place in this file
-// that knows how, so when `submitReview` lands, its body becomes a single call and
-// no test changes.
+// `acceptReview` is `Outbox.submitReview` — the production way over — and nothing
+// in this file writes a review outcome by hand any more.
 
 /**
  * Drain, which now ends at the review gate rather than at `done`.
@@ -220,24 +218,17 @@ const drainToReview = async (relay: Relay): Promise<void> => await relay.syncNow
 /**
  * Accept a parked item's fields, making it eligible to write.
  *
- * The stand-in for `Outbox.submitReview(id, { status: "accepted", fields })`, and
- * the same three facts it will write: the outcome, `writing`, and a reset attempt
- * count.
- *
- * The outcome goes through the exported `reviewOutcomeSchema` rather than being
- * cast. That is the shape `#write` reads back off the document, so a drift in it
- * fails here, loudly, instead of seeding a row the relay silently refuses.
+ * A thin alias for `submitReview` with an accepted outcome, kept named because the
+ * call sites read as what a human did rather than as an outbox write. It is also
+ * the only door: `submitReview` refuses any status but `awaiting-review`, so a test
+ * that wants a writable row has to park the item first — which is the production
+ * path, not a shortcut around it.
  */
 const acceptReview = async (
   outbox: Outbox,
   id: string,
   fields: ExtractedFieldMap = { atticInsulation: "the attic is R-19" },
-): Promise<OutboxItem> =>
-  await outbox.patch(id, {
-    status: "writing",
-    attempts: 0,
-    reviewOutcome: reviewOutcomeSchema.parse({ status: "accepted", fields }),
-  });
+): Promise<OutboxItem> => await outbox.submitReview(id, { status: "accepted", fields });
 
 /**
  * Enqueue a row that is already transcribed, extracted and reviewed, so the next
@@ -252,6 +243,12 @@ const acceptReview = async (
  * `fields` defaults to matching `extracted`, which is what an accept-as-is really
  * does; pass something different to prove a value came from the review outcome
  * rather than from the model's map.
+ *
+ * The seed lands the row at `awaiting-review` and then goes through
+ * `submitReview`, rather than patching straight to `writing`: `submitReview`
+ * refuses every other status, so the park is not decoration — it is the only shape
+ * that reaches a writable row, and it keeps this helper's output a state the
+ * production state machine can actually produce.
  */
 async function seedReviewedWriting(
   outbox: Outbox,
@@ -264,6 +261,7 @@ async function seedReviewedWriting(
   await outbox.patch(seeded.id, {
     transcript: { recordingId: seeded.recording.id, text: "the attic is R-19", engine: "fake" },
     extracted: { atticInsulation: "the attic is R-19" },
+    status: "awaiting-review",
   });
   return await acceptReview(outbox, seeded.id, options.fields);
 }
@@ -399,6 +397,71 @@ test("a parked item does not block the recordings behind it", async () => {
   expect(items.map((entry) => entry.status)).toEqual(["awaiting-review", "awaiting-review"]);
   expect(harness.extractCalls).toHaveLength(2);
   expect(harness.writeCalls).toHaveLength(0);
+});
+
+test("the write step receives the human's reviewed values, not the model's", async () => {
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = buildRelay(outbox);
+  const item = await outbox.enqueue({ recording, audio: audio() });
+  await drainToReview(harness.relay);
+
+  await outbox.submitReview(item.id, {
+    status: "edited",
+    fields: { atticRValue: 30 },
+    editedFields: ["atticRValue"],
+    rejectedFields: [],
+  });
+  await harness.relay.syncNow();
+
+  expect(harness.writeCalls).toHaveLength(1);
+  expect(harness.writeCalls[0]?.reviewed).toEqual({ atticRValue: 30 });
+  // The auditor's correction shares no key with what the extractor produced, so a
+  // regression that passed `item.extracted` through could not satisfy this — the
+  // whole reason `WriteStepInput.extracted` became `reviewed`.
+  expect(harness.writeCalls[0]?.item.extracted).toEqual({
+    atticInsulation: "the attic is R-19",
+  });
+});
+
+test("an item reviewed with every field rejected is never written", async () => {
+  // `resolveReview` reports "the human rejected everything" as an `edited` outcome
+  // with no fields, and `submitReview` unparks it to `writing` like any other edit
+  // — collapsing it into a discard would destroy audio the human never asked to
+  // throw away. So the refusal has to be here, and it has to be the relay's own:
+  // `write` is host-supplied, so "the adapter's schema would reject it" is a
+  // guarantee nothing in this package enforces.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = buildRelay(outbox);
+  const item = await outbox.enqueue({ recording, audio: audio() });
+  await drainToReview(harness.relay);
+
+  const unparked = await outbox.submitReview(item.id, {
+    status: "edited",
+    fields: {},
+    editedFields: [],
+    rejectedFields: ["atticInsulation"],
+  });
+  // Asserted, not assumed: the outcome really is persisted and the item really is
+  // eligible to write, so what follows is the relay refusing rather than the gate
+  // never having opened.
+  expect(unparked.status).toBe("writing");
+
+  await harness.relay.syncNow();
+
+  expect(harness.writeCalls).toHaveLength(0);
+  const dead = await outbox.get(item.id);
+  // `dead`, not `failed`: re-running the write would reach the same conclusion
+  // eight more times, and the row is a "needs attention" one a UI should surface.
+  expect(dead?.status).toBe("dead");
+  expect(dead?.lastError).toMatch(/rejected/i);
+  // The human's decision is still on the row, unaltered — the relay refused to act
+  // on it, it did not rewrite it.
+  expect(dead?.reviewOutcome).toEqual({
+    status: "edited",
+    fields: {},
+    editedFields: [],
+    rejectedFields: ["atticInsulation"],
+  });
 });
 
 test("an item that reaches writing with no review outcome fails terminally", async () => {
@@ -726,6 +789,34 @@ test("processes serially, lowest seq first", async () => {
 
   expect(order).toEqual(["c", "a", "b"]);
   expect(maxConcurrent).toBe(1);
+});
+
+test("writes follow review order, not capture order", async () => {
+  // The ordering guarantee `seq` used to carry, narrowed on purpose: a human
+  // reviewing the second recording first means it writes first. Enforcing capture
+  // order here would let one un-reviewed item block every write behind it — the
+  // exact stall the parked design exists to avoid. `schema.ts`'s `seq` comment
+  // states this; this is the test that stops someone "fixing" it back.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = buildRelay(outbox);
+  for (const id of ["first", "second"]) {
+    await outbox.enqueue({ recording: { ...recording, id }, audio: audio() });
+  }
+
+  // Both park, so neither is in the active set and the head no longer holds the
+  // queue — which is what makes the review the ordering decision.
+  await drainToReview(harness.relay);
+  const [first, second] = await outbox.list();
+
+  await outbox.submitReview(second!.id, { status: "accepted", fields: { atticRValue: 30 } });
+  await harness.relay.syncNow();
+
+  expect(harness.writeCalls).toHaveLength(1);
+  expect(harness.writeCalls[0]?.item.id).toBe(second!.id);
+  expect(harness.writeCalls[0]?.item.seq).toBeGreaterThan(first!.seq);
+  // The lower-`seq` sibling is untouched and still waiting on its human. It did not
+  // block the write, and the write did not disturb it.
+  expect((await outbox.get(first!.id))?.status).toBe("awaiting-review");
 });
 
 test("a parked head-of-queue item holds the queue, preserving capture order", async () => {
