@@ -57,19 +57,75 @@ design that is not in this repo. R1 is done; the rest proceed in dependency orde
    gap it surfaced: review is a contract in core with no callers, because the relay goes straight from
    `extracting` to `writing`. Phase A makes review a real gate (`awaiting-review`, a persisted outcome,
    pause/resume on `Recorder`); Phase B builds the hooks and migrates the playground onto them.
-   → [design](design/r2-headless-hook-layer-design.md)
-3. **R3 — pack-and-consume test tier.** The scratch-app matrix from doc 10 §8: pack each tarball,
+   **Phase A has shipped. Phase B is blocked on a design revision:** R1.5 moved review to flat dotted
+   leaf paths, so R2's design and plan still specify `useReview` against `ReviewFields<F>`,
+   `FieldDecision<F[K]>`, `decisionOf<K extends keyof F>` and `ReviewOutcome<F>` — all now impossible,
+   and `ReviewedValues` is deleted. That is a design change, not a docs pass; the hook's whole surface
+   follows from it. → [design](design/r2-headless-hook-layer-design.md)
+3. **R1.6 — Snugg Pro API alignment.** The adapter's field set was reverse-engineered from Snugg Pro's
+   public **printed field sheet**; the machine-readable spec later showed that model to be wrong in
+   several places. [Doc 15](../implementation/15-snuggpro-api-verified.md) already wrote the delta list
+   and changed no code — this is executing it. Concretely: the API exposes writable heating/cooling/
+   steady-state efficiency fields and a writable attic R-value that `schema.ts` deliberately omits; the
+   health matrix is **13** tests where we ship 11; `heatingEquipmentType` and `coolingEquipmentType` are
+   the _same_ spec field on a per-system record, not two; and `combustionVentType` has no write target
+   at all. → see also R1.7, which mechanises the parts of this that should not be hand-maintained.
+4. **R1.7 — generate the base types (`pnpm snugg:refresh`).** A script that regenerates wire field names
+   and leaf types from the spec into a committed `*.generated.ts`, following the `pnpm target:refresh`
+   precedent exactly: thin script, real logic in a typechecked and unit-tested module, deliberately not
+   run by CI so a vendor change lands in a reviewable diff. **Enum vocabularies are deliberately out of
+   the first cut** — see "Open questions" below. The frozen JSON Schema fixture already means a
+   regeneration cannot silently change what is sent to the model: it goes red and a human looks.
+5. **R3 — pack-and-consume test tier.** The scratch-app matrix from doc 10 §8: pack each tarball,
    install into a fresh app, build, and assert the worker spawns and WASM loads. The source-condition
    playground never touches `dist/`, so every WASM/worker failure mode is production-build-only. This
    is the only test that exercises a real tarball in a real host build.
-4. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
+6. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
    Includes the `.npmrc` registry config, `publishConfig.access` change, and release-workflow
    activation. Nothing is published today.
-5. **R5 — correct the docs the newer decisions falsify.** Doc 10 §3.1's Vite-library-mode mandate and
+7. **R5 — correct the docs the newer decisions falsify.** Doc 10 §3.1's Vite-library-mode mandate and
    doc 04's styled-components design are superseded by the tsdown-for-all and headless-hook-layer
    decisions; R5 rewrites them. Also covers any AGENTS.md statements R1–R4 have made false.
-6. **F1 — the field app** (separate repo). The deployed Helix app that composes the published packages.
+8. **F1 — the field app** (separate repo). The deployed Helix app that composes the published packages.
    Not built here; the `playground/` app is this repo's stand-in for a consumer.
+
+## Open questions and findings pending action
+
+Discovered while building R1.5 and investigating the Snugg Pro API. Recorded here so they are decided
+rather than rediscovered.
+
+- **Do we ask the model for Snugg's literal enum strings, or keep readable tokens and map?** Roughly 25
+  of our 27 enumerated leaves are snake_case (`well_sealed`, `not_tested`) where the API uses
+  human-readable strings (`"6% - Well sealed"`, `"Not Tested"`). One normalization layer covers most of
+  it — but some enums also diverge in _membership_, which needs richer enums rather than a string map.
+  Asking the model for the literal strings removes a translation layer that can drift; keeping tokens
+  may extract better. **Deliberately deferred, not overlooked:** R1.7's first cut generates no enums, and
+  the question is measurable against the existing corpus and scorer before it is answered.
+- **Entity identity is the sharpest unresolved risk.** Our field set is singular — "the attic", "the
+  heating system" — while the API models components as per-instance resources and real houses have
+  several of each. Extraction can be perfectly typed and still write the upstairs furnace's value onto
+  the basement boiler. Doc 15 §1 has the resource model and the realistic write sequence; nothing
+  implements it. This lands at write-back time, which is the most expensive moment to discover it.
+- **Custom fields exist and cannot be enumerated at build time.** The API attaches per-account custom
+  fields with their own type/bounds/options metadata. The likely shape is a generated static base schema
+  plus a runtime-discovered overlay, cached and available offline — not a wholly dynamic adapter.
+- **Whole-spec extraction is closed, on hard limits rather than quality.** The combined job-data schema
+  is ~1,326 leaves, which after provenance-enveloping is ~5,360 properties against OpenAI's documented
+  5,000 cap, and ~1,490 enum values against the 1,000 cap. The `basedata` subset does fit (~1,201
+  properties) but is ~9× the current pilot. Recorded so it is not re-proposed.
+- **`Outbox.reopenForReview(id)`.** Three places now point a reader at a raw `patch` back to
+  `awaiting-review`, which the relay's own tests describe as "exactly the shape a bug in it would take".
+  The only documented recovery path is the one we tell people never to take.
+- **Cross-tab relay leader election.** Pre-existing, not introduced by R2: `multiInstance: true` with no
+  leader means two tabs can process the same item, and `database.ts` explicitly defers it.
+- **The API host is wrong in four docs.** `ribo-design.md`, `06-field-app-helix.md`, `09-offline-first.md`
+  and `05-adapter-snuggpro.md` name `https://api.snugg.pro`; the spec's `basePath` is
+  `https://api.snuggpro.com/`, which doc 12 and the adapter's own tests already have right. Doc 06
+  specifies the Helix egress `fetch.origins` allowlist from the wrong one — a domain we do not control.
+- **`minimum`/`maximum` may no longer be forbidden.** `provenance.ts` asserts strict structured-output
+  mode rejects them, which is why `confidence` is a bare `z.number()`. Current OpenAI documentation
+  lists them as supported for non-fine-tuned models. If that is stale, our schema is more constrained
+  than it needs to be — worth one engineer's re-check.
 
 ## What is deliberately out of scope
 
