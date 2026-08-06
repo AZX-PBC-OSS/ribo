@@ -5,6 +5,7 @@ import {
   negotiateMimeType,
   Recorder,
   RecorderError,
+  type RecorderPhase,
 } from "./recorder.js";
 
 // Browser mode, not jsdom, and the filename says so: `*.browser.test.ts` is the
@@ -40,6 +41,8 @@ afterEach(async () => {
 
 /** Wait without fake timers — real `MediaRecorder` needs real time to pass. */
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** A `getUserMedia` that rejects the way the browser does, for the sad paths. */
 const rejectingGetUserMedia = (name: string, message: string) => () =>
@@ -278,5 +281,94 @@ describe("Recorder failure modes", () => {
     await expect(recorder.start()).rejects.toMatchObject({ code: "capture-failed" });
     expect(captured?.getAudioTracks().every((track) => track.readyState === "ended")).toBe(true);
     expect(recorder.phase).toBe("idle");
+  });
+});
+
+describe("Recorder pause and resume", () => {
+  test("pausing and resuming keeps the phase honest", async () => {
+    const recorder = new Recorder();
+    const phases: RecorderPhase[] = [];
+    const stop = recorder.subscribe((state) => phases.push(state.phase));
+
+    await recorder.start();
+    recorder.pause();
+    expect(recorder.phase).toBe("paused");
+    recorder.resume();
+    expect(recorder.phase).toBe("recording");
+    await recorder.stop();
+
+    stop();
+    expect(phases).toContain("paused");
+    expect(recorder.phase).toBe("idle");
+  });
+
+  test("elapsed time excludes the paused span", async () => {
+    const recorder = new Recorder();
+    await recorder.start();
+    await delay(150);
+    recorder.pause();
+    const atPause = recorder.elapsedMs;
+
+    await delay(300);
+    // The whole point: a paused recorder is not accruing duration.
+    expect(recorder.elapsedMs).toBe(atPause);
+
+    recorder.resume();
+    await delay(150);
+    const { recording } = await recorder.stop();
+
+    // ~300ms of real recording across a 300ms pause. Generous bounds: this asserts
+    // the pause is excluded, not the precision of a timer under a headless browser.
+    expect(recording.durationMs).toBeGreaterThanOrEqual(250);
+    expect(recording.durationMs).toBeLessThan(560);
+  });
+
+  test("level reads zero while paused", async () => {
+    const recorder = new Recorder();
+    await recorder.start();
+    await delay(150);
+    recorder.pause();
+    expect(recorder.level).toBe(0);
+    await recorder.stop();
+  });
+
+  test("stop works from paused, and releases the microphone", async () => {
+    const recorder = new Recorder();
+    await recorder.start();
+    recorder.pause();
+    const { recording, audio } = await recorder.stop();
+    expect(recording.durationMs).toBeGreaterThanOrEqual(0);
+    expect(audio.size).toBeGreaterThan(0);
+    expect(recorder.phase).toBe("idle");
+  });
+
+  test("pause and resume refuse the phases they cannot serve", async () => {
+    const recorder = new Recorder();
+    expect(() => recorder.pause()).toThrow(
+      expect.objectContaining({ name: "RecorderError", code: "not-recording" }),
+    );
+    expect(() => recorder.resume()).toThrow(
+      expect.objectContaining({ name: "RecorderError", code: "not-recording" }),
+    );
+
+    await recorder.start();
+    expect(() => recorder.resume()).toThrow(
+      expect.objectContaining({ name: "RecorderError", code: "already-recording" }),
+    );
+    recorder.pause();
+    expect(() => recorder.pause()).toThrow(
+      expect.objectContaining({ name: "RecorderError", code: "not-recording" }),
+    );
+    await recorder.stop();
+  });
+
+  test("a paused recorder cannot be started again", async () => {
+    const recorder = new Recorder();
+    await recorder.start();
+    recorder.pause();
+    await expect(recorder.start()).rejects.toThrow(
+      expect.objectContaining({ code: "already-recording" }),
+    );
+    await recorder.stop();
   });
 });
