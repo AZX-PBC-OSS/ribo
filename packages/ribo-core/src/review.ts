@@ -185,10 +185,10 @@ export const buildReviewRequest = <F extends Record<string, unknown>>(
 };
 
 /**
- * Turns a presenter's per-field decisions into a single {@link ReviewOutcome}.
+ * Turns a UI's per-field decisions into a single {@link ReviewOutcome}.
  *
  * Pure, and the only place "was this draft edited?" is decided, so every
- * presenter classifies the same way.
+ * UI classifies the same way.
  *
  * Two rules that are choices, not accidents:
  *
