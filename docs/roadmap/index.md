@@ -45,7 +45,11 @@ The post-Phase-4 work is organized as tasks **R1–R5** and **F1**, defined in a
 design that is not in this repo. R1 is done; the rest proceed in dependency order:
 
 1. **R2 — populate the headless hook layer** (`@azx/ribo-ui-react`). The package builds but is still a
-   `PACKAGE_NAME` stub. R2 fills it with the recorder and review hooks over the core engine.
+   `PACKAGE_NAME` stub. R2 fills it with six hooks and a provider over the core engine — and closes the
+   gap it surfaced: review is a contract in core with no callers, because the relay goes straight from
+   `extracting` to `writing`. Phase A makes review a real gate (`awaiting-review`, a persisted outcome,
+   pause/resume on `Recorder`); Phase B builds the hooks and migrates the playground onto them.
+   → [design](design/r2-headless-hook-layer-design.md)
 2. **R3 — pack-and-consume test tier.** The scratch-app matrix from doc 10 §8: pack each tarball,
    install into a fresh app, build, and assert the worker spawns and WASM loads. The source-condition
    playground never touches `dist/`, so every WASM/worker failure mode is production-build-only. This
@@ -79,6 +83,9 @@ So nobody re-litigates it:
 - [R1 — Package Build Configs — Design](design/r1-package-build-configs-design.md) — the R1 design:
   one build tool (tsdown) for all five packages, the generated Baseline syntax floor, and the package-
   contract gates.
+- [R2 — Headless Hook Layer — Design](design/r2-headless-hook-layer-design.md) — the R2 design: the
+  review gate in the outbox state machine, pause/resume, and the six hooks plus provider that make
+  `@azx/ribo-ui-react` real.
 
 ## Phase records
 
