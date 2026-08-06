@@ -8,7 +8,9 @@ import {
   ReviewValidationError,
   reviewOutcomeSchema,
 } from "./review.js";
+import type { Extracted } from "./provenance.js";
 import type {
+  ExtractedFields,
   FieldDecision,
   FieldDecisions,
   ReviewField,
@@ -27,13 +29,19 @@ import type { Transcript } from "./transcript.js";
  */
 const atticSchema = z.object({
   rValue: z.number().nullable().optional(),
-  notes: z.string().nullable().optional(),
+  // Declared in the MIDDLE on purpose. `review.ts` documents that leaves are presented
+  // in schema-declaration order, with a nested group inline at its own key's position.
+  // With the group declared LAST, an implementation that collected every top-level leaf
+  // first and appended nested groups afterwards would produce the same order, and the
+  // order assertions below could not fail. Declared here, that implementation yields
+  // ["rValue", "notes", "healthSafety.*"] and they do.
   healthSafety: z
     .object({
       ambientCo: z.enum(["passed", "failed"]).nullable().optional(),
       gasLeak: z.enum(["passed", "failed"]).nullable().optional(),
     })
     .optional(),
+  notes: z.string().nullable().optional(),
 });
 
 /** The shape the model emits, derived from the patch — never declared beside it. */
@@ -50,16 +58,19 @@ const transcript: Transcript = {
 
 const draft: AtticDraft = {
   rValue: { value: 19, confidence: 1, sourceSpan: "The attic is R-19" },
-  // Ungrounded on purpose: the model produced a summary that was never said.
-  notes: { value: "hatch needs air sealing", confidence: 1, sourceSpan: "hatch needs air sealing" },
   healthSafety: {
     ambientCo: { value: "passed", confidence: 1, sourceSpan: "ambient CO came back clean" },
     gasLeak: { value: null, confidence: 1, sourceSpan: null },
   },
+  // Ungrounded on purpose: the model produced a summary that was never said.
+  notes: { value: "hatch needs air sealing", confidence: 1, sourceSpan: "hatch needs air sealing" },
 };
 
-/** Declaration order, which is the order the review card renders in. */
-const LEAF_PATHS = ["rValue", "notes", "healthSafety.ambientCo", "healthSafety.gasLeak"];
+/**
+ * Declaration order, which is the order the review card renders in — and note the
+ * nested group's leaves sit INLINE at their key's position, not appended at the end.
+ */
+const LEAF_PATHS = ["rValue", "healthSafety.ambientCo", "healthSafety.gasLeak", "notes"];
 
 const requestFor = (extracted: Record<string, unknown>): ReviewRequest =>
   buildReviewRequest(extracted, transcript, atticSchema);
@@ -94,6 +105,37 @@ describe("buildReviewRequest — the schema enumerates the fields, not the data"
 
     expect(Object.keys(request.fields)).toEqual(LEAF_PATHS);
     expect(request.transcript).toBe(transcript);
+  });
+
+  test("a nested group's leaves sit inline at its key's position, not appended", () => {
+    // The documented contract (`ReviewFields`) is schema-DECLARATION order, and a
+    // nested group is not a special case that gets sorted to the end. `atticSchema`
+    // declares `healthSafety` between `rValue` and `notes` precisely so a walk that
+    // took top-level leaves first and appended groups afterwards would produce
+    // ["rValue", "notes", "healthSafety.*"] and fail here.
+    expect(Object.keys(requestFor(draft).fields)).toEqual([
+      "rValue",
+      "healthSafety.ambientCo",
+      "healthSafety.gasLeak",
+      "notes",
+    ]);
+  });
+
+  test("the touched-field lists follow that same order", () => {
+    const outcome = resolveReview(requestFor(draft), {
+      status: "submitted",
+      decisions: {
+        rValue: { status: "rejected" },
+        "healthSafety.ambientCo": { status: "edited", value: "failed" },
+        "healthSafety.gasLeak": { status: "rejected" },
+        notes: { status: "edited", value: "hatch is uninsulated" },
+      },
+    });
+
+    if (outcome.status !== "edited") throw new Error("unreachable");
+    // Not sorted, and not grouped by verdict — the order the schema declares.
+    expect(outcome.editedFields).toEqual(["healthSafety.ambientCo", "notes"]);
+    expect(outcome.rejectedFields).toEqual(["rValue", "healthSafety.gasLeak"]);
   });
 
   test("a nested group is one verdict per test, not one for the matrix", () => {
@@ -386,6 +428,82 @@ describe("resolveReview — validation at submit", () => {
     }
   });
 
+  test("an edited leaf carrying `undefined` is refused, not written as an absent key", () => {
+    // `value` is `unknown`, so this is type-legal, and it is exactly what a React
+    // editor whose state is `undefined` submits. Every patch leaf is `.optional()`, so
+    // the leaf schema ACCEPTS it — and the key would then vanish on serialisation,
+    // reading back as "leave this field alone" while `editedFields` still named it as
+    // touched. The absent-vs-null distinction the patch model rests on, lost silently.
+    try {
+      resolveReview(requestFor(draft), {
+        status: "submitted",
+        decisions: { ...acceptAll, rValue: { status: "edited", value: undefined } },
+      });
+      throw new Error("unreachable");
+    } catch (error) {
+      if (!(error instanceof ReviewValidationError)) throw error;
+      expect(error.issues).toEqual([
+        {
+          path: "rValue",
+          message:
+            "an edited leaf must carry a value or null, not undefined — reject it instead " +
+            "to leave the field untouched",
+        },
+      ]);
+    }
+  });
+
+  test("`undefined` really does pass the leaf schema — the guard is not redundant", () => {
+    // Why the check above cannot be left to zod: this is what zod alone would allow.
+    expect(leaf(requestFor(draft), "rValue").schema.safeParse(undefined).success).toBe(true);
+  });
+
+  test("an unrecognised decision status is refused, not read as 'accepted'", () => {
+    // Not type-legal, which is the point: a hand-built literal or a decision that
+    // crossed a serialisation boundary can carry a typo, and falling through to the
+    // accept path would write the model's value with `editedFields` empty — a silent
+    // write recorded as though a human had endorsed it.
+    const typo = { status: "reject" } as unknown as FieldDecision;
+
+    try {
+      resolveReview(requestFor(draft), {
+        status: "submitted",
+        decisions: { ...acceptAll, notes: typo },
+      });
+      throw new Error("unreachable");
+    } catch (error) {
+      if (!(error instanceof ReviewValidationError)) throw error;
+      expect(error.issues).toEqual([
+        {
+          path: "notes",
+          message:
+            'unrecognised decision status "reject" — expected "accepted", "edited" or "rejected"',
+        },
+      ]);
+    }
+  });
+
+  test("an accepted value that fails names the escape the auditor actually has", () => {
+    // Design §2.1 makes a patch leaf nullable only where a null is meaningful, so
+    // `.optional()` alone is a legal declaration — but `enveloped()` still derives
+    // `value: X.nullable()`, and an omitted leaf is presented with the null sentinel.
+    // Accepting it fails, and "expected string, received null" on its own leaves the
+    // auditor stuck with no idea that rejecting is the way out.
+    const nonNullable = z.object({ serial: z.string().optional() });
+
+    try {
+      resolveReview(buildReviewRequest({}, transcript, nonNullable), {
+        status: "submitted",
+        decisions: { serial: { status: "accepted" } },
+      });
+      throw new Error("unreachable");
+    } catch (error) {
+      if (!(error instanceof ReviewValidationError)) throw error;
+      expect(error.issues[0]?.path).toBe("serial");
+      expect(error.issues[0]?.message).toMatch(/reject the leaf to leave the field untouched/);
+    }
+  });
+
   test("an accepted value is validated too — the model is not trusted either", () => {
     // A value that never passed an extraction-schema parse: an item read back from an
     // outbox row written by an older, looser build would look exactly like this.
@@ -409,6 +527,44 @@ describe("resolveReview — completeness at runtime", () => {
       if (!(error instanceof ReviewValidationError)) throw error;
       expect(error.issues).toEqual([
         { path: "rValue", message: "no decision was submitted for this field" },
+      ]);
+    }
+  });
+
+  test("a decision key present but set to `undefined` counts as no decision", () => {
+    // A UI that has not collected a verdict yet writes exactly this. It must read as
+    // "the reviewer never decided" — not as a malformed decision, and certainly not as
+    // "accepted", which is the case `FieldDecisions`-was-not-`Partial` existed to refuse.
+    try {
+      resolveReview(requestFor(draft), {
+        status: "submitted",
+        decisions: { ...acceptAll, rValue: undefined as unknown as FieldDecision },
+      });
+      throw new Error("unreachable");
+    } catch (error) {
+      if (!(error instanceof ReviewValidationError)) throw error;
+      expect(error.issues).toEqual([
+        { path: "rValue", message: "no decision was submitted for this field" },
+      ]);
+    }
+  });
+
+  test("a path inherited from the prototype is not a decision", () => {
+    // `hasDecision` is own-keys-only so it agrees with the `Object.keys` half: a
+    // prototype-aware read would count `toString` as decided while `Object.keys` never
+    // lists it, and the two halves would disagree about the same object.
+    const proto = z.object({ toString: z.string().nullable().optional() });
+
+    try {
+      resolveReview(buildReviewRequest({}, transcript, proto), {
+        status: "submitted",
+        decisions: {},
+      });
+      throw new Error("unreachable");
+    } catch (error) {
+      if (!(error instanceof ReviewValidationError)) throw error;
+      expect(error.issues).toEqual([
+        { path: "toString", message: "no decision was submitted for this field" },
       ]);
     }
   });
@@ -587,6 +743,25 @@ test("ReviewOutcome no longer takes a type parameter", () => {
   const outcome: ReviewOutcome<{ rValue: number }> = { status: "discarded" };
 
   expect(outcome.status).toBe("discarded");
+});
+
+test("ExtractedFields<F> still lines up with Extracted<T>", () => {
+  // `ExtractedFields<F>` has no consumer in the workspace since review moved to leaf
+  // paths — `Enveloped<V>` is its nested-aware successor — but it is still exported,
+  // and an exported type with neither a consumer nor a test is the worst of the three
+  // states. This keeps it honest until Task 6 decides whether to delete it. It is
+  // correct as written: the `F` it maps is already envelope-shaped with no optional
+  // keys, which is why it needs no `-?`. See `enveloped.ts`.
+  const flat: ExtractedFields<{ rValue: number }> = {
+    rValue: { value: 19, confidence: 1, sourceSpan: "R-19" },
+  };
+  const rValue: Extracted<number> = flat.rValue;
+
+  // @ts-expect-error - the mapping is readonly: a field map is a snapshot of what the
+  // model said, not a mutable draft.
+  flat.rValue = rValue;
+
+  expect(rValue.value).toBe(19);
 });
 
 test("an edited decision must actually carry a value", () => {

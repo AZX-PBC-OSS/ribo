@@ -374,6 +374,24 @@ export const buildReviewRequest = (
 };
 
 /**
+ * Did the submission actually decide `path`?
+ *
+ * `Object.hasOwn` rather than a bare `!== undefined` index read, so this reads the
+ * submission the same way {@link completenessIssues} reports on it: the
+ * unexpected-path half enumerates with `Object.keys`, which is own-keys-only, and a
+ * prototype-aware read here would make the two halves disagree — a decisions object
+ * with `Object.prototype` in its chain would count a leaf named `"toString"` as
+ * decided while `Object.keys` never lists it.
+ *
+ * An own key explicitly set to `undefined` counts as *absent* rather than as a
+ * malformed decision, because that is what it means: a UI that has not collected a
+ * verdict yet. That is precisely the case `FieldDecisions`-was-not-`Partial` existed
+ * to refuse, and "no decision was submitted" is the message that says so.
+ */
+const hasDecision = (decisions: FieldDecisions, path: FieldPath): boolean =>
+  Object.hasOwn(decisions, path) && decisions[path] !== undefined;
+
+/**
  * Every way the submission's leaf set can disagree with the request's.
  *
  * Missing paths are reported in request order and unexpected ones in submission
@@ -387,13 +405,47 @@ const completenessIssues = (
   decisions: FieldDecisions,
 ): ReviewIssue[] =>
   paths
-    .filter((path) => decisions[path] === undefined)
+    .filter((path) => !hasDecision(decisions, path))
     .map((path) => ({ path, message: "no decision was submitted for this field" }))
     .concat(
       Object.keys(decisions)
         .filter((path) => !paths.includes(path))
         .map((path) => ({ path, message: "not a field of this review request" })),
     );
+
+/**
+ * The verdicts {@link FieldDecision} defines, as data so {@link resolveReview} can
+ * refuse anything else at runtime — see the guard there for why the union is not enough.
+ */
+const DECISION_STATUSES: ReadonlySet<string> = new Set(["accepted", "edited", "rejected"]);
+
+/**
+ * Why a value failed its leaf's schema, phrased for the human looking at that leaf.
+ *
+ * The two cases need different advice, and the `accepted` one is what would otherwise
+ * strand an auditor. Design §2.1 makes a patch leaf nullable only "where a null is
+ * meaningful", so `.optional()` without `.nullable()` is a legal declaration — but
+ * `enveloped()` still derives `value: X.nullable()`, and a leaf the model omitted is
+ * presented with the `null` sentinel. Accepting that leaf then fails, and a bare
+ * "expected string, received null" tells the auditor nothing about what to do next.
+ * Naming the escape — reject it, which leaves the field untouched — is the difference
+ * between an actionable error and a stuck submission.
+ *
+ * Chosen over refusing a non-nullable leaf when the schema is walked. The dot and
+ * integer-like guards in `field-path.ts` exist because those failures are *silent*;
+ * this one is already loud, just badly worded, and refusing at the walk would force
+ * every leaf of every future adapter to accept `null` — making a value writable that
+ * its author deliberately made unwritable. Fixing the message keeps the adapter's
+ * expressiveness and gives the auditor the correct action, which is that a field with
+ * nothing to record and no null to record it as should be rejected.
+ */
+const invalidValueMessage = (status: "accepted" | "edited", error: z.ZodError): string => {
+  const reason = error.issues.map((issue) => issue.message).join("; ");
+  return status === "edited"
+    ? `edited value is not valid for this field: ${reason}`
+    : `the extracted value is not valid for this field (${reason}) — it cannot be accepted ` +
+        "as it stands; edit it, or reject the leaf to leave the field untouched";
+};
 
 /** Write `value` at a dotted path, creating the objects on the way down. */
 const setAtPath = (target: Record<string, unknown>, path: FieldPath, value: unknown): void => {
@@ -428,7 +480,7 @@ const setAtPath = (target: Record<string, unknown>, path: FieldPath, value: unkn
  *     statement about the extraction. Collapsing them would lose that. (The relay
  *     refuses to write an empty field set, so that case stops at the relay guard.)
  *
- * Two things it refuses, both with a {@link ReviewValidationError} naming the leaf:
+ * Four things it refuses, each with a {@link ReviewValidationError} naming the leaf:
  *
  *   - **A submission whose leaf set is not the request's** — see
  *     {@link completenessIssues}. This is the guarantee `FieldDecisions` used to get
@@ -440,6 +492,12 @@ const setAtPath = (target: Record<string, unknown>, path: FieldPath, value: unkn
  *     `ToolAdapter.schema.parse` at write time stays as the outer boundary; two
  *     checks, deliberately, because the per-leaf one is the one that can say *which*
  *     field and be shown next to it.
+ *   - **An `edited` decision carrying `undefined`.** It passes every patch leaf's
+ *     schema and then disappears on serialisation, silently turning "the human edited
+ *     this" into "leave this field alone". See the guard's own note.
+ *   - **A decision whose `status` is none of the three.** The union cannot enforce
+ *     that at runtime, and reading an unrecognised status as "accepted" is a silent
+ *     write.
  *
  * Both refusals are checked over every leaf before either throws, so a UI gets the
  * whole list rather than one error per round trip.
@@ -468,6 +526,21 @@ export const resolveReview = (
     const field = request.fields[path] as ReviewField;
     const decision = submission.decisions[path] as FieldDecision;
 
+    // The union says this cannot happen; at runtime it can. A decision may be a
+    // hand-built literal or may have crossed a serialisation boundary, and falling
+    // through to the accept path would write the model's value with `editedFields`
+    // empty — recorded as though a human had endorsed it. That is §2.6's silent write
+    // in a second guise, so it is refused rather than interpreted.
+    if (!DECISION_STATUSES.has(decision.status)) {
+      invalid.push({
+        path,
+        message:
+          `unrecognised decision status ${JSON.stringify(decision.status)} — ` +
+          'expected "accepted", "edited" or "rejected"',
+      });
+      continue;
+    }
+
     if (decision.status === "rejected") {
       rejectedFields.push(path);
       continue;
@@ -477,9 +550,36 @@ export const resolveReview = (
     const value = decision.status === "edited" ? decision.value : field.extracted.value;
     const parsed = field.schema.safeParse(value);
     if (!parsed.success) {
-      invalid.push({ path, message: parsed.error.issues.map((issue) => issue.message).join("; ") });
+      invalid.push({ path, message: invalidValueMessage(decision.status, parsed.error) });
       continue;
     }
+
+    // `undefined` PASSES every patch leaf's schema — each is `.optional()` — and would
+    // be written as a present-but-undefined key that vanishes the moment the outcome is
+    // serialised. `z.record(z.string(), z.unknown())` keeps it, so the persistence
+    // boundary does not catch it either: the leaf reads back ABSENT, which design §2.1
+    // defines as "do not touch this field", while `editedFields` still names it as
+    // touched. That is the absent-vs-null distinction the patch model rests on, lost
+    // silently and indistinguishable downstream from a rejection.
+    //
+    // A React editor whose state is `undefined` submits exactly this, so it is a live
+    // path rather than a theoretical one. Deliberately NOT normalised to `null`: that
+    // would write an empty value the human never asked for, and would fail anyway on a
+    // leaf that is `.optional()` but not `.nullable()`.
+    //
+    // Checked on the PARSED value rather than the input, so a schema carrying a
+    // transform cannot smuggle one through. Only an `edited` decision can reach here
+    // today — `readEnvelope` normalises an extracted value to `null` — hence the wording.
+    if (parsed.data === undefined) {
+      invalid.push({
+        path,
+        message:
+          "an edited leaf must carry a value or null, not undefined — reject it instead " +
+          "to leave the field untouched",
+      });
+      continue;
+    }
+
     // The PARSED value, not the raw one: the leaf's schema is the authority on what
     // a legal value for it is, so what gets persisted is what it accepted.
     setAtPath(fields, path, parsed.data);

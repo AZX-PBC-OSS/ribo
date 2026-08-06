@@ -292,8 +292,9 @@ export class Outbox {
    * Refusing to *write* an empty field set is `relay.ts`'s `#write`, which is where
    * the one invariant about reaching the host tool already lives.
    *
-   * Takes the persisted (loose) outcome. The typed `ReviewOutcome<F>` erases to it
-   * at the hook boundary — one document schema serves every host tool's field set.
+   * Takes the persisted (loose) outcome. `ReviewOutcome` erases to it at the hook
+   * boundary — one document schema serves every host tool's field set — and its
+   * `fields` is already the reassembled nested object `resolveReview` produced.
    *
    * @throws if the item does not exist, or is not `awaiting-review`. A duplicate
    * submission — two clicks, or two tabs — therefore fails loudly on the second

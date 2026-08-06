@@ -6,6 +6,7 @@ import { firstValueFrom } from "rxjs";
 import { afterEach, expect, test, vi } from "vitest";
 
 import type { Recording } from "../recording.js";
+import type { PersistedReviewOutcome } from "../review.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 import { removeOutboxDatabase } from "./database.js";
 import {
@@ -642,6 +643,47 @@ test("an edited review that rejected every field still goes to writing", async (
   });
 
   expect(updated.status).toBe("writing");
+});
+
+test("a nested review outcome with dotted paths persists to IndexedDB with no migration", async () => {
+  // R1.5 design §4 claims moving review to nested values and dotted leaf paths needs
+  // NO outbox document version bump. `queue/outbox-memory.test.ts` drives the same
+  // round trip, but memory storage cannot settle it: as the durability test above
+  // records, it keeps a module-global map, so a close/reopen assertion passes there
+  // whether or not anything was written. The structured-clone step that could in
+  // principle flatten or drop a nested object exists only on the Dexie/IndexedDB path.
+  //
+  // So this closes the database and reads the raw store with no RxDB in the call
+  // stack — the same technique the durability test uses, for the same reason.
+  const name = uniqueName();
+  const outbox = await open(name);
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  const outcome: PersistedReviewOutcome = {
+    status: "edited",
+    fields: {
+      atticRValue: 19,
+      healthSafety: { ambientCo: "passed", gasLeak: null },
+    },
+    editedFields: ["healthSafety.ambientCo"],
+    rejectedFields: ["healthSafety.asbestos"],
+  };
+
+  await outbox.submitReview(item.id, outcome);
+  await outbox.close();
+
+  const rawDocs = (await readRawStore(name, "docs")) as {
+    id: string;
+    reviewOutcome: unknown;
+  }[];
+
+  // The nesting is on disk AS nesting — not flattened to dotted keys, not stringified
+  // — and the dotted touched-field paths survived as the strings they are. At the
+  // unchanged `outboxRxSchema.version`, which `idbDatabaseName` reads off the schema:
+  // a version bump would send this read to a database that never existed, and throw.
+  expect(rawDocs.map((doc) => doc.id)).toEqual([item.id]);
+  expect(rawDocs[0]?.reviewOutcome).toEqual(outcome);
 });
 
 test("submitting a review for an unknown id rejects", async () => {

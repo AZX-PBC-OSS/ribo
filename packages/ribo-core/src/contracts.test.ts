@@ -61,13 +61,16 @@ import type {
 const atticSchema = z.object({
   rValue: z.number().nullable().optional(),
   area: z.number().nullable().optional(),
-  notes: z.string().nullable().optional(),
+  // Declared BETWEEN the flat leaves, not last, so the leaf-order assertion below can
+  // actually fail: a walk that collected top-level leaves first and appended nested
+  // groups afterwards would still match a group declared last. See `ReviewFields`.
   healthSafety: z
     .object({
       ambientCo: z.enum(["passed", "failed"]).nullable().optional(),
       gasLeak: z.enum(["passed", "failed"]).nullable().optional(),
     })
     .optional(),
+  notes: z.string().nullable().optional(),
 });
 type AtticValues = z.infer<typeof atticSchema>;
 
@@ -199,9 +202,9 @@ test("the contracts compose: record → transcribe → extract → review → wr
   expect(Object.keys(request.fields)).toEqual([
     "rValue",
     "area",
-    "notes",
     "healthSafety.ambientCo",
     "healthSafety.gasLeak",
+    "notes",
   ]);
   expect(field(request, "rValue").isGrounded).toBe(true);
   expect(field(request, "healthSafety.ambientCo").isGrounded).toBe(true);
