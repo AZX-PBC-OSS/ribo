@@ -62,11 +62,29 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  * `actual` and the fixture below are re-serialized with `JSON.stringify` — NO
  * indentation — before comparing as strings. This is still a strict,
  * order-sensitive STRING comparison, not `toEqual`: `JSON.stringify`'s key order
- * depends only on each object's own property-insertion order, and a JSON
- * importer/parser preserves that order exactly like `JSON.parse` does, so
- * canonicalizing this way changes nothing about what the comparison can detect.
- * (Verified by hand: `pnpm format` reflows this fixture file's arrays onto fewer
- * lines, and the compact re-serialization is byte-identical before and after.)
+ * depends on each object's own property-insertion order for ordinary string
+ * keys, and a JSON importer/parser preserves that order exactly like
+ * `JSON.parse` does, so canonicalizing this way changes nothing about what the
+ * comparison can detect. (Verified by hand: `pnpm format` reflows this fixture
+ * file's arrays onto fewer lines, and the compact re-serialization is
+ * byte-identical before and after.)
+ *
+ * CAVEAT this canonicalization relies on: JS object key order is NOT purely
+ * insertion order in general — every object, however constructed, sorts
+ * canonical-integer-string keys ("0", "1", "23", ...) ascending and places them
+ * BEFORE all other keys, regardless of insertion order (e.g.
+ * `JSON.stringify(JSON.parse('{"2":1,"10":2,"1":3,"a":4}'))` →
+ * `{"1":3,"2":1,"10":2,"a":4}`). Canonicalizing away whitespace is only safe
+ * here because no numeric-looking string is ever an OBJECT KEY anywhere in this
+ * schema — the numeric-looking tokens that do appear ("0", "1-3", "0-5", the
+ * attic/DHW band values) are only `enum` ARRAY ELEMENTS, and array order is
+ * never touched by the integer-key sort rule. If a future field ever introduces
+ * an object keyed by a numeric-looking string, this canonicalization would
+ * silently stop being order-sensitive for that key — the test would keep
+ * passing while no longer detecting a reordering there, exactly the failure
+ * mode this fixture exists to catch. Nothing else in this file would flag that;
+ * it is a property of the fixture's current shape, not an invariant this test
+ * enforces.
  */
 
 // Canonical (compact, no whitespace) form of the fixture — see the comment above
