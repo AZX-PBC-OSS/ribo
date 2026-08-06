@@ -1057,7 +1057,19 @@ Add to the `Outbox` class, next to `patch`:
       }
       const merged = { ...current, ...patch };
       // Validated inside the modifier, against the revision actually being written.
-      outboxDocumentSchema.parse(merged);
+      //
+      // NOTE the projection — a bare `outboxDocumentSchema.parse(merged)` here
+      // ALWAYS THROWS, and TypeScript cannot see it. RxDB hands the modifier its
+      // internal document: `_attachments` with a real stub value, plus `_deleted`,
+      // `_meta` and `_rev` as present-but-`undefined` keys (`stripMetaDataFromDocument`
+      // in rxdb's `utils-document.ts` uses `Object.assign({}, doc, { _meta: undefined, … })`,
+      // so the KEYS REMAIN). `outboxDocumentSchema` is a `strictObject`, and zod 4
+      // derives unrecognized keys from `Object.keys`, which includes keys whose value
+      // is `undefined`. The modifier's parameter is typed `WithDeleted<OutboxDocument>`,
+      // so nothing flags this until runtime. `patch()` never hit it because it
+      // validates OUTSIDE the modifier, against `#toItem(doc)`, whose `toJSON()` has
+      // already stripped the metadata.
+      outboxDocumentSchema.parse(persistedFieldsOf(merged));
       return merged;
     });
 
@@ -1073,12 +1085,41 @@ Add to the `Outbox` class, next to `patch`:
 Import `reviewOutcomeSchema` and `type PersistedReviewOutcome` from `../review.js`, and
 `outboxDocumentSchema` / `type OutboxPatch` from `./schema.js` if not already imported.
 
-Two notes. First, **verify `incrementalModify` is the right RxDB API for this version** — check
+`persistedFieldsOf` projects an object down to the keys `outboxDocumentSchema` actually declares:
+
+```ts
+/**
+ * The document's persisted fields only, keyed off the schema's own shape.
+ *
+ * Keyed off `.shape` rather than a denylist of RxDB metadata keys, so a future
+ * metadata field needs no change here. The trade to state plainly: an unrecognized
+ * *persisted* key — a field written by an older build, which `schema.ts` names as
+ * why this parse is a trust boundary "in both directions" — is now silently omitted
+ * from the parse input rather than rejected, and still rides out on `merged`. There
+ * is no way to tell it from RxDB metadata at this point, so this is the honest
+ * limit rather than an oversight. `patch()` does not have this hole.
+ */
+const persistedFieldsOf = (document: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.keys(outboxDocumentSchema.shape)
+      .filter((key) => key in document)
+      .map((key) => [key, document[key]]),
+  );
+```
+
+Three notes. First, **verify `incrementalModify` is the right RxDB API for this version** — check
 `node_modules/rxdb` for the current name and conflict semantics before relying on the retry behaviour;
 if the modifier is not re-run against the current revision on conflict, this guard is not atomic and
 the plan's premise needs revisiting rather than papering over.
 
-Second, note the **drop-audio ordering is the reverse** of what an earlier draft of this plan
+Second, the returned handle is **not** safe to project after a discard. `incrementalModify` resolves
+to a cached `RxDocument` keyed by `revision + lwt`, with `_data` fixed per instance, so its
+`hasAudio` reflects the pre-drop revision — whether it happens to read `false` depends on whether
+`attachment.remove()`'s write lands on that same cached instance, which is an RxDB internal. Re-read
+the document with `findOne` before projecting. This is the one method that permanently destroys user
+data; it is not the place to be clever.
+
+Third, note the **drop-audio ordering is the reverse** of what an earlier draft of this plan
 specified. Dropping first would mean a crash between the two steps leaves an `awaiting-review` row
 whose audio is gone — the item looks reviewable, the recording is unrecoverable, and nothing indicates
 why. Committing the status first makes the worst case a `discarded` row that still holds audio, which
