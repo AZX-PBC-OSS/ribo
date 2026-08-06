@@ -131,16 +131,23 @@ export type {
 export { summarizeWork, workSafety } from "./work-safety.js";
 export type { StoragePersistence, WorkOnDevice, WorkSafety } from "./work-safety.js";
 
-// Human review, field by field.
-export { buildReviewRequest, resolveReview, reviewOutcomeSchema } from "./review.js";
+// Human review, one leaf at a time: the values schema enumerates the leaves as flat
+// dotted paths, each carrying its own schema so a UI can render and validate an edit.
+export {
+  buildReviewRequest,
+  resolveReview,
+  ReviewValidationError,
+  reviewOutcomeSchema,
+} from "./review.js";
 export type {
   ExtractedFields,
   FieldDecision,
   FieldDecisions,
+  FieldPath,
   PersistedReviewOutcome,
-  ReviewedValues,
   ReviewField,
   ReviewFields,
+  ReviewIssue,
   ReviewOutcome,
   ReviewRequest,
   ReviewSubmission,

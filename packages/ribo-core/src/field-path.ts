@@ -1,0 +1,90 @@
+import { z } from "zod";
+
+/**
+ * @file The two primitives shared by every walk over a values schema.
+ *
+ * Two walks exist over the same hand-written patch schema, and they must agree:
+ * `enveloped()` derives the extraction schema from it, and `buildReviewRequest`
+ * enumerates the leaves a human reviews. If they disagreed about what counts as a
+ * wrapper, or about how a nested key becomes a path, review would present leaves
+ * the extraction never produced (or miss ones it did) — and the symptom would be a
+ * blank review card, not an error. So the two decisions both walks make are made
+ * once, here.
+ */
+
+/**
+ * Strip every `.optional()` / `.nullable()` wrapper off `field`, in whatever order
+ * and however many of them there are.
+ *
+ * A patch leaf may be wrapped as `X.nullable().optional()` OR `X.optional().nullable()`
+ * — both must reduce to bare `X`. `.unwrap()` is the public zod 4.4.3 API for peeling
+ * off exactly one `ZodOptional` / `ZodNullable` layer; looping while either wrapper is
+ * still present handles both orders (and, defensively, deeper stacks) uniformly.
+ *
+ * Callers use this to see *through* a patch's optionality — `enveloped()` to decide what
+ * to wrap in a provenance envelope, `buildReviewRequest` to decide whether a field is a
+ * nested object to recurse into or a leaf to present. Neither may look at the declared
+ * type directly: `HealthSafetyMatrix.optional()` is a `ZodOptional`, not a `ZodObject`,
+ * and treating it as a leaf would collapse an 11-test matrix into one review card.
+ */
+export const stripOptionalNullable = (field: z.ZodType): z.ZodType => {
+  let current = field;
+  while (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
+    // `.unwrap()`'s declared return type is generic over the wrapped type, defaulting to the
+    // core (not classic) `$ZodType` once narrowed only by `instanceof`; every real wrapper in
+    // this codebase wraps a classic `z.ZodType`, so this cast reflects that rather than working
+    // around it.
+    current = current.unwrap() as z.ZodType;
+  }
+  return current;
+};
+
+/**
+ * Keys that would silently break the dotted-path model. See {@link childPath}.
+ *
+ * An "integer-like" key is one `Object.keys` hoists to the front in ascending numeric
+ * order regardless of declaration order — the array-index rule in the property-order
+ * spec. `"0"`, `"7"` and `"2024"` qualify; `"01"`, `"1.5"` and `"r19"` do not.
+ */
+const INTEGER_LIKE_KEY = /^(?:0|[1-9]\d*)$/;
+
+/**
+ * Join a parent path and a field key into a dotted leaf path — and refuse the two key
+ * shapes that would make that path a lie.
+ *
+ * **Both throws are deliberate, and both guard a SILENT failure.** A dotted path model
+ * only works if the separator is unambiguous and if key order is the order the schema
+ * was written in. Neither is checkable after the fact:
+ *
+ *   - A key containing `"."` produces a path that addresses a *different* leaf than the
+ *     one it came from: a field named `"attic.rValue"` and a nested `attic: { rValue }`
+ *     both flatten to `"attic.rValue"`, so review would show one card for two fields and
+ *     `resolveReview` would reassemble the wrong shape. Nothing downstream can tell the
+ *     two apart, so the refusal has to happen here, while the key is still in hand.
+ *   - An integer-like key breaks the documented iteration order. `review.ts` states that
+ *     fields are presented in schema-declaration order and that `editedFields` /
+ *     `rejectedFields` follow it; that holds because JavaScript preserves insertion order
+ *     for string keys — *except* array-index-like ones, which are hoisted to the front in
+ *     numeric order. One such key would reorder a 34-field review card with no error.
+ *
+ * Refusing is safe for the field sets this repo has: adapter schemas are bounded,
+ * hand-written, and use identifier-shaped names. A tool that genuinely needs a `.` in a
+ * field name needs a different path encoding, which is a design change, not a patch.
+ */
+export const childPath = (parent: string, key: string): string => {
+  if (key.includes(".")) {
+    throw new Error(
+      `field name "${key}"${parent === "" ? "" : ` (under "${parent}")`} contains "." — ` +
+        "review addresses leaves by dotted path, so a name containing the separator would " +
+        "address the wrong leaf. Rename the field.",
+    );
+  }
+  if (INTEGER_LIKE_KEY.test(key)) {
+    throw new Error(
+      `field name "${key}"${parent === "" ? "" : ` (under "${parent}")`} is integer-like — ` +
+        "JavaScript hoists array-index keys ahead of every other key, which would silently " +
+        "reorder the review card away from schema-declaration order. Rename the field.",
+    );
+  }
+  return parent === "" ? key : `${parent}.${key}`;
+};

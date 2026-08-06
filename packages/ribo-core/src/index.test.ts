@@ -31,6 +31,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "PERMANENT_TRANSCRIBER_UNAVAILABLE_REASONS",
     "Recorder",
     "RecorderError",
+    "ReviewValidationError",
     "TRANSCRIBER_UNAVAILABLE_REASONS",
     "TerminalQueueError",
     "TranscriberUnavailableError",

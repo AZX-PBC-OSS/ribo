@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { childPath, stripOptionalNullable } from "./field-path.js";
 import { extractedSchema, type Extracted } from "./provenance.js";
 
 /**
@@ -32,29 +33,16 @@ import { extractedSchema, type Extracted } from "./provenance.js";
  *     sent in OpenAI strict structured-output mode, where an unsupported shape surfaces as an
  *     opaque API error far from its cause; throwing here, with the path, is strictly more useful
  *     than that.
+ *
+ * The two primitives of the walk — stripping the patch wrappers, and building the dotted path —
+ * live in `field-path.ts` because `review.ts` walks the SAME patch schema to enumerate the leaves
+ * a human reviews. The two walks must agree on what a wrapper is and on how a nested key becomes
+ * a path, or review presents leaves the extraction never produced. `childPath` is also where the
+ * two field-name shapes that would break the dotted-path model are refused.
  */
 
 /** A patch or extraction shape's raw fields: the record `z.object({ ... })` is built from. */
 type RawShape = Record<string, z.ZodType>;
-
-/**
- * Strip every `.optional()` / `.nullable()` wrapper off `field`, in whatever order and however
- * many of them there are. A patch leaf may be wrapped as `X.nullable().optional()` OR
- * `X.optional().nullable()` — both must reduce to bare `X`. `.unwrap()` is the public zod 4.4.3
- * API for peeling off exactly one `ZodOptional` / `ZodNullable` layer; looping while either
- * wrapper is still present handles both orders (and, defensively, deeper stacks) uniformly.
- */
-const stripOptionalNullable = (field: z.ZodType): z.ZodType => {
-  let current = field;
-  while (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
-    // `.unwrap()`'s declared return type is generic over the wrapped type, defaulting to the
-    // core (not classic) `$ZodType` once narrowed only by `instanceof`; every real wrapper in
-    // this codebase wraps a classic `z.ZodType`, so this cast reflects that rather than working
-    // around it.
-    current = current.unwrap() as z.ZodType;
-  }
-  return current;
-};
 
 /**
  * The leaf types `enveloped()` knows how to wrap. Matches design §3's decision table exactly —
@@ -79,9 +67,6 @@ const isSupportedLeaf = (field: z.ZodType): boolean =>
   field instanceof z.ZodString ||
   field instanceof z.ZodNumber ||
   field instanceof z.ZodBoolean;
-
-/** Build the dotted path used in both nested traversal and the unsupported-shape error. */
-const childPath = (path: string, key: string): string => (path === "" ? key : `${path}.${key}`);
 
 /** Envelope one field: a nested object recurses, a supported leaf is wrapped, anything else throws. */
 const envelopeField = (field: z.ZodType, path: string): z.ZodType => {
@@ -192,8 +177,8 @@ export const enveloped = <T extends z.ZodObject>(
  * function's real inferred return type) never carries it — nothing in `enveloped()`'s
  * implementation calls `.readonly()`. Every sibling field-map type in this package is explicitly
  * `readonly` regardless of its leaf's own mutability — `ExtractedFields<F>` (`review.ts`) wraps the
- * same non-readonly `Extracted<F[K]>` leaf in an explicit readonly mapping, and `ReviewFields<F>`
- * / `FieldDecisions<F>` / `ReviewedValues<F>` do the same. `Enveloped<V>` sits at the identical
+ * same non-readonly `Extracted<F[K]>` leaf in an explicit readonly mapping, and `ReviewFields` /
+ * `FieldDecisions` do the same over their leaf paths. `Enveloped<V>` sits at the identical
  * public boundary (`ToolAdapter.extractionSchema: ZodType<Enveloped<V>>`) and keeping `readonly`
  * here is what makes it consistent with that convention rather than the one silently-mutable
  * exception, discoverable only by reading this comment.
