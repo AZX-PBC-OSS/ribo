@@ -1627,9 +1627,15 @@ vitest-browser-react: "<resolve at install time>"
 ```
 
 Resolve the actual latest version and pin what you get — **do not invent a version number**
-(AGENTS.md §5.4). Then add `"vitest-browser-react": "catalog:"` to
-`packages/ribo-ui-react/package.json` `devDependencies`, and `"@vitest/browser": "catalog:"` if that
-package does not already have it.
+(AGENTS.md §5.4). Then add to `packages/ribo-ui-react/package.json` `devDependencies`:
+
+- `"vitest-browser-react": "catalog:"`
+- `"@vitest/browser": "catalog:"` if absent
+- **`"rxdb": "catalog:"`** — required, and easy to miss. Several hook tests construct a memory-storage
+  outbox via `import { getRxStorageMemory } from "rxdb/plugins/storage-memory"`. pnpm's isolated
+  `node_modules` layout means a specifier is only resolvable from a package that declares it; `rxdb`
+  reaching `ribo-core` does not make it visible here. `rxdb` is already in the catalog, so this is a
+  one-line addition, not a new pin.
 
 ```bash
 pnpm install
@@ -2213,12 +2219,18 @@ import { createConnectivity } from "@azx/ribo-core";
 
 import { useConnectivity } from "./use-connectivity.js";
 
-/** A connectivity model over injected seams — no real network, no real events. */
+/**
+ * A connectivity model over injected seams — no real network, no real events.
+ *
+ * `probe` resolves a **`Response`**, not a boolean: the contract is "resolve with an
+ * ok Response to report healthy", and a non-ok response, a throw or an abort all
+ * count as unreachable (`connectivity.ts`).
+ */
 function fakeConnectivity(online: boolean) {
   return createConnectivity({
     bindEvents: () => () => undefined,
     isOnline: () => online,
-    probe: async () => online,
+    probe: async () => new Response(null, { status: online ? 204 : 503 }),
   });
 }
 
@@ -2245,10 +2257,14 @@ test("resolves connectivity from the provider", async () => {
 });
 ```
 
-Import `RiboProvider` from `./RiboProvider.js`. Check `ConnectivityOptions` in
-`packages/ribo-core/src/connectivity.ts` for the exact seam names and fix `fakeConnectivity` to match
-— the names above are the shape, not verified spellings. `connectivity.start()` may be required
-before the state leaves its initial value; if so, call it in the test.
+Import `RiboProvider` from `./RiboProvider.js`. The seam names `bindEvents`, `isOnline` and `probe`
+are verified correct; the **return shape of `probe` is what trips people** — see the comment above.
+
+`createConnectivity` does not bind anything until `start()` is called, and the model begins at its
+initial state. So a test asserting a _transition_ must call `connectivity.start()` and control the
+stability window (`DEFAULT_STABILITY_WINDOW_MS` and the `scheduleTimer` seam) rather than waiting on
+real time. A test asserting only the initial value need not start it — but then say so, rather than
+letting a reader think it proves more than it does.
 
 `use-storage-persistence.browser.test.tsx`:
 
@@ -2278,6 +2294,51 @@ test("exposes a storage estimate", async () => {
   }
   render(<Probe />);
   await vi.waitFor(() => expect(seen?.quota).toBeGreaterThan(0));
+});
+
+test("two consumers see one shared grant, not independent copies", async () => {
+  // The bug this shape prevents: with per-hook state, granting persistence in one
+  // component leaves every other consumer -- including useWorkSafety -- reporting
+  // the old value, so the app can say "at risk" about a device it just protected.
+  const seen: StoragePersistence[] = [];
+  function Granter() {
+    const { request } = useStoragePersistence();
+    return (
+      <button type="button" onClick={() => void request()}>
+        grant
+      </button>
+    );
+  }
+  function Observer() {
+    const { persistence } = useStoragePersistence();
+    seen.push(persistence);
+    return <p>observer {persistence}</p>;
+  }
+
+  const screen = render(
+    <>
+      <Granter />
+      <Observer />
+    </>,
+  );
+  await screen.getByRole("button", { name: "grant" }).click();
+
+  // The observer never called request(), so it can only know via the shared store.
+  await vi.waitFor(() => expect(seen.at(-1)).not.toBe("unknown"));
+});
+
+test("an un-asked origin reports unknown, never denied", async () => {
+  // `persisted() === false` means "not persisted", which is also true before anyone
+  // asks. Reporting that as `denied` would tell workSafety a request was refused
+  // when none was made -- and `denied` is what drives the at-risk verdict.
+  let seen: StoragePersistence | undefined;
+  function Probe() {
+    seen = useStoragePersistence().persistence;
+    return null;
+  }
+  render(<Probe />);
+  await vi.waitFor(() => expect(seen).not.toBe(undefined));
+  expect(seen).not.toBe("denied");
 });
 ```
 
@@ -2340,6 +2401,23 @@ import { useCallback, useEffect, useState } from "react";
  * `unsupported` means this browser has no Storage API to ask, `unknown` means we
  * have not finished asking. Collapsing them would let a UI claim a device is
  * unprotected while the question is still in flight.
+ *
+ * ## One module-level store, not per-call state
+ *
+ * Every caller of this hook subscribes to **one** shared source. With per-hook
+ * `useState`, `StoragePanel` and `useWorkSafety` would hold independent copies:
+ * the user grants persistence in the panel, that hook updates, and the safety
+ * verdict keeps saying `at-risk` from its own stale copy until something else
+ * re-renders it. A grant is a property of the origin, not of a component.
+ *
+ * ## `denied` means refused, not "not yet granted"
+ *
+ * `work-safety.ts` documents `denied` as an actual refused request. But
+ * `navigator.storage.persisted() === false` only means *not currently persisted* —
+ * which is also the state before anyone has asked. Reporting that as `denied`
+ * would tell `workSafety` a request was refused when none was made. So an
+ * un-asked origin reports `unknown`, and `denied` is set only by a `persist()`
+ * call that resolved `false`.
  */
 export interface UseStoragePersistenceResult {
   readonly persistence: StoragePersistence;
@@ -2350,44 +2428,88 @@ export interface UseStoragePersistenceResult {
   readonly refresh: () => void;
 }
 
-const readPersistence = async (): Promise<StoragePersistence> => {
+interface StorageSnapshot {
+  readonly persistence: StoragePersistence;
+  readonly estimate: StorageEstimate | undefined;
+}
+
+// One snapshot per origin, shared by every caller. Module scope rather than a
+// context value because it describes the browser, not a subtree — and because a
+// cached snapshot object is what keeps `useSubscribed` from re-rendering forever.
+let snapshot: StorageSnapshot = { persistence: "unknown", estimate: undefined };
+const listeners = new Set<(value: StorageSnapshot) => void>();
+
+const publish = (next: Partial<StorageSnapshot>): void => {
+  snapshot = { ...snapshot, ...next };
+  for (const listener of listeners) listener(snapshot);
+};
+
+const subscribeToStorage = (listener: (value: StorageSnapshot) => void): Unsubscribe => {
+  listeners.add(listener);
+  listener(snapshot);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+
+/**
+ * Reads the grant *without* claiming a refusal.
+ *
+ * `persisted() === false` means "not persisted", which is also true of an origin
+ * nobody has asked about — so it maps to `unknown`, never `denied`. Only
+ * {@link UseStoragePersistenceResult.request} can produce `denied`.
+ */
+const readStorage = async (): Promise<Partial<StorageSnapshot>> => {
   if (typeof navigator === "undefined" || navigator.storage?.persisted === undefined) {
-    return "unsupported";
+    return { persistence: "unsupported" };
   }
-  return (await navigator.storage.persisted()) ? "granted" : "denied";
+  const next: Partial<StorageSnapshot> = {};
+  try {
+    next.persistence = (await navigator.storage.persisted()) ? "granted" : "unknown";
+  } catch {
+    // A Storage API that exists and throws is not the same as one that is absent,
+    // but neither tells us the grant — and guessing here is what would put a wrong
+    // answer into workSafety.
+    next.persistence = "unknown";
+  }
+  try {
+    next.estimate = await navigator.storage.estimate?.();
+  } catch {
+    next.estimate = undefined;
+  }
+  return next;
 };
 
 export function useStoragePersistence(): UseStoragePersistenceResult {
-  const [persistence, setPersistence] = useState<StoragePersistence>("unknown");
-  const [estimate, setEstimate] = useState<StorageEstimate | undefined>(undefined);
-  const [nonce, setNonce] = useState(0);
+  const current = useSubscribed(subscribeToStorage, () => snapshot);
 
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      const grant = await readPersistence();
-      if (live) setPersistence(grant);
-      const measured = await navigator.storage?.estimate?.();
-      if (live) setEstimate(measured);
-    })();
-    return () => {
-      live = false;
-    };
-  }, [nonce]);
+  const refresh = useCallback(() => {
+    void readStorage().then(publish);
+  }, []);
 
-  const refresh = useCallback(() => setNonce((value) => value + 1), []);
+  // Read once per mount. The shared snapshot means later mounts paint the known
+  // value immediately instead of flashing `unknown`.
+  useEffect(() => refresh && void refresh(), [refresh]);
 
   const request = useCallback(async (): Promise<StoragePersistence> => {
     if (navigator.storage?.persist === undefined) {
-      setPersistence("unsupported");
+      publish({ persistence: "unsupported" });
       return "unsupported";
     }
-    const granted = (await navigator.storage.persist()) ? "granted" : "denied";
-    setPersistence(granted);
+    let granted: StoragePersistence;
+    try {
+      granted = (await navigator.storage.persist()) ? "granted" : "denied";
+    } catch {
+      granted = "denied";
+    }
+    // Published to the shared store, so every consumer — including useWorkSafety —
+    // sees the new grant. This is the case per-hook state got wrong.
+    publish({ persistence: granted });
+    void readStorage().then(publish);
     return granted;
   }, []);
 
-  return { persistence, estimate, request, refresh };
+  return { ...current, request, refresh };
 }
 ```
 
@@ -3061,7 +3183,14 @@ interface Fields extends Record<string, unknown> {
   heatingFuel: string;
 }
 
-const TRANSCRIPT = { text: "The attic is R-19 and the boiler runs on oil.", segments: [] };
+// `transcriptSchema` is a z.strictObject requiring `recordingId`, `text` and `engine`.
+// `segments` is not a field and a strict schema REJECTS it, so an invented fixture
+// fails at `outbox.patch`'s boundary parse before the hook is ever exercised.
+const transcriptFor = (recordingId: string) => ({
+  recordingId,
+  text: "The attic is R-19 and the boiler runs on oil.",
+  engine: "fake",
+});
 
 /** A parked item with two extracted fields: one grounded, one invented. */
 async function parkedItem() {
@@ -3081,7 +3210,7 @@ async function parkedItem() {
   });
   const parked = await outbox.patch(item.id, {
     status: "awaiting-review",
-    transcript: TRANSCRIPT,
+    transcript: transcriptFor(item.recording.id),
     extracted: {
       atticRValue: { value: 19, confidence: 1, sourceSpan: "R-19" },
       heatingFuel: { value: "propane", confidence: 1, sourceSpan: "runs on propane" },
@@ -3218,6 +3347,47 @@ test("editing to null is a positive assertion, not a rejection", async () => {
   await outbox.close();
 });
 
+test("decisions do not leak between items in a reused component", async () => {
+  // A queue UI reuses one card for the next parked item, and field names repeat
+  // across recordings. A correction made to recording A must not be submitted
+  // against recording B -- and it must be gone on the FIRST render after the swap,
+  // not one render later, because that render can submit.
+  const { outbox, item: first } = await parkedItem();
+  const second = await outbox.enqueue({
+    recording: {
+      id: crypto.randomUUID(),
+      capturedAt: new Date().toISOString(),
+      durationMs: 10,
+      mimeType: "audio/webm",
+      ctx: {},
+    },
+    audio: new Blob(["x"], { type: "audio/webm" }),
+  });
+  const parkedSecond = await outbox.patch(second.id, {
+    status: "awaiting-review",
+    transcript: transcriptFor(second.recording.id),
+    extracted: { atticRValue: { value: 11, confidence: 1, sourceSpan: "R-11" } },
+  });
+
+  let api: ReturnType<typeof useReview<Fields>> | undefined;
+  function Probe({ subject }: { subject: OutboxItem }) {
+    api = useReview<Fields>(subject, { outbox });
+    return null;
+  }
+
+  const screen = render(<Probe subject={first} />);
+  api!.edit("atticRValue", 30);
+  await vi.waitFor(() =>
+    expect(api!.decisionOf("atticRValue")).toEqual({ status: "edited", value: 30 }),
+  );
+
+  screen.rerender(<Probe subject={parkedSecond} />);
+
+  expect(api!.decisionOf("atticRValue")).toEqual({ status: "accepted" });
+  expect([...api!.untouched]).toContain("atticRValue");
+  await outbox.close();
+});
+
 test("discarding is terminal and drops the audio", async () => {
   const { outbox, item } = await parkedItem();
   let api: ReturnType<typeof useReview<Fields>> | undefined;
@@ -3312,9 +3482,34 @@ export function useReview<F extends Record<string, unknown>>(
   options: { readonly outbox?: Outbox } = {},
 ): UseReviewResult<F> {
   const outbox = useRiboInstance("outbox", options.outbox);
-  const [decisions, setDecisions] = useState<Partial<FieldDecisions<F>>>({});
+  // Keyed by item id, and read through a guard rather than reset in an effect.
+  //
+  // A queue UI reuses one mounted card for the next parked item, and field names
+  // repeat across recordings — so decisions carried over from the previous item
+  // would submit silently, attributing one auditor's correction to another
+  // recording. An effect-based reset still leaves one render where the stale
+  // decisions are live and submittable, which is one render too many for this.
+  const [state, setState] = useState<{
+    readonly forItem: string | undefined;
+    readonly decisions: Partial<FieldDecisions<F>>;
+  }>({ forItem: item?.id, decisions: {} });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<Error | undefined>(undefined);
+
+  // Synchronously empty whenever the state belongs to a different item. No effect,
+  // no stale window.
+  const decisions: Partial<FieldDecisions<F>> = state.forItem === item?.id ? state.decisions : {};
+
+  const setDecision = useCallback(
+    (key: keyof F, decision: FieldDecision<F[keyof F]>) => {
+      const id = item?.id;
+      setState((prior) => ({
+        forItem: id,
+        decisions: { ...(prior.forItem === id ? prior.decisions : {}), [key]: decision },
+      }));
+    },
+    [item?.id],
+  );
 
   const request = useMemo<ReviewRequest<F> | undefined>(() => {
     if (item?.extracted === undefined || item.transcript === undefined) return undefined;
@@ -3334,17 +3529,21 @@ export function useReview<F extends Record<string, unknown>>(
     [decisions, request],
   );
 
-  const accept = useCallback((key: keyof F) => {
-    setDecisions((prior) => ({ ...prior, [key]: { status: "accepted" } }));
-  }, []);
+  const accept = useCallback(
+    (key: keyof F) => setDecision(key, { status: "accepted" }),
+    [setDecision],
+  );
 
-  const edit = useCallback(<K extends keyof F>(key: K, value: F[K] | null) => {
-    setDecisions((prior) => ({ ...prior, [key]: { status: "edited", value } }));
-  }, []);
+  const edit = useCallback(
+    <K extends keyof F>(key: K, value: F[K] | null) =>
+      setDecision(key, { status: "edited", value } as FieldDecision<F[keyof F]>),
+    [setDecision],
+  );
 
-  const reject = useCallback((key: keyof F) => {
-    setDecisions((prior) => ({ ...prior, [key]: { status: "rejected" } }));
-  }, []);
+  const reject = useCallback(
+    (key: keyof F) => setDecision(key, { status: "rejected" }),
+    [setDecision],
+  );
 
   const untouched = useMemo(
     () => keys.filter((key) => decisions[key] === undefined),
@@ -3489,11 +3688,12 @@ test("un-reviewed work is never reported as safe", async () => {
   });
 
   function Probe() {
-    const { safety, work, loading } = useWorkSafety();
+    const { safety, work, loading, error } = useWorkSafety();
     if (loading) return <p>loading</p>;
+    if (error !== undefined) return <p>unavailable</p>;
     return (
       <p>
-        {safety.level} pending {work.pending} review {work.awaitingReview}
+        {safety?.level} pending {work?.pending} review {work?.awaitingReview}
       </p>
     );
   }
@@ -3508,9 +3708,37 @@ test("un-reviewed work is never reported as safe", async () => {
   await expect.element(screen.getByText(/^safe/)).not.toBeInTheDocument();
   await outbox.close();
 });
+
+test("an outbox read failure yields no verdict, never a safe one", async () => {
+  // The regression that matters most here: on a watch error `useOutboxItems` keeps
+  // its initial empty array, an empty array summarizes to pending 0, and pending 0
+  // classifies as `safe / nothing-captured`. A defaulted verdict would therefore
+  // announce that the work is safe exactly when we failed to read it.
+  const outbox = await openOutbox({
+    name: `t-${crypto.randomUUID()}`,
+    storage: getRxStorageMemory(),
+  });
+  vi.spyOn(outbox, "watch").mockImplementation(() => {
+    throw new Error("storage is gone");
+  });
+
+  function Probe() {
+    const { safety, error } = useWorkSafety();
+    return <p>{error === undefined ? `verdict ${String(safety?.level)}` : "unavailable"}</p>;
+  }
+
+  const screen = render(
+    <RiboProvider value={{ outbox, connectivity: fakeConnectivity(true) }}>
+      <Probe />
+    </RiboProvider>,
+  );
+
+  await expect.element(screen.getByText("unavailable")).toBeInTheDocument();
+  await outbox.close();
+});
 ```
 
-Match `createConnectivity`'s real option names, as in Task 11.
+Use the same `fakeConnectivity` helper shape as Task 11 — `probe` must resolve a `Response`.
 
 - [ ] **Step 2: Run and confirm failure**
 
@@ -3532,10 +3760,24 @@ import { useOutboxItems } from "./use-outbox-items.js";
 import { useStoragePersistence } from "./use-storage-persistence.js";
 
 export interface UseWorkSafetyResult {
-  readonly safety: WorkSafety;
-  readonly work: WorkOnDevice;
-  /** The outbox has not emitted yet, so the verdict is provisional. */
+  /**
+   * The verdict — **`undefined` when it cannot be computed honestly**, which is
+   * either while `loading` or after an outbox read `error`.
+   *
+   * Not a `WorkSafety` with a benign default. `useOutboxItems` yields an empty
+   * array both before its first emission and after a watch failure, and an empty
+   * array summarizes to `{ pending: 0 }`, which `workSafety` classifies as
+   * `safe / nothing-captured`. So a defaulted verdict would announce that the
+   * auditor's work is safe precisely when we have failed to look at it — the same
+   * bug this module was just fixed for one layer down, and worse here because it
+   * survives a total read failure.
+   */
+  readonly safety: WorkSafety | undefined;
+  readonly work: WorkOnDevice | undefined;
+  /** No outbox emission yet, so no verdict. */
   readonly loading: boolean;
+  /** The outbox read failed, so no verdict. Distinct from `loading`. */
+  readonly error: Error | undefined;
 }
 
 /**
@@ -3553,17 +3795,22 @@ export interface UseWorkSafetyResult {
  * has looked.
  */
 export function useWorkSafety(): UseWorkSafetyResult {
-  const { items, loading } = useOutboxItems();
+  const { items, loading, error } = useOutboxItems();
   const { persistence } = useStoragePersistence();
   const connectivity = useConnectivity();
 
-  const work = useMemo(() => summarizeWork(items), [items]);
+  // Withheld rather than defaulted whenever the inputs are not trustworthy. See
+  // the note on `safety` above: an unreadable outbox looks exactly like an empty
+  // one, and "empty" classifies as safe.
+  const usable = !loading && error === undefined;
+
+  const work = useMemo(() => (usable ? summarizeWork(items) : undefined), [items, usable]);
   const safety = useMemo(
-    () => workSafety(work, persistence, connectivity.status),
+    () => (work === undefined ? undefined : workSafety(work, persistence, connectivity.status)),
     [connectivity.status, persistence, work],
   );
 
-  return { safety, work, loading };
+  return { safety, work, loading, error };
 }
 ```
 
