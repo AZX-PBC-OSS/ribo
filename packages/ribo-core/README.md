@@ -26,7 +26,9 @@ pnpm add @azx/ribo-core
 - **Connectivity** — `createConnectivity`: the `offline`/`probing`/`online` model.
 - **Outbox** — `Outbox`, `openOutbox`, `createRelay`: the durable queue and its foreground relay.
 - **Extraction** — the `Extractor` seam, `toExtractStep`, and the `FakeExtractor` double.
-- **Review** — `buildReviewRequest`, `resolveReview`, `ReviewPresenter`.
+- **Review** — `buildReviewRequest`, `resolveReview`: review is a queue state (`awaiting-review`),
+  not a callback, so a UI finds parked items with an ordinary query and reports back through
+  `Outbox.submitReview`.
 - **Work-safety** — `workSafety`, `summarizeWork`: the one honest "is my work safe?" answer.
 - **Write-back** — the `ToolAdapter<F, C>` type (implemented by adapter packages).
 

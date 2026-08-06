@@ -14,8 +14,8 @@ adapter. The first target is home-energy audits in Snugg Pro.
 `@azx/ribo-core` holds the contracts and the engine: the provenance envelope (`extractedSchema`,
 `isSpanGrounded`), `Recording` / `Transcript`, the `Transcriber` contract (capability reporting,
 `firstCapable` selection, a `FakeTranscriber` double), the `Extractor<F>` seam (`toExtractStep`,
-`FakeExtractor`), `ToolAdapter<F, C>`, the review contract (`buildReviewRequest`, `resolveReview`,
-`ReviewPresenter`), and the offline-first outbox/relay state machine
+`FakeExtractor`), `ToolAdapter<F, C>`, the review contract (`buildReviewRequest`, `resolveReview`),
+and the offline-first outbox/relay state machine
 (`queued → transcribing → extracting → writing → done`) with connectivity and work-safety.
 `@azx/ribo-transcriber-ondevice` runs real WASM Whisper on-device; `@azx/ribo-adapter-snuggpro` is
 the real Snugg Pro `ToolAdapter`; `@azx/ribo-extractor-openai` is the tool-agnostic single-shot

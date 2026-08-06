@@ -4,14 +4,7 @@ import { z } from "zod";
 import { extractedSchema } from "./provenance.js";
 import type { Extracted } from "./provenance.js";
 import { buildReviewRequest, resolveReview, reviewOutcomeSchema } from "./review.js";
-import type {
-  ExtractedFields,
-  FieldDecisions,
-  ReviewOutcome,
-  ReviewPresenter,
-  ReviewRequest,
-  ReviewSubmission,
-} from "./review.js";
+import type { ExtractedFields, FieldDecisions, ReviewOutcome, ReviewSubmission } from "./review.js";
 import type { Transcript } from "./transcript.js";
 
 // One adapter's field set, as an extractor would produce it: every value wrapped
@@ -52,7 +45,7 @@ const acceptAll: FieldDecisions<AtticFields> = {
 };
 
 describe("buildReviewRequest", () => {
-  test("carries each field's provenance envelope through to the presenter", () => {
+  test("carries each field's provenance envelope through to review", () => {
     const request = buildReviewRequest(extracted, transcript);
 
     expect(request.transcript).toBe(transcript);
@@ -84,7 +77,7 @@ describe("buildReviewRequest", () => {
     expect(request.fields.area.isGrounded).toBe(false);
   });
 
-  test("a field whose value is null still reaches the presenter", () => {
+  test("a field whose value is null still reaches review", () => {
     const request = buildReviewRequest(nullArea, transcript);
 
     expect(request.fields.area.extracted.value).toBeNull();
@@ -262,59 +255,6 @@ describe("resolveReview — discarded", () => {
   });
 });
 
-describe("ReviewPresenter", () => {
-  test("a presenter receives the request and returns a submission", async () => {
-    const seen: ReviewRequest<AtticFields>[] = [];
-    const presenter: ReviewPresenter<AtticFields> = {
-      present: async (request) => {
-        seen.push(request);
-        return {
-          status: "submitted",
-          decisions: { ...acceptAll, rValue: { status: "edited", value: 30 } },
-        };
-      },
-    };
-
-    const request = buildReviewRequest(extracted, transcript);
-    const outcome = resolveReview(request, await presenter.present(request));
-
-    expect(seen).toEqual([request]);
-    expect(outcome.status).toBe("edited");
-  });
-
-  test("a presenter can decide per field from the grounded flag alone", async () => {
-    const presenter: ReviewPresenter<AtticFields> = {
-      present: async (request) => ({
-        status: "submitted",
-        decisions: {
-          rValue: request.fields.rValue.isGrounded
-            ? { status: "accepted" }
-            : { status: "rejected" },
-          area: request.fields.area.isGrounded ? { status: "accepted" } : { status: "rejected" },
-          notes: request.fields.notes.isGrounded ? { status: "accepted" } : { status: "rejected" },
-        },
-      }),
-    };
-
-    const request = buildReviewRequest(extracted, transcript);
-    const outcome = resolveReview(request, await presenter.present(request));
-
-    if (outcome.status !== "edited") throw new Error("unreachable");
-    expect(outcome.rejectedFields).toEqual(["notes"]);
-  });
-
-  test("a presenter can discard the whole draft", async () => {
-    const presenter: ReviewPresenter<AtticFields> = {
-      present: async () => ({ status: "discarded", reason: "unusable audio" }),
-    };
-
-    const request = buildReviewRequest(extracted, transcript);
-    const outcome = resolveReview(request, await presenter.present(request));
-
-    expect(outcome.status).toBe("discarded");
-  });
-});
-
 // --- Type-level tests -------------------------------------------------------
 //
 // Enforced by `tsc` (`pnpm --filter @azx/ribo-core typecheck`), not by the
@@ -387,24 +327,6 @@ test("a submission must decide every field — silence is not a decision", () =>
   };
 
   expect(submission.status).toBe("submitted");
-});
-
-test("a presenter for a richer field set cannot pose as one for fewer", () => {
-  interface RicherFields extends AtticFields {
-    ventilation: string;
-  }
-
-  const richer: ReviewPresenter<RicherFields> = {
-    present: async () => ({ status: "discarded" }),
-  };
-
-  // @ts-expect-error - the field sets differ, and `present` is declared as a
-  // function *property* so its parameter is checked contravariantly. As a
-  // method, TypeScript's bivariance would let this through and a presenter
-  // would read `fields.ventilation` off a request that has no such field.
-  const narrowed: ReviewPresenter<AtticFields> = richer;
-
-  expect(typeof narrowed.present).toBe("function");
 });
 
 test("Extracted<T> lines up with ExtractedFields<F>", () => {

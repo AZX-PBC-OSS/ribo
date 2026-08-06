@@ -23,9 +23,9 @@ import type { Transcript } from "./transcript.js";
  *
  * So the contract is in three parts:
  *
- *   1. {@link ReviewRequest} — what the presenter is *shown*: every field's
+ *   1. {@link ReviewRequest} — what the human is *shown*: every field's
  *      provenance envelope plus a computed {@link ReviewField.isGrounded} flag.
- *   2. {@link ReviewSubmission} — what the presenter *returns*: an explicit
+ *   2. {@link ReviewSubmission} — what the human *reports back*: an explicit
  *      {@link FieldDecision} per field, or a discard.
  *   3. {@link ReviewOutcome} — what the caller *acts on*: a discriminated union
  *      distinguishing accepted-as-is from accepted-with-edits from discarded,
@@ -33,30 +33,46 @@ import type { Transcript } from "./transcript.js";
  *
  * Splitting 2 from 3 is deliberate. A UI can only be trusted to report what the
  * human did; deciding what that *means* — was this draft touched at all, which
- * fields were touched — is classification logic that must be identical for every
- * presenter, so it lives here as a pure function rather than in each UI.
+ * fields were touched — is classification logic that must be identical no
+ * matter which UI produced the submission, so it lives here as a pure function
+ * rather than in each UI.
  *
  * ## Flagging is span-groundedness, never confidence
  *
- * {@link ReviewField.isGrounded} is the flag a presenter should surface. It is
+ * {@link ReviewField.isGrounded} is the flag a UI should surface. It is
  * {@link isSpanGrounded} evaluated against the transcript: did the model quote
  * something the auditor actually said? `confidence` is carried through in the
  * envelope but must not drive flagging — the extraction spike returned ~1.0 on
  * all 168 slots, so a threshold against it flags nothing while reading like an
  * all-clear. See the warning in `provenance.ts`.
  *
- * ## Presentation-agnostic
+ * ## Review is a queue state, not a callback
  *
- * Nothing here knows about React, the DOM, or rendering at all. `ribo-ui-react`
- * implements {@link ReviewPresenter} in Phase 5; a CLI, a test double or an
- * auto-accept policy implement the same interface just as well.
+ * The gate is a status, not a presenter. `queue/relay.ts` parks an extracted item
+ * at `awaiting-review` — a status deliberately absent from
+ * `ACTIVE_OUTBOX_STATUSES` — and stops seeing it; the relay drains the next
+ * capture instead of blocking. A UI finds parked items with an ordinary query
+ * (`outbox.watch({ status: "awaiting-review" })`), and `Outbox.submitReview`
+ * records the outcome and moves the item to `writing`.
+ *
+ * An earlier design had the relay `await` a `ReviewPresenter.present(request)`
+ * promise the UI resolved. It was removed rather than kept unused: the relay
+ * processes strictly ascending `seq`, so a step blocked on a human stalls every
+ * recording behind it, and a reload mid-await drops the promise with nothing left
+ * to resolve. Persisting the decision is what makes review survive the tab dying,
+ * which on iOS it does often.
+ *
+ * So what remains here is the *vocabulary*, not an invocation protocol:
+ * {@link buildReviewRequest} prepares a draft, {@link resolveReview} classifies
+ * what the human did, and {@link reviewOutcomeSchema} is how the answer is stored.
+ * Nothing here knows about React, the DOM, or rendering.
  */
 
 /** One extraction draft: every field of `F`, each in its provenance envelope. */
 export type ExtractedFields<F> = { readonly [K in keyof F]: Extracted<F[K]> };
 
 /**
- * One field as the presenter sees it: the model's answer, its justification,
+ * One field as the human sees it: the model's answer, its justification,
  * and whether that justification checks out.
  */
 export interface ReviewField<T> {
@@ -65,8 +81,8 @@ export interface ReviewField<T> {
   /**
    * Is `extracted.sourceSpan` a verbatim quote from the transcript?
    *
-   * Precomputed rather than left to the presenter so that every UI flags the
-   * same thing the same way, and so a presenter never needs to re-implement
+   * Precomputed rather than left to the UI so that every UI flags the
+   * same thing the same way, and so a UI never needs to re-implement
    * {@link isSpanGrounded}. `false` means the quote was never said: show it as
    * unverified. This is the *only* automatic flag in the contract.
    */
@@ -76,7 +92,7 @@ export interface ReviewField<T> {
 /** Every field of `F`, prepared for review. */
 export type ReviewFields<F> = { readonly [K in keyof F]: ReviewField<F[K]> };
 
-/** What a {@link ReviewPresenter} is shown. */
+/** What a human reviewer is shown. */
 export interface ReviewRequest<F> {
   /** The transcript the draft came from — the auditor's own words, for context. */
   readonly transcript: Transcript;
@@ -105,23 +121,10 @@ export type FieldDecision<T> =
  */
 export type FieldDecisions<F> = { readonly [K in keyof F]: FieldDecision<F[K]> };
 
-/** What a {@link ReviewPresenter} returns. */
+/** What a human reviewer reports back. */
 export type ReviewSubmission<F> =
   | { readonly status: "submitted"; readonly decisions: FieldDecisions<F> }
   | { readonly status: "discarded"; readonly reason?: string };
-
-/**
- * Shows an extraction draft to a human and reports back what they decided.
- *
- * `present` is a function *property*, not a method: TypeScript checks method
- * parameters bivariantly, which would let a `ReviewPresenter<Richer>` stand in
- * where a `ReviewPresenter<Fields>` is expected and read a field off a request
- * that has none. The property form gets strict contravariance.
- * `review.test.ts` pins this down with `@ts-expect-error`.
- */
-export interface ReviewPresenter<F> {
-  present: (request: ReviewRequest<F>) => Promise<ReviewSubmission<F>>;
-}
 
 /**
  * The values review settled on.

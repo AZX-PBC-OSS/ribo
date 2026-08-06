@@ -133,7 +133,6 @@ export type {
   ReviewField,
   ReviewFields,
   ReviewOutcome,
-  ReviewPresenter,
   ReviewRequest,
   ReviewSubmission,
 } from "./review.js";

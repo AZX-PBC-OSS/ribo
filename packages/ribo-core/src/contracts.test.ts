@@ -11,8 +11,8 @@ import {
 } from "./index.js";
 import type {
   ExtractedFields,
+  FieldDecisions,
   Recording,
-  ReviewPresenter,
   ToolAdapter,
   Transcriber,
   Transcript,
@@ -23,18 +23,21 @@ import type {
  *
  * Every other test in this package checks one contract in isolation. This one is the proof that
  * they fit together — capture record → transcript → extraction envelopes → review request →
- * presenter decisions → resolved values → adapter write, with the host's `ctx` typed the whole
- * way. It imports through `./index.js` on purpose, so it also pins the barrel's public surface:
+ * field decisions → resolved outcome → adapter write, with the host's `ctx` typed the whole way.
+ * It imports through `./index.js` on purpose, so it also pins the barrel's public surface:
  * anything this test needs that the barrel stops exporting fails here first.
  *
  * There is no I/O, no model and no network. `FakeTranscriber` stands in for transcription and a
- * hand-built draft stands in for extraction, which is exactly what Phases 4–6 will do.
+ * hand-built draft stands in for extraction, which is exactly what Phases 4–6 will do. Review
+ * itself is a queue state, not a callback the pipeline awaits — see `review.ts`'s file header —
+ * so what stands in for "a human reviewed it" here is a hand-built {@link FieldDecisions}, the
+ * same shape `Outbox.submitReview` would receive from a real UI.
  *
  * One field (`notes`) is **deliberately ungrounded**: its `sourceSpan` reads plausibly but was
  * never said. That is the thread worth following through the file — the span is checked in
- * `buildReviewRequest`, surfaces as `isGrounded: false`, and is what makes the presenter correct
- * that one field while accepting the rest. Note its `confidence` is 1.0, the same as every
- * grounded field: groundedness is the signal, confidence is not.
+ * `buildReviewRequest`, surfaces as `isGrounded: false`, and is what makes review correct that
+ * one field while accepting the rest. Note its `confidence` is 1.0, the same as every grounded
+ * field: groundedness is the signal, confidence is not.
  */
 
 // --- The host: one tool's fields, and the context needed to write them -------
@@ -146,23 +149,20 @@ test("the contracts compose: record → transcribe → extract → review → wr
   expect(request.fields.notes.isGrounded).toBe(false);
   expect(request.fields.notes.extracted.confidence).toBe(1);
 
-  // 4. A human (here, a policy standing in for one) decides field by field: take the grounded
-  //    values, correct the one whose justification does not check out.
-  const presenter: ReviewPresenter<AtticFields> = {
-    present: async (shown) => ({
-      status: "submitted",
-      decisions: {
-        rValue: { status: "accepted" },
-        area: { status: "accepted" },
-        notes: shown.fields.notes.isGrounded
-          ? { status: "accepted" }
-          : { status: "edited", value: "hatch is uninsulated" },
-      },
-    }),
+  // 4. A human decides field by field: take the grounded values, correct the one whose
+  //    justification does not check out. There is no presenter to invoke here — review is a
+  //    queue state a UI reports back into, not a callback the pipeline awaits, so a hand-built
+  //    `FieldDecisions` stands in for what `Outbox.submitReview` would receive from a real one.
+  const decisions: FieldDecisions<AtticFields> = {
+    rValue: { status: "accepted" },
+    area: { status: "accepted" },
+    notes: request.fields.notes.isGrounded
+      ? { status: "accepted" }
+      : { status: "edited", value: "hatch is uninsulated" },
   };
 
   // 5. Classify the submission. One field was touched, so this is `edited`, not `accepted`.
-  const outcome = resolveReview(request, await presenter.present(request));
+  const outcome = resolveReview(request, { status: "submitted", decisions });
 
   expect(outcome.status).toBe("edited");
   if (outcome.status !== "edited") throw new Error("unreachable");
