@@ -795,9 +795,16 @@ equivalent helper under another name, use it and drop `harness`; do not add a se
 pnpm vitest run packages/ribo-core/src/queue/relay.browser.test.ts
 ```
 
-Expected: FAIL — items reach `done`, and `submitReview` does not exist yet (Task 4). Comment out the
-two tests that call `submitReview` with a `// enabled by Task 4` note, get the first two passing in
-this task, then re-enable them at the end of Task 4. Note this in the commit message.
+Expected: FAIL — items reach `done` instead of parking.
+
+**Write only the tests that do not call `submitReview` in this task**: the two parking tests and the
+ordering test above depend on it, and it does not exist until Task 4. Specifically, write
+"parks the item for review", "does not block the recordings behind it", and the un-reviewed-write
+guard (which uses `outbox.patch`, not `submitReview`). Leave the two reviewed-values tests and the
+review-order test to Task 4, which adds them fresh.
+
+Do **not** write them now and comment them out. Commented-out tests are indistinguishable from
+abandoned ones a week later, and a reviewer is right to flag them.
 
 - [ ] **Step 3: Change `WriteStepInput`**
 
@@ -900,7 +907,7 @@ Two tests are commented out pending Outbox.submitReview in the next task."
 
 - Modify: `packages/ribo-core/src/queue/outbox.ts`
 - Test: `packages/ribo-core/src/queue/outbox.browser.test.ts`
-- Modify: `packages/ribo-core/src/queue/relay.browser.test.ts` (re-enable Task 3's two tests)
+- Modify: `packages/ribo-core/src/queue/relay.browser.test.ts` (add the three tests Task 3 deferred)
 
 **Interfaces:**
 
@@ -1115,9 +1122,12 @@ pnpm vitest run packages/ribo-core/src/queue/outbox.browser.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Re-enable Task 3's two tests and run the whole queue suite**
+- [ ] **Step 5: Add the three relay tests Task 3 deferred, and run the whole queue suite**
 
-Uncomment the two `submitReview` tests in `relay.browser.test.ts`.
+`submitReview` now exists, so write the three tests Task 3 could not: "the write step receives the
+human's reviewed values, not the model's", "an item that reaches writing with no review outcome fails
+terminally" (if Task 3 did not already cover it via `patch`), and "writes follow review order, not
+capture order". Their code is in Task 3's step 1 and its ordering section — copy it from there.
 
 ```bash
 pnpm vitest run packages/ribo-core && pnpm --filter @azx/ribo-core typecheck
