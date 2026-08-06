@@ -112,7 +112,12 @@ export * from "./queue/index.js";
 // Write-back: the only tool-specific surface, with a typed host context, both
 // field shapes (the writable patch and the derived extraction schema) and the
 // per-attempt write metadata that carries the idempotency key.
-export type { ToolAdapter, ToolAdapterExample, WriteMetadata } from "./adapter.js";
+export type { ToolAdapter, ToolAdapterExample, ValuesSchema, WriteMetadata } from "./adapter.js";
+
+// The composition that hands a reviewed patch to an adapter, and the only place
+// `schema.parse` runs before a write. Resolves the destination per item off
+// `recording.ctx`, so two queued recordings from two jobs write to two places.
+export { toWriteStep } from "./write-step.js";
 
 // Extraction: the pluggable seam a transcript becomes structured fields through,
 // the function that collapses any extractor onto the relay's injected step, and

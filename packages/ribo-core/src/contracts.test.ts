@@ -192,12 +192,13 @@ test("the contracts compose: record → transcribe → extract → review → wr
   //    here, which is where the invented `notes` quote is caught without asking the model how
   //    sure it was.
   //
-  //    NOTE the schema is passed as `atticSchema`, not `adapter.schema`. `ToolAdapter.schema`
-  //    is typed `ZodType<V>` (design §2.3), which binds `V` but is not walkable — it has no
-  //    `.shape`. `buildReviewRequest` needs the `z.ZodObject` to enumerate leaves from. Every
-  //    caller today holds the concrete schema, so this is not a hole yet; reconciling the two
-  //    is a `toWriteStep`/hook-layer question, flagged in the Task 4 report.
-  const request = buildReviewRequest(extracted, transcript, atticSchema);
+  //    NOTE the schema comes off `adapter.schema` rather than the concrete `atticSchema`,
+  //    and that is a compile-time assertion, not a style choice. `ToolAdapter.schema` used to
+  //    be `ZodType<V>` — binding but not walkable, no `.shape` — so this line did not compile
+  //    and every caller had to hold the concrete schema alongside the adapter. R2's `useReview`
+  //    will hold only a `ToolAdapter<V, C>`, so the member is a `ValuesSchema<V>` now: walkable
+  //    AND binding. If that narrowing is ever reverted, this line is what fails.
+  const request = buildReviewRequest(extracted, transcript, adapter.schema);
 
   expect(Object.keys(request.fields)).toEqual([
     "rValue",
@@ -274,7 +275,7 @@ test("a rejected leaf and a leaf reviewed to null are different instructions to 
     area: extractedSchema(z.number()).parse({ value: null, confidence: 1, sourceSpan: null }),
   };
 
-  const outcome = resolveReview(buildReviewRequest(draft, transcript, atticSchema), {
+  const outcome = resolveReview(buildReviewRequest(draft, transcript, adapter.schema), {
     status: "submitted",
     decisions: {
       rValue: { status: "accepted" },

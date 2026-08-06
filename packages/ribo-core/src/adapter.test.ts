@@ -233,6 +233,64 @@ test("a richer ctx cannot be silently narrowed away", () => {
   expect(narrowed.name).toBe("rich");
 });
 
+test("`schema` is walkable: review can enumerate its leaves off the adapter alone", () => {
+  const adapter = makeAdapter([]);
+
+  // The compile-time half of the R1.5 narrowing. `ToolAdapter.schema` was `ZodType<V>`,
+  // which binds `V` but has no `.shape`, so this line did not compile and every caller
+  // had to carry the concrete schema beside the adapter. R2's `useReview` will hold only
+  // a `ToolAdapter<V, C>`, so the member is a `ValuesSchema<V>`: an object schema AND a
+  // `V`. `contracts.test.ts` pins the real use — `buildReviewRequest(…, adapter.schema)`.
+  expect(Object.keys(adapter.schema.shape)).toEqual(["rValue", "area"]);
+});
+
+test("`schema` still binds V: a leaf whose type disagrees does not compile", () => {
+  // The other half. Walkability must not have been bought by dropping the binding — a
+  // bare `z.ZodObject` parses to an index-signature type that any all-optional patch
+  // accepts, so `write` would be handed values nothing had checked. Hoisted so the
+  // `@ts-expect-error` lands on the member rather than on a line Prettier wrapped.
+  const wrongLeaf = z.object({
+    rValue: z.string().nullable().optional(),
+    area: z.number().nullable().optional(),
+  });
+
+  const misdeclared: ToolAdapter<AtticFields, JobContext> = {
+    name: "misdeclared",
+    // @ts-expect-error - `rValue` is a number in `AtticFields`; a string schema is not a `ValuesSchema<AtticFields>`.
+    schema: wrongLeaf,
+    extractionSchema: atticExtractionSchema,
+    ctxSchema: jobContextSchema,
+    instructions: "Extract nothing in particular.",
+    write: async () => {},
+  };
+
+  expect(misdeclared.name).toBe("misdeclared");
+});
+
+test("an adapter wired to a foreign field set is refused — by `extractionSchema`", () => {
+  // The compensating pin for the one thing `ValuesSchema<V>`'s intersection gives up.
+  // A patch `V` is all-optional, i.e. a WEAK type, and TypeScript's weak-type check is
+  // skipped when the target is an intersection — so `schema` alone would take the
+  // disjoint schema below without complaint (deliberately NOT marked with a
+  // `@ts-expect-error` here: there is no error on that line, and claiming one would fail
+  // the typecheck). `Enveloped<V>` is fully required, so the check still bites on
+  // `extractionSchema`, and the adapter as a whole cannot be mis-wired. Delete this test
+  // and that guarantee becomes an assumption again.
+  const foreign = z.object({ assessmentId: z.string() });
+
+  const misdeclared: ToolAdapter<AtticFields, JobContext> = {
+    name: "misdeclared",
+    schema: foreign,
+    // @ts-expect-error - `Enveloped<AtticFields>` requires `rValue` and `area`; this has neither.
+    extractionSchema: enveloped(foreign),
+    ctxSchema: jobContextSchema,
+    instructions: "Extract nothing in particular.",
+    write: async () => {},
+  };
+
+  expect(misdeclared.name).toBe("misdeclared");
+});
+
 test("an adapter declared for one context is not assignable to another", () => {
   interface OtherContext {
     assessmentId: string;

@@ -1,6 +1,46 @@
-import type { ZodType } from "zod";
+import type { ZodObject, ZodType } from "zod";
 
 import type { Enveloped } from "./enveloped.js";
+
+/**
+ * An object schema that is both **walkable** and **binding**: it has a `shape`, so
+ * `enveloped()` and `buildReviewRequest` can enumerate its leaves, and it parses to
+ * exactly `V`, so the adapter's field type is still checked at the boundary.
+ *
+ * It has to be an intersection, because zod 4 offers no single spelling for
+ * "`ZodObject` whose output is `V`". `ZodObject<Shape, Config>` derives its output
+ * *from* its shape — there is no output type parameter to pin — and `ZodType<V>` pins
+ * the output but declares no `shape`. Each half supplies what the other lacks:
+ *
+ *   - `ZodObject` alone would drop `V` entirely. Bare, it is
+ *     `ZodObject<$ZodLooseShape, $strip>`, whose parsed output is `{}` — assignable to
+ *     any all-optional patch type, so a `ToolAdapter<A, C>` would happily accept
+ *     schema `B` and `write` would receive values it was never checked against.
+ *   - `ZodType<V>` alone is what this member used to be, and it is why
+ *     `buildReviewRequest(extracted, transcript, adapter.schema)` did not compile: the
+ *     leaves review presents are enumerated off `.shape`, which `ZodType` has no
+ *     concept of. The information was never missing — `enveloped(schema)` already
+ *     requires `T extends ZodObject` to derive `extractionSchema` at all — only
+ *     discarded on the way through this interface.
+ *
+ * Adapters need no cast: a `z.object({...}).strict()` satisfies both halves, because
+ * `ZodObject`'s two parameters are covariant (`out Shape`, `out Config`), so a concrete
+ * strict shape is assignable to the bare form. `adapter.test.ts` pins both directions —
+ * that a walk compiles, and that a schema whose leaves disagree with `V` does not.
+ *
+ * **One thing the intersection gives up, measured rather than assumed.** A patch `V` is
+ * all-optional by construction (design §2.1), which makes it a *weak type*, and
+ * TypeScript's weak-type check — "this has no properties in common with that" — is what
+ * used to refuse a schema for an entirely different field set against the old
+ * `ZodType<V>`. That check is skipped when the target is an intersection, so this member
+ * alone now admits a fully disjoint schema (a leaf whose type merely *disagrees* is still
+ * refused, which is the drift that actually happens). It is not a hole in the interface:
+ * `extractionSchema` is `ZodType<Enveloped<V>>` and `Enveloped<V>` is fully required, so
+ * the weak-type check still applies there and an adapter wired to a foreign field set
+ * cannot be declared. `adapter.test.ts` pins that compensating refusal, so it cannot be
+ * removed without this trade becoming a real one.
+ */
+export type ValuesSchema<V> = ZodObject & ZodType<V>;
 
 /**
  * A few-shot example: a transcript, and the fields it should produce.
@@ -77,9 +117,14 @@ export interface ToolAdapter<V, C> {
   readonly name: string;
   /**
    * The PATCH that gets written, in plain values. Source of truth for `V`, and
-   * the trust boundary a reviewed submission is parsed through before a write.
+   * the trust boundary a reviewed submission is parsed through before a write
+   * ({@link toWriteStep} is what installs that boundary).
+   *
+   * A {@link ValuesSchema}, not a bare `ZodType<V>`: review enumerates this
+   * schema's leaves to build a review card, so it must be walkable as well as
+   * binding. See that type's note.
    */
-  readonly schema: ZodType<V>;
+  readonly schema: ValuesSchema<V>;
   /**
    * What the model must produce: `schema` stripped of its patch optionality with
    * every leaf enveloped. Build it with `enveloped(schema)` — see the note above
