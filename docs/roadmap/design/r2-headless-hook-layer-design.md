@@ -246,14 +246,13 @@ Two reasons, and the second is the one that would otherwise cost a day:
 1. These hooks wrap `MediaRecorder` and IndexedDB. `vitest.config.ts` already records why jsdom is
    the wrong tier for those: "jsdom has no MediaRecorder, a shimmed IndexedDB and does not faithfully
    simulate workers; mocking through it produces tests that pass while production is broken."
-2. **Cross-package imports only resolve in the browser project.** ui-react's tests must import
-   `@azx/ribo-core` by package name to construct a `Recorder` or `Outbox`. AGENTS.md §5.1 records that
-   the `unit` project cannot do this today — node-environment tests go through Vite's SSR pipeline,
-   which reads `ssr.resolve.conditions`, and nothing fails yet only because every existing test
-   imports its own module by relative path. The browser project's plain `resolve.conditions` is
-   proven, and `workspace-resolution.browser.test.ts` exists specifically to fail if it is removed.
-   R2 is the first task to cross a package boundary in a test, and the browser tier is where that
-   works.
+2. ~~Cross-package imports only resolve in the browser project.~~ **Withdrawn — this premise was
+   false.** It was based on AGENTS.md §5.1's caveat, which is stale: `vitest.config.ts:25-58` already
+   carries the project-local `ssr.resolve.conditions` fix for the `unit` tier, verified empirically
+   against Vitest 4.1.10 and guarded by `adapter-snuggpro/src/workspace-resolution.test.ts`. Both
+   tiers resolve workspace packages by name today. The browser tier is chosen for reason 1 alone, and
+   R2 adds the browser-tier counterpart guard because the two projects need opposite spellings and
+   neither guard covers the other.
 
 ### 2.9 The write step consumes reviewed values, and refuses an item that has none
 

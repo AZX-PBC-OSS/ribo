@@ -45,7 +45,11 @@ Section references below (§2.3, §3.6, …) point into it. Read §1–§2 befor
 - **Test tiers:** `*.test.ts` → `unit` project (node, no DOM). `*.browser.test.{ts,tsx}` → `browser`
   project (real Chromium, fake media device). `playground/e2e/*.e2e.test.ts` → `e2e` project
   (production build + preview server). A test that crosses a package boundary by package name **must**
-  be in the `browser` tier — the `unit` project cannot resolve those (AGENTS.md §5.1).
+  resolve in **both** tiers today: the `unit` project via the project-local `ssr.resolve.conditions`
+  block (`vitest.config.ts:25-58`, guarded by `adapter-snuggpro/src/workspace-resolution.test.ts`) and
+  the `browser` project via plain `resolve.conditions`. **AGENTS.md §5.1's caveat calling this
+  unproven is stale** — Task 18 corrects it. Choose a tier by what the test needs from the
+  environment, not by resolution.
 - **Individual packages have no `test` script.** Select tests with a path argument:
   `pnpm vitest run packages/ribo-core`.
 
@@ -291,7 +295,82 @@ Add the document field, after `writeResult`:
 In `outboxRxSchema`: bump `version: 0` to `version: 1` and add `reviewOutcome: { type: "object" }` to
 `properties`, alongside `writeResult`. Do **not** add it to `required`.
 
-- [ ] **Step 8: Add the migration strategy in `database.ts`**
+- [ ] **Step 8: Fix the three existing tests the version bump and status additions break**
+
+These fail as a direct consequence of Step 7 and are **not** the drift guards. Each is a real
+assertion that needs a considered change, not a deletion.
+
+1. **`queue/schema.test.ts:123` — "the active and finished status sets partition the state machine"**
+   asserts `[...ACTIVE, ...FINISHED].sort()` equals `[...OUTBOX_STATUSES].sort()`. `awaiting-review`
+   is in neither set, deliberately, so the partition no longer holds. Rewrite it to say what is now
+   true, and to keep asserting that nothing is _accidentally_ unclassified:
+
+   ```ts
+   test("every status is active, finished, or explicitly parked for a human", () => {
+     // `awaiting-review` is in neither set on purpose — that omission is the review
+     // gate. It is named here rather than left as a hole, so a future status added
+     // to neither set fails this test instead of silently joining it.
+     const PARKED: readonly OutboxStatus[] = ["awaiting-review"];
+     expect([...ACTIVE_OUTBOX_STATUSES, ...FINISHED_OUTBOX_STATUSES, ...PARKED].sort()).toEqual(
+       [...OUTBOX_STATUSES].sort(),
+     );
+   });
+   ```
+
+2. **`src/index.test.ts:11`** pins the barrel's exact export list. Add `reviewOutcomeSchema` (and note
+   `ReviewPresenter` leaves that list in Task 5, not here).
+
+3. **`queue/outbox.browser.test.ts:69`** — `idbDatabaseName` builds
+   `` `rxdb-dexie-${outboxName}--0--outbox` ``. **That `--0--` is the schema version**, so after the
+   bump the raw-IndexedDB durability test opens a database that does not exist and fails in a way that
+   looks like lost data. Parameterise it:
+
+   ```ts
+   function idbDatabaseName(outboxName: string, schemaVersion = outboxRxSchema.version): string {
+     // The `--N--` segment is RxDB's schema version. Read it from the schema rather
+     // than hardcoding it, so a version bump does not send this test looking in a
+     // database that was never created.
+     return `rxdb-dexie-${outboxName}--${String(schemaVersion)}--outbox`;
+   }
+   ```
+
+   The file header already acknowledges this coupling to an RxDB implementation detail as "the price
+   of an assertion that cannot be satisfied by anything in our own code" — keep that reasoning, just
+   stop hardcoding the number.
+
+- [ ] **Step 9: Register the migration plugin, then add the strategy in `database.ts`**
+
+**The strategy alone is not enough and the failure is at open time, not at migration time.**
+`database.ts:39` registers only `RxDBAttachmentsPlugin`. RxDB's schema-migration code lives in a
+separate plugin, and with `version: 1` and RxDB's default `autoMigrate: true`, `addCollections` calls
+into it during collection creation — so without the plugin the **outbox does not open at all**. Add it
+to `registerPlugins`:
+
+```ts
+import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
+
+function registerPlugins(): void {
+  if (pluginsRegistered) return;
+  addRxPlugin(RxDBAttachmentsPlugin);
+  // Required from schema version 1 onward. RxDB calls into the migration plugin
+  // during `addCollections` whenever a collection's schema version is above 0
+  // (`autoMigrate` defaults to true), so without this the outbox fails to OPEN —
+  // the error arrives at open time and says nothing about migrations.
+  addRxPlugin(RxDBMigrationSchemaPlugin);
+  pluginsRegistered = true;
+}
+```
+
+Verify the subpath is exactly what this RxDB version ships:
+
+```bash
+node -e "console.log(Object.keys(require('rxdb/plugins/migration-schema')))" 2>/dev/null \
+  || ls node_modules/rxdb/plugins/ | grep -i migration
+```
+
+Use whatever that reports rather than trusting the import above.
+
+- [ ] **Step 10: Add the migration strategy in `database.ts`**
 
 ```ts
 await database.addCollections({
@@ -307,51 +386,67 @@ await database.addCollections({
 });
 ```
 
-- [ ] **Step 9: Prove the migration path**
+- [ ] **Step 11: Prove the migration path against a real v0 database**
 
-Add to `packages/ribo-core/src/queue/outbox.browser.test.ts` (browser tier — this needs real
-IndexedDB, and the point is that persisted data survives):
+**A reopen does not test this.** Both opens see `version: 1`, so nothing migrates and the test passes
+whether or not the plugin and strategy exist — the exact "passes while production is broken" shape
+`vitest.config.ts` warns about. A genuine v0→v1 upgrade needs a database whose **stored** version is
+0, and RxDB encodes that version in the physical IndexedDB name (`rxdb-dexie-<name>--0--outbox`, per
+the helper fixed in Step 8).
+
+So seed one directly, in the browser tier, using the file's existing raw-IndexedDB helpers:
 
 ```ts
-test("a document written before the reviewOutcome field survives the v1 migration", async () => {
-  // The migration is identity because the new field is optional, so what is being
-  // pinned is that the strategy is *declared* — without it RxDB refuses to open a
-  // collection whose stored version is behind the schema, and the failure surfaces
-  // as an unopenable outbox rather than as a missing field.
+test("an outbox stored at schema version 0 opens and migrates to version 1", async () => {
+  // Seeded through raw IndexedDB at the v0 physical name, because openOutbox() can
+  // only ever create a v1 store — and a v1-to-v1 reopen would pass with no
+  // migration plugin registered at all, which is precisely the failure this test
+  // exists to catch.
   const name = `migration-${crypto.randomUUID()}`;
-  const first = await openOutbox({ name });
-  const item = await first.enqueue(aRecording());
-  await first.close();
+  await seedVersionZeroOutbox(name, v0Document());
 
-  const reopened = await openOutbox({ name });
-  const recovered = await reopened.get(item.id);
-  expect(recovered?.id).toBe(item.id);
-  expect(recovered?.reviewOutcome).toBeUndefined();
-  await reopened.close();
+  const outbox = await openOutbox({ name });
+  const items = await outbox.list({});
+
+  expect(items).toHaveLength(1);
+  expect(items[0]?.reviewOutcome).toBeUndefined();
+  expect(items[0]?.status).toBe("queued");
+
+  await outbox.close();
   await removeOutboxDatabase(name);
 });
 ```
 
-Use the file's existing recording factory rather than `aRecording()` if it is named differently, and
-import `removeOutboxDatabase` if it is not already imported.
+`seedVersionZeroOutbox` writes one document into `idbDatabaseName(name, 0)` through the same raw
+`indexedDB` path the durability test already uses — model it on that helper rather than inventing a
+second style, and put the v0 document shape (no `reviewOutcome`) in `v0Document()`.
 
-**If this proves impossible to write honestly** — a same-process reopen may not exercise a genuine
-v0→v1 upgrade, because both opens see `version: 1` — then say so explicitly rather than shipping a
-test that looks like it covers the upgrade and does not. The honest fallback is to test the strategy
-function directly:
+**If seeding a v0 store faithfully proves impractical** — RxDB's internal store layout is an
+implementation detail and the durability test's header already calls that coupling "the price of an
+assertion that cannot be satisfied by anything in our own code" — then do **not** ship a reopen test
+dressed up as a migration test. Say so, and fall back to two honest assertions instead:
 
 ```ts
+test("the migration plugin is registered, so a versioned collection can open", async () => {
+  // Not a migration test. It pins the thing whose absence breaks OPEN: with
+  // version 1 and autoMigrate on, addCollections calls into the migration plugin.
+  const outbox = await openOutbox({ name: `plugin-${crypto.randomUUID()}` });
+  expect(outbox.closed).toBe(false);
+  await outbox.close();
+});
+
 test("the v1 migration strategy passes a document through unchanged", () => {
   const doc = { id: "a", seq: 0, status: "queued" };
   expect(OUTBOX_MIGRATION_STRATEGIES[1](doc)).toBe(doc);
 });
 ```
 
-which requires exporting the strategies from `database.ts` as a named
-`OUTBOX_MIGRATION_STRATEGIES` const rather than inlining them. Take that route if the first test
-cannot be made meaningful, and note which route you took in the commit message.
+The second requires exporting the strategies from `database.ts` as a named
+`OUTBOX_MIGRATION_STRATEGIES` const rather than inlining them in `addCollections`. **State in the
+commit message which route you took and why** — a migration test that does not migrate is worse than
+an honest pair of narrower ones.
 
-- [ ] **Step 10: Run the full core suite**
+- [ ] **Step 12: Run the full core suite**
 
 ```bash
 pnpm vitest run packages/ribo-core && pnpm --filter @azx/ribo-core typecheck
@@ -566,6 +661,61 @@ status lands in a bucket or is deliberately excluded."
 **Why the write change:** `nextStep` derives the step from which outputs are present, not from status
 (`relay.ts:118`), and `#write` passes `item.extracted` — the model's raw envelope map. An auditor's
 correction would be persisted to `reviewOutcome` and then ignored at write time. Design §2.9.
+
+**This task revokes a documented guarantee, deliberately.** `queue/schema.ts:78` says `seq` means
+"capture order is write order". Once a human gates the write, that stops being true: if recording 1 is
+awaiting review and the auditor reviews recording 2 first, recording 2 writes first. The alternative —
+refusing to write while any lower-`seq` item is non-terminal — reinstates exactly the stall the parked
+design exists to avoid, with one un-reviewed recording blocking every write behind it. So the
+guarantee is narrowed rather than defended, and it must be **rewritten where it is stated**, not
+quietly falsified:
+
+- `queue/schema.ts`'s `seq` comment becomes: capture order is the order items are _offered_ to the
+  relay, and remains write order for everything the relay decides on its own — review is the one step
+  a human orders, so writes follow review order.
+- Add a test pinning the new truth, so nobody "fixes" it later:
+
+  ```ts
+  test("writes follow review order, not capture order", async () => {
+    // The ordering guarantee `seq` used to carry, narrowed on purpose: a human
+    // reviewing the second recording first means it writes first. Enforcing capture
+    // order here would let one un-reviewed item block every write behind it.
+    const { outbox, relay, writes } = await harness();
+    await enqueueRecording(outbox);
+    await enqueueRecording(outbox);
+    await relay.drain();
+    const [first, second] = await outbox.list({});
+
+    await outbox.submitReview(second.id, { status: "accepted", fields: { atticRValue: 30 } });
+    await relay.drain();
+
+    expect(writes).toHaveLength(1);
+    expect(writes[0].item.id).toBe(second.id);
+    expect((await outbox.get(first.id))?.status).toBe("awaiting-review");
+  });
+  ```
+
+**Budget for a substantial test rewrite, not an assertion swap.** Most of `relay.browser.test.ts` from
+around `:195` drives a fresh `queued` item straight through to a write, then asserts on write retry,
+idempotency-key reuse, ordering, connectivity edges and terminal-write failure. Every one of those
+items now parks before writing, so replacing `done` with `awaiting-review` does not fix them — it
+deletes what they were testing. Add three helpers and rebuild on them rather than patching assertions
+one by one:
+
+```ts
+/** Drain until the item parks for review. */
+const drainToReview = async (relay: Relay) => await relay.drain();
+/** Accept every field, so the item is eligible to write. */
+const acceptReview = async (outbox: Outbox, id: string, fields: ExtractedFieldMap = {}) =>
+  await outbox.submitReview(id, { status: "accepted", fields });
+/** Seed a row that is already reviewed and eligible, for write-only tests. */
+const seedReviewedWriting = async (outbox: Outbox, fields: ExtractedFieldMap = {}) => { … };
+```
+
+The write-retry, idempotency and terminal-failure tests should use `seedReviewedWriting` so they test
+the write in isolation; keep **at least one** end-to-end test that goes capture → transcribe → extract
+→ review → write → `done`, because that is the path the product actually takes and nothing else covers
+it.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -854,10 +1004,19 @@ Add to the `Outbox` class, next to `patch`:
   /**
    * Record what a human decided about a parked item, and move it forward.
    *
-   * The only way out of `awaiting-review`. A method on `Outbox` rather than a free
-   * function because it is a row write: it inherits `#serialized` and the
-   * pre-write `outboxItemSchema.parse` in {@link patch}, so a bad status fails
-   * here rather than looking like corruption at the next reload.
+   * The only way out of `awaiting-review`, and it **only** works from
+   * `awaiting-review`. That guard is not defensive tidiness: `multiInstance: true`
+   * means a second tab holds its own `Outbox` over the same IndexedDB database, so
+   * without it a stale tab could submit a review for an item that has since reached
+   * `done` — patching a completed row back to `writing` and causing a second write —
+   * or discard one while a write is in flight.
+   *
+   * Applied through `incrementalModify`, which RxDB re-runs against the **current**
+   * revision on write conflict, so the status check and the mutation cannot be
+   * split by another writer. `patch()` is not usable here: it reads with `findOne`,
+   * validates, then writes, and (contrary to what one might assume from `enqueue`)
+   * it does **not** go through this class's `#serialized` chain — that chain guards
+   * only the sequence-number allocation in `enqueue`.
    *
    * - `accepted` / `edited` → `writing`, with `attempts` reset so the write gets a
    *   clean backoff budget. The relay picks the item up on its next drain and
@@ -868,24 +1027,85 @@ Add to the `Outbox` class, next to `patch`:
    *
    * Takes the persisted (loose) outcome. The typed `ReviewOutcome<F>` erases to it
    * at the hook boundary — one document schema serves every host tool's field set.
+   *
+   * @throws if the item does not exist, or is not `awaiting-review`. A duplicate
+   * submission — two clicks, or two tabs — therefore fails loudly on the second
+   * rather than silently rewriting a row that has moved on.
    */
   async submitReview(id: string, outcome: PersistedReviewOutcome): Promise<OutboxItem> {
     const parsed = reviewOutcomeSchema.parse(outcome);
-    if (parsed.status === "discarded") {
-      await this.dropAudio(id);
-      return await this.patch(id, { reviewOutcome: parsed, status: "discarded" });
-    }
-    return await this.patch(id, { reviewOutcome: parsed, status: "writing", attempts: 0 });
+    const doc = await this.#collection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no item with id "${id}"`);
+
+    const patch: OutboxPatch =
+      parsed.status === "discarded"
+        ? { reviewOutcome: parsed, status: "discarded" }
+        : { reviewOutcome: parsed, status: "writing", attempts: 0 };
+
+    const updated = await doc.incrementalModify((current) => {
+      if (current.status !== "awaiting-review") {
+        throw new Error(
+          `outbox: item ${id} is "${current.status}", not "awaiting-review", so a review cannot be submitted for it. Another tab or an earlier submission has already moved it on.`,
+        );
+      }
+      const merged = { ...current, ...patch };
+      // Validated inside the modifier, against the revision actually being written.
+      outboxDocumentSchema.parse(merged);
+      return merged;
+    });
+
+    // After the status is committed, so a crash between the two leaves a
+    // `discarded` row that still has its audio — recoverable — rather than an
+    // `awaiting-review` row whose audio has silently vanished.
+    if (parsed.status === "discarded") await this.dropAudio(id);
+
+    return this.#toItem(updated);
   }
 ```
 
-Import `reviewOutcomeSchema` and `type PersistedReviewOutcome` from `../review.js`.
+Import `reviewOutcomeSchema` and `type PersistedReviewOutcome` from `../review.js`, and
+`outboxDocumentSchema` / `type OutboxPatch` from `./schema.js` if not already imported.
 
-Two notes for the implementer. First, `patch` already runs `outboxItemSchema.parse` on the merged
-document, so the explicit `reviewOutcomeSchema.parse` here is about failing at the _argument_ rather
-than inside a merged blob — keep it. Second, `dropAudio` before `patch` means a crash between them
-leaves audio dropped but status still `awaiting-review`; that is the safe order, because the reverse
-leaves a `discarded` row holding audio nobody will ever remove.
+Two notes. First, **verify `incrementalModify` is the right RxDB API for this version** — check
+`node_modules/rxdb` for the current name and conflict semantics before relying on the retry behaviour;
+if the modifier is not re-run against the current revision on conflict, this guard is not atomic and
+the plan's premise needs revisiting rather than papering over.
+
+Second, note the **drop-audio ordering is the reverse** of what an earlier draft of this plan
+specified. Dropping first would mean a crash between the two steps leaves an `awaiting-review` row
+whose audio is gone — the item looks reviewable, the recording is unrecoverable, and nothing indicates
+why. Committing the status first makes the worst case a `discarded` row that still holds audio, which
+is merely untidy.
+
+- [ ] **Step 3b: Add the concurrency test**
+
+```ts
+test("a second submission for the same item fails rather than rewriting it", async () => {
+  // Two tabs, or two clicks. The second must not patch a row that has moved on —
+  // most importantly it must not take a `done` item back to `writing`, which would
+  // cause a second write to the host tool.
+  const outbox = await openTestOutbox();
+  const item = await enqueueTestRecording(outbox);
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  await outbox.submitReview(item.id, { status: "accepted", fields: { atticRValue: 19 } });
+  await expect(
+    outbox.submitReview(item.id, { status: "discarded", reason: "changed my mind" }),
+  ).rejects.toThrow(/awaiting-review/);
+
+  const settled = await outbox.get(item.id);
+  expect(settled?.status).toBe("writing");
+  expect(settled?.hasAudio).toBe(true);
+});
+
+test("a review cannot be submitted for an item that was never parked", async () => {
+  const outbox = await openTestOutbox();
+  const item = await enqueueTestRecording(outbox);
+  await expect(outbox.submitReview(item.id, { status: "accepted", fields: {} })).rejects.toThrow(
+    /queued/,
+  );
+});
+```
 
 - [ ] **Step 4: Run and confirm pass**
 
@@ -1302,25 +1522,41 @@ recording indicator stays lit."
 
 **Files:** none — this is the checkpoint.
 
-- [ ] **Step 1: Run the full check**
+**`./check.sh` cannot be green at this point, and pretending otherwise is the problem.** Phase A
+changes the pipeline's observable behaviour, and the e2e suite asserts the old behaviour — correctly,
+which is why it fails. Two specs poll for an item reaching `done`
+(`extraction-ui.e2e.test.ts:98` and `network-transition.e2e.test.ts`), and the gate makes `done`
+unreachable without a human. So this checkpoint is **not** "green"; it is "green except a named,
+understood set", and the named set has to be exactly right.
+
+- [ ] **Step 1: Run everything except e2e, and require it green**
 
 ```bash
-./check.sh
+pnpm typecheck && pnpm lint && pnpm format:check && pnpm build:packages && pnpm check:resolve \
+  && pnpm build:app && pnpm check:pkg && pnpm vitest run --project unit --project browser
 ```
 
-Expected: PASS on every stage. Paste the summary line into the commit or the task report.
+Expected: PASS on every one. Paste the vitest summary line, which must show both `unit` and
+`browser (chromium)` ran. Anything red here is a Phase A defect — fix it now.
 
-- [ ] **Step 2: Note what is expected to be red**
+If `build:app` or the playground typecheck fails on `WriteStepInput`, fix the two stubs:
+`playground/src/QueuePanel.tsx:219` and `playground/src/TranscribePanel.tsx:257`. Both are
+parameter-less (`write: () => Promise.resolve({ … })`), so they should need no change — but confirm
+rather than assume.
 
-The playground still builds, because the two `write` stubs ignore their arguments — but if
-`build:app` or `typecheck` fails on `WriteStepInput`, fix the stubs now:
-`playground/src/QueuePanel.tsx:219` and `playground/src/TranscribePanel.tsx:257`. A `write` that takes
-no parameters needs no change at all; only an implementation that destructures `extracted` does.
+- [ ] **Step 2: Run e2e and record exactly which specs fail and why**
 
-The `e2e` project is **expected to fail** at this point — `extraction-ui.e2e.test.ts` polls for `done`
-and items now park at `awaiting-review`. Do **not** fix it here by weakening the assertion; Task 17
-teaches it to drive the review UI. If `./check.sh` runs the e2e tier, record the failure explicitly in
-the task report rather than silently accepting a red gate.
+```bash
+pnpm vitest run --project e2e
+```
+
+Expected: failures **only** in specs that assert an item reaches `done`. Write the list into the task
+report with a one-line reason each. Then check the list against expectations: `extraction-ui` and
+`network-transition` are the two known ones. **A failure anywhere else means Phase A broke something
+this plan did not predict — stop and investigate rather than deferring it to Task 18.**
+
+Do not fix any of them here, and specifically do not weaken an assertion to make it pass. Task 18
+teaches them the new flow, which is one step longer because a human is now in it.
 
 - [ ] **Step 3: Add a changeset**
 
@@ -1363,7 +1599,7 @@ git commit -m "Add a changeset for the core review gate"
 
 **Why it is its own task:** nothing in this repo renders React in a test. There are zero `.tsx` test
 files and no rendering library installed. Proving the tier works — including the cross-package import
-that AGENTS.md §5.1 flags as unproven in the `unit` project — before writing six hooks against it is
+that nothing in this repo has done — before writing six hooks against it is
 the difference between one debugging session and six.
 
 - [ ] **Step 1: Add `vitest-browser-react` to the catalog**
@@ -1396,12 +1632,13 @@ Create `packages/ribo-ui-react/src/workspace-resolution.browser.test.tsx`:
 ```tsx
 import { expect, test } from "vitest";
 import { render } from "vitest-browser-react";
-// Imported by *package name*, not a relative path — that is the point. R2 is the
-// first task in this repo whose tests cross a package boundary, and AGENTS.md §5.1
-// records that the `unit` project cannot resolve this (it needs
-// `ssr.resolve.conditions`, which is not set). The `browser` project's plain
-// `resolve.conditions` is proven. If this file fails to resolve, the browser
-// project has lost that block — do not "fix" it by switching to a relative import.
+// Imported by *package name*, not a relative path — that is the point. This is the
+// browser project's counterpart to
+// packages/ribo-adapter-snuggpro/src/workspace-resolution.test.ts, which guards the
+// same property for the node tier. The two projects need OPPOSITE spellings
+// (`resolve.conditions` here, `ssr.resolve.conditions` there) and neither guard
+// covers the other. If this file fails to resolve, the browser project has lost its
+// block — do not "fix" it by switching to a relative import.
 import { Recorder } from "@azx/ribo-core";
 
 test("resolves @azx/ribo-core by package name from a ui-react browser test", () => {
@@ -1703,6 +1940,30 @@ export type { AnyRecorder, RiboInstances } from "./context.js";
 Delete `packages/ribo-ui-react/src/index.test.ts` — it asserts the `PACKAGE_NAME` stub, which is gone.
 `useRiboInstance` is **not** exported: it is internal wiring, and exporting it would invite hosts to
 resolve instances instead of using the hooks.
+
+- [ ] **Step 6b: Unbreak the playground in the same commit**
+
+`PACKAGE_NAME` is not unused — `playground/src/App.tsx:2` imports it and `:32` puts it in
+`COMPOSED_NAMES = [UI, ADAPTER]`, which the footer renders. Deleting the export without this step
+breaks `pnpm typecheck` and `pnpm build:app`, so this task's own verification would fail and the whole
+of Phase B would proceed on a red gate.
+
+Minimal fix now (the real migration is Task 17): drop the `PACKAGE_NAME as UI` import and name the
+package directly, since the footer's job is to prove all three packages are composed into the build —
+which the provider import now does for real:
+
+```tsx
+import { RiboProvider } from "@azx/ribo-ui-react";
+// …
+const COMPOSED_NAMES = ["@azx/ribo-ui-react", ADAPTER];
+```
+
+Also correct the `@file` header two lines above: it says `ribo-ui-react` "is still Phase 0 scaffolding
+and exports only its `PACKAGE_NAME`". As of this task it is the hook layer.
+
+Note this is why the import is a _value_ import rather than type-only: the footer proved composition
+by importing a runtime constant, and `RiboProvider` preserves that property. A type-only import would
+be erased and the composition check would quietly stop checking anything.
 
 - [ ] **Step 7: Run, verify, commit**
 
@@ -3318,13 +3579,20 @@ inputs itself is the divergence core centralised that logic to prevent."
 
 ## Task 16: Phase B gate
 
-- [ ] **Step 1: Full check**
+- [ ] **Step 1: Everything except e2e, green**
 
 ```bash
-./check.sh
+pnpm typecheck && pnpm lint && pnpm format:check && pnpm build:packages && pnpm check:resolve \
+  && pnpm build:app && pnpm check:pkg && pnpm vitest run --project unit --project browser
 ```
 
-Expected: every stage but `e2e` green. Paste the summary line. `e2e` stays red until Task 17.
+Expected: PASS on all of it. `build:app` and the playground typecheck are only green because Task 9
+Step 6b removed the `PACKAGE_NAME` import — if they fail here, that step was skipped.
+
+`e2e` is still red, with the same two specs Task 7 recorded and no others. Re-run
+`pnpm vitest run --project e2e` and confirm the failing list is **unchanged** from Task 7's report: a
+new e2e failure means something in Phase B broke the app, which is worth knowing now rather than
+inside Task 18.
 
 - [ ] **Step 2: Verify the built artifact is real**
 
@@ -3377,13 +3645,10 @@ git add .changeset && git commit -m "Add a changeset for the ribo-ui-react hook 
 discipline the provider expects, and their StrictMode/HMR comments are the best documentation of why
 the provider constructs nothing.
 
-- [ ] **Step 1: Add the dependency and wrap the tree**
+- [ ] **Step 1: Wrap the tree**
 
-```bash
-# in playground/package.json devDependencies
-#   "@azx/ribo-ui-react": "workspace:*"
-pnpm install
-```
+`@azx/ribo-ui-react` is **already** a playground dependency (`playground/package.json:18`) — it has to
+be, because `App.tsx` imports `PACKAGE_NAME` from it today. No dependency change is needed.
 
 In `App.tsx`, wrap the panels:
 
@@ -3503,11 +3768,15 @@ Read every failure. `transcribe-ui` and `try-it-ui` assert statuses too; update 
 flow rather than deleting the assertion. If a spec's premise is genuinely gone, say so in the commit
 message rather than silently dropping coverage.
 
-- [ ] **Step 3: Revisit `TryItPanel` copy**
+- [ ] **Step 3: Fix `network-transition.e2e.test.ts`**
 
-Its "drain the queue" affordance now stops at review instead of running to `done`. Update the copy so
-it says so, and point at the review panel as the next step. Do not add a "skip review" button — the
-gate is unconditional by design.
+It asserts an item reaches `done` and was missed in the original file list for this task. Same
+treatment as `extraction-ui`: the flow is one human step longer now.
+
+**There is no `TryItPanel` work.** An earlier draft of this plan said its "drain the queue" affordance
+needed new copy. It has no such affordance — `TryItPanel` is a standalone `/api/extract` editor
+(`TryItPanel.tsx:96`) with no queue, no statuses and no relay. Skip it, and do not go looking for the
+copy to change.
 
 - [ ] **Step 4: Correct AGENTS.md**
 
@@ -3520,11 +3789,22 @@ Four things are now false or incomplete:
   `Controller` / `ReviewPresenter` instances". Neither type exists. The conclusion is unchanged; the
   real reason is that `RiboProvider` carries `Recorder`, `Outbox` and `Connectivity` instances across
   the package boundary, so object identity must be shared.
-- **§5.1** — its closing caveat says cross-package test resolution is unproven and to "expect to fix
-  this the moment a test crosses a package boundary". Record that R2 crossed it in the **browser**
-  project, where `resolve.conditions` works and is now pinned by
-  `packages/ribo-ui-react/src/workspace-resolution.browser.test.tsx`, and that the `unit` project's
-  `ssr.resolve.conditions` gap remains open and unhit.
+- **§5.1** — its closing "Verified caveat (probed 2026-07-23)" block is **stale and actively
+  misleading**. It says cross-package resolution is unproven, that "nothing fails today only because
+  every test imports its own module by relative path", and to "expect to fix this the moment a test
+  crosses a package boundary". All three are false now: `vitest.config.ts:25-58` carries the
+  project-local `ssr.resolve.conditions` fix for the `unit` tier, and
+  `adapter-snuggpro/src/workspace-resolution.test.ts` already crosses a package boundary by name in
+  that tier. Replace the caveat with what is true: **both** tiers resolve workspace packages by name,
+  via deliberately different spellings (`ssr.resolve.conditions` for `unit`, plain
+  `resolve.conditions` for `browser`), each pinned by its own guard —
+  `adapter-snuggpro/src/workspace-resolution.test.ts` and, as of R2,
+  `ribo-ui-react/src/workspace-resolution.browser.test.tsx`. Note that neither guard covers the
+  other's spelling, which is why both exist.
+
+  This one matters beyond tidiness: a stale caveat telling contributors a working mechanism is broken
+  costs someone a day of re-verifying it, which is exactly what it cost while writing this plan.
+
 - **§3** — the architecture table's `ribo-ui-react` row still says "still a stub".
 
 - [ ] **Step 5: Update the roadmap**
