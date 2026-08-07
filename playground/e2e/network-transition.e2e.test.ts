@@ -228,17 +228,25 @@ test("flapping the link around a queued item neither duplicates it, loses it, no
  * test will start to fail, which is the correct signal that the gap has closed
  * and the four currently-unreachable scenarios have become testable here.
  */
-// SKIPPED — and this test predicted its own skip. The comment above says that a
-// change wiring a real drain "will start to fail, which is the correct signal that
-// the gap has closed". R2 Phase A's review gate is that change: the item parks at
-// `awaiting-review` instead of reaching `done`, so the drain no longer runs to
-// completion unaided.
+// Restored for R2 Task 18. This test predicted its own skip: the comment above
+// says that a change wiring a real drain "will start to fail, which is the
+// correct signal that the gap has closed". R2 Phase A's review gate was that
+// change — the item parked at `awaiting-review` instead of reaching `done`, so
+// the drain no longer ran to completion unaided.
 //
-// Restore in R2 Task 18. The connectivity property this test exists for is
-// untouched by the gate — it is about the link, not the review card — so it can be
-// restored by driving `Outbox.submitReview` in the page context, without waiting
-// for the review UI.
-test.skip("the manual drain runs to completion while offline — the stub steps do no network I/O", async () => {
+// The connectivity property this test exists for is untouched by the gate — it
+// is about the link, not the review card — so the fix drives `Outbox.submitReview`
+// the same way `extraction-ui.e2e.test.ts` does: through the actual review card,
+// not a page-context call straight into core. There is no app-exposed handle onto
+// the live `Outbox` instance to call `submitReview` on directly without adding new
+// production surface area for it, and this file's own header says every invariant
+// here is asserted "through observable app behaviour ... and never through
+// internals" — clicking the card is that same discipline applied to the gate.
+// Every step of driving the card (reading fields, clicking Accept, submitting) is
+// a local DOM/IndexedDB operation with no network I/O, so doing it with the
+// context still offline is exactly as informative about "no network I/O" as the
+// original, gate-free version was.
+test("the manual drain runs to completion while offline — the stub steps do no network I/O", async () => {
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(baseUrl);
@@ -254,11 +262,39 @@ test.skip("the manual drain runs to completion while offline — the stub steps 
   await proveOfflineIsReal(page);
 
   // Drive the queue with the link down. A real network step would fail and park
-  // the item under backoff; the stub reaches `done` regardless.
+  // the item under backoff; the stub reaches `awaiting-review` regardless — the
+  // review gate stops the relay on purpose, which is a different thing from a
+  // network failure parking it under backoff.
+  await page.getByRole("button", { name: /sync now/ }).click();
+  await expect.poll(() => statusOf(page), { timeout: 30_000 }).toBe("awaiting-review");
+
+  // Drive the review card to a decision on every leaf — still fully offline.
+  // Every leaf here is the FakeExtractor's fixed fixture output, which this
+  // fake recording's transcript never contains, so — same as
+  // `extraction-ui.e2e.test.ts` — every leaf starts ungrounded and the gate
+  // blocks until each one is actioned.
+  const card = page.locator('[data-testid="review-card"]').first();
+  await card.waitFor({ timeout: 30_000 });
+  const acceptButtons = card.getByTestId("accept-field");
+  const leafCount = await acceptButtons.count();
+  for (let i = 0; i < leafCount; i += 1) {
+    await acceptButtons.nth(i).click();
+  }
+  const submit = card.getByRole("button", { name: "Accept all and queue" });
+  await expect(submit.isDisabled()).resolves.toBe(false);
+  await submit.click();
+
+  // `Outbox.submitReview` moved the item to `writing`, dropping it out of the
+  // review panel's `awaiting-review` filter.
+  await card.waitFor({ state: "detached", timeout: 15_000 });
+
+  // `writing` needs its own drain, same as `extracting` did — nothing here
+  // watches the gate open and continues automatically.
   await page.getByRole("button", { name: /sync now/ }).click();
 
-  // The status badge reaches `done`, i.e. the drain ran the whole pipeline with
-  // the link down. `statusOf` reads the badge element's own text, not the always
+  // The status badge reaches `done`, i.e. the drain ran the whole pipeline —
+  // extraction, review, and the write step — with the link down throughout.
+  // `statusOf` reads the badge element's own text, not the always
   // "queued <time>" muted line.
   await expect.poll(() => statusOf(page), { timeout: 30_000 }).toBe("done");
   expect(await item.first().innerText()).toContain("transcript:");
