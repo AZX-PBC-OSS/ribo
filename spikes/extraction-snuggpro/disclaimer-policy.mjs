@@ -56,6 +56,24 @@ export const NAMED_SETS = {
   ),
 };
 
+// Since this module is the SINGLE place that re-scores every transcript using a given named set, a
+// typo'd path here (e.g. "basedata.blowerdoorReading") would silently affect every transcript that
+// uses that set — and the defense-in-depth re-validation in ground-truth.mjs only ever walks the
+// REAL LEAF_PATHS, so it can never notice a bad path sitting unused inside NAMED_SETS itself. Assert
+// the invariant here, at import time, so a typo fails LOUDLY the moment anything loads this module,
+// rather than silently validating every ground-truth file that happens not to exercise it.
+for (const [name, paths] of Object.entries(NAMED_SETS)) {
+  for (const p of paths) {
+    if (!LEAF_PATHS.includes(p)) {
+      throw new Error(
+        `disclaimer-policy.mjs: NAMED_SETS.${name} contains "${p}", which is not one of schema.ts's ` +
+          "51 real leaf paths (typo?). Fix it here — this module re-scores every transcript that " +
+          "uses this named set, so a bad path here is not a one-file bug.",
+      );
+    }
+  }
+}
+
 /**
  * A disclaimer's scope, in the closed vocabulary annotators choose from:
  *
@@ -102,6 +120,89 @@ export function scopeError(scope) {
   }
   if (scope.kind === "unresolved") return null;
   return `scope.kind must be "group", "namedSet", or "unresolved", got ${JSON.stringify(scope.kind)}`;
+}
+
+/**
+ * A cheap, deliberately loose keyword table for the ONE thing `scope` cannot self-check: whether
+ * `topic` (free text) actually describes the same thing `scope` (mechanical) points at. Nothing
+ * stops an annotator from writing `topic: "the water heater"` next to `scope: { group: "attic" }` —
+ * a copy-paste mistake, or a scope picked for the wrong disclaimer in a multi-disclaimer sentence
+ * (rule 4's `14-rapid-recap`-style compound case). This is NOT a semantic check (that would need
+ * real language understanding, which is exactly the judgment call disclaimers exist to avoid) — it
+ * is a keyword substring test, loose on purpose, meant to catch the OBVIOUS mismatch, not to
+ * adjudicate a subtle one. A miss here is a warning, never a hard validation failure — the keyword
+ * lists are incomplete by construction and will never cover every honest phrasing.
+ */
+const SCOPE_KEYWORDS = {
+  group: {
+    basedata: ["basedata", "bedroom", "blower door", "year built", "home", "house", "floor"],
+    hvac: [
+      "furnace",
+      "boiler",
+      "heat",
+      "hvac",
+      "duct",
+      "cooling",
+      "air condition",
+      " ac ",
+      "heat pump",
+    ],
+    attic: ["attic", "insulation", "roof"],
+    wall: ["wall"],
+    window: ["window"],
+    dhw: ["water heater", "dhw", "hot water", "tank"],
+    health: [
+      "test",
+      "safety",
+      " co ",
+      "carbon monoxide",
+      "asbestos",
+      "mold",
+      "gas leak",
+      "vent",
+      "draft",
+      "spillage",
+      "radon",
+      "lead",
+      "electrical",
+      "health",
+    ],
+  },
+  namedSet: {
+    healthTests: ["test", "safety"],
+    blowerDoor: ["blower door", "blower"],
+    shell: ["shell", "attic", "wall", "window", "envelope", "blower door"],
+  },
+};
+
+const normalizeForKeywordMatch = (s) =>
+  ` ${String(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")} `;
+
+/**
+ * @param {{kind: string, group?: string, set?: string}} scope
+ * @param {string} topic
+ * @returns {string | null} a warning message, or null if `topic` plausibly matches `scope` (or the
+ *   scope kind has no keyword table at all — `"unresolved"` never warns on topic, since there is no
+ *   mechanical target to compare it against).
+ */
+export function topicScopeMismatchWarning(scope, topic) {
+  if (!scope || typeof topic !== "string") return null;
+  const table =
+    scope.kind === "group"
+      ? SCOPE_KEYWORDS.group[scope.group]
+      : scope.kind === "namedSet"
+        ? SCOPE_KEYWORDS.namedSet[scope.set]
+        : null;
+  if (!table) return null;
+  const normalized = normalizeForKeywordMatch(topic);
+  if (table.some((kw) => normalized.includes(normalizeForKeywordMatch(kw).trim()))) return null;
+  return (
+    `topic ${JSON.stringify(topic)} does not obviously match scope ${JSON.stringify(scope)} ` +
+    `(expected one of: ${table.join(", ")}) — check this isn't a copy-paste mistake or the wrong ` +
+    "scope for a multi-part disclaimer sentence"
+  );
 }
 
 /**

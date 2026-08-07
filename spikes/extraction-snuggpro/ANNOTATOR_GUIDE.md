@@ -17,18 +17,41 @@ a genuinely new ambiguity the schema rebuild introduced. Where this guide says "
 example," it means that file.
 
 **Run `node validate-ground-truth.mjs ground-truth/NN-slug.json` before you consider yourself done.**
-It catches every mechanical mistake below (missing leaf, typo'd member, wrong-shaped envelope) in
-seconds, so the only disagreements two annotators surface are real ones.
+It catches every mechanical mistake below (an unknown leaf key, a typo'd member, a wrong-shaped
+envelope, a span that isn't actually verbatim, an overlapping or malformed disclaimer) in seconds, so
+the only disagreements two annotators surface are real ones. It also prints WARNINGS that do not fail
+the check but are worth reading — an implausible topic/scope pairing, or an `unresolved` disclaimer
+flagged for reconciliation (rule 4).
 
 ## The goal: byte-identical on the unambiguous, legible disagreement on the arguable
 
 Two careful annotators reading the same transcript should produce **identical** output for every
 leaf where the transcript is not actually ambiguous. Where it genuinely is, they should each be able
 to point at the exact sentence that makes it arguable, and one annotator's `arguable.note` should be
-enough for the other to say "yes, I see why you could read it that way" even while disagreeing. If
-you find yourself unsure whether a call is "the obviously right answer" or "arguable," write it up as
-arguable — a spurious `arguable` costs a reviewer thirty seconds; a silently-swallowed genuine
-ambiguity costs the whole point of running this twice per transcript.
+enough for the other to say "yes, I see why you could read it that way" even while disagreeing.
+
+**THE ONE RULE governing every "when in doubt" question in this guide — read this before rules 1 and
+10, which are both instances of it, not competing heuristics:**
+
+> Ask **"did the transcript say anything at all about this leaf?"** first, before asking whether the
+> exact value is clear.
+>
+> - **Nothing was said** → write nothing (rule 1). This is not a hedge; a leaf with no basis in the
+>   transcript has no candidate value to be uncertain ABOUT.
+> - **Something was said, and the mapping to a value is clear** → write the asserted entry, no
+>   `arguable` needed. Most leaves on most transcripts land here.
+> - **Something was said, and the mapping is genuinely contested** (two members fit, the auditor's
+>   words don't cleanly resolve, a schema axis is left unaddressed) → write the entry AND mark it
+>   `arguable` (rule 10), with a note pointing at the specific sentence making it contested. Omission
+>   is never the answer here: the leaf resolves silently to "unmentioned" if you write nothing, which
+>   is indistinguishable from "nothing was said" — exactly the ambiguity a validator or a second
+>   annotator has no way to catch, because a silently-omitted contested leaf and a genuinely-silent
+>   one produce byte-identical files.
+>
+> The failure mode this rule exists to prevent: a cautious annotator treats "the mapping is unclear"
+> as a reason to omit, an expansive one treats it as a reason to assert without flagging it — both
+> defeat the point independently of each other, and the disagreement between them is invisible
+> because it resolves to the SAME silent default on one side.
 
 ## 1. Write a `leaves` entry only for what you can address SPECIFICALLY
 
@@ -38,8 +61,11 @@ name that exact leaf — an asserted value, or an individually-addressed absence
 entries for every leaf the transcript never touches — that is the default every leaf gets
 automatically; writing it out changes nothing and just adds noise to diff against. A leaf that a
 BLANKET statement covers ("no water heater," "No tests") is not addressed by you at all — see rule 4.
-When in doubt, write less: an unwritten leaf is either the plain default or a disclaimer's default,
-never an error.
+
+This is an instance of THE ONE RULE above: omit only when the transcript said nothing at all about
+the leaf. If it said something and the mapping is merely unclear, that is rule 10's job (write the
+entry, mark it `arguable`), never this rule's — "when in doubt, write less" is not a license to omit
+a leaf just because the right VALUE is unclear.
 
 ## 2. Choosing a `sourceSpan`
 
@@ -119,11 +145,24 @@ reaches is decided once, centrally, by `disclaimer-policy.mjs` — the same poli
    `{ "kind": "namedSet", "set": "<name>" }`. These three are the complete list today; do not invent
    a fourth without a second real transcript needing the same one (see `disclaimer-policy.mjs`'s own
    comment).
-3. If neither fits, use `{ "kind": "unresolved" }`. The disclaimer is still recorded (a future policy
-   update may resolve it); it simply reaches no leaf today. Do not force it into the nearest
-   approximation.
+3. If neither fits, use `{ "kind": "unresolved" }` **and write a `note`** on the disclaimer
+   explaining why no group or named set fits — the validator requires it, because `"unresolved"`
+   reaches no leaf and cannot be caught by overlap detection, so an unexplained one is where an error
+   could hide silently. It will also always print as a warning ("NEEDS RECONCILIATION") even when the
+   file otherwise validates clean — that is intentional; a human should confirm it is genuinely
+   unresolvable, not a missed scope. The disclaimer is still recorded (a future policy update may
+   resolve it); it simply reaches no leaf today. Do not force it into the nearest approximation.
 4. A trailing, topic-free "nothing else today" needs **no disclaimer at all** — "unmentioned" is
    already every leaf's default, so a statement that names nothing specific changes nothing.
+
+**Make `topic` actually describe what `scope` points at.** The validator runs a loose keyword check
+(`disclaimer-policy.mjs`'s `topicScopeMismatchWarning`) and warns — never fails outright, since the
+keyword lists are deliberately incomplete — when `topic` doesn't obviously match `scope` (e.g.
+`topic: "the water heater"` next to `scope: { group: "attic" }`). This exists specifically for the
+compound-sentence case (`14-rapid-recap.txt`'s "no heating checked, no attic, no blower door, no
+safety tests" is FOUR disclaimers in one sentence): write one disclaimer PER named thing, each with
+its own accurate span/topic/scope, rather than one disclaimer whose topic lists everything but whose
+scope only covers one of them.
 
 **A leaf you address individually always overrides a disclaimer covering it** — this is structural
 (`resolveGroundTruth`'s resolution order), not something you have to manage. The worked example's
@@ -167,18 +206,28 @@ gas furnace" and nothing else about cooling has stated the equipment family and 
 completely unaddressed; **neither member is more supportable than the other**, because both are
 correct about the part that was said and neither is contradicted by anything that wasn't.
 
-The rule: **pick either one of the conflated members as `member`, list the other in
-`arguable.acceptableAlternatives`, and write the note stating explicitly that the two are symmetric —
-not that one is preferred.** Do not use `noFittingMember` here — that is for when NOTHING fits (rule
-above); this is the opposite problem, where something fits equally well in two ways, and
-`noFittingMember` would incorrectly make ANY real member (including a genuinely wrong one, like
-`"Boiler"`) score as merely "unscorable" instead of "wrong." The symmetry is what
-`acceptableAlternatives` is for: a run landing on either member is never penalized, while a run
-landing on a real but genuinely different equipment family is still a hard wrong answer, because
-something real actually was contradicted. If you hit this pattern on your transcript, note in the
-`arguable.note` that it is a schema-rebuild-introduced ambiguity, not something the transcript itself
-is unclear about — that distinction is a finding about the schema, worth escalating, and is different
-in kind from an ordinary contested reading.
+The rule: **`member` is the one of the conflated pair that appears FIRST in `schema.ts`'s own
+enum-list order for that leaf; every other conflated member goes in
+`arguable.acceptableAlternatives`; the note states explicitly that they are symmetric, not that one
+is preferred.** This tie-break is deterministic and mechanical on purpose — "pick either one" is
+itself a choice, and two independent annotators who each "pick either one" will pick differently
+half the time, producing files that score identically but are not byte-identical, which is exactly
+the convergence property this guide's opening goal asks for. "First in schema.ts's list" needs no
+judgment: open `schema.ts`, find the leaf's enum, and take whichever conflated member's string
+comes first. The worked example's furnace case is the worked instance: `"Furnace with standalone
+ducts"` is index 2 of 17 members, `"Furnace / Central AC (shared ducts)"` is index 16 — the
+standalone member is `member` because it comes first, not because it is a "better" or "more likely"
+reading.
+
+Do not use `noFittingMember` here — that is for when NOTHING fits (rule above); this is the opposite
+problem, where something fits equally well in two ways, and `noFittingMember` would incorrectly make
+ANY real member (including a genuinely wrong one, like `"Boiler"`) score as merely "unscorable"
+instead of "wrong." The symmetry is what `acceptableAlternatives` is for: a run landing on either
+member is never penalized, while a run landing on a real but genuinely different equipment family is
+still a hard wrong answer, because something real actually was contradicted. If you hit this pattern
+on your transcript, note in the `arguable.note` that it is a schema-rebuild-introduced ambiguity, not
+something the transcript itself is unclear about — that distinction is a finding about the schema,
+worth escalating, and is different in kind from an ordinary contested reading.
 
 ## 7. Bands and axes: no arithmetic, no fused tokens
 
@@ -238,12 +287,14 @@ explains why there is deliberately no slot for it. When you hit one of these:
 
 ## 10. `arguable` and `retracted` are not busywork — but don't reach for them by default
 
-Use `arguable.acceptableAlternatives` / `acceptableMiss` only when you can write a `note` that names
-the specific sentence making the call genuinely contestable, in the style of the worked example's
-notes. If a leaf's answer is simply, unambiguously correct once you've read the transcript
-carefully, it needs no `arguable` block at all — most leaves on most transcripts will have none.
-Overusing `arguable` to hedge on calls that aren't actually close defeats its purpose just as
-thoroughly as underusing it to paper over a real ambiguity.
+Per THE ONE RULE above: use `arguable.acceptableAlternatives` / `acceptableMiss` when the transcript
+said something relevant but the exact mapping is genuinely contested — never as a substitute for
+writing the entry at all, and never as a hedge on a call that is actually clear. Write a `note` that
+names the specific sentence making the call contestable, in the style of the worked example's notes.
+If a leaf's answer is simply, unambiguously correct once you've read the transcript carefully, it
+needs no `arguable` block at all — most leaves on most transcripts will have none. Overusing
+`arguable` to hedge on calls that aren't actually close defeats its purpose just as thoroughly as
+omitting a leaf to paper over a real ambiguity (rule 1's failure mode).
 
 ## Before you submit
 

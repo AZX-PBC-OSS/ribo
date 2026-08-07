@@ -29,7 +29,8 @@ import {
   resolveEnumMember,
   slugifyMember,
 } from "./schema-leaves.mjs";
-import { isNewFormat, validateGroundTruth } from "./ground-truth.mjs";
+import { isNewFormat, validateGroundTruth, SCHEMA_VERSION } from "./ground-truth.mjs";
+import { NAMED_SETS, topicScopeMismatchWarning } from "./disclaimer-policy.mjs";
 import {
   scoreTranscript,
   buildPerfectModel,
@@ -127,6 +128,188 @@ heading("0b. RESOLVER (resolveEnumMember) — either vocabulary, same leaf");
   );
   check("a string matching neither vocabulary resolves to null", bad.member === null);
   check("an unknown leaf path resolves to null rather than throwing", wrongLeaf.member === null);
+}
+
+heading(
+  "0c. RESOLVER exact-match — a near-miss of the API string is UNRECOGNIZED, not mislabelled 'slug'",
+);
+{
+  // fix-round-2: resolveEnumMember used to slugify the raw value and compare it to the slug SET
+  // before giving up — which meant a mis-cased/re-punctuated near-miss of the API string (not the
+  // deliberately generated token) slugified to a real slug and was reported as "slug" regardless of
+  // whether the run actually emitted that token. Attribution is now exact-match only, in both
+  // directions: the raw value must equal the literal API string or one of the PRECOMPUTED slugs
+  // character-for-character.
+  const nearMissCasing = resolveEnumMember("hvac.hvacDuctLeakage", "well sealed"); // API string, wrong case, dropped "6% -"
+  const nearMissPunctuation = resolveEnumMember("hvac.hvacDuctInsulation", 'duct board 1.5"'); // API string, wrong case
+  const exactSlug = resolveEnumMember("hvac.hvacDuctLeakage", "well_sealed");
+  console.log(
+    `   near-miss casing: member=${nearMissCasing.member} vocab=${nearMissCasing.vocabulary}`,
+  );
+  check(
+    "a lowercased, qualifier-dropped near-miss of the API string resolves to UNRECOGNIZED, not 'slug'",
+    nearMissCasing.member === null && nearMissCasing.vocabulary === null,
+  );
+  check(
+    "a mis-cased near-miss with the API's own punctuation intact ALSO resolves to unrecognized",
+    nearMissPunctuation.member === null,
+  );
+  check(
+    "the ACTUAL precomputed slug still resolves correctly",
+    exactSlug.member === "6% - Well sealed" && exactSlug.vocabulary === "slug",
+  );
+}
+
+heading("0d. NAMED_SETS self-check (MINOR 10) — every entry must be a subset of LEAF_PATHS");
+{
+  // disclaimer-policy.mjs asserts this at import time (a typo throws immediately, for every real
+  // entry, since this module is the single place that re-scores every transcript using a given named
+  // set — see its own comment). That means the REAL NAMED_SETS can never be caught failing this check
+  // by a runtime assertion here (if it had a bad path, this file would already have failed to import).
+  // What we CAN and must test is the check formula itself: feed it a deliberately-corrupted copy and
+  // confirm the formula says "no" — proving the load-time assertion would have caught a real typo,
+  // without needing to corrupt the actual module (which would break every other test in this file).
+  const isSubsetOfLeafPaths = (paths) => paths.every((p) => LEAF_PATHS.includes(p));
+  check(
+    "every REAL NAMED_SETS entry passes the subset check",
+    Object.values(NAMED_SETS).every(isSubsetOfLeafPaths),
+  );
+  const corruptedBlowerDoor = [...NAMED_SETS.blowerDoor, "basedata.blowerdoorReading"]; // typo'd case
+  check(
+    "the check formula correctly REJECTS a typo'd path that isn't a real leaf",
+    !isSubsetOfLeafPaths(corruptedBlowerDoor),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 1b. DISCLAIMER VALIDATION — schemaVersion, malformed shapes, topic/scope
+//     plausibility warnings, and "unresolved" reconciliation (fix-round-2).
+// ---------------------------------------------------------------------------
+heading("1b. DISCLAIMER / SCHEMA-SHAPE VALIDATION (fix-round-2)");
+{
+  const { gt, transcript } = loadWorkedExample();
+  const clone = () => JSON.parse(JSON.stringify(gt));
+
+  {
+    const bad = clone();
+    bad.schemaVersion = "snuggpro-51-leaf-v1"; // stale/wrong version
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "a wrong schemaVersion is caught (IMPORTANT 7)",
+      !res.ok && res.errors.some((e) => e.includes("schemaVersion")),
+    );
+    check(
+      "the real worked example's schemaVersion matches the current format",
+      gt.schemaVersion === SCHEMA_VERSION,
+    );
+  }
+  {
+    const bad = clone();
+    bad.leaves = []; // an array, not an object
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      'leaves: [] (an array) is rejected, not silently treated as "no leaves" (IMPORTANT 7)',
+      !res.ok && res.errors.some((e) => e.includes("leaves")),
+    );
+  }
+  {
+    const bad = clone();
+    bad.leaves["hvac.hvacHeatingEnergySource"].value = "Natural Gas"; // enum leaf carrying a stray `value`
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "an enum leaf carrying a stray `value` is caught (IMPORTANT 7)",
+      !res.ok &&
+        res.errors.some(
+          (e) => e.includes("hvac.hvacHeatingEnergySource") && e.includes("must not carry"),
+        ),
+    );
+  }
+  {
+    const bad = clone();
+    bad.leaves["attic.atticInsulation"].member = "Fiberglass or Rockwool (batts or blown)"; // number leaf carrying a stray `member`
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "a number leaf carrying a stray `member` is caught (IMPORTANT 7)",
+      !res.ok &&
+        res.errors.some((e) => e.includes("attic.atticInsulation") && e.includes("must not carry")),
+    );
+  }
+  {
+    const bad = clone();
+    bad.leaves["attic.atticInsulation"].retracted = [{ value: { nested: "object" }, note: "x" }];
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "an object-valued retracted.value is caught, not silently accepted (IMPORTANT 7)",
+      !res.ok && res.errors.some((e) => e.includes("retracted[0].value")),
+    );
+  }
+  {
+    const bad = clone();
+    bad.leaves["attic.atticInsulation"].arguable = "oops"; // a primitive where an object is required
+    let threw = false;
+    let res;
+    try {
+      res = validateGroundTruth(bad, transcript);
+    } catch {
+      threw = true;
+    }
+    check(
+      "arguable as a bare primitive does NOT throw — it becomes a reported error (IMPORTANT 7)",
+      !threw && res && !res.ok && res.errors.some((e) => e.includes("arguable must be an object")),
+    );
+  }
+  {
+    const bad = clone();
+    bad.disclaimers.push({ span: "no water heater", topic: "x", scope: { kind: "unresolved" } }); // no note
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "an 'unresolved' scope with no note is rejected (IMPORTANT 6)",
+      !res.ok && res.errors.some((e) => e.includes("unresolved") && e.includes("note")),
+    );
+  }
+  {
+    const bad = clone();
+    // overlaps nothing (dhw/blowerDoor/healthTests are all already claimed) — use "hvac" group, and
+    // give it a real note so it's VALID, just still flagged for reconciliation.
+    bad.disclaimers.push({
+      span: "Definitely a furnace, scratch the boiler.",
+      topic: "the furnace, deliberately marked unresolved for this test",
+      scope: { kind: "unresolved" },
+      note: "test fixture: exercising the always-warns behavior, not a real unresolved case",
+    });
+    const res = validateGroundTruth(bad, transcript);
+    console.log(`   unresolved-with-note: ok=${res.ok} warnings=${res.warnings.length}`);
+    check(
+      "an 'unresolved' scope WITH a note is valid but ALWAYS produces a reconciliation warning (IMPORTANT 6)",
+      res.ok && res.warnings.some((w) => w.includes("NEEDS RECONCILIATION")),
+    );
+  }
+  {
+    const bad = clone();
+    bad.disclaimers[0].topic = "the attic insulation"; // dhw scope, attic-flavored topic — implausible pairing
+    const res = validateGroundTruth(bad, transcript);
+    console.log(`   topic/scope mismatch: ok=${res.ok} warnings=${JSON.stringify(res.warnings)}`);
+    check(
+      "an implausible topic/scope pairing WARNS but does not fail validation (IMPORTANT 5)",
+      res.ok && res.warnings.some((w) => w.includes("does not obviously match")),
+    );
+  }
+  {
+    // topicScopeMismatchWarning unit-level: a plausible pairing warns nothing.
+    check(
+      "a plausible topic for its scope produces no warning",
+      topicScopeMismatchWarning({ kind: "group", group: "dhw" }, "the water heater") === null,
+    );
+    check(
+      "an implausible topic for its scope produces a warning",
+      typeof topicScopeMismatchWarning({ kind: "group", group: "attic" }, "the water heater") ===
+        "string",
+    );
+    check(
+      "'unresolved' scope never warns on topic (there is no mechanical target to compare against)",
+      topicScopeMismatchWarning({ kind: "unresolved" }, "anything at all") === null,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -361,6 +544,33 @@ heading("4. FABRICATED-SPAN gate");
   );
 }
 
+heading(
+  "4b. EMPTY-SPAN gate (IMPORTANT 8a) — grounds for nothing must not score as grounded in everything",
+);
+{
+  // `"".includes("")` is trivially true for ANY transcript, so a model emitting `sourceSpan: ""`
+  // used to sail through `spanIsVerbatim` as "verbatim" — the near-miss fallback in `classifySpan`
+  // had the identical hazard on its own `.includes()` calls, so both needed the guard, not one.
+  check(
+    "spanIsVerbatim rejects an empty span outright, regardless of the transcript",
+    spanIsVerbatim("", "literally any transcript text at all") === false,
+  );
+  check(
+    "classifySpan reports an empty span as fabricated, never verbatim or near-miss",
+    classifySpan("", "literally any transcript text at all").status === "fabricated",
+  );
+  const after = run((m) => {
+    m.hvac.hvacHeatingEnergySource.sourceSpan = "";
+  });
+  console.log(
+    `   empty span in a real run: spanFabricated=${after.counts.spanFabricated} spanVerbatim=${after.counts.spanVerbatim}`,
+  );
+  check(
+    "a model emitting an empty sourceSpan is counted as fabricated, not verbatim, in a real scored run",
+    after.counts.spanFabricated === 1,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 5. EITHER-VOCABULARY gate — the whole point of this format.
 // ---------------------------------------------------------------------------
@@ -381,7 +591,9 @@ heading(
   console.log(
     `   slug: correct=${slugRun.counts.correct} vocabApi=${slugRun.counts.vocabApi} vocabSlug=${slugRun.counts.vocabSlug}`,
   );
-  console.log(`   wrong-in-slug: wrong=${wrongVocabRun.counts.wrong}`);
+  console.log(
+    `   wrong-in-slug: wrong=${wrongVocabRun.counts.wrong} vocabApi=${wrongVocabRun.counts.vocabApi} vocabSlug=${wrongVocabRun.counts.vocabSlug}`,
+  );
   check(
     "the API-literal run counts as correct via the api vocabulary",
     apiRun.counts.correct === 4 && apiRun.counts.vocabApi >= 1,
@@ -393,6 +605,34 @@ heading(
   check(
     "a genuinely wrong value spelled in slug form is still wrong, not merely unresolved",
     wrongVocabRun.counts.wrong === 1,
+  );
+  // CRITICAL FIX (fix-round-2): vocabApi/vocabSlug were incremented whenever `compareValue` found
+  // ANY real member for the raw value — correct or not — because that check ran before the
+  // correctness check, not gated on it. A wrong-but-real slug-spelled value (GT "Natural Gas", model
+  // "fuel_oil") therefore contributed to `vocabSlug` and the CLI printed it under "vocabulary mix on
+  // CORRECT matches", which is exactly backwards for the one measurement this format exists to make.
+  // Isolated on a SYNTHETIC single-leaf fixture (rather than the worked example, whose other ~15
+  // correct leaves would swamp a delta-of-one signal) so the count is unambiguous: this leaf's wrong
+  // answer must contribute to neither counter, full stop.
+  const isolatedGt = emptyGroundTruth({
+    "hvac.hvacHeatingEnergySource": {
+      status: "asserted",
+      sourceSpan: "it's a furnace, a gas furnace",
+      member: "Natural Gas",
+    },
+  });
+  const isolatedTranscript = "it's a furnace, a gas furnace";
+  const isolatedModel = buildPerfectModel(isolatedGt);
+  isolatedModel.hvac.hvacHeatingEnergySource.value = "fuel_oil"; // wrong, slug-spelled
+  const isolated = scoreTranscript("synthetic", isolatedGt, isolatedTranscript, isolatedModel);
+  console.log(
+    `   isolated wrong-in-slug: wrong=${isolated.counts.wrong} vocabApi=${isolated.counts.vocabApi} vocabSlug=${isolated.counts.vocabSlug}`,
+  );
+  check(
+    "on an isolated fixture, a WRONG value is excluded from BOTH vocabulary-mix counters",
+    isolated.counts.wrong === 1 &&
+      isolated.counts.vocabApi === 0 &&
+      isolated.counts.vocabSlug === 0,
   );
 }
 
@@ -487,11 +727,48 @@ heading(
   );
 }
 
+heading(
+  "7d. hGtPassed denominator gate (IMPORTANT 8b) — must never be smaller than its own numerator",
+);
+{
+  // A previous version incremented `hGtPassed` only inside the both-non-null branch, so a MISSED
+  // "Passed" leaf (model emits null) bumped `hCleanDropped` (the numerator, in the miss branch)
+  // without ever bumping `hGtPassed` (the denominator) — "N of GT-passed dropped" could report a
+  // numerator larger than its own denominator. `hGtPassed` must now be counted once, unconditionally
+  // on GT alone, before any branch on what the model emitted.
+  const gt = emptyGroundTruth({
+    "health.healthMoldMoisture": {
+      status: "asserted",
+      sourceSpan: "mold and moisture, clean, no issues",
+      member: "Passed",
+    },
+  });
+  const transcript = "mold and moisture, clean, no issues";
+  const missedModel = buildPerfectModel(gt);
+  missedModel.health.healthMoldMoisture.value = null;
+  missedModel.health.healthMoldMoisture.sourceSpan = null;
+  const missed = scoreTranscript("synthetic", gt, transcript, missedModel);
+  console.log(
+    `   missed a GT-Passed leaf: hCleanDropped=${missed.counts.hCleanDropped} hGtPassed=${missed.counts.hGtPassed}`,
+  );
+  check(
+    "missing a GT-Passed leaf counts BOTH hCleanDropped (numerator) and hGtPassed (denominator) — " +
+      "the denominator is never smaller than the numerator it's supposed to bound",
+    missed.counts.hCleanDropped === 1 && missed.counts.hGtPassed === 1,
+  );
+  const correctModel = buildPerfectModel(gt);
+  const correct = scoreTranscript("synthetic", gt, transcript, correctModel);
+  check(
+    "a correctly-kept GT-Passed leaf ALSO counts hGtPassed (so a mix of runs sums consistently)",
+    correct.counts.hGtPassedCorrect === 1 && correct.counts.hGtPassed === 1,
+  );
+}
+
 // ---------------------------------------------------------------------------
-// 8. SANCTIONED SOFT ALTERNATIVE gate (arguable.acceptableAlternatives)
+// 8. SANCTIONED (schema-forced choice) gate (arguable.acceptableAlternatives, GT non-null)
 // ---------------------------------------------------------------------------
 heading(
-  "8. SANCTIONED ALTERNATIVE gate — the worked example's own arguable.acceptableAlternatives",
+  "8. SANCTIONED gate — the worked example's own arguable.acceptableAlternatives, GT non-null",
 );
 {
   const before = run();
@@ -502,17 +779,37 @@ heading(
     m.hvac.hvacSystemEquipmentType.value = "Boiler"; // NOT sanctioned — also the retracted value
   });
   console.log(
-    `   sanctioned: wrong=${after.counts.wrong} hallucinationSoft=${after.counts.hallucinationSoft}`,
+    `   sanctioned: wrong=${after.counts.wrong} enumSanctioned=${after.counts.enumSanctioned} hallucinationSoft=${after.counts.hallucinationSoft}`,
   );
   console.log(`   unsanctioned: wrong=${hardWrong.counts.wrong}`);
-  check("before is clean", before.counts.wrong === 0 && before.counts.hallucinationSoft === 0);
   check(
-    "the sanctioned alternative is NOT counted as wrong, and IS counted as a soft call",
-    after.counts.wrong === 0 && after.counts.hallucinationSoft === 1,
+    "before is clean",
+    before.counts.wrong === 0 &&
+      before.counts.enumSanctioned === 0 &&
+      before.counts.hallucinationSoft === 0,
+  );
+  // fix-round-2 (IMPORTANT 9): this is GT NON-NULL — nothing was hallucinated, the schema forced an
+  // arbitrary pick and the model landed on the other lobe of the SAME forced choice. It must land in
+  // its OWN counter (`enumSanctioned`), never in `hallucinationSoft` (that bucket is reserved for a
+  // GT-NULL leaf where a real, if tolerated, overreach happened) and must not be reported under the
+  // HALLUCINATION section.
+  check(
+    "the sanctioned alternative is NOT counted as wrong, and IS counted in enumSanctioned (NOT hallucinationSoft)",
+    after.counts.wrong === 0 &&
+      after.counts.enumSanctioned === 1 &&
+      after.counts.hallucinationSoft === 0,
+  );
+  check(
+    "the sanctioned alternative does not ADD to vocabApi/vocabSlug (it is not a match against GT's own member) " +
+      "— vocabApi drops by exactly the one true match this leaf itself no longer contributes",
+    after.counts.vocabApi === before.counts.vocabApi - 1 &&
+      after.counts.vocabSlug === before.counts.vocabSlug,
   );
   check(
     "an unsanctioned wrong member on the SAME leaf is still hard-wrong",
-    hardWrong.counts.wrong === 1 && hardWrong.counts.hallucinationSoft === 0,
+    hardWrong.counts.wrong === 1 &&
+      hardWrong.counts.enumSanctioned === 0 &&
+      hardWrong.counts.hallucinationSoft === 0,
   );
   check(
     "the unsanctioned wrong value is tagged 'retracted' (it matches the leaf's own retracted table)",
@@ -661,9 +958,47 @@ heading("13. ROBUSTNESS");
 {
   const { gt, transcript } = loadWorkedExample();
   const miss = scoreTranscript("11-ambiguous-attic", gt, transcript, null, "result file absent");
-  console.log(`   missing file: status=${miss.status} gtNonNull=${miss.counts.gtNonNull}`);
+  console.log(
+    `   missing file: status=${miss.status} gtNonNull=${miss.counts.gtNonNull} miss=${miss.counts.miss} ` +
+      `hMiss=${miss.counts.hMiss} hMissExcused=${miss.counts.hMissExcused} hallucinationHard=${miss.counts.hallucinationHard}`,
+  );
   check("a missing result is status=unscored, not a crash", miss.status === "unscored");
   check("its GT-side denominators survive (whole-transcript miss)", miss.counts.gtNonNull > 0);
+  // CRITICAL FIX (fix-round-2): a missing/malformed result must be scored EXACTLY as if the
+  // extractor had emitted an empty object — every GT-non-null leaf becomes a counted miss (or an
+  // excused miss where arguable.acceptableMiss says so), never a silent zero. Before this fix,
+  // `scoreTranscript` returned immediately after computing the GT-side denominators, so a missing
+  // result contributed miss=0/hMiss=0 no matter how many values GT actually asserted — meaning an
+  // extractor that returns NOTHING scored strictly better than one that tried and got some answers
+  // wrong. The worked example asserts 4 generic leaves (3 enum + 1 number, none excused) and 13
+  // health leaves (12 via the "No tests" disclaimer + 1 explicit, 1 of the 13 excused by its own
+  // arguable.acceptableMiss) — a missing result must show ALL of that as real misses.
+  check(
+    "a missing result counts every GT-asserted GENERIC leaf as a real miss, not a silent zero",
+    miss.counts.miss === 4 && miss.counts.missExcused === 0 && miss.counts.enumMiss === 3,
+  );
+  check(
+    "a missing result counts every GT-asserted HEALTH leaf as a real miss (minus its own excused one)",
+    miss.counts.hMiss === 12 && miss.counts.hMissExcused === 1,
+  );
+  check(
+    "a missing result hallucinates NOTHING (there is no output to invent from)",
+    miss.counts.hallucinationHard === 0 && miss.counts.hallucinationSoft === 0,
+  );
+  check(
+    "an extractor that TRIES and gets things wrong now scores WORSE than one returning nothing",
+    (() => {
+      const tried = run((m) => {
+        m.hvac.hvacHeatingEnergySource.value = "Fuel Oil"; // wrong, on top of everything else correct
+      });
+      // "worse" = strictly more penalized signal than the missing-result case on the SAME leaf set:
+      // the missing case has miss=4 and wrong=0; a run that emits a wrong answer for one leaf and
+      // leaves everything else correct has miss=0 but wrong=1 — neither dominates the other in raw
+      // counts, so what must hold is the property CRITICAL 1 is actually about: the missing case is
+      // no longer a free pass (miss > 0), which the pre-fix behavior violated outright (miss === 0).
+      return miss.counts.miss > 0 && tried.counts.wrong === 1;
+    })(),
+  );
 
   const missingKey = run((m) => {
     delete m.hvac.hvacHeatingEnergySource; // GT non-null

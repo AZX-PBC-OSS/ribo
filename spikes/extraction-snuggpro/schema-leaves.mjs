@@ -168,7 +168,7 @@ export function slugifyMember(raw) {
  * Per-enum-leaf vocabulary: the ordered API members, the parallel derived
  * slugs, and both lookup directions. Built once, at import time, from LEAVES —
  * never hand-listed.
- * @type {Map<string, { options: string[], slugs: string[], apiSet: Set<string>, slugToApi: Map<string, string> }>}
+ * @type {Map<string, { options: string[], slugs: string[], apiSet: Set<string>, slugSet: Set<string>, slugToApi: Map<string, string> }>}
  */
 export const ENUM_VOCAB = new Map();
 
@@ -192,6 +192,7 @@ for (const leaf of leaves) {
     options: leaf.options,
     slugs,
     apiSet: new Set(leaf.options),
+    slugSet: new Set(slugs),
     slugToApi,
   });
 }
@@ -201,6 +202,25 @@ for (const leaf of leaves) {
 // the canonical API member — so ground truth (which stores the API member;
 // see ground-truth-format.md) can be scored against a run regardless of which
 // vocabulary that run's extraction schema used.
+//
+// EXACT MATCH ONLY, in both directions. `raw` (trimmed) must equal either the
+// literal API string or one of the precomputed slugs character-for-character —
+// it is NOT re-slugified before the slug check. An earlier version slugified
+// every non-API-matching input before comparing it to the slug set, which
+// meant ANY string that happened to slugify to a real slug — a mis-cased or
+// re-punctuated near-miss of the API string itself, not the deliberately
+// generated token — was labelled "slug" regardless of whether it actually was
+// one. That made vocabulary ATTRIBUTION unreliable even though CORRECTNESS
+// (whether the value matched GT) was unaffected. Exact matching removes the
+// ambiguity: a near-miss now correctly resolves to `null` (unrecognized)
+// rather than being silently attributed to a vocabulary it did not use.
+//
+// Residual, irreducible case: a member whose literal API spelling already IS
+// its own slug (`AtticInsulationDepth`'s `"0"` — slugifyMember("0") === "0")
+// makes the two vocabularies coincide for that one string. Such a value is
+// reported as "api" (the apiSet check runs first) — this is not a resolution
+// failure, the two vocabularies are genuinely indistinguishable for that
+// specific member, and no exact-match scheme can attribute it either way.
 // ---------------------------------------------------------------------------
 
 /**
@@ -214,7 +234,7 @@ export function resolveEnumMember(path, raw) {
   if (!vocab) return { member: null, vocabulary: null };
   const trimmed = raw.trim();
   if (vocab.apiSet.has(trimmed)) return { member: trimmed, vocabulary: "api" };
-  const bySlug = vocab.slugToApi.get(slugifyMember(trimmed));
-  if (bySlug) return { member: bySlug, vocabulary: "slug" };
+  if (vocab.slugSet.has(trimmed))
+    return { member: vocab.slugToApi.get(trimmed), vocabulary: "slug" };
   return { member: null, vocabulary: null };
 }

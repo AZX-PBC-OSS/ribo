@@ -9,17 +9,36 @@
  * Reads ground-truth/NN-slug.json + transcripts/NN-slug.txt + <resultsDir>/NN-slug.json and
  * reports, per transcript and aggregate, the same measures the spike has always reported —
  * hallucination, miss, axis-split, enum-mapping, band-mapping, health-matrix state, sourceSpan
- * validity, confidence separation — plus one new one: the VOCABULARY MIX of a run's enum output
- * (API literal strings vs the derived snake_case alternative), which is the whole reason this
- * format exists — see ground-truth-format.md's rationale.
+ * validity, confidence separation — plus two new ones: the VOCABULARY MIX of a run's TRUE-correct
+ * enum matches (API literal strings vs the derived snake_case alternative — never a wrong or merely
+ * sanctioned one, see the fix-round-2 note below), which is the whole reason this format exists —
+ * see ground-truth-format.md's rationale — and ENUM-SANCTIONED, a GT-non-null count for the case
+ * where the schema itself forces an arbitrary pick between equally-fitting members and a run lands
+ * on the other lobe (see "sanctioned" below); this is NOT a hallucination and is reported under
+ * enum-mapping, not under the hallucination section.
  *
  * A ground-truth file with no "leaves" key is the OLD (pre-rebuild) format — 13 of the 14 corpus
  * transcripts are still in it, pending the 26-way parallel re-annotation this rewrite gates. Those
  * are reported as PENDING RE-ANNOTATION, not scored and not crashed on.
  *
- * Robustness carried over unchanged from the old scorer: a missing/unparseable/malformed result is
- * a whole-transcript miss; the run keeps going. Missing keys are treated as null; extra keys are
- * reported. Never crashes.
+ * Robustness: a missing/unparseable/malformed result is scored EXACTLY as if the extractor had
+ * emitted an empty object — every GT-non-null leaf becomes a real, counted miss (never a silent
+ * zero denominator; see the fix-round-2 note below), and the run keeps going. Missing keys are
+ * treated as null; extra keys are reported. Never crashes — including on a malformed ground-truth
+ * file, whose validator is wrapped so a defect degrades one transcript's result, not the whole run.
+ *
+ * FIX-ROUND-2 (two independent reviews caught real defects; both fixes are load-bearing, not
+ * cosmetic — see score.test.mjs's ROBUSTNESS and EITHER-VOCABULARY gates for the mutations proving
+ * each):
+ *   1. A missing/malformed result used to return immediately after computing GT-side denominators,
+ *      so it contributed miss=0 regardless of how much GT actually asserted — an extractor
+ *      returning NOTHING scored strictly better than one that tried and got some answers wrong.
+ *      Fixed by scoring a null model as `{}` through the exact same per-leaf loop a real result
+ *      uses, rather than special-casing it away.
+ *   2. `vocabApi`/`vocabSlug` used to increment whenever `compareValue` found ANY real member for a
+ *      raw value, before checking whether that member was actually GT's own — so a wrong-but-real
+ *      slug-spelled value counted as a "CORRECT match" in the slug column. Fixed by gating strictly
+ *      on `cmp.verdict === "correct"`.
  *
  * Node 24 built-ins only, plus the two sibling spike modules (schema-leaves.mjs, ground-truth.mjs)
  * — nothing here hand-lists a leaf path or an enum member; both come from introspecting the real,
@@ -175,9 +194,11 @@ const numbersNear = (x, y) =>
 const normText = (s) =>
   s.toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
 
-/** Verbatim per prompt.md rule 3: transcript.includes(span), normalising only trailing whitespace. */
+/** Verbatim per prompt.md rule 3: transcript.includes(span), normalising only trailing whitespace.
+ * An EMPTY span is never verbatim — `"".includes("")` is trivially true for every transcript, so a
+ * model emitting `sourceSpan: ""` (grounds for nothing) must not score as grounded in everything. */
 export function spanIsVerbatim(span, transcript) {
-  if (typeof span !== "string") return false;
+  if (typeof span !== "string" || span.length === 0) return false;
   if (transcript.includes(span)) return true;
   return transcript.includes(span.replace(/\s+$/, ""));
 }
@@ -185,6 +206,14 @@ export function spanIsVerbatim(span, transcript) {
 /** Classify a non-verbatim span as near-miss (paraphrase/cleaned/joined) vs wholly fabricated. */
 export function classifySpan(span, transcript) {
   if (spanIsVerbatim(span, transcript)) return { status: "verbatim", detail: "exact substring" };
+  // An empty span must fall straight through to "fabricated": every one of the near-miss checks
+  // below is a variant of `haystack.includes(needle)`, which `"".includes("")` (and every fold of
+  // it) trivially satisfies for ANY transcript — the same hazard `spanIsVerbatim` above guards
+  // against, but the near-miss path has its own independent `.includes()` calls that need the same
+  // guard, not a shared one.
+  if (typeof span !== "string" || span.length === 0) {
+    return { status: "fabricated", detail: "empty span — grounds for nothing" };
+  }
   const nt = normText(transcript);
   const ns = normText(span);
   if (nt.includes(ns))
@@ -459,6 +488,7 @@ function emptyCounts() {
     enumWrongMember: 0,
     enumInvalid: 0,
     enumMiss: 0,
+    enumSanctioned: 0,
     vocabApi: 0,
     vocabSlug: 0,
     bandGt: 0,
@@ -514,6 +544,7 @@ export function scoreTranscript(slug, rawGt, transcript, model, loadProblem = nu
     },
     hallucinations: [],
     softAlternatives: [],
+    sanctionedRows: [],
     misses: [],
     excused: [],
     wrong: [],
@@ -534,15 +565,26 @@ export function scoreTranscript(slug, rawGt, transcript, model, loadProblem = nu
     else r.counts.hGtState++;
   }
 
-  if (!model) return r; // whole-transcript miss handled at aggregate
+  // A missing/unparseable result is NOT "nothing to score" — it is scored EXACTLY as if the
+  // extractor had emitted an empty object: every leaf reads as absent via `readLeaf`'s existing
+  // `model?.[groupKey]` handling, which correctly turns every GT-non-null leaf into a counted miss
+  // (or hMiss/enumMiss/bandMiss, and an excused miss where `arguable.acceptableMiss` says so) rather
+  // than a silent zero. `status` stays "unscored" (excluded from axis/confidence aggregation and
+  // shown as "NOT SCORED" per-transcript, since there is genuinely no real output to characterize
+  // beyond "missed everything"), but `counts` — which `aggregate()` sums over EVERY report,
+  // regardless of status — now honestly reflects that an extractor returning nothing is exactly as
+  // good as one that returns all-nulls, never better. This is the fix for the specific property:
+  // before it, a missing result scored miss=0 on every leaf, so "return nothing" beat "try and get
+  // some wrong" — see score.test.mjs's ROBUSTNESS gate for the mutation that proves it.
+  const modelOrEmpty = model ?? {};
 
   // ---- conformance: groups, then leaves within present groups ----
-  r.conformance.missingGroups = GROUPS.filter((g) => !(g in model));
-  r.conformance.extraGroups = Object.keys(model).filter((g) => !GROUPS.includes(g));
+  r.conformance.missingGroups = GROUPS.filter((g) => !(g in modelOrEmpty));
+  r.conformance.extraGroups = Object.keys(modelOrEmpty).filter((g) => !GROUPS.includes(g));
   for (const group of GROUPS) {
     const groupLeaves = LEAF_PATHS.filter((p) => p.startsWith(`${group}.`));
     const localKeys = groupLeaves.map((p) => p.slice(group.length + 1));
-    const groupObj = model[group];
+    const groupObj = modelOrEmpty[group];
     if (groupObj === undefined || typeof groupObj !== "object" || groupObj === null) continue;
     for (const k of localKeys)
       if (!(k in groupObj)) r.conformance.missingLeaves.push(`${group}.${k}`);
@@ -558,11 +600,19 @@ export function scoreTranscript(slug, rawGt, transcript, model, loadProblem = nu
     const leafTruth = gt.leaves[path];
     const gtc = gtCanonical(path, leafTruth);
     const { arguable, retracted } = gtExtras(leafTruth);
-    const leaf = readLeaf(model, path);
+    const leaf = readLeaf(modelOrEmpty, path);
     r.conformance.envelopeErrors.push(...leaf.envErrors);
     const { value: mv, confidence, span } = leaf;
     const isSanctioned = (raw) =>
       matchesAlternative(path, gtc.kind, raw, arguable?.acceptableAlternatives);
+
+    // Counted ONCE here, unconditionally on GT alone — never inside a branch keyed on what the
+    // model emitted. The denominator for "N of GT-passed dropped/kept" must count every GT-passed
+    // leaf regardless of whether the model missed it, got it wrong, or got it right; counting it
+    // only in the both-non-null branch (as a previous version did) meant a MISSED "Passed" bumped
+    // the numerator (hCleanDropped, in the miss branch below) without ever bumping this
+    // denominator — the denominator could end up smaller than the numerator it's supposed to bound.
+    if (isHealth && gtc.member === "Passed") r.counts.hGtPassed++;
 
     if (gtc.isNull && mv === null) {
       r.counts.correctNull++;
@@ -633,12 +683,29 @@ export function scoreTranscript(slug, rawGt, transcript, model, loadProblem = nu
         r.unscorableRows.push({ field: path, got: mv, detail: cmp.detail });
       } else {
         const ok = cmp.verdict === "correct" || sanctioned;
-        if (cmp.vocabulary === "api") r.counts.vocabApi++;
-        else if (cmp.vocabulary === "slug") r.counts.vocabSlug++;
+        // Vocabulary attribution is ONLY meaningful for a TRUE match against GT's own canonical
+        // member — gated strictly on cmp.verdict === "correct", never on `ok` (which also folds in
+        // `sanctioned`). Getting this gate wrong is exactly how a wrong answer ends up counted as a
+        // "CORRECT match": cmp.vocabulary is set by compareValue whenever the raw value resolves to
+        // ANY real member, correct or not, so counting on `ok`/`sanctioned` or on "vocabulary is
+        // non-null" rather than on the verdict itself corrupts the one measurement this whole format
+        // exists to make possible. See score.test.mjs's EITHER-VOCABULARY gate for the mutation that
+        // proves a wrong slug-spelled value is excluded.
+        if (cmp.verdict === "correct") {
+          if (cmp.vocabulary === "api") r.counts.vocabApi++;
+          else if (cmp.vocabulary === "slug") r.counts.vocabSlug++;
+        }
 
         if (sanctioned) {
-          r.counts.hallucinationSoft++;
-          r.softAlternatives.push({ field: path, value: mv, confidence, note: arguable.note });
+          // GT is NON-NULL here (this whole branch is "both non-null") — nothing was hallucinated;
+          // the schema itself forced an arbitrary pick between two (or more) equally-fitting
+          // members (the worked example's furnace/cooling axis is the standing case) and the model
+          // landed on the OTHER lobe of that same forced choice. This is categorically different
+          // from the GT-null "sanctioned" branch above (a real soft hallucination, tolerated) and
+          // must not share its counter/bucket or its HALLUCINATION-section reporting — see
+          // IMPORTANT 9 in the fix-round-2 review. Reported under ENUM-MAPPING instead.
+          r.counts.enumSanctioned++;
+          r.sanctionedRows.push({ field: path, value: mv, confidence, note: arguable.note });
         } else if (isHealth) {
           if (ok) {
             r.counts.hCorrectState++;
@@ -649,7 +716,6 @@ export function scoreTranscript(slug, rawGt, transcript, model, loadProblem = nu
             r.counts[category === "hallucinatedPass" ? "hHallucinatedPass" : "hWrongState"]++;
             r.health.push({ test: path, gt: gtc.member, got: resolved.member ?? mv, category });
           }
-          if (gtc.member === "Passed") r.counts.hGtPassed++;
         } else {
           if (ok) {
             r.counts.correct++;
@@ -720,7 +786,7 @@ export function scoreTranscript(slug, rawGt, transcript, model, loadProblem = nu
   for (const path of HEALTH_TEST_PATHS) scoreOneLeaf(path, { isHealth: true });
 
   // ---- axis-split (equipment vs fuel, per AXIS_PAIRS) ----
-  for (const pair of AXIS_PAIRS) r.axis.push(scoreAxis(pair, gt, model));
+  for (const pair of AXIS_PAIRS) r.axis.push(scoreAxis(pair, gt, modelOrEmpty));
 
   return r;
 }
@@ -869,6 +935,7 @@ function main() {
 
   const reports = [];
   const pending = [];
+  const warningsBySlug = [];
   for (const slug of slugs) {
     const raw = JSON.parse(readFileSync(join(GT_DIR, `${slug}.json`), "utf8"));
     if (!isNewFormat(raw)) {
@@ -876,7 +943,19 @@ function main() {
       continue;
     }
     const transcript = readFileSync(join(TRANSCRIPT_DIR, `${slug}.txt`), "utf8");
-    const { ok, errors } = validateGroundTruth(raw, transcript);
+    let validation;
+    try {
+      validation = validateGroundTruth(raw, transcript);
+    } catch (err) {
+      // validateGroundTruth is documented never to throw; if it somehow does (a defect in the
+      // validator itself, not in this one file), that must degrade to "this transcript could not
+      // be validated" rather than crashing the whole batch and hiding every other transcript's
+      // result behind it.
+      pending.push({ slug, reason: `ground-truth validator THREW: ${err.message}` });
+      continue;
+    }
+    const { ok, errors, warnings } = validation;
+    if (warnings?.length) warningsBySlug.push({ slug, warnings });
     if (!ok) {
       pending.push({
         slug,
@@ -908,6 +987,13 @@ function main() {
     console.log("");
     console.log("PENDING RE-ANNOTATION (ground truth not yet in the new format — not scored):");
     for (const p of pending) console.log(`  ${p.slug}: ${p.reason}`);
+  }
+  if (warningsBySlug.length) {
+    console.log("");
+    console.log("VALIDATION WARNINGS (do not block scoring; worth a human's attention):");
+    for (const { slug, warnings } of warningsBySlug) {
+      for (const w of warnings) console.log(`  ${slug}: ${w}`);
+    }
   }
   if (reports.length === 0) {
     console.log("\nNothing to score yet.\n");
@@ -988,7 +1074,11 @@ function main() {
     `   wrong-member ${totals.enumWrongMember}   invalid (matches neither vocabulary) ${totals.enumInvalid}   dropped-to-null ${totals.enumMiss}`,
   );
   console.log(
-    `   vocabulary mix on CORRECT matches : api-literal ${totals.vocabApi}   snake_case-slug ${totals.vocabSlug}` +
+    `   sanctioned (schema forced an arbitrary pick; model chose the other lobe) : ${totals.enumSanctioned}` +
+      "   <- NOT a hallucination; GT is non-null and nothing was invented",
+  );
+  console.log(
+    `   vocabulary mix on CORRECT matches ONLY (excludes sanctioned/wrong) : api-literal ${totals.vocabApi}   snake_case-slug ${totals.vocabSlug}` +
       "   <- both score identically; this is what lets one ground truth test either vocabulary",
   );
 
@@ -1140,8 +1230,14 @@ function main() {
       `\n      span: ${h.sourceSpan === null ? "(none)" : JSON.stringify(h.sourceSpan)}`,
   );
   section(
-    "SANCTIONED ALTERNATIVES — non-null the leaf's own `arguable` allows (NOT hard hallucinations)",
+    "SOFT ALTERNATIVES ON GT-NULL — non-null the leaf's own `arguable` allows (NOT hard hallucinations)",
     scored.flatMap((r) => r.softAlternatives.map((s) => ({ ...s, slug: r.slug }))),
+    (s) => `  ${pad(s.slug, 26)}${pad(s.field, 30)}= ${JSON.stringify(s.value)}  — ${s.note}`,
+  );
+  section(
+    "SANCTIONED (schema-forced choice) — GT is NON-NULL; the schema forced an arbitrary pick between " +
+      "equally-fitting members and the model chose the other lobe. NOT a hallucination — see ENUM-MAPPING.",
+    scored.flatMap((r) => r.sanctionedRows.map((s) => ({ ...s, slug: r.slug }))),
     (s) => `  ${pad(s.slug, 26)}${pad(s.field, 30)}= ${JSON.stringify(s.value)}  — ${s.note}`,
   );
   section(
