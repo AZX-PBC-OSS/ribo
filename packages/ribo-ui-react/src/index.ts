@@ -13,5 +13,7 @@ export { useOutboxItems } from "./use-outbox-items.js";
 export type { UseOutboxItemsResult } from "./use-outbox-items.js";
 export { useStoragePersistence } from "./use-storage-persistence.js";
 export type { UseStoragePersistenceResult } from "./use-storage-persistence.js";
+export { useReview } from "./use-review.js";
+export type { UseReviewOptions, UseReviewResult } from "./use-review.js";
 export { useWorkSafety } from "./use-work-safety.js";
 export type { UseWorkSafetyResult } from "./use-work-safety.js";
