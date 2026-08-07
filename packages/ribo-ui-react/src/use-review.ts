@@ -34,6 +34,23 @@ export interface UseReviewOptions {
    * intended shape of this argument.
    */
   readonly valuesSchema: z.ZodObject;
+  /**
+   * Leaf paths the host tool refuses to CREATE the record without — passed straight
+   * through to `buildReviewRequest`'s `requiredOnCreate`, so each named leaf's own
+   * `ReviewField.required` is `true` and a card can mark it and refuse a submit
+   * that leaves it empty.
+   *
+   * Hosts pass `adapter.requiredOnCreate` (`ToolAdapter.requiredOnCreate`) here — the
+   * same reason `valuesSchema` above takes the schema and not the adapter: this hook
+   * needs the one list, not the whole `ToolAdapter`. Omitted paths are simply never
+   * required, which is what "the adapter declares nothing" already means on the core
+   * side.
+   *
+   * **Hold it still, like `valuesSchema`.** It is also a `useMemo` dependency; an
+   * inline array literal is a new reference every render and rebuilds `fields` on
+   * every render along with it.
+   */
+  readonly requiredOnCreate?: readonly FieldPath[];
   /** Bypasses the provider. What the tests inject through. */
   readonly outbox?: Outbox;
 }
@@ -137,7 +154,7 @@ const withoutPath = (
  * refuses `readonly string[]` where `string[]` is declared, correctly, because a
  * callee holding a mutable array could mutate what the caller still treats as
  * read-only. Spreading into a fresh array is the honest fix: it costs nothing at
- * 34 leaves and keeps this boundary a real value conversion rather than a type
+ * 51 leaves and keeps this boundary a real value conversion rather than a type
  * assertion papering over it.
  */
 const toPersisted = (outcome: ReviewOutcome): PersistedReviewOutcome =>
@@ -160,11 +177,12 @@ const toPersisted = (outcome: ReviewOutcome): PersistedReviewOutcome =>
  *
  * ## Leaves, not fields
  *
- * Everything here is addressed by dotted leaf path — `"healthSafety.ambientCo"`,
- * not `"healthSafety"` — because an auditor has to be able to accept the ambient-CO
- * result while correcting the asbestos one. `buildReviewRequest` walks
- * `valuesSchema` to decide which leaves exist, so a leaf the model omitted is still
- * presented (with the sentinel envelope) rather than silently missing from the card.
+ * Everything here is addressed by dotted leaf path — `"health.healthGasLeak"`, not
+ * `"health"` — because an auditor has to be able to accept the ambient-CO result
+ * (`"health.healthAmbientCarbonMonoxide"`) while correcting the gas-leak one.
+ * `buildReviewRequest` walks `valuesSchema` to decide which leaves exist, so a leaf
+ * the model omitted is still presented (with the sentinel envelope) rather than
+ * silently missing from the card.
  *
  * ## Decisions start complete, and core is what enforces that
  *
@@ -200,7 +218,7 @@ export function useReview(
   item: OutboxItem | undefined,
   options: UseReviewOptions,
 ): UseReviewResult {
-  const { valuesSchema } = options;
+  const { valuesSchema, requiredOnCreate } = options;
   const outbox = useRiboInstance("outbox", options.outbox);
 
   const [state, setState] = useState<ReviewState>({
@@ -233,8 +251,8 @@ export function useReview(
     if (item?.extracted === undefined || item.transcript === undefined) return undefined;
     // No cast on the way in: `extracted` is persisted as `Record<string, unknown>`
     // and that is exactly what `buildReviewRequest` takes.
-    return buildReviewRequest(item.extracted, item.transcript, valuesSchema);
-  }, [item?.extracted, item?.transcript, valuesSchema]);
+    return buildReviewRequest(item.extracted, item.transcript, valuesSchema, { requiredOnCreate });
+  }, [item?.extracted, item?.transcript, valuesSchema, requiredOnCreate]);
 
   const paths = useMemo<readonly FieldPath[]>(
     () => (request === undefined ? [] : Object.keys(request.fields)),
