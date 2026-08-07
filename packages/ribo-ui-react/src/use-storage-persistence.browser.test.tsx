@@ -9,46 +9,65 @@ import { useStoragePersistence } from "./use-storage-persistence.js";
 //
 // The module-level store in use-storage-persistence.ts is shared by every
 // caller *within one page* — that is its whole point (see the hook's doc
-// comment). It means test order in this file matters: the one test that
-// actually calls `request()` and mutates the real grant runs LAST, so it
-// cannot leak a "granted"/"denied" decision into the tests above it that mean
-// to observe an un-asked origin.
+// comment). It means test order in this file matters: the tests that observe
+// an un-asked origin run FIRST, before any test mocks `navigator.storage` or
+// calls `request()` and mutates the real grant. Every test from "two
+// consumers" onward mocks `navigator.storage.persist`/`persisted` and
+// restores the spies before returning, so it cannot leak a decision into a
+// later test either.
 
 test("reports a persistence grant from the real Storage API", async () => {
-  function Probe() {
-    return <p>persistence {useStoragePersistence().persistence}</p>;
+  // Checking the DOM for any of the four vocabulary members is not enough on
+  // its own: "unknown" is also the pre-refresh module default, so a hook that
+  // never actually called the Storage API at all -- always stuck on that
+  // default -- would satisfy this check on the very first paint, before any
+  // real work happened. Spying on `persisted()` and waiting for it to have
+  // actually been called is what proves the real API work happened, rather
+  // than trusting a coincidentally-matching default.
+  const persistedSpy = vi.spyOn(navigator.storage, "persisted");
+  try {
+    function Probe() {
+      return <p>persistence {useStoragePersistence().persistence}</p>;
+    }
+    const screen = await render(<Probe />);
+    await vi.waitFor(() => expect(persistedSpy).toHaveBeenCalled());
+    await expect
+      .element(screen.getByText(/persistence (granted|denied|unsupported|unknown)/))
+      .toBeInTheDocument();
+  } finally {
+    persistedSpy.mockRestore();
   }
-  const screen = await render(<Probe />);
-  // Real Chromium: `persisted()` resolves, so the value must settle to one of the
-  // four honest states and must not stay "unknown" forever... except this origin
-  // has not been asked yet, so "unknown" *is* the honest answer here. This test
-  // only proves the hook renders a real value from the four-state vocabulary,
-  // not which one.
-  await expect
-    .element(screen.getByText(/persistence (granted|denied|unsupported|unknown)/))
-    .toBeInTheDocument();
 });
 
 test("renders a real value under StrictMode too", async () => {
   // playground/src/main.tsx wraps the real app in <StrictMode>; vitest-browser-react
   // defaults reactStrictMode to false, so nothing else in this file exercises the
-  // mode the real app actually renders in. Same honestly-weak scope as the test
-  // above -- this does not call `request()` or assert which vocabulary member
-  // renders, only that StrictMode's double mount/cleanup/remount settles to a
-  // real value rather than a stuck or duplicated one. Placed before the tests
-  // below that depend on the module-level snapshot still being "unknown": this
-  // one never asks for persistence, so it cannot flip that shared state.
-  function Probe() {
-    return <p>persistence {useStoragePersistence().persistence}</p>;
+  // mode the real app actually renders in. This must use the same spy-based proof
+  // as the test above rather than a render-count wait: StrictMode's own
+  // render-phase/effect double-invocation inflates the render count on its own,
+  // regardless of whether refresh() does anything real -- confirmed by hand, a
+  // render-count version of this test kept passing with the mount-refresh
+  // disabled entirely, while the equivalent non-StrictMode test correctly went
+  // red under the same mutation. Placed before the tests below that depend on
+  // the module-level snapshot still being "unknown": this one never asks for
+  // persistence, so it cannot flip that shared state.
+  const persistedSpy = vi.spyOn(navigator.storage, "persisted");
+  try {
+    function Probe() {
+      return <p>persistence {useStoragePersistence().persistence}</p>;
+    }
+    const screen = await render(
+      <StrictMode>
+        <Probe />
+      </StrictMode>,
+    );
+    await vi.waitFor(() => expect(persistedSpy).toHaveBeenCalled());
+    await expect
+      .element(screen.getByText(/persistence (granted|denied|unsupported|unknown)/))
+      .toBeInTheDocument();
+  } finally {
+    persistedSpy.mockRestore();
   }
-  const screen = await render(
-    <StrictMode>
-      <Probe />
-    </StrictMode>,
-  );
-  await expect
-    .element(screen.getByText(/persistence (granted|denied|unsupported|unknown)/))
-    .toBeInTheDocument();
 });
 
 test("an un-asked origin reports unknown, never denied", async () => {
@@ -100,33 +119,147 @@ test("two consumers see one shared grant, not independent copies", async () => {
   // The bug this shape prevents: with per-hook state, granting persistence in one
   // component leaves every other consumer -- including useWorkSafety -- reporting
   // the old value, so the app can say "at risk" about a device it just protected.
-  const seen: string[] = [];
-  function Granter() {
-    const { request } = useStoragePersistence();
-    return (
-      <button type="button" onClick={() => void request()}>
-        grant
-      </button>
+  //
+  // `persist()` and `persisted()` are both pinned here rather than left to the
+  // real headless-Chromium heuristic. That pinning is what makes this test
+  // actually discriminate a per-hook (non-shared) reimplementation: with
+  // `persisted()` permanently answering "not persisted" for every caller,
+  // Observer -- which never calls `request()` -- has no way to independently
+  // learn "granted" from its OWN mount-time `readStorage()` call. The only
+  // remaining path to "granted" is Granter's `publish()` reaching Observer
+  // through the shared module store. Without this pinning, a per-hook
+  // reimplementation could accidentally pass: Observer's own mount-time
+  // `readStorage()` asks the same real browser origin Granter just granted,
+  // and could observe that real change directly, with no sharing involved at
+  // all -- proving nothing about the mechanism this test exists to pin.
+  const persistSpy = vi.spyOn(navigator.storage, "persist").mockResolvedValue(true);
+  const persistedSpy = vi.spyOn(navigator.storage, "persisted").mockResolvedValue(false);
+  try {
+    const seen: string[] = [];
+    function Granter() {
+      const { request } = useStoragePersistence();
+      return (
+        <button type="button" onClick={() => void request()}>
+          grant
+        </button>
+      );
+    }
+    function Observer() {
+      const { persistence } = useStoragePersistence();
+      seen.push(persistence);
+      return <p>observer {persistence}</p>;
+    }
+
+    const screen = await render(
+      <>
+        <Granter />
+        <Observer />
+      </>,
     );
-  }
-  function Observer() {
-    const { persistence } = useStoragePersistence();
-    seen.push(persistence);
-    return <p>observer {persistence}</p>;
-  }
+    await screen.getByRole("button", { name: "grant" }).click();
 
-  const screen = await render(
-    <>
-      <Granter />
-      <Observer />
-    </>,
-  );
-  await screen.getByRole("button", { name: "grant" }).click();
+    // The observer never called request(), and its own persisted() reads are
+    // pinned to "false" forever -- so "granted" can only have reached it
+    // through the shared store.
+    await vi.waitFor(() => expect(seen.at(-1)).toBe("granted"));
+  } finally {
+    persistSpy.mockRestore();
+    persistedSpy.mockRestore();
+  }
+});
 
-  // The observer never called request(), so it can only know via the shared
-  // store. Whether the headless browser actually grants or refuses the request
-  // is outside our control (site-engagement heuristics) -- what this proves is
-  // that *some* decision, not "unknown", reached the Observer without it ever
-  // asking.
-  await vi.waitFor(() => expect(seen.at(-1)).not.toBe("unknown"));
+test("a transient persisted() rejection does not overwrite a known-good grant", async () => {
+  // The data-loss case: a user already granted persistence (real or
+  // simulated), and some LATER refresh's persisted() call happens to reject
+  // (a real, non-theoretical possibility -- the Storage API can throw under
+  // resource pressure). That failure must not tell workSafety the device just
+  // became unprotected.
+  const persistSpy = vi.spyOn(navigator.storage, "persist").mockResolvedValueOnce(true);
+  try {
+    const renders = vi.fn();
+    let seen: string | undefined;
+    let request: (() => Promise<string>) | undefined;
+    let refresh: (() => void) | undefined;
+    function Probe() {
+      renders();
+      const result = useStoragePersistence();
+      seen = result.persistence;
+      request = result.request;
+      refresh = result.refresh;
+      return null;
+    }
+    await render(<Probe />);
+    // Wait for the mount's OWN natural (real, unmocked) refresh cycle to
+    // fully settle before calling request(). Skipping this created a race
+    // that was NOT the one this test means to exercise: the mount's real
+    // persisted() read can resolve "unknown" *after* request() below
+    // publishes "granted", clobbering it -- coincidentally reproducing the
+    // exact unsequenced-publish symptom this test exists to rule out, but for
+    // the wrong reason (test setup, not the injected rejection).
+    await vi.waitFor(() => expect(renders.mock.calls.length).toBeGreaterThan(1));
+
+    await request?.();
+    await vi.waitFor(() => expect(seen).toBe("granted"));
+
+    const rendersBeforeRefresh = renders.mock.calls.length;
+    const persistedSpy = vi
+      .spyOn(navigator.storage, "persisted")
+      .mockRejectedValueOnce(new Error("transient failure"));
+    try {
+      refresh?.();
+      // estimate() still succeeds in this same refresh cycle, so publish()
+      // still fires (and a render still happens) even though the persisted()
+      // half of the same readStorage() call failed -- that render is the
+      // value-independent signal the refresh cycle actually ran.
+      await vi.waitFor(() =>
+        expect(renders.mock.calls.length).toBeGreaterThan(rendersBeforeRefresh),
+      );
+      expect(seen).toBe("granted");
+    } finally {
+      persistedSpy.mockRestore();
+    }
+  } finally {
+    persistSpy.mockRestore();
+  }
+});
+
+test("a transient estimate() rejection does not erase a known-good estimate", async () => {
+  const renders = vi.fn();
+  let seenEstimate: StorageEstimate | undefined;
+  let refresh: (() => void) | undefined;
+  function Probe() {
+    renders();
+    const result = useStoragePersistence();
+    seenEstimate = result.estimate;
+    refresh = result.refresh;
+    return null;
+  }
+  await render(<Probe />);
+  // Wait for the mount's OWN natural refresh to fully settle -- NOT merely for
+  // `seenEstimate?.quota` to already look good. A prior test in this file can
+  // leave the shared module snapshot already holding a real, valid estimate;
+  // subscribeToStorage delivers that leftover value synchronously on mount, so
+  // `quota > 0` alone can be trivially true on the very first render, before
+  // this mount's own refresh has even been dispatched. Without this wait, that
+  // still-in-flight, unmocked mount-refresh can resolve and publish *after*
+  // the mocked rejection below, racing with and masking it -- reproduced by
+  // hand: this exact test passed with the data-loss bug reintroduced when run
+  // as part of the full file, and only failed when run in isolation, until
+  // this wait was added.
+  await vi.waitFor(() => expect(renders.mock.calls.length).toBeGreaterThan(1));
+  await vi.waitFor(() => expect(seenEstimate?.quota).toBeGreaterThan(0));
+
+  const rendersBeforeRefresh = renders.mock.calls.length;
+  const estimateSpy = vi
+    .spyOn(navigator.storage, "estimate")
+    .mockRejectedValueOnce(new Error("transient failure"));
+  try {
+    refresh?.();
+    // persisted() still succeeds in this same refresh cycle, so publish()
+    // still fires even though the estimate() half failed.
+    await vi.waitFor(() => expect(renders.mock.calls.length).toBeGreaterThan(rendersBeforeRefresh));
+    expect(seenEstimate?.quota).toBeGreaterThan(0);
+  } finally {
+    estimateSpy.mockRestore();
+  }
 });

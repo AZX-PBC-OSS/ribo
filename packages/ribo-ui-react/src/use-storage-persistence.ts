@@ -53,13 +53,32 @@ interface StorageSnapshot {
   readonly estimate: StorageEstimate | undefined;
 }
 
+/**
+ * A draft merged into the shared snapshot by {@link publish}. Every field is
+ * OPTIONAL and none is `readonly` (unlike `Partial<StorageSnapshot>`, which
+ * would preserve `StorageSnapshot`'s `readonly` modifiers and reject
+ * assignment into a draft — see `readStorage` below). Optional so a field can
+ * be genuinely OMITTED rather than merely set to a fallback value: `publish`'s
+ * `{ ...snapshot, ...next }` merge only overwrites fields actually present on
+ * `next`, so omitting a field is how a caller says "I don't have a new answer
+ * for this one, leave whatever was already known." That distinction is the
+ * whole fix for the data-loss bug this type exists to prevent: a transient
+ * read failure must produce a draft that OMITS the failed field, not one that
+ * fills it with a guess like `"unknown"` or `undefined`, because either guess
+ * would silently overwrite a previously known-good value.
+ */
+interface StorageSnapshotDraft {
+  persistence?: StoragePersistence;
+  estimate?: StorageEstimate;
+}
+
 // One snapshot per origin, shared by every caller. Module scope rather than a
 // context value because it describes the browser, not a subtree — and because a
 // cached snapshot object is what keeps `useSubscribed` from re-rendering forever.
 let snapshot: StorageSnapshot = { persistence: "unknown", estimate: undefined };
 const listeners = new Set<(value: StorageSnapshot) => void>();
 
-const publish = (next: Partial<StorageSnapshot>): void => {
+const publish = (next: StorageSnapshotDraft): void => {
   snapshot = { ...snapshot, ...next };
   for (const listener of listeners) listener(snapshot);
 };
@@ -79,29 +98,30 @@ const subscribeToStorage = (listener: (value: StorageSnapshot) => void): Unsubsc
  * nobody has asked about — so it maps to `unknown`, never `denied`. Only
  * {@link UseStoragePersistenceResult.request} can produce `denied`.
  */
-const readStorage = async (): Promise<Partial<StorageSnapshot>> => {
+const readStorage = async (): Promise<StorageSnapshotDraft> => {
   if (typeof navigator === "undefined" || navigator.storage?.persisted === undefined) {
     return { persistence: "unsupported" };
   }
-  // Built from locals rather than mutated onto a `Partial<StorageSnapshot>`
-  // draft: `StorageSnapshot`'s fields are `readonly`, and `Partial` preserves
-  // that modifier, so assigning into the draft object is a type error.
-  let persistence: StoragePersistence;
+  const next: StorageSnapshotDraft = {};
   try {
-    persistence = (await navigator.storage.persisted()) ? "granted" : "unknown";
+    next.persistence = (await navigator.storage.persisted()) ? "granted" : "unknown";
   } catch {
-    // A Storage API that exists and throws is not the same as one that is absent,
-    // but neither tells us the grant — and guessing here is what would put a wrong
-    // answer into workSafety.
-    persistence = "unknown";
+    // A Storage API that exists and throws is not the same as one that is
+    // absent, but neither tells us the grant. Crucially, this must NOT set
+    // `next.persistence = "unknown"`: a transient rejection here would then
+    // overwrite a previously known-good "granted" (or "denied") value with
+    // "unknown" the moment `publish` merges this draft in, telling a user who
+    // already granted persistence that their device just became unprotected.
+    // Leaving the field unset means `publish`'s merge skips it entirely,
+    // keeping whatever was last known.
   }
-  let estimate: StorageEstimate | undefined;
   try {
-    estimate = await navigator.storage.estimate?.();
+    next.estimate = await navigator.storage.estimate?.();
   } catch {
-    estimate = undefined;
+    // Same reasoning: a failed estimate read must not erase the last usable
+    // estimate by publishing `undefined` over it. Leave the field unset.
   }
-  return { persistence, estimate };
+  return next;
 };
 
 export function useStoragePersistence(): UseStoragePersistenceResult {
@@ -118,7 +138,12 @@ export function useStoragePersistence(): UseStoragePersistenceResult {
   }, [refresh]);
 
   const request = useCallback(async (): Promise<StoragePersistence> => {
-    if (navigator.storage?.persist === undefined) {
+    // Same guard as `readStorage`: outside a browser (or a runtime with no
+    // global `navigator`), referencing the bare identifier throws a
+    // `ReferenceError` before the property access ever runs. Checking
+    // `typeof navigator` first keeps `request()` resolving `"unsupported"`
+    // the way `readStorage()` already does, rather than throwing.
+    if (typeof navigator === "undefined" || navigator.storage?.persist === undefined) {
       publish({ persistence: "unsupported" });
       return "unsupported";
     }

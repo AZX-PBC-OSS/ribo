@@ -1,7 +1,12 @@
 import { expect, test, vi } from "vitest";
-import { render } from "vitest-browser-react";
+import { render, renderHook } from "vitest-browser-react";
 import { StrictMode } from "react";
-import { createConnectivity, type Connectivity, type ConnectivityState } from "@azx/ribo-core";
+import {
+  createConnectivity,
+  type Connectivity,
+  type ConnectivityState,
+  type ConnectivityStatus,
+} from "@azx/ribo-core";
 
 import { RiboProvider } from "./RiboProvider.js";
 import { useConnectivity } from "./use-connectivity.js";
@@ -24,22 +29,63 @@ function fakeConnectivity(online: boolean) {
   });
 }
 
+/**
+ * A `Connectivity` double with a configurable, non-default `status` and a
+ * `subscribed` flag tracking whether its (single) listener is currently live.
+ *
+ * Two independent needs share this shape:
+ *
+ *  - The real, un-started `createConnectivity()` model always begins at
+ *    `"offline"`, so asserting a rendered `"offline"` against it cannot tell
+ *    "the hook reads `instance.state`" apart from "the hook hard-codes
+ *    offline" — a bug that would pass every such test. A configurable,
+ *    non-default status closes that gap: only a hook that actually reads the
+ *    given instance can render it correctly.
+ *  - Proving an instance swap unsubscribes the old instance and subscribes
+ *    the new one needs to observe each instance's own live-listener state
+ *    independently, which the real `Connectivity` has no accessor for.
+ */
+function makeControllableConnectivity(status: ConnectivityStatus): Connectivity & {
+  readonly subscribed: boolean;
+} {
+  let subscribed = false;
+  return {
+    get subscribed() {
+      return subscribed;
+    },
+    get state(): ConnectivityState {
+      return { status };
+    },
+    subscribe(listener: (state: ConnectivityState) => void) {
+      subscribed = true;
+      listener({ status });
+      return () => {
+        subscribed = false;
+      };
+    },
+    start: () => undefined,
+    stop: () => undefined,
+  };
+}
+
 test("renders the current connectivity state without a provider when given an instance", async () => {
-  // Never `start()`ed, so `isOnline: () => true` is never consulted — the model
-  // begins at its own initial state (`offline`) regardless. This asserts the
-  // hook faithfully relays that real initial value rather than proving anything
-  // about a transition (none has happened) or about `isOnline`/`probe` (neither
-  // has been called).
-  const connectivity = fakeConnectivity(true);
+  // A double with a non-default status, not the real (always-"offline")
+  // model: asserting "offline" here could never distinguish a hook that
+  // genuinely reads `instance.state` from one that just hard-codes "offline"
+  // -- both would render identically. Only a real read can produce "online".
+  const connectivity = makeControllableConnectivity("online");
   function Probe() {
     return <p>status {useConnectivity(connectivity).status}</p>;
   }
   const screen = await render(<Probe />);
-  await expect.element(screen.getByText("status offline")).toBeInTheDocument();
+  await expect.element(screen.getByText("status online")).toBeInTheDocument();
 });
 
 test("resolves connectivity from the provider", async () => {
-  const connectivity = fakeConnectivity(false);
+  // A different non-default status than the test above, so this test cannot
+  // pass by coincidence against a hook that hard-codes some OTHER fixed
+  // string either.
+  const connectivity = makeControllableConnectivity("probing");
   function Probe() {
     return <p>status {useConnectivity().status}</p>;
   }
@@ -48,7 +94,7 @@ test("resolves connectivity from the provider", async () => {
       <Probe />
     </RiboProvider>,
   );
-  await expect.element(screen.getByText("status offline")).toBeInTheDocument();
+  await expect.element(screen.getByText("status probing")).toBeInTheDocument();
 });
 
 test("an override instance wins over the provider's, same as useRiboInstance", async () => {
@@ -80,6 +126,32 @@ test("without a provider and without an override, throws the named error", async
     return <p>status {useConnectivity().status}</p>;
   }
   await expect(render(<Probe />)).rejects.toThrow(/connectivity/i);
+});
+
+test("swapping the instance prop unsubscribes the old one and subscribes the new one", async () => {
+  // The pattern-level gap this closes: `subscribe`'s `useCallback` is keyed on
+  // `[instance]` in the shipped code, but nothing before this test would
+  // notice if it were keyed on `[]` instead -- every other test here hands the
+  // hook a single, unchanging instance for its whole lifetime. A `[]` key
+  // would mean the effect never re-runs when `instance` changes, so the old
+  // instance is never unsubscribed and the new one is never subscribed to at
+  // all. Verified by hand: re-keying to `[]` turns this test red (see the
+  // task report for the isolated run).
+  const a = makeControllableConnectivity("offline");
+  const b = makeControllableConnectivity("online");
+  const { result, rerender } = await renderHook(
+    (connectivity?: Connectivity) => useConnectivity(connectivity),
+    { initialProps: a },
+  );
+  expect(result.current.status).toBe("offline");
+  expect(a.subscribed).toBe(true);
+  expect(b.subscribed).toBe(false);
+
+  await rerender(b);
+
+  expect(a.subscribed).toBe(false);
+  expect(b.subscribed).toBe(true);
+  expect(result.current.status).toBe("online");
 });
 
 /**
