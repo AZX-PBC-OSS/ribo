@@ -53,6 +53,15 @@ export interface PrimeConfig {
   readonly device?: "webgpu" | "wasm";
   /** Optional weight quantization (`"q8"`, `"fp16"`, …). Omitted uses the model default. */
   readonly dtype?: OnnxDtype;
+  /**
+   * HuggingFace Hub revision to fetch — a branch name, tag, or (recommended for reproducibility) a
+   * full commit hash. Forwarded verbatim to transformers.js's `pipeline()`, which defaults to
+   * `"main"` when omitted. Pinning a hash means an upstream push to the model repo cannot silently
+   * change what gets downloaded and run — the same property `pnpm-workspace.yaml`'s exact (no-caret)
+   * catalog pins buy for this workspace's own dependencies, applied to a model repo instead of an
+   * npm package. `scripts/pack-and-consume/` pins this for exactly that reason: see its header.
+   */
+  readonly revision?: string;
 }
 
 /**

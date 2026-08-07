@@ -80,6 +80,7 @@ export class OnDeviceTranscriber implements Transcriber {
   readonly #wasmPaths: string;
   readonly #device?: "webgpu" | "wasm";
   readonly #dtype?: OnnxDtype;
+  readonly #revision?: string;
   readonly #hints?: TranscribeHints;
   readonly #downloadBytes: number;
   readonly #cacheStorage?: CacheStorage;
@@ -93,6 +94,7 @@ export class OnDeviceTranscriber implements Transcriber {
     this.#wasmPaths = options.wasmPaths;
     this.#device = options.device;
     this.#dtype = options.dtype;
+    this.#revision = options.revision;
     this.#hints = options.hints;
     this.#downloadBytes = options.downloadBytes ?? estimateDownloadBytes(this.#modelId);
     // `?? undefined` so an explicit override still wins but the default is read lazily at probe time.
@@ -193,6 +195,7 @@ export class OnDeviceTranscriber implements Transcriber {
       wasmPaths: this.#wasmPaths,
       ...(this.#device ? { device: this.#device } : {}),
       ...(this.#dtype ? { dtype: this.#dtype } : {}),
+      ...(this.#revision ? { revision: this.#revision } : {}),
     };
   }
 
