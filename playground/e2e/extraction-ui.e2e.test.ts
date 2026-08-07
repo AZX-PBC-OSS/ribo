@@ -63,7 +63,17 @@ afterAll(async () => {
   await server?.close();
 });
 
-test("a recording drains through extraction and its fields show with provenance", async () => {
+// SKIPPED, and not because it is broken — it is correctly detecting that the
+// product flow changed. R2 Phase A put a human review gate between `extracting`
+// and `writing`: an item now parks at `awaiting-review`, and `Outbox.submitReview`
+// is the only thing that moves it to `writing`. So the poll for `done` below is
+// unreachable without a human.
+//
+// Restore in R2 Task 18, by driving the review card once Phase C builds it. Do
+// NOT "fix" this by weakening the assertion to accept `awaiting-review`: the whole
+// point is that a recording drains ALL the way through, and that path is now one
+// human step longer, not shorter.
+test.skip("a recording drains through extraction and its fields show with provenance", async () => {
   const page: Page = await (await browser.newContext()).newPage();
   await page.goto(baseUrl);
 

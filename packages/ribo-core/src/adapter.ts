@@ -39,9 +39,20 @@ import type { Enveloped } from "./enveloped.js";
  * did not.
  *
  * An interface target is not an intersection, so the weak-type check applies again.
- * `_output` and `_zod.output` are the two places zod carries a schema's output type;
- * narrowing both is what makes a disjoint schema — and a schema whose leaf types merely
- * *disagree* — a `TS2322` at the member.
+ *
+ * **The two narrowed members do different jobs, and both are load-bearing** — established
+ * by deleting each and reading the failure, not by inspection:
+ *
+ *   - `_output` is what carries the **refusal**. Drop it and both the disjoint pin and
+ *     the mixed pin in `adapter.test.ts` stop firing, because the surviving `_zod`
+ *     narrowing is itself written as an intersection (`$ZodObjectInternals<…> & {…}`) and
+ *     so suppresses the weak-type check in exactly the way this type exists to avoid.
+ *   - `_zod.output` is what carries the **binding**. Drop it and
+ *     `adapter.schema.safeParse(reviewed)` in `write-step.ts` stops returning `V` —
+ *     zod's `parse` is declared as `core.output<this>`, which reads `this["_zod"]["output"]`
+ *     and never looks at `_output`.
+ *
+ * Narrowing only one would therefore be silently half-right in either direction.
  *
  * ## Two costs, recorded rather than absorbed
  *
