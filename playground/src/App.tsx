@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PACKAGE_NAME as UI } from "@azx/ribo-ui-react";
+import { RiboProvider } from "@azx/ribo-ui-react";
 import { SNUGGPRO_ADAPTER_NAME as ADAPTER } from "@azx/ribo-adapter-snuggpro";
 import type { Outbox } from "@azx/ribo-core";
 
@@ -24,64 +24,71 @@ import { WorkSafetyPanel } from "./WorkSafetyPanel.js";
  *
  * Importing all three workspace packages is deliberate — it is what makes the
  * production build a composition check of the whole workspace rather than of
- * `ribo-core` alone. `ribo-ui-react` is still Phase 0 scaffolding and exports only its
- * `PACKAGE_NAME`; `ribo-adapter-snuggpro` now ships a real `ToolAdapter`, so the
- * footer shows its adapter name. `ribo-core` is the entire rest of this page.
+ * `ribo-core` alone. `ribo-ui-react` is now the hook layer's `RiboProvider`;
+ * `ribo-adapter-snuggpro` now ships a real `ToolAdapter`, so the footer shows its
+ * adapter name. `ribo-core` is the entire rest of this page.
  */
 
-const COMPOSED_NAMES = [UI, ADAPTER];
+const COMPOSED_NAMES = ["@azx/ribo-ui-react", ADAPTER];
 
 export function App() {
   const outbox = useOutbox();
 
   return (
-    <main style={page}>
-      <h1 style={{ marginBottom: 0 }}>ribo playground</h1>
-      <p style={muted}>
-        Phase 3 — capture, queue, and transcribe on-device. Prime the Whisper model once, cut the
-        network, and recording and transcription still work.
-      </p>
+    // Empty `value`: no hook in this tree resolves an instance through context
+    // yet (Task 17 migrates the panels). Rendering the provider here — rather
+    // than merely importing it — is what makes this a *runtime* composition
+    // check rather than a type-only one; see the `@file` note above.
+    <RiboProvider value={{}}>
+      <main style={page}>
+        <h1 style={{ marginBottom: 0 }}>ribo playground</h1>
+        <p style={muted}>
+          Phase 3 — capture, queue, and transcribe on-device. Prime the Whisper model once, cut the
+          network, and recording and transcription still work.
+        </p>
 
-      {/* Above everything else, and outside the panels: if the browser dropped
+        {/* Above everything else, and outside the panels: if the browser dropped
           this user's recordings, that is the first thing they need to know, not
           something to find after scrolling past a storage readout. */}
-      {outbox.kind === "ready" && <EvictionNotice outbox={outbox.outbox} />}
+        {outbox.kind === "ready" && <EvictionNotice outbox={outbox.outbox} />}
 
-      <UpdatePanel />
-      <StoragePanel />
-      <ConnectivityPanel />
-      <VerifyPanel />
+        <UpdatePanel />
+        <StoragePanel />
+        <ConnectivityPanel />
+        <VerifyPanel />
 
-      {outbox.kind === "opening" && <p style={muted}>opening the outbox…</p>}
-      {outbox.kind === "error" && (
-        <p style={errorBox}>The outbox could not be opened: {outbox.message}</p>
-      )}
-      {outbox.kind === "ready" && (
-        <>
-          <WorkSafetyPanel outbox={outbox.outbox} />
-          <RecordPanel outbox={outbox.outbox} />
-          <QueuePanel outbox={outbox.outbox} />
-          <TranscribePanel outbox={outbox.outbox} />
-          <ReviewPanel outbox={outbox.outbox} />
-        </>
-      )}
+        {outbox.kind === "opening" && <p style={muted}>opening the outbox…</p>}
+        {outbox.kind === "error" && (
+          <p style={errorBox}>The outbox could not be opened: {outbox.message}</p>
+        )}
+        {outbox.kind === "ready" && (
+          <>
+            <WorkSafetyPanel outbox={outbox.outbox} />
+            <RecordPanel outbox={outbox.outbox} />
+            <QueuePanel outbox={outbox.outbox} />
+            <TranscribePanel outbox={outbox.outbox} />
+            <ReviewPanel outbox={outbox.outbox} />
+          </>
+        )}
 
-      {/* Independent of the outbox: a dev-only tool to try an extraction against
+        {/* Independent of the outbox: a dev-only tool to try an extraction against
           any pasted JSON Schema + text, via the same-origin `/api/extract`
           endpoint (server-side inference; no key in the browser). */}
-      <TryItPanel />
+        <TryItPanel />
 
-      <footer style={muted}>
-        composed from <code style={monospace}>@azx/ribo-core</code>
-        {COMPOSED_NAMES.map((name) => (
-          <span key={name}>
-            , <code style={monospace}>{name}</code>
-          </span>
-        ))}{" "}
-        — <code style={monospace}>@azx/ribo-ui-react</code> is still a Phase 0 placeholder;{" "}
-        <code style={monospace}>@azx/ribo-adapter-snuggpro</code> now ships a real adapter.
-      </footer>
-    </main>
+        <footer style={muted}>
+          composed from <code style={monospace}>@azx/ribo-core</code>
+          {COMPOSED_NAMES.map((name) => (
+            <span key={name}>
+              , <code style={monospace}>{name}</code>
+            </span>
+          ))}{" "}
+          — <code style={monospace}>@azx/ribo-ui-react</code> ships{" "}
+          <code style={monospace}>RiboProvider</code>;{" "}
+          <code style={monospace}>@azx/ribo-adapter-snuggpro</code> now ships a real adapter.
+        </footer>
+      </main>
+    </RiboProvider>
   );
 }
 
