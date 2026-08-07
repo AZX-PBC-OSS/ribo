@@ -8,13 +8,12 @@ import { describe, expect, test } from "vitest";
 
 import type { ChatClient } from "@azx/ribo-extractor-openai";
 import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
-// The CLI-backed transport — see its file header for the full contract. Imported from the
-// `./cli-chat` SUBPATH, never `.`: it is a Node-only entry (shells `claude`/`codex`) that must
-// stay out of the browser bundle `.` feeds, so it is not re-exported from the package's main
-// index. This gate runs in Node (the `snuggpro-acceptance` Vitest project), so the subpath is
-// exactly where it belongs.
-import type { CliShapeResult } from "@azx/ribo-extractor-openai/cli-chat";
-import { cliChat } from "@azx/ribo-extractor-openai/cli-chat";
+// The CLI-backed transport — a sibling developer test harness, not part of any published
+// package (see its file header for the full contract and why it lives here rather than in
+// `@azx/ribo-extractor-openai`: that package is browser-targeted and published, and a
+// `node:child_process` import has no business anywhere in its graph).
+import type { CliShapeResult } from "./cli-chat.js";
+import { cliChat } from "./cli-chat.js";
 
 import { normalizeFields, snuggProAdapter } from "../src/index.js";
 // The spike's scorer, imported (read-only) so the gate grades exactly as the spike
@@ -49,7 +48,7 @@ import { readGroundTruth } from "../../../spikes/extraction-snuggpro/ground-trut
  *     `response_format: { json_schema, strict: true }`. The endpoint itself REJECTS
  *     a non-conforming reply, so this path only ever measures CONTENT accuracy —
  *     shape is enforced server-side and can never fail here. Needs `OPENAI_API_KEY`.
- *   - `claude-cli` / `codex-cli` -> `cliChat` (`@azx/ribo-extractor-openai/cli-chat`),
+ *   - `claude-cli` / `codex-cli` -> `cliChat` (`./cli-chat.ts`, a sibling of this file),
  *     which shells the `claude`/`codex` CLI already installed and authenticated on
  *     this machine — NO KEY NEEDED. A CLI has no strict mode: the schema goes into
  *     the PROMPT in words, and `cliChat` finds the JSON, validates it against that

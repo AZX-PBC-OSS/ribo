@@ -2,19 +2,31 @@
  * @file A Node-only, CLI-backed {@link ChatClient} — no API key needed. It shells out to an
  * installed agentic CLI (`claude` or `codex`) instead of calling an HTTP endpoint, so it can
  * produce real extraction evidence against a rebuilt schema even when the only available API
- * key is dead (see `packages/ribo-adapter-snuggpro/acceptance/gate.manual.ts`'s backend
- * selection).
+ * key is dead. It is a DEVELOPER TEST HARNESS for {@link file://./gate.manual.ts}, not a shipped
+ * transport — see the "Why this lives here" note below for what that means for where it lives.
  *
- * ## Why this needs its own entry point, not `index.ts`
+ * ## Why this lives in `acceptance/`, not in `@azx/ribo-extractor-openai`
  *
- * `@azx/ribo-extractor-openai`'s main entry (`openAiChat`, `singleShotExtractor`) is consumed by
- * the BROWSER app: `playground/src/extractor-store.ts` imports it by value, and `build:app`
- * bundles it for the client. This file imports `node:child_process`, `node:fs` and `node:os` —
- * Node built-ins with no browser equivalent — so it must never enter that module graph, even
- * transitively behind `sideEffects: false` tree-shaking. It therefore ships as its OWN published
- * entry, `./cli-chat` (mirroring `@azx/ribo-transcriber-ondevice`'s `./worker` — see that
- * package's `tsdown.config.ts`), so a Node-only consumer imports it explicitly and the browser
- * bundle never sees it.
+ * This file imports `node:child_process`, `node:fs`, `node:os`, `node:path` and `ajv` — Node
+ * built-ins and a runtime dependency with no browser equivalent. `@azx/ribo-extractor-openai` is
+ * a PUBLISHED, browser-targeted package (its tsconfig extends `browser-library.json`, and
+ * `playground/src/extractor-store.ts` imports its main entry by value into the browser bundle);
+ * putting a `node:child_process` import anywhere in that package's dependency graph is a defect
+ * regardless of which entry point carries it, because `child_process` can never run in a browser
+ * and every consumer of the package would incur `ajv` as a dependency for a code path they
+ * cannot physically execute. An earlier version of this file lived there behind its own
+ * `./cli-chat` published subpath — the root cause was not that some entry point was wrong, but
+ * that any entry point in that package was wrong for Node-only code.
+ *
+ * `packages/ribo-adapter-snuggpro/acceptance/` is the right home instead: it is already Node-only
+ * (every file here assumes a Node runtime), already manual/opt-in (this directory is excluded
+ * from `ribo-adapter-snuggpro`'s own `tsconfig.json` `include` and from its `tsdown.config.ts`
+ * entry and its published `files: ["dist"]`, so this file is never typechecked, built, or shipped
+ * as part of that package either), and already the sole consumer of this transport
+ * ({@link file://./gate.manual.ts}). It imports `ChatClient`/`ChatCompletion`/`ChatMessage`/
+ * `ChatRequest` from `@azx/ribo-extractor-openai`'s PUBLISHED surface — a type-only import,
+ * erased at build, so it adds no runtime coupling back to that package beyond the dependency
+ * `ribo-adapter-snuggpro` already has on it.
  *
  * ## What makes this different from `openAiChat`
  *
@@ -40,17 +52,11 @@
  * `playground/vite-extract.ts` already shells `claude`/`codex`/`opencode` the same way: a
  * throwaway temp cwd (so an agentic CLI can never roam this repo), stdin closed, and pulling the
  * last balanced top-level JSON object out of stdout. That file is `playground`'s own dev tool
- * (`"private": true`, never published); importing FROM it INTO this published package would be a
- * dependency in the wrong direction. `runCliOnce` and `extractLastJsonObject` below are therefore
- * deliberately re-implemented rather than imported — small enough functions that duplicating
- * them costs less than that coupling would.
+ * (`"private": true`, never published); importing it from a workspace package would be an odd
+ * dependency for a test harness to take on an unrelated app. `runCliOnce` and
+ * `extractLastJsonObject` below are therefore deliberately re-implemented rather than imported —
+ * small enough functions that duplicating them costs less than that coupling would.
  */
-
-// This package's shared tsconfig ships no `types`, so browser-facing files (`index.ts`,
-// `openai-chat.ts`, ...) never see Node globals by accident. This file is the one deliberate
-// exception — it is Node-only (see the header above) — so it opts itself in explicitly, scoped
-// to just this file, rather than widening `types` for the whole package.
-/// <reference types="node" />
 
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -60,7 +66,14 @@ import { join } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import type { ValidateFunction } from "ajv";
 
-import type { ChatClient, ChatCompletion, ChatMessage, ChatRequest } from "./chat-client.js";
+// Type-only: erased at build, so this adds no runtime coupling beyond the dependency
+// `ribo-adapter-snuggpro` already has on `@azx/ribo-extractor-openai` (see the file header).
+import type {
+  ChatClient,
+  ChatCompletion,
+  ChatMessage,
+  ChatRequest,
+} from "@azx/ribo-extractor-openai";
 
 /** Which agentic CLI to shell out to. Both are used exactly as a developer would run them
  *  interactively — this client adds no credential and no flag beyond what keeps them from

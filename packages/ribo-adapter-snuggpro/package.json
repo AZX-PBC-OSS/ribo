@@ -38,6 +38,7 @@
     "@azx/build-config": "workspace:*",
     "@azx/ribo-extractor-openai": "workspace:*",
     "@azx/tsconfig": "workspace:*",
+    "ajv": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
