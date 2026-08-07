@@ -168,6 +168,60 @@ test("two consumers see one shared grant, not independent copies", async () => {
   }
 });
 
+test("a plain refresh after a denial does not revert it back to unknown", async () => {
+  // The bug this pins: `request()` resolving "denied" is a real, non-theoretical
+  // refusal, and `persisted()` legitimately keeps answering `false` afterward --
+  // nothing was granted, so there is nothing for it to report otherwise. A later
+  // *plain* refresh (this component's own re-mount, or -- the real-world
+  // trigger -- a second consumer like `useWorkSafety` mounting after the
+  // request already settled) must not read that same honest `false` and
+  // downgrade the known refusal back to "unknown", which would tell a reviewer
+  // the request is "still being checked" forever, after the browser already
+  // answered. Unlike the transient-rejection test below, `persisted()` here
+  // never throws -- it consistently, correctly returns `false` on every call --
+  // so this is not a race or a failure path, only the ordinary case of asking
+  // twice after a refusal.
+  const persistSpy = vi.spyOn(navigator.storage, "persist").mockResolvedValue(false);
+  const persistedSpy = vi.spyOn(navigator.storage, "persisted").mockResolvedValue(false);
+  try {
+    const renders = vi.fn();
+    let seen: string | undefined;
+    let request: (() => Promise<string>) | undefined;
+    let refresh: (() => void) | undefined;
+    function Probe() {
+      renders();
+      const result = useStoragePersistence();
+      seen = result.persistence;
+      request = result.request;
+      refresh = result.refresh;
+      return null;
+    }
+    await render(<Probe />);
+    // Wait for the mount's own natural refresh to settle first -- same
+    // sequencing note as the transient-rejection test below: skipping this
+    // lets the mount's real (here, mocked-false) `readStorage()` resolve
+    // *after* `request()` below, which would also produce "unknown", but for
+    // an unsequenced-test-setup reason rather than the one this test exists
+    // to catch.
+    await vi.waitFor(() => expect(renders.mock.calls.length).toBeGreaterThan(1));
+
+    await request?.();
+    await vi.waitFor(() => expect(seen).toBe("denied"));
+
+    const rendersBeforeRefresh = renders.mock.calls.length;
+    refresh?.();
+    // `persisted()` resolves normally (no throw) in this refresh cycle, so
+    // `publish()` fires and a render happens -- that render is the
+    // value-independent signal the refresh cycle actually ran, the same
+    // idiom the two tests below use for the same reason.
+    await vi.waitFor(() => expect(renders.mock.calls.length).toBeGreaterThan(rendersBeforeRefresh));
+    expect(seen).toBe("denied");
+  } finally {
+    persistSpy.mockRestore();
+    persistedSpy.mockRestore();
+  }
+});
+
 test("a transient persisted() rejection does not overwrite a known-good grant", async () => {
   // The data-loss case: a user already granted persistence (real or
   // simulated), and some LATER refresh's persisted() call happens to reject

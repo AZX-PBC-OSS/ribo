@@ -95,8 +95,22 @@ const subscribeToStorage = (listener: (value: StorageSnapshot) => void): Unsubsc
  * Reads the grant *without* claiming a refusal.
  *
  * `persisted() === false` means "not persisted", which is also true of an origin
- * nobody has asked about — so it maps to `unknown`, never `denied`. Only
- * {@link UseStoragePersistenceResult.request} can produce `denied`.
+ * nobody has asked about — so a `false` read must never assert `denied` itself.
+ * But it must not assert `unknown` either: `next.persistence` is left UNSET on
+ * `false`, not set to `"unknown"`, for exactly the reason the catch block below
+ * leaves its own field unset on a thrown read. `false` is ambiguous between
+ * "never asked" and "a real `persist()` call was refused", and only
+ * {@link UseStoragePersistenceResult.request} — which sees `persist()`'s own
+ * return value — can tell the two apart. `publish`'s merge only overwrites a
+ * field actually present on the draft, and the module's own default snapshot is
+ * already `"unknown"` before anything has asked, so omitting here loses no
+ * information for that case; setting it explicitly, as this used to, would
+ * re-assert "unknown" over an ALREADY-KNOWN `"denied"` on every subsequent
+ * `refresh()` — which happens on every mount of every component calling this
+ * hook, not just the one that requested — silently reverting an explicit
+ * refusal back to "still checking" forever, the first time a second consumer
+ * (e.g. `useWorkSafety`, alongside a component that itself calls `request()`)
+ * mounts after the request settles.
  */
 const readStorage = async (): Promise<StorageSnapshotDraft> => {
   if (typeof navigator === "undefined" || navigator.storage?.persisted === undefined) {
@@ -104,7 +118,7 @@ const readStorage = async (): Promise<StorageSnapshotDraft> => {
   }
   const next: StorageSnapshotDraft = {};
   try {
-    next.persistence = (await navigator.storage.persisted()) ? "granted" : "unknown";
+    if (await navigator.storage.persisted()) next.persistence = "granted";
   } catch {
     // A Storage API that exists and throws is not the same as one that is
     // absent, but neither tells us the grant. Crucially, this must NOT set
