@@ -56,7 +56,7 @@ export interface Extractor<F> {
  * business. The type parameter is still `V`, the VALUES type, so a target and its adapter are
  * instantiated at the same argument.
  */
-export type ExtractionTarget<V> = Pick<
+export type ExtractionTarget<V extends Record<string, unknown>> = Pick<
   ToolAdapter<V, unknown>,
   "name" | "extractionSchema" | "instructions" | "examples"
 >;

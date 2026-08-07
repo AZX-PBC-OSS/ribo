@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { childPath, stripOptionalNullable } from "./field-path.js";
+import { describeLocated, zodIssues } from "./zod-issues.js";
 import { isSpanGrounded } from "./provenance.js";
 import type { Extracted } from "./provenance.js";
 import type { Transcript } from "./transcript.js";
@@ -259,9 +260,7 @@ export class ReviewValidationError extends Error {
   readonly issues: readonly ReviewIssue[];
 
   constructor(issues: readonly ReviewIssue[]) {
-    super(
-      `review submission rejected: ${issues.map(({ path, message }) => `${path}: ${message}`).join("; ")}`,
-    );
+    super(`review submission rejected: ${describeLocated(issues)}`);
     this.name = "ReviewValidationError";
     this.issues = issues;
   }
@@ -440,7 +439,12 @@ const DECISION_STATUSES: ReadonlySet<string> = new Set(["accepted", "edited", "r
  * nothing to record and no null to record it as should be rejected.
  */
 const invalidValueMessage = (status: "accepted" | "edited", error: z.ZodError): string => {
-  const reason = error.issues.map((issue) => issue.message).join("; ");
+  // Messages only, no paths: the path is the leaf being validated, and it is already
+  // carried on the `ReviewIssue` this message goes onto — repeating it inside the text
+  // would read as a second, nested field name to whoever is looking at that one editor.
+  const reason = zodIssues(error)
+    .map((issue) => issue.message)
+    .join("; ");
   return status === "edited"
     ? `edited value is not valid for this field: ${reason}`
     : `the extracted value is not valid for this field (${reason}) — it cannot be accepted ` +

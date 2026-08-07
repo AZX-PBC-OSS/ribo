@@ -28,7 +28,7 @@ import type { Enveloped, Extractor, ExtractionResult, ExtractionTarget } from "@
 import type { ChatClient, ChatMessage } from "./chat-client.js";
 
 /** Options for {@link singleShotExtractor}. */
-export interface SingleShotOptions<V> {
+export interface SingleShotOptions<V extends Record<string, unknown>> {
   /** The field knowledge: `name`, `extractionSchema`, `instructions`, and few-shot `examples`. */
   readonly target: ExtractionTarget<V>;
   /** The injected chat transport. A fake in tests; {@link openAiChat} in production. */
@@ -51,7 +51,10 @@ export interface SingleShotOptions<V> {
  * example as a user (transcript) / assistant (JSON fields) turn, then the live
  * transcript as the final user message.
  */
-function buildMessages<V>(target: ExtractionTarget<V>, transcript: string): ChatMessage[] {
+function buildMessages<V extends Record<string, unknown>>(
+  target: ExtractionTarget<V>,
+  transcript: string,
+): ChatMessage[] {
   const messages: ChatMessage[] = [{ role: "system", content: target.instructions }];
   for (const example of target.examples ?? []) {
     messages.push({ role: "user", content: example.transcript });
@@ -76,7 +79,7 @@ function buildMessages<V>(target: ExtractionTarget<V>, transcript: string): Chat
  *      to a house to make. Nothing here is thrown as a `TerminalQueueError`: a bad
  *      response is more likely a truncation or a blip than a permanent condition.
  */
-export function singleShotExtractor<V>({
+export function singleShotExtractor<V extends Record<string, unknown>>({
   target,
   chat,
   model,

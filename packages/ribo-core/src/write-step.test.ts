@@ -232,6 +232,57 @@ test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is 
   expect(written).toEqual([]);
 });
 
+test("the ctx is parsed first: an item wrong in both ways reports the ctx", async () => {
+  // The file documents this ordering and gives a reason — an item whose destination is
+  // unusable has a problem with the recording, not with the review — so it is pinned.
+  // Both failures are terminal, so the order cannot change the item's fate; it decides
+  // only which message an operator reads off a dead row, which is the whole point.
+  const written: Write[] = [];
+  const step = toWriteStep(makeAdapter(written));
+
+  const thrown = await step({
+    item: itemAt("item-1", { jobId: "" }),
+    reviewed: { rValue: "thirty" },
+    idempotencyKey: "key-item-1",
+  }).then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+
+  expect((thrown as Error).message).toContain("Recording.ctx");
+  expect((thrown as Error).message).not.toContain("not a valid patch");
+  expect(written).toEqual([]);
+});
+
+test("a failing write propagates unchanged — the relay's retry contract is not swallowed", async () => {
+  // Nothing else in this file would notice a `try/catch` around the `await`, and such a
+  // wrapper is a plausible thing for someone to add while "improving the error message".
+  // The cost would be silent: a network failure is the most common thing a real adapter's
+  // `write` produces and it is precisely what must be RETRIED, so swallowing it (or
+  // rethrowing something new, which strips the `status` that `isTransientFailure` reads)
+  // would turn a recoverable 503 into a dead queue row.
+  const failure = Object.assign(new Error("snuggpro returned 503"), { status: 503 });
+  const adapter: ToolAdapter<AtticValues, JobContext> = {
+    ...makeAdapter([]),
+    write: () => Promise.reject(failure),
+  };
+
+  const thrown = await toWriteStep(adapter)({
+    item: itemAt("item-1", { jobId: "job-7" }),
+    reviewed: { rValue: 19 },
+    idempotencyKey: "key-item-1",
+  }).then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+
+  // The SAME error object, by identity: not wrapped, not re-thrown as something else.
+  expect(thrown).toBe(failure);
+  // And still classified as transient, which is the property that actually matters.
+  expect(isTransientFailure(thrown)).toBe(true);
+  expect(thrown).not.toBeInstanceOf(TerminalQueueError);
+});
+
 // --- The classification, as the relay actually applies it -------------------
 
 const opened: { outbox: Outbox; name: string; storage: RxStorage<unknown, unknown> }[] = [];

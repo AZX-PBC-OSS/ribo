@@ -1,8 +1,7 @@
-import type { ZodError } from "zod";
-
 import type { ToolAdapter } from "./adapter.js";
 import { TerminalQueueError } from "./queue/backoff.js";
 import type { WriteStep, WriteStepInput } from "./queue/relay.js";
+import { describeLocated, zodIssues } from "./zod-issues.js";
 
 /**
  * @file The composition that hands what review settled on to a {@link ToolAdapter} —
@@ -21,6 +20,21 @@ import type { WriteStep, WriteStepInput } from "./queue/relay.js";
  * ```ts
  * createRelay({ ..., write: toWriteStep(snuggProAdapter) });
  * ```
+ *
+ * ## What the patch parse actually guards against
+ *
+ * Not `resolveReview`. That function validates every accepted and edited value against
+ * its leaf's own schema before it returns, so an outcome it produced is a valid `V` by
+ * construction — which is exactly why the Snugg Pro round-trip test, running the real
+ * chain end to end, cannot prove this boundary does anything. It is worth stating
+ * plainly, because a green round trip reads like proof and is not.
+ *
+ * What it guards is every OTHER route a patch can take to `WriteStepInput.reviewed`:
+ * a host calling `Outbox.patch(id, { reviewOutcome })` directly (nothing stops it — the
+ * document schema's `fields` is `z.record(z.string(), z.unknown())`), an outcome written
+ * by an older build and read back after a schema change, a future UI that persists its
+ * own outcome. All of those are `unknown` by the time they reach here, and the adapter's
+ * schema is the last thing between them and a customer's audit.
  *
  * ## It takes no `ctx`, and that is the point
  *
@@ -45,17 +59,6 @@ import type { WriteStep, WriteStepInput } from "./queue/relay.js";
  * can fix either one.
  */
 
-/** One zod failure, rendered as `path: message` — or just the message at the root. */
-const describeIssues = (error: ZodError): string =>
-  error.issues
-    .map((issue) => {
-      // `path` is `PropertyKey[]`: mapped through `String` rather than joined
-      // directly, because `Array.prototype.join` throws on a symbol key.
-      const path = issue.path.map(String).join(".");
-      return path === "" ? issue.message : `${path}: ${issue.message}`;
-    })
-    .join("; ");
-
 /**
  * Collapse a {@link ToolAdapter} onto the relay's injected `WriteStep`.
  *
@@ -72,18 +75,28 @@ const describeIssues = (error: ZodError): string =>
  * `writeResult` to persist. A failed parse throws before `write` is called at all —
  * nothing partially-validated ever reaches a customer's tool.
  *
+ * **`write`'s own rejection is passed through untouched**, and the `await` is deliberately
+ * not wrapped. A network failure from a real adapter is the single most common thing this
+ * step will ever see, and it is exactly what must be retried: catching it here — even to
+ * add context — would either swallow the retry or, by rethrowing something new, strip the
+ * `status` that `isTransientFailure` reads off an HTTP error and turn a 503 into a `dead`
+ * row. `write-step.test.ts` pins the pass-through, because every other test in that file
+ * would still pass with a `try/catch` around this line.
+ *
  * The ctx is parsed **first**, deliberately. Both failures are terminal so the order
  * cannot change an item's fate, but an item whose destination is unusable has a problem
  * with the recording, not with the review, and reporting the field-level errors of a
  * patch nobody could have written anywhere is the less useful of the two messages.
  */
-export function toWriteStep<V, C>(adapter: ToolAdapter<V, C>): WriteStep {
+export function toWriteStep<V extends Record<string, unknown>, C>(
+  adapter: ToolAdapter<V, C>,
+): WriteStep {
   return async ({ item, reviewed, idempotencyKey }: WriteStepInput): Promise<void> => {
     const ctx = adapter.ctxSchema.safeParse(item.recording.ctx);
     if (!ctx.success) {
       throw new TerminalQueueError(
         `outbox item ${item.id}: its recording's ctx is not a valid write context for the ` +
-          `"${adapter.name}" adapter — ${describeIssues(ctx.error)}. The context is captured ` +
+          `"${adapter.name}" adapter — ${describeLocated(zodIssues(ctx.error))}. The context is captured ` +
           "with the recording and cannot be repaired by retrying; check what the host put in " +
           "`Recording.ctx` at enqueue.",
       );
@@ -93,7 +106,7 @@ export function toWriteStep<V, C>(adapter: ToolAdapter<V, C>): WriteStep {
     if (!fields.success) {
       throw new TerminalQueueError(
         `outbox item ${item.id}: the reviewed values are not a valid patch for the ` +
-          `"${adapter.name}" adapter — ${describeIssues(fields.error)}. Nothing was written. ` +
+          `"${adapter.name}" adapter — ${describeLocated(zodIssues(fields.error))}. Nothing was written. ` +
           "The review outcome is already persisted, so a retry would fail identically; " +
           'to try again, re-park the item with Outbox.patch(id, { status: "awaiting-review" }) ' +
           "and review it afresh.",

@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { z } from "zod";
 import { enveloped } from "./enveloped.js";
-import type { ToolAdapter, ToolAdapterExample, WriteMetadata } from "./adapter.js";
+import type { ToolAdapter, ToolAdapterExample, ValuesSchema, WriteMetadata } from "./adapter.js";
 
 // The fields one adapter writes, and the host context it needs to write them.
 // `atticSchema` is the PATCH — the source of truth for `V` — and the extraction
@@ -267,28 +267,80 @@ test("`schema` still binds V: a leaf whose type disagrees does not compile", () 
   expect(misdeclared.name).toBe("misdeclared");
 });
 
-test("an adapter wired to a foreign field set is refused — by `extractionSchema`", () => {
-  // The compensating pin for the one thing `ValuesSchema<V>`'s intersection gives up.
-  // A patch `V` is all-optional, i.e. a WEAK type, and TypeScript's weak-type check is
-  // skipped when the target is an intersection — so `schema` alone would take the
-  // disjoint schema below without complaint (deliberately NOT marked with a
-  // `@ts-expect-error` here: there is no error on that line, and claiming one would fail
-  // the typecheck). `Enveloped<V>` is fully required, so the check still bites on
-  // `extractionSchema`, and the adapter as a whole cannot be mis-wired. Delete this test
-  // and that guarantee becomes an assumption again.
-  const foreign = z.object({ assessmentId: z.string() });
+/** A patch for an entirely different tool: nothing in common with `AtticFields`. */
+const foreignPatch = z.object({
+  assessmentId: z.string().nullable().optional(),
+  companyId: z.string().nullable().optional(),
+});
 
+test("a schema for a different tool is refused at `schema` itself", () => {
+  // A patch `V` is all-optional, which makes it a TypeScript WEAK type, and the
+  // weak-type check ("no properties in common") is what refuses this. The check is
+  // skipped whenever the target is an INTERSECTION, so the first spelling of
+  // `ValuesSchema<V>` — `ZodObject & ZodType<V>` — accepted the line below. That is why
+  // the type is an interface extending `ZodObject` instead.
   const misdeclared: ToolAdapter<AtticFields, JobContext> = {
     name: "misdeclared",
-    schema: foreign,
-    // @ts-expect-error - `Enveloped<AtticFields>` requires `rValue` and `area`; this has neither.
-    extractionSchema: enveloped(foreign),
+    // @ts-expect-error - a patch with no leaf in common with `AtticFields`.
+    schema: foreignPatch,
+    // Derived from the same foreign patch, so this member is wrong too. The point of
+    // this test is the line above; the MIXED case below is the one that matters.
+    // @ts-expect-error - `Enveloped<AtticFields>` requires `rValue` and `area`.
+    extractionSchema: enveloped(foreignPatch),
     ctxSchema: jobContextSchema,
     instructions: "Extract nothing in particular.",
     write: async () => {},
   };
 
   expect(misdeclared.name).toBe("misdeclared");
+});
+
+test("the MIXED pairing is refused: a foreign `schema` beside a correct `extractionSchema`", () => {
+  // THE test, and the one whose absence hid a real hole. The pairing below is what
+  // copying an adapter module for a second tool produces when `V`, `extractionSchema`,
+  // `ctxSchema` and `write` are all updated and `schema:` is left pointing at the old
+  // module — so nothing else in the declaration objects, and under the intersection
+  // spelling the whole object compiled clean.
+  //
+  // What it would have cost: `buildReviewRequest` walks `schema`, so the review card
+  // would present another tool's leaves as sentinel envelopes, and `toWriteStep` parses
+  // the reviewed patch through `schema`, so `write` would receive a value typed `V` that
+  // is not a `V`. The runtime parse still runs — nothing unchecked reaches the host tool
+  // — but the type is what was supposed to make this unrepresentable, and it did not.
+  const misdeclared: ToolAdapter<AtticFields, JobContext> = {
+    name: "misdeclared",
+    // @ts-expect-error - THE pin: a foreign patch is refused even when every other member is right.
+    schema: foreignPatch,
+    extractionSchema: atticExtractionSchema,
+    ctxSchema: jobContextSchema,
+    instructions: "Extract nothing in particular.",
+    write: async () => {},
+  };
+
+  expect(misdeclared.name).toBe("misdeclared");
+});
+
+test("`ValuesSchema` accepts the shapes a real adapter declares — nested, strict, no cast", () => {
+  // The cost side of the interface spelling, kept honest. It names zod's `_output` and
+  // `_zod` internals, so a zod upgrade that renamed either must fail HERE rather than
+  // somewhere subtle: this walks a real nested, strict patch through the type with no
+  // cast, exactly as `snuggValuesSchema` does.
+  const nested = z
+    .object({
+      rValue: z.number().nullable().optional(),
+      healthSafety: z
+        .object({ ambientCo: z.enum(["passed", "failed"]).nullable().optional() })
+        .strict()
+        .optional(),
+    })
+    .strict();
+
+  const schema: ValuesSchema<z.infer<typeof nested>> = nested;
+
+  expect(Object.keys(schema.shape)).toEqual(["rValue", "healthSafety"]);
+  // Still a real zod schema in every respect the rest of the pipeline uses.
+  expect(schema.parse({ rValue: 19 })).toEqual({ rValue: 19 });
+  expect(enveloped(schema).safeParse({}).success).toBe(false);
 });
 
 test("an adapter declared for one context is not assignable to another", () => {

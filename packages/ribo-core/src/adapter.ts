@@ -1,4 +1,4 @@
-import type { ZodObject, ZodType } from "zod";
+import type { core, ZodObject, ZodType } from "zod";
 
 import type { Enveloped } from "./enveloped.js";
 
@@ -7,40 +7,71 @@ import type { Enveloped } from "./enveloped.js";
  * `enveloped()` and `buildReviewRequest` can enumerate its leaves, and it parses to
  * exactly `V`, so the adapter's field type is still checked at the boundary.
  *
- * It has to be an intersection, because zod 4 offers no single spelling for
- * "`ZodObject` whose output is `V`". `ZodObject<Shape, Config>` derives its output
- * *from* its shape — there is no output type parameter to pin — and `ZodType<V>` pins
- * the output but declares no `shape`. Each half supplies what the other lacks:
+ * Zod 4 has no single spelling for "`ZodObject` whose output is `V`" —
+ * `ZodObject<Shape, Config>` derives its output *from* its shape, so there is no output
+ * parameter to pin, and `ZodType<V>` pins the output but declares no `shape`. So this
+ * type supplies the missing half itself, by **extending** `ZodObject` and narrowing the
+ * two members that carry the output type.
  *
- *   - `ZodObject` alone would drop `V` entirely. Bare, it is
- *     `ZodObject<$ZodLooseShape, $strip>`, whose parsed output is `{}` — assignable to
- *     any all-optional patch type, so a `ToolAdapter<A, C>` would happily accept
- *     schema `B` and `write` would receive values it was never checked against.
- *   - `ZodType<V>` alone is what this member used to be, and it is why
- *     `buildReviewRequest(extracted, transcript, adapter.schema)` did not compile: the
- *     leaves review presents are enumerated off `.shape`, which `ZodType` has no
- *     concept of. The information was never missing — `enveloped(schema)` already
- *     requires `T extends ZodObject` to derive `extractionSchema` at all — only
- *     discarded on the way through this interface.
+ * ## Why an interface and not `ZodObject & ZodType<V>`
  *
- * Adapters need no cast: a `z.object({...}).strict()` satisfies both halves, because
- * `ZodObject`'s two parameters are covariant (`out Shape`, `out Config`), so a concrete
- * strict shape is assignable to the bare form. `adapter.test.ts` pins both directions —
- * that a walk compiles, and that a schema whose leaves disagree with `V` does not.
+ * The intersection is the obvious spelling, it compiles, and it is **wrong** — for a
+ * reason that is invisible until you try to declare a broken adapter. A patch `V` is
+ * all-optional by construction (design §2.1), which makes it a TypeScript *weak type*,
+ * and the weak-type check ("type has no properties in common with…") is what refuses a
+ * schema written for an entirely different tool. **That check is skipped whenever the
+ * target is an intersection.** Under `ZodObject & ZodType<V>` this compiled clean:
  *
- * **One thing the intersection gives up, measured rather than assumed.** A patch `V` is
- * all-optional by construction (design §2.1), which makes it a *weak type*, and
- * TypeScript's weak-type check — "this has no properties in common with that" — is what
- * used to refuse a schema for an entirely different field set against the old
- * `ZodType<V>`. That check is skipped when the target is an intersection, so this member
- * alone now admits a fully disjoint schema (a leaf whose type merely *disagrees* is still
- * refused, which is the drift that actually happens). It is not a hole in the interface:
- * `extractionSchema` is `ZodType<Enveloped<V>>` and `Enveloped<V>` is fully required, so
- * the weak-type check still applies there and an adapter wired to a foreign field set
- * cannot be declared. `adapter.test.ts` pins that compensating refusal, so it cannot be
- * removed without this trade becoming a real one.
+ * ```ts
+ * const mixed: ToolAdapter<AtticFields, JobContext> = {
+ *   schema: someOtherToolsPatch,             // disjoint — and accepted
+ *   extractionSchema: atticExtractionSchema, // correct, so nothing else objected
+ *   ...
+ * };
+ * ```
+ *
+ * which is not a contrived pairing: it is what copying an adapter module for a second
+ * tool and updating everything *except* `schema:` produces. The consequences are quiet
+ * ones — `buildReviewRequest` walks the wrong schema, so the review card shows another
+ * tool's leaves as sentinel envelopes, and `toWriteStep` parses the reviewed patch
+ * against the wrong schema. Nothing unchecked reaches the host tool (the runtime parse
+ * still runs, and rejects), but the type that was supposed to make this unrepresentable
+ * did not.
+ *
+ * An interface target is not an intersection, so the weak-type check applies again.
+ * `_output` and `_zod.output` are the two places zod carries a schema's output type;
+ * narrowing both is what makes a disjoint schema — and a schema whose leaf types merely
+ * *disagree* — a `TS2322` at the member.
+ *
+ * ## Two costs, recorded rather than absorbed
+ *
+ *   - **`V` must be a `Record<string, unknown>`**, which propagates to
+ *     `ToolAdapter<V, C>` and everything generic over it. Every `V` in this repo is a
+ *     `z.infer` alias and satisfies it (anonymous object types get an implicit index
+ *     signature); a host that declared its values as a hand-written `interface` would
+ *     not, and would need a `type` alias instead. That is a real if small tax on a
+ *     consumer, and it is the price of the check above.
+ *   - **It names `_output` and `_zod`**, which are zod internals rather than its
+ *     documented surface. A zod major could rename them, and the failure would be a
+ *     compile error here rather than anything silent. `adapter.test.ts` walks a real
+ *     schema through this type, so an upgrade that changed them fails the typecheck.
+ *
+ * The considered alternative was a `defineToolAdapter` factory tying `extractionSchema`
+ * to the schema actually passed. It catches the same mistake without touching zod
+ * internals, but only at a declaration site that goes through the factory — a hand-built
+ * object literal typed `ToolAdapter<V, C>` stays unchecked — so it constrains less than
+ * this does. Worth revisiting if either cost above bites.
+ *
+ * Adapters need no cast: a `z.object({...}).strict()`, nested objects and all, satisfies
+ * this directly, because `ZodObject`'s parameters are covariant (`out Shape`,
+ * `out Config`). `adapter.test.ts` pins every direction — the walk compiles, `enveloped()`
+ * accepts it, a disjoint schema does not, a disagreeing leaf does not, and the mixed
+ * pairing above does not.
  */
-export type ValuesSchema<V> = ZodObject & ZodType<V>;
+export interface ValuesSchema<V extends Record<string, unknown>> extends ZodObject {
+  readonly _output: V;
+  readonly _zod: core.$ZodObjectInternals<core.$ZodLooseShape, core.$strip> & { output: V };
+}
 
 /**
  * A few-shot example: a transcript, and the fields it should produce.
@@ -112,7 +143,7 @@ export interface WriteMetadata {
  * assignable where a `ToolAdapter<V, {jobId}>` is expected — reintroducing the
  * hole `C` exists to close. The property form gets strict contravariance.
  */
-export interface ToolAdapter<V, C> {
+export interface ToolAdapter<V extends Record<string, unknown>, C> {
   /** Stable identifier for this adapter, e.g. `"snuggpro-attic-insulation"`. */
   readonly name: string;
   /**
