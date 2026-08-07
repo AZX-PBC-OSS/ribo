@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createRelay, FakeTranscriber, type Outbox, type OutboxItem } from "@azx/ribo-core";
+import { useConnectivity, useOutboxItems } from "@azx/ribo-ui-react";
 
-import { getConnectivityState, subscribeToConnectivity } from "./connectivity-store.js";
 import { getEvictionState, subscribeToEviction } from "./eviction-store.js";
 import { extractStep } from "./extractor-store.js";
 import { formatClock, formatElapsed, messageOf } from "./format.js";
@@ -12,32 +12,24 @@ import { button, errorBox, monospace, muted, panel, statusBadge, survivedBadge }
 /**
  * @file The queue, live.
  *
- * `outbox.items$` is the RxDB collection query as an observable: it pushes a
- * fresh array on every write, including writes from another tab. Subscribing to
- * it — rather than re-running `list()` on a timer — is what makes a row appear
- * the instant capture ends, and is the only version of this panel that would
- * still be correct with two tabs open.
+ * `useOutboxItems()` wraps `outbox.items$` — the RxDB collection query as an
+ * observable — as React state: it pushes a fresh array on every write, including
+ * writes from another tab. Subscribing to it — rather than re-running `list()` on
+ * a timer — is what makes a row appear the instant capture ends, and is the only
+ * version of this panel that would still be correct with two tabs open.
+ *
+ * `outbox` stays a plain prop here (unlike `RecordPanel`/`ConnectivityPanel`):
+ * this panel still needs the raw instance for `outbox.clear()` and to build the
+ * stub relay `runStubRelay` drains through — neither of those is a hook's job.
  */
 
 export function QueuePanel({ outbox }: { outbox: Outbox }) {
-  const [items, setItems] = useState<OutboxItem[] | undefined>(undefined);
+  const { items, loading, error: watchError } = useOutboxItems({}, outbox);
   const [error, setError] = useState<string | undefined>(undefined);
   const [syncing, setSyncing] = useState(false);
   const [autoSync, setAutoSync] = useState(false);
 
-  const connectivity = useSyncExternalStore(subscribeToConnectivity, getConnectivityState);
-
-  useEffect(() => {
-    const subscription = outbox.items$.subscribe({
-      next: setItems,
-      error: (cause: unknown) => {
-        setError(messageOf(cause));
-      },
-    });
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [outbox]);
+  const connectivity = useConnectivity();
 
   // Guards a drain against re-entry: the connectivity effect below can fire while
   // a drain is already running (the queue's own writes re-render this component),
@@ -63,7 +55,7 @@ export function QueuePanel({ outbox }: { outbox: Outbox }) {
 
   // Items in a resting, drainable state — not mid-flight ones, so a drain in
   // progress does not re-trigger this effect into a second concurrent drain.
-  const hasDrainable = items?.some((i) => i.status === "queued" || i.status === "failed") ?? false;
+  const hasDrainable = items.some((i) => i.status === "queued" || i.status === "failed");
 
   // The ONLY place connectivity is allowed to drive work, and only opt-in. Off by
   // default (see the toggle copy) so the reload demo is untouched: a `queued` item
@@ -98,7 +90,7 @@ export function QueuePanel({ outbox }: { outbox: Outbox }) {
         <button type="button" style={button} onClick={syncNow} disabled={syncing}>
           {syncing ? "syncing…" : "sync now (stub transcriber)"}
         </button>
-        <button type="button" style={button} onClick={clear} disabled={!items?.length}>
+        <button type="button" style={button} onClick={clear} disabled={items.length === 0}>
           clear queue
         </button>
       </div>
@@ -122,8 +114,9 @@ export function QueuePanel({ outbox }: { outbox: Outbox }) {
       </p>
 
       {error !== undefined && <p style={errorBox}>{error}</p>}
+      {watchError !== undefined && <p style={errorBox}>{watchError.message}</p>}
 
-      {items === undefined ? (
+      {loading ? (
         <p style={muted}>reading the outbox…</p>
       ) : items.length === 0 ? (
         <EmptyQueue />
@@ -208,8 +201,9 @@ function QueueRow({ outbox, item }: { outbox: Outbox; item: OutboxItem }) {
  * only shows the state machine turns over); the on-device transcriber lives in
  * `TranscribePanel`. Extraction, though, is the **same {@link extractStep}** both
  * panels share (`extractor-store.ts`) — `FakeExtractor` by default, a real model
- * when a key is configured — and its fields show in `ReviewPanel`. Write-back is
- * still a stub (Phase 4 Task 6, gated on Kyle's A1), so items finish at `done`.
+ * when a key is configured. An extracted item now parks at `awaiting-review`
+ * rather than reaching `done` on its own — `ReviewPanel` is the only way past
+ * that gate — so this button drains as far as a human review, not further.
  */
 async function runStubRelay(outbox: Outbox): Promise<void> {
   const relay = createRelay({

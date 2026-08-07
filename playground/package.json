@@ -32,6 +32,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plugin-pwa": "catalog:",
+    "vitest-browser-react": "catalog:",
     "workbox-window": "catalog:"
   }
 }

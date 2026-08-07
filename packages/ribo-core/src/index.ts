@@ -156,3 +156,14 @@ export type {
   ReviewRequest,
   ReviewSubmission,
 } from "./review.js";
+
+// The one primitive a review UI needs and could not otherwise get without
+// reaching into `/src/...`: stripping a patch leaf's `.optional()`/`.nullable()`
+// wrappers to find its real kind (a `ReviewField.schema` is the DECLARED
+// schema, wrappers and all — see that field's own doc comment). Public
+// precisely so a UI does not have to re-implement this walk against zod's raw
+// API to render an editor from a leaf's schema; `enveloped()` and
+// `buildReviewRequest` both use this exact function internally, so a UI that
+// re-implemented it independently would risk the two walks disagreeing about
+// what counts as a wrapper.
+export { stripOptionalNullable } from "./field-path.js";

@@ -1,28 +1,17 @@
-import { type CSSProperties, useEffect, useState, useSyncExternalStore } from "react";
-import {
-  summarizeWork,
-  workSafety,
-  type Outbox,
-  type OutboxItem,
-  type StoragePersistence,
-  type WorkSafety,
-} from "@azx/ribo-core";
+import type { CSSProperties } from "react";
+import type { StoragePersistence, WorkSafety } from "@azx/ribo-core";
+import { useWorkSafety } from "@azx/ribo-ui-react";
 
-import { getConnectivityState, subscribeToConnectivity } from "./connectivity-store.js";
-import { messageOf } from "./format.js";
-import { getStorageState, subscribeToStorage, type PersistenceStatus } from "./storage-store.js";
 import { errorBox, monospace, muted, noticeBox, panel } from "./styles.js";
 
 /**
  * @file "Is my work safe?" — the one honest sentence, for an auditor.
  *
  * The plumbing (seq / attempts / per-row status) stays in `QueuePanel`. This
- * panel answers the actual question in words, and it does so by handing three
- * live facts to the *same* core selector a future `ribo-ui-react` would call:
- *
- *   - the outbox items (summarised to pending/dead/synced),
- *   - the storage persistence grant (mapped from the store's richer status),
- *   - the connectivity state.
+ * panel answers the actual question in words, off `useWorkSafety()` — the same
+ * composition of the outbox, the storage-persistence grant and connectivity that
+ * a real host UI would use, so the verbose panels above and this one can never
+ * disagree.
  *
  * `workSafety` is written to never overstate safety — its `safe` level is
  * reserved for work that has *left the device*; a persistence grant only ever
@@ -32,41 +21,26 @@ import { errorBox, monospace, muted, noticeBox, panel } from "./styles.js";
  * differently.
  */
 
-export function WorkSafetyPanel({ outbox }: { outbox: Outbox }) {
-  const [items, setItems] = useState<readonly OutboxItem[] | undefined>(undefined);
-  const [error, setError] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    const subscription = outbox.items$.subscribe({
-      next: setItems,
-      error: (cause: unknown) => {
-        setError(messageOf(cause));
-      },
-    });
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [outbox]);
-
-  const storage = useSyncExternalStore(subscribeToStorage, getStorageState);
-  const connectivity = useSyncExternalStore(subscribeToConnectivity, getConnectivityState);
+export function WorkSafetyPanel() {
+  const { safety, work, loading, error } = useWorkSafety();
 
   return (
     <section style={panel}>
       <h2>Is my work safe?</h2>
 
       {error !== undefined ? (
-        <p style={errorBox}>{error}</p>
-      ) : items === undefined ? (
+        <p style={errorBox}>{error.message}</p>
+      ) : loading || safety === undefined ? (
         <p style={muted}>reading the outbox…</p>
       ) : (
-        <Verdict
-          verdict={workSafety(
-            summarizeWork(items),
-            toStoragePersistence(storage.persistence),
-            connectivity.status,
-          )}
-        />
+        <Verdict verdict={safety} />
+      )}
+
+      {work !== undefined && work.awaitingReview > 0 && (
+        <p style={{ ...muted, margin: "0.5rem 0 0" }} data-testid="awaiting-review-count">
+          {plural(work.awaitingReview, "recording")} need review — see{" "}
+          <strong>4 · Review extracted fields</strong> below.
+        </p>
       )}
 
       <p style={{ ...muted, margin: "0.75rem 0 0" }}>
@@ -141,27 +115,6 @@ function persistencePhrase(persistence: Exclude<StoragePersistence, "granted">):
       return "this browser cannot be asked";
     case "unknown":
       return "the request is still being checked";
-  }
-}
-
-/**
- * Collapse the storage store's richer {@link PersistenceStatus} to the four
- * distinctions `workSafety` classifies on. This mapping is the store's
- * `PersistenceStatus` reading of `navigator.storage`, reduced to "does it change
- * the verdict?" — documented on `StoragePersistence` in `work-safety.ts`.
- */
-function toStoragePersistence(status: PersistenceStatus): StoragePersistence {
-  switch (status) {
-    case "granted":
-    case "already-persistent":
-      return "granted";
-    case "denied":
-    case "error":
-      return "denied";
-    case "unsupported":
-      return "unsupported";
-    case "checking":
-      return "unknown";
   }
 }
 

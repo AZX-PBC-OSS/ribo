@@ -90,6 +90,10 @@ export default defineConfig({
             "**/node_modules/**",
             "**/dist/**",
             "packages/*/src/**/*.browser.test.{ts,tsx}",
+            // The playground's own browser-mode tests (R2 Task 17's ReviewPanel
+            // interaction tests) — same reasoning, same `playground/**/*.test.{ts,tsx}`
+            // include above would otherwise also pick these up under `node`.
+            "playground/src/**/*.browser.test.{ts,tsx}",
             "playground/e2e/**",
           ],
         },
@@ -129,7 +133,26 @@ export default defineConfig({
           // no MediaRecorder, a shimmed IndexedDB and does not faithfully
           // simulate workers; mocking through it produces tests that pass while
           // production is broken.
-          include: ["packages/*/src/**/*.browser.test.{ts,tsx}"],
+          //
+          // The second entry is the playground's own component-interaction tests
+          // (R2 Task 17's `ReviewPanel.browser.test.tsx` is the first) — a
+          // DIFFERENT glob prefix from the first, deliberately: `packages/*/src`
+          // is every publishable package, `playground/src` is the one app that
+          // is not a `packages/*` workspace member and so is not reached by that
+          // glob at all. Before this line existed, a `playground/src/*.browser
+          // .test.tsx` file matched no project's `include` — not even the `unit`
+          // project's `playground/**/*.test.{ts,tsx}` glob, which the exclude
+          // just above this keeps off browser-suffixed files — so it would sit
+          // in the tree looking like coverage while `vitest run` executed zero
+          // of its assertions. That is a worse failure than an absent test: a
+          // reviewer scanning file names sees a "ReviewPanel test" and stops
+          // looking, unaware ./check.sh never ran it. `pnpm --filter playground
+          // typecheck` still catches the file failing to *compile*, but nothing
+          // caught it failing to *run* before this glob reached it.
+          include: [
+            "packages/*/src/**/*.browser.test.{ts,tsx}",
+            "playground/src/**/*.browser.test.{ts,tsx}",
+          ],
           // Deliberately generous. The FIRST `getUserMedia` call in a cold
           // Chromium takes seconds (measured: ~9.9s cold, ~74ms warm) while the
           // fake-device audio subsystem spins up. CI is cold every run, so the
