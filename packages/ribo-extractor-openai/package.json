@@ -13,6 +13,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./cli-chat": {
+      "@azx/source": "./src/cli-chat.ts",
+      "types": "./dist/cli-chat.d.ts",
+      "default": "./dist/cli-chat.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -21,6 +26,10 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./cli-chat": {
+        "types": "./dist/cli-chat.d.ts",
+        "default": "./dist/cli-chat.js"
       },
       "./package.json": "./package.json"
     }
@@ -31,12 +40,14 @@
   },
   "dependencies": {
     "@azx/ribo-core": "workspace:^",
+    "ajv": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "catalog:",
     "@azx/build-config": "workspace:*",
     "@azx/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
