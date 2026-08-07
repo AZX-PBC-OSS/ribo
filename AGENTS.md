@@ -82,13 +82,13 @@ Four tiers. Dependencies only ever point **inward toward `ribo-core`**: `ribo-ui
 `ribo-adapter-snuggpro` and `ribo-extractor-openai` each depend on `ribo-core` and never on each
 other; the field app composes them. Nothing depends on the field app.
 
-| Tier                         | Location                         | Responsibility                                                                                           |
-| ---------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `@azx/ribo-core`             | `packages/ribo-core`             | Headless engine: capture state machine, transcription, extraction, queue. No React, no DOM rendering.    |
-| `@azx/ribo-ui-react`         | `packages/ribo-ui-react`         | React hooks over the core engine — recorder, review. (The `react` variant; still a stub.)                |
-| `@azx/ribo-adapter-snuggpro` | `packages/ribo-adapter-snuggpro` | The **only** tool-specific surface: Snugg Pro field mapping and write-back.                              |
-| `@azx/ribo-extractor-openai` | `packages/ribo-extractor-openai` | Tool-agnostic extractor plasmid: single-shot managed-LLM extraction over an OpenAI-compatible transport. |
-| Field app                    | **separate repo**                | The deployed Helix app that composes these packages. Not built here.                                     |
+| Tier                         | Location                         | Responsibility                                                                                                                |
+| ---------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `@azx/ribo-core`             | `packages/ribo-core`             | Headless engine: capture state machine, transcription, extraction, leaf-path review, queue/write. No React, no DOM rendering. |
+| `@azx/ribo-ui-react`         | `packages/ribo-ui-react`         | React hooks over the core engine — recorder, review. (The `react` variant; still a stub.)                                     |
+| `@azx/ribo-adapter-snuggpro` | `packages/ribo-adapter-snuggpro` | The **only** tool-specific surface: Snugg Pro field mapping and write-back.                                                   |
+| `@azx/ribo-extractor-openai` | `packages/ribo-extractor-openai` | Tool-agnostic extractor plasmid: single-shot managed-LLM extraction over an OpenAI-compatible transport.                      |
+| Field app                    | **separate repo**                | The deployed Helix app that composes these packages. Not built here.                                                          |
 
 Supporting, non-published: `packages/tsconfig` (`@azx/tsconfig`, the shared compiler options) and
 `playground/` (a Vite app that imports **every** published package, so its production build is a real
@@ -128,7 +128,12 @@ authority for everything in §5 and §6 below.
   blocked the very APIs the engine exists to use.
 - **Adapters are the only place tool-specific knowledge lives.** No Snugg Pro field names, quirks
   or selectors in `ribo-core` or `ribo-ui-react`. A second host tool must be a new adapter package and
-  nothing else.
+  nothing else. R1.5 (`docs/roadmap/design/r1.5-field-shape-contracts-design.md`) makes this
+  stronger than it used to be: review now addresses flat dotted leaf paths, and each
+  `ReviewField` carries its own leaf's zod schema, so a review UI renders and validates entirely
+  off that schema — it needs **no adapter import at all**. That is the payoff of splitting
+  `ToolAdapter`'s single field-shape type parameter into a writable patch (`V`) and a derived
+  extraction envelope (`Enveloped<V>`).
 - **`import type`** for type-only imports (`verbatimModuleSyntax` + an ESLint rule enforce it).
 - **Public entry points only** across packages — import `@azx/ribo-core`, never
   `@azx/ribo-core/src/...`.

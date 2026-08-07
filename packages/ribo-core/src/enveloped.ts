@@ -176,9 +176,8 @@ export const enveloped = <T extends z.ZodObject>(
  * `readonly` IS kept, deliberately, even though `z.infer<ReturnType<typeof enveloped<...>>>` (the
  * function's real inferred return type) never carries it — nothing in `enveloped()`'s
  * implementation calls `.readonly()`. Every sibling field-map type in this package is explicitly
- * `readonly` regardless of its leaf's own mutability — `ExtractedFields<F>` (`review.ts`) wraps the
- * same non-readonly `Extracted<F[K]>` leaf in an explicit readonly mapping, and `ReviewFields` /
- * `FieldDecisions` do the same over their leaf paths. `Enveloped<V>` sits at the identical
+ * `readonly` regardless of its leaf's own mutability — `ReviewFields` and `FieldDecisions`
+ * (`review.ts`) do the same over their leaf paths. `Enveloped<V>` sits at the identical
  * public boundary (`ToolAdapter.extractionSchema: ZodType<Enveloped<V>>`) and keeping `readonly`
  * here is what makes it consistent with that convention rather than the one silently-mutable
  * exception, discoverable only by reading this comment.

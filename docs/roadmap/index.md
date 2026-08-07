@@ -29,11 +29,24 @@ of what was planned and why. It is excluded from the published docs site (via `s
   extractor (`@azx/ribo-extractor-openai`), field-level review, and the write-back scaffold (gated on
   Helix egress signing). → [plan](phases/phase-4-extraction-writeback.md)
 
-**R1 — package build configs** (the most recent work) gave all five publishable packages real tsdown
-builds producing `dist/`, plus gates that prove the artifact is valid for a consumer: publint and attw
-in-build, a source-condition resolver assertion, and tarball/duplicate-React checks. All five build,
-gated by `./check.sh`. → [design](design/r1-package-build-configs-design.md) ·
+**R1 — package build configs** gave all five publishable packages real tsdown builds producing
+`dist/`, plus gates that prove the artifact is valid for a consumer: publint and attw in-build, a
+source-condition resolver assertion, and tarball/duplicate-React checks. All five build, gated by
+`./check.sh`. → [design](design/r1-package-build-configs-design.md) ·
 [plan](phases/r1-package-build-configs.md)
+
+**R1.5 — field-shape contracts** (the most recent work) split `ToolAdapter<F, C>`'s one type
+parameter, which was doing two incompatible jobs, into a declared writable patch (`V`) and an
+extraction schema **derived** from it (`Enveloped<V>`, via `enveloped()`), so the extractor's
+provenance-envelope needs and `write`'s plain-value needs stop fighting over one shape. Review now
+addresses flat dotted leaf paths — Snugg Pro reviews as 34 leaves, not 24 top-level keys, so the
+nested `healthSafety` matrix no longer collapses to one envelope for all 11 tests — with each leaf's
+own zod schema carried on `ReviewField` for rendering and submit-time validation, and submission
+completeness enforced at runtime. `toWriteStep(adapter)` installs the `schema.parse` trust boundary
+that write-back had documented but never actually wired to anything, resolving `ctx` per item from
+`item.recording.ctx`. A frozen JSON Schema fixture proves the model is asked for byte-identically
+what it was asked for before. → [design](design/r1.5-field-shape-contracts-design.md) ·
+[plan](phases/r1.5-field-shape-contracts.md)
 
 The original design spec (D1–D10 decisions, architecture, data flow, risks) is at
 [design/ribo-design.md](design/ribo-design.md). The docs-site plan is at
@@ -42,17 +55,10 @@ The original design spec (D1–D10 decisions, architecture, data flow, risks) is
 ## What is next
 
 The post-Phase-4 work is organized as tasks **R1–R5** and **F1**, defined in a Voice-to-Text MVP
-design that is not in this repo. R1 is done; the rest proceed in dependency order:
+design that is not in this repo. R1.5 was inserted between R1 and R2, surfaced while planning R2's
+review hook. R1 and R1.5 are both done; the rest proceed in dependency order:
 
-1. **R1.5 — field-shape contracts.** Surfaced while planning R2, and blocking its review hook.
-   `ToolAdapter<F, C>`'s one type parameter does two jobs: the extractor needs the provenance-envelope
-   shape (JSON Schema, response parse, few-shot examples, normalization) while `write` and `review.ts`
-   need plain values. R1.5 declares the values schema and **derives** the extraction schema from it,
-   and moves review onto flat dotted leaf paths — necessary because Snugg Pro's nested `healthSafety`
-   matrix would otherwise get one envelope for all 11 tests instead of one each.
-   → [design](design/r1.5-field-shape-contracts-design.md) ·
-   [plan](phases/r1.5-field-shape-contracts.md)
-2. **R2 — populate the headless hook layer** (`@azx/ribo-ui-react`). The package builds but is still a
+1. **R2 — populate the headless hook layer** (`@azx/ribo-ui-react`). The package builds but is still a
    `PACKAGE_NAME` stub. R2 fills it with six hooks and a provider over the core engine — and closes the
    gap it surfaced: review is a contract in core with no callers, because the relay goes straight from
    `extracting` to `writing`. Phase A makes review a real gate (`awaiting-review`, a persisted outcome,
@@ -62,7 +68,7 @@ design that is not in this repo. R1 is done; the rest proceed in dependency orde
    `FieldDecision<F[K]>`, `decisionOf<K extends keyof F>` and `ReviewOutcome<F>` — all now impossible,
    and `ReviewedValues` is deleted. That is a design change, not a docs pass; the hook's whole surface
    follows from it. → [design](design/r2-headless-hook-layer-design.md)
-3. **R1.6 — Snugg Pro API alignment.** The adapter's field set was reverse-engineered from Snugg Pro's
+2. **R1.6 — Snugg Pro API alignment.** The adapter's field set was reverse-engineered from Snugg Pro's
    public **printed field sheet**; the machine-readable spec later showed that model to be wrong in
    several places. [Doc 15](../implementation/15-snuggpro-api-verified.md) already wrote the delta list
    and changed no code — this is executing it. Concretely: the API exposes writable heating/cooling/
@@ -73,23 +79,25 @@ design that is not in this repo. R1 is done; the rest proceed in dependency orde
    field-by-field mapping and verbatim enum lists behind this (the spec turned out to be public, not
    vendor-private — see doc 15's amended redaction note). → see also R1.7, which mechanises the parts
    of this that should not be hand-maintained.
-4. **R1.7 — generate the base types (`pnpm snugg:refresh`).** A script that regenerates wire field names
+3. **R1.7 — generate the base types (`pnpm snugg:refresh`).** A script that regenerates wire field names
    and leaf types from the spec into a committed `*.generated.ts`, following the `pnpm target:refresh`
    precedent exactly: thin script, real logic in a typechecked and unit-tested module, deliberately not
    run by CI so a vendor change lands in a reviewable diff. **Enum vocabularies are deliberately out of
    the first cut** — see "Open questions" below. The frozen JSON Schema fixture already means a
    regeneration cannot silently change what is sent to the model: it goes red and a human looks.
-5. **R3 — pack-and-consume test tier.** The scratch-app matrix from doc 10 §8: pack each tarball,
+4. **R3 — pack-and-consume test tier.** The scratch-app matrix from doc 10 §8: pack each tarball,
    install into a fresh app, build, and assert the worker spawns and WASM loads. The source-condition
    playground never touches `dist/`, so every WASM/worker failure mode is production-build-only. This
    is the only test that exercises a real tarball in a real host build.
-6. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
+5. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
    Includes the `.npmrc` registry config, `publishConfig.access` change, and release-workflow
    activation. Nothing is published today.
-7. **R5 — correct the docs the newer decisions falsify.** Doc 10 §3.1's Vite-library-mode mandate and
+6. **R5 — correct the docs the newer decisions falsify.** Doc 10 §3.1's Vite-library-mode mandate and
    doc 04's styled-components design are superseded by the tsdown-for-all and headless-hook-layer
-   decisions; R5 rewrites them. Also covers any AGENTS.md statements R1–R4 have made false.
-8. **F1 — the field app** (separate repo). The deployed Helix app that composes the published packages.
+   decisions; R5 rewrites them (and finishes what R1.5 left it: doc 04's `ReviewCard` example and the
+   rest of its now-superseded `run<F>`/`ReviewPresenter` shape). Also covers any AGENTS.md statements
+   R1–R4 have made false.
+7. **F1 — the field app** (separate repo). The deployed Helix app that composes the published packages.
    Not built here; the `playground/` app is this repo's stand-in for a consumer.
 
 ## Open questions and findings pending action

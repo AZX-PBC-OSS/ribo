@@ -145,7 +145,6 @@ export {
   reviewOutcomeSchema,
 } from "./review.js";
 export type {
-  ExtractedFields,
   FieldDecision,
   FieldDecisions,
   FieldPath,

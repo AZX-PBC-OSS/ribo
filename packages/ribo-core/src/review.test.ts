@@ -8,9 +8,7 @@ import {
   ReviewValidationError,
   reviewOutcomeSchema,
 } from "./review.js";
-import type { Extracted } from "./provenance.js";
 import type {
-  ExtractedFields,
   FieldDecision,
   FieldDecisions,
   ReviewField,
@@ -743,25 +741,6 @@ test("ReviewOutcome no longer takes a type parameter", () => {
   const outcome: ReviewOutcome<{ rValue: number }> = { status: "discarded" };
 
   expect(outcome.status).toBe("discarded");
-});
-
-test("ExtractedFields<F> still lines up with Extracted<T>", () => {
-  // `ExtractedFields<F>` has no consumer in the workspace since review moved to leaf
-  // paths — `Enveloped<V>` is its nested-aware successor — but it is still exported,
-  // and an exported type with neither a consumer nor a test is the worst of the three
-  // states. This keeps it honest until Task 6 decides whether to delete it. It is
-  // correct as written: the `F` it maps is already envelope-shaped with no optional
-  // keys, which is why it needs no `-?`. See `enveloped.ts`.
-  const flat: ExtractedFields<{ rValue: number }> = {
-    rValue: { value: 19, confidence: 1, sourceSpan: "R-19" },
-  };
-  const rValue: Extracted<number> = flat.rValue;
-
-  // @ts-expect-error - the mapping is readonly: a field map is a snapshot of what the
-  // model said, not a mutable draft.
-  flat.rValue = rValue;
-
-  expect(rValue.value).toBe(19);
 });
 
 test("an edited decision must actually carry a value", () => {

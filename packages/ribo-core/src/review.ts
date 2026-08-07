@@ -95,9 +95,6 @@ import type { Transcript } from "./transcript.js";
  * Nothing here knows about React, the DOM, or rendering.
  */
 
-/** One extraction draft: every field of `F`, each in its provenance envelope. */
-export type ExtractedFields<F> = { readonly [K in keyof F]: Extracted<F[K]> };
-
 /**
  * A leaf's address inside an adapter's values schema: `"atticRValue"` for a
  * top-level leaf, `"healthSafety.ambientCo"` for a nested one.
@@ -503,7 +500,7 @@ const setAtPath = (target: Record<string, unknown>, path: FieldPath, value: unkn
  *     that at runtime, and reading an unrecognised status as "accepted" is a silent
  *     write.
  *
- * Both refusals are checked over every leaf before either throws, so a UI gets the
+ * All four are checked over every leaf before any throws, so a UI gets the
  * whole list rather than one error per round trip.
  *
  * Iteration follows the request's leaf order, which is schema-declaration order
