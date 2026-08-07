@@ -1,6 +1,6 @@
 # 10 — Build, Packaging & Repo Setup
 
-Covers **this repo** — the Ribo SDK monorepo (three publishable packages). The field app lives in its own repo and consumes the published packages; that relationship is §6 below.
+Covers **this repo** — the Ribo SDK monorepo (five publishable packages). The field app lives in its own repo and consumes the published packages; that relationship is §6 below.
 
 Backed by a 2026 best-practices review (monorepo/publishing, library build tooling, cross-repo dev workflow). Versions were verified live, not recalled.
 
@@ -9,30 +9,39 @@ Backed by a 2026 best-practices review (monorepo/publishing, library build tooli
 ```
 ribo/
 ├── pnpm-workspace.yaml        # catalog + settings (pnpm 11 keeps settings HERE, not .npmrc)
-├── .npmrc                     # ONLY @azx:registry + ${AZX_NPM_TOKEN}
-├── turbo.json
 ├── .changeset/
 ├── packages/
+│   ├── build-config/          # private shared tsdown config package (§2.2)
 │   ├── ribo-core/
-│   ├── ribo-ui/
+│   ├── ribo-ui-react/
 │   ├── ribo-adapter-snuggpro/
-│   └── tsconfig/              # private shared config package
+│   ├── ribo-extractor-openai/
+│   ├── ribo-transcriber-ondevice/
+│   └── tsconfig/              # private shared tsconfig package
 └── playground/                # private Vite app — THE PRIMARY DEV LOOP
 ```
+
+Five publishable packages, not the three this diagram once showed — `ribo-extractor-openai` (Phase 4)
+and `ribo-transcriber-ondevice` (Phase 3) both landed after this doc was written, and `ribo-ui`
+became `ribo-ui-react` in R2. `build-config` and `tsconfig` are private, unpublished workspace
+members (§2.2, §6.2). There is no `turbo.json`: Turborepo is discussed as an option in §2 and §9,
+but nothing in this repo depends on it today. There is no `.npmrc` yet either — nothing is published
+(AGENTS.md §2) — so the registry config it will eventually hold does not exist as a file to show
+here.
 
 `playground` is `"private": true` so no release tool ever publishes it.
 
 ## 2. Toolchain
 
-| Concern         | Pick                                                    | Why                                                                                    |
-| --------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Package manager | **pnpm** workspaces + `catalog:`                        | Matches Helix; catalogs rewrite to concrete ranges at pack time                        |
-| Task runner     | **Turborepo 2.x** (`tasks`, not the removed `pipeline`) | Caching; _optional at 3 packages — see §9_                                             |
-| Library build   | **tsdown** for all five packages                        | One tool, one syntax target, no drift to police — see §3.1 for the split this replaced |
-| App build       | **Vite 8** (playground + field app)                     | Rolldown is now the default bundler; `rollupOptions` → **`rolldownOptions`**           |
-| Types           | `tsc`-based dts via tsdown's `tsc` generator, all five  | zod's `z.infer` cannot survive `isolatedDeclarations`/oxc (see §3.1)                   |
-| Tests           | **Vitest** (jsdom + browser mode)                       | See §7                                                                                 |
-| Versioning      | **Changesets**, three libs `fixed`                      | One version number to communicate to a host team                                       |
+| Concern         | Pick                                                               | Why                                                                                    |
+| --------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Package manager | **pnpm** workspaces + `catalog:`                                   | Matches Helix; catalogs rewrite to concrete ranges at pack time                        |
+| Task runner     | **Turborepo 2.x** (`tasks`, not the removed `pipeline`)            | Caching; _optional at five packages — see §9_                                          |
+| Library build   | **tsdown** for all five packages                                   | One tool, one syntax target, no drift to police — see §3.1 for the split this replaced |
+| App build       | **Vite 8** (playground + field app)                                | Rolldown is now the default bundler; `rollupOptions` → **`rolldownOptions`**           |
+| Types           | `tsc`-based dts via tsdown's `tsc` generator, all five             | zod's `z.infer` cannot survive `isolatedDeclarations`/oxc (see §3.1)                   |
+| Tests           | **Vitest** (jsdom + browser mode)                                  | See §7                                                                                 |
+| Versioning      | **Changesets**, independent versioning, no `fixed`/`linked` groups | Each package bumps on its own line — see [Releasing](../design/releasing.md)           |
 
 ### 2.1 The target platform baseline (decided 2026-07-23)
 
@@ -198,7 +207,7 @@ Regardless: **feature-detect `crossOriginIsolated` and surface the degraded mode
 
 ## 5. Dev loop
 
-**Primary — the in-repo `playground/`.** One pnpm workspace means React is a **single instance by construction** rather than patched, and the source condition gives HMR straight into library code with no watch/build chain. It imports all three libraries, and its **production build** runs in CI on every PR (the `build` stage of `./check.sh`), so "do the libraries still resolve, typecheck and bundle inside an app" is a gate, not a vibe. What CI does **not** do is run the app: there is no runtime smoke test yet, so "does the library still _work_ in an app" remains a manual browser step until a browser-mode/E2E project exists (§7).
+**Primary — the in-repo `playground/`.** One pnpm workspace means React is a **single instance by construction** rather than patched, and the source condition gives HMR straight into library code with no watch/build chain. It imports all five libraries, and its **production build** runs in CI on every PR (the `build` stage of `./check.sh`), so "do the libraries still resolve, typecheck and bundle inside an app" is a gate, not a vibe. What CI does **not** do is run the app: there is no runtime smoke test yet, so "does the library still _work_ in an app" remains a manual browser step until a browser-mode/E2E project exists (§7).
 
 **Cross-repo — canary snapshot publishes.** CI publishes `0.0.0-canary-<ts>` under a `canary` dist-tag (never `latest`); the field app pins the **exact version**. This is the only mechanism that also serves the eventual third-party host, and it validates packaging on every PR.
 
@@ -223,9 +232,17 @@ Peer+dev deps (never `dependencies`) · one React version via `catalog:` · `ded
 
 ## 6. Publishing
 
-- Changesets, `fixed` across the three libs, `ignore: ["playground"]`.
-- Release = `turbo run build lint:pkg test && changeset publish`. **Publish with pnpm, never npm.**
-- `.npmrc` (committed, no secrets): `@azx:registry=…` + `//host/:_authToken=${AZX_NPM_TOKEN}`. Same file shape locally and in CI.
+- Changesets, **independent versioning** across the five libs — no `fixed` or `linked` groups, so a
+  change to one package never drags an unrelated one along. `playground` and `@azx/tsconfig` are
+  `private: true` and excluded from versioning entirely. See
+  [Releasing](../design/releasing.md) for the authoritative policy and everyday workflow
+  (`pnpm changeset` / `pnpm changeset:version` / `pnpm changeset:publish`); this predates that page and
+  the `turbo run build lint:pkg test && changeset publish` release command it once described has no
+  `lint:pkg` script or `turbo` behind it today. **Publish with pnpm, never npm**, whenever publishing
+  actually happens.
+- `.npmrc` (to be committed, no secrets, not yet written): `@azx:registry=…` +
+  `//host/:_authToken=${AZX_NPM_TOKEN}`. Same file shape locally and in CI, once the registry is
+  chosen — see [Releasing](../design/releasing.md)'s "Nothing is published yet" note and AGENTS.md §2.
 - The third-party host needs a **read-only, scope-limited token** plus those two lines — the most common onboarding failure; document it.
 
 > **pnpm 11 trap:** `minimumReleaseAge` now defaults to **1440 (one day)** — a canary published 30 seconds ago is **invisible to `pnpm add`**. Set `minimumReleaseAgeExclude: ['@azx/*']` in both repos.
@@ -248,9 +265,9 @@ jsdom has no MediaRecorder, a shimmed IndexedDB, and doesn't faithfully simulate
 
 ## 9. Maintainability
 
-This stack has a real complexity budget, and we should be honest about it — a 3-package repo maintained by a very small team (the DRB's lone-wolf concern is live) can drown in tooling.
+This stack has a real complexity budget, and we should be honest about it — a five-package repo maintained by a very small team (the DRB's lone-wolf concern is live) can drown in tooling.
 
-**What's load-bearing vs. optional.** The **package contract** (§3), the **WASM/worker rules** (§4), and the **CI gates** (§8) are load-bearing — they're what stops us shipping a broken artifact to a team we can't hot-fix for. **Turborepo is optional at three packages**: `pnpm -r` already respects topological order via `workspace:` deps, and Turbo buys caching for one config file. If the repo feels heavy, **cut Turborepo first**, then Storybook if we add it. Do not cut publint/attw/pack-test — they are the cheapest insurance here by a wide margin.
+**What's load-bearing vs. optional.** The **package contract** (§3), the **WASM/worker rules** (§4), and the **CI gates** (§8) are load-bearing — they're what stops us shipping a broken artifact to a team we can't hot-fix for. **Turborepo is optional at five packages**: `pnpm -r` already respects topological order via `workspace:` deps, and Turbo buys caching for one config file. If the repo feels heavy, **cut Turborepo first**, then Storybook if we add it. Do not cut publint/attw/pack-test — they are the cheapest insurance here by a wide margin.
 
 **We're adopting genuinely new tooling.** tsdown is **pre-1.0** (0.22.x, shipping multiple times a week, no published 1.0 roadmap), Vite 8/Rolldown landed March 2026, and **TypeScript 7 went GA in July 2026**. Mitigations: **pin exact versions** (not carets) for tsdown; keep the toolchain in the `catalog:` so upgrades are one-line and reviewable; and treat **TS 7 as a fast-follow rather than a day-one dependency** — the ecosystem (ESLint parser, editor plugins) typically lags a new major by weeks, and nothing in our design needs it.
 
@@ -280,7 +297,10 @@ tool now, so neither cost exists to pay.
 - Confirm the private registry URL + token issuance path (and read-only tokens for the host team).
 - Ask Helix for per-app COOP/COEP headers as an **iOS-performance lever** (§4) — and be ready to accept single-threaded-only, which is now the assumed baseline rather than the failure case.
 - Confirm the host's CSP allows `blob:` in `script-src`/`worker-src` (§4.1), or find out the hard way at runtime.
-- Name and scaffold the separate on-device-transcriber package (§4.1) — the §1 layout still shows three publishable packages, and this makes four.
+- ~~Name and scaffold the separate on-device-transcriber package (§4.1) — the §1 layout still shows
+  three publishable packages, and this makes four.~~ **Done, and overtaken.** `ribo-transcriber-ondevice`
+  shipped in Phase 3; `ribo-extractor-openai` shipped in Phase 4 alongside it, so the count settled at
+  **five**, not four. §1's layout now lists all five.
 - Decide whether Storybook earns its place alongside the playground, or is deferred.
 - Pin the initial tsdown/Vite/TypeScript versions and record them in the catalog.
 - ~~Translate the §2.1 baseline into a concrete shared browserslist / per-tool `target`, and add a check that the two library builds agree on it.~~ **Done.** `pnpm target:refresh` (`scripts/refresh-target.mjs`) generates `BROWSER_TARGET` in `packages/build-config/src/target.generated.ts` from the §2.1 table, and every one of the five packages' `tsdown.config.ts` gets it from the same `sharedTsdown` object rather than declaring its own — there is one tool and one target now, not two builds that could disagree.
