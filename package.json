@@ -19,6 +19,7 @@
     "check": "./check.sh",
     "check:resolve": "node scripts/assert-source-condition.mjs",
     "check:pkg": "node scripts/pkg-gates.mjs",
+    "test:pack-and-consume": "node scripts/pack-and-consume/index.mjs",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",

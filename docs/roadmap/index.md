@@ -69,6 +69,23 @@ leaf being actioned), restored the two e2e specs the gate had made temporarily u
 corrected the AGENTS.md statements R2 itself falsified. → [design](design/r2-headless-hook-layer-design.md) ·
 [plan](phases/r2-headless-hook-layer.md)
 
+**R3 — the pack-and-consume test tier** closed the one gap every other gate in this repo shares:
+the playground resolves every workspace package through the `@azx/source` condition and never
+touches `dist/`, so a worker that cannot spawn, a `default` export pointing at a path that does not
+exist, or a `dependencies` entry that got dropped were all invisible to `./check.sh`. R3
+(`pnpm test:pack-and-consume`, `scripts/pack-and-consume/`) packs all five publishable packages with
+`pnpm pack`, installs the tarballs as `file:` dependencies into a fresh app built from scratch in a
+temp directory **outside this repository** (so nothing can silently fall back to a workspace link),
+runs that app's own production Vite build, and drives a real headless Chromium against it —
+asserting that `@azx/ribo-transcriber-ondevice`'s published `./worker` entry spawns and primes a
+tiny real ONNX Whisper fixture (`Xenova/tiny-random-WhisperForConditionalGeneration`, proving the
+ONNX Runtime WASM backend genuinely initializes), and that the other four packages resolve, bundle
+and run correctly from their tarballs too — including one that composes two of them
+(`@azx/ribo-extractor-openai` built against `@azx/ribo-adapter-snuggpro`'s schema) across the tarball
+boundary. Deliberately its own CI step rather than a `./check.sh` stage (AGENTS.md §7): it is slow
+and writes outside the repo, but unlike the acceptance gate it needs no secret, so it still runs on
+every push rather than becoming a gate nobody runs.
+
 ## What is next
 
 The post-Phase-4 work is organized as tasks **R1–R5** and **F1**, defined in a Voice-to-Text MVP
@@ -96,19 +113,17 @@ review hook. R1, R1.5 and R2 are all done; the rest proceed in dependency order:
    run by CI so a vendor change lands in a reviewable diff. **Enum vocabularies are deliberately out of
    the first cut** — see "Open questions" below. The frozen JSON Schema fixture already means a
    regeneration cannot silently change what is sent to the model: it goes red and a human looks.
-3. **R3 — pack-and-consume test tier.** The scratch-app matrix from doc 10 §8: pack each tarball,
-   install into a fresh app, build, and assert the worker spawns and WASM loads. The source-condition
-   playground never touches `dist/`, so every WASM/worker failure mode is production-build-only. This
-   is the only test that exercises a real tarball in a real host build.
-4. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
+3. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
    Includes the `.npmrc` registry config, `publishConfig.access` change, and release-workflow
    activation. Nothing is published today.
-5. **R5 — correct the docs the newer decisions falsify.** Doc 10 §3.1's Vite-library-mode mandate and
+4. **R5 — correct the docs the newer decisions falsify.** Doc 10 §3.1's Vite-library-mode mandate and
    doc 04's styled-components design are superseded by the tsdown-for-all and headless-hook-layer
    decisions; R5 rewrites them (and finishes what R1.5 left it: doc 04's `ReviewCard` example and the
    rest of its now-superseded `run<F>`/`ReviewPresenter` shape). Also covers any AGENTS.md statements
-   R1–R4 have made false.
-6. **F1 — the field app** (separate repo). The deployed Helix app that composes the published packages.
+   R1–R4 have made false — including, per R3, AGENTS.md §3 / §7's now-stale "the app is compiled,
+   never executed, there is no runtime smoke test" claim, which predates the `e2e` Vitest project
+   `./check.sh` already runs and reads as though R3's tier were the first to execute anything.
+5. **F1 — the field app** (separate repo). The deployed Helix app that composes the published packages.
    Not built here; the `playground/` app is this repo's stand-in for a consumer.
 
 ## Open questions and findings pending action
