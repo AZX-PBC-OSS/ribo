@@ -88,9 +88,12 @@ export const ACTIVE_OUTBOX_STATUSES = [
 
 /**
  * Statuses the relay will not act on again unattended. `dead` has a human-driven
- * way out (`Outbox.reopenForReview`); `done` and `discarded` have none. See the
- * fuller distinction drawn above {@link OUTBOX_STATUSES} between "terminal" and
- * "truly final" — this constant's name is the former, not the latter.
+ * way out (`Outbox.reopenForReview`); `done` and `discarded` have none.
+ *
+ * "Finished" here means finished *as far as the relay is concerned* — which is
+ * what {@link OUTBOX_STATUSES} above means when it calls `dead` "the only
+ * terminal state" and `failed` a "resting" one. A human can still move a `dead`
+ * item; nothing moves a `done` or `discarded` one.
  */
 export const FINISHED_OUTBOX_STATUSES = [
   "done",
