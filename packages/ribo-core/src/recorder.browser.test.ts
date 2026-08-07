@@ -341,20 +341,26 @@ describe("Recorder pause and resume", () => {
     // level-based assertion above green. Spying on the analyser call itself proves
     // the guard fires, independent of what the fake signal happens to be doing.
     const spy = vi.spyOn(AnalyserNode.prototype, "getByteTimeDomainData");
-    const recorder = new Recorder();
-    await recorder.start();
-    await sleep(150);
-    recorder.pause();
-    const callsAtPause = spy.mock.calls.length;
+    try {
+      const recorder = new Recorder();
+      await recorder.start();
+      await sleep(150);
+      recorder.pause();
+      const callsAtPause = spy.mock.calls.length;
 
-    // Two-plus tick intervals (default tickMs is 100): #tick's ticker keeps firing
-    // while paused, so this proves the guard returns early rather than the ticker
-    // having stopped.
-    await sleep(250);
-    expect(spy.mock.calls.length).toBe(callsAtPause);
+      // Two-plus tick intervals (default tickMs is 100): #tick's ticker keeps firing
+      // while paused, so this proves the guard returns early rather than the ticker
+      // having stopped.
+      await sleep(250);
+      expect(spy.mock.calls.length).toBe(callsAtPause);
 
-    await recorder.stop();
-    spy.mockRestore();
+      await recorder.stop();
+    } finally {
+      // A GLOBAL prototype spy: a red assertion above must not leave it patched
+      // for the rest of the file — every later test in this suite shares this
+      // one `AnalyserNode.prototype`.
+      spy.mockRestore();
+    }
   });
 
   test("stop works from paused, and releases the microphone", async () => {
