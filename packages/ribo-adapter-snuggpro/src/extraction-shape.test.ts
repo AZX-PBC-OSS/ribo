@@ -15,22 +15,34 @@ import type { SnuggValues } from "./schema.js";
 import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { type: "json" };
 
 /**
- * R1.5 Task 1 — pin the JSON Schema the model is actually asked for. Captured
- * BEFORE the R1.5 refactor split the old single `SnuggFieldsSchema` into the
- * hand-written writable patch (`snuggValuesSchema`) plus the schema derived from
- * it (`snuggExtractionSchema = enveloped(snuggValuesSchema)`). R1.5 claims that
- * split leaves the wire artifact unchanged; this file is the evidence for that
- * claim, and the fixture below is unchanged from the pre-split capture. Task 3
- * moved the types and this test kept passing against the untouched fixture —
- * which is the whole proof.
+ * Pin the JSON Schema the model is actually asked for.
  *
  * ============================================================================
  * IF THIS TEST FAILS: the derivation changed what is sent to the model. Go fix
  * the derivation. Do NOT regenerate `__fixtures__/snugg-fields-json-schema.json`
- * to make the test pass — that would delete the only evidence this task exists
+ * to make the test pass — that would delete the only evidence this file exists
  * to produce. The fixture is a FROZEN, hand-reviewed artifact, not a snapshot to
- * refresh. (See AGENTS.md-adjacent task brief, R1.5 §Task 1.)
+ * refresh. Re-capturing it is legitimate only when the FIELD SET itself was
+ * deliberately changed, and then the diff must say so.
  * ============================================================================
+ *
+ * ## Provenance: what this fixture pinned, and what it pins now
+ *
+ * The original capture was taken BEFORE R1.5 split the old single
+ * `SnuggFieldsSchema` into the hand-written writable patch (`snuggValuesSchema`)
+ * plus the schema derived from it (`snuggExtractionSchema =
+ * enveloped(snuggValuesSchema)`). R1.5 claimed that split changed the types and
+ * not the wire artifact, and this file was the evidence: Task 3 moved the types
+ * and the test kept passing against an untouched fixture. **That claim was
+ * established and is now history.**
+ *
+ * The fixture was re-captured when `schema.ts` was rebuilt from Snugg Pro's
+ * machine-readable spec — new wire field names, the API's literal enum strings,
+ * and nesting by resource endpoint. That is a deliberate change to the field set,
+ * not a change to the derivation, so the wire artifact moved on purpose and the
+ * fixture moved with it. Everything the fixture still guards is unchanged: it is
+ * the byte-for-byte record of what leaves for the model, and any *future*
+ * unexplained movement is a regression.
  *
  * Why capture it this way, not by calling `z.toJSONSchema(snuggExtractionSchema, ...)`
  * inline: `singleShotExtractor` (packages/ribo-extractor-openai/src/single-shot.ts)
@@ -189,4 +201,43 @@ test("the fixture itself is well-formed strict-mode JSON Schema", () => {
 test("the live schema is well-formed strict-mode JSON Schema (closed objects, no bare optionals)", async () => {
   const schema = await captureJsonSchema();
   assertStrictModeCompatible(schema, "$");
+});
+
+test("the live schema sits inside OpenAI's structured-output limits, with room to grow", async () => {
+  // Doc 16 (`docs/implementation/16-extraction-schema-scale.md`) closed whole-spec
+  // extraction on exactly these ceilings: 5,000 properties, 1,000 enum values, 10
+  // levels of nesting. The bounded field set is meant to sit far inside them, and
+  // this asserts the margin rather than assuming it — the field set is expected to
+  // grow (doc 17 puts the honest capture surface at ~163 fields against today's 51),
+  // and the failure mode of growing past a ceiling is an API rejection at extraction
+  // time, on a real recording, in the field.
+  const schema = await captureJsonSchema();
+
+  let properties = 0;
+  let enumValues = 0;
+  let deepest = 0;
+  const walk = (node: unknown, depth: number): void => {
+    deepest = Math.max(deepest, depth);
+    if (Array.isArray(node)) {
+      for (const child of node) walk(child, depth);
+      return;
+    }
+    if (node === null || typeof node !== "object") return;
+    const obj = node as Record<string, unknown>;
+    if (obj.properties) properties += Object.keys(obj.properties as object).length;
+    if (Array.isArray(obj.enum)) enumValues += obj.enum.length;
+    for (const [key, child] of Object.entries(obj)) {
+      walk(child, key === "properties" ? depth + 1 : depth);
+    }
+  };
+  walk(schema, 0);
+
+  // Pinned as ranges, not exact counts: an exact count would fail on every honest
+  // field addition and get bumped without thought, which is how a limit guard stops
+  // being one. The lower bounds still catch a derivation that collapsed the tree.
+  expect(properties).toBeGreaterThan(200);
+  expect(properties).toBeLessThan(5_000);
+  expect(enumValues).toBeGreaterThan(200);
+  expect(enumValues).toBeLessThan(1_000);
+  expect(deepest).toBeLessThan(10);
 });

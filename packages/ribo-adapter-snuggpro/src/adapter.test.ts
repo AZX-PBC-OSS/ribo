@@ -40,14 +40,24 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
   // this test green without checking a single span.
   expect(snuggProAdapter.examples ?? []).not.toHaveLength(0);
   for (const example of snuggProAdapter.examples ?? []) {
-    const walk = (envelope: { value: unknown; sourceSpan: string | null }) => {
-      if (envelope.sourceSpan !== null) {
-        expect(isSpanGrounded(envelope.sourceSpan, example.transcript)).toBe(true);
+    // Recurses, because the field set nests by resource group now. Counting the
+    // envelopes it reaches is the guard against the recursion silently bottoming
+    // out at the seven group objects and checking nothing.
+    let checked = 0;
+    const walk = (node: unknown): void => {
+      if (typeof node !== "object" || node === null) return;
+      if ("sourceSpan" in node) {
+        const { sourceSpan } = node as { sourceSpan: string | null };
+        checked += 1;
+        if (sourceSpan !== null) {
+          expect(isSpanGrounded(sourceSpan, example.transcript)).toBe(true);
+        }
+        return;
       }
+      for (const child of Object.values(node)) walk(child);
     };
-    const { healthSafety, ...top } = example.fields;
-    for (const envelope of Object.values(top)) walk(envelope);
-    for (const envelope of Object.values(healthSafety)) walk(envelope);
+    walk(example.fields);
+    expect(checked).toBe(51);
   }
 });
 
@@ -89,7 +99,9 @@ test("ctxSchema tolerates host extras — a Recording.ctx may carry more than th
 test("write is scaffolded, not faked: it rejects rather than silently succeeding", async () => {
   // `write` takes the PATCH now, not the enveloped example — a rejected leaf is
   // absent, an accepted null is present.
-  const fields: SnuggValues = { heatingEquipmentType: "boiler", heatingFuel: null };
+  const fields: SnuggValues = {
+    hvac: { hvacSystemEquipmentType: "Boiler", hvacHeatingEnergySource: null },
+  };
   const ctx = snuggProAdapter.ctxSchema.parse(validCtx);
   await expect(snuggProAdapter.write(fields, ctx, { idempotencyKey: "write-1" })).rejects.toThrow(
     /Task 6|not implemented/,
@@ -143,10 +155,21 @@ test("every requiredOnCreate path is a real leaf of the values schema", () => {
   }
 });
 
-test("the one required leaf is the HVAC equipment type", () => {
+test("the required leaves are exactly HVAC's two, as dotted paths", () => {
   // Snugg Pro's ONLY component endpoint with required capture fields is
-  // POST /jobs/{jobId}/hvac, and it wants two. `hvacUpgradeAction` is the other
-  // and is not extracted yet, so this list is deliberately one entry — see the
-  // comment on `requiredOnCreate`.
-  expect(snuggProAdapter.requiredOnCreate).toEqual(["heatingEquipmentType"]);
+  // POST /jobs/{jobId}/hvac, and it wants two. Both are extracted now, so a third
+  // entry here — or a leaf from any other group — means someone read the spec's
+  // `required` flags wrong.
+  expect(snuggProAdapter.requiredOnCreate).toEqual([
+    "hvac.hvacSystemEquipmentType",
+    "hvac.hvacUpgradeAction",
+  ]);
+});
+
+test("no other group declares a required leaf — a partial dictation writes cleanly", () => {
+  // The claim that makes review-time requiredness cheap: every other endpoint
+  // (basedata, attic, wall, window, dhw, health) accepts a create with nothing set,
+  // so an auditor who only did the basement is never blocked on the attic.
+  const required = snuggProAdapter.requiredOnCreate ?? [];
+  expect(required.filter((path) => !path.startsWith("hvac."))).toEqual([]);
 });

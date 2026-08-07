@@ -21,6 +21,11 @@ test("re-exports the adapter, both schemas, the ctx schema, instructions, exampl
   expect(typeof api.clampConfidence).toBe("function");
   expect(typeof api.inchesToAtticDepthBand).toBe("function");
   expect(typeof api.yearsToDhwAgeBand).toBe("function");
-  // A representative enum is exported as a runtime value (not just a type).
-  expect(api.HeatingFuel.options).toContain("fuel_oil");
+  // A representative enum is exported as a runtime value (not just a type), and
+  // its members are the API's literal wire strings — punctuation and all. A
+  // snake_cased token here would mean the schema drifted back off the spec.
+  expect(api.HvacDuctLeakage.options).toContain("6% - Well sealed");
+  // A resource group is exported too: a UI rendering one endpoint's card needs the
+  // group schema, not just the whole field set.
+  expect(typeof api.HvacFields.parse).toBe("function");
 });

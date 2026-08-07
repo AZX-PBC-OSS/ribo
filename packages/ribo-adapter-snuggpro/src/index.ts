@@ -11,31 +11,44 @@
 // write, as a `ToolAdapter`.
 export { SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
 
-// The two field schemas and the enums they are built from. `snuggValuesSchema` is
-// the hand-written writable patch and the source of truth for `SnuggValues`;
-// `snuggExtractionSchema` is DERIVED from it with `enveloped()` and is what the
-// model is constrained to. See schema.ts for why one shape could not be both.
+// The two field schemas, the seven per-endpoint groups they nest, and the enums
+// they are built from. `snuggValuesSchema` is the hand-written writable patch and
+// the source of truth for `SnuggValues`; `snuggExtractionSchema` is DERIVED from it
+// with `enveloped()` and is what the model is constrained to. See schema.ts for why
+// one shape could not be both, and why every enum member is a verbatim wire string.
 export {
-  AtticInsulationDepthBand,
+  AtticFields,
+  AtticInsulationDepth,
   AtticInsulationType,
-  CombustionVentType,
-  CoolingEquipmentType,
+  AtticRoofType,
+  BasedataFields,
+  BlowerDoorTestPerformed,
   DhwAgeBand,
+  DhwFields,
   DhwFuel,
-  DhwSystemType,
-  DuctInsulation,
-  DuctLocation,
-  DuctSealing,
-  HealthSafetyMatrix,
+  DhwLocation,
+  DhwManufacturer,
+  DhwType,
+  HealthCondition,
+  HealthFields,
   HealthTestState,
-  HeatingEquipmentType,
-  HeatingFuel,
+  HvacDuctInsulation,
+  HvacDuctLeakage,
+  HvacFields,
+  HvacHeatingEnergySource,
+  HvacHeatingSystemManufacturer,
+  HvacSystemEquipmentType,
+  HvacUpgradeAction,
   snuggExtractionSchema,
   snuggValuesSchema,
-  WallConstruction,
-  WallInsulated,
+  TypeOfHome,
+  WallCavityInsulationType,
+  WallExteriorWallSiding,
+  WallFields,
+  WallsInsulated,
+  WindowFields,
   WindowFrame,
-  WindowGlazing,
+  WindowType,
 } from "./schema.js";
 export type { SnuggExtraction, SnuggValues } from "./schema.js";
 

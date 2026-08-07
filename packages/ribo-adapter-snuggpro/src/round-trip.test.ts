@@ -33,15 +33,15 @@ import { snuggExtractionSchema, snuggValuesSchema, type SnuggValues } from "./sc
  * Dependencies point inward: `ribo-core` must never import an adapter. Core's own
  * `contracts.test.ts` composes the same pipeline over a four-leaf synthetic field set,
  * which is the right thing for a package that knows no tools. What that cannot do is
- * run the chain over 34 real leaves, an 11-test nested matrix, and a fixture full of
- * honest `null`s — so that test lives on this side of the boundary, importing core
- * through its public entry point exactly as a consumer would.
+ * run the chain over 51 real leaves nested across seven per-endpoint resource groups,
+ * with a fixture full of honest `null`s — so that test lives on this side of the
+ * boundary, importing core through its public entry point exactly as a consumer would.
  *
  * ## Why the model's response is the committed fixture
  *
  * `snuggExamples[0].fields` is a real extraction of a real dictation, and it is
- * three-quarters `null` — `coolingEquipmentType`, all four duct fields, both wall
- * fields, both window fields, nine of the eleven health tests. A hand-built,
+ * three-quarters `null` — every basedata field but one, all four duct fields, the whole
+ * `wall` and `window` groups, eleven of the thirteen health tests. A hand-built,
  * all-non-null draft would run the same functions and prove nothing: the null path is
  * the one an earlier revision of this design got wrong, because "the reviewer accepted
  * a leaf the model had nothing for" and "the reviewer rejected a leaf" produce
@@ -138,11 +138,11 @@ const item: OutboxItem = outboxItemSchema.parse({
 const extracted: Record<string, unknown> = snuggExtractionSchema.parse(example.fields);
 
 /** The leaf every human-edit assertion below is about, and its two values. */
-const EDITED_LEAF = "healthSafety.gasLeak";
-const MODEL_VALUE = "passed";
-const HUMAN_VALUE = "warning";
+const EDITED_LEAF = "health.healthGasLeak";
+const MODEL_VALUE = "Passed";
+const HUMAN_VALUE = "Warning";
 
-/** Accept all 34 leaves, then apply the given overrides. */
+/** Accept all 51 leaves, then apply the given overrides. */
 const decide = (
   paths: readonly string[],
   overrides: Readonly<Record<string, FieldDecision>> = {},
@@ -172,8 +172,8 @@ test("the real field set round-trips: schema → extraction → review → write
   const request = buildReviewRequest(extracted, transcript, adapter.schema);
   const paths = Object.keys(request.fields);
 
-  // 23 top-level fields + the 11-test matrix, each independently reviewable.
-  expect(paths).toHaveLength(34);
+  // 51 leaves across seven resource groups, each independently reviewable.
+  expect(paths).toHaveLength(51);
   expect(paths).toContain(EDITED_LEAF);
   expect(request.fields[EDITED_LEAF]?.extracted.value).toBe(MODEL_VALUE);
 
@@ -204,31 +204,33 @@ test("the real field set round-trips: schema → extraction → review → write
   // value — not the model's, and not at a dotted key. Everything R1.5 changed is
   // upstream of this one line: split the schemas, address leaves by path, validate at
   // submit, reassemble the nesting, parse at the boundary.
-  expect(write.fields.healthSafety?.gasLeak).toBe(HUMAN_VALUE);
-  expect(write.fields.healthSafety?.gasLeak).not.toBe(MODEL_VALUE);
+  expect(write.fields.health?.healthGasLeak).toBe(HUMAN_VALUE);
+  expect(write.fields.health?.healthGasLeak).not.toBe(MODEL_VALUE);
   // No dotted key survived the reassembly.
   expect(Object.keys(write.fields)).not.toContain(EDITED_LEAF);
 
   // Its neighbours in the same matrix are untouched: the other affirmative result is
   // still the model's, and a test the auditor never mentioned is a present `null`.
-  expect(write.fields.healthSafety?.draftPressure).toBe("passed");
-  expect(write.fields.healthSafety?.asbestos).toBeNull();
+  expect(write.fields.health?.healthDraftPressure).toBe("Passed");
+  expect(write.fields.health?.healthAsbestos).toBeNull();
 
   // The honest nulls the fixture is full of survive as WRITTEN nulls — Snugg Pro's
   // `Not Tested` — because the human accepted them. This is the path an earlier revision
   // of this design got wrong.
-  expect("coolingEquipmentType" in write.fields).toBe(true);
-  expect(write.fields.coolingEquipmentType).toBeNull();
-  expect(write.fields.ductLocation).toBeNull();
-  expect(write.fields.ductSealing).toBeNull();
+  expect("hvacCoolingCapacity" in (write.fields.hvac ?? {})).toBe(true);
+  expect(write.fields.hvac?.hvacCoolingCapacity).toBeNull();
+  expect(write.fields.hvac?.hvacDuctLocation).toBeNull();
+  expect(write.fields.hvac?.hvacDuctLeakage).toBeNull();
 
-  // Values the model did extract come through as themselves, parsed.
-  expect(write.fields.heatingEquipmentType).toBe("boiler");
-  expect(write.fields.heatingFuel).toBe("fuel_oil");
-  expect(write.fields.heatingModelYear).toBe(2004);
-  expect(write.fields.atticInsulationDepthIn).toBe("4-6");
+  // Values the model did extract come through as themselves, parsed — the fuel axis
+  // split across two fields, and every enum member a literal Snugg Pro wire string.
+  expect(write.fields.hvac?.hvacSystemEquipmentType).toBe("Boiler");
+  expect(write.fields.hvac?.hvacHeatingEnergySource).toBe("Fuel Oil");
+  expect(write.fields.hvac?.hvacHeatingSystemModelYear).toBe(2004);
+  expect(write.fields.attic?.atticInsulationDepth).toBe("4-6");
+  expect(write.fields.dhw?.dhwType2).toBe("Sidearm Tank");
 
-  // Nothing is missing: accepting all 34 leaves writes all 34.
+  // Nothing is missing: accepting all 51 leaves writes all 51.
   expect(flatten(write.fields).sort()).toEqual([...paths].sort());
 
   // The destination came off THIS item's recording, and the idempotency key off the queue.
@@ -236,13 +238,13 @@ test("the real field set round-trips: schema → extraction → review → write
   expect(write.meta).toEqual({ idempotencyKey: "idem-item-1" });
 });
 
-test("one rejected leaf of the 34 still writes the other 33", async () => {
+test("one rejected leaf of the 51 still writes the other 50", async () => {
   // The test that proves patch semantics, and the one an earlier revision of this design
   // would have failed outright: rejecting a leaf must leave that field alone in Snugg
   // Pro, not fail the write and not blank the field.
   const written: Write[] = [];
   const adapter = stubAdapter(written);
-  const rejected = "healthSafety.asbestos";
+  const rejected = "health.healthAsbestos";
 
   const request = buildReviewRequest(extracted, transcript, adapter.schema);
   const paths = Object.keys(request.fields);
@@ -262,25 +264,25 @@ test("one rejected leaf of the 34 still writes the other 33", async () => {
     idempotencyKey: item.idempotencyKey,
   });
 
-  // The write SUCCEEDED — the rejection did not take the other 33 leaves down with it.
+  // The write SUCCEEDED — the rejection did not take the other 50 leaves down with it.
   expect(written).toHaveLength(1);
   const fields = written[0]!.fields;
 
   // Absent, not null. Absent means "leave the host tool alone"; the whole patch model
   // rests on that being distinguishable, and `in` is what distinguishes it —
   // `fields.healthSafety?.asbestos` reads `undefined` either way.
-  expect("asbestos" in fields.healthSafety!).toBe(false);
-  // Every other leaf is present, including the ten surviving health tests.
+  expect("healthAsbestos" in fields.health!).toBe(false);
+  // Every other leaf is present, including the thirteen surviving health fields.
   expect(flatten(fields).sort()).toEqual(paths.filter((path) => path !== rejected).sort());
-  expect(Object.keys(fields.healthSafety!)).toHaveLength(10);
+  expect(Object.keys(fields.health!)).toHaveLength(13);
 
   // The neighbouring case, in the same patch: an accepted `null` is PRESENT and null.
   // Snugg Pro has no null, so the write layer renders both this and the absent leaf
   // above as `Not Tested` — but only one of them is an instruction to write anything,
   // and collapsing the two would silently overwrite a field the reviewer refused to
   // touch.
-  expect("lead" in fields.healthSafety!).toBe(true);
-  expect(fields.healthSafety!.lead).toBeNull();
-  expect("coolingEquipmentType" in fields).toBe(true);
-  expect(fields.coolingEquipmentType).toBeNull();
+  expect("healthLead" in fields.health!).toBe(true);
+  expect(fields.health!.healthLead).toBeNull();
+  expect("hvacCoolingCapacity" in fields.hvac!).toBe(true);
+  expect(fields.hvac!.hvacCoolingCapacity).toBeNull();
 });

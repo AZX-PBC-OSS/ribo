@@ -70,17 +70,21 @@ review hook. R1 and R1.5 are both done; the rest proceed in dependency order:
    `submit()` both throwing and exposing per-leaf errors. Design §9 records what changed and why.
    → [design](design/r2-headless-hook-layer-design.md) ·
    [plan](phases/r2-headless-hook-layer.md)
-2. **R1.6 — Snugg Pro API alignment.** The adapter's field set was reverse-engineered from Snugg Pro's
-   public **printed field sheet**; the machine-readable spec later showed that model to be wrong in
-   several places. [Doc 15](../implementation/15-snuggpro-api-verified.md) already wrote the delta list
-   and changed no code — this is executing it. Concretely: the API exposes writable heating/cooling/
-   steady-state efficiency fields and a writable attic R-value that `schema.ts` deliberately omits; the
-   health matrix is **13** tests where we ship 11; `heatingEquipmentType` and `coolingEquipmentType` are
-   the _same_ spec field on a per-system record, not two; and `combustionVentType` has no write target
-   at all. [Doc 17](../implementation/17-snuggpro-field-reconciliation.md) now has the full
-   field-by-field mapping and verbatim enum lists behind this (the spec turned out to be public, not
-   vendor-private — see doc 15's amended redaction note). → see also R1.7, which mechanises the parts
-   of this that should not be hand-maintained.
+2. **R1.6 — Snugg Pro API alignment. _Largely done (2026-08-06)._** The adapter's field set was
+   reverse-engineered from Snugg Pro's public **printed field sheet**; the machine-readable spec later
+   showed that model to be wrong in several places, and `schema.ts` has now been rebuilt from the spec
+   directly. What that closed: the wire property names are the schema's keys, the enum members are the
+   spec's literal strings, the shape nests by write endpoint, the health matrix is **13** tests,
+   `hvacSystemEquipmentType` is one field for heating and cooling both, `hvacUpgradeAction` is
+   extracted rather than hard-coded, attic R-value is a real write target (so the
+   `atticInsulationSpokenRValue` holding pen is gone), and `combustionVentType` is dropped for having
+   no write target. [Doc 17](../implementation/17-snuggpro-field-reconciliation.md) has the
+   field-by-field mapping and verbatim enum lists behind it (the spec turned out to be public, not
+   vendor-private — see doc 15's amended redaction note).
+   **What remains under R1.6:** choosing the next field tranche (51 leaves of a 163-field capture
+   surface — see the fill-rate open question below), instance/cardinality modelling, and re-annotating
+   the spike corpus so extraction quality is measured against this vocabulary rather than the old one.
+   → see also R1.7, which mechanises the parts of this that should not be hand-maintained.
 3. **R1.7 — generate the base types (`pnpm snugg:refresh`).** A script that regenerates wire field names
    and leaf types from the spec into a committed `*.generated.ts`, following the `pnpm target:refresh`
    precedent exactly: thin script, real logic in a typechecked and unit-tested module, deliberately not
@@ -107,13 +111,22 @@ review hook. R1 and R1.5 are both done; the rest proceed in dependency order:
 Discovered while building R1.5 and investigating the Snugg Pro API. Recorded here so they are decided
 rather than rediscovered.
 
-- **Do we ask the model for Snugg's literal enum strings, or keep readable tokens and map?** Roughly 25
-  of our 27 enumerated leaves are snake_case (`well_sealed`, `not_tested`) where the API uses
-  human-readable strings (`"6% - Well sealed"`, `"Not Tested"`). One normalization layer covers most of
-  it — but some enums also diverge in _membership_, which needs richer enums rather than a string map.
-  Asking the model for the literal strings removes a translation layer that can drift; keeping tokens
-  may extract better. **Deliberately deferred, not overlooked:** R1.7's first cut generates no enums, and
-  the question is measurable against the existing corpus and scorer before it is answered.
+- **~~Do we ask the model for Snugg's literal enum strings, or keep readable tokens and map?~~
+  Answered: literal strings (2026-08-06).** The schema now asks the model for `"6% - Well sealed"` and
+  `"Not Tested"` directly, which deletes the per-enum translation layer rather than planning it, and
+  fixes the membership divergences a string map could never have covered. **What this cost, stated
+  plainly:** the decision was made on design grounds, not measured ones. The ≈0.5%-hallucination and
+  75/75-enum figures were produced against the old snake_case vocabulary and no longer describe this
+  adapter — see the corpus item below. The bet is that a model reproducing a listed literal string is
+  no harder than a model reproducing a listed token; that bet is untested, and the corpus is how it
+  gets settled.
+- **The spike corpus no longer grades this adapter, and the acceptance gate is blocked.**
+  `spikes/extraction-snuggpro/ground-truth/*.json` is hand-annotated in the old flat, snake_cased field
+  set. `packages/ribo-adapter-snuggpro/acceptance/gate.manual.ts` runs the current adapter against it,
+  so every field would score as a miss; a guard now fails that run with an explanation rather than
+  emitting meaningless numbers. Unblocking means re-annotating 14 transcripts in the API vocabulary —
+  manual, and the reason those baselines are trustworthy. Until then there is **no current measurement
+  of extraction quality**.
 - **Entity identity is the sharpest unresolved risk.** Our field set is singular — "the attic", "the
   heating system" — while the API models components as per-instance resources and real houses have
   several of each. Extraction can be perfectly typed and still write the upstairs furnace's value onto
@@ -159,10 +172,14 @@ and gate green. What is missing is a UI to drive them.
 on the Helix egress HMAC ask (A1, `docs/implementation/13-helix-platform-asks.md`), so work that makes
 a write _correct_ cannot be exercised, demoed, or validated. Deferred until that unblocks:
 
-- **R1.6 — the doc 15 delta list.** Enum formats, the 2 missing health tests, efficiency fields, the
-  heating/cooling equipment-type fusion, `combustionVentType`'s missing write target. All write-side.
+- **~~R1.6 — the doc 15 delta list.~~ Done ahead of the cut (2026-08-06).** The schema-shape half was
+  cheap enough to take now and it removes a whole translation layer from the write that lands later;
+  see item 2 above for what it closed. What is still deferred is everything that needs a real write or
+  real data to settle: the next field tranche, instance modelling, corpus re-annotation.
 - **R1.7 — `pnpm snugg:refresh`.** Tooling with no user-facing value until the field set grows.
 - **Instance modeling.** Correctness of a write that cannot happen yet.
+- **Re-annotating the spike corpus.** Needed to measure extraction against the new vocabulary; manual,
+  and not on the MVP path. See the open question above.
 - **The schema-generation spike.** Its _design_ is committed (`spikes/schema-generation/`) and
   deliberately not run — the question is preserved without spending on it.
 
@@ -170,10 +187,18 @@ a write _correct_ cannot be exercised, demoed, or validated. Deferred until that
 `ReviewField.schema`, so when R1.6 later corrects an enum or adds a field, the UI adapts with no
 rework. Schema churn does not invalidate UI work — which is exactly why the UI goes first.
 
-**The known-wrong parts are all invisible to the MVP loop.** The pilot ships 34 hand-written leaves
-whose enum vocabularies do not match the API's; that only matters at the moment of writing, which is
-stubbed. Extraction itself measures well against what we ask it for (≈0.5% hard hallucination, 75/75
-enums correct) — the mismatch is a translation problem at the boundary, not a pipeline problem.
+**The known-wrong parts are all invisible to the MVP loop.** The pilot ships 51 hand-written leaves
+that now use the API's own names and vocabulary, so the translation problem that used to sit at the
+write boundary is gone. What remains wrong is coverage (51 of ~163 capture fields) and cardinality
+(one instance per component where the API models many) — both of which only bite at the moment of
+writing, which is stubbed.
+
+**What we gave up to get there, and it is not nothing.** The extraction-quality numbers
+(≈0.5% hard hallucination, 75/75 enums correct) were measured against the previous vocabulary and do
+not describe the current adapter; the acceptance gate that produced them is blocked until the corpus is
+re-annotated. The MVP loop does not depend on that number — the review card is where a bad extraction
+gets caught, and it is exactly what is being built — but "extraction is measured" is a claim this
+repo cannot currently make.
 
 ## What is deliberately out of scope
 
