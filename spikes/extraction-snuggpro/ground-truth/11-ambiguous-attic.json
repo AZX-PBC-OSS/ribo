@@ -1,63 +1,116 @@
 {
+  "schemaVersion": "snuggpro-51-leaf-v1",
   "transcript": "transcripts/11-ambiguous-attic.txt",
-  "stresses": "SELF-CORRECTION / last-value-wins probe. Attic R-value: \"R-11, no wait ... R-13\" -> 13 (11 retracted). Equipment: \"I thought boiler at first ... no, it's a furnace\" -> furnace (boiler retracted). And the health trap: a personal CO monitor that \"never went off\" but is explicitly NOT a real test -> ambientCo must NOT be passed. Short visit, most fields null.",
-  "fields": {
-    "heatingEquipmentType": {
-      "value": "furnace_central_ac",
-      "sourceSpan": "it's a furnace, a gas furnace"
+  "stresses": "THE WORKED EXAMPLE (see ANNOTATOR_GUIDE.md). SELF-CORRECTION / last-value-wins on two leaves: the attic R-value (\"R-11, no wait ... R-13\" -> 13, 11 retracted) and the heating equipment (\"I thought boiler at first ... no, it's a furnace\" -> furnace, boiler retracted). A health-matrix trap: a personal CO monitor that \"never went off\" is explicitly NOT a real test -> healthAmbientCarbonMonoxide is asserted 'Not Tested', and a model that reads the clean monitor as 'Passed' is a hallucinated pass, not a correct clean. A cascaded group-negation ('no blower door' / 'no water heater') across every leaf of two whole resource groups. A genuinely new ambiguity the SCHEMA REBUILD introduced that this transcript's old ground truth could not have surfaced: the new hvacSystemEquipmentType enum splits 'furnace' into a standalone-ducts member and a shared-ducts-with-AC member, and this auditor never mentions cooling at all. And a deliberately narrow reading of a generic 'no tests' aside, which this file does NOT cascade to the other 12 health tests, unlike the broader 'no blower door'/'no water heater' cascades — see notes._general.",
+  "leaves": {
+    "basedata.yearBuilt": { "status": "unmentioned", "sourceSpan": null },
+    "basedata.conditionedArea": { "status": "unmentioned", "sourceSpan": null },
+    "basedata.floorsAboveGrade": { "status": "unmentioned", "sourceSpan": null },
+    "basedata.numberOfBedrooms": { "status": "unmentioned", "sourceSpan": null },
+    "basedata.typeOfHome": { "status": "unmentioned", "sourceSpan": null },
+    "basedata.blowerDoorReading": {
+      "status": "declared_absent",
+      "sourceSpan": "No tests, no blower door, no water heater, none of that stuff"
     },
-    "heatingFuel": { "value": "natural_gas", "sourceSpan": "it's a furnace, a gas furnace" },
-    "heatingManufacturer": { "value": null, "sourceSpan": null },
-    "heatingModelNumber": { "value": null, "sourceSpan": null },
-    "heatingModelYear": { "value": null, "sourceSpan": null },
-    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
-    "coolingEquipmentType": { "value": null, "sourceSpan": null },
-    "ductLocation": { "value": null, "sourceSpan": null },
-    "ductSealing": { "value": null, "sourceSpan": null },
-    "ductInsulation": { "value": null, "sourceSpan": null },
-    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
-    "atticInsulationDepthIn": {
-      "value": null,
+    "basedata.blowerDoorTestPerformed": {
+      "status": "declared_absent",
+      "sourceSpan": "No tests, no blower door, no water heater, none of that stuff"
+    },
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "sourceSpan": "Definitely a furnace, scratch the boiler.",
+      "member": "Furnace with standalone ducts",
+      "retracted": [
+        {
+          "value": "Boiler",
+          "note": "\"I thought boiler at first because of all the pipes\" is withdrawn by \"no, it's a furnace ... those pipes were just the old abandoned hydronic ... scratch the boiler.\" Last assertion wins (annotator guide rule 5)."
+        }
+      ],
+      "arguable": {
+        "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
+        "note": "The auditor never mentions cooling/AC anywhere in this transcript. The REBUILT schema splits furnaces into a standalone-ducts member and a shared-ducts-with-AC member, a distinction the pre-rebuild field set did not have and this auditor never addresses. 'Furnace with standalone ducts' is the closest honest reading of a bare 'gas furnace' with no cooling mentioned; the shared-ducts member is not asserted by anything said, but it describes the same real furnace, so a model landing there is a mild misread of an unaddressed axis, not an invented equipment type. Any other member (Boiler, Electric Resistance, a heat pump, ...) is a hard wrong answer."
+      }
+    },
+    "hvac.hvacUpgradeAction": { "status": "unmentioned", "sourceSpan": null },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "sourceSpan": "it's a furnace, a gas furnace",
+      "member": "Natural Gas"
+    },
+    "hvac.hvacHeatingSystemManufacturer": { "status": "unmentioned", "sourceSpan": null },
+    "hvac.hvacHeatingSystemModel": { "status": "unmentioned", "sourceSpan": null },
+    "hvac.hvacHeatingSystemModelYear": { "status": "unmentioned", "sourceSpan": null },
+    "hvac.hvacHeatingCapacity": { "status": "unmentioned", "sourceSpan": null },
+    "hvac.hvacCoolingCapacity": { "status": "unmentioned", "sourceSpan": null },
+    "hvac.hvacDuctLocation": { "status": "unmentioned", "sourceSpan": null },
+    "hvac.hvacDuctLeakage": { "status": "unmentioned", "sourceSpan": null },
+    "hvac.hvacDuctLeakageValue": { "status": "unmentioned", "sourceSpan": null },
+    "hvac.hvacDuctInsulation": { "status": "unmentioned", "sourceSpan": null },
+    "attic.atticInsulationDepth": {
+      "status": "declared_absent",
       "sourceSpan": "I'm giving you the R-value, not a depth"
     },
-    "atticInsulationType": {
-      "value": "fiberglass",
-      "sourceSpan": "fiberglass batts between the joists"
+    "attic.atticInsulationType": {
+      "status": "asserted",
+      "sourceSpan": "fiberglass batts between the joists",
+      "member": "Fiberglass or Rockwool (batts or blown)"
     },
-    "atticInsulationSpokenRValue": {
+    "attic.atticInsulation": {
+      "status": "asserted",
+      "sourceSpan": "R-13, final answer.",
       "value": 13,
-      "sourceSpan": "they're R-13 kraft-faced batts"
+      "retracted": [
+        {
+          "value": 11,
+          "note": "\"I want to say R-11\" is retracted by \"no wait, these are the thicker ones, R-13 ... R-13, final answer.\" Last assertion wins."
+        }
+      ],
+      "arguable": {
+        "note": "Schema-rebuild note, not a corpus ambiguity: the pre-rebuild field set had no attic R-value write target at all and parked a spoken R-value in a fake `atticInsulationSpokenRValue` holding pen. The rebuilt schema.ts has a REAL `atticInsulation` field (a genuine write target, not a holding pen) — see schema.ts's HAZARD 2b note. This leaf is therefore asserted, not merely captured-for-later."
+      }
     },
-    "wallInsulated": { "value": null, "sourceSpan": null },
-    "wallConstruction": { "value": null, "sourceSpan": null },
-    "blowerDoorCfm50": { "value": null, "sourceSpan": "no blower door" },
-    "windowGlazing": { "value": null, "sourceSpan": null },
-    "windowFrame": { "value": null, "sourceSpan": null },
-    "dhwFuel": { "value": null, "sourceSpan": null },
-    "dhwSystemType": { "value": null, "sourceSpan": "no water heater" },
-    "dhwAgeBand": { "value": null, "sourceSpan": null },
-    "combustionVentType": { "value": null, "sourceSpan": null },
-    "healthSafety": {
-      "ambientCo": {
-        "value": "not_tested",
-        "sourceSpan": "I did not do an actual ambient CO measurement at the appliance, so don't log that as a CO test"
-      },
-      "venting": { "value": null, "sourceSpan": null },
-      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
-      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
-      "worstCaseSpillage": { "value": null, "sourceSpan": null },
-      "draftPressure": { "value": null, "sourceSpan": null },
-      "gasLeak": { "value": null, "sourceSpan": null },
-      "moldMoisture": { "value": null, "sourceSpan": null },
-      "asbestos": { "value": null, "sourceSpan": null },
-      "lead": { "value": null, "sourceSpan": null },
-      "electrical": { "value": null, "sourceSpan": null }
-    }
+    "attic.atticHasKneeWall": { "status": "unmentioned", "sourceSpan": null },
+    "attic.atticRoofType": { "status": "unmentioned", "sourceSpan": null },
+    "wall.wallsInsulated": { "status": "unmentioned", "sourceSpan": null },
+    "wall.wallExteriorWallSiding": { "status": "unmentioned", "sourceSpan": null },
+    "wall.wallCavityInsulation": { "status": "unmentioned", "sourceSpan": null },
+    "wall.wallCavityInsulationType": { "status": "unmentioned", "sourceSpan": null },
+    "window.windowType": { "status": "unmentioned", "sourceSpan": null },
+    "window.windowFrame": { "status": "unmentioned", "sourceSpan": null },
+    "window.windowEnergyStar": { "status": "unmentioned", "sourceSpan": null },
+    "dhw.dhwType2": { "status": "declared_absent", "sourceSpan": "no water heater" },
+    "dhw.dhwFuel2": { "status": "declared_absent", "sourceSpan": "no water heater" },
+    "dhw.dhwAge": { "status": "declared_absent", "sourceSpan": "no water heater" },
+    "dhw.dhwLocation": { "status": "declared_absent", "sourceSpan": "no water heater" },
+    "dhw.dhwTankSize": { "status": "declared_absent", "sourceSpan": "no water heater" },
+    "dhw.dhwManufacturer": { "status": "declared_absent", "sourceSpan": "no water heater" },
+    "health.healthAmbientCarbonMonoxide": {
+      "status": "asserted",
+      "sourceSpan": "I did not do an actual ambient CO measurement at the appliance, so don't log that as a CO test",
+      "member": "Not Tested",
+      "arguable": {
+        "acceptableAlternatives": [],
+        "acceptableMiss": true,
+        "note": "THE health trap this transcript is built around. A personal belt-clipped CO monitor that \"never went off\" is a tempting read as 'Passed', but the auditor explicitly says it is NOT a real test and instructs not to log it as one. 'Not Tested' (an explicit, addressed non-performance) is the intended reading. A model that leaves this leaf null (unmentioned) is an acceptable-but-milder miss — the topic WAS addressed, so null undersells it, but it is not dangerous. 'Passed' is the specific, serious failure mode this leaf exists to catch: a model that stamps a pass on a test the auditor pointedly declined is a hallucinated pass, and must score as wrong, not as a sanctioned alternative — hence acceptableAlternatives is empty, not [\"Passed\"]."
+      }
+    },
+    "health.healthNaturalConditionSpillage": { "status": "unmentioned", "sourceSpan": null },
+    "health.healthWorstCaseDepressurization": { "status": "unmentioned", "sourceSpan": null },
+    "health.healthWorstCaseSpillage": { "status": "unmentioned", "sourceSpan": null },
+    "health.healthUndilutedFlueCo": { "status": "unmentioned", "sourceSpan": null },
+    "health.healthDraftPressure": { "status": "unmentioned", "sourceSpan": null },
+    "health.healthGasLeak": { "status": "unmentioned", "sourceSpan": null },
+    "health.healthVenting": { "status": "unmentioned", "sourceSpan": null },
+    "health.healthMoldMoisture": { "status": "unmentioned", "sourceSpan": null },
+    "health.healthRadon": { "status": "unmentioned", "sourceSpan": null },
+    "health.healthAsbestos": { "status": "unmentioned", "sourceSpan": null },
+    "health.healthLead": { "status": "unmentioned", "sourceSpan": null },
+    "health.healthElectrical": { "status": "unmentioned", "sourceSpan": null },
+    "health.healthRoofCondition": { "status": "unmentioned", "sourceSpan": null }
   },
   "notes": {
-    "atticInsulationSpokenRValue": "Last-value-wins: R-11 is retracted (\"no wait ... R-13\"), so 13. Emitting 11 is a retracted (wrong) value; report separately from invented. atticInsulationDepthIn stays null -- the auditor explicitly gives an R-value and refuses a depth.",
-    "heatingEquipmentType": "Retraction: \"boiler\" is withdrawn (\"no, it's a furnace ... scratch the boiler\") -> furnace_central_ac. boiler is a retracted wrong value.",
-    "ambientCo": "THE health trap. A belt CO monitor \"never went off\" is tempting -> passed, but the auditor explicitly says it is NOT a real test and not to log it. Intended not_tested (he addressed CO and declined the real measurement). null is an acceptable-but-milder reading. passed is a HALLUCINATED PASS -- the exact failure mode the matrix exists to catch -- score it as such, not as a correct clean.",
-    "_general": "Short visit: attic + a furnace peek only. \"No tests, no blower door, no water heater\" -> those are null (blower door and DHW carry the explicit-absence spans)."
+    "_general": "Scope call on 'No tests, no blower door, no water heater, none of that stuff.' This file reads it as THREE separate, narrow negations spoken in one breath (tests / blower door / water heater), not as one blanket disclaimer that cascades to every health leaf. Only the blower-door and water-heater negations are cascaded here, because each individually NAMES a specific resource (every leaf of that resource is then moot by construction — see ANNOTATOR_GUIDE.md's group-negation rule). 'No tests' names no specific test, and the ORIGINAL (pre-rebuild) ground truth for this same transcript independently made the same narrow call — it left the other ten health fields it had as null/null rather than not_tested/'no tests'. This file preserves that precedent rather than overturning it: the other 12 health leaves (13 minus ambientCarbonMonoxide, which gets its own individually-addressed statement moments later) are 'unmentioned', not asserted 'Not Tested'. A broader cascade is defensible — flagged here for the record — but this file treats it as the less faithful reading: asserting a specific named state for 12 tests the auditor never individually names is closer to inference than transcription. Two independent annotators disagreeing on this specific point would be disagreeing legibly, exactly as intended.",
+    "attic.atticInsulationType": "'fiberglass batts' maps to the schema's combined 'Fiberglass or Rockwool (batts or blown)' member — the rebuilt schema does not separate fiberglass from rockwool the way the pre-rebuild field set's ENUMS list implied it might; there is only ever this one combined member to pick.",
+    "hvac.hvacHeatingSystemModel": "The pipes described (\"all the pipes\", \"old abandoned hydronic\") belong to the RETRACTED boiler, not the furnace. No make/model/year is ever stated for the furnace itself — this is a genuinely empty leaf, not a dropped value."
   }
 }

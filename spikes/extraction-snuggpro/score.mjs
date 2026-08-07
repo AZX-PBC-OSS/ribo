@@ -1,257 +1,80 @@
 #!/usr/bin/env node
 /**
- * Scorer for the Snugg Pro extraction spike.
+ * Scorer for the Snugg Pro extraction spike — rebuilt against the vocabulary-neutral ground-truth
+ * format (`ground-truth-format.md`) and the REAL, spec-derived 51-leaf / 7-group schema
+ * (`packages/ribo-adapter-snuggpro/src/schema.ts`), not the old spike's dead 23-field copy of it.
  *
  *   node spikes/extraction-snuggpro/score.mjs [resultsDir]   # default: results/codex
  *
- * Reads ground-truth/NN-slug.json + transcripts/NN-slug.txt + <resultsDir>/NN-slug.json
- * and reports, per transcript and aggregate, the metrics the README defines. The schema is
- * NOT the old spike's schema: every leaf is a { value, confidence, sourceSpan } envelope,
- * `healthSafety` is a nested 11-test matrix, and there are split axes, depth/age bands, and
- * an R-value holding-pen. The metric logic here is new; only the file's shape follows the old
- * scorer.
+ * Reads ground-truth/NN-slug.json + transcripts/NN-slug.txt + <resultsDir>/NN-slug.json and
+ * reports, per transcript and aggregate, the same measures the spike has always reported —
+ * hallucination, miss, axis-split, enum-mapping, band-mapping, health-matrix state, sourceSpan
+ * validity, confidence separation — plus one new one: the VOCABULARY MIX of a run's enum output
+ * (API literal strings vs the derived snake_case alternative), which is the whole reason this
+ * format exists — see ground-truth-format.md's rationale.
  *
- * Metrics (README "Score metrics"):
- *   1. hallucination rate   — non-null emitted where GT is null, over the 23 top-level fields (headline)
- *   2. miss rate            — null emitted where GT has a value
- *   3. axis-split           — equipment vs fuel split, silent-fuel-drop and fused cases
- *   4. enum-mapping         — exact member match; `other` is WRONG when GT is a real member
- *   5. band-mapping         — depth/age band, boundary bucket, and forbidden R-value->band conversion
- *   6. health-matrix state  — per test; hallucinated-pass and clean->null called out
- *   7. sourceSpan validity  — verbatim substring of the transcript
- *   8. confidence separation — mean confidence, correct vs wrong (uncalibrated; numbers only)
+ * A ground-truth file with no "leaves" key is the OLD (pre-rebuild) format — 13 of the 14 corpus
+ * transcripts are still in it, pending the 26-way parallel re-annotation this rewrite gates. Those
+ * are reported as PENDING RE-ANNOTATION, not scored and not crashed on.
  *
- * Robustness: a missing/unparseable/malformed result is a whole-transcript miss; the run keeps
- * going. Missing keys are treated as null; extra keys are reported. Never crashes.
+ * Robustness carried over unchanged from the old scorer: a missing/unparseable/malformed result is
+ * a whole-transcript miss; the run keeps going. Missing keys are treated as null; extra keys are
+ * reported. Never crashes.
  *
- * Partial credit: the per-field `notes` in ground-truth flag genuinely-arguable calls. Those are
- * encoded below (TOP_PARTIAL / MISS_EXCUSED / HEALTH_PARTIAL / RETRACTED), each quoting the note
- * that authorises it. A sanctioned alternative is NOT a hard hallucination.
- *
- * Node 24 built-ins only. Spike artifact; nothing imports it in production. score.test.mjs imports
- * the exported scoring functions to drive mutation tests against synthetic fixtures.
+ * Node 24 built-ins only, plus the two sibling spike modules (schema-leaves.mjs, ground-truth.mjs)
+ * — nothing here hand-lists a leaf path or an enum member; both come from introspecting the real,
+ * built adapter schema. Two small tables ARE still hand-kept, and are called out where they live
+ * (BAND_LEAVES, AXIS_PAIRS): "this enum's members form an ordered band" and "these two leaves are
+ * one thing's two axes" are not visible in a zod enum's shape, so they cannot be derived — but they
+ * are two short, named tables, not a 233-entry parallel enum list.
  */
 
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { GROUPS, LEAF_BY_PATH, LEAF_PATHS, LEAVES, resolveEnumMember } from "./schema-leaves.mjs";
+import { isNewFormat, validateGroundTruth } from "./ground-truth.mjs";
 
 // ---------------------------------------------------------------------------
-// Schema shape (mirrors schema.ts; kept standalone like the old scorer)
+// Domain knowledge NOT visible in a zod enum's shape, kept as two short,
+// named, hand-written tables (not a parallel copy of the 233 members — see
+// the file header). Everything else below is derived from LEAVES.
 // ---------------------------------------------------------------------------
 
-/** The 23 scalar/enum top-level fields, in schema order. `healthSafety` is separate. */
-export const TOP_FIELDS = [
-  "heatingEquipmentType",
-  "heatingFuel",
-  "heatingManufacturer",
-  "heatingModelNumber",
-  "heatingModelYear",
-  "heatingOutputCapacityBtuh",
-  "coolingEquipmentType",
-  "ductLocation",
-  "ductSealing",
-  "ductInsulation",
-  "ductLeakageCfm25",
-  "atticInsulationDepthIn",
-  "atticInsulationType",
-  "atticInsulationSpokenRValue",
-  "wallInsulated",
-  "wallConstruction",
-  "blowerDoorCfm50",
-  "windowGlazing",
-  "windowFrame",
-  "dhwFuel",
-  "dhwSystemType",
-  "dhwAgeBand",
-  "combustionVentType",
+/** Leaves whose enum members form an ORDERED band, where an adjacent-member mismatch is a
+ * boundary error rather than a flat wrong. "Don't Know" (present on the attic depth band) is not
+ * part of the ordering and is excluded by `bandOrder` below, not by this list. */
+const BAND_LEAVES = new Set(["attic.atticInsulationDepth", "dhw.dhwAge"]);
+
+/** Equipment/fuel leaf pairs describing one real system's two independent axes (schema.ts's
+ * HAZARD 1). Splitting these onto two fields is the extraction design's single highest-value rule. */
+const AXIS_PAIRS = [
+  { equipment: "hvac.hvacSystemEquipmentType", fuel: "hvac.hvacHeatingEnergySource" },
+  { equipment: "dhw.dhwType2", fuel: "dhw.dhwFuel2" },
 ];
 
-/** The 11 named health & safety tests, in schema order. */
-export const HEALTH_TESTS = [
-  "ambientCo",
-  "venting",
-  "naturalConditionSpillage",
-  "worstCaseDepressurization",
-  "worstCaseSpillage",
-  "draftPressure",
-  "gasLeak",
-  "moldMoisture",
-  "asbestos",
-  "lead",
-  "electrical",
-];
+/** The 13 health-matrix test leaves — derived by finding every enum leaf whose exact member set is
+ * schema.ts's `HealthTestState` (Passed/Failed/Warning/Not Tested). This is what excludes
+ * `health.healthRoofCondition` (a different, 3-member enum) without hand-listing 13 paths. */
+const HEALTH_STATE_SHAPE = JSON.stringify(["Passed", "Failed", "Warning", "Not Tested"]);
+export const HEALTH_TEST_PATHS = LEAVES.filter(
+  (l) => l.kind === "enum" && JSON.stringify(l.options) === HEALTH_STATE_SHAPE,
+).map((l) => l.path);
+const HEALTH_TEST_SET = new Set(HEALTH_TEST_PATHS);
 
-const ENVELOPE_KEYS = ["value", "confidence", "sourceSpan"];
+/** Every leaf EXCEPT the 13 health-matrix tests — these get the generic hallucination/miss/enum/
+ * band treatment; the 13 get their own section (hallucinated-pass is the crux there, not a generic
+ * "wrong enum"). Derived, not hand-counted: 51 - 13 = 38. */
+export const GENERIC_LEAF_PATHS = LEAF_PATHS.filter((p) => !HEALTH_TEST_SET.has(p));
 
-/** Enum members from schema.ts. Bands are handled separately (see BANDS). */
-export const ENUMS = {
-  heatingEquipmentType: [
-    "boiler",
-    "furnace_central_ac",
-    "central_heat_pump",
-    "electric_resistance",
-    "direct_heater",
-    "stove_or_insert",
-    "other",
-  ],
-  heatingFuel: [
-    "electricity",
-    "natural_gas",
-    "propane",
-    "fuel_oil",
-    "pellets",
-    "wood",
-    "solar",
-    "other",
-  ],
-  coolingEquipmentType: [
-    "central_ac_standalone_ducts",
-    "room_ac",
-    "central_heat_pump",
-    "evaporative_cooler_direct",
-    "evaporative_cooler_ducted",
-    "none",
-    "other",
-  ],
-  ductLocation: [
-    "attic_unconditioned",
-    "basement_unconditioned",
-    "crawlspace_unconditioned",
-    "other",
-  ],
-  ductSealing: ["very_leaky", "somewhat_leaky", "well_sealed", "very_tight", "other"],
-  ductInsulation: [
-    "none",
-    "duct_board_1_5in",
-    "fiberglass_1_25in",
-    "fiberglass_2in",
-    "fiberglass_2_5in",
-    "other",
-  ],
-  atticInsulationType: ["cellulose", "spray_foam", "fiberglass", "none", "other"],
-  wallInsulated: ["yes", "poorly", "no", "other"],
-  wallConstruction: ["concrete_block", "full_brick", "frame_2x6", "log", "straw_bale", "other"],
-  windowGlazing: ["single_pane", "double_pane", "other"],
-  windowFrame: ["metal", "vinyl", "wood_or_metal_clad", "other"],
-  dhwFuel: ["electricity", "natural_gas", "fuel_oil", "propane", "solar", "other"],
-  dhwSystemType: [
-    "storage",
-    "instantaneous",
-    "heat_pump_water_heater",
-    "space_heating_boiler_with_tank",
-    "other",
-  ],
-  combustionVentType: [
-    "induced_draft",
-    "power_vented_at_unit",
-    "power_vented_at_exterior",
-    "direct_vented",
-    "other",
-  ],
-};
-
-/** Ordered band members; adjacency (|i-j| === 1) is a boundary error, not a flat wrong. */
-export const BANDS = {
-  atticInsulationDepthIn: ["0", "1-3", "4-6", "7-9", "10-12", "13-15", "16+"],
-  dhwAgeBand: ["0-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36+"],
-};
-
-const STRING_FIELDS = new Set(["heatingManufacturer", "heatingModelNumber"]);
-const NUMBER_FIELDS = new Set([
-  "heatingModelYear",
-  "heatingOutputCapacityBtuh",
-  "ductLeakageCfm25",
-  "blowerDoorCfm50",
-  "atticInsulationSpokenRValue",
-]);
-
-/** number | string | band | enum — drives the comparison path. */
-export function fieldKind(field) {
-  if (field in BANDS) return "band";
-  if (NUMBER_FIELDS.has(field)) return "number";
-  if (STRING_FIELDS.has(field)) return "string";
-  if (field in ENUMS) return "enum";
-  return "enum"; // unreachable for known fields
+/** Ordered band members for a band leaf, excluding "Don't Know" (uncertainty, not a position). */
+function bandOrder(path) {
+  return LEAF_BY_PATH.get(path).options.filter((o) => o !== "Don't Know");
 }
 
 // ---------------------------------------------------------------------------
-// Partial-credit tables — each quotes the ground-truth note that authorises it
-// ---------------------------------------------------------------------------
-
-/**
- * For GT-null top-level fields: model values that are a SANCTIONED mild alternative
- * (a defensible non-null the note refuses to call a hard hallucination). Everything
- * else non-null on a GT-null slot is a hard hallucination.
- */
-export const TOP_PARTIAL = {
-  "01-attic-r-value-shell": {
-    wallConstruction: {
-      soft: ["frame_2x6", "other"],
-      note: "brick-veneer != full_brick; frame_2x6/other are mild, full_brick is a WRONG member",
-    },
-  },
-  "03-quick-exterior-short": {
-    windowGlazing: {
-      soft: ["double_pane"],
-      note: "leans double pane but declines to commit; double_pane is wrong-but-grounded, not invented",
-    },
-  },
-  "06-homeowner-crosstalk": {
-    combustionVentType: {
-      soft: ["other"],
-      note: "natural draft is not one of the 4 members; other is defensible, a named member is wrong",
-    },
-  },
-  "07-combustion-safety": {
-    combustionVentType: {
-      soft: ["other"],
-      note: "shared B-vent is atmospheric; other is defensible, a named member is wrong",
-    },
-  },
-  "12-wrong-field-old-unit": {
-    combustionVentType: {
-      soft: ["other", "direct_vented"],
-      note: "condensing implies sealed but no vent token was spoken; direct_vented is a mild grounded-inference",
-    },
-  },
-  "13-enum-paraphrase": {
-    coolingEquipmentType: {
-      soft: ["other"],
-      note: "shared-duct AC is captured by furnace_central_ac; other is mild, central_ac_standalone_ducts is a WRONG member",
-    },
-  },
-};
-
-/** GT non-null but the note calls a model `null` an ACCEPTABLE miss (excluded from miss numerator). */
-export const MISS_EXCUSED = {
-  "03-quick-exterior-short": {
-    wallConstruction: {
-      note: 'frame_2x6 from "looks like a two-by-six frame"; null is a defensible miss, not a hallucination',
-    },
-  },
-};
-
-/** Retracted values (last-value-wins): a model emitting these is WRONG, tagged `retracted`. */
-export const RETRACTED = {
-  "11-ambiguous-attic": {
-    heatingEquipmentType: ["boiler"],
-    atticInsulationSpokenRValue: [11],
-  },
-};
-
-/** Health-matrix per-slot overrides. Only where a note carves out a special reading. */
-export const HEALTH_PARTIAL = {
-  "07-combustion-safety": {
-    worstCaseDepressurization: {
-      softPass: true,
-      note: "-50 Pa was the METHOD for the spillage test; reading it as a passed depressurization is a mild reading, not a hallucinated pass (failed/warning are wrong)",
-    },
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Small helpers (number parsing / normalization adapted from the old scorer)
+// Small value-comparison helpers (numbers / free strings; enums go through
+// resolveEnumMember in schema-leaves.mjs, not here)
 // ---------------------------------------------------------------------------
 
 const pct = (n, d) => (d === 0 ? "n/a" : `${((100 * n) / d).toFixed(1)}%`);
@@ -260,23 +83,10 @@ const pad = (s, w) => String(s).padEnd(w);
 const padL = (s, w) => String(s).padStart(w);
 const mean = (xs) => (xs.length === 0 ? null : xs.reduce((a, b) => a + b, 0) / xs.length);
 
-/** Enum/string token fold: "Gas Furnace" and "gas-furnace" both become "gas_furnace". */
-export const normToken = (s) =>
-  String(s)
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-/** Alphanumeric-only fold for free strings: "TUD-100" and "TUD100" both become "tud100". */
 const normStr = (s) =>
   String(s)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
-
-/** Loose text normalization for near-miss span detection. */
-const normText = (s) =>
-  s.toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
 
 const NUM_WORDS = {
   zero: 0,
@@ -340,7 +150,7 @@ export function parseNumberish(v) {
   s = s.replace(/^r-?\s*/, "");
   s = s.replace(/[,%]/g, "");
   s = s.replace(
-    /\b(cfm ?50|cfm ?25|ach ?50|cfm|ach|pa|percent|years?|yrs?|ppm|btu\/?h?|btu)\b/g,
+    /\b(cfm ?50|cfm ?25|ach ?50|cfm|ach|pa|percent|years?|yrs?|ppm|gal(lons?)?|btu\/?h?|btu)\b/g,
     "",
   );
   s = s.trim();
@@ -360,111 +170,11 @@ export function parseNumberish(v) {
 const numbersNear = (x, y) =>
   Math.abs(x - y) <= Math.max(1e-9, 1e-6 * Math.max(Math.abs(x), Math.abs(y)));
 
-// ---------------------------------------------------------------------------
-// Value comparison (both non-null)
-// ---------------------------------------------------------------------------
+/** Loose text normalization for near-miss span detection. */
+const normText = (s) =>
+  s.toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
 
-/**
- * Compare a GT value and a model value for a field, given both are non-null.
- * Returns { verdict: 'correct'|'wrong', tag, detail }.
- *   tag ∈ 'match' | 'wrong-member' | 'other-dump' | 'invalid-enum' | 'boundary' | 'retracted' | 'number' | 'string'
- */
-export function compareValue(slug, field, gtValue, modelValue) {
-  const kind = fieldKind(field);
-  const retracted = (RETRACTED[slug]?.[field] ?? []).map((x) =>
-    typeof x === "string" ? normToken(x) : x,
-  );
-
-  if (kind === "number") {
-    const a = parseNumberish(gtValue);
-    const b = parseNumberish(modelValue);
-    if (b === null)
-      return {
-        verdict: "wrong",
-        tag: "number",
-        detail: `unparseable ${JSON.stringify(modelValue)}`,
-      };
-    if (a !== null && numbersNear(a, b))
-      return { verdict: "correct", tag: "number", detail: "numeric match" };
-    if (retracted.some((r) => typeof r === "number" && numbersNear(r, b))) {
-      return {
-        verdict: "wrong",
-        tag: "retracted",
-        detail: `retracted value ${b} (last-value-wins)`,
-      };
-    }
-    return { verdict: "wrong", tag: "number", detail: `expected ${a}, got ${b}` };
-  }
-
-  if (kind === "string") {
-    const a = normStr(gtValue);
-    const b = normStr(modelValue);
-    if (a === b || (a.length > 2 && b.length > 2 && (a.includes(b) || b.includes(a)))) {
-      return { verdict: "correct", tag: "string", detail: "string match" };
-    }
-    return {
-      verdict: "wrong",
-      tag: "string",
-      detail: `expected ${JSON.stringify(gtValue)}, got ${JSON.stringify(modelValue)}`,
-    };
-  }
-
-  if (kind === "band") {
-    const members = BANDS[field].map(normToken);
-    const a = normToken(gtValue);
-    const b = normToken(modelValue);
-    if (a === b) return { verdict: "correct", tag: "match", detail: "band match" };
-    const ai = members.indexOf(a);
-    const bi = members.indexOf(b);
-    if (ai !== -1 && bi !== -1 && Math.abs(ai - bi) === 1) {
-      return {
-        verdict: "wrong",
-        tag: "boundary",
-        detail: `off-by-one band: expected ${gtValue}, got ${modelValue}`,
-      };
-    }
-    return {
-      verdict: "wrong",
-      tag: bi === -1 ? "invalid-band" : "wrong-member",
-      detail: `expected ${gtValue}, got ${modelValue}`,
-    };
-  }
-
-  // enum
-  const members = ENUMS[field] ?? [];
-  const a = normToken(gtValue);
-  const b = normToken(modelValue);
-  if (a === b) return { verdict: "correct", tag: "match", detail: "enum match" };
-  if (retracted.includes(b))
-    return {
-      verdict: "wrong",
-      tag: "retracted",
-      detail: `retracted value "${modelValue}" (last-value-wins)`,
-    };
-  if (b === "other")
-    return {
-      verdict: "wrong",
-      tag: "other-dump",
-      detail: `dumped to other; expected "${gtValue}"`,
-    };
-  if (!members.includes(b))
-    return {
-      verdict: "wrong",
-      tag: "invalid-enum",
-      detail: `"${modelValue}" is not a member of ${field}`,
-    };
-  return {
-    verdict: "wrong",
-    tag: "wrong-member",
-    detail: `expected "${gtValue}", got "${modelValue}"`,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// sourceSpan classification
-// ---------------------------------------------------------------------------
-
-/** Verbatim per README §7: transcript.includes(span), normalising only trailing whitespace. */
+/** Verbatim per prompt.md rule 3: transcript.includes(span), normalising only trailing whitespace. */
 export function spanIsVerbatim(span, transcript) {
   if (typeof span !== "string") return false;
   if (transcript.includes(span)) return true;
@@ -500,7 +210,151 @@ export function classifySpan(span, transcript) {
 }
 
 // ---------------------------------------------------------------------------
-// Result loading (robust to fences / prose / malformed)
+// Ground-truth leaf -> canonical comparison target
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize one leaf's ground truth into what scoring needs, regardless of kind:
+ * whether it is null (unmentioned OR declared_absent — both score as "no value"), and the
+ * canonical target when it is not.
+ */
+function gtCanonical(path, leafTruth) {
+  const spec = LEAF_BY_PATH.get(path);
+  if (!leafTruth || leafTruth.status !== "asserted") {
+    return { isNull: true, kind: spec.kind };
+  }
+  if (spec.kind === "enum") {
+    return {
+      isNull: false,
+      kind: "enum",
+      member: leafTruth.member ?? null,
+      noFittingMember: leafTruth.noFittingMember ?? null,
+    };
+  }
+  return { isNull: false, kind: spec.kind, value: leafTruth.value };
+}
+
+/** `arguable`/`retracted` live on the leaf truth regardless of status; pull them out uniformly. */
+function gtExtras(leafTruth) {
+  return { arguable: leafTruth?.arguable ?? null, retracted: leafTruth?.retracted ?? [] };
+}
+
+/** Does `rawModelValue` match one of the leaf's sanctioned soft alternatives? */
+function matchesAlternative(path, kind, rawModelValue, alternatives) {
+  if (!alternatives || alternatives.length === 0) return false;
+  if (kind === "enum") {
+    const resolved = resolveEnumMember(path, rawModelValue);
+    return resolved.member !== null && alternatives.includes(resolved.member);
+  }
+  if (kind === "number") {
+    const n = parseNumberish(rawModelValue);
+    return n !== null && alternatives.some((a) => typeof a === "number" && numbersNear(a, n));
+  }
+  return alternatives.some(
+    (a) => typeof a === "string" && normStr(a) === normStr(String(rawModelValue)),
+  );
+}
+
+/** Does `rawModelValue` match one of the leaf's RETRACTED (withdrawn, last-value-wins-losing) values? */
+function matchesRetracted(path, kind, rawModelValue, retracted) {
+  if (!retracted || retracted.length === 0) return false;
+  if (kind === "enum") {
+    const resolved = resolveEnumMember(path, rawModelValue);
+    return resolved.member !== null && retracted.some((r) => r.value === resolved.member);
+  }
+  if (kind === "number") {
+    const n = parseNumberish(rawModelValue);
+    return (
+      n !== null && retracted.some((r) => typeof r.value === "number" && numbersNear(r.value, n))
+    );
+  }
+  return retracted.some(
+    (r) => typeof r.value === "string" && normStr(r.value) === normStr(String(rawModelValue)),
+  );
+}
+
+/**
+ * Compare a GT canonical value and a model's raw leaf value, given GT is non-null.
+ * Returns { verdict: 'correct'|'wrong', tag, detail, vocabulary? }.
+ */
+function compareValue(path, gt, rawModelValue) {
+  if (gt.kind === "number") {
+    const a = gt.value;
+    const b = parseNumberish(rawModelValue);
+    if (b === null)
+      return {
+        verdict: "wrong",
+        tag: "unparseable",
+        detail: `unparseable ${JSON.stringify(rawModelValue)}`,
+      };
+    if (numbersNear(a, b)) return { verdict: "correct", tag: "match", detail: "numeric match" };
+    return { verdict: "wrong", tag: "number", detail: `expected ${a}, got ${b}` };
+  }
+  if (gt.kind === "string") {
+    const a = normStr(gt.value);
+    const b = normStr(String(rawModelValue));
+    if (a === b || (a.length > 2 && b.length > 2 && (a.includes(b) || b.includes(a)))) {
+      return { verdict: "correct", tag: "match", detail: "string match" };
+    }
+    return {
+      verdict: "wrong",
+      tag: "string",
+      detail: `expected ${JSON.stringify(gt.value)}, got ${JSON.stringify(rawModelValue)}`,
+    };
+  }
+  // enum
+  if (gt.noFittingMember) {
+    // No schema member is correct; there is nothing to be "correct" against.
+    const resolved = resolveEnumMember(path, rawModelValue);
+    return resolved.member === null
+      ? {
+          verdict: "wrong",
+          tag: "invalid-enum",
+          detail: `"${rawModelValue}" is not a member of this leaf`,
+        }
+      : {
+          verdict: "unscorable",
+          tag: "no-fitting-member",
+          vocabulary: resolved.vocabulary,
+          detail: `landed on "${resolved.member}"; GT has no fitting member to grade against`,
+        };
+  }
+  const resolved = resolveEnumMember(path, rawModelValue);
+  if (resolved.member === null) {
+    return {
+      verdict: "wrong",
+      tag: "invalid-enum",
+      detail: `"${rawModelValue}" matches neither vocabulary for this leaf`,
+    };
+  }
+  if (resolved.member === gt.member) {
+    return { verdict: "correct", tag: "match", vocabulary: resolved.vocabulary };
+  }
+  if (BAND_LEAVES.has(path)) {
+    const order = bandOrder(path);
+    const ai = order.indexOf(gt.member);
+    const bi = order.indexOf(resolved.member);
+    if (ai !== -1 && bi !== -1 && Math.abs(ai - bi) === 1) {
+      return {
+        verdict: "wrong",
+        tag: "boundary",
+        vocabulary: resolved.vocabulary,
+        detail: `off-by-one band: expected ${gt.member}, got ${resolved.member}`,
+      };
+    }
+  }
+  return {
+    verdict: "wrong",
+    tag: "wrong-member",
+    vocabulary: resolved.vocabulary,
+    detail: `expected "${gt.member}", got "${resolved.member}"`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Result loading (robust to fences / prose / malformed) — unchanged from the
+// old scorer; the failure modes it guards against are about the MODEL's
+// output hygiene, not the schema shape.
 // ---------------------------------------------------------------------------
 
 export function extractJson(raw) {
@@ -546,26 +400,37 @@ export function loadResult(dir, slug) {
   return { data: out.data, repaired: out.repaired ?? null, problem: null };
 }
 
-/** Read a leaf envelope defensively. Returns { value, confidence, span, envErrors }. */
-function readLeaf(cell, label) {
+/** Navigate a dotted leaf path into the nested model output and read its envelope defensively. */
+function readLeaf(model, path) {
+  const parts = path.split(".");
+  const groupKey = parts[0];
+  const leafKey = parts[1];
   const envErrors = [];
+  const group = model?.[groupKey];
+  if (group === undefined)
+    return { value: null, confidence: null, span: null, missing: true, envErrors };
+  if (typeof group !== "object" || group === null || Array.isArray(group)) {
+    envErrors.push(`${groupKey}: not an object`);
+    return { value: null, confidence: null, span: null, envErrors };
+  }
+  const cell = group[leafKey];
   if (cell === undefined)
     return { value: null, confidence: null, span: null, missing: true, envErrors };
   if (cell === null || typeof cell !== "object" || Array.isArray(cell)) {
-    envErrors.push(`${label}: not a {value,confidence,sourceSpan} object`);
+    envErrors.push(`${path}: not a {value,confidence,sourceSpan} object`);
     return { value: null, confidence: null, span: null, envErrors };
   }
+  const ENVELOPE_KEYS = ["value", "confidence", "sourceSpan"];
   const keys = Object.keys(cell);
-  for (const k of ENVELOPE_KEYS) if (!keys.includes(k)) envErrors.push(`${label}: missing "${k}"`);
-  for (const k of keys)
-    if (!ENVELOPE_KEYS.includes(k)) envErrors.push(`${label}: extra key "${k}"`);
+  for (const k of ENVELOPE_KEYS) if (!keys.includes(k)) envErrors.push(`${path}: missing "${k}"`);
+  for (const k of keys) if (!ENVELOPE_KEYS.includes(k)) envErrors.push(`${path}: extra key "${k}"`);
   const value = cell.value ?? null;
   let confidence = typeof cell.confidence === "number" ? cell.confidence : null;
   if (cell.confidence !== undefined && confidence === null)
-    envErrors.push(`${label}: confidence is not a number`);
+    envErrors.push(`${path}: confidence is not a number`);
   const span = typeof cell.sourceSpan === "string" ? cell.sourceSpan : null;
   if (cell.sourceSpan !== undefined && cell.sourceSpan !== null && span === null) {
-    envErrors.push(`${label}: sourceSpan is not a string or null`);
+    envErrors.push(`${path}: sourceSpan is not a string or null`);
   }
   return { value, confidence, span, envErrors };
 }
@@ -574,66 +439,60 @@ function readLeaf(cell, label) {
 // Core scoring for one transcript
 // ---------------------------------------------------------------------------
 
-/** Fresh, zeroed counts structure. */
 function emptyCounts() {
   return {
-    // top-level null/non-null
     gtNull: 0,
     gtNonNull: 0,
     correctNull: 0,
     hallucinationHard: 0,
     hallucinationSoft: 0,
+    unscorable: 0,
     miss: 0,
     missExcused: 0,
     bothNonNull: 0,
     correct: 0,
     wrong: 0,
     rvalueConversion: 0,
-    // enum slice
     enumGtMember: 0,
     enumCorrect: 0,
     enumWrongMember: 0,
-    enumOtherDump: 0,
     enumInvalid: 0,
     enumMiss: 0,
-    // band slice
+    vocabApi: 0,
+    vocabSlug: 0,
     bandGt: 0,
     bandCorrect: 0,
     bandBoundary: 0,
     bandWrong: 0,
     bandMiss: 0,
-    // spans
     spanChecked: 0,
     spanVerbatim: 0,
     spanNearMiss: 0,
     spanFabricated: 0,
     spanMissing: 0,
-    // health
     hGtNull: 0,
     hCorrectNull: 0,
-    hSilentNotTested: 0,
     hHallucinatedPass: 0,
     hHallucinatedProblem: 0,
-    hSoftPass: 0,
+    hSilentNotTested: 0,
     hGtState: 0,
     hCorrectState: 0,
     hWrongState: 0,
     hMiss: 0,
-    hSoftMiss: 0,
+    hMissExcused: 0,
     hCleanDropped: 0,
     hGtPassed: 0,
     hGtPassedCorrect: 0,
-    hGtPassedDropped: 0,
   };
 }
 
 /**
- * Score one transcript.
- * @param slug         transcript slug
- * @param gt           the parsed ground-truth object ({ fields: {...}, notes })
- * @param transcript   raw transcript text
- * @param model        parsed model output object, or null when missing/malformed
- * @param loadProblem  optional string describing why model is null
+ * Score one transcript against its new-format ground truth.
+ * @param slug transcript slug
+ * @param gt the parsed, VALIDATED new-format ground-truth object ({ leaves: {...}, notes })
+ * @param transcript raw transcript text
+ * @param model parsed model output object, or null when missing/malformed
+ * @param loadProblem optional string describing why model is null
  */
 export function scoreTranscript(slug, gt, transcript, model, loadProblem = null) {
   const r = {
@@ -641,122 +500,185 @@ export function scoreTranscript(slug, gt, transcript, model, loadProblem = null)
     status: model ? "scored" : "unscored",
     problem: loadProblem,
     counts: emptyCounts(),
-    conformance: { missingKeys: [], extraKeys: [], envelopeErrors: [] },
+    conformance: {
+      missingGroups: [],
+      extraGroups: [],
+      missingLeaves: [],
+      extraLeaves: [],
+      envelopeErrors: [],
+    },
     hallucinations: [],
     softAlternatives: [],
     misses: [],
     excused: [],
     wrong: [],
+    unscorableRows: [],
     badSpans: [],
-    axis: null,
+    axis: [],
     health: [],
     confidences: { correct: [], wrong: [], correctNull: [], hallucinated: [] },
   };
-  const gf = gt.fields;
 
   // GT-side counts always available (even for unscored, so denominators are honest).
-  for (const f of TOP_FIELDS) {
-    if (gf[f].value === null) r.counts.gtNull++;
+  for (const path of GENERIC_LEAF_PATHS) {
+    if (gtCanonical(path, gt.leaves[path]).isNull) r.counts.gtNull++;
     else r.counts.gtNonNull++;
   }
-  for (const t of HEALTH_TESTS) {
-    if (gf.healthSafety[t].value === null) r.counts.hGtNull++;
+  for (const path of HEALTH_TEST_PATHS) {
+    if (gtCanonical(path, gt.leaves[path]).isNull) r.counts.hGtNull++;
     else r.counts.hGtState++;
   }
 
   if (!model) return r; // whole-transcript miss handled at aggregate
 
-  r.conformance.missingKeys = [...TOP_FIELDS, "healthSafety"].filter((k) => !(k in model));
-  r.conformance.extraKeys = Object.keys(model).filter(
-    (k) => !TOP_FIELDS.includes(k) && k !== "healthSafety",
-  );
+  // ---- conformance: groups, then leaves within present groups ----
+  r.conformance.missingGroups = GROUPS.filter((g) => !(g in model));
+  r.conformance.extraGroups = Object.keys(model).filter((g) => !GROUPS.includes(g));
+  for (const group of GROUPS) {
+    const groupLeaves = LEAF_PATHS.filter((p) => p.startsWith(`${group}.`));
+    const localKeys = groupLeaves.map((p) => p.slice(group.length + 1));
+    const groupObj = model[group];
+    if (groupObj === undefined || typeof groupObj !== "object" || groupObj === null) continue;
+    for (const k of localKeys)
+      if (!(k in groupObj)) r.conformance.missingLeaves.push(`${group}.${k}`);
+    for (const k of Object.keys(groupObj))
+      if (!localKeys.includes(k)) r.conformance.extraLeaves.push(`${group}.${k}`);
+  }
 
   const rvalueOnly =
-    gf.atticInsulationDepthIn.value === null && gf.atticInsulationSpokenRValue.value !== null;
+    gtCanonical("attic.atticInsulationDepth", gt.leaves["attic.atticInsulationDepth"]).isNull &&
+    !gtCanonical("attic.atticInsulation", gt.leaves["attic.atticInsulation"]).isNull;
 
-  // ---- top-level fields ----
-  for (const f of TOP_FIELDS) {
-    const gtValue = gf[f].value;
-    const leaf = readLeaf(model[f], f);
+  const scoreOneLeaf = (path, { isHealth }) => {
+    const leafTruth = gt.leaves[path];
+    const gtc = gtCanonical(path, leafTruth);
+    const { arguable, retracted } = gtExtras(leafTruth);
+    const leaf = readLeaf(model, path);
     r.conformance.envelopeErrors.push(...leaf.envErrors);
     const { value: mv, confidence, span } = leaf;
+    const isSanctioned = (raw) =>
+      matchesAlternative(path, gtc.kind, raw, arguable?.acceptableAlternatives);
 
-    const kind = fieldKind(f);
-    const partial = TOP_PARTIAL[slug]?.[f];
-
-    // null / non-null agreement
-    if (gtValue === null && mv === null) {
+    if (gtc.isNull && mv === null) {
       r.counts.correctNull++;
+      if (isHealth) r.counts.hCorrectNull++;
       if (confidence !== null) r.confidences.correctNull.push(confidence);
-    } else if (gtValue === null && mv !== null) {
-      const softSet = (partial?.soft ?? []).map(normToken);
-      const isSoft = softSet.includes(normToken(mv));
-      const isRvalueConv = f === "atticInsulationDepthIn" && rvalueOnly;
+    } else if (gtc.isNull && mv !== null) {
+      // GT null, model asserted something: a hallucination, unless the leaf's own `arguable`
+      // sanctions this exact value, OR (health only) the value is the matrix's own mild
+      // "explicitly not tested" member asserted on total silence — a real overreach, but a much
+      // smaller one than inventing a Passed/Failed/Warning result (mirrors the old scorer's
+      // `silentNotTested` bucket).
+      const isRvalueConv = path === "attic.atticInsulationDepth" && rvalueOnly;
       if (isRvalueConv) r.counts.rvalueConversion++;
-      if (isSoft) {
+      if (isSanctioned(mv)) {
         r.counts.hallucinationSoft++;
-        r.softAlternatives.push({ field: f, value: mv, confidence, note: partial.note });
+        r.softAlternatives.push({ field: path, value: mv, confidence, note: arguable.note });
+      } else if (isHealth && resolveEnumMember(path, mv).member === "Not Tested") {
+        r.counts.hSilentNotTested++;
+      } else if (isHealth) {
+        const resolved = resolveEnumMember(path, mv);
+        const category = resolved.member === "Passed" ? "hallucinatedPass" : "hallucinatedProblem";
+        r.counts[category === "hallucinatedPass" ? "hHallucinatedPass" : "hHallucinatedProblem"]++;
+        r.health.push({ test: path, gt: null, got: resolved.member ?? mv, category });
       } else {
         r.counts.hallucinationHard++;
         r.hallucinations.push({
-          field: f,
+          field: path,
           value: mv,
           confidence,
           sourceSpan: span,
           rvalueConversion: isRvalueConv,
-          note: gt.notes?.[f] ?? null,
         });
         if (confidence !== null) r.confidences.hallucinated.push(confidence);
       }
-    } else if (gtValue !== null && mv === null) {
-      const excused = MISS_EXCUSED[slug]?.[f];
+    } else if (!gtc.isNull && mv === null) {
+      const excused = arguable?.acceptableMiss === true;
       if (excused) {
-        r.counts.missExcused++;
-        r.excused.push({ field: f, expected: gtValue, note: excused.note });
+        if (isHealth) r.counts.hMissExcused++;
+        else r.counts.missExcused++;
+        r.excused.push({ field: path, note: arguable.note });
+      } else if (isHealth) {
+        r.counts.hMiss++;
+        const wasPassed = gtc.member === "Passed";
+        if (wasPassed) r.counts.hCleanDropped++;
+        r.health.push({
+          test: path,
+          gt: gtc.member,
+          got: null,
+          category: wasPassed ? "cleanDropped" : "miss",
+        });
       } else {
         r.counts.miss++;
-        r.misses.push({ field: f, expected: gtValue, span });
-        if (kind === "enum") r.counts.enumMiss++;
-        if (kind === "band") r.counts.bandMiss++;
+        r.misses.push({
+          field: path,
+          expected: gtc.kind === "enum" ? gtc.member : gtc.value,
+          span,
+        });
+        if (gtc.kind === "enum") r.counts.enumMiss++;
+        if (BAND_LEAVES.has(path)) r.counts.bandMiss++;
       }
     } else {
       // both non-null
       r.counts.bothNonNull++;
-      const cmp = compareValue(slug, f, gtValue, mv);
-      const ok = cmp.verdict === "correct";
-      if (ok) {
-        r.counts.correct++;
-        if (confidence !== null) r.confidences.correct.push(confidence);
+      const cmp = compareValue(path, gtc, mv);
+      const sanctioned = cmp.verdict !== "correct" && isSanctioned(mv);
+      if (cmp.verdict === "unscorable" && !sanctioned) {
+        r.counts.unscorable++;
+        r.unscorableRows.push({ field: path, got: mv, detail: cmp.detail });
       } else {
-        r.counts.wrong++;
-        r.wrong.push({
-          field: f,
-          expected: gtValue,
-          got: mv,
-          tag: cmp.tag,
-          detail: cmp.detail,
-          confidence,
-        });
-        if (confidence !== null) r.confidences.wrong.push(confidence);
-      }
-      // enum slice
-      if (kind === "enum") {
-        r.counts.enumGtMember++;
-        if (ok) r.counts.enumCorrect++;
-        else if (cmp.tag === "other-dump") r.counts.enumOtherDump++;
-        else if (cmp.tag === "wrong-member" || cmp.tag === "retracted") r.counts.enumWrongMember++;
-        else r.counts.enumInvalid++;
-      }
-      // band slice
-      if (kind === "band") {
-        r.counts.bandGt++;
-        if (ok) r.counts.bandCorrect++;
-        else if (cmp.tag === "boundary") r.counts.bandBoundary++;
-        else r.counts.bandWrong++;
+        const ok = cmp.verdict === "correct" || sanctioned;
+        if (cmp.vocabulary === "api") r.counts.vocabApi++;
+        else if (cmp.vocabulary === "slug") r.counts.vocabSlug++;
+
+        if (sanctioned) {
+          r.counts.hallucinationSoft++;
+          r.softAlternatives.push({ field: path, value: mv, confidence, note: arguable.note });
+        } else if (isHealth) {
+          if (ok) {
+            r.counts.hCorrectState++;
+            if (gtc.member === "Passed") r.counts.hGtPassedCorrect++;
+          } else {
+            const resolved = resolveEnumMember(path, mv);
+            const category = resolved.member === "Passed" ? "hallucinatedPass" : "wrongState";
+            r.counts[category === "hallucinatedPass" ? "hHallucinatedPass" : "hWrongState"]++;
+            r.health.push({ test: path, gt: gtc.member, got: resolved.member ?? mv, category });
+          }
+          if (gtc.member === "Passed") r.counts.hGtPassed++;
+        } else {
+          if (ok) {
+            r.counts.correct++;
+            if (confidence !== null) r.confidences.correct.push(confidence);
+          } else {
+            const isRetracted = matchesRetracted(path, gtc.kind, mv, retracted);
+            r.counts.wrong++;
+            r.wrong.push({
+              field: path,
+              expected: gtc.kind === "enum" ? gtc.member : gtc.value,
+              got: mv,
+              tag: isRetracted ? "retracted" : cmp.tag,
+              detail: cmp.detail,
+              confidence,
+            });
+            if (confidence !== null) r.confidences.wrong.push(confidence);
+          }
+          if (gtc.kind === "enum") {
+            r.counts.enumGtMember++;
+            if (ok) r.counts.enumCorrect++;
+            else if (cmp.tag === "invalid-enum") r.counts.enumInvalid++;
+            else if (cmp.tag !== "boundary") r.counts.enumWrongMember++;
+          }
+          if (BAND_LEAVES.has(path)) {
+            r.counts.bandGt++;
+            if (ok) r.counts.bandCorrect++;
+            else if (cmp.tag === "boundary") r.counts.bandBoundary++;
+            else r.counts.bandWrong++;
+          }
+        }
       }
     }
 
-    // span validity for any non-null span (report non-null-value spans as the headline)
+    // span validity for any non-null model value, or a fabricated span on a null decline
     if (span !== null) {
       const c = classifySpan(span, transcript);
       if (mv !== null) {
@@ -765,12 +687,11 @@ export function scoreTranscript(slug, gt, transcript, model, loadProblem = null)
         else {
           if (c.status === "near-miss") r.counts.spanNearMiss++;
           else r.counts.spanFabricated++;
-          r.badSpans.push({ field: f, value: mv, span, status: c.status, detail: c.detail });
+          r.badSpans.push({ field: path, value: mv, span, status: c.status, detail: c.detail });
         }
       } else if (c.status === "fabricated") {
-        // fabricated quote on an explicit-decline null — still a provenance defect
         r.badSpans.push({
-          field: f,
+          field: path,
           value: null,
           span,
           status: "fabricated-decline",
@@ -781,211 +702,84 @@ export function scoreTranscript(slug, gt, transcript, model, loadProblem = null)
       r.counts.spanChecked++;
       r.counts.spanMissing++;
       r.badSpans.push({
-        field: f,
+        field: path,
         value: mv,
         span: null,
         status: "missing",
         detail: "non-null value with no sourceSpan",
       });
     }
-  }
+  };
 
-  // ---- health matrix ----
-  const hleaf = readLeaf(model.healthSafety, "healthSafety");
-  const hobj =
-    hleaf.value === undefined ||
-    typeof model.healthSafety !== "object" ||
-    model.healthSafety === null ||
-    Array.isArray(model.healthSafety)
-      ? {}
-      : model.healthSafety;
-  if (
-    model.healthSafety !== undefined &&
-    (typeof model.healthSafety !== "object" ||
-      model.healthSafety === null ||
-      Array.isArray(model.healthSafety))
-  ) {
-    r.conformance.envelopeErrors.push("healthSafety: not a nested object of test envelopes");
-  }
-  const hMissingKeys = HEALTH_TESTS.filter((t) => !(t in hobj));
-  const hExtraKeys = Object.keys(hobj).filter((k) => !HEALTH_TESTS.includes(k));
-  if (hMissingKeys.length)
-    r.conformance.envelopeErrors.push(`healthSafety missing tests: ${hMissingKeys.join(", ")}`);
-  if (hExtraKeys.length)
-    r.conformance.envelopeErrors.push(`healthSafety extra tests: ${hExtraKeys.join(", ")}`);
+  for (const path of GENERIC_LEAF_PATHS) scoreOneLeaf(path, { isHealth: false });
+  for (const path of HEALTH_TEST_PATHS) scoreOneLeaf(path, { isHealth: true });
 
-  for (const t of HEALTH_TESTS) {
-    const gtVal = gf.healthSafety[t].value;
-    const leaf = readLeaf(hobj[t], `healthSafety.${t}`);
-    r.conformance.envelopeErrors.push(...leaf.envErrors);
-    const mv = leaf.value;
-    const span = leaf.span;
-    const partial = HEALTH_PARTIAL[slug]?.[t];
-
-    let cat;
-    if (gtVal === null) {
-      if (mv === null) cat = "correctNull";
-      else if (mv === "not_tested") cat = "silentNotTested";
-      else if (mv === "passed") cat = partial?.softPass ? "softPass" : "hallucinatedPass";
-      else cat = "hallucinatedProblem"; // failed/warning invented
-    } else {
-      if (mv === null)
-        cat = gtVal === "not_tested" ? "softMiss" : gtVal === "passed" ? "cleanDropped" : "miss";
-      else if (mv === gtVal) cat = "correctState";
-      else if (mv === "passed")
-        cat = "hallucinatedPass"; // asserted pass where truth isn't passed
-      else cat = "wrongState";
-    }
-
-    switch (cat) {
-      case "correctNull":
-        r.counts.hCorrectNull++;
-        break;
-      case "silentNotTested":
-        r.counts.hSilentNotTested++;
-        break;
-      case "hallucinatedPass":
-        r.counts.hHallucinatedPass++;
-        break;
-      case "hallucinatedProblem":
-        r.counts.hHallucinatedProblem++;
-        break;
-      case "softPass":
-        r.counts.hSoftPass++;
-        break;
-      case "correctState":
-        r.counts.hCorrectState++;
-        break;
-      case "wrongState":
-        r.counts.hWrongState++;
-        break;
-      case "miss":
-        r.counts.hMiss++;
-        break;
-      case "softMiss":
-        r.counts.hSoftMiss++;
-        break;
-      case "cleanDropped":
-        r.counts.hCleanDropped++;
-        break;
-    }
-    if (gtVal === "passed") {
-      r.counts.hGtPassed++;
-      if (cat === "correctState") r.counts.hGtPassedCorrect++;
-      if (cat === "cleanDropped") r.counts.hGtPassedDropped++;
-    }
-    if (
-      ["hallucinatedPass", "hallucinatedProblem", "wrongState", "miss", "cleanDropped"].includes(
-        cat,
-      )
-    ) {
-      r.health.push({ test: t, gt: gtVal, got: mv, category: cat });
-    }
-
-    // span validity for health leaves too
-    if (span !== null) {
-      const c = classifySpan(span, transcript);
-      if (mv !== null) {
-        r.counts.spanChecked++;
-        if (c.status === "verbatim") r.counts.spanVerbatim++;
-        else {
-          if (c.status === "near-miss") r.counts.spanNearMiss++;
-          else r.counts.spanFabricated++;
-          r.badSpans.push({
-            field: `healthSafety.${t}`,
-            value: mv,
-            span,
-            status: c.status,
-            detail: c.detail,
-          });
-        }
-      } else if (c.status === "fabricated") {
-        r.badSpans.push({
-          field: `healthSafety.${t}`,
-          value: null,
-          span,
-          status: "fabricated-decline",
-          detail: c.detail,
-        });
-      }
-    } else if (mv !== null) {
-      r.counts.spanChecked++;
-      r.counts.spanMissing++;
-      r.badSpans.push({
-        field: `healthSafety.${t}`,
-        value: mv,
-        span: null,
-        status: "missing",
-        detail: "non-null state with no sourceSpan",
-      });
-    }
-
-    // confidence buckets for health (correct state vs wrong)
-    if (leaf.confidence !== null) {
-      if (cat === "correctState") r.confidences.correct.push(leaf.confidence);
-      else if (cat === "correctNull") r.confidences.correctNull.push(leaf.confidence);
-      else if (cat === "hallucinatedPass" || cat === "hallucinatedProblem")
-        r.confidences.hallucinated.push(leaf.confidence);
-      else if (cat === "wrongState") r.confidences.wrong.push(leaf.confidence);
-    }
-  }
-
-  // ---- axis-split (heating equipment vs fuel) ----
-  r.axis = scoreAxis(slug, gf, model);
+  // ---- axis-split (equipment vs fuel, per AXIS_PAIRS) ----
+  for (const pair of AXIS_PAIRS) r.axis.push(scoreAxis(pair, gt, model));
 
   return r;
 }
 
-/** Axis-split confusion for the heating equipment/fuel pair on system-stated transcripts. */
-function scoreAxis(slug, gf, model) {
-  const eqGt = gf.heatingEquipmentType.value;
-  if (eqGt === null) return null; // no heating system stated
-  const fuelGt = gf.heatingFuel.value;
-  const eqLeaf = readLeaf(model.heatingEquipmentType, "heatingEquipmentType");
-  const fuelLeaf = readLeaf(model.heatingFuel, "heatingFuel");
-  const eqM = eqLeaf.value;
-  const fuelM = fuelLeaf.value;
+/** Axis-split confusion for one equipment/fuel pair. */
+function scoreAxis(pair, gt, model) {
+  const eqGt = gtCanonical(pair.equipment, gt.leaves[pair.equipment]);
+  if (eqGt.isNull) return null; // no system stated on this axis pair
+  const fuelGt = gtCanonical(pair.fuel, gt.leaves[pair.fuel]);
+  const eqLeaf = readLeaf(model, pair.equipment);
+  const fuelLeaf = readLeaf(model, pair.fuel);
 
-  const eqCorrect =
-    eqM !== null && compareValue(slug, "heatingEquipmentType", eqGt, eqM).verdict === "correct";
-  const fuelCorrect =
-    fuelGt !== null &&
-    fuelM !== null &&
-    compareValue(slug, "heatingFuel", fuelGt, fuelM).verdict === "correct";
+  const eqCmp = eqLeaf.value !== null ? compareValue(pair.equipment, eqGt, eqLeaf.value) : null;
+  const eqCorrect = eqCmp?.verdict === "correct";
+  const fuelCmp =
+    !fuelGt.isNull && fuelLeaf.value !== null
+      ? compareValue(pair.fuel, fuelGt, fuelLeaf.value)
+      : null;
+  const fuelCorrect = fuelCmp?.verdict === "correct";
 
   let category;
-  if (fuelGt === null) {
-    // silent-drop transcript (08): the correct behaviour is fuel null.
-    if (fuelM === null) category = eqCorrect ? "silentDropRespected" : "silentDropEqWrong";
-    else category = "fuelInvented"; // model invented a fuel that was never stated
+  if (fuelGt.isNull) {
+    category =
+      fuelLeaf.value === null
+        ? eqCorrect
+          ? "silentDropRespected"
+          : "silentDropEqWrong"
+        : "fuelInvented";
   } else if (eqCorrect && fuelCorrect) {
     category = "bothCorrect";
-  } else if (eqCorrect && fuelM === null) {
-    category = "fuelDropped"; // THE predicted #1 failure
+  } else if (eqCorrect && fuelLeaf.value === null) {
+    category = "fuelDropped";
   } else if (eqCorrect && !fuelCorrect) {
     category = "fuelWrongMember";
-  } else if (!eqCorrect && normToken(String(eqM)) === "other") {
-    category = "axisConfused"; // fuel likely folded into an `other` equipment token
   } else {
     category = "eqWrongMember";
   }
-  return { slug, eqGt, fuelGt, eqM, fuelM, eqCorrect, fuelCorrect, category };
+  return {
+    pair: `${pair.equipment} / ${pair.fuel}`,
+    eqGt: eqGt.member,
+    fuelGt: fuelGt.isNull ? null : fuelGt.member,
+    eqM: eqLeaf.value,
+    fuelM: fuelLeaf.value,
+    eqCorrect,
+    fuelCorrect,
+    category,
+  };
 }
 
 // ---------------------------------------------------------------------------
-// Test helper: build a "perfect" model output by copying GT and adding confidence.
+// Test helper: build a "perfect" model output by copying GT canonical values
+// into the nested envelope shape (with confidence), so a copy scores clean.
 // ---------------------------------------------------------------------------
 
 export function buildPerfectModel(gt, confidence = 0.9) {
   const out = {};
-  for (const f of TOP_FIELDS) {
-    const { value, sourceSpan } = gt.fields[f];
-    out[f] = { value, confidence, sourceSpan: sourceSpan ?? null };
-  }
-  out.healthSafety = {};
-  for (const t of HEALTH_TESTS) {
-    const { value, sourceSpan } = gt.fields.healthSafety[t];
-    out.healthSafety[t] = { value, confidence, sourceSpan: sourceSpan ?? null };
+  for (const group of GROUPS) out[group] = {};
+  for (const path of LEAF_PATHS) {
+    const [group, leafKey] = path.split(".");
+    const leafTruth = gt.leaves[path];
+    const gtc = gtCanonical(path, leafTruth);
+    const value = gtc.isNull ? null : gtc.kind === "enum" ? gtc.member : gtc.value;
+    const sourceSpan = leafTruth?.sourceSpan ?? null;
+    out[group][leafKey] = { value, confidence, sourceSpan };
   }
   return out;
 }
@@ -1001,7 +795,7 @@ export function aggregate(reports) {
     keys.map((k) => [k, reports.reduce((a, r) => a + r.counts[k], 0)]),
   );
 
-  const axisRows = scored.map((r) => r.axis).filter(Boolean);
+  const axisRows = scored.flatMap((r) => r.axis).filter(Boolean);
   const axisTally = {};
   for (const a of axisRows) axisTally[a.category] = (axisTally[a.category] ?? 0) + 1;
 
@@ -1037,11 +831,24 @@ function main() {
     .sort();
 
   const reports = [];
+  const pending = [];
   for (const slug of slugs) {
-    const gt = JSON.parse(readFileSync(join(GT_DIR, `${slug}.json`), "utf8"));
+    const raw = JSON.parse(readFileSync(join(GT_DIR, `${slug}.json`), "utf8"));
+    if (!isNewFormat(raw)) {
+      pending.push({ slug, reason: 'old format (no "leaves" key) — not yet re-annotated' });
+      continue;
+    }
+    const { ok, errors } = validateGroundTruth(raw);
+    if (!ok) {
+      pending.push({
+        slug,
+        reason: `new-format ground truth is INVALID: ${errors[0]} (+${errors.length - 1} more)`,
+      });
+      continue;
+    }
     const transcript = readFileSync(join(TRANSCRIPT_DIR, `${slug}.txt`), "utf8");
     const loaded = loadResult(resultsDir, slug);
-    reports.push(scoreTranscript(slug, gt, transcript, loaded.data, loaded.problem));
+    reports.push(scoreTranscript(slug, raw, transcript, loaded.data, loaded.problem));
   }
 
   const { scored, totals, axisRows, axisTally, conf } = aggregate(reports);
@@ -1054,35 +861,37 @@ function main() {
   line("=");
   console.log(`results dir : ${resultsDir}`);
   console.log(
-    `coverage    : ${scored.length}/${reports.length} transcripts scored` +
+    `coverage    : ${scored.length}/${slugs.length} corpus transcripts scored` +
+      (pending.length ? `  (${pending.length} pending re-annotation)` : "") +
       (unscored.length
-        ? `  (${unscored.length} missing/malformed — counted as whole-transcript miss)`
+        ? `  (${unscored.length} missing/malformed results — counted as whole-transcript miss)`
         : ""),
   );
-  if (unscored.length) {
-    console.log(
-      "!! PARTIAL RUN — miss-side numbers include the unscored transcripts' stated values.",
-    );
+  if (pending.length) {
+    console.log("");
+    console.log("PENDING RE-ANNOTATION (ground truth not yet in the new format — not scored):");
+    for (const p of pending) console.log(`  ${p.slug}: ${p.reason}`);
+  }
+  if (reports.length === 0) {
+    console.log("\nNothing to score yet.\n");
+    return;
   }
 
   // 1. HALLUCINATION
   console.log("");
   line();
   console.log(
-    "1. HALLUCINATION — non-null emitted where GT is null (23 top-level fields)  [HEADLINE]",
+    `1. HALLUCINATION — non-null emitted where GT is null (${GENERIC_LEAF_PATHS.length} generic leaves)  [HEADLINE]`,
   );
   line();
   console.log(
-    `   hard hallucination rate : ${padL(pct(totals.hallucinationHard, totals.gtNull), 7)}` +
-      `  (${totals.hallucinationHard}/${totals.gtNull} GT-null slots)`,
+    `   hard hallucination rate : ${padL(pct(totals.hallucinationHard, totals.gtNull), 7)}  (${totals.hallucinationHard}/${totals.gtNull} GT-null slots)`,
   );
   console.log(
-    `   sanctioned alternatives : ${totals.hallucinationSoft}` +
-      `  (defensible non-nulls the notes refuse to call hard hallucinations)`,
+    `   sanctioned alternatives : ${totals.hallucinationSoft}  (defensible non-nulls the leaf's own \`arguable\` sanctions)`,
   );
   console.log(
-    `   R-value -> band inventions: ${totals.rvalueConversion}` +
-      `  (forbidden R->depth conversion; a band invented from a spoken R-value)`,
+    `   R-value -> band inventions: ${totals.rvalueConversion}  (forbidden R->depth-band conversion)`,
   );
   console.log(
     "   !! Read against the miss rate below — an all-null output scores 0% here and is useless.",
@@ -1091,64 +900,68 @@ function main() {
   // 2. MISS
   console.log("");
   line();
-  console.log("2. MISS — null emitted where GT has a value (23 top-level fields)");
+  console.log(
+    `2. MISS — null emitted where GT has a value (${GENERIC_LEAF_PATHS.length} generic leaves)`,
+  );
   line();
   const missDen = totals.gtNonNull - totals.missExcused;
   console.log(
-    `   miss rate : ${padL(pct(totals.miss, missDen), 7)}` +
-      `  (${totals.miss}/${missDen} stated values left null; ${totals.missExcused} excused by notes)`,
+    `   miss rate : ${padL(pct(totals.miss, missDen), 7)}  (${totals.miss}/${missDen} stated values left null; ${totals.missExcused} excused)`,
   );
   console.log(
-    `   accuracy on both-non-null : ${padL(pct(totals.correct, totals.correct + totals.wrong), 7)}` +
-      `  (${totals.correct}/${totals.correct + totals.wrong} correct)`,
+    `   accuracy on both-non-null : ${padL(pct(totals.correct, totals.correct + totals.wrong), 7)}  (${totals.correct}/${totals.correct + totals.wrong} correct)`,
   );
+  if (totals.unscorable)
+    console.log(
+      `   unscorable (GT has no fitting member, model landed off-list) : ${totals.unscorable} — excluded from the accuracy above`,
+    );
 
   // 3. AXIS-SPLIT
   console.log("");
   line();
-  console.log("3. AXIS-SPLIT — heating equipment vs fuel (system-stated transcripts)");
+  console.log("3. AXIS-SPLIT — equipment vs fuel, per axis pair (hvac, dhw)");
   line();
   const fusedRows = axisRows.filter((a) => a.fuelGt !== null);
   const bothCorrect = axisTally.bothCorrect ?? 0;
   console.log(
-    `   both-correct rate : ${padL(pct(bothCorrect, fusedRows.length), 7)}` +
-      `  (${bothCorrect}/${fusedRows.length} stated equipment+fuel split onto both axes)`,
+    `   both-correct rate : ${padL(pct(bothCorrect, fusedRows.length), 7)}  (${bothCorrect}/${fusedRows.length} stated equipment+fuel split onto both axes)`,
   );
   console.log(
     `   fuel DROPPED (equip right, fuel null when stated) : ${axisTally.fuelDropped ?? 0}   <- the #1 predicted failure`,
   );
   console.log(
-    `   fuel INVENTED on the silent-drop transcript       : ${axisTally.fuelInvented ?? 0}   <- fuel emitted where none stated (08)`,
+    `   fuel INVENTED where none stated                   : ${axisTally.fuelInvented ?? 0}`,
   );
   console.log(
-    `   axis-confused / eq-wrong / fuel-wrong-member      : ${axisTally.axisConfused ?? 0} / ${axisTally.eqWrongMember ?? 0} / ${axisTally.fuelWrongMember ?? 0}`,
+    `   eq-wrong / fuel-wrong-member                      : ${axisTally.eqWrongMember ?? 0} / ${axisTally.fuelWrongMember ?? 0}`,
   );
   console.log(
-    `   silent-drop respected (08 fuel left null)         : ${axisTally.silentDropRespected ?? 0}`,
+    `   silent-drop respected                             : ${axisTally.silentDropRespected ?? 0}`,
   );
 
-  // 4. ENUM-MAPPING
+  // 4. ENUM-MAPPING + VOCABULARY MIX
   console.log("");
   line();
-  console.log("4. ENUM-MAPPING — GT is a specific member (other = WRONG)");
+  console.log("4. ENUM-MAPPING — GT is a specific member");
   line();
   console.log(
-    `   member accuracy : ${padL(pct(totals.enumCorrect, totals.enumGtMember), 7)}` +
-      `  (${totals.enumCorrect}/${totals.enumGtMember} correct; on model-emitted enums)`,
+    `   member accuracy : ${padL(pct(totals.enumCorrect, totals.enumGtMember), 7)}  (${totals.enumCorrect}/${totals.enumGtMember} correct; on model-emitted enums)`,
   );
   console.log(
-    `   wrong-member ${totals.enumWrongMember}   other-dump ${totals.enumOtherDump}   ` +
-      `invalid ${totals.enumInvalid}   dropped-to-null ${totals.enumMiss}`,
+    `   wrong-member ${totals.enumWrongMember}   invalid (matches neither vocabulary) ${totals.enumInvalid}   dropped-to-null ${totals.enumMiss}`,
+  );
+  console.log(
+    `   vocabulary mix on CORRECT matches : api-literal ${totals.vocabApi}   snake_case-slug ${totals.vocabSlug}` +
+      "   <- both score identically; this is what lets one ground truth test either vocabulary",
   );
 
   // 5. BAND-MAPPING
   console.log("");
   line();
-  console.log("5. BAND-MAPPING — depth/age band from a stated number");
+  console.log("5. BAND-MAPPING — depth/age band ([...BAND_LEAVES])");
   line();
   console.log(
-    `   band accuracy : ${padL(pct(totals.bandCorrect, totals.bandGt), 7)}` +
-      `  (${totals.bandCorrect}/${totals.bandGt} correct band)`,
+    `   band accuracy : ${padL(pct(totals.bandCorrect, totals.bandGt), 7)}  (${totals.bandCorrect}/${totals.bandGt} correct band)`,
   );
   console.log(
     `   boundary (off-by-one bucket) ${totals.bandBoundary}   flat-wrong ${totals.bandWrong}   dropped-to-null ${totals.bandMiss}`,
@@ -1158,7 +971,7 @@ function main() {
   // 6. HEALTH MATRIX
   console.log("");
   line();
-  console.log("6. HEALTH-MATRIX STATE — 11 tests x transcripts");
+  console.log(`6. HEALTH-MATRIX STATE — ${HEALTH_TEST_PATHS.length} tests x transcripts`);
   line();
   const hCorrect = totals.hCorrectNull + totals.hCorrectState;
   const hWrong =
@@ -1167,25 +980,23 @@ function main() {
     totals.hCleanDropped +
     totals.hMiss +
     totals.hWrongState;
-  const hSoft = totals.hSilentNotTested + totals.hSoftMiss + totals.hSoftPass;
   console.log(
-    `   state accuracy : ${padL(pct(hCorrect, hCorrect + hWrong), 7)}` +
-      `  (${hCorrect} correct / ${hWrong} wrong; ${hSoft} soft/acceptable excluded)`,
+    `   state accuracy : ${padL(pct(hCorrect, hCorrect + hWrong), 7)}  (${hCorrect} correct / ${hWrong} wrong; ${totals.hMissExcused} excused)`,
   );
   console.log(
-    `   >> HALLUCINATED PASS (passed where truth is not passed) : ${totals.hHallucinatedPass}   <- the crux`,
+    `   >> HALLUCINATED PASS (Passed where truth is not Passed) : ${totals.hHallucinatedPass}   <- the crux`,
   );
   console.log(
-    `   >> CLEAN DROPPED TO NULL (passed lost)                  : ${totals.hCleanDropped}  of ${totals.hGtPassed} clean results`,
+    `   >> CLEAN DROPPED TO NULL (Passed lost)                  : ${totals.hCleanDropped}  of ${totals.hGtPassed} clean results`,
   );
   console.log(
-    `      clean correctly kept as passed : ${totals.hGtPassedCorrect}/${totals.hGtPassed}`,
+    `      clean correctly kept as Passed : ${totals.hGtPassedCorrect}/${totals.hGtPassed}`,
   );
   console.log(
-    `      hallucinated problem (failed/warning invented) ${totals.hHallucinatedProblem}   wrong-state ${totals.hWrongState}   miss ${totals.hMiss}`,
+    `      hallucinated problem (Failed/Warning invented) ${totals.hHallucinatedProblem}   wrong-state ${totals.hWrongState}   miss ${totals.hMiss}`,
   );
   console.log(
-    `      soft: silence->not_tested ${totals.hSilentNotTested}   skip->null ${totals.hSoftMiss}   mild-pass ${totals.hSoftPass}`,
+    `      soft: silence -> "Not Tested" asserted ${totals.hSilentNotTested}   (mild overreach; not counted as a hallucination)`,
   );
 
   // 7. SOURCESPAN
@@ -1194,8 +1005,7 @@ function main() {
   console.log("7. SOURCESPAN VALIDITY — verbatim substring of the transcript");
   line();
   console.log(
-    `   verbatim rate : ${padL(pct(totals.spanVerbatim, totals.spanChecked), 7)}` +
-      `  (${totals.spanVerbatim}/${totals.spanChecked} non-null values)`,
+    `   verbatim rate : ${padL(pct(totals.spanVerbatim, totals.spanChecked), 7)}  (${totals.spanVerbatim}/${totals.spanChecked} non-null values)`,
   );
   console.log(
     `   near-miss ${totals.spanNearMiss}   fabricated ${totals.spanFabricated}   missing ${totals.spanMissing}`,
@@ -1221,13 +1031,15 @@ function main() {
   // schema conformance
   const conformant = scored.filter(
     (r) =>
-      !r.conformance.missingKeys.length &&
-      !r.conformance.extraKeys.length &&
+      !r.conformance.missingGroups.length &&
+      !r.conformance.extraGroups.length &&
+      !r.conformance.missingLeaves.length &&
+      !r.conformance.extraLeaves.length &&
       !r.conformance.envelopeErrors.length,
   );
   console.log("");
   console.log(
-    `   schema conformance : ${conformant.length}/${scored.length} outputs had exactly the keys and clean envelopes`,
+    `   schema conformance : ${conformant.length}/${scored.length} outputs had exactly the groups/leaves and clean envelopes`,
   );
 
   // per-transcript
@@ -1253,10 +1065,12 @@ function main() {
     if (c.rvalueConversion) flags.push("RCONV");
     if (c.hHallucinatedPass) flags.push("HPASS");
     if (c.spanFabricated || c.spanMissing) flags.push("SPAN");
-    if (r.axis?.category === "fuelDropped") flags.push("FUELDROP");
+    if (r.axis.some((a) => a?.category === "fuelDropped")) flags.push("FUELDROP");
     if (
-      r.conformance.missingKeys.length ||
-      r.conformance.extraKeys.length ||
+      r.conformance.missingGroups.length ||
+      r.conformance.extraGroups.length ||
+      r.conformance.missingLeaves.length ||
+      r.conformance.extraLeaves.length ||
       r.conformance.envelopeErrors.length
     )
       flags.push("SCHEMA");
@@ -1271,7 +1085,6 @@ function main() {
     );
   }
 
-  // detail sections
   const section = (title, rows, render) => {
     console.log("");
     line();
@@ -1285,45 +1098,48 @@ function main() {
     "HALLUCINATIONS — value emitted where GT is null",
     scored.flatMap((r) => r.hallucinations.map((h) => ({ ...h, slug: r.slug }))),
     (h) =>
-      `  ${pad(h.slug, 26)}${pad(h.field, 26)}= ${JSON.stringify(h.value)}  [conf ${h.confidence ?? "?"}]` +
+      `  ${pad(h.slug, 26)}${pad(h.field, 30)}= ${JSON.stringify(h.value)}  [conf ${h.confidence ?? "?"}]` +
       (h.rvalueConversion ? "  <R->band CONVERSION>" : "") +
-      `\n      span: ${h.sourceSpan === null ? "(none)" : JSON.stringify(h.sourceSpan)}` +
-      (h.note ? `\n      gt note: ${h.note}` : ""),
+      `\n      span: ${h.sourceSpan === null ? "(none)" : JSON.stringify(h.sourceSpan)}`,
   );
   section(
-    "SANCTIONED ALTERNATIVES — non-null the notes allow (NOT hard hallucinations)",
+    "SANCTIONED ALTERNATIVES — non-null the leaf's own `arguable` allows (NOT hard hallucinations)",
     scored.flatMap((r) => r.softAlternatives.map((s) => ({ ...s, slug: r.slug }))),
-    (s) => `  ${pad(s.slug, 26)}${pad(s.field, 26)}= ${JSON.stringify(s.value)}  — ${s.note}`,
+    (s) => `  ${pad(s.slug, 26)}${pad(s.field, 30)}= ${JSON.stringify(s.value)}  — ${s.note}`,
   );
   section(
     "AXIS-SPLIT rows",
     axisRows,
     (a) =>
-      `  ${pad(a.slug, 26)}[${a.category}]  eq ${JSON.stringify(a.eqM)}/${JSON.stringify(a.eqGt)}  fuel ${JSON.stringify(a.fuelM)}/${JSON.stringify(a.fuelGt)}`,
+      `  ${pad(a.pair, 46)}[${a.category}]  eq ${JSON.stringify(a.eqM)}/${JSON.stringify(a.eqGt)}  fuel ${JSON.stringify(a.fuelM)}/${JSON.stringify(a.fuelGt)}`,
   );
   section(
     "HEALTH deviations",
     scored.flatMap((r) => r.health.map((h) => ({ ...h, slug: r.slug }))),
     (h) =>
-      `  ${pad(h.slug, 26)}${pad(h.test, 26)}[${h.category}] gt ${JSON.stringify(h.gt)} got ${JSON.stringify(h.got)}`,
+      `  ${pad(h.slug, 26)}${pad(h.test, 34)}[${h.category}] gt ${JSON.stringify(h.gt)} got ${JSON.stringify(h.got)}`,
   );
   section(
     "WRONG VALUES — both non-null, semantically different",
     scored.flatMap((r) => r.wrong.map((w) => ({ ...w, slug: r.slug }))),
     (w) =>
-      `  ${pad(w.slug, 26)}${pad(w.field, 26)}[${w.tag}] ${w.detail}  [conf ${w.confidence ?? "?"}]`,
+      `  ${pad(w.slug, 26)}${pad(w.field, 30)}[${w.tag}] ${w.detail}  [conf ${w.confidence ?? "?"}]`,
   );
   section(
     "MISSES — null where GT has a value",
     scored.flatMap((r) => r.misses.map((m) => ({ ...m, slug: r.slug }))),
-    (m) => `  ${pad(m.slug, 26)}${pad(m.field, 26)}expected ${JSON.stringify(m.expected)}`,
+    (m) => `  ${pad(m.slug, 26)}${pad(m.field, 30)}expected ${JSON.stringify(m.expected)}`,
+  );
+  section(
+    "UNSCORABLE — GT has no fitting schema member (report only; excluded from accuracy)",
+    scored.flatMap((r) => r.unscorableRows.map((u) => ({ ...u, slug: r.slug }))),
+    (u) => `  ${pad(u.slug, 26)}${pad(u.field, 30)}got ${JSON.stringify(u.got)} — ${u.detail}`,
   );
   section(
     "INVALID sourceSpans — not a verbatim substring",
     scored.flatMap((r) => r.badSpans.map((b) => ({ ...b, slug: r.slug }))),
     (b) =>
-      `  ${pad(b.slug, 26)}${pad(b.field, 26)}[${b.status}] ${b.detail}\n` +
-      `      value: ${JSON.stringify(b.value)}   span: ${JSON.stringify(b.span)}`,
+      `  ${pad(b.slug, 26)}${pad(b.field, 30)}[${b.status}] ${b.detail}\n      value: ${JSON.stringify(b.value)}   span: ${JSON.stringify(b.span)}`,
   );
   section(
     "UNSCORED — missing or malformed result files (counted as whole-transcript miss)",
@@ -1339,7 +1155,6 @@ function main() {
   );
   line("=");
 
-  // machine-readable
   const outPath = join(HERE, "results", `${dirName}-score.json`);
   writeFileSync(
     outPath,
@@ -1349,8 +1164,9 @@ function main() {
         model: dirName,
         resultsDir,
         coverage: {
-          total: reports.length,
+          total: slugs.length,
           scored: scored.length,
+          pendingReannotation: pending.map((p) => p.slug),
           unscored: unscored.map((r) => ({ slug: r.slug, problem: r.problem })),
         },
         totals,
@@ -1380,7 +1196,6 @@ function main() {
   console.log(`\nWrote ${outPath}\n`);
 }
 
-// Run as CLI only when invoked directly (so score.test.mjs can import cleanly).
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   main();
 }
