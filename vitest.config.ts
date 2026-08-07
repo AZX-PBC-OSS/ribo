@@ -47,9 +47,19 @@ export default defineConfig({
         // through the client pipeline and needs the *other* spelling — see
         // there.
         //
-        // Guarded by
-        // packages/ribo-adapter-snuggpro/src/workspace-resolution.test.ts — the
-        // only node test that imports a workspace package by name.
+        // This block is gated by `pnpm check:resolve`
+        // (scripts/assert-source-condition.mjs), which loads this file through
+        // Vitest's own `createVitest` and asserts the "unit" project's resolved
+        // `ssr.resolve.conditions` directly. That gate has been verified to FAIL
+        // with this block deleted and to pass with it restored — a gate that has
+        // never failed is not known to work.
+        //
+        // packages/ribo-adapter-snuggpro/src/workspace-resolution.test.ts imports
+        // a workspace package by name too, but does NOT guard this block: every
+        // publishable package's `exports` has a `default` fallback to `dist/`,
+        // and `./check.sh` builds before it tests, so that import keeps
+        // succeeding off `dist/` even with this block gone. R2 found that hole;
+        // treat that test as a cross-package-import smoke check only.
         ssr: {
           resolve: {
             conditions: ["@azx/source"],
@@ -95,11 +105,20 @@ export default defineConfig({
         // up there) produces a config that reads as correct and resolves
         // nothing — precisely the failure mode that went unnoticed in Phase 0.
         //
-        // Guarded by
-        // packages/ribo-core/src/workspace-resolution.browser.test.ts. That
-        // guard has been observed to FAIL with this block deleted ("Failed to
-        // resolve entry for package `@azx/ribo-core`") and to pass with it
-        // restored — a guard that has never failed is not known to work.
+        // This block is gated by `pnpm check:resolve`
+        // (scripts/assert-source-condition.mjs), which loads this file through
+        // Vitest's own `createVitest` and asserts the "browser" project's
+        // resolved `resolve.conditions` directly. That gate has been verified to
+        // FAIL with this block deleted and to pass with it restored — a gate
+        // that has never failed is not known to work.
+        //
+        // packages/ribo-core/src/workspace-resolution.browser.test.ts (and its
+        // ribo-ui-react counterpart) import a workspace package by name too, but
+        // do NOT guard this block: every publishable package's `exports` has a
+        // `default` fallback to `dist/`, and `./check.sh` builds before it
+        // tests, so those imports keep succeeding off `dist/` even with this
+        // block gone. R2 found that hole; treat those tests as cross-package-
+        // import smoke checks only.
         resolve: {
           conditions: ["@azx/source"],
         },

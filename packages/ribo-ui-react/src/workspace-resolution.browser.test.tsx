@@ -1,12 +1,23 @@
 import { expect, test } from "vitest";
 import { render } from "vitest-browser-react";
-// Imported by *package name*, not a relative path — that is the point. This is the
-// browser project's counterpart to
-// packages/ribo-adapter-snuggpro/src/workspace-resolution.test.ts, which guards the
-// same property for the node tier. The two projects need OPPOSITE spellings
-// (`resolve.conditions` here, `ssr.resolve.conditions` there) and neither guard
-// covers the other. If this file fails to resolve, the browser project has lost its
-// block — do not "fix" it by switching to a relative import.
+// Imported by *package name*, not a relative path — a smoke test that this tier
+// (ribo-ui-react's browser project) can resolve a workspace package at all, the
+// same way packages/ribo-adapter-snuggpro/src/workspace-resolution.test.ts does
+// for the node tier and packages/ribo-core/src/workspace-resolution.browser.test.ts
+// does for ribo-core's own browser project.
+//
+// This does NOT prove the browser project's `resolve.conditions` block in
+// vitest.config.ts is intact. `@azx/ribo-core`'s `exports` has a `default`
+// fallback to `dist/index.js`, and `./check.sh` always runs `build:packages`
+// before `test`, so by the time this test runs `dist/` exists and this import
+// succeeds identically whether or not the `@azx/source` condition is applied.
+// The condition itself is guarded by `pnpm check:resolve`
+// (`scripts/assert-source-condition.mjs`), which loads vitest.config.ts through
+// Vitest's own `createVitest` and asserts the resolved `resolve.conditions`
+// directly — that is the gate that actually fails if the block is lost. Keep
+// this as a bare package-name import regardless — it is still worth having as
+// proof the tier can do a cross-package import at all — just do not "fix" a
+// failure here by switching to a relative import, which would defeat even that.
 import { Recorder } from "@azx/ribo-core";
 
 test("resolves @azx/ribo-core by package name from a ui-react browser test", () => {

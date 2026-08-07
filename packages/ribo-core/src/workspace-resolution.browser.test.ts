@@ -3,15 +3,23 @@ import { expect, test } from "vitest";
 // The browser project's counterpart to
 // packages/ribo-adapter-snuggpro/src/workspace-resolution.test.ts.
 //
-// Imported by *package name*, not by relative path — that is the whole point.
-// A browser-mode test file is served through Vite's CLIENT pipeline, which
-// reads plain `resolve.conditions`, not the `ssr.resolve.conditions` that the
-// `unit` project needs. The two spellings are not interchangeable and neither
-// project's guard covers the other's, so this test exists to fail loudly
-// ("Failed to resolve entry for package `@azx/ribo-core`") if the `browser`
-// project in vitest.config.ts ever loses its `resolve.conditions`.
+// Imported by *package name*, not by relative path — a smoke test that this
+// tier can resolve a workspace package at all, the same way that file smoke-
+// tests the `unit` project.
 //
-// This has been verified by deleting that block and watching this file fail.
+// This does NOT prove the `browser` project's `resolve.conditions` block in
+// vitest.config.ts is intact, despite what an earlier version of this comment
+// claimed ("verified by deleting that block and watching this file fail").
+// That was true only while no package had a built `dist/`. `@azx/ribo-core`'s
+// `exports` has a `default` fallback to `dist/index.js`, and `./check.sh`
+// always runs `build:packages` before `test`, so by the time this test runs
+// `dist/` exists and this import succeeds identically whether or not the
+// `@azx/source` condition is applied. R2 found that deleting the block left
+// this test green. The condition itself is guarded by `pnpm check:resolve`
+// (`scripts/assert-source-condition.mjs`), which loads vitest.config.ts
+// through Vitest's own `createVitest` and asserts the resolved
+// `resolve.conditions` directly — that is the gate that actually fails when
+// the block is lost, and the one to read for how this is really proven.
 //
 // The imported symbol is incidental — swap it for any other real
 // `@azx/ribo-core` export as the package evolves. The *import style* is the
