@@ -47,9 +47,19 @@ export default defineConfig({
         // through the client pipeline and needs the *other* spelling — see
         // there.
         //
-        // Guarded by
-        // packages/ribo-adapter-snuggpro/src/workspace-resolution.test.ts — the
-        // only node test that imports a workspace package by name.
+        // This block is gated by `pnpm check:resolve`
+        // (scripts/assert-source-condition.mjs), which loads this file through
+        // Vitest's own `createVitest` and asserts the "unit" project's resolved
+        // `ssr.resolve.conditions` directly. That gate has been verified to FAIL
+        // with this block deleted and to pass with it restored — a gate that has
+        // never failed is not known to work.
+        //
+        // packages/ribo-adapter-snuggpro/src/workspace-resolution.test.ts imports
+        // a workspace package by name too, but does NOT guard this block: every
+        // publishable package's `exports` has a `default` fallback to `dist/`,
+        // and `./check.sh` builds before it tests, so that import keeps
+        // succeeding off `dist/` even with this block gone. R2 found that hole;
+        // treat that test as a cross-package-import smoke check only.
         ssr: {
           resolve: {
             conditions: ["@azx/source"],
@@ -80,6 +90,10 @@ export default defineConfig({
             "**/node_modules/**",
             "**/dist/**",
             "packages/*/src/**/*.browser.test.{ts,tsx}",
+            // The playground's own browser-mode tests (R2 Task 17's ReviewPanel
+            // interaction tests) — same reasoning, same `playground/**/*.test.{ts,tsx}`
+            // include above would otherwise also pick these up under `node`.
+            "playground/src/**/*.browser.test.{ts,tsx}",
             "playground/e2e/**",
           ],
         },
@@ -95,11 +109,20 @@ export default defineConfig({
         // up there) produces a config that reads as correct and resolves
         // nothing — precisely the failure mode that went unnoticed in Phase 0.
         //
-        // Guarded by
-        // packages/ribo-core/src/workspace-resolution.browser.test.ts. That
-        // guard has been observed to FAIL with this block deleted ("Failed to
-        // resolve entry for package `@azx/ribo-core`") and to pass with it
-        // restored — a guard that has never failed is not known to work.
+        // This block is gated by `pnpm check:resolve`
+        // (scripts/assert-source-condition.mjs), which loads this file through
+        // Vitest's own `createVitest` and asserts the "browser" project's
+        // resolved `resolve.conditions` directly. That gate has been verified to
+        // FAIL with this block deleted and to pass with it restored — a gate
+        // that has never failed is not known to work.
+        //
+        // packages/ribo-core/src/workspace-resolution.browser.test.ts (and its
+        // ribo-ui-react counterpart) import a workspace package by name too, but
+        // do NOT guard this block: every publishable package's `exports` has a
+        // `default` fallback to `dist/`, and `./check.sh` builds before it
+        // tests, so those imports keep succeeding off `dist/` even with this
+        // block gone. R2 found that hole; treat those tests as cross-package-
+        // import smoke checks only.
         resolve: {
           conditions: ["@azx/source"],
         },
@@ -110,7 +133,26 @@ export default defineConfig({
           // no MediaRecorder, a shimmed IndexedDB and does not faithfully
           // simulate workers; mocking through it produces tests that pass while
           // production is broken.
-          include: ["packages/*/src/**/*.browser.test.{ts,tsx}"],
+          //
+          // The second entry is the playground's own component-interaction tests
+          // (R2 Task 17's `ReviewPanel.browser.test.tsx` is the first) — a
+          // DIFFERENT glob prefix from the first, deliberately: `packages/*/src`
+          // is every publishable package, `playground/src` is the one app that
+          // is not a `packages/*` workspace member and so is not reached by that
+          // glob at all. Before this line existed, a `playground/src/*.browser
+          // .test.tsx` file matched no project's `include` — not even the `unit`
+          // project's `playground/**/*.test.{ts,tsx}` glob, which the exclude
+          // just above this keeps off browser-suffixed files — so it would sit
+          // in the tree looking like coverage while `vitest run` executed zero
+          // of its assertions. That is a worse failure than an absent test: a
+          // reviewer scanning file names sees a "ReviewPanel test" and stops
+          // looking, unaware ./check.sh never ran it. `pnpm --filter playground
+          // typecheck` still catches the file failing to *compile*, but nothing
+          // caught it failing to *run* before this glob reached it.
+          include: [
+            "packages/*/src/**/*.browser.test.{ts,tsx}",
+            "playground/src/**/*.browser.test.{ts,tsx}",
+          ],
           // Deliberately generous. The FIRST `getUserMedia` call in a cold
           // Chromium takes seconds (measured: ~9.9s cold, ~74ms warm) while the
           // fake-device audio subsystem spins up. CI is cold every run, so the

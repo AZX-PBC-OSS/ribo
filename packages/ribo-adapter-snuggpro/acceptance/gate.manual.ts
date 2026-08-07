@@ -29,7 +29,29 @@ import { aggregate, scoreTranscript } from "../../../spikes/extraction-snuggpro/
  *
  * `confidence` is deliberately NOT gated (the spike found a 0.9 hallucination — it
  * is uncalibrated). Watch it fail by mutating a hazard: e.g. make the model drop
- * `heatingFuel` and the fuel-drop assertion trips.
+ * `hvac.hvacHeatingEnergySource` and the fuel-drop assertion trips.
+ *
+ * ============================================================================
+ * BLOCKED, ON PURPOSE, AND LOUDLY. This gate grades `snuggProAdapter`'s output
+ * against the spike's hand-annotated ground truth in
+ * `spikes/extraction-snuggpro/ground-truth/`. Those annotations were written
+ * against the spike's own flat, snake_cased field set (`heatingFuel: "fuel_oil"`);
+ * the adapter's schema is now the API's — grouped by endpoint, with the spec's
+ * literal wire strings (`hvac.hvacHeatingEnergySource: "Fuel Oil"`). The two no
+ * longer describe the same fields, so scoring one against the other would report
+ * every field as a miss and every hazard as a regression. That is a false signal,
+ * not a real one.
+ *
+ * The guard below detects the divergence structurally and fails with this
+ * explanation rather than letting a run produce a wall of meaningless numbers.
+ *
+ * To unblock, the ground truth must be re-annotated in the new vocabulary — a
+ * 14-transcript manual pass, and the reason the committed baselines
+ * (`spikes/extraction-snuggpro/results/*-score.json`) are trustworthy in the first
+ * place. Until that happens the extraction-quality numbers in the spike describe
+ * the SPIKE's schema, not this adapter's. Parked in the roadmap; it is downstream
+ * of write-back either way.
+ * ============================================================================
  *
  * Run:
  *   OPENAI_API_KEY=sk-... OPENAI_MODEL=gpt-4o-2024-08-06 \
@@ -66,6 +88,26 @@ function baselineBand(): { maxHallRate: number; maxMissRate: number } {
 const pct = (n: number, d: number) => (d === 0 ? "n/a" : `${((100 * n) / d).toFixed(1)}%`);
 
 describe.skipIf(!apiKey)("single-shot extraction — spike-corpus acceptance gate", () => {
+  test("the ground truth and the adapter schema describe the same fields", () => {
+    // Runs FIRST and fails loudly. Without it, a vocabulary divergence between the
+    // adapter and the corpus surfaces as "every hazard regressed", which reads as a
+    // model failure and is not one. See the BLOCKED note at the top of this file.
+    const sample = readdirSync(GT_DIR)
+      .filter((f) => f.endsWith(".json"))
+      .sort()[0];
+    expect(sample, "the spike corpus has ground-truth files to grade against").toBeDefined();
+    const gt = JSON.parse(readFileSync(join(GT_DIR, sample!), "utf8")) as Record<string, unknown>;
+
+    const schemaGroups = Object.keys(snuggProAdapter.schema.shape).sort();
+    const gtKeys = Object.keys(gt).sort();
+    expect(
+      gtKeys,
+      `ground truth (${sample}) is annotated against a different field set than the adapter ` +
+        "declares — re-annotate the corpus in the API vocabulary before trusting any number " +
+        "below. See the BLOCKED note at the top of this file.",
+    ).toEqual(schemaGroups);
+  });
+
   test("four hazards hold, spans verbatim, hallucination within the committed baseline band", async () => {
     const chat = openAiChat({ apiKey, baseUrl });
     const extractor = singleShotExtractor({

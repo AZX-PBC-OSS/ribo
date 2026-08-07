@@ -12,7 +12,13 @@ The rendering layer, kept separate from the headless core so any host can bring 
 
 ## Schema-driven review (the reuse payoff)
 
-`ReviewCard` renders from the adapter's zod schema — a labeled, editable field per schema key — and validates on accept. It contains **no Snugg Pro knowledge**, so the same component serves Snugg Pro today and PSE tomorrow; only the adapter's schema differs.
+`ReviewCard` renders from the adapter's zod schema — a labeled, editable field per **leaf path**,
+not per top-level schema key (34 for Snugg Pro, not 24: `healthSafety` alone is 11 leaves) — and
+validates on accept. It contains **no Snugg Pro knowledge**, so the same component serves Snugg Pro
+today and PSE tomorrow; only the adapter's schema differs. (Corrected per
+[r1.5-field-shape-contracts-design.md §8](../roadmap/design/r1.5-field-shape-contracts-design.md);
+the rest of this doc — including the `run<F>`/`ReviewPresenter` shape below, superseded by
+`useReview` — is R5's to bring current.)
 
 ```ts
 function ReviewCard<F>({

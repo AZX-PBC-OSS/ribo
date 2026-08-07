@@ -1,6 +1,7 @@
 import { addRxPlugin, createRxDatabase, removeRxDatabase } from "rxdb";
 import type { RxCollection, RxDatabase, RxStorage } from "rxdb";
 import { RxDBAttachmentsPlugin } from "rxdb/plugins/attachments";
+import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 
 import { OUTBOX_COLLECTION_NAME, outboxRxSchema, type OutboxDocument } from "./schema.js";
@@ -16,6 +17,23 @@ export type OutboxCollection = RxCollection<OutboxDocument>;
 
 /** The RxDB database this package owns. One collection today; more later. */
 export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
+
+/**
+ * Schema-migration strategies for the outbox collection, keyed by the schema
+ * version being migrated *to*.
+ *
+ * v0 → v1 added the optional `reviewOutcome` field (the review gate). An absent
+ * optional field needs no transformation, so the strategy is identity — but it
+ * is declared and exercised rather than skipped, so the migration path exists
+ * before a non-trivial one needs it. Nothing is published and there are no
+ * users, so no deployed data is at risk here.
+ *
+ * Exported (rather than inlined into `addCollections`) so a test can exercise
+ * the strategy function directly, independent of a real migration run.
+ */
+export const OUTBOX_MIGRATION_STRATEGIES = {
+  1: (doc: OutboxDocument) => doc,
+};
 
 /**
  * Default IndexedDB database name.
@@ -37,6 +55,11 @@ let pluginsRegistered = false;
 function registerPlugins(): void {
   if (pluginsRegistered) return;
   addRxPlugin(RxDBAttachmentsPlugin);
+  // Required from schema version 1 onward. RxDB calls into the migration plugin
+  // during `addCollections` whenever a collection's schema version is above 0
+  // (`autoMigrate` defaults to true), so without this the outbox fails to OPEN —
+  // the error arrives at open time and says nothing about migrations.
+  addRxPlugin(RxDBMigrationSchemaPlugin);
   pluginsRegistered = true;
 }
 
@@ -91,7 +114,10 @@ export async function openOutboxDatabase(
     cleanupPolicy: {},
   });
   await database.addCollections({
-    [OUTBOX_COLLECTION_NAME]: { schema: outboxRxSchema },
+    [OUTBOX_COLLECTION_NAME]: {
+      schema: outboxRxSchema,
+      migrationStrategies: OUTBOX_MIGRATION_STRATEGIES,
+    },
   });
   return database;
 }

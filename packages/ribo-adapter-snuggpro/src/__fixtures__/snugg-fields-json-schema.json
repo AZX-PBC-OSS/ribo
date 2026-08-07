@@ -1,0 +1,1837 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "basedata": {
+      "type": "object",
+      "properties": {
+        "yearBuilt": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "conditionedArea": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "floorsAboveGrade": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "numberOfBedrooms": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "typeOfHome": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Apartment",
+                    "Condominium",
+                    "Single Family Detached",
+                    "Single Family Attached",
+                    "Single Wide Mobile Home",
+                    "Double Wide Mobile Home",
+                    "Don't Know"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "blowerDoorReading": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "blowerDoorTestPerformed": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Tested", "Estimate"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "yearBuilt",
+        "conditionedArea",
+        "floorsAboveGrade",
+        "numberOfBedrooms",
+        "typeOfHome",
+        "blowerDoorReading",
+        "blowerDoorTestPerformed"
+      ],
+      "additionalProperties": false
+    },
+    "hvac": {
+      "type": "object",
+      "properties": {
+        "hvacSystemEquipmentType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Boiler",
+                    "Steam Boiler",
+                    "Furnace with standalone ducts",
+                    "Electric Resistance",
+                    "Direct Heater",
+                    "Stove or Insert",
+                    "Solar Thermal",
+                    "Central AC with standalone ducts",
+                    "Room AC",
+                    "Evaporative Cooler - Direct",
+                    "Evaporative Cooler - Ducted",
+                    "Ductless Heat Pump",
+                    "Central Heat Pump (shared ducts)",
+                    "Deep Loop Ground Source Heat Pump (shared ducts)",
+                    "Open Loop Ground Source Heat Pump (shared ducts)",
+                    "Shallow Loop Ground Source Heat Pump (shared ducts)",
+                    "Furnace / Central AC (shared ducts)"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hvacUpgradeAction": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Replace with a newer model",
+                    "Keep an existing system as is",
+                    "Remove a system permanently",
+                    "Install a new non-existing system"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hvacHeatingEnergySource": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Electricity",
+                    "Natural Gas",
+                    "Fuel Oil",
+                    "Propane",
+                    "Pellets",
+                    "Wood",
+                    "Solar",
+                    "None"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hvacHeatingSystemManufacturer": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Unknown",
+                    "AirEase",
+                    "Amana",
+                    "American Standard",
+                    "Bosch",
+                    "Bryant",
+                    "Carrier",
+                    "Coleman",
+                    "Comfort Master",
+                    "Daikin",
+                    "Day & Night",
+                    "Fujitsu",
+                    "General Electric",
+                    "Goodman",
+                    "Janitrol",
+                    "Lennox",
+                    "LG",
+                    "Luxaire",
+                    "Mitsubishi",
+                    "Navien",
+                    "New Yorker",
+                    "Payne",
+                    "Panasonic",
+                    "Peerless",
+                    "Rheem",
+                    "RUUD",
+                    "Samsung",
+                    "Sears Kenmore",
+                    "Tappan",
+                    "Trane",
+                    "Triangle Tube",
+                    "Utica",
+                    "York",
+                    "Other"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hvacHeatingSystemModel": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hvacHeatingSystemModelYear": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hvacHeatingCapacity": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hvacCoolingCapacity": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hvacDuctLocation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hvacDuctLeakage": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "30% - Very leaky",
+                    "15% - Somewhat leaky",
+                    "6% - Well sealed",
+                    "3% - Very tight",
+                    "Measured (CFM25)"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hvacDuctLeakageValue": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hvacDuctInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "No Insulation",
+                    "Duct Board 1\"",
+                    "Duct Board 1.5\"",
+                    "Duct Board 2\"",
+                    "Fiberglass 1.25\"",
+                    "Fiberglass 2\"",
+                    "Fiberglass 2.5\"",
+                    "Reflective bubble wrap",
+                    "Measured (R Value)"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "hvacSystemEquipmentType",
+        "hvacUpgradeAction",
+        "hvacHeatingEnergySource",
+        "hvacHeatingSystemManufacturer",
+        "hvacHeatingSystemModel",
+        "hvacHeatingSystemModelYear",
+        "hvacHeatingCapacity",
+        "hvacCoolingCapacity",
+        "hvacDuctLocation",
+        "hvacDuctLeakage",
+        "hvacDuctLeakageValue",
+        "hvacDuctInsulation"
+      ],
+      "additionalProperties": false
+    },
+    "attic": {
+      "type": "object",
+      "properties": {
+        "atticInsulationDepth": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["0", "1-3", "4-6", "7-9", "10-12", "13-15", "16+", "Don't Know"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "atticInsulationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Fiberglass or Rockwool (batts or blown)",
+                    "Cellulose",
+                    "Spray Foam",
+                    "Don't Know"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "atticInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "atticHasKneeWall": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "atticRoofType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Composition Shingles", "Concrete Tile", "Wood Shakes", "Tar and Gravel"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "atticInsulationDepth",
+        "atticInsulationType",
+        "atticInsulation",
+        "atticHasKneeWall",
+        "atticRoofType"
+      ],
+      "additionalProperties": false
+    },
+    "wall": {
+      "type": "object",
+      "properties": {
+        "wallsInsulated": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Well", "Poorly", "Yes", "No"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "wallExteriorWallSiding": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Brick Veneer",
+                    "Metal/vinyl siding",
+                    "Shingle/Composition",
+                    "Stone veneer",
+                    "Stucco",
+                    "Wood/Fiber Cement siding",
+                    "Other",
+                    "None",
+                    "Don't Know"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "wallCavityInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "wallCavityInsulationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Fiberglass or Rockwool Batt",
+                    "Blown Fiberglass or Rockwool",
+                    "Cellulose",
+                    "Open Cell Spray Foam",
+                    "Closed Cell Spray Foam",
+                    "Other"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "wallsInsulated",
+        "wallExteriorWallSiding",
+        "wallCavityInsulation",
+        "wallCavityInsulationType"
+      ],
+      "additionalProperties": false
+    },
+    "window": {
+      "type": "object",
+      "properties": {
+        "windowType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Single pane",
+                    "Single pane + storm",
+                    "Double pane",
+                    "Double pane + low e",
+                    "Triple pane + low e",
+                    "Don't Know"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "windowFrame": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Metal", "Vinyl", "Wood or metal clad", "Don't Know"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "windowEnergyStar": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["windowType", "windowFrame", "windowEnergyStar"],
+      "additionalProperties": false
+    },
+    "dhw": {
+      "type": "object",
+      "properties": {
+        "dhwType2": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Tank Water Heater",
+                    "Tankless Water Heater",
+                    "Heat Pump",
+                    "Sidearm Tank"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "dhwFuel2": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Electricity",
+                    "Natural Gas",
+                    "Fuel Oil",
+                    "Propane",
+                    "Pellets",
+                    "Wood",
+                    "Solar",
+                    "None"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "dhwAge": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["0-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36+"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "dhwLocation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Indoors and within heated area",
+                    "Garage or Unconditioned Space",
+                    "Outbuilding",
+                    "Don't Know"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "dhwTankSize": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "dhwManufacturer": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Unknown",
+                    "A.O. Smith",
+                    "American",
+                    "Bosch",
+                    "Bradford White",
+                    "Bryant",
+                    "Comfort Maker",
+                    "GE",
+                    "LG",
+                    "Navien",
+                    "Noritz",
+                    "Rinnai",
+                    "Sears",
+                    "Rheem",
+                    "State Industries",
+                    "Stiebel Eltron",
+                    "Takaji",
+                    "Triangle Tube",
+                    "Other"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "dhwType2",
+        "dhwFuel2",
+        "dhwAge",
+        "dhwLocation",
+        "dhwTankSize",
+        "dhwManufacturer"
+      ],
+      "additionalProperties": false
+    },
+    "health": {
+      "type": "object",
+      "properties": {
+        "healthAmbientCarbonMonoxide": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthNaturalConditionSpillage": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthWorstCaseDepressurization": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthWorstCaseSpillage": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthUndilutedFlueCo": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthDraftPressure": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthGasLeak": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthVenting": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthMoldMoisture": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthRadon": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthAsbestos": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthLead": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthElectrical": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthRoofCondition": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Good", "Potential Issues", "NA"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "healthAmbientCarbonMonoxide",
+        "healthNaturalConditionSpillage",
+        "healthWorstCaseDepressurization",
+        "healthWorstCaseSpillage",
+        "healthUndilutedFlueCo",
+        "healthDraftPressure",
+        "healthGasLeak",
+        "healthVenting",
+        "healthMoldMoisture",
+        "healthRadon",
+        "healthAsbestos",
+        "healthLead",
+        "healthElectrical",
+        "healthRoofCondition"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": ["basedata", "hvac", "attic", "wall", "window", "dhw", "health"],
+  "additionalProperties": false
+}

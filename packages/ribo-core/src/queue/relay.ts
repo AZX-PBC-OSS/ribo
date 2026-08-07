@@ -24,7 +24,22 @@ export type ExtractStep = (input: ExtractStepInput) => Promise<ExtractedFieldMap
 
 export interface WriteStepInput {
   item: OutboxItem;
-  extracted: ExtractedFieldMap;
+  /**
+   * The values review settled on — flat, already unwrapped from their provenance
+   * envelopes by `resolveReview`, which is the shape `ToolAdapter.write(fields, ctx)`
+   * wants.
+   *
+   * **This replaced an `extracted` field carrying the model's raw envelope map,
+   * and the rename is the point.** Two similarly-named fields here would make
+   * "wrote the un-reviewed values" a one-word typo with a silent symptom and a
+   * customer's audit as the blast radius. The raw envelopes are still available as
+   * `item.extracted` for provenance and diagnostics.
+   *
+   * Never empty. A review that rejected every field never reaches a write step —
+   * see the guard in `#write` — so an implementation does not have to decide what
+   * writing nothing would mean.
+   */
+  reviewed: ExtractedFieldMap;
   /**
    * Send this as `Idempotency-Key`. It is stable across every retry of this item,
    * which is the only thing standing between an ambiguous success and a
@@ -114,6 +129,13 @@ type Step = "transcribe" | "extract" | "write";
  * when the tab died and is therefore untrustworthy — an item stuck at
  * `transcribing` may have finished transcribing microseconds before the crash.
  * The outputs cannot lie: a persisted transcript means transcription is done.
+ *
+ * An item parked at `awaiting-review` has `extracted`, so this returns `"write"`
+ * for it as well. That is not a hole, and making this status-aware is not the
+ * fix: `awaiting-review` is absent from `ACTIVE_OUTBOX_STATUSES`, so the relay is
+ * never handed a parked item in the first place — that omission is the review
+ * gate, and `#write`'s refusal to write without a `reviewOutcome` is the defence
+ * in depth behind it. Two half-gates would leave neither obviously in charge.
  */
 function nextStep(item: OutboxItem): Step {
   if (!item.transcript) return "transcribe";
@@ -286,13 +308,64 @@ class QueueRelay implements Relay {
 
   async #extract(item: OutboxItem): Promise<void> {
     const extracted = await this.#options.extract({ item, transcript: item.transcript! });
-    await this.#patch(item.id, { extracted, status: "writing", attempts: 0 });
+    // Parks for a human rather than advancing to `writing`. `awaiting-review` is
+    // not in ACTIVE_OUTBOX_STATUSES, so `nextPending()` stops selecting this item
+    // and the drain moves on to the next capture. `Outbox.submitReview` is the
+    // only thing that moves it forward.
+    await this.#patch(item.id, { extracted, status: "awaiting-review", attempts: 0 });
   }
 
   async #write(item: OutboxItem): Promise<void> {
+    const outcome = item.reviewOutcome;
+    if (outcome === undefined || outcome.status === "discarded") {
+      // Unreachable through the state machine: `awaiting-review` is not active, so
+      // only `submitReview` moves an item to `writing`, and a discard moves it to
+      // `discarded` instead. Reaching here means the invariant broke, and writing
+      // un-reviewed data to a customer's tool is not an acceptable way to find out.
+      throw new TerminalQueueError(
+        `outbox item ${item.id} reached the write step with no review outcome. Nothing is written that a human has not reviewed; move items forward with Outbox.submitReview.`,
+      );
+    }
+
+    if (Object.keys(outcome.fields).length === 0) {
+      // Reachable, unlike the guard above: `resolveReview` classifies "the human
+      // rejected every field" as `edited` with no fields — deliberately, because
+      // rejecting everything is a statement about the *extraction* where discarding
+      // is a statement about the recording — and `submitReview` unparks that
+      // outcome to `writing` like any other edit rather than collapsing it into a
+      // discard and destroying audio nobody asked to throw away. So the refusal
+      // belongs here, at the one place that decides what may reach the host tool.
+      //
+      // Refused rather than left to `ToolAdapter.schema.parse`: the relay is never
+      // handed an adapter — `RelayOptions` has no field for one, and `write` is a
+      // bare host-supplied function — so "a real schema would reject an empty field
+      // set" is a guarantee nothing on this path enforces. A human who means "there
+      // is nothing to record here" edits the field to `null`, which keeps the key
+      // (`review.ts` draws exactly that distinction); rejecting every field means
+      // write nothing, and there is no such thing as writing nothing to a
+      // customer's audit.
+      //
+      // The cause is branched because both branches are reachable and they are
+      // different events: an `accepted` outcome with no fields is `resolveReview`
+      // answering a request that had no fields at all — an extraction that found
+      // nothing — and blaming a reviewer for rejecting fields they were never shown
+      // would send an operator looking in the wrong place.
+      const cause =
+        outcome.status === "edited"
+          ? "the review rejected every field"
+          : "the extraction produced no fields to review";
+      // The remedy names what the API can actually do. `submitReview` is not a
+      // route back: it accepts only `awaiting-review`, and this item is about to be
+      // `dead`, so re-parking is a deliberate `patch` (see `Outbox.patch`) and
+      // nothing else.
+      throw new TerminalQueueError(
+        `outbox item ${item.id} reached the write step with nothing to write — ${cause}. An empty field set is never written. To try again, re-park the item with Outbox.patch(id, { status: "awaiting-review" }) and review it afresh; to abandon it, Outbox.remove(id).`,
+      );
+    }
+
     const writeResult = await this.#options.write({
       item,
-      extracted: item.extracted!,
+      reviewed: outcome.fields,
       idempotencyKey: item.idempotencyKey,
     });
     await this.#patch(item.id, {

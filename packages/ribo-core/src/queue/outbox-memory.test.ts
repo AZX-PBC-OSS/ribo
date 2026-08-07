@@ -3,6 +3,7 @@ import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 import { afterEach, expect, test } from "vitest";
 
 import type { Recording } from "../recording.js";
+import type { PersistedReviewOutcome } from "../review.js";
 import { removeOutboxDatabase } from "./database.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 
@@ -68,4 +69,42 @@ test("an injected non-Dexie (memory) RxStorage drives the same Outbox API", asyn
   const audio = await outbox.getAudio(enqueued.id);
   expect(audio).toBeInstanceOf(Blob);
   expect(new Uint8Array(await audio!.arrayBuffer())).toEqual(audioBytes);
+});
+
+test("a nested review outcome with dotted paths round-trips storage with no migration", async () => {
+  // R1.5 design §4 asserts that moving review to nested values and dotted leaf paths
+  // needs NO outbox document version bump: `reviewOutcomeSchema.fields` is
+  // `z.record(z.string(), z.unknown())`, which accepts a nested object, and the
+  // touched-field lists are `z.array(z.string())`, which accept a dotted path. That
+  // claim is about PERSISTENCE, so checking it against the zod schema alone would not
+  // settle it — the RxDB collection carries its own JSON schema and its own `version`.
+  // This drives the real thing: a nested outcome through `submitReview`, out to storage
+  // and back through `get`, on a collection at the unchanged `version: 1`.
+  const storage = getRxStorageMemory();
+  const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
+
+  const outbox = await openOutbox({ name, storage });
+  opened.push({ outbox, name, storage });
+
+  const enqueued = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(enqueued.id, { status: "awaiting-review" });
+
+  const outcome: PersistedReviewOutcome = {
+    status: "edited",
+    fields: {
+      atticRValue: 19,
+      healthSafety: { ambientCo: "passed", gasLeak: null },
+    },
+    editedFields: ["healthSafety.ambientCo"],
+    rejectedFields: ["healthSafety.asbestos"],
+  };
+
+  const submitted = await outbox.submitReview(enqueued.id, outcome);
+  expect(submitted.status).toBe("writing");
+
+  const read = await outbox.get(enqueued.id);
+
+  // Nesting survives as nesting, not flattened or stringified, and the dotted paths
+  // survive as the strings they are.
+  expect(read?.reviewOutcome).toEqual(outcome);
 });

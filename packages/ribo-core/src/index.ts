@@ -15,6 +15,13 @@
 export { extractedSchema, isSpanGrounded } from "./provenance.js";
 export type { Extracted } from "./provenance.js";
 
+// Deriving the extraction schema from a writable patch schema — every leaf
+// enveloped, nested objects recursed rather than swallowed whole, closed and
+// fully required throughout. `ToolAdapter.extractionSchema` is declared against
+// `Enveloped<V>` and built with `enveloped(schema)`.
+export { enveloped } from "./enveloped.js";
+export type { Enveloped } from "./enveloped.js";
+
 // Capture records and their transcripts.
 export { baseRecordingSchema, recordingSchema } from "./recording.js";
 export type { Recording } from "./recording.js";
@@ -102,8 +109,15 @@ export type {
 // and this line says only that all of them are public.
 export * from "./queue/index.js";
 
-// Write-back: the only tool-specific surface, with a typed host context.
-export type { ToolAdapter, ToolAdapterExample } from "./adapter.js";
+// Write-back: the only tool-specific surface, with a typed host context, both
+// field shapes (the writable patch and the derived extraction schema) and the
+// per-attempt write metadata that carries the idempotency key.
+export type { ToolAdapter, ToolAdapterExample, ValuesSchema, WriteMetadata } from "./adapter.js";
+
+// The composition that hands a reviewed patch to an adapter, and the only place
+// `schema.parse` runs before a write. Resolves the destination per item off
+// `recording.ctx`, so two queued recordings from two jobs write to two places.
+export { toWriteStep } from "./write-step.js";
 
 // Extraction: the pluggable seam a transcript becomes structured fields through,
 // the function that collapses any extractor onto the relay's injected step, and
@@ -122,17 +136,34 @@ export type {
 export { summarizeWork, workSafety } from "./work-safety.js";
 export type { StoragePersistence, WorkOnDevice, WorkSafety } from "./work-safety.js";
 
-// Human review, field by field.
-export { buildReviewRequest, resolveReview } from "./review.js";
+// Human review, one leaf at a time: the values schema enumerates the leaves as flat
+// dotted paths, each carrying its own schema so a UI can render and validate an edit.
+export {
+  buildReviewRequest,
+  resolveReview,
+  ReviewValidationError,
+  reviewOutcomeSchema,
+} from "./review.js";
 export type {
-  ExtractedFields,
   FieldDecision,
   FieldDecisions,
-  ReviewedValues,
+  FieldPath,
+  PersistedReviewOutcome,
   ReviewField,
   ReviewFields,
+  ReviewIssue,
   ReviewOutcome,
-  ReviewPresenter,
   ReviewRequest,
   ReviewSubmission,
 } from "./review.js";
+
+// The one primitive a review UI needs and could not otherwise get without
+// reaching into `/src/...`: stripping a patch leaf's `.optional()`/`.nullable()`
+// wrappers to find its real kind (a `ReviewField.schema` is the DECLARED
+// schema, wrappers and all — see that field's own doc comment). Public
+// precisely so a UI does not have to re-implement this walk against zod's raw
+// API to render an editor from a leaf's schema; `enveloped()` and
+// `buildReviewRequest` both use this exact function internally, so a UI that
+// re-implemented it independently would risk the two walks disagreeing about
+// what counts as a wrapper.
+export { stripOptionalNullable } from "./field-path.js";

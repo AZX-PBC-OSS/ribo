@@ -1,5 +1,5 @@
-import { isTransientFailure } from "@azx/ribo-core";
-import type { ExtractionTarget } from "@azx/ribo-core";
+import { enveloped, isTransientFailure } from "@azx/ribo-core";
+import type { Enveloped, ExtractionTarget, ToolAdapterExample } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
@@ -9,48 +9,70 @@ import { singleShotExtractor } from "./single-shot.js";
 /**
  * Key-free CI tests for the single-shot extractor, exercised against a small,
  * SELF-CONTAINED generic target. This package is tool-agnostic and must not depend
- * on any adapter, so the fixture is a synthetic confidence-bearing envelope schema
- * (top-level and nested) rather than a real adapter's fields — the trust-boundary
- * and JSON-Schema assertions bite exactly the same. A FAKE {@link ChatClient}
- * captures the request the extractor builds and returns a canned response, so
- * nothing here touches the network — no real key, no live provider. Three things
- * are proved: the request SHAPE (strict json_schema, the exact JSON Schema, message
- * order), the TRUST BOUNDARY (parse with the schema, then normalize), and FAILURE
- * CLASSIFICATION (a bad response fails as transient so the queue retries).
+ * on any adapter, so the fixture is a synthetic field set rather than a real
+ * adapter's — the trust-boundary and JSON-Schema assertions bite exactly the same.
+ * A FAKE {@link ChatClient} captures the request the extractor builds and returns
+ * a canned response, so nothing here touches the network — no real key, no live
+ * provider. Three things are proved: the request SHAPE (strict json_schema, the
+ * exact JSON Schema, message order), the TRUST BOUNDARY (parse with the schema,
+ * then normalize), and FAILURE CLASSIFICATION (a bad response fails as transient
+ * so the queue retries).
+ *
+ * The fixture MIRRORS WHAT A REAL ADAPTER NOW DOES rather than hand-declaring an
+ * envelope shape: a writable patch schema is written out, and the extraction shape
+ * is DERIVED from it with `enveloped()` (design §2.1–§2.2). That matters here and
+ * is not ceremony — everything this extractor does with fields is the enveloped
+ * shape, so a hand-written envelope fixture would let the extractor's generics
+ * claim `V` where they mean `Enveloped<V>` and no test would notice. The patch
+ * below is optional at every level, exactly as a patch must be, which is what
+ * makes the "no optionality survives into the request" assertion real work.
  */
 
 /**
- * An envelope: a value plus a BARE (unbounded) confidence. `z.strictObject` closes
- * every level (`additionalProperties: false`) and a bare `z.number()` emits no
- * `minimum`/`maximum` — the two keywords strict json_schema mode forbids.
+ * The PATCH: plain values, every leaf `.nullable().optional()`, nested object
+ * `.optional()`. Nothing here is envelope-shaped — the envelopes appear only in
+ * what `enveloped()` derives.
  */
-const Envelope = z.strictObject({ value: z.string(), confidence: z.number() });
-const DemoSchema = z.strictObject({
-  equipment: Envelope,
-  safety: z.strictObject({ pressure: Envelope }),
-});
-type DemoFields = z.infer<typeof DemoSchema>;
+const demoValuesSchema = z
+  .object({
+    equipment: z.string().nullable().optional(),
+    safety: z.object({ pressure: z.string().nullable().optional() }).strict().optional(),
+  })
+  .strict();
+type DemoValues = z.infer<typeof demoValuesSchema>;
+
+/**
+ * What the model is asked for: closed and fully required at every level, each leaf
+ * a `{ value, confidence, sourceSpan }` envelope whose `confidence` is a BARE
+ * `z.number()` — emitting no `minimum`/`maximum`, the two keywords strict
+ * json_schema mode forbids.
+ */
+const demoExtractionSchema = enveloped(demoValuesSchema);
+type DemoExtraction = Enveloped<DemoValues>;
 
 const demoInstructions =
   "Extract the equipment and the safety pressure. Emit a null for anything you cannot ground.";
-const demoExample: { readonly transcript: string; readonly fields: DemoFields } = {
+const demoExample: ToolAdapterExample<DemoExtraction> = {
   transcript: "The unit is a boiler; draft pressure reads fine.",
   fields: {
-    equipment: { value: "boiler", confidence: 0.9 },
-    safety: { pressure: { value: "-0.02 inWC", confidence: 0.8 } },
+    equipment: { value: "boiler", confidence: 0.9, sourceSpan: "The unit is a boiler" },
+    safety: {
+      pressure: { value: "-0.02 inWC", confidence: 0.8, sourceSpan: "draft pressure reads fine" },
+    },
   },
 };
 
-const demoTarget: ExtractionTarget<DemoFields> = {
+// The target names the VALUES type; `extractionSchema` is the `Enveloped<V>` side.
+const demoTarget: ExtractionTarget<DemoValues> = {
   name: "demo-fields",
-  schema: DemoSchema,
+  extractionSchema: demoExtractionSchema,
   instructions: demoInstructions,
   examples: [demoExample],
 };
 
 /** Clamp every confidence into 0..1 — the deterministic pass run AFTER the schema parse. */
 const clamp = (n: number): number => Math.max(0, Math.min(1, n));
-function normalizeDemo(fields: DemoFields): DemoFields {
+function normalizeDemo(fields: DemoExtraction): DemoExtraction {
   return {
     equipment: { ...fields.equipment, confidence: clamp(fields.equipment.confidence) },
     safety: {
@@ -74,11 +96,11 @@ function fakeChat(content: string): { chat: ChatClient; requests: ChatRequest[] 
   return { chat, requests };
 }
 
-/** The example's fields — a valid `DemoFields`, used as a well-formed response body. */
-const wellFormed: DemoFields = demoExample.fields;
+/** The example's fields — a valid `DemoExtraction`, used as a well-formed response body. */
+const wellFormed: DemoExtraction = demoExample.fields;
 
 /** Deep clone so a test can tamper with one leaf without mutating the shared fixture. */
-const clone = (fields: DemoFields): DemoFields => structuredClone(fields);
+const clone = (fields: DemoExtraction): DemoExtraction => structuredClone(fields);
 
 describe("singleShotExtractor — request shape", () => {
   test("sends one strict json_schema call with the schema, instructions, examples, then transcript", async () => {
@@ -100,15 +122,17 @@ describe("singleShotExtractor — request shape", () => {
     expect(req.model).toBe("gpt-test");
 
     // strict json_schema response_format, named after the target, carrying the
-    // EXACT z.toJSONSchema output (draft-2020-12) — not a hand-rolled schema.
+    // EXACT z.toJSONSchema output (draft-2020-12) of the EXTRACTION schema — not
+    // the patch, and not a hand-rolled schema.
     expect(req.response_format.type).toBe("json_schema");
     expect(req.response_format.json_schema.strict).toBe(true);
     expect(req.response_format.json_schema.name).toBe(demoTarget.name);
     expect(req.response_format.json_schema.schema).toEqual(
-      z.toJSONSchema(DemoSchema, { target: "draft-2020-12" }),
+      z.toJSONSchema(demoExtractionSchema, { target: "draft-2020-12" }),
     );
 
     // messages: system instructions, each example as user/assistant, then the live transcript.
+    // The assistant turn is the ENVELOPED example — it is what the model imitates.
     expect(req.messages).toEqual([
       { role: "system", content: demoInstructions },
       { role: "user", content: demoExample.transcript },
@@ -127,16 +151,46 @@ describe("singleShotExtractor — request shape", () => {
     // closed objects: every level rejects extra keys.
     expect(asString).toContain('"additionalProperties":false');
   });
+
+  test("the patch's optionality does not reach the model — every key is required", async () => {
+    // `demoValuesSchema` is optional at every level; the request must not be. This
+    // is `enveloped()`'s stripping step observed where it actually matters — in the
+    // bytes sent — and it is the assertion that would catch the extractor being
+    // pointed at a patch schema by mistake.
+    const { chat, requests } = fakeChat(JSON.stringify(wellFormed));
+    await singleShotExtractor({ target: demoTarget, chat, model: "m" }).extract("hi");
+    const schema = requests[0]!.response_format.json_schema.schema as Record<string, unknown>;
+
+    const requireEveryKey = (node: Record<string, unknown>, path: string): void => {
+      if (node.type !== "object") return;
+      const properties = (node.properties ?? {}) as Record<string, Record<string, unknown>>;
+      expect([...((node.required ?? []) as string[])].sort(), `${path} required`).toEqual(
+        Object.keys(properties).sort(),
+      );
+      for (const [key, child] of Object.entries(properties))
+        requireEveryKey(child, `${path}.${key}`);
+    };
+    requireEveryKey(schema, "$");
+
+    // And the leaves are envelopes, not the bare strings the patch declares.
+    const equipment = (schema.properties as Record<string, Record<string, unknown>>).equipment!;
+    expect(Object.keys(equipment.properties as object).sort()).toEqual([
+      "confidence",
+      "sourceSpan",
+      "value",
+    ]);
+  });
 });
 
 describe("singleShotExtractor — trust boundary", () => {
   test("parses the response with the schema and applies normalize (out-of-range confidence clamped)", async () => {
-    const tampered = clone(wellFormed);
-    // A confidence the model has no business emitting: > 1 (top-level) and < 0 (nested safety).
-    tampered.equipment = { ...tampered.equipment, confidence: 1.4 };
-    tampered.safety = {
-      ...tampered.safety,
-      pressure: { ...tampered.safety.pressure, confidence: -0.3 },
+    // A confidence the model has no business emitting: > 1 (top-level) and < 0
+    // (nested safety). Rebuilt rather than mutated: `Enveloped<V>` is `readonly`
+    // at every key, which is itself part of the contract.
+    const base = clone(wellFormed);
+    const tampered: DemoExtraction = {
+      equipment: { ...base.equipment, confidence: 1.4 },
+      safety: { pressure: { ...base.safety.pressure, confidence: -0.3 } },
     };
 
     const { chat } = fakeChat(JSON.stringify(tampered));
@@ -153,7 +207,18 @@ describe("singleShotExtractor — trust boundary", () => {
     expect(result.fields.safety.pressure.confidence).toBe(0);
     expect(result.usage).toEqual({ calls: 1 });
     // raw is the parsed model output, kept for provenance (pre-normalization).
-    expect((result.raw as DemoFields).equipment.confidence).toBe(1.4);
+    expect((result.raw as DemoExtraction).equipment.confidence).toBe(1.4);
+  });
+
+  test("a response with a key omitted is rejected — absence is not how the model says nothing", async () => {
+    // The anti-hallucination rule at the extractor's own boundary: an omitted key
+    // is indistinguishable from a field the model never considered, so the parse
+    // must reject it even though the PATCH the schema was derived from allows it.
+    const { safety: _safety, ...withoutSafety } = clone(wellFormed);
+    const { chat } = fakeChat(JSON.stringify(withoutSafety));
+    await expect(
+      singleShotExtractor({ target: demoTarget, chat, model: "m" }).extract("t"),
+    ).rejects.toThrow(/did not match the schema/);
   });
 });
 

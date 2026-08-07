@@ -1,27 +1,26 @@
-import {
-  createConnectivity,
-  type Connectivity,
-  type ConnectivityState,
-  type Unsubscribe,
-} from "@azx/ribo-core";
+import { createConnectivity, type Connectivity } from "@azx/ribo-core";
 
 /**
- * @file One {@link Connectivity} model per page load, wired to the real browser
- * and exposed to React as a `useSyncExternalStore` source.
+ * @file One {@link Connectivity} model per page load, shared by every component.
  *
  * ## Why a singleton, carried across HMR
  *
- * Same discipline as `recorder-handle.ts` and `outbox-handle.ts`: a second model
- * would bind a *second* set of `online`/`offline`/`visibilitychange` listeners
- * and start a *second* probe cycle, and StrictMode's double mount plus Vite's
- * module replacement both otherwise produce exactly that. `import.meta.hot.data`
- * carries the one live instance — with its bound listeners and in-flight state —
- * across an edit to this file, so the model is never re-`start()`ed and its
- * listeners are never stacked.
+ * Same discipline as `recorder-handle.ts` and `outbox-handle.ts` — StrictMode's
+ * double mount and Vite's module replacement both otherwise produce a second
+ * model, which would bind a *second* set of `online`/`offline`/`visibilitychange`
+ * listeners and start a *second* probe cycle. `import.meta.hot.data` carries the
+ * one live instance — with its bound listeners and in-flight state — across an
+ * edit to this file, so the model is never re-`start()`ed and its listeners are
+ * never stacked.
  *
- * On HMR the module *subscription* (this file's own listener on the model) is the
- * only thing torn down and re-established; the model itself is left running. See
- * the `hot.dispose` at the bottom.
+ * This file used to also own a `useSyncExternalStore` source (a listener set plus
+ * a cached-state getter) for `ConnectivityPanel`, `QueuePanel` and
+ * `WorkSafetyPanel` to subscribe through directly. `@azx/ribo-ui-react`'s
+ * `useConnectivity()` now does that job — it subscribes to the `Connectivity`
+ * instance itself, which is exactly what this module's old store re-implemented —
+ * so the only thing left here is the instance this file's name promises: get one,
+ * shared. Every consumer reaches it through `<RiboProvider value={{ connectivity:
+ * getConnectivity() }}>` in `App.tsx`, never by importing this file directly.
  *
  * ## The injected deps (the model is headless; the browser lives here)
  *
@@ -37,14 +36,6 @@ import {
  * - **`probe`** — see {@link probe} below.
  *
  * Timers fall through to the model's `setTimeout`/`clearTimeout` default.
- *
- * ## The store shape
- *
- * A listener set and a `getConnectivityState` that returns a **stable object
- * identity** until the status actually changes — the model already pushes one
- * object per transition, so caching the latest push is all it takes. A fresh
- * object per call would loop `useSyncExternalStore`. Same shape as
- * `update-store.ts` / `storage-store.ts`, deliberately not a second style.
  */
 
 /**
@@ -90,54 +81,18 @@ interface HotData {
 
 const hotData = import.meta.hot?.data as HotData | undefined;
 
-let model: Connectivity | undefined = hotData?.connectivity;
+let handle: Connectivity | undefined = hotData?.connectivity;
 
 /** The shared connectivity model, constructing and `start()`ing it on first call. */
-function getConnectivity(): Connectivity {
-  if (!model) {
-    model = createConnectivity({
+export function getConnectivity(): Connectivity {
+  if (!handle) {
+    handle = createConnectivity({
       bindEvents,
       isOnline: () => navigator.onLine,
       probe,
     });
-    model.start();
+    handle.start();
   }
-  if (hotData) hotData.connectivity = model;
-  return model;
-}
-
-const listeners = new Set<() => void>();
-
-// The latest state the model pushed, held so `getConnectivityState` can return a
-// stable identity between changes.
-let cachedState: ConnectivityState = getConnectivity().state;
-
-// This module's single subscription to the model. Detached on HMR dispose so a
-// replacement module does not stack a second listener on the carried instance.
-let modelUnsub: Unsubscribe | undefined = getConnectivity().subscribe((state) => {
-  cachedState = state;
-  for (const listener of listeners) listener();
-});
-
-/** Subscribe to connectivity changes. Returns its own unsubscribe handle. */
-export function subscribeToConnectivity(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-/** The current connectivity state, stable by identity until the status changes. */
-export function getConnectivityState(): ConnectivityState {
-  return cachedState;
-}
-
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    // Detach only *this* module's listener. The model stays live in `hot.data`
-    // with its event listeners intact — re-`start()`ing or re-binding it is the
-    // leak this whole file is arranged to avoid.
-    modelUnsub?.();
-    modelUnsub = undefined;
-  });
+  if (hotData) hotData.connectivity = handle;
+  return handle;
 }

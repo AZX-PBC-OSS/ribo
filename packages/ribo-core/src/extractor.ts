@@ -15,8 +15,10 @@ import type { ExtractStep, ExtractedFieldMap } from "./queue/relay.js";
 /**
  * What one extraction produced.
  *
- * @typeParam F - the fields this extractor yields. The adapter's `schema` is the source of
- * truth for `F`; the extractor parses raw model output into it before it becomes field data.
+ * @typeParam F - the fields this extractor yields. For an adapter-backed extractor that is the
+ * ENVELOPED shape, `Enveloped<V>`, whose source of truth is the adapter's `extractionSchema`:
+ * the extractor parses raw model output through it before the result becomes field data. It is
+ * only after review that the plain-values `V` exists — see `ToolAdapter`'s two schemas.
  */
 export interface ExtractionResult<F> {
   /** The structured fields, already parsed to `F` at the trust boundary. */
@@ -44,12 +46,19 @@ export interface Extractor<F> {
  * `write`.
  *
  * `C` is irrelevant to extraction — writing back is a separate concern — so it is fixed to
- * `unknown` here. An adapter's full `ToolAdapter<F, C>` satisfies this structurally, so a caller
+ * `unknown` here. An adapter's full `ToolAdapter<V, C>` satisfies this structurally, so a caller
  * hands the same adapter to the extractor and to the relay's write step.
+ *
+ * It picks **`extractionSchema`**, not `schema`, and carries that name across the boundary rather
+ * than renaming it — one name for one thing. An extractor constrains the model, parses the
+ * response and imitates the examples, and all three of those are the enveloped shape
+ * (`Enveloped<V>`); the plain-values `schema` is the write side and is none of an extractor's
+ * business. The type parameter is still `V`, the VALUES type, so a target and its adapter are
+ * instantiated at the same argument.
  */
-export type ExtractionTarget<F> = Pick<
-  ToolAdapter<F, unknown>,
-  "name" | "schema" | "instructions" | "examples"
+export type ExtractionTarget<V extends Record<string, unknown>> = Pick<
+  ToolAdapter<V, unknown>,
+  "name" | "extractionSchema" | "instructions" | "examples"
 >;
 
 /**

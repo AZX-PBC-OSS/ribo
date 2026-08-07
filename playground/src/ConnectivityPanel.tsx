@@ -1,7 +1,7 @@
-import { type CSSProperties, useSyncExternalStore } from "react";
+import type { CSSProperties } from "react";
 import type { ConnectivityStatus } from "@azx/ribo-core";
+import { useConnectivity } from "@azx/ribo-ui-react";
 
-import { getConnectivityState, subscribeToConnectivity } from "./connectivity-store.js";
 import { monospace, muted, panel } from "./styles.js";
 
 /**
@@ -19,10 +19,14 @@ import { monospace, muted, panel } from "./styles.js";
  * This panel only *displays*. It never drains the queue — see `QueuePanel`'s
  * opt-in "auto-sync when online" toggle for the one place connectivity is allowed
  * to drive work.
+ *
+ * `useConnectivity()` resolves the shared `Connectivity` model through
+ * `RiboProvider` (wired in `App.tsx` from `connectivity-store.ts`), so this panel
+ * no longer needs its own `useSyncExternalStore` plumbing.
  */
 
 export function ConnectivityPanel() {
-  const { status } = useSyncExternalStore(getSubscribe(), getConnectivityState);
+  const { status } = useConnectivity();
 
   return (
     <section style={{ ...panel, background: "#f6f8fa" }}>
@@ -51,13 +55,6 @@ export function ConnectivityPanel() {
       </p>
     </section>
   );
-}
-
-// `subscribeToConnectivity` is a stable module function; wrapping the accessor
-// keeps the `useSyncExternalStore` signature tidy and the reference identity
-// stable across renders.
-function getSubscribe(): (onStoreChange: () => void) => () => void {
-  return subscribeToConnectivity;
 }
 
 const STATUS_COLOR: Record<ConnectivityStatus, string> = {

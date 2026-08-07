@@ -5,8 +5,9 @@ import {
   normalizeFields,
   yearsToDhwAgeBand,
 } from "./normalization.js";
-import { AtticInsulationDepthBand, DhwAgeBand, SnuggFieldsSchema } from "./schema.js";
-import type { SnuggFields } from "./schema.js";
+import { snuggExamples } from "./examples.js";
+import { AtticInsulationDepth, DhwAgeBand, snuggExtractionSchema } from "./schema.js";
+import type { SnuggExtraction } from "./schema.js";
 
 describe("clampConfidence", () => {
   test("passes an in-range value through unchanged", () => {
@@ -58,7 +59,7 @@ describe("inchesToAtticDepthBand", () => {
 
   test("every returned band is a real schema member", () => {
     for (const inches of [0, 2, 6, 8, 12, 14, 20]) {
-      expect(() => AtticInsulationDepthBand.parse(inchesToAtticDepthBand(inches))).not.toThrow();
+      expect(() => AtticInsulationDepth.parse(inchesToAtticDepthBand(inches))).not.toThrow();
     }
   });
 });
@@ -93,70 +94,75 @@ describe("yearsToDhwAgeBand", () => {
 });
 
 describe("normalizeFields", () => {
-  // A minimal, all-null field set with a couple of out-of-range confidences.
-  const envelope = (confidence: number) => ({ value: null, confidence, sourceSpan: null });
-  const base = (): SnuggFields =>
-    ({
-      heatingEquipmentType: { value: "boiler", confidence: 1.4, sourceSpan: "oil boiler" },
-      heatingFuel: { value: "fuel_oil", confidence: -0.5, sourceSpan: "oil boiler" },
-      heatingManufacturer: envelope(1),
-      heatingModelNumber: envelope(1),
-      heatingModelYear: envelope(1),
-      heatingOutputCapacityBtuh: envelope(1),
-      coolingEquipmentType: envelope(1),
-      ductLocation: envelope(1),
-      ductSealing: envelope(1),
-      ductInsulation: envelope(1),
-      ductLeakageCfm25: envelope(1),
-      atticInsulationDepthIn: envelope(1),
-      atticInsulationType: envelope(1),
-      atticInsulationSpokenRValue: envelope(1),
-      wallInsulated: envelope(1),
-      wallConstruction: envelope(1),
-      blowerDoorCfm50: envelope(1),
-      windowGlazing: envelope(1),
-      windowFrame: envelope(1),
-      dhwFuel: envelope(1),
-      dhwSystemType: envelope(1),
-      dhwAgeBand: envelope(1),
-      combustionVentType: envelope(1),
-      healthSafety: {
-        ambientCo: { value: "passed", confidence: 2, sourceSpan: "CO clean" },
-        venting: envelope(1),
-        naturalConditionSpillage: envelope(1),
-        worstCaseDepressurization: envelope(1),
-        worstCaseSpillage: envelope(1),
-        draftPressure: envelope(1),
-        gasLeak: envelope(1),
-        moldMoisture: envelope(1),
-        asbestos: envelope(1),
-        lead: envelope(1),
-        electrical: envelope(1),
-      },
-    }) as SnuggFields;
+  // The adapter's own few-shot example, with out-of-range confidences poked into
+  // three envelopes in three DIFFERENT resource groups. Derived from the fixture
+  // rather than hand-written so it cannot drift from the schema's 51 leaves — and
+  // spread across groups because a pass that only recursed one level deep, or that
+  // special-cased one group by name, would still pass a single-group probe.
+  //
+  // ENVELOPED, because that is what `normalizeFields` runs on: it sits between the
+  // model's response and review, and `confidence` — the only thing it touches — is
+  // an envelope field that exists nowhere in the writable patch.
+  const fixture = snuggExamples[0];
+  if (!fixture) throw new Error("expected a Snugg Pro few-shot example fixture");
 
-  test("clamps confidence on top-level and nested health-matrix envelopes", () => {
+  const base = (): SnuggExtraction => {
+    const fields = structuredClone(fixture.fields) as SnuggExtraction;
+    fields.hvac.hvacSystemEquipmentType.confidence = 1.4;
+    fields.dhw.dhwAge.confidence = -0.5;
+    fields.health.healthDraftPressure.confidence = 2;
+    return fields;
+  };
+
+  test("clamps confidence on envelopes in every resource group, at any depth", () => {
     const out = normalizeFields(base());
-    expect(out.heatingEquipmentType.confidence).toBe(1);
-    expect(out.heatingFuel.confidence).toBe(0);
-    expect(out.healthSafety.ambientCo.confidence).toBe(1);
+    expect(out.hvac.hvacSystemEquipmentType.confidence).toBe(1);
+    expect(out.dhw.dhwAge.confidence).toBe(0);
+    expect(out.health.healthDraftPressure.confidence).toBe(1);
+  });
+
+  test("clamps EVERY leaf, not just the ones this test names", () => {
+    // The count guard. Three named assertions would also pass if the pass reached
+    // exactly those three; this walks the result and insists no envelope anywhere
+    // escaped the range, and that it saw all 51 of them.
+    let seen = 0;
+    const walk = (node: unknown): void => {
+      if (typeof node !== "object" || node === null) return;
+      if ("confidence" in node) {
+        const { confidence } = node as { confidence: number };
+        seen += 1;
+        expect(confidence).toBeGreaterThanOrEqual(0);
+        expect(confidence).toBeLessThanOrEqual(1);
+        return;
+      }
+      for (const child of Object.values(node)) walk(child);
+    };
+    walk(normalizeFields(base()));
+    expect(seen).toBe(51);
   });
 
   test("leaves value and sourceSpan untouched — it never converts or invents", () => {
     const out = normalizeFields(base());
-    expect(out.heatingEquipmentType.value).toBe("boiler");
-    expect(out.heatingEquipmentType.sourceSpan).toBe("oil boiler");
-    expect(out.healthSafety.ambientCo.value).toBe("passed");
+    expect(out.hvac.hvacSystemEquipmentType.value).toBe("Boiler");
+    expect(out.hvac.hvacSystemEquipmentType.sourceSpan).toBe("it's an oil boiler");
+    expect(out.attic.atticInsulationDepth.value).toBe("4-6");
+    // The R-value field stays null: nothing converts a depth into one, or back.
+    expect(out.attic.atticInsulation.value).toBeNull();
   });
 
   test("is pure — it returns a new object and does not mutate its input", () => {
     const input = base();
     const out = normalizeFields(input);
-    expect(input.heatingEquipmentType.confidence).toBe(1.4); // input unchanged
+    expect(input.hvac.hvacSystemEquipmentType.confidence).toBe(1.4); // input unchanged
     expect(out).not.toBe(input);
+    expect(out.hvac).not.toBe(input.hvac); // the groups are new objects too
   });
 
-  test("output still satisfies the schema", () => {
-    expect(() => SnuggFieldsSchema.parse(normalizeFields(base()))).not.toThrow();
+  test("output still satisfies the EXTRACTION schema", () => {
+    // The extraction schema and not the patch: normalization runs inside the
+    // extractor's trust boundary, so both its input and its output are the shape
+    // the model emits. A patch-shaped assertion here would not even type-check,
+    // which is the point — the pass has no values-shaped signature to have.
+    expect(() => snuggExtractionSchema.parse(normalizeFields(base()))).not.toThrow();
   });
 });

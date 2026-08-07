@@ -1,51 +1,41 @@
-import { useCallback, useEffect, useState } from "react";
-import type { Outbox, RecorderState } from "@azx/ribo-core";
+import { useCallback } from "react";
+import { useRecorder } from "@azx/ribo-ui-react";
 
-import { formatElapsed, messageOf } from "./format.js";
-import { getRecorder } from "./recorder-handle.js";
-import { errorBox, monospace, muted, panel, recordButton } from "./styles.js";
+import { formatElapsed } from "./format.js";
+import { button, errorBox, monospace, muted, panel, recordButton } from "./styles.js";
 
 /**
- * @file Start/stop capture, with the two readouts that prove the microphone is
- * live: elapsed time and input level.
+ * @file Start/stop/pause capture, with the two readouts that prove the microphone
+ * is live: elapsed time and input level.
  *
- * Both come from `Recorder.subscribe`, which pushes a {@link RecorderState} on
- * every ~100 ms tick and on every phase change, and which calls its listener
- * once immediately so the first paint is never blank. Nothing here polls.
+ * `useRecorder()` resolves the shared `Recorder` (and, for enqueueing a stopped
+ * capture, the shared `Outbox`) through `RiboProvider`, and pushes fresh state on
+ * every ~100 ms tick and on every phase change. Nothing here polls, and nothing
+ * here owns a `Recorder` of its own — see `recorder-handle.ts` for why that
+ * instance is a host-level singleton rather than component state.
  */
 
 /** Height of the level meter, in pixels. */
 const METER_HEIGHT = 14;
 
-export function RecordPanel({ outbox }: { outbox: Outbox }) {
-  // The shared, module-scoped Recorder rather than one owned by this component:
-  // the update prompt has to be able to ask "is a recording in progress?" from
-  // outside the render tree. See `recorder-handle.ts`.
-  const recorder = getRecorder();
-  const [state, setState] = useState<RecorderState>(() => recorder.state);
-  const [error, setError] = useState<string | undefined>(undefined);
-  const [busy, setBusy] = useState(false);
+export function RecordPanel() {
+  const { phase, elapsedMs, level, scaledLevel, busy, error, toggle, pause, resume } =
+    useRecorder();
 
-  // `subscribe` returns its own unsubscribe handle, so it *is* the cleanup.
-  useEffect(() => recorder.subscribe(setState), [recorder]);
+  const recording = phase === "recording";
+  const paused = phase === "paused";
 
-  const toggle = useCallback(() => {
-    setError(undefined);
-    setBusy(true);
-    const work =
-      recorder.phase === "recording"
-        ? recorder.stop().then((capture) => outbox.enqueue(capture))
-        : recorder.start();
-    void work
-      .catch((cause: unknown) => {
-        setError(messageOf(cause));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  }, [outbox, recorder]);
-
-  const recording = state.phase === "recording";
+  // `toggle()` is asymmetric: `start()` swallows its own failure into `error`
+  // state, but `stop()` — and so `toggle()` when it calls `stop()` — rethrows,
+  // because its resolved value carries the `Capture` a caller might need next.
+  // This button has no further use for that value, but it still must not let the
+  // rejection go unhandled, or a failed stop is a console error on top of the
+  // `error` state that already reports it.
+  const handleToggle = useCallback(() => {
+    toggle().catch(() => {
+      // Already captured in `error` state above.
+    });
+  }, [toggle]);
 
   return (
     <section style={panel}>
@@ -53,21 +43,29 @@ export function RecordPanel({ outbox }: { outbox: Outbox }) {
       <div style={{ alignItems: "center", display: "flex", gap: "1.25rem" }}>
         <button
           type="button"
-          onClick={toggle}
-          disabled={busy || state.phase === "stopping"}
+          onClick={handleToggle}
+          disabled={busy || phase === "stopping"}
           style={recordButton(recording)}
         >
-          {recording ? "■ Stop and queue" : "● Start recording"}
+          {recording || paused ? "■ Stop and queue" : "● Start recording"}
+        </button>
+        <button
+          type="button"
+          onClick={paused ? resume : pause}
+          disabled={busy || !(recording || paused)}
+          style={button}
+        >
+          {paused ? "▶ Resume" : "❙❙ Pause"}
         </button>
         <div>
-          <div style={{ ...monospace, fontSize: "1.6rem" }}>{formatElapsed(state.elapsedMs)}</div>
-          <div style={muted}>phase: {state.phase}</div>
+          <div style={{ ...monospace, fontSize: "1.6rem" }}>{formatElapsed(elapsedMs)}</div>
+          <div style={muted}>phase: {phase}</div>
         </div>
       </div>
 
-      <LevelMeter level={state.level} active={recording} />
+      <LevelMeter level={level} scaledLevel={scaledLevel} active={recording} />
 
-      {error !== undefined && <p style={errorBox}>{error}</p>}
+      {error !== undefined && <p style={errorBox}>{error.message}</p>}
     </section>
   );
 }
@@ -75,13 +73,23 @@ export function RecordPanel({ outbox }: { outbox: Outbox }) {
 /**
  * The input level, as a bar.
  *
- * `level` is the RMS of the most recent analyser frame in `[0, 1]`, which for
- * speech sits low — a linear bar barely twitches. The square root spreads the
- * useful range across the width, which is what makes "the microphone is hearing
- * me" legible rather than a technically accurate sliver.
+ * `level` is the honest RMS of the most recent analyser frame in `[0, 1]` — kept
+ * in the numeric readout below because that line exists to document the real
+ * value, not a flattering one. `scaledLevel` (from `useRecorder`, `Math.sqrt`
+ * under a perceptual curve) is what drives the bar's width: for ordinary speech
+ * the raw value sits low enough that a linear bar barely twitches, which reads as
+ * a broken meter rather than a quiet room.
  */
-function LevelMeter({ level, active }: { level: number; active: boolean }) {
-  const width = `${String(Math.round(Math.sqrt(level) * 100))}%`;
+function LevelMeter({
+  level,
+  scaledLevel,
+  active,
+}: {
+  level: number;
+  scaledLevel: number;
+  active: boolean;
+}) {
+  const width = `${String(Math.round(scaledLevel * 100))}%`;
   return (
     <div style={{ marginTop: "1rem" }}>
       <div

@@ -49,12 +49,19 @@ export function firstCapable(
   options?: FirstCapableOptions,
 ): CompositeTranscriber;
 
-export interface ToolAdapter<F> {
+// Two field shapes, one derived from the other (design r1.5-field-shape-contracts §2.3):
+// `schema` is the writable patch (every leaf optional, nullable where a null is
+// meaningful); `extractionSchema` is `enveloped(schema)` — strict, fully required,
+// every leaf wrapped in a provenance envelope — and is what the model is actually
+// constrained against. `ctx` is parsed by `ctxSchema`, not assumed to already be `C`.
+export interface ToolAdapter<V, C> {
   name: string;
-  schema: z.ZodType<F>; // strict: nullable+required + provenance envelope
+  schema: ValuesSchema<V>; // the patch — source of truth for `V`
+  extractionSchema: z.ZodType<Enveloped<V>>; // derived: schema, stripped + enveloped
+  ctxSchema: z.ZodType<C>; // parses Recording.ctx into this adapter's destination
   instructions: string; // domain guidance for extraction
-  examples?: Array<{ text: string; out: Partial<F> }>; // few-shot
-  write(fields: F, ctx: unknown): Promise<void>;
+  examples?: Array<{ text: string; fields: Enveloped<V> }>; // few-shot
+  write(fields: V, ctx: C, meta: WriteMetadata): Promise<void>; // meta carries idempotencyKey
 }
 
 export interface ReviewPresenter<T> {

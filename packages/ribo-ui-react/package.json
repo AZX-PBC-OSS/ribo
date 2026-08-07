@@ -32,7 +32,8 @@
   "peerDependencies": {
     "react": "^18.3 || ^19",
     "react-dom": "^18.3 || ^19",
-    "@azx/ribo-core": "workspace:^"
+    "@azx/ribo-core": "workspace:^",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "catalog:",
@@ -41,11 +42,15 @@
     "@azx/tsconfig": "workspace:*",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@vitest/browser": "catalog:",
     "publint": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "rxdb": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "vitest-browser-react": "catalog:",
+    "zod": "catalog:"
   }
 }

@@ -73,11 +73,14 @@ test("a FakeExtractor substitutes into createRelay and its fields land on item.e
   const item = await outbox.enqueue({ recording, audio: audio() });
   await relay.syncNow();
 
-  const done = await outbox.get(item.id);
+  const extracted = await outbox.get(item.id);
   // The item drained THROUGH the `extracting` step: the fake's exact fields are
-  // what the relay persisted as `extracted`, and the pipeline ran to completion.
-  expect(done?.extracted).toEqual(fields);
-  expect(done?.status).toBe("done");
+  // what the relay persisted as `extracted`.
+  expect(extracted?.extracted).toEqual(fields);
+  // And it stopped at the review gate, which is where a successful extraction now
+  // ends. `done` would mean the relay had written un-reviewed model output — see
+  // `queue/schema.ts`'s ACTIVE_OUTBOX_STATUSES.
+  expect(extracted?.status).toBe("awaiting-review");
 
   // And the extractor really was driven with the transcript's text, not bypassed.
   expect(extractor.calls).toEqual(["the attic is R-19"]);

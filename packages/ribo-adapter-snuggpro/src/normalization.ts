@@ -14,25 +14,31 @@
  *     it to the band whose range contains it is pure arithmetic with one audited
  *     boundary rule — never a per-transcript model guess.
  *   - `normalizeFields` — the pass itself: clamps `confidence` on every provenance
- *     envelope (top-level and the nested health matrix). It does NOT touch `value`.
+ *     envelope, at every depth. It does NOT touch `value`. It runs on the
+ *     EXTRACTION shape (`SnuggExtraction`), between the model's response and review
+ *     — `confidence` is an envelope field and exists nowhere else, so a
+ *     values-shaped signature here could not be written at all.
  *
  * What deliberately does NOT live here:
  *   - R-value -> depth band. `normalization.md` §"Hazard 2 in detail" is explicit:
  *     the R->depth map is climate/material-dependent and lossy, so it is the ONE
- *     transform refused to both the model AND this pass. A spoken R-value rests in
- *     `atticInsulationSpokenRValue` (the holding pen) until a reviewed table or the
- *     auditor resolves it. There is no R->band function here on purpose.
- *   - `null` -> Snugg "Not Tested" health-matrix default. That is a WRITE-time
- *     concern (Snugg has no null state) and lands with egress in Phase 4 Task 6;
+ *     transform refused to both the model AND this pass. It is now also
+ *     UNNECESSARY: `attic.atticInsulation` is a real R-value write target of its
+ *     own, so a spoken R-value is stored as itself rather than parked in a holding
+ *     pen awaiting a conversion nobody wanted to do.
+ *   - `null` -> Snugg `"Not Tested"` health-matrix default. That is a WRITE-time
+ *     concern (the API has no null state) and lands with egress in Phase 4 Task 6;
  *     keeping silence as `null` through extraction is what keeps a hallucinated
  *     pass measurable (`normalization.md` §"Hazard 3 in detail").
- *   - enum -> Snugg wire token. Doc 12 marks the API tokens `[unknown]`; that
- *     rename is gated on a real API key (Task 6), not this pass.
+ *   - enum -> Snugg wire token. There is no such transform any more: `schema.ts`
+ *     stores the spec's literal strings, so an extracted enum member IS the wire
+ *     value. That deleted layer is the whole point of the schema being built from
+ *     the machine-readable spec rather than a printed field sheet.
  */
 
-import type { AtticInsulationDepthBand, DhwAgeBand, SnuggFields } from "./schema.js";
+import type { AtticInsulationDepth, DhwAgeBand, SnuggExtraction } from "./schema.js";
 
-type AtticBand = (typeof AtticInsulationDepthBand.options)[number];
+type AtticBand = (typeof AtticInsulationDepth.options)[number];
 type AgeBand = (typeof DhwAgeBand.options)[number];
 
 /**
@@ -49,11 +55,13 @@ export const clampConfidence = (confidence: number): number => {
 /**
  * Bucket a stated attic-insulation DEPTH in inches into its Snugg band.
  *
- * Bands: `0`, `1-3`, `4-6`, `7-9`, `10-12`, `13-15`, `16+`. The audited boundary
- * rule is upper-inclusive: a value falls in the band whose top it does not exceed
- * (`3` -> `1-3`, `6` -> `4-6`), so a fractional depth resolves deterministically
- * (`3.5` -> `4-6`). Only a true zero/none is `0`; any positive depth is at least
- * `1-3`. This is band bucketing GIVEN a number — it is never an R-value conversion.
+ * Bands: `0`, `1-3`, `4-6`, `7-9`, `10-12`, `13-15`, `16+` (the enum's eighth
+ * member, `"Don't Know"`, is not a bucket and is never returned). The audited
+ * boundary rule is upper-inclusive: a value falls in the band whose top it does not
+ * exceed (`3` -> `1-3`, `6` -> `4-6`), so a fractional depth resolves
+ * deterministically (`3.5` -> `4-6`). Only a true zero/none is `0`; any positive
+ * depth is at least `1-3`. This is band bucketing GIVEN a number — it is never an
+ * R-value conversion.
  *
  * @throws RangeError on a non-finite or negative depth (a negative depth is nonsense
  * and must surface, not be silently bucketed).
@@ -94,29 +102,40 @@ export const yearsToDhwAgeBand = (years: number): AgeBand => {
   return "36+";
 };
 
-/** Clamp the `confidence` of one provenance envelope, leaving `value`/`sourceSpan`. */
-const clampEnvelope = <E extends { confidence: number }>(envelope: E): E => ({
-  ...envelope,
-  confidence: clampConfidence(envelope.confidence),
-});
+/**
+ * Is this node a provenance envelope (a leaf) rather than a resource group?
+ *
+ * Structural, not positional: an envelope is the object carrying a `confidence`
+ * number. Tested that way rather than by depth or by a group-name list so that
+ * adding a group to `schema.ts` — or nesting one deeper — needs no change here.
+ * The recursion below is the reason this pass survived the schema going from flat
+ * fields plus one matrix to seven resource groups without touching its body.
+ */
+const isEnvelope = (node: unknown): node is { confidence: number } =>
+  typeof node === "object" &&
+  node !== null &&
+  typeof (node as { confidence?: unknown }).confidence === "number";
+
+/** Clamp every envelope's `confidence` at any depth, leaving `value`/`sourceSpan`. */
+const clampDeep = (node: unknown): unknown => {
+  if (isEnvelope(node)) return { ...node, confidence: clampConfidence(node.confidence) };
+  if (typeof node === "object" && node !== null) {
+    return Object.fromEntries(Object.entries(node).map(([key, child]) => [key, clampDeep(child)]));
+  }
+  return node;
+};
 
 /**
  * The deterministic pass the extractor runs after the model. Returns a new
- * `SnuggFields` with every envelope's `confidence` clamped to 0..1 — top-level
- * fields and each of the 11 health-matrix tests. `value` and `sourceSpan` are the
+ * `SnuggExtraction` with every envelope's `confidence` clamped to 0..1 — all 51
+ * leaves, across all seven resource groups. `value` and `sourceSpan` are the
  * model's faithful "what was said" and are left untouched; this pass never invents,
  * converts, or re-files a value. Pure and model-free.
+ *
+ * Enveloped in, enveloped out: this is `SingleShotOptions.normalize`, which runs
+ * inside the extractor's trust boundary, long before review turns envelopes into
+ * writable values. Every key is present — the extraction shape is required at
+ * every level — so there is nothing to skip over.
  */
-export const normalizeFields = (fields: SnuggFields): SnuggFields => {
-  const { healthSafety, ...top } = fields;
-
-  const clampedTop = Object.fromEntries(
-    Object.entries(top).map(([key, envelope]) => [key, clampEnvelope(envelope)]),
-  ) as Omit<SnuggFields, "healthSafety">;
-
-  const clampedHealth = Object.fromEntries(
-    Object.entries(healthSafety).map(([key, envelope]) => [key, clampEnvelope(envelope)]),
-  ) as SnuggFields["healthSafety"];
-
-  return { ...clampedTop, healthSafety: clampedHealth };
-};
+export const normalizeFields = (fields: SnuggExtraction): SnuggExtraction =>
+  clampDeep(fields) as SnuggExtraction;

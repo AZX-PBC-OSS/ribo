@@ -1,8 +1,8 @@
-import { isSpanGrounded } from "@azx/ribo-core";
+import { buildReviewRequest, isSpanGrounded } from "@azx/ribo-core";
 import { expect, test } from "vitest";
 import { SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
 import type { SnuggWriteContext } from "./context.js";
-import type { SnuggFields } from "./schema.js";
+import type { SnuggValues } from "./schema.js";
 
 test("carries a stable name, instructions and a parsing schema", () => {
   expect(snuggProAdapter.name).toBe(SNUGGPRO_ADAPTER_NAME);
@@ -12,45 +12,164 @@ test("carries a stable name, instructions and a parsing schema", () => {
   expect(snuggProAdapter.instructions).toContain("SEPARATE axis");
 });
 
-test("the schema parses the adapter's own few-shot examples", () => {
-  const example = snuggProAdapter.examples?.[0];
-  expect(example).toBeDefined();
-  expect(() => snuggProAdapter.schema.parse(example?.fields)).not.toThrow();
+// The adapter's own few-shot example, resolved ONCE and non-optionally. Written
+// this way rather than as `examples?.[0]` at each use because the assertions below
+// are negative ones: `safeParse(undefined).success` is also `false`, so an
+// `examples` that went missing would leave them passing while asserting nothing.
+// Throwing at module scope fails the whole file loudly instead.
+const example = snuggProAdapter.examples?.[0];
+if (!example) throw new Error("expected the Snugg Pro adapter to carry a few-shot example");
+
+test("the EXTRACTION schema parses the adapter's own few-shot examples", () => {
+  // A few-shot example's `fields` become the ASSISTANT turn the model imitates,
+  // so they are the enveloped shape and it is `extractionSchema` — not `schema` —
+  // that must accept them. This assertion moved rather than weakened: before the
+  // split there was one schema and it was the enveloped one.
+  expect(() => snuggProAdapter.extractionSchema.parse(example.fields)).not.toThrow();
+});
+
+test("the PATCH schema rejects those same examples — the two schemas are not interchangeable", () => {
+  // What keeps the assertion above from being satisfied by an adapter that simply
+  // pointed `extractionSchema` back at `schema`: the patch is plain values and a
+  // model response is envelopes, so exactly one of the two can parse this.
+  expect(snuggProAdapter.schema.safeParse(example.fields).success).toBe(false);
 });
 
 test("every example sourceSpan is verbatim in its transcript (grounding holds)", () => {
+  // Pinned non-empty: an empty `examples` would make the loop below a no-op and
+  // this test green without checking a single span.
+  expect(snuggProAdapter.examples ?? []).not.toHaveLength(0);
   for (const example of snuggProAdapter.examples ?? []) {
-    const walk = (envelope: { value: unknown; sourceSpan: string | null }) => {
-      if (envelope.sourceSpan !== null) {
-        expect(isSpanGrounded(envelope.sourceSpan, example.transcript)).toBe(true);
+    // Recurses, because the field set nests by resource group now. Counting the
+    // envelopes it reaches is the guard against the recursion silently bottoming
+    // out at the seven group objects and checking nothing.
+    let checked = 0;
+    const walk = (node: unknown): void => {
+      if (typeof node !== "object" || node === null) return;
+      if ("sourceSpan" in node) {
+        const { sourceSpan } = node as { sourceSpan: string | null };
+        checked += 1;
+        if (sourceSpan !== null) {
+          expect(isSpanGrounded(sourceSpan, example.transcript)).toBe(true);
+        }
+        return;
       }
+      for (const child of Object.values(node)) walk(child);
     };
-    const { healthSafety, ...top } = example.fields;
-    for (const envelope of Object.values(top)) walk(envelope);
-    for (const envelope of Object.values(healthSafety)) walk(envelope);
+    walk(example.fields);
+    expect(checked).toBe(51);
   }
 });
 
+// --- The context schema -----------------------------------------------------
+// `ctxSchema` is new in R1.5: `Recording.ctx` comes back out of IndexedDB, so the
+// DESTINATION of a write crosses a trust boundary and a type alone cannot parse
+// it. These pin that the adapter declares a real parser, not a rubber stamp.
+
+const validCtx = {
+  assessmentId: "assessment-1",
+  companyId: "company-1",
+  apiBaseUrl: "https://api.snuggpro.com",
+};
+
+test("ctxSchema parses a well-formed write context", () => {
+  expect(snuggProAdapter.ctxSchema.parse(validCtx)).toEqual(validCtx);
+});
+
+test("ctxSchema rejects a context that would target nowhere", () => {
+  // Each of these would otherwise sail through as a string and produce a write
+  // aimed at the collection, at no tenant, or at a URL built by concatenation.
+  expect(snuggProAdapter.ctxSchema.safeParse({ ...validCtx, assessmentId: "" }).success).toBe(
+    false,
+  );
+  expect(snuggProAdapter.ctxSchema.safeParse({ ...validCtx, companyId: "" }).success).toBe(false);
+  expect(
+    snuggProAdapter.ctxSchema.safeParse({ ...validCtx, apiBaseUrl: "api.snuggpro.com" }).success,
+  ).toBe(false);
+  expect(snuggProAdapter.ctxSchema.safeParse({ assessmentId: "a-1" }).success).toBe(false);
+});
+
+test("ctxSchema tolerates host extras — a Recording.ctx may carry more than this adapter needs", () => {
+  // Deliberately not `.strict()`: a host owns `Recording.ctx` and may keep its own
+  // job metadata in it. Zod strips the extras rather than failing the write.
+  const parsed = snuggProAdapter.ctxSchema.parse({ ...validCtx, hostBookkeeping: { seen: true } });
+  expect(parsed).toEqual(validCtx);
+});
+
 test("write is scaffolded, not faked: it rejects rather than silently succeeding", async () => {
-  const fixture = snuggProAdapter.examples?.[0];
-  if (!fixture) throw new Error("expected a Snugg Pro few-shot example fixture");
-  const fields = structuredClone(fixture.fields);
-  const ctx: SnuggWriteContext = {
-    assessmentId: "assessment-1",
-    companyId: "company-1",
-    apiBaseUrl: "https://api.snuggpro.com",
+  // `write` takes the PATCH now, not the enveloped example — a rejected leaf is
+  // absent, an accepted null is present.
+  const fields: SnuggValues = {
+    hvac: { hvacSystemEquipmentType: "Boiler", hvacHeatingEnergySource: null },
   };
-  await expect(snuggProAdapter.write(fields, ctx)).rejects.toThrow(/Task 6|not implemented/);
+  const ctx = snuggProAdapter.ctxSchema.parse(validCtx);
+  await expect(snuggProAdapter.write(fields, ctx, { idempotencyKey: "write-1" })).rejects.toThrow(
+    /Task 6|not implemented/,
+  );
 });
 
 // --- Type-level checks (enforced by tsc, not the Vitest run) ----------------
 // The adapter's `C` is a real `SnuggWriteContext`, never `unknown`. These pin
 // that: a foreign ctx and a missing ctx must both fail to compile. If `C` were
 // loosened to `unknown` the expected errors vanish and this file stops compiling.
-async function _ctxIsReal(fields: SnuggFields): Promise<void> {
-  // @ts-expect-error - ctx must be a SnuggWriteContext; a foreign shape is rejected.
-  await snuggProAdapter.write(fields, { jobId: "job-7" });
+// Each call supplies a VALID `meta`, so the only thing wrong with it is the thing
+// the directive names — an error from a missing third argument would satisfy
+// `@ts-expect-error` just as well and quietly stop testing `C` at all.
+async function _ctxIsReal(fields: SnuggValues): Promise<void> {
+  const meta = { idempotencyKey: "write-1" };
 
-  // @ts-expect-error - ctx is required and typed; it cannot be omitted.
-  await snuggProAdapter.write(fields);
+  // @ts-expect-error - ctx must be a SnuggWriteContext; a foreign shape is rejected.
+  await snuggProAdapter.write(fields, { jobId: "job-7" }, meta);
+
+  // @ts-expect-error - ctx is required and typed: `undefined` is not a
+  // SnuggWriteContext. Written with all three arguments PRESENT on purpose —
+  // `write(fields)` would also error, but as `TS2554: Expected 3 arguments, but
+  // got 1`, which says nothing about `C` and would keep this directive satisfied
+  // even if `C` were loosened to `unknown`.
+  await snuggProAdapter.write(fields, undefined, meta);
 }
+
+/**
+ * `SnuggWriteContext` is `readonly`, and nothing else can pin that: TypeScript's
+ * `extends` relation ignores the modifier entirely, so no assignability check sees
+ * it. Same reason `enveloped.test.ts` carries a narrow reassignment probe for
+ * `Enveloped<V>` — a write's destination should not be mutable in place.
+ */
+function _ctxIsReadonly(ctx: SnuggWriteContext): void {
+  // @ts-expect-error - assessmentId is readonly; a caller cannot retarget the write.
+  ctx.assessmentId = "somewhere-else";
+}
+
+test("every requiredOnCreate path is a real leaf of the values schema", () => {
+  // The drift guard, and the reason a parallel list is acceptable at all rather
+  // than metadata on the schema. A typo or a renamed field must fail HERE, loudly,
+  // instead of silently marking nothing required and letting a write die at the
+  // host that evening. Uses the same walk a review card sees, so it cannot drift
+  // from what buildReviewRequest actually enumerates.
+  const leaves = Object.keys(
+    buildReviewRequest({}, { recordingId: "r", text: "", engine: "fake" }, snuggProAdapter.schema)
+      .fields,
+  );
+  for (const path of snuggProAdapter.requiredOnCreate ?? []) {
+    expect(leaves).toContain(path);
+  }
+});
+
+test("the required leaves are exactly HVAC's two, as dotted paths", () => {
+  // Snugg Pro's ONLY component endpoint with required capture fields is
+  // POST /jobs/{jobId}/hvac, and it wants two. Both are extracted now, so a third
+  // entry here — or a leaf from any other group — means someone read the spec's
+  // `required` flags wrong.
+  expect(snuggProAdapter.requiredOnCreate).toEqual([
+    "hvac.hvacSystemEquipmentType",
+    "hvac.hvacUpgradeAction",
+  ]);
+});
+
+test("no other group declares a required leaf — a partial dictation writes cleanly", () => {
+  // The claim that makes review-time requiredness cheap: every other endpoint
+  // (basedata, attic, wall, window, dhw, health) accepts a create with nothing set,
+  // so an auditor who only did the basement is never blocked on the attic.
+  const required = snuggProAdapter.requiredOnCreate ?? [];
+  expect(required.filter((path) => !path.startsWith("hvac."))).toEqual([]);
+});

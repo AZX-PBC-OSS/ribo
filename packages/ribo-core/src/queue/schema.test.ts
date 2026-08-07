@@ -9,6 +9,7 @@ import {
   outboxItemSchema,
   outboxRxSchema,
 } from "./schema.js";
+import type { OutboxStatus } from "./schema.js";
 
 // One document, described twice: once in zod (the read/write trust boundary) and
 // once in RxDB's JSON schema (which carries the primary key, indexes and
@@ -42,7 +43,13 @@ test("the RxDB required list is exactly zod's non-optional fields", () => {
 });
 
 test("the optional fields are the step outputs and the error message", () => {
-  expect(optionalKeys).toEqual(["extracted", "lastError", "transcript", "writeResult"]);
+  expect(optionalKeys).toEqual([
+    "extracted",
+    "lastError",
+    "reviewOutcome",
+    "transcript",
+    "writeResult",
+  ]);
 });
 
 test("the primary key is a required field, as RxDB demands", () => {
@@ -120,10 +127,65 @@ test("the projection's extra keys do not leak back into a document parse", () =>
   ).toBe(false);
 });
 
-test("the active and finished status sets partition the state machine", () => {
-  expect([...ACTIVE_OUTBOX_STATUSES, ...FINISHED_OUTBOX_STATUSES].sort()).toEqual(
+test("every status is active, finished, or explicitly parked for a human", () => {
+  // `awaiting-review` is in neither set on purpose — that omission is the review
+  // gate. It is named here rather than left as a hole, so a future status added
+  // to neither set fails this test instead of silently joining it.
+  const PARKED: readonly OutboxStatus[] = ["awaiting-review"];
+  expect([...ACTIVE_OUTBOX_STATUSES, ...FINISHED_OUTBOX_STATUSES, ...PARKED].sort()).toEqual(
     [...OUTBOX_STATUSES].sort(),
   );
+});
+
+test("awaiting-review is a status but is deliberately not active", () => {
+  // The gate. `nextPending()` selects on ACTIVE_OUTBOX_STATUSES, so keeping
+  // awaiting-review out of it is the only thing that stops the relay writing an
+  // un-reviewed item — see the design §2.3 and §3.3.
+  expect(OUTBOX_STATUSES).toContain("awaiting-review");
+  expect(ACTIVE_OUTBOX_STATUSES as readonly string[]).not.toContain("awaiting-review");
+  expect(FINISHED_OUTBOX_STATUSES as readonly string[]).not.toContain("awaiting-review");
+});
+
+test("discarded is terminal and distinct from dead", () => {
+  expect(FINISHED_OUTBOX_STATUSES as readonly string[]).toContain("discarded");
+  expect(ACTIVE_OUTBOX_STATUSES as readonly string[]).not.toContain("discarded");
+});
+
+test("every status fits the indexed maxLength the RxDB schema declares", () => {
+  // `status` is stored with maxLength 16. A longer status name silently breaks
+  // RxDB's fixed-width index encoding, so this is pinned rather than assumed.
+  const bound = outboxRxSchema.properties.status.maxLength!;
+  for (const status of OUTBOX_STATUSES) expect(status.length).toBeLessThanOrEqual(bound);
+});
+
+test("a document carries an optional review outcome", () => {
+  const base = {
+    id: "a",
+    seq: 0,
+    status: "awaiting-review",
+    idempotencyKey: "k",
+    attempts: 0,
+    nextAttemptAt: new Date(0).toISOString(),
+    enqueuedAt: new Date(0).toISOString(),
+    recording: {
+      id: "r",
+      capturedAt: new Date(0).toISOString(),
+      durationMs: 1,
+      mimeType: "audio/webm",
+      ctx: {},
+    },
+  };
+  expect(outboxDocumentSchema.parse(base).reviewOutcome).toBeUndefined();
+
+  const reviewed = outboxDocumentSchema.parse({
+    ...base,
+    reviewOutcome: { status: "accepted", fields: { atticRValue: 19 } },
+  });
+  expect(reviewed.reviewOutcome).toEqual({ status: "accepted", fields: { atticRValue: 19 } });
+});
+
+test("the RxDB schema is at version 1", () => {
+  expect(outboxRxSchema.version).toBe(1);
 });
 
 /** A minimal document that parses, for the negative cases to mutate. */

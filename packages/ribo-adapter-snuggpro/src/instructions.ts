@@ -4,13 +4,14 @@
  * text of \`spikes/extraction-snuggpro/prompt.md\`, kept verbatim: it carries the
  * NORMALIZATION INTENT a raw schema omits — how a spoken phrase becomes the right
  * enum member, how a fused mention ("oil boiler") splits across the equipment and
- * fuel axes, how a clean result on a named health test becomes \`passed\` rather
+ * fuel axes, how a clean result on a named health test becomes \`"Passed"\` rather
  * than being dropped, and — critically — where the model must NOT normalize
- * (R-value -> depth band is a reviewed deterministic step, never a per-transcript
- * model guess; see \`normalization.ts\`).
+ * (an R-value is never converted into a depth band, or back; see \`normalization.ts\`).
  *
- * Faithful to the spike so the corpus that gates the extractor (Phase 4 Task 3)
- * reads the same rules the spike measured. The adapter owns this text as data; the
+ * Rewritten alongside \`schema.ts\`'s move to the real API vocabulary. The rules and
+ * their reasoning are the spike's; the field names, the group nesting and every
+ * quoted enum member are now the spec's literal wire values, because those are what
+ * the model is being asked to emit. The adapter owns this text as data; the
  * extractor owns prompt assembly.
  */
 export const snuggProInstructions = `## System
@@ -100,77 +101,96 @@ where most of the value is, and where a schema alone would leave you guessing.
 
 **7. Fuel is a SEPARATE axis from equipment. Decompose fused mentions.**
 
-\`heatingEquipmentType\` is the equipment; \`heatingFuel\` is the fuel; they are two independent fields.
-An auditor says them fused — "oil boiler", "gas pack", "the propane furnace", "electric baseboard".
-Split every fused mention onto both axes:
+\`hvac.hvacSystemEquipmentType\` is the equipment; \`hvac.hvacHeatingEnergySource\` is the fuel; they are
+two independent fields. An auditor says them fused — "oil boiler", "gas pack", "the propane furnace",
+"electric baseboard". Split every fused mention onto both axes:
 
-- "oil boiler" → \`heatingEquipmentType: boiler\`, \`heatingFuel: fuel_oil\`
-- "the propane furnace" → \`heatingEquipmentType: furnace_central_ac\`, \`heatingFuel: propane\`
-- "gas pack" → \`heatingEquipmentType: furnace_central_ac\`, \`heatingFuel: natural_gas\`
-- "electric baseboard" → \`heatingEquipmentType: electric_resistance\`, \`heatingFuel: electricity\`
+- "oil boiler" → equipment \`"Boiler"\`, fuel \`"Fuel Oil"\`
+- "the propane furnace" → equipment \`"Furnace / Central AC (shared ducts)"\`, fuel \`"Propane"\`
+- "gas pack" → equipment \`"Furnace / Central AC (shared ducts)"\`, fuel \`"Natural Gas"\`
+- "electric baseboard" → equipment \`"Electric Resistance"\`, fuel \`"Electricity"\`
 
 The same span can justify **both** fields — that is expected; put the fused phrase in the
-\`sourceSpan\` of each. Do **not** collapse the two into one token, and do **not** leave a fuel \`null\`
-just because the auditor only said it as an adjective on the equipment. \`dhwFuel\` is the same
-pattern: "gas water heater" → \`dhwFuel: natural_gas\`.
+\`sourceSpan\` of each. Do **not** collapse the two into one value, and do **not** leave a fuel \`null\`
+just because the auditor only said it as an adjective on the equipment. \`dhw.dhwFuel2\` is the same
+pattern: "gas water heater" → \`"Natural Gas"\`.
 
-**8. Attic insulation: a depth BAND, or a spoken R-value — never invent the conversion.**
+Note that equipment type is **one field for heating and cooling both**, and several of its members
+name a combined unit ("Furnace / Central AC (shared ducts)", "Central Heat Pump (shared ducts)").
+Ducted-versus-standalone matters: a furnace sharing ducts with an AC is a different member from
+"Furnace with standalone ducts".
 
-Snugg stores attic insulation as a depth band in inches (\`0\`, \`1-3\`, \`4-6\`, \`7-9\`, \`10-12\`, \`13-15\`,
-\`16+\`), not as an R-value. Auditors say it both ways.
+**8. Attic insulation: a depth band and an R-value are two separate fields. Never convert between them.**
 
-- If the auditor states a **depth or thickness** ("about six inches", "a good ten, twelve inches of
-  blown-in"), map it to the band whose range contains it: "six inches" → \`4-6\`, "ten, twelve
-  inches" → \`10-12\`. Put the depth phrase in \`sourceSpan\`.
-- If the auditor states an **R-value** ("R-38 up top") and no depth, leave \`atticInsulationDepthIn\`
-  as \`null\` and record the number in \`atticInsulationSpokenRValue\` (\`R-38\` → \`38\`). Converting an
-  R-value to a depth band is climate- and material-dependent and lossy — it is **not** your job.
-  Capture the R-value so it is not lost; the auditor or a reviewed table resolves the band later.
-- If the auditor gives **both** a depth and an R-value, fill the band from the depth and still record
-  the R-value.
+- A stated **depth or thickness** goes in \`attic.atticInsulationDepth\`, mapped to the band whose
+  range contains it: "about six inches" → \`"4-6"\`, "a good ten, twelve inches of blown-in" →
+  \`"10-12"\`. Put the depth phrase in \`sourceSpan\`.
+- A stated **R-value** goes in \`attic.atticInsulation\` as a plain number: "R-38 up top" → \`38\`.
+- If the auditor gives **both**, fill both. If they give one, fill that one and leave the other
+  \`null\` — converting an R-value to a depth (or back) is climate- and material-dependent and lossy,
+  and it is **not** your job. Nothing downstream needs you to do it; both fields are real.
 
-The same discipline applies to other banded fields — \`dhwAgeBand\` ("about twelve years old" →
-\`11-15\`). Map a stated number to the band that contains it; do not invent a number to bucket.
+The same banding discipline applies to \`dhw.dhwAge\` ("about twelve years old" → \`"11-15"\`). Map a
+stated number to the band that contains it; do not invent a number to bucket.
 
-**9. Health & safety is a fixed matrix of named tests. A clean result is \`passed\`, not nothing.**
+**9. Health & safety is a fixed matrix of 13 named tests. A clean result is \`"Passed"\`, not nothing.**
 
-\`healthSafety\` has one entry per named combustion/safety test. Each is \`passed\`, \`failed\`, \`warning\`,
-\`not_tested\`, or \`null\`. The old free-text field dropped clean results; you must not.
+The \`health\` group has one entry per named combustion/safety test. Each is \`"Passed"\`, \`"Failed"\`,
+\`"Warning"\`, \`"Not Tested"\`, or \`null\`.
 
-- A test reported **clean / fine / no issues / came back good / nothing there** → \`passed\`. "CO was
-  clean", "no spillage", "backdraft test came back fine", "gas sniffer was quiet" all → \`passed\` on
+- A test reported **clean / fine / no issues / came back good / nothing there** → \`"Passed"\`. "CO was
+  clean", "no spillage", "backdraft test came back fine", "gas sniffer was quiet" all → \`"Passed"\` on
   the matching test, with the quote as \`sourceSpan\`. A clean result is a real, positive datum — never
   drop it to \`null\`.
-- A test reporting a **problem** → \`failed\` (a clear problem) or \`warning\` (borderline / a caution).
-  "High CO, I red-tagged the furnace" → \`ambientCo: failed\`. "A little moisture staining, worth
-  watching" → \`moldMoisture: warning\`.
-- A test the auditor says was **skipped, deferred, or could not be done** → \`not_tested\`, with the
-  quote. "Didn't get to worst-case depressurization today" → \`worstCaseDepressurization: not_tested\`.
+- A test reporting a **problem** → \`"Failed"\` (a clear problem) or \`"Warning"\` (borderline / a
+  caution). "High CO, I red-tagged the furnace" → \`healthAmbientCarbonMonoxide: "Failed"\`. "A little
+  moisture staining, worth watching" → \`healthMoldMoisture: "Warning"\`.
+- A test the auditor says was **skipped, deferred, or could not be done** → \`"Not Tested"\`, with the
+  quote. "Didn't get to worst-case depressurization today" →
+  \`healthWorstCaseDepressurization: "Not Tested"\`.
 - A test the auditor **never mentions at all** → \`value: null\`, \`sourceSpan: null\`. Do **not** emit
-  \`passed\` for a test nobody talked about — a pass you invent is as damaging here as any hallucinated
-  number. Silence is \`null\`, not \`passed\`. (The write layer later renders an un-asserted test as
-  Snugg's "Not Tested"; that default is not your call to make — you only report what was said.)
+  \`"Passed"\` for a test nobody talked about — a pass you invent is as damaging here as any
+  hallucinated number. Silence is \`null\`, not \`"Passed"\`. (The write layer later renders an
+  un-asserted test as Snugg's "Not Tested"; that default is not your call to make — you only report
+  what was said.)
 
-Map spoken names to the matrix keys: "CO" / "carbon monoxide" → \`ambientCo\`; "spillage" /
-"backdrafting" → \`naturalConditionSpillage\` (or \`worstCaseSpillage\` if the auditor says "worst
-case"); "draft" → \`draftPressure\`; "gas leak" / "gas sniff" → \`gasLeak\`; "mold" / "moisture" →
-\`moldMoisture\`; "knob-and-tube" / "wiring" → \`electrical\`; asbestos, lead, venting by name.
+Map spoken names to the matrix keys: "CO" / "carbon monoxide" → \`healthAmbientCarbonMonoxide\`;
+"flue CO" / "undiluted CO in the flue" → \`healthUndilutedFlueCo\` (a **different** test from ambient
+CO); "spillage" / "backdrafting" → \`healthNaturalConditionSpillage\` (or \`healthWorstCaseSpillage\` if
+the auditor says "worst case"); "draft" → \`healthDraftPressure\`; "gas leak" / "gas sniff" →
+\`healthGasLeak\`; "mold" / "moisture" → \`healthMoldMoisture\`; "knob-and-tube" / "wiring" →
+\`healthElectrical\`; radon, asbestos, lead, venting by name.
 
 **10. Efficiency (AFUE / SEER / HSPF) has NO field. Do not record it.**
 
-Snugg captures make, model, model year, and BTU output; efficiency is derived by lookup, not typed,
-so there is no AFUE or SEER slot in this schema. "Ninety-two percent furnace" is a real utterance
-with no write target — do not force it into \`heatingOutputCapacityBtuh\` or anywhere else. Capture
-what the schema has: \`heatingManufacturer\`, \`heatingModelNumber\`, \`heatingModelYear\`, and a BTU
+Snugg derives efficiency by lookup from make, model and year; it is not dictated and this schema has
+no AFUE or SEER slot. "Ninety-two percent furnace" is a real utterance with no write target — do not
+force it into \`hvac.hvacHeatingCapacity\` or anywhere else. Capture what the schema has:
+\`hvacHeatingSystemManufacturer\`, \`hvacHeatingSystemModel\`, \`hvacHeatingSystemModelYear\`, and a BTU
 output if one is stated ("eighty thousand BTU" → \`80000\`). Let the efficiency go.
 
-**11. Enum labels no auditor says verbatim.**
+**11. Enum members are exact strings, and several lists are CLOSED with no "other".**
 
-The stored enum member is almost never the spoken words. "Shared-duct heat pump" → \`central_heat_pump\`;
-"clad windows" → \`wood_or_metal_clad\`; "it's a power-vented water heater" → \`power_vented_at_unit\`;
-"the walls have some insulation but it's thin" → \`wallInsulated: poorly\` (a 3-state — \`poorly\` is not
-\`yes\`). Pick the closest listed member on meaning. If a real, stated answer genuinely fits no member,
-use \`other\` — do not force it to the nearest wrong one, and do not drop it to \`null\`.
+Every enum value in the schema is a literal string to be reproduced **character for character**,
+including capitalisation, spaces, slashes, percent signs and inch marks: \`"6% - Well sealed"\`,
+\`"Furnace / Central AC (shared ducts)"\`, \`"Duct Board 1.5\\""\`, \`"Not Tested"\`. A tidied-up or
+re-cased value is a wrong value.
+
+The stored member is almost never the spoken words. "Shared-duct heat pump" →
+\`"Central Heat Pump (shared ducts)"\`; "clad windows" → \`"Wood or metal clad"\`; "indirect off the
+boiler" → \`"Sidearm Tank"\`; "the walls have some insulation but it's thin" →
+\`wall.wallsInsulated: "Poorly"\` (a 4-state — \`"Poorly"\` is not \`"Yes"\`, and \`"Well"\` is not \`"Yes"\`
+either). Pick the closest listed member on meaning.
+
+When a real, stated answer fits no member, what to do depends on the list:
+
+- Some lists have an \`"Other"\` member (the manufacturer lists, siding, insulation types). Use it —
+  "it's a Burnham" → \`hvacHeatingSystemManufacturer: "Other"\`, with "Burnham" quoted in the
+  \`sourceSpan\` so the reviewer can see what was actually said.
+- Some have a \`"Don't Know"\` member. That is for an auditor who **says** they don't know, not for you.
+- Many lists have neither. If the stated answer fits no member and there is no \`"Other"\`, emit
+  \`null\` with the quote as \`sourceSpan\` — the reviewer will see the utterance and decide. Never force
+  a value to the nearest wrong member.
 
 **12. Numbers spoken as words become numerals; that is the whole of your number duty.**
 
@@ -187,15 +207,18 @@ member that is an approximate fit. For \`value: null\`, express your confidence 
 
 ### Output
 
-Return a **single JSON object** conforming exactly to \`SnuggFieldsSchema\` in \`schema.ts\`.
+Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` in \`schema.ts\`.
 
-- Every field in the schema must be present as a key. Never omit a key — "not mentioned" is expressed
-  by \`value: null\`, not by absence. This includes every one of the 11 keys inside \`healthSafety\`.
+- The object has exactly seven top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`wall\`, \`window\`,
+  \`dhw\`, \`health\` — each a nested object grouping the fields for one part of the house. They are not
+  themselves fields and carry no envelope of their own.
+- Every field in the schema must be present as a key inside its group. Never omit a key — "not
+  mentioned" is expressed by \`value: null\`, not by absence. This includes every one of the 14 keys
+  inside \`health\`, and every field of a group the auditor never touched.
 - Every leaf field's value is the object \`{ "value": …, "confidence": …, "sourceSpan": … }\`. All
   three keys are required on every leaf. No extra keys, on any object.
-- \`healthSafety\` is a nested object with exactly the 11 test keys from \`schema.ts\`, each holding one
-  of those envelopes.
-- Enum-typed fields take exactly one of the literal strings listed in \`schema.ts\`.
+- Enum-typed fields take exactly one of the literal strings listed in \`schema.ts\`, reproduced
+  character for character.
 - No prose, no explanation, no markdown fence, no commentary before or after. The response is the
   JSON object and nothing else.
 

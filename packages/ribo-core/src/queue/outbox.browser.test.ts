@@ -1,10 +1,22 @@
+import { addRxPlugin, createRxDatabase } from "rxdb";
+import type { RxCollection, RxDatabase, RxJsonSchema } from "rxdb";
+import { RxDBAttachmentsPlugin } from "rxdb/plugins/attachments";
+import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 import { firstValueFrom } from "rxjs";
 import { afterEach, expect, test, vi } from "vitest";
 
 import type { Recording } from "../recording.js";
+import type { PersistedReviewOutcome } from "../review.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 import { removeOutboxDatabase } from "./database.js";
-import { ACTIVE_OUTBOX_STATUSES, FINISHED_OUTBOX_STATUSES, type OutboxItem } from "./schema.js";
+import {
+  ACTIVE_OUTBOX_STATUSES,
+  FINISHED_OUTBOX_STATUSES,
+  OUTBOX_COLLECTION_NAME,
+  outboxRxSchema,
+  type OutboxDocument,
+  type OutboxItem,
+} from "./schema.js";
 
 // Browser-mode, not jsdom, and that is the entire point of this file.
 // `fake-indexeddb` (what jsdom tests would reach for) is an in-memory shim: a
@@ -66,8 +78,11 @@ function audioBlob(): Blob {
 // durability test below for why nothing weaker is enough.
 // ---------------------------------------------------------------------------
 
-function idbDatabaseName(outboxName: string): string {
-  return `rxdb-dexie-${outboxName}--0--outbox`;
+function idbDatabaseName(outboxName: string, schemaVersion = outboxRxSchema.version): string {
+  // The `--N--` segment is RxDB's schema version. Read it from the schema rather
+  // than hardcoding it, so a version bump does not send this test looking in a
+  // database that was never created.
+  return `rxdb-dexie-${outboxName}--${String(schemaVersion)}--outbox`;
 }
 
 function promisify<T>(request: IDBRequest<T>): Promise<T> {
@@ -184,6 +199,124 @@ test("step outputs written before a close are readable after a reopen", async ()
     idempotencyKey: enqueued.idempotencyKey,
     seq: enqueued.seq,
   });
+});
+
+// ---------------------------------------------------------------------------
+// The v0 → v1 schema migration.
+//
+// A reopen does not test this: `openOutbox` can only ever create a v1 store, so
+// two opens against the same name both see version 1, nothing migrates, and the
+// test would pass whether or not the migration plugin and strategy exist at all
+// — the exact "passes while production is broken" shape this file's own header
+// warns about for the durability test above.
+//
+// A genuine test needs a database whose *stored* version is 0. The task brief
+// for this change suggested faking that by writing a raw row into the physical
+// `rxdb-dexie-<name>--0--outbox` IndexedDB database, the same way `readRawStore`
+// above reads one. That was tried and rejected: RxDB decides whether a
+// collection needs migrating from a bookkeeping document in its own *internal*
+// store (one per `<collection>-<version>`, holding that version's schema), not
+// from the presence of rows in the versioned physical database. A hand-written
+// `docs` row with no matching internal meta document is invisible to
+// `mustMigrate()` — RxDB just creates a fresh v1 collection and never looks at
+// the row, so the test would report a pass while testing nothing, which is a
+// worse failure mode than the reopen it was meant to replace.
+//
+// So the v0 store here is seeded through RxDB's own public API instead: a real
+// collection, created at `version: 0` with the schema this file *used* to have
+// before this change, populates that internal bookkeeping for real. Opening a
+// v1 database over the same name then runs the actual migration path, not an
+// imitation of it.
+// ---------------------------------------------------------------------------
+
+/** The outbox's RxDB schema exactly as it was before this task's version bump. */
+const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<Omit<OutboxDocument, "reviewOutcome">> = {
+  version: 0,
+  primaryKey: "id",
+  type: "object",
+  properties: {
+    id: { type: "string", maxLength: 64 },
+    seq: { type: "number", minimum: 0, maximum: 1_000_000_000, multipleOf: 1 },
+    status: { type: "string", maxLength: 16 },
+    idempotencyKey: { type: "string", maxLength: 64 },
+    attempts: { type: "integer", minimum: 0 },
+    nextAttemptAt: { type: "string", maxLength: 32 },
+    enqueuedAt: { type: "string", maxLength: 32 },
+    lastError: { type: "string" },
+    recording: { type: "object" },
+    transcript: { type: "object" },
+    extracted: { type: "object" },
+    writeResult: { type: "object" },
+  },
+  required: [
+    "id",
+    "seq",
+    "status",
+    "idempotencyKey",
+    "attempts",
+    "nextAttemptAt",
+    "enqueuedAt",
+    "recording",
+  ],
+  indexes: ["seq"],
+  attachments: {},
+};
+
+/** The v0 document shape: everything the current schema has, minus `reviewOutcome`. */
+function v0Document(): Omit<OutboxDocument, "reviewOutcome"> {
+  return {
+    id: "a",
+    seq: 0,
+    status: "queued",
+    idempotencyKey: "k",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: {
+      id: "r",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      durationMs: 1,
+      mimeType: "audio/webm",
+      ctx: {},
+    },
+  };
+}
+
+/**
+ * Builds a real outbox collection at schema version 0 and writes one document
+ * into it, through RxDB's own API rather than raw IndexedDB — see the note
+ * above for why that is the part that makes this a genuine migration fixture.
+ */
+async function seedVersionZeroOutbox(
+  name: string,
+  document: Omit<OutboxDocument, "reviewOutcome">,
+): Promise<void> {
+  addRxPlugin(RxDBAttachmentsPlugin);
+  const database: RxDatabase<{ outbox: RxCollection<Omit<OutboxDocument, "reviewOutcome">> }> =
+    await createRxDatabase({
+      name,
+      storage: getRxStorageDexie(),
+      multiInstance: true,
+      eventReduce: true,
+      cleanupPolicy: {},
+    });
+  await database.addCollections({
+    [OUTBOX_COLLECTION_NAME]: { schema: OUTBOX_RX_SCHEMA_V0 },
+  });
+  await database.collections.outbox.insert(document);
+  await database.close();
+}
+
+test("an outbox stored at schema version 0 opens and migrates to version 1", async () => {
+  const name = uniqueName();
+  await seedVersionZeroOutbox(name, v0Document());
+
+  const outbox = await open(name);
+  const items = await outbox.list({});
+
+  expect(items).toHaveLength(1);
+  expect(items[0]?.reviewOutcome).toBeUndefined();
+  expect(items[0]?.status).toBe("queued");
 });
 
 // ---------------------------------------------------------------------------
@@ -401,6 +534,260 @@ test("removeMany deletes the named items and is idempotent", async () => {
   expect(await outbox.removeMany([])).toBe(0);
   expect((await outbox.list()).map((item) => item.id)).toEqual([b.id]);
 });
+
+// ---------------------------------------------------------------------------
+// submitReview — the only way out of `awaiting-review`
+// ---------------------------------------------------------------------------
+
+test("an accepted review moves the item to writing and persists the outcome", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review", extracted: { atticRValue: {} } });
+
+  const outcome = { status: "accepted", fields: { atticRValue: 19 } } as const;
+  const updated = await outbox.submitReview(item.id, outcome);
+
+  expect(updated.status).toBe("writing");
+  expect(updated.reviewOutcome).toEqual(outcome);
+  expect(updated.attempts).toBe(0);
+});
+
+test("an edited review moves the item to writing with the touched fields named", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  const updated = await outbox.submitReview(item.id, {
+    status: "edited",
+    fields: { atticRValue: 30 },
+    editedFields: ["atticRValue"],
+    rejectedFields: ["blowerDoorCfm50"],
+  });
+
+  expect(updated.status).toBe("writing");
+  expect(updated.reviewOutcome).toMatchObject({ editedFields: ["atticRValue"] });
+});
+
+test("a discarded review is terminal and drops the audio", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  expect(await outbox.getAudio(item.id)).toBeDefined();
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  const updated = await outbox.submitReview(item.id, {
+    status: "discarded",
+    reason: "misspoke",
+  });
+
+  expect(updated.status).toBe("discarded");
+  expect(updated.hasAudio).toBe(false);
+  expect(await outbox.getAudio(item.id)).toBeUndefined();
+  expect(updated.reviewOutcome).toEqual({ status: "discarded", reason: "misspoke" });
+});
+
+test("a discard commits the status BEFORE it drops the audio", async () => {
+  // The end-state test above passes whichever order the two writes happen in, so on
+  // its own it guards nothing: the ordering is the thing at risk, because dropping
+  // first would remove the need for `submitReview`'s post-drop re-read and therefore
+  // reads like a tidy-up waiting to happen.
+  //
+  // It is not a tidy-up. A crash between the two steps in the reverse order leaves
+  // an `awaiting-review` row whose recording is already gone — it looks reviewable,
+  // the audio is unrecoverable, and nothing on the row says why. Committing the
+  // status first makes the worst case a `discarded` row that still holds its bytes,
+  // which is merely untidy.
+  //
+  // `items$` re-emits across an attachment change (that is what `hasAudio` is for,
+  // proven in its own test above), so the emission sequence is the observable form
+  // of the ordering.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  const seen: [string, boolean][] = [];
+  const subscription = outbox.items$.subscribe((items) => {
+    const row = items.find((entry) => entry.id === item.id);
+    if (row) seen.push([row.status, row.hasAudio]);
+  });
+
+  try {
+    await outbox.submitReview(item.id, { status: "discarded", reason: "misspoke" });
+    await vi.waitFor(() => expect(seen.at(-1)).toEqual(["discarded", false]));
+  } finally {
+    subscription.unsubscribe();
+  }
+
+  // The row was observably `discarded` while the audio was still there...
+  expect(seen).toContainEqual(["discarded", true]);
+  // ...and never `awaiting-review` with the audio already gone, which is exactly
+  // what the reverse order would publish.
+  expect(seen).not.toContainEqual(["awaiting-review", false]);
+});
+
+test("an edited review that rejected every field still goes to writing", async () => {
+  // resolveReview's rule: rejecting every field is a statement about the
+  // extraction, not the recording, so it must not be collapsed into a discard —
+  // which would also drop audio the human never asked to throw away. The refusal
+  // to *write* an empty field set lives in the relay's `#write`, which is where
+  // every other "may this reach the host tool?" question is already asked;
+  // `relay.browser.test.ts` pins it.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  const updated = await outbox.submitReview(item.id, {
+    status: "edited",
+    fields: {},
+    editedFields: [],
+    rejectedFields: ["atticRValue"],
+  });
+
+  expect(updated.status).toBe("writing");
+});
+
+test("a nested review outcome with dotted paths persists to IndexedDB with no migration", async () => {
+  // R1.5 design §4 claims moving review to nested values and dotted leaf paths needs
+  // NO outbox document version bump. `queue/outbox-memory.test.ts` drives the same
+  // round trip, but memory storage cannot settle it: as the durability test above
+  // records, it keeps a module-global map, so a close/reopen assertion passes there
+  // whether or not anything was written. The structured-clone step that could in
+  // principle flatten or drop a nested object exists only on the Dexie/IndexedDB path.
+  //
+  // So this closes the database and reads the raw store with no RxDB in the call
+  // stack — the same technique the durability test uses, for the same reason.
+  const name = uniqueName();
+  const outbox = await open(name);
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  const outcome: PersistedReviewOutcome = {
+    status: "edited",
+    fields: {
+      atticRValue: 19,
+      healthSafety: { ambientCo: "passed", gasLeak: null },
+    },
+    editedFields: ["healthSafety.ambientCo"],
+    rejectedFields: ["healthSafety.asbestos"],
+  };
+
+  await outbox.submitReview(item.id, outcome);
+  await outbox.close();
+
+  const rawDocs = (await readRawStore(name, "docs")) as {
+    id: string;
+    reviewOutcome: unknown;
+  }[];
+
+  // The nesting is on disk AS nesting — not flattened to dotted keys, not stringified
+  // — and the dotted touched-field paths survived as the strings they are. At the
+  // unchanged `outboxRxSchema.version`, which `idbDatabaseName` reads off the schema:
+  // a version bump would send this read to a database that never existed, and throw.
+  expect(rawDocs.map((doc) => doc.id)).toEqual([item.id]);
+  expect(rawDocs[0]?.reviewOutcome).toEqual(outcome);
+});
+
+test("submitting a review for an unknown id rejects", async () => {
+  const outbox = await open(uniqueName());
+  await expect(outbox.submitReview("nope", { status: "accepted", fields: {} })).rejects.toThrow(
+    /nope/,
+  );
+});
+
+test("a second submission for the same item fails rather than rewriting it", async () => {
+  // Two tabs, or two clicks. The second must not patch a row that has moved on —
+  // most importantly it must not take a `done` item back to `writing`, which would
+  // cause a second write to the host tool.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  await outbox.submitReview(item.id, { status: "accepted", fields: { atticRValue: 19 } });
+  await expect(
+    outbox.submitReview(item.id, { status: "discarded", reason: "changed my mind" }),
+  ).rejects.toThrow(/awaiting-review/);
+
+  const settled = await outbox.get(item.id);
+  expect(settled?.status).toBe("writing");
+  expect(settled?.hasAudio).toBe(true);
+});
+
+test("two submissions in flight at once settle as one winner and one refusal", async () => {
+  // The sequential test above cannot reach the case the guard is actually built
+  // for. These two are in flight together, and they take the **409-and-re-run**
+  // path — deterministically, not incidentally, which is the whole reason this test
+  // is worth its lines.
+  //
+  // Why it cannot be the cheaper "both folded into one batch, modifiers chained"
+  // route (rxdb 17's `incremental-write.ts`): `addWrite` calls `triggerRun()`
+  // synchronously inside its promise executor, and `triggerRun` swaps the pending
+  // map out synchronously too, before its first `await`. So by the time the first
+  // submission's `addWrite` returns, the batch is already closed, and the second
+  // always lands in a fresh one carrying a `lastKnownDocumentState` read before the
+  // first write committed — a genuinely stale revision. Nor is the ordering luck:
+  // both `submitReview` calls issue `findOne(id).exec()` in the same synchronous
+  // burst and RxDB caches the query, so their continuations run in one microtask
+  // drain, well inside the first write's IndexedDB transaction.
+  //
+  // What that buys: the second submission's modifier runs once against the stale
+  // revision (where the status still reads `awaiting-review`, so the guard passes),
+  // the write is rejected 409, and RxDB re-runs the modifier against the document
+  // actually in the database — where the status is `writing` and the guard finally
+  // refuses. The refusal therefore comes from the retry, which is the mechanism the
+  // cross-tab case depends on and the one no test can drive directly.
+  //
+  // Deleting the guard makes this fail as `['fulfilled', 'fulfilled']`: the discard
+  // lands on top of the accept and the accepted outcome the relay was about to write
+  // is simply gone. That is a lost update, not merely a missing rejection.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "awaiting-review" });
+
+  const results = await Promise.allSettled([
+    outbox.submitReview(item.id, { status: "accepted", fields: { atticRValue: 19 } }),
+    outbox.submitReview(item.id, { status: "discarded", reason: "changed my mind" }),
+  ]);
+
+  expect(results.map((result) => result.status)).toEqual(["fulfilled", "rejected"]);
+  const settled = await outbox.get(item.id);
+  expect(settled?.status).toBe("writing");
+  // The discard lost, so the recording is still on the device: a refused
+  // submission must have no side effects at all, audio included.
+  expect(settled?.hasAudio).toBe(true);
+  expect(await outbox.getAudio(item.id)).toBeDefined();
+});
+
+test("a review cannot be submitted for an item that was never parked", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await expect(outbox.submitReview(item.id, { status: "accepted", fields: {} })).rejects.toThrow(
+    /queued/,
+  );
+});
+
+// The scenario the guard exists for, stated as itself. `submitReview`'s doc comment
+// names a stale tab submitting a review for an item that has since reached `done` —
+// which would patch a completed row back to `writing` and cause a second write to a
+// customer's audit — and the tests above only ever reach it via `queued` or via a
+// row this method itself moved on. Every finished status, driven from the constant,
+// so a status added to it is covered without anyone remembering to come back here.
+test.each([...FINISHED_OUTBOX_STATUSES])(
+  "a review cannot be submitted for a %s item",
+  async (status) => {
+    const outbox = await open(uniqueName());
+    const item = await outbox.enqueue({ recording, audio: audioBlob() });
+    await outbox.patch(item.id, { status });
+
+    await expect(
+      outbox.submitReview(item.id, { status: "accepted", fields: { atticRValue: 19 } }),
+    ).rejects.toThrow(new RegExp(`"${status}"`));
+
+    // Nothing moved. The row is the most important part: a finished item taken back
+    // to `writing` is the double-write this guard is here to prevent.
+    const settled = await outbox.get(item.id);
+    expect(settled?.status).toBe(status);
+    expect(settled?.reviewOutcome).toBeUndefined();
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Filtered reads

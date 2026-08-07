@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * @file Asserts the `@azx/source` export condition end to end — both that the
- * packages OFFER a source branch and that the playground actually ASKS for it.
+ * @file Asserts the `@azx/source` export condition end to end — that the
+ * packages OFFER a source branch, that the playground actually ASKS for it,
+ * and that each Vitest project asks for it in the one spelling that pipeline
+ * reads.
  *
  *   1. Per-package `exports` (Node's own resolver), for each root export AND
  *      the one published subpath (`@azx/ribo-transcriber-ondevice/worker`):
@@ -10,6 +12,12 @@
  *   2. Playground Vite config (Vite's own resolveConfig):
  *        `resolve.conditions` includes `@azx/source` — the dev-server path where
  *        HMR into library source matters.
+ *   3. The root `vitest.config.ts` projects (Vitest's own createVitest, which
+ *      resolves each project's Vite config the same way Vitest itself does at
+ *      test time): the `unit` project's `ssr.resolve.conditions` and the
+ *      `browser` project's `resolve.conditions` both include `@azx/source` —
+ *      see the long comments in vitest.config.ts for why the two projects need
+ *      opposite spellings of the same idea.
  *
  * This replaces a guard that R1 destroyed. Before R1 the source condition was
  * protected by absence — no `dist/` existed, so losing the condition hard-failed
@@ -34,6 +42,20 @@
  * `dist/` must exist: `import.meta.resolve` does exports resolution without
  * stat-ing the target, so the gate would pass identically on an unbuilt tree.
  * File existence is covered by publint in the build stage, not here.
+ *
+ * The Vitest-project assertion (3) exists for the same reason as the Vite one,
+ * one config file over. R2 found that `packages/*\/src/workspace-resolution*
+ * .test.{ts,tsx}` — the tests that were supposed to guard `vitest.config.ts`'s
+ * `resolve`/`ssr.resolve` blocks — do not actually exercise them: every
+ * publishable package's `exports` has a `default` fallback to `dist/index.js`,
+ * and `./check.sh` always runs `build:packages` before `test`, so `dist/`
+ * exists by the time those tests run and a bare package-name import succeeds
+ * whether or not the condition block is present. Those tests are worth keeping
+ * as a smoke check that the tier can import a workspace package at all, but
+ * they cannot fail the gate on a lost condition — this assertion is what does,
+ * using `createVitest` rather than grepping `vitest.config.ts`'s text so it
+ * reports what Vitest actually resolves after project-level config merging,
+ * not merely what the source happens to say.
  */
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
@@ -41,6 +63,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveConfig } from "vite";
+import { createVitest } from "vitest/node";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -108,11 +131,12 @@ function resolveFrom(specifier, useSourceCondition) {
   return execFileSync(process.execPath, args, { cwd: from, encoding: "utf8" }).trim();
 }
 
-// Two failure classes, tracked separately so the epilogue can point each at the
-// file its reader needs to open. A CI reader has likely never heard of
+// Three failure classes, tracked separately so the epilogue can point each at
+// the file its reader needs to open. A CI reader has likely never heard of
 // `@azx/source`; a named file is more useful than a generic "broken".
 const exportsFailures = [];
 const viteFailures = [];
+const vitestFailures = [];
 
 for (const { specifier, sourceSuffix, distSuffix } of TARGETS) {
   for (const [useCondition, expectedSuffix] of [
@@ -158,7 +182,50 @@ if (
   );
 }
 
-const failures = [...exportsFailures, ...viteFailures];
+// The exports and Vite assertions above prove the packages OFFER a source
+// branch and the playground ASKS for it. This proves the two Vitest projects
+// each ask for it too, in their own required spelling. `createVitest` loads
+// and resolves `vitest.config.ts` the same way `vitest run` does, so this sees
+// exactly what the test run will see — unlike grepping the file text, which
+// would pass on a block that is present but misspelled, misplaced, or shadowed
+// by a later merge.
+const vitest = await createVitest("test", { watch: false }, { root: repoRoot }, {});
+try {
+  const unitProject = vitest.projects.find((project) => project.name === "unit");
+  const browserProject = vitest.projects.find((project) => project.name.startsWith("browser"));
+
+  if (!unitProject) {
+    vitestFailures.push(
+      'vitest.config.ts: no project named "unit" was found. If it was renamed, update this ' +
+        "script's lookup to match.",
+    );
+  } else if (!unitProject.vite.config.ssr.resolve.conditions.includes("@azx/source")) {
+    vitestFailures.push(
+      'vitest.config.ts: the "unit" project\'s resolved `ssr.resolve.conditions` does not ' +
+        `include "@azx/source" (got: ${JSON.stringify(unitProject.vite.config.ssr.resolve.conditions)}). ` +
+        "Node-environment tests go through Vite's SSR pipeline, which reads `ssr.resolve.conditions` " +
+        "— not the plain `resolve.conditions` that would apply to a client build.",
+    );
+  }
+
+  if (!browserProject) {
+    vitestFailures.push(
+      'vitest.config.ts: no project whose name starts with "browser" was found. If it was ' +
+        "renamed, update this script's lookup to match.",
+    );
+  } else if (!browserProject.vite.config.resolve.conditions.includes("@azx/source")) {
+    vitestFailures.push(
+      `vitest.config.ts: the "${browserProject.name}" project's resolved \`resolve.conditions\` ` +
+        `does not include "@azx/source" (got: ${JSON.stringify(browserProject.vite.config.resolve.conditions)}). ` +
+        "Browser-mode tests are served through Vite's CLIENT pipeline, which reads plain " +
+        "`resolve.conditions` and ignores `ssr.resolve.conditions` entirely.",
+    );
+  }
+} finally {
+  await vitest.close();
+}
+
+const failures = [...exportsFailures, ...viteFailures, ...vitestFailures];
 
 if (failures.length > 0) {
   console.error("The @azx/source export condition is broken:\n");
@@ -183,11 +250,22 @@ if (failures.length > 0) {
         `"@azx/source".`,
     );
   }
+  if (vitestFailures.length > 0) {
+    console.error(
+      "Vitest project config problem — a project in the root `vitest.config.ts` is not asking " +
+        "for the source condition in the spelling its pipeline reads. Open `vitest.config.ts` and " +
+        'restore the missing block: `ssr: { resolve: { conditions: ["@azx/source"] } }` inside ' +
+        'the "unit" project, or `resolve: { conditions: ["@azx/source"] }` inside the "browser" ' +
+        "project. Note the `packages/*/src/workspace-resolution*.test.{ts,tsx}` files do NOT catch " +
+        "this on their own once `dist/` exists — see this script's file header.",
+    );
+  }
   console.error("Background: AGENTS.md §5.1.");
   process.exit(1);
 }
 
 console.log(
   `source condition: ${TARGETS.length} export targets (${publishedPackages.length} root + ./worker subpath) ` +
-    "resolve correctly in both directions, and playground Vite requests @azx/source",
+    "resolve correctly in both directions, playground Vite requests @azx/source, and both Vitest " +
+    "projects request @azx/source in their own required spelling",
 );

@@ -8,6 +8,13 @@ else. No Snugg Pro field names or quirks leak into `ribo-core` or `ribo-ui-react
 Write-back is **scaffolded, not yet wired**: the `write` seam and the adapter exist, but the live Snugg
 Pro write is gated on a platform ask.
 
+The field set is built from Snugg Pro's machine-readable spec: the keys are the API's wire property
+names, the enum members are its literal strings (`"6% - Well sealed"`, `"Not Tested"`), and the shape
+nests by write endpoint — `basedata`, `hvac`, `attic`, `wall`, `window`, `dhw`, `health`. There is no
+rename or token-mapping layer between this schema and the API, by design. It is a deliberate **subset**
+(51 leaves of a ~163-field capture surface), chosen for what an auditor actually dictates; see
+`docs/implementation/17-snuggpro-field-reconciliation.md`.
+
 ## Installation
 
 ```bash
@@ -19,10 +26,18 @@ pnpm add @azx/ribo-adapter-snuggpro @azx/ribo-core
 ## Public API at a glance
 
 - **The adapter** — `snuggProAdapter` (a `ToolAdapter`), `SNUGGPRO_ADAPTER_NAME`.
-- **The field schema** — `SnuggFieldsSchema`, the `SnuggFields` type, and its enums
-  (`HeatingEquipmentType`, `HeatingFuel`, `DhwSystemType`, `AtticInsulationDepthBand`,
-  `HealthSafetyMatrix`, and the rest).
-- **The write context** — `SnuggWriteContext` (the real `C` the adapter's `write` needs).
+- **The field schemas — two of them, one derived from the other.** `snuggValuesSchema` (type
+  `SnuggValues`) is the hand-written **writable patch**: what a review produces and what `write`
+  sends, with every leaf optional (absent = the reviewer rejected it, leave it alone) and nullable
+  (a present `null` = write it empty). `snuggExtractionSchema` (type `SnuggExtraction`) is what the
+  **model** is asked for, derived from the patch with `ribo-core`'s `enveloped()` — every leaf
+  wrapped in a provenance envelope, closed and fully required. Plus the seven per-endpoint groups
+  (`BasedataFields`, `HvacFields`, `AtticFields`, `WallFields`, `WindowFields`, `DhwFields`,
+  `HealthFields`) and the enums they are built from (`HvacSystemEquipmentType`, `HvacUpgradeAction`,
+  `HvacDuctLeakage`, `AtticInsulationDepth`, `HealthTestState`, and the rest).
+- **The write context** — `snuggCtxSchema` and the `SnuggWriteContext` inferred from it (the real
+  `C` the adapter's `write` needs, parsed rather than merely typed because it comes back out of
+  storage).
 - **Extraction inputs** — `snuggProInstructions` (normalization intent) and `snuggExamples` (few-shot).
 - **The deterministic pass** — `normalizeFields`, `clampConfidence`, `inchesToAtticDepthBand`,
   `yearsToDhwAgeBand`.

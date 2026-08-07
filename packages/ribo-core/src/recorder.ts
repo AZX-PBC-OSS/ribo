@@ -15,7 +15,10 @@ import { baseRecordingSchema, type Recording } from "./recording.js";
  * **2. The stream is released on stop.** Leaving tracks live keeps the microphone open and the
  * browser's recording indicator lit after the user thinks capture ended. In a field tool that is a
  * privacy problem, not a resource leak. Every exit path from {@link Recorder.start} and
- * {@link Recorder.stop} — including the failing ones — goes through `#teardown()`.
+ * {@link Recorder.stop} — including the failing ones — goes through `#teardown()`. {@link
+ * Recorder.pause} deliberately does **not** follow this rule: `MediaRecorder.resume()` requires
+ * the same stream, so pausing cannot release the tracks, and the recording indicator stays lit
+ * until {@link Recorder.stop}. See the note on `pause` for why that is surfaced, not hidden.
  *
  * `ribo-core` is headless: `navigator.mediaDevices`, `MediaRecorder` and `AudioContext` are fair
  * game, `document`/`window` are not (AGENTS.md §4). Nothing here needs an element, so nothing here
@@ -103,8 +106,15 @@ export const negotiateMimeType = (
   );
 };
 
-/** Idle → recording → stopping → idle. */
-export type RecorderPhase = "idle" | "recording" | "stopping";
+/**
+ * Idle → recording ⇄ paused → stopping → idle.
+ *
+ * `paused` keeps the microphone **open**: `MediaRecorder.resume()` requires the
+ * same stream, so pause cannot stop the tracks, and the browser's recording
+ * indicator stays lit. That is consumer-visible and documented rather than
+ * discovered — see the note on {@link Recorder.pause}.
+ */
+export type RecorderPhase = "idle" | "recording" | "paused" | "stopping";
 
 /**
  * What a capture UI needs to paint, and nothing more.
@@ -114,9 +124,12 @@ export type RecorderPhase = "idle" | "recording" | "stopping";
  */
 export interface RecorderState {
   readonly phase: RecorderPhase;
-  /** Milliseconds since `start()`. Zero whenever idle. */
+  /** Milliseconds since `start()`. Zero whenever idle; frozen while paused. */
   readonly elapsedMs: number;
-  /** Normalized input level in `[0, 1]` — RMS of the most recent analyser frame. */
+  /**
+   * Normalized input level in `[0, 1]` — RMS of the most recent analyser frame.
+   * Zero whenever idle or paused.
+   */
   readonly level: number;
 }
 
@@ -161,7 +174,6 @@ interface Session {
   readonly stream: MediaStream;
   readonly recorder: MediaRecorder;
   readonly chunks: Blob[];
-  readonly startedAt: number;
   readonly audioContext: AudioContext | undefined;
   readonly analyser: AnalyserNode | undefined;
   readonly samples: Uint8Array<ArrayBuffer> | undefined;
@@ -218,6 +230,10 @@ export class Recorder<C = EmptyContext> {
   #level = 0;
   #session: Session | undefined;
   #failure: RecorderError | undefined;
+  /** Recorded duration banked by previous run-segments, excluding pauses. */
+  #accumulatedMs = 0;
+  /** `performance.now()` when the current run-segment began (start, or resume). */
+  #resumedAt = 0;
 
   constructor(options: RecorderOptions<C> = {}) {
     this.#ctx = options.ctx ?? ({} as C);
@@ -236,11 +252,17 @@ export class Recorder<C = EmptyContext> {
     return this.#phase;
   }
 
-  /** Milliseconds since `start()`; zero when idle. */
+  /**
+   * Milliseconds of **recorded** audio; zero when idle.
+   *
+   * Sums banked segments with the live one, so a paused span is not counted. A
+   * naive `now - startedAt` would keep running through a pause and hand a wrong
+   * `durationMs` to every `Recording` that was ever paused.
+   */
   get elapsedMs(): number {
-    return this.#session === undefined
-      ? 0
-      : Math.round(performance.now() - this.#session.startedAt);
+    if (this.#session === undefined) return 0;
+    if (this.#phase === "paused") return Math.round(this.#accumulatedMs);
+    return Math.round(this.#accumulatedMs + (performance.now() - this.#resumedAt));
   }
 
   /** Most recent normalized input level in `[0, 1]`; zero when idle. */
@@ -298,6 +320,64 @@ export class Recorder<C = EmptyContext> {
     }
 
     this.#failure = undefined;
+    this.#accumulatedMs = 0;
+    this.#resumedAt = performance.now();
+    this.#phase = "recording";
+    this.#emit();
+  }
+
+  /**
+   * Suspends recording without ending it.
+   *
+   * **The microphone stays open.** `MediaRecorder.resume()` must be handed the
+   * same stream, so the tracks cannot be stopped here — which means the browser's
+   * recording indicator stays lit while paused. In a field tool that is worth
+   * saying out loud: a user who pauses may reasonably believe the mic is off. Call
+   * {@link stop} to actually release it.
+   *
+   * `level` reads zero while paused, and `elapsedMs` stops advancing.
+   *
+   * @throws {RecorderError} `not-recording` if nothing is capturing.
+   */
+  pause(): void {
+    const session = this.#session;
+    if (session === undefined || this.#phase !== "recording") {
+      throw new RecorderError(
+        "not-recording",
+        "This Recorder is not capturing, so there is nothing to pause. Call start() first.",
+      );
+    }
+    session.recorder.pause();
+    this.#accumulatedMs += performance.now() - this.#resumedAt;
+    // A paused analyser still reads the live stream, so a meter driven by it would
+    // bounce while nothing is being recorded — which reads as broken.
+    this.#level = 0;
+    this.#phase = "paused";
+    this.#emit();
+  }
+
+  /**
+   * Resumes a paused capture on the same stream and the same `Recording`.
+   *
+   * @throws {RecorderError} `already-recording` if capture is already running,
+   * `not-recording` if there is nothing paused.
+   */
+  resume(): void {
+    if (this.#phase === "recording") {
+      throw new RecorderError(
+        "already-recording",
+        "This Recorder is already capturing. resume() is only for a paused capture.",
+      );
+    }
+    const session = this.#session;
+    if (session === undefined || this.#phase !== "paused") {
+      throw new RecorderError(
+        "not-recording",
+        "This Recorder has nothing paused to resume. Call start() first.",
+      );
+    }
+    session.recorder.resume();
+    this.#resumedAt = performance.now();
     this.#phase = "recording";
     this.#emit();
   }
@@ -313,7 +393,7 @@ export class Recorder<C = EmptyContext> {
    */
   async stop(): Promise<Capture<C>> {
     const session = this.#session;
-    if (session === undefined || this.#phase !== "recording") {
+    if (session === undefined || (this.#phase !== "recording" && this.#phase !== "paused")) {
       throw new RecorderError(
         "not-recording",
         "This Recorder is not capturing. Call start() before stop().",
@@ -374,7 +454,6 @@ export class Recorder<C = EmptyContext> {
       stream,
       recorder,
       chunks,
-      startedAt: performance.now(),
       ...meter,
       ticker: setInterval(() => this.#tick(), this.#tickMs),
     };
@@ -383,6 +462,7 @@ export class Recorder<C = EmptyContext> {
 
   /** One sample of the input level, then a push to every listener. */
   #tick(): void {
+    if (this.#phase === "paused") return;
     const session = this.#session;
     if (session?.analyser === undefined || session.samples === undefined) return;
     session.analyser.getByteTimeDomainData(session.samples);
@@ -396,6 +476,8 @@ export class Recorder<C = EmptyContext> {
     void session.audioContext?.close().catch(() => undefined);
     this.#session = undefined;
     this.#level = 0;
+    this.#accumulatedMs = 0;
+    this.#resumedAt = 0;
     this.#phase = "idle";
     this.#emit();
   }

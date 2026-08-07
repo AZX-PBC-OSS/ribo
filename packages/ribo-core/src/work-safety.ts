@@ -88,6 +88,16 @@ export interface WorkOnDevice {
   readonly dead: number;
   /** Items that have left the device — the only truly-safe state. */
   readonly synced: number;
+  /**
+   * Of `pending`, how many are parked waiting for a human to review them.
+   *
+   * A **subset of `pending`**, not a fourth bucket: an un-reviewed recording is
+   * unsynced work on a device, and needing a human rather than a network does not
+   * make it safe. Exposed separately only so a UI can say "3 recordings need
+   * review" without re-querying the outbox, and it is deliberately not consulted
+   * by {@link workSafety}.
+   */
+  readonly awaitingReview: number;
 }
 
 /**
@@ -140,20 +150,34 @@ export type WorkSafety =
  *
  * Classifies on `status` only — see the note on `hasAudio` in the file header.
  * `done` is the sole synced (off-device) state; `dead` is the sole terminal
- * failure; every {@link ACTIVE_OUTBOX_STATUSES} entry is pending recoverable work.
+ * failure; every {@link ACTIVE_OUTBOX_STATUSES} entry, plus `awaiting-review`,
+ * is pending recoverable work — `awaiting-review` just also increments the
+ * informational `awaitingReview` subset count. `discarded` is deliberately
+ * counted nowhere.
  */
 export const summarizeWork = (items: readonly Pick<OutboxItem, "status">[]): WorkOnDevice => {
   let pending = 0;
   let dead = 0;
   let synced = 0;
+  let awaitingReview = 0;
 
   for (const { status } of items) {
     if (status === "dead") dead += 1;
     else if (status === "done") synced += 1;
-    else if ((ACTIVE_OUTBOX_STATUSES as readonly string[]).includes(status)) pending += 1;
+    else if (status === "awaiting-review") {
+      // Parked for a human. Counted as pending because it is unsynced work sitting
+      // on a device — the review gate changes who unblocks it, not whether it is
+      // at risk. Omitting it here is the bug this branch exists to prevent: it
+      // would fall through every branch and be counted as nothing, making
+      // workSafety answer "safe" over an un-reviewed recording.
+      pending += 1;
+      awaitingReview += 1;
+    } else if ((ACTIVE_OUTBOX_STATUSES as readonly string[]).includes(status)) pending += 1;
+    // `discarded` is counted nowhere, deliberately: work the human abandoned is
+    // not outstanding, has not synced, and did not fail.
   }
 
-  return { pending, dead, synced };
+  return { pending, dead, synced, awaitingReview };
 };
 
 /**

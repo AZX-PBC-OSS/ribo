@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { baseRecordingSchema } from "./recording.js";
 import {
   DEFAULT_MIME_TYPE_PREFERENCES,
   negotiateMimeType,
   Recorder,
   RecorderError,
+  type RecorderPhase,
 } from "./recorder.js";
 
 // Browser mode, not jsdom, and the filename says so: `*.browser.test.ts` is the
@@ -278,5 +279,127 @@ describe("Recorder failure modes", () => {
     await expect(recorder.start()).rejects.toMatchObject({ code: "capture-failed" });
     expect(captured?.getAudioTracks().every((track) => track.readyState === "ended")).toBe(true);
     expect(recorder.phase).toBe("idle");
+  });
+});
+
+describe("Recorder pause and resume", () => {
+  test("pausing and resuming keeps the phase honest", async () => {
+    const recorder = new Recorder();
+    const phases: RecorderPhase[] = [];
+    const stop = recorder.subscribe((state) => phases.push(state.phase));
+
+    await recorder.start();
+    recorder.pause();
+    expect(recorder.phase).toBe("paused");
+    recorder.resume();
+    expect(recorder.phase).toBe("recording");
+    await recorder.stop();
+
+    stop();
+    expect(phases).toContain("paused");
+    expect(recorder.phase).toBe("idle");
+  });
+
+  test("elapsed time excludes the paused span", async () => {
+    const recorder = new Recorder();
+    await recorder.start();
+    await sleep(150);
+    recorder.pause();
+    const atPause = recorder.elapsedMs;
+
+    await sleep(300);
+    // The whole point: a paused recorder is not accruing duration.
+    expect(recorder.elapsedMs).toBe(atPause);
+
+    recorder.resume();
+    await sleep(150);
+    const { recording } = await recorder.stop();
+
+    // ~300ms of real recording across a 300ms pause. Generous bounds: this asserts
+    // the pause is excluded, not the precision of a timer under a headless browser.
+    expect(recording.durationMs).toBeGreaterThanOrEqual(250);
+    expect(recording.durationMs).toBeLessThan(560);
+  });
+
+  test("level reads zero while paused", async () => {
+    const recorder = new Recorder();
+    await recorder.start();
+    await sleep(150);
+    recorder.pause();
+    expect(recorder.level).toBe(0);
+    await recorder.stop();
+  });
+
+  test("#tick does not resample the analyser while paused", async () => {
+    // The microphone stays open while paused (see Recorder.pause), so the analyser
+    // keeps tapping a live stream unless #tick's own guard stops it. A `level`-based
+    // assertion cannot prove this reliably: measured against this Chromium's fake
+    // audio device, the synthetic tone reads as ~0 RMS for roughly the first second
+    // of a stream (it ramps up only after that), so `expect(recorder.level).toBe(0)`
+    // would pass at this timing whether or not the guard exists — confirmed by
+    // temporarily deleting the guard and re-running this suite, which left the
+    // level-based assertion above green. Spying on the analyser call itself proves
+    // the guard fires, independent of what the fake signal happens to be doing.
+    const spy = vi.spyOn(AnalyserNode.prototype, "getByteTimeDomainData");
+    try {
+      const recorder = new Recorder();
+      await recorder.start();
+      await sleep(150);
+      recorder.pause();
+      const callsAtPause = spy.mock.calls.length;
+
+      // Two-plus tick intervals (default tickMs is 100): #tick's ticker keeps firing
+      // while paused, so this proves the guard returns early rather than the ticker
+      // having stopped.
+      await sleep(250);
+      expect(spy.mock.calls.length).toBe(callsAtPause);
+
+      await recorder.stop();
+    } finally {
+      // A GLOBAL prototype spy: a red assertion above must not leave it patched
+      // for the rest of the file — every later test in this suite shares this
+      // one `AnalyserNode.prototype`.
+      spy.mockRestore();
+    }
+  });
+
+  test("stop works from paused, and releases the microphone", async () => {
+    const recorder = new Recorder();
+    await recorder.start();
+    recorder.pause();
+    const { recording, audio } = await recorder.stop();
+    expect(recording.durationMs).toBeGreaterThanOrEqual(0);
+    expect(audio.size).toBeGreaterThan(0);
+    expect(recorder.phase).toBe("idle");
+  });
+
+  test("pause and resume refuse the phases they cannot serve", async () => {
+    const recorder = new Recorder();
+    expect(() => recorder.pause()).toThrow(
+      expect.objectContaining({ name: "RecorderError", code: "not-recording" }),
+    );
+    expect(() => recorder.resume()).toThrow(
+      expect.objectContaining({ name: "RecorderError", code: "not-recording" }),
+    );
+
+    await recorder.start();
+    expect(() => recorder.resume()).toThrow(
+      expect.objectContaining({ name: "RecorderError", code: "already-recording" }),
+    );
+    recorder.pause();
+    expect(() => recorder.pause()).toThrow(
+      expect.objectContaining({ name: "RecorderError", code: "not-recording" }),
+    );
+    await recorder.stop();
+  });
+
+  test("a paused recorder cannot be started again", async () => {
+    const recorder = new Recorder();
+    await recorder.start();
+    recorder.pause();
+    await expect(recorder.start()).rejects.toThrow(
+      expect.objectContaining({ code: "already-recording" }),
+    );
+    await recorder.stop();
   });
 });

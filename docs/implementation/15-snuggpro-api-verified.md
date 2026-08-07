@@ -3,22 +3,43 @@
 **Status:** Research findings + an actionable delta list, for review. **No code or schema was
 changed by this pass.**
 
-> **Redaction note.** An earlier version of this document transcribed Snugg Pro's proprietary API
-> surface directly — endpoint/verb tables, verbatim enum member lists, exact wire tokens, and the
-> request-signing recipe. Snugg Pro is a third-party commercial product and that material is their
-> IP, so it has been moved out of this public repo. **The full, unredacted findings live in the
-> private integration notes** kept alongside the team's working copy (`ribo-private-notes/`). What
-> remains here is the **design-level delta**: the architectural conclusions that drive our adapter,
-> stated without reproducing the vendor's spec. Wherever a specific endpoint, enum member, or wire
-> token is needed to act, **see the private integration notes**.
+> **Redaction note (2026-07-24) — superseded, kept for history.** An earlier version of this
+> document transcribed Snugg Pro's API surface directly — endpoint/verb tables, verbatim enum
+> member lists, exact wire tokens, and the request-signing recipe. Snugg Pro is a third-party
+> commercial product and that material was treated as their IP, so it was moved out of this public
+> repo. **The full, unredacted findings live in the private integration notes** kept alongside the
+> team's working copy (`ribo-private-notes/`). What remains here is the **design-level delta**: the
+> architectural conclusions that drive our adapter, stated without reproducing the vendor's spec.
+> Wherever a specific endpoint, enum member, or wire token is needed to act, **see the private
+> integration notes**.
+>
+> **Policy reversed 2026-08-06, deliberately, by the repo owner.** The redaction above was decided
+> on the premise that the machine-readable spec was gated behind Snugg Pro's app login — doc 12
+> recorded the Swagger UI (`https://app.snuggpro.com/apidocs/`) as login-gated, and that belief
+> carried forward into this document's "primary source (private)" line below. That premise was
+> **factually wrong**: the earlier attempt had fetched `/apidocs/`, the Swagger UI's HTML page, not
+> the spec URL itself. The raw `swagger.json` (`https://app.snuggpro.com/apidocs/swagger.json`) is
+> served **publicly and unauthenticated** — no login, no API key, no session. Generating types and
+> enum vocabularies from a publicly-served OpenAPI document is ordinary practice, not a use of
+> anyone's confidential IP, and the owner has decided the detail belongs in this repo alongside the
+> conclusions that depend on it rather than split across a public/private boundary that no longer
+> has a reason to exist. **The endpoint tables, verbatim enum member lists, and field-by-field
+> detail this note used to withhold now live in
+> [17 — Snugg Pro field reconciliation](17-snuggpro-field-reconciliation.md)**, sourced directly
+> from the public spec. The private integration notes are no longer the authority for anything in
+> this document; treat 17 (and, for the request-signing scheme specifically, the public KB source
+> already cited in §2 below) as current.
 
-**Primary source (private):** Snugg Pro's machine-readable OpenAPI (Swagger 2.0) spec, obtained from
-the vendor. It supersedes doc 12's `[unknown]` tags: doc 12 was built from Snugg Pro's public
-**printed field sheet** and public KB and was explicit that the exact **API key names and serialized
-enum tokens** were `[unknown]` because the Swagger UI was login-gated. The machine-readable spec
-resolves those. Doc 12 stays as the dated research record of what was knowable from the public field
-sheet alone; where the two disagree, **this document wins**. (The spec itself is not committed to
-this repo — see the private notes.)
+**Primary source:** Snugg Pro's machine-readable OpenAPI (Swagger 2.0) spec, `swagger.json`, served
+publicly and unauthenticated at `https://app.snuggpro.com/apidocs/swagger.json` (see the reversed
+redaction note above — this was believed private when this document was first written). It
+supersedes doc 12's `[unknown]` tags: doc 12 was built from Snugg Pro's public **printed field
+sheet** and public KB and was explicit that the exact **API key names and serialized enum tokens**
+were `[unknown]` because the Swagger UI was believed login-gated. The machine-readable spec resolves
+those. Doc 12 stays as the dated research record of what was knowable from the public field sheet
+alone; where the two disagree, **this document wins** — and where this document and
+[17](17-snuggpro-field-reconciliation.md)'s direct spec reconciliation disagree, **17 wins**, being
+the closer read of the primary source.
 
 ---
 
@@ -364,14 +385,21 @@ re-authored once and the accuracy delta is measured once.
 
 ## Sources
 
-- **Snugg Pro OpenAPI (Swagger 2.0) specification** — vendor-supplied; **not committed to this repo**
-  (third-party IP). Held in the private integration notes; the primary source for every design-level
-  claim above.
+- **Snugg Pro OpenAPI (Swagger 2.0) specification** — `https://app.snuggpro.com/apidocs/swagger.json`,
+  public and unauthenticated (see the reversed redaction note at the top of this document; it was
+  believed vendor-private and login-gated when this document was first written). The primary source
+  for every design-level claim above; see [17](17-snuggpro-field-reconciliation.md) for the direct
+  field-by-field reconciliation against it, and
+  [16](16-extraction-schema-scale.md) for the scale/feasibility analysis it also feeds.
 - **Snugg Pro public KB — API Access** — the only source for the HMAC auth scheme (the spec models no
-  auth). Details of the signing recipe are in the private notes.
+  auth). The signing recipe's exact detail still lives in the private integration notes — the auth
+  scheme itself was never behind the login-gate misunderstanding this note corrects; it was always
+  sourced from Snugg Pro's public KB, not the spec.
 - [12](12-snuggpro-data-model.md) — the public-field-sheet-derived model this document supersedes.
 - [14](14-transcription-measurement.md) — the measured brand-name failure mode motivating the
-manufacturer-snapping proposal.
+  manufacturer-snapping proposal.
+- [17](17-snuggpro-field-reconciliation.md) — the field-by-field reconciliation against the public
+spec, superseding this document's field-model claims where the two disagree.
 </content>
 
 </invoke>
