@@ -269,13 +269,30 @@ export class Outbox {
    * `lastKnownDocumentState` captured before the first write committed. The two
    * cannot be folded into one batch and chained modifier-over-modifier.
    *
-   * The cross-*tab* case is the one this guard exists for and the one no test
-   * drives. It is testable — RxDB's `ignoreDuplicate: true` opens two instances
-   * over one database name, which is how RxDB tests its own multi-instance
-   * behaviour — but it requires `addRxPlugin(RxDBDevModePlugin)` first or it throws
-   * DB9, and that plugin is a process-global side effect the rest of this
-   * package's tests would then run under. Judged not worth it while the
-   * single-instance 409 exercises the same retry.
+   * The cross-*tab* case — two independent `RxDatabase` connections, not two calls
+   * on one — is the one this guard exists for and, for `submitReview` itself, still
+   * the one no test drives directly; that remains judged not worth the process-
+   * global `RxDBDevModePlugin` side effect while the single-instance 409 above
+   * exercises the identical retry mechanism. What changed: a cross-tab test now
+   * exists for {@link reopenForReview} (`outbox-reopen-cross-tab.browser.test.ts`,
+   * isolated into its own file so that plugin cannot leak into this file's
+   * assertions), proving the mechanism itself is sound across two connections. It
+   * proves that for `reopenForReview`'s own guard, not for this one — the two are
+   * separate `incrementalModify` calls on separate documents-in-time — but the two
+   * guards are structurally identical, so a reader satisfied by one should weigh
+   * the other the same way.
+   *
+   * **This guard is also now exposed to the ABA race {@link reopenForReview}'s own
+   * doc comment documents**, for a reason specific to that method: before it
+   * existed, `awaiting-review` could only ever be entered once per item, so a
+   * status predicate was a sound identity check by construction. `reopenForReview`
+   * added a way back in, which turned the state machine into a cycle
+   * (`dead → awaiting-review → writing → dead → …`), and `submitReview`'s
+   * `current.status !== "awaiting-review"` check can no longer tell "the
+   * `awaiting-review` I read" from "a later `awaiting-review`, reached by a second
+   * reopen after the first one finished and died again" apart, for a suspended-then-
+   * resumed caller spanning that whole cycle. See {@link reopenForReview} for the
+   * concrete sequence and why it is judged unlikely today rather than closed.
    *
    * - `accepted` / `edited` → `writing`, with `attempts` reset so the write gets a
    *   clean backoff budget. The relay picks the item up on its next drain and
@@ -388,10 +405,21 @@ export class Outbox {
    * review gate by hand. This method is the supported replacement for that patch,
    * and both throw sites now name it instead.
    *
-   * Also refused: a `dead` item with no `extracted` data. That is a row that died
-   * during `transcribe` or a host `extract` step, before it ever reached review —
-   * there being nothing on it for a human to look at, and `awaiting-review` with no
-   * `extracted` is not a state anything else in this package produces.
+   * Also refused: a `dead` item missing `extracted`, OR missing `transcript`.
+   * **A reviewable item needs both, not just the one this method originally
+   * checked.** `buildReviewRequest(extracted, transcript, …)` (`review.ts`) takes
+   * both arguments, and `isSpanGrounded` inside it checks every extracted span
+   * against `transcript.text` — without a transcript there is nothing to ground a
+   * value against, so a UI handed this item could not even render an honest
+   * review card, let alone flag an ungrounded one. Through the real pipeline this
+   * second check can never fire: `relay.ts`'s `nextStep` never returns `"extract"`
+   * until a transcript is already persisted, so `extracted` implies `transcript`
+   * by construction for any item the relay itself produced. It exists anyway
+   * because `patch()` — a public, unrestricted method — does not enforce that
+   * ordering, and a document built by hand (a test fixture, a future migration, a
+   * host that reached for `patch` instead of this method) could carry one without
+   * the other. Refusing it here is cheaper than a `ReviewPanel` that has to guess
+   * why `isSpanGrounded` just threw on `undefined.text`.
    *
    * **Clears the stale `reviewOutcome`.** Whatever a human decided last time — the
    * only way a `dead` item can carry `extracted` at all is by having passed through
@@ -400,8 +428,8 @@ export class Outbox {
    * would let the NEXT `submitReview` merge a decision nobody just made into a
    * review that has not happened yet, silently resurrecting a rejected field or an
    * edit the human never saw this time. `attempts` is also reset to `0`, the same
-   * as every other entry into `awaiting-review` (`relay.ts`'s `#extract`): a fresh
-   * parking gets a clean backoff budget the day it moves on again.
+   * as every other entry into `awaiting-review` (`relay.ts`'s `#extract`) — see
+   * that field's own note below on what this does, and does not, bound.
    *
    * `lastError` is deliberately left alone. It is why the item needed reopening in
    * the first place, and clearing it here would remove the one thing on the row
@@ -412,7 +440,78 @@ export class Outbox {
    * reopening — or resubmitting — the same item. See that method's own doc comment
    * for the mechanism; it applies here unchanged.
    *
-   * @throws if the item does not exist, is not `dead`, or has no `extracted` data.
+   * ## A cycle, and the ABA race it opens — documented, not closed
+   *
+   * Before this method existed, `awaiting-review` was enterable exactly once per
+   * item: `#extract` was the only way in, `submitReview` the only way out, and
+   * neither can run twice on the same item (the first because the relay never
+   * revisits `awaiting-review`; the second because its own guard refuses anything
+   * but `awaiting-review`). A status predicate checked inside `incrementalModify`
+   * was therefore a sound proxy for "the specific transition I observed": there
+   * was only ever one `awaiting-review` to observe.
+   *
+   * This method removes that property. The machine now has a cycle —
+   * `dead → awaiting-review → writing → dead → awaiting-review → …` — and a status
+   * string cannot tell "the `dead` I read" from "a *later* `dead`, reached by a
+   * full trip around the cycle after mine." Concretely, for this method's own
+   * guard to clear the wrong `reviewOutcome`:
+   *
+   *   1. Caller A calls `reopenForReview(id)` while the item is `dead` at
+   *      revision R1. Its first write attempt is built against R1.
+   *   2. Before that write commits, some other writer — a second tab, most
+   *      plausibly — takes the item all the way around the cycle: `submitReview`
+   *      parks a fresh review at `writing` (R2), and a second write failure lands
+   *      it back on `dead` at R3, with a **new** `reviewOutcome` already cleared
+   *      and re-set by that trip.
+   *   3. For A to clear THAT `reviewOutcome` rather than abort, A's write must
+   *      conflict and retry landing on R3 directly — never once observing R2
+   *      (`awaiting-review`) or the `writing` revision in between, either of which
+   *      would fail A's own status check and abort the call right there.
+   *
+   * Step 3 is the load-bearing one, and it is why this is documented rather than
+   * fixed pre-emptively. `incrementalModify` retries on *conflict*, not on a timer
+   * (`submitReview`'s own doc comment: `triggerRun()` fires synchronously inside
+   * `addWrite`'s promise executor), so A's pending call would ordinarily be woken
+   * and re-invoked at R2 within the same event-loop turn R2 is written — long
+   * before a second, human-driven `submitReview` → write-failure round trip could
+   * complete. For A to skip straight from R1 to R3, A's own retry-continuation has
+   * to be starved of a turn on the event loop for the *entire* span of that human
+   * interaction (read the failure, decide, click reopen, review, submit — seconds
+   * at the least), not merely delayed by normal write latency. That specific
+   * starvation is a poor match for either of this project's real targets:
+   * `schema.ts`'s own note on `nextAttemptAt` is that "on iOS the tab is the only
+   * execution context there is, and it dies often" — dying, on iOS, generally
+   * means the page reloads from nothing rather than the JS heap freezing an
+   * in-flight promise and resuming it later, which would destroy A's pending call
+   * outright rather than let it resume zombie-like; a desktop background tab
+   * throttles newly-scheduled timers, not an already-in-flight IndexedDB
+   * transaction or the promise continuation waiting on it. Judged unlikely on that
+   * basis — an inference from documented platform behaviour, not a citation of a
+   * spec that settles it — rather than on the strength of "two tabs is a rare
+   * shape": two tabs is exactly the case this file's other concurrency notes take
+   * seriously.
+   *
+   * The fix, if this stops being unlikely — a browser behaviour changes, a
+   * non-browser host with different scheduling guarantees adopts this package, or
+   * `reopenForReview` gains a caller whose own write path can stall for
+   * comparable spans — is a persisted generation counter: increment a field (e.g.
+   * on every transition *into* `dead`) in `#recordFailure`, require the caller to
+   * pass back the value it last observed on the item it is looking at, and refuse
+   * here unless the current document's counter still matches. That is deliberately
+   * NOT done pre-emptively: it changes this method's signature from "the id" to
+   * "the id, plus a token every caller must remember to thread through," for a
+   * race with no caller yet and, per the above, no plausible trigger on either of
+   * this project's shipped runtimes. Schema cost is not why it is deferred — this
+   * package still has no published users (`database.ts`'s
+   * `OUTBOX_MIGRATION_STRATEGIES` says the same thing about the v0→v1 migration:
+   * "nothing is published and there are no users, so no deployed data is at risk
+   * here"), and a generation field would be a one-line addition. The deferral is
+   * about the API-shape cost landing on every future caller for a benefit this
+   * analysis could not justify today. `submitReview`'s own doc comment points back
+   * here for the half of this it now shares.
+   *
+   * @throws if the item does not exist, is not `dead`, or is missing `extracted`
+   * or `transcript`.
    */
   async reopenForReview(id: string): Promise<OutboxItem> {
     const doc = await this.#collection.findOne(id).exec();
@@ -430,6 +529,14 @@ export class Outbox {
         throw new Error(
           `outbox: item ${id} has no extracted data to review — it never reached extraction, so ` +
             "there is nothing to re-park it with.",
+        );
+      }
+      if (current.transcript === undefined) {
+        throw new Error(
+          `outbox: item ${id} has extracted data but no transcript, which the real pipeline never ` +
+            "produces on its own (extraction never runs before a transcript is persisted) — " +
+            "something patched this document directly. There is nothing to ground the extracted " +
+            "values against, so it cannot be reopened for review either.",
         );
       }
 
