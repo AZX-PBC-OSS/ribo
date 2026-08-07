@@ -8,3 +8,6 @@
 
 export { RiboProvider } from "./RiboProvider.js";
 export type { AnyRecorder, RiboInstances } from "./context.js";
+export { useConnectivity } from "./use-connectivity.js";
+export { useStoragePersistence } from "./use-storage-persistence.js";
+export type { UseStoragePersistenceResult } from "./use-storage-persistence.js";
