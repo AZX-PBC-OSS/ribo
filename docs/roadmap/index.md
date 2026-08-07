@@ -152,9 +152,20 @@ rather than rediscovered.
   itself, leaving a **163-field capture surface** (doc 17 §Scoping). What is still unknown is which of
   those 163 anyone actually fills in. Two cheap sources answer it: the 14-transcript corpus says what
   auditors _say_, and the API says what real jobs _contain_. Do that before picking the next tranche.
-- **`Outbox.reopenForReview(id)`.** Two places now point a reader at a raw `patch` back to
+- **~~`Outbox.reopenForReview(id)`. Two places now point a reader at a raw `patch` back to
   `awaiting-review`, which the relay's own tests describe as "exactly the shape a bug in it would take".
-  The only documented recovery path is the one we tell people never to take.
+  The only documented recovery path is the one we tell people never to take.~~
+  Answered: added (2026-08-07).** `Outbox.reopenForReview(id)` is the supported replacement; both raw-
+  `patch` advisory sites (`write-step.ts`, `relay.ts`) now name it instead. It accepts only `dead` as a
+  source status, requires both `extracted` and a `transcript` (a review needs both — `buildReviewRequest`
+  takes both, and `isSpanGrounded` checks spans against the transcript), and clears the stale
+  `reviewOutcome` so a later `submitReview` cannot merge a decision nobody just made. **What this did not
+  close:** the new method gives the state machine a cycle (`dead → awaiting-review → writing → dead → …`),
+  which exposes both its own guard and `submitReview`'s to a narrow ABA race under a suspended-then-resumed
+  caller. Documented in `outbox.ts`'s own doc comment — with the concrete sequence required and why it is
+  judged unlikely on this project's actual browser targets today — rather than closed with a persisted
+  generation token; that field's schema cost is not the reason, the API-shape cost landing on every future
+  caller is.
 - **Cross-tab relay leader election.** Pre-existing, not introduced by R2: `multiInstance: true` with no
   leader means two tabs can process the same item, and `database.ts` explicitly defers it.
 - **The API host is wrong in four docs.** `ribo-design.md`, `06-field-app-helix.md`, `09-offline-first.md`
