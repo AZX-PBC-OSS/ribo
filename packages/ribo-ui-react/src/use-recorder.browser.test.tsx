@@ -8,6 +8,33 @@ import type { AnyRecorder } from "./context.js";
 import type { UseRecorderResult } from "./use-recorder.js";
 import { useRecorder } from "./use-recorder.js";
 
+/**
+ * A `Recorder` subclass that reports a fixed, caller-chosen `level`, so
+ * `scaleLevel`'s curve can be pinned at real, non-zero points without a
+ * microphone.
+ *
+ * `Recorder`'s `#level` is a true private (`#`) field, mutated only by its own
+ * tick logic against a live analyser reading real audio — there is no public
+ * seam to set it directly, and `scaleLevel` itself is module-private (not
+ * exported from `use-recorder.ts`). Overriding the public, non-private `state`
+ * getter works around both: `Recorder`'s own methods (`subscribe`, `#emit`)
+ * call `this.state` polymorphically, so a subclass override is honored
+ * regardless of where within the class the call originates, and the level
+ * that reaches `useRecorder` is exactly the one this double chooses.
+ */
+class FixedLevelRecorder extends Recorder {
+  readonly #fixedLevel: number;
+
+  constructor(fixedLevel: number) {
+    super();
+    this.#fixedLevel = fixedLevel;
+  }
+
+  override get state() {
+    return { ...super.state, level: this.#fixedLevel };
+  }
+}
+
 // vitest-browser-react@2.2.0's `render` is async (it awaits React's commit before
 // returning) — see context.browser.test.tsx and use-connectivity.browser.test.tsx.
 // The brief's own sample tests call `render(<Probe />)` unawaited and, for the
@@ -64,6 +91,31 @@ test("scaledLevel spreads the raw level, which is why the hook owns the curve", 
   expect(seen).toEqual({ level: 0, scaledLevel: 0 });
 });
 
+test("scaledLevel follows Math.sqrt of the raw level, pinned at real, non-zero points", async () => {
+  // The zero-point test above only pins scaleLevel(0) === 0, which every
+  // monotonic curve through the origin satisfies -- `level * 2` passes it just
+  // as well as `Math.sqrt`. These two points are chosen so `Math.sqrt(level)`
+  // and `level * 2` disagree at both (0.09 -> 0.3 vs 0.18; 0.49 -> 0.7 vs 0.98),
+  // so a curve-shape regression is caught even if it happens to preserve the
+  // origin.
+  const points: ReadonlyArray<readonly [level: number, scaledLevel: number]> = [
+    [0.09, 0.3],
+    [0.49, 0.7],
+  ];
+  for (const [level, expectedScaledLevel] of points) {
+    const recorder = new FixedLevelRecorder(level);
+    let seen: { level: number; scaledLevel: number } | undefined;
+    function Probe() {
+      const api = useRecorder({ recorder, enqueue: false });
+      seen = { level: api.level, scaledLevel: api.scaledLevel };
+      return null;
+    }
+    const screen = await render(<Probe />);
+    expect(seen).toEqual({ level, scaledLevel: expectedScaledLevel });
+    await screen.unmount();
+  }
+});
+
 test("records, and enqueues the capture on stop by default", async () => {
   const outbox = await openOutbox({
     name: `t-${crypto.randomUUID()}`,
@@ -117,6 +169,27 @@ test("surfaces pause and resume, and the phase they produce", async () => {
   api!.resume();
   await expect.element(screen.getByText("phase recording")).toBeInTheDocument();
   await api!.stop();
+});
+
+test("a stop() failure sets error state AND rejects the returned promise", async () => {
+  // Asymmetric with start(): start() swallows a failure into `error` state and
+  // resolves either way, but stop() both records the failure in `error` state
+  // and re-throws it -- see use-recorder.ts's doc comment for why. Calling
+  // stop() while idle drives a real `RecorderError("not-recording", ...)` out
+  // of `Recorder.stop()` itself, no fake needed.
+  const recorder = new Recorder();
+  let api: ReturnType<typeof useRecorder> | undefined;
+  function Probe() {
+    api = useRecorder({ recorder, enqueue: false });
+    return null;
+  }
+  await render(<Probe />);
+
+  await expect(api!.stop()).rejects.toThrow(RecorderError);
+  await vi.waitFor(() => {
+    expect(api!.error).toBeInstanceOf(RecorderError);
+    expect(api!.error?.code).toBe("not-recording");
+  });
 });
 
 test("a denied microphone surfaces as a RecorderError with a branchable code", async () => {

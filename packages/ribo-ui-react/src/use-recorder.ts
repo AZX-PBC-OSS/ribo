@@ -59,6 +59,18 @@ export interface UseRecorderResult {
  * exception is a misconfiguration — `enqueue` on with no outbox — which throws at
  * render, because it is a wiring bug the developer must fix rather than a runtime
  * condition the UI should display.
+ *
+ * {@link UseRecorderResult.stop} is asymmetric with {@link UseRecorderResult.start}
+ * on purpose: `start()` swallows its failure into `error` state and always resolves,
+ * because a host typically fires it from a click handler with no return value to
+ * act on and just re-renders off `phase`/`error`. `stop()` does that **and**
+ * re-throws, because its resolved value carries the `Capture` (and, on the durable
+ * path, the `OutboxItem`) the caller actually needs next — to hand to a review
+ * screen, say. Swallowing the failure there would let a caller read `item`/`capture`
+ * off a promise that never produced them, silently proceeding as if the recording
+ * had been saved. A caller must therefore `await stop()` inside a `try`, same as
+ * any other operation whose result it depends on; `error` state is populated
+ * alongside the throw for a UI that also wants to render the failure inline.
  */
 export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult {
   const { enqueue = true } = options;
