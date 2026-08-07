@@ -13,7 +13,7 @@ import type {
   Transcript,
 } from "@azx/ribo-core";
 import { buildReviewRequest, resolveReview, ReviewValidationError } from "@azx/ribo-core";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useRiboInstance } from "./use-ribo-instance.js";
 
@@ -69,15 +69,42 @@ export interface UseReviewResult {
   readonly error: Error | undefined;
 }
 
-/** What this hook remembers, all of it scoped to one item. */
+/**
+ * What this hook remembers, all of it scoped to one item.
+ *
+ * `submitting` and `error` live here too, alongside `decisions`/`errors`, and not
+ * in their own `useState`s — that split is what let them leak across items in an
+ * earlier version: they were read straight off their own hooks with no `forItem`
+ * check at all, so switching from a failed item A to a fresh item B still showed
+ * A's error and A's in-flight `submitting: true` on B's card. Folding every piece
+ * of per-item state into one object means one guard (below) protects all of it.
+ *
+ * `opToken` is the second half of that fix. `forItem` alone tells two *items*
+ * apart, but not two *operations* on the SAME item — two submits in flight
+ * together, or a submit that outlives an item swap and a swap back. Every call
+ * that starts a network write (`settle`) or records a synchronous validation
+ * failure (`submit`) mints a new token and stamps it on the state; a completion
+ * only applies if the token it captured is still the one in state, so a slower,
+ * now-superseded operation's result cannot overwrite a newer one's.
+ */
 interface ReviewState {
   readonly forItem: string | undefined;
   readonly decisions: Readonly<Record<FieldPath, FieldDecision>>;
   readonly errors: Readonly<Record<FieldPath, string>>;
+  readonly submitting: boolean;
+  readonly error: Error | undefined;
+  readonly opToken: number;
 }
 
 /** What a card shows for an item it holds nothing about — including a different one. */
-const NOTHING: ReviewState = { forItem: undefined, decisions: {}, errors: {} };
+const NOTHING: ReviewState = {
+  forItem: undefined,
+  decisions: {},
+  errors: {},
+  submitting: false,
+  error: undefined,
+  opToken: 0,
+};
 
 /**
  * `ReviewIssue[]` → one message per leaf.
@@ -153,7 +180,7 @@ const toPersisted = (outcome: ReviewOutcome): PersistedReviewOutcome =>
  * {@link UseReviewResult.submit} below builds a decision for every leaf precisely so
  * that check passes; if it ever fires from here, this hook is wrong, not its caller.
  *
- * ## Decision state is keyed by item id, read through a synchronous guard
+ * ## All per-item state is keyed by item id, read through a synchronous guard
  *
  * A queue UI reuses one mounted card for the next parked item, and leaf paths
  * repeat across recordings — so decisions carried over would submit silently,
@@ -162,6 +189,12 @@ const toPersisted = (outcome: ReviewOutcome): PersistedReviewOutcome =>
  * submittable, which is one render too many when submit is a click. So `state`
  * is read through a guard (`state.forItem === item?.id`) rather than reset in an
  * effect: the very first render after `item` changes sees `NOTHING`.
+ *
+ * `decisions` and `errors` are not the only things this protects — `submitting`
+ * and `error` live in the same guarded object, for the same reason. A validation
+ * failure or an in-flight write belongs to the item that caused it, and must stop
+ * being visible the moment the card shows a different one, not linger because it
+ * happened to be stored in a `useState` with no notion of "whose" it was.
  */
 export function useReview(
   item: OutboxItem | undefined,
@@ -174,37 +207,27 @@ export function useReview(
     forItem: item?.id,
     decisions: {},
     errors: {},
+    submitting: false,
+    error: undefined,
+    opToken: 0,
   });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<Error | undefined>(undefined);
+  // Every `settle()` call (a submit that got past validation, or a discard) mints
+  // the next value from here before it does anything async — see `ReviewState`'s
+  // own note on `opToken`. A ref, not state: it is bookkeeping for deciding
+  // whether a *later* write should apply, never a value this hook renders.
+  const nextOpToken = useRef(0);
 
   // Synchronously empty whenever the state belongs to a different item. No effect,
   // no stale window.
   //
-  // This hook has no `useEffect` anywhere in it — every derived value here is a
-  // plain read computed during render, including this guard. That is also why
-  // it does not need a dedicated StrictMode test the way `use-subscribed.ts`
-  // does: StrictMode's double mount/cleanup/remount exists to surface a missing
-  // *effect* cleanup, and there is no effect here for it to double-invoke.
-  const { decisions, errors } = state.forItem === item?.id ? state : NOTHING;
-
-  const setDecision = useCallback(
-    (path: FieldPath, decision: FieldDecision) => {
-      const id = item?.id;
-      setState((prior) => {
-        const base = prior.forItem === id ? prior : NOTHING;
-        return {
-          forItem: id,
-          decisions: { ...base.decisions, [path]: decision },
-          // Deciding a leaf answers whatever the last submit said about it —
-          // including "reject it instead", which is the escape core's own message
-          // names for an extracted value that cannot be accepted as it stands.
-          errors: withoutPath(base.errors, path),
-        };
-      });
-    },
-    [item?.id],
-  );
+  // This hook has no `useEffect` anywhere in it — every derived value here,
+  // including this guard, is a plain read computed during render. StrictMode
+  // also double-invokes render calculations and `useState` updater functions
+  // (not only effect cleanup), so that guarantee matters here too: both are pure
+  // in this hook — the guard only reads `state`/`item`, and every updater below
+  // is a plain function of its `prior` argument — so calling either twice
+  // produces the same result and StrictMode's double-invocation is a no-op.
+  const { decisions, errors, submitting, error } = state.forItem === item?.id ? state : NOTHING;
 
   const request = useMemo<ReviewRequest | undefined>(() => {
     if (item?.extracted === undefined || item.transcript === undefined) return undefined;
@@ -216,6 +239,34 @@ export function useReview(
   const paths = useMemo<readonly FieldPath[]>(
     () => (request === undefined ? [] : Object.keys(request.fields)),
     [request],
+  );
+
+  const setDecision = useCallback(
+    (path: FieldPath, decision: FieldDecision) => {
+      // A stale or mistyped path must not silently vanish: `submit()` defaults
+      // any path missing a decision to "accepted", so recording a decision under
+      // a path that is not (or is no longer) a leaf of `request` would silently
+      // turn an intended rejection — or edit, or accept — into an acceptance of
+      // whatever the model extracted for a leaf nobody actually looked at.
+      // Throwing here, at the call that got the path wrong, is the alternative.
+      if (request === undefined || !Object.hasOwn(request.fields, path)) {
+        throw new Error(`ribo: "${path}" is not a field of this review request.`);
+      }
+      const id = item?.id;
+      setState((prior) => {
+        const base = prior.forItem === id ? prior : NOTHING;
+        return {
+          ...base,
+          forItem: id,
+          decisions: { ...base.decisions, [path]: decision },
+          // Deciding a leaf answers whatever the last submit said about it —
+          // including "reject it instead", which is the escape core's own message
+          // names for an extracted value that cannot be accepted as it stands.
+          errors: withoutPath(base.errors, path),
+        };
+      });
+    },
+    [item?.id, request],
   );
 
   const decisionOf = useCallback(
@@ -267,20 +318,36 @@ export function useReview(
   const settle = useCallback(
     async (outcome: ReviewOutcome): Promise<ReviewOutcome> => {
       if (item === undefined) throw new Error("ribo: cannot submit a review with no item.");
-      setSubmitting(true);
-      setError(undefined);
+      const id = item.id;
+      // Minted BEFORE the write starts, and stamped on `state` synchronously
+      // below — see `ReviewState`'s note on `opToken`. Whichever of this
+      // operation's two completions (success or catch) runs, it only applies if
+      // this is still the token in state: a second `settle()` on the same item
+      // (a resubmit, a discard after a failed submit) bumps the token again, so
+      // this one's eventual result — arriving after the newer one has already
+      // reported its own — is superseded rather than overwriting it.
+      const token = ++nextOpToken.current;
+      setState((prior) => {
+        const base = prior.forItem === id ? prior : NOTHING;
+        return { ...base, forItem: id, submitting: true, error: undefined, opToken: token };
+      });
+      // Applies the completion only if no newer operation has claimed `state`
+      // since — for this item or (via the `forItem` half) any other one.
+      const applyIfCurrent = (patch: Partial<ReviewState>) =>
+        setState((prior) =>
+          prior.forItem === id && prior.opToken === token ? { ...prior, ...patch } : prior,
+        );
       try {
         // `toPersisted` is a value conversion, not a cast — see its own note. What
         // gets sent is still structurally identical to `outcome`, and
         // `submitReview` re-parses it regardless.
-        await outbox.submitReview(item.id, toPersisted(outcome));
+        await outbox.submitReview(id, toPersisted(outcome));
+        applyIfCurrent({ submitting: false });
         return outcome;
       } catch (cause) {
         const failure = cause instanceof Error ? cause : new Error(String(cause));
-        setError(failure);
+        applyIfCurrent({ submitting: false, error: failure });
         throw failure;
-      } finally {
-        setSubmitting(false);
       }
     },
     [item, outbox],
@@ -301,29 +368,43 @@ export function useReview(
       outcome = resolveReview(request, { status: "submitted", decisions: complete });
     } catch (cause) {
       const failure = cause instanceof Error ? cause : new Error(String(cause));
-      // REPLACED, not merged: each submit is a complete verdict over every leaf, so
-      // a message carried over from an earlier attempt would flag a leaf that is
-      // now fine.
-      setState((prior) => ({
-        forItem: id,
-        decisions: prior.forItem === id ? prior.decisions : {},
-        errors: failure instanceof ReviewValidationError ? indexIssues(failure.issues) : {},
-      }));
-      setError(failure);
+      // A new token even though this failure never reaches `settle()`'s network
+      // write: an EARLIER call's `settle()` may still be in flight (a slow
+      // resubmit the human gave up waiting on), and this synchronous failure is a
+      // newer, more authoritative result for the same item. Bumping the token
+      // here means that earlier call's eventual completion — success or another
+      // failure — cannot overwrite the one reported right now.
+      const token = ++nextOpToken.current;
+      setState((prior) => {
+        const base = prior.forItem === id ? prior : NOTHING;
+        return {
+          ...base,
+          forItem: id,
+          // REPLACED, not merged: each submit is a complete verdict over every
+          // leaf, so a message carried over from an earlier attempt would flag a
+          // leaf that is now fine.
+          errors: failure instanceof ReviewValidationError ? indexIssues(failure.issues) : {},
+          submitting: false,
+          error: failure,
+          opToken: token,
+        };
+      });
       // Still thrown. A caller that ignores a refused submission must not carry on
       // as though the review went in; `errors` is for showing it, not for replacing
       // the failure.
       throw failure;
     }
 
-    // Deliberate, known-redundant defence-in-depth: reaching this line means
-    // `resolveReview` just accepted `complete`, and the only way any leaf's error
-    // could have gone stale is for that leaf's decision to change — which always
-    // routes through `setDecision`'s own `withoutPath` clearing. So `errors` is
-    // already `{}` by construction every time a submit gets this far, and no test
-    // can distinguish removing this line from keeping it. It stays anyway, so a
-    // future change to how a leaf's error gets cleared can't silently leave a
-    // stale one behind here.
+    // Clears any error a PRIOR failed submit on this same item left behind.
+    // Per-decision clearing (`setDecision`'s `withoutPath`) cannot be the only
+    // mechanism for this: it only fires when a leaf's OWN decision changes, but
+    // a leaf can go from invalid to valid with its decision untouched — the
+    // adapter's schema for that leaf can loosen between submits (a validation
+    // rule can be relaxed) while `decisions` carries over unchanged, since
+    // `decisions` is keyed by item, not by which `valuesSchema` produced
+    // `request`. `"a schema change on the same item revalidates a stale error
+    // without re-deciding the leaf"` in the test file resubmits exactly that
+    // shape and fails without this line.
     setState((prior) => (prior.forItem === id ? { ...prior, errors: {} } : prior));
     return await settle(outcome);
   }, [decisions, item?.id, paths, request, settle]);

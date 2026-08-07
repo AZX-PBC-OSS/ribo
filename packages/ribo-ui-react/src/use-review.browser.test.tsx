@@ -237,6 +237,70 @@ test("editing to null is a positive assertion, not a rejection", async () => {
   await outbox.close();
 });
 
+test("the absent-versus-null distinction is pinned on what's actually persisted, not just on the returned outcome", async () => {
+  // Every test above this one only asserts on `submit()`'s RETURN value. An
+  // implementation that computes a perfectly correct outcome but then persists
+  // something else entirely -- an empty `{ fields: {} }`, a version with nulls
+  // stripped, one that reinstates a rejected leaf -- would pass every one of
+  // them. `outbox.submitReview` is the actual trust boundary (`relay.ts` reads
+  // straight off what lands there), so this spies on the call itself.
+  const { outbox, item } = await parkedItem();
+  const { seen } = await probe(item, outbox);
+  const submitReviewSpy = vi.spyOn(outbox, "submitReview");
+
+  seen.current!.reject("atticRValue"); // must end up ABSENT from what's persisted
+  seen.current!.edit("healthSafety.ambientCo", null); // must end up PRESENT and null
+  // healthSafety.asbestos left untouched: accepted-as-extracted, and the
+  // extracted value is the omitted-leaf sentinel `null` -- also PRESENT and null.
+  await vi.waitFor(() =>
+    expect(seen.current!.decisionOf("atticRValue")).toEqual({ status: "rejected" }),
+  );
+
+  const outcome = await seen.current!.submit();
+  expect(outcome).toMatchObject({ status: "edited" });
+
+  expect(submitReviewSpy).toHaveBeenCalledTimes(1);
+  const persisted = submitReviewSpy.mock.calls[0]![1] as { fields: Record<string, unknown> };
+  expect(Object.hasOwn(persisted.fields, "atticRValue")).toBe(false);
+  // The real NESTED shape `submitReview` actually receives, not a dotted one.
+  expect(persisted.fields.healthSafety).toEqual({ ambientCo: null, asbestos: null });
+  await outbox.close();
+});
+
+test("accept() explicitly re-accepts the extracted value -- including a sentinel null -- after a prior rejection on the same leaf", async () => {
+  // accept() had no test at all before this one, and this is the case that
+  // matters most for it: reverting a rejection must restore exactly what the
+  // model extracted, even when that value is the omitted-leaf sentinel `null`
+  // rather than a real answer -- and the persisted call must show it PRESENT,
+  // not silently dropped the way a rejection would leave it.
+  const { outbox, item } = await parkedItem();
+  const { seen } = await probe(item, outbox);
+  const submitReviewSpy = vi.spyOn(outbox, "submitReview");
+
+  seen.current!.reject("healthSafety.asbestos");
+  await vi.waitFor(() =>
+    expect(seen.current!.decisionOf("healthSafety.asbestos")).toEqual({ status: "rejected" }),
+  );
+  seen.current!.accept("healthSafety.asbestos");
+  await vi.waitFor(() =>
+    expect(seen.current!.decisionOf("healthSafety.asbestos")).toEqual({ status: "accepted" }),
+  );
+
+  const outcome = await seen.current!.submit();
+  expect(outcome).toEqual({
+    status: "accepted",
+    fields: { atticRValue: 19, healthSafety: { ambientCo: "passed", asbestos: null } },
+  });
+
+  expect(submitReviewSpy).toHaveBeenCalledTimes(1);
+  const persisted = submitReviewSpy.mock.calls[0]![1] as unknown as {
+    fields: { healthSafety: Record<string, unknown> };
+  };
+  expect(Object.hasOwn(persisted.fields.healthSafety, "asbestos")).toBe(true);
+  expect(persisted.fields.healthSafety.asbestos).toBeNull();
+  await outbox.close();
+});
+
 test("editing to undefined is refused rather than normalised", async () => {
   // Type-legal, and exactly what a React editor with `undefined` state submits. It
   // passes an `.optional()` leaf schema and then disappears on serialisation,
@@ -251,6 +315,32 @@ test("editing to undefined is refused rather than normalised", async () => {
   expect(() => seen.current!.edit("atticRValue", undefined)).toThrow(/reject/);
   expect(seen.current!.decisionOf("atticRValue")).toEqual({ status: "accepted" });
   expect(seen.current!.untouched).toContain("atticRValue");
+  await outbox.close();
+});
+
+test("an unknown or mistyped path throws rather than silently flipping meaning", async () => {
+  // submit() defaults any path missing a decision to "accepted" -- that is what
+  // makes resolveReview's completeness check pass for every leaf nobody touched.
+  // A decision recorded under a path that ISN'T a leaf never reaches that map at
+  // all, so a typo like "healthSafety.asbestoss" would silently leave the real
+  // "healthSafety.asbestos" defaulted to accepted -- turning an intended
+  // rejection into an acceptance of whatever the model extracted, with no error
+  // anywhere. This must be loud instead.
+  const { outbox, item } = await parkedItem();
+  const { seen } = await probe(item, outbox);
+
+  expect(() => seen.current!.reject("healthSafety.asbestoss")).toThrow(/not a field/i);
+  expect(() => seen.current!.accept("attic_R_Value")).toThrow(/not a field/i);
+  expect(() => seen.current!.edit("nope", 1)).toThrow(/not a field/i);
+  // None of the three silently recorded anything -- the real leaves are exactly
+  // where review started.
+  expect(seen.current!.decisionOf("atticRValue")).toEqual({ status: "accepted" });
+  expect(seen.current!.decisionOf("healthSafety.asbestos")).toEqual({ status: "accepted" });
+  expect(seen.current!.untouched).toEqual([
+    "atticRValue",
+    "healthSafety.ambientCo",
+    "healthSafety.asbestos",
+  ]);
   await outbox.close();
 });
 
@@ -380,6 +470,149 @@ test("decisions and errors do not leak between items in a reused component", asy
   expect(seen.current!.decisionOf("atticRValue")).toEqual({ status: "accepted" });
   expect(seen.current!.errors).toEqual({});
   expect(seen.current!.untouched).toContain("atticRValue");
+  await outbox.close();
+});
+
+test("switching items while a submit is pending does not leak submitting or error onto the next item", async () => {
+  // `decisions`/`errors` are not the only per-item state -- `submitting` and
+  // `error` used to live in their own, item-blind `useState`s. Reproduces both
+  // halves of that leak: (1) the SECOND item's very first render must already
+  // show a clean slate while the first item's write is still in flight, and (2)
+  // once that stale write finally settles, its completion must not resurrect
+  // anything on a card that has since moved on.
+  const { outbox, item: first } = await parkedItem();
+  const second = await outbox.enqueue({
+    recording: recording(),
+    audio: new Blob(["x"], { type: "audio/webm" }),
+  });
+  const parkedSecond = await outbox.patch(second.id, {
+    status: "awaiting-review",
+    transcript: transcriptFor(second.recording.id),
+    extracted: { atticRValue: { value: 11, confidence: 1, sourceSpan: "R-11" } },
+  });
+
+  // Held open until the test decides to fail it, so the first item's submit is
+  // genuinely still in flight when the card switches to the second item.
+  let rejectFirstWrite: (error: Error) => void = () => undefined;
+  const pendingWrite = new Promise<OutboxItem>((_, reject) => {
+    rejectFirstWrite = reject;
+  });
+  const submitReviewSpy = vi.spyOn(outbox, "submitReview").mockReturnValueOnce(pendingWrite);
+
+  const { seen, screen, Probe } = await probe(first, outbox);
+
+  // Every leaf on `first` defaults to accepted, so this clears resolveReview and
+  // reaches the (mocked, pending) write.
+  const submitPromise = seen.current!.submit();
+  await vi.waitFor(() => expect(seen.current!.submitting).toBe(true));
+
+  await screen.rerender(<Probe subject={parkedSecond} />);
+
+  expect(seen.current!.submitting).toBe(false);
+  expect(seen.current!.error).toBeUndefined();
+
+  rejectFirstWrite(new Error("stale network failure"));
+  await expect(submitPromise).rejects.toThrow("stale network failure");
+  // Give the (incorrect) cross-item write every chance to land before checking
+  // it didn't.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(seen.current!.submitting).toBe(false);
+  expect(seen.current!.error).toBeUndefined();
+
+  submitReviewSpy.mockRestore();
+  await outbox.close();
+});
+
+test("a stale operation's completion cannot override a newer one on the same item", async () => {
+  // Two submits in flight together for ONE item: `forItem` alone cannot tell
+  // them apart, since neither ever changes it. Without a token, the first
+  // attempt's completion -- arriving after the second has already succeeded --
+  // would report `submitting: false` (masking that the second write, if it were
+  // still running, hadn't finished) and, worse, resurrect an error over a review
+  // that has already, successfully, gone in.
+  const { outbox, item } = await parkedItem();
+  const { seen } = await probe(item, outbox);
+
+  let rejectFirstWrite: (error: Error) => void = () => undefined;
+  const firstWrite = new Promise<OutboxItem>((_, reject) => {
+    rejectFirstWrite = reject;
+  });
+  const submitReviewSpy = vi.spyOn(outbox, "submitReview").mockReturnValueOnce(firstWrite);
+
+  const firstSubmit = seen.current!.submit();
+  await vi.waitFor(() => expect(seen.current!.submitting).toBe(true));
+
+  // The second attempt falls through to the real (fast, in-memory) write and
+  // succeeds before the first one has even failed.
+  const secondSubmit = seen.current!.submit();
+  await secondSubmit;
+  // Awaiting `submit()` itself does not guarantee its last `setState` has been
+  // committed -- this call runs outside any `act()`, unlike a `render`/
+  // `rerender`, so React's own scheduling can still be a tick behind the
+  // resolved promise. Same convention as every other post-decision assertion
+  // in this file.
+  await vi.waitFor(() => expect(seen.current!.submitting).toBe(false));
+  expect(seen.current!.error).toBeUndefined();
+
+  rejectFirstWrite(new Error("stale network failure"));
+  await expect(firstSubmit).rejects.toThrow("stale network failure");
+  // `submitting` is ALREADY `false` at this point (from the second submit
+  // succeeding, above), so `vi.waitFor(() => submitting === false)` would
+  // resolve instantly whether or not the stale completion's `setState` has
+  // landed yet -- it cannot prove the wait was long enough to observe a
+  // regression. A short real delay is what actually gives that (still
+  // outside any `act()`) update a chance to commit before checking the
+  // negative.
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(seen.current!.submitting).toBe(false);
+  expect(seen.current!.error).toBeUndefined();
+
+  submitReviewSpy.mockRestore();
+  await outbox.close();
+});
+
+test("a schema change on the same item revalidates a stale error without re-deciding the leaf", async () => {
+  // The bulk `errors: {}` clear inside submit() is not redundant with
+  // per-decision clearing in every case: `decisions` is keyed by item, not by
+  // which `valuesSchema` produced `request`, so a leaf can go from invalid to
+  // valid because the SCHEMA loosened between two submits, with its own decision
+  // never touched. Per-decision clearing (`setDecision`'s `withoutPath`) never
+  // fires in that case, so only the bulk clear can retire the stale message.
+  const { outbox, item } = await parkedItem();
+
+  const strictSchema = valuesSchema; // atticRValue: z.number().nullable().optional()
+  const relaxedSchema = z.object({
+    atticRValue: z.union([z.number(), z.string()]).nullable().optional(),
+    healthSafety: z
+      .object({
+        ambientCo: z.enum(["passed", "failed", "not_tested"]).nullable().optional(),
+        asbestos: z.enum(["passed", "failed", "not_tested"]).nullable().optional(),
+      })
+      .optional(),
+  });
+
+  const seen: { current: UseReviewResult | undefined } = { current: undefined };
+  function Probe({ schema }: { schema: z.ZodObject }) {
+    seen.current = useReview(item, { valuesSchema: schema, outbox });
+    return null;
+  }
+
+  const screen = await render(<Probe schema={strictSchema} />);
+
+  seen.current!.edit("atticRValue", "thirty");
+  await vi.waitFor(() =>
+    expect(seen.current!.decisionOf("atticRValue")).toMatchObject({ status: "edited" }),
+  );
+  await expect(seen.current!.submit()).rejects.toThrow();
+  await vi.waitFor(() => expect(seen.current!.errors.atticRValue).toBeDefined());
+
+  // Same item, same decision ("thirty" is still what's recorded for
+  // atticRValue) -- only the field's own schema now accepts a string.
+  await screen.rerender(<Probe schema={relaxedSchema} />);
+
+  const outcome = await seen.current!.submit();
+  expect(outcome).toMatchObject({ status: "edited", editedFields: ["atticRValue"] });
+  await vi.waitFor(() => expect(seen.current!.errors).toEqual({}));
   await outbox.close();
 });
 
