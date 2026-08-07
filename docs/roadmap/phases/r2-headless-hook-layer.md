@@ -4378,8 +4378,10 @@ the part that was not possible when R2 was planned:
 Controls: per-leaf accept / edit / reject, an "accept all and queue" submit, and a discard. Gate
 submit while `untouched.some((path) => fields?.[path]?.isGrounded === false)` — the ungrounded leaves
 are precisely the ones a human must look at, and `untouched` exists to make that enforceable. Note
-this is now over **34** leaves for Snugg Pro rather than 24 top-level fields, so the card needs the
-`healthSafety` group visually grouped (split the dotted path) or it reads as a wall.
+this is now over **51** leaves for Snugg Pro, nested under **seven** resource groups (`basedata`,
+`hvac`, `attic`, `wall`, `window`, `dhw`, `health`), so the card must group by the dotted path's first
+segment or it reads as a wall. Grouping is generic — split on the first `.` — not a Snugg-specific
+list; a flat adapter simply yields one unnamed group.
 
 `submit()` rejects on a refused submission, so the handler must `await` it inside a `try` or attach a
 `.catch` — an unhandled rejection in an `onClick` is a console error and a card that looks stuck.
