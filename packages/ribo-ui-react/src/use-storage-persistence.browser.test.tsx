@@ -222,6 +222,121 @@ test("a plain refresh after a denial does not revert it back to unknown", async 
   }
 });
 
+test("a plain refresh after a grant downgrades it to unknown once persisted() stops confirming it", async () => {
+  // The mirror of the denial test above, and the sharper of the two failure
+  // modes: `publish`'s merge preserving a known "denied" against a plain
+  // `false` read equally preserves a known "granted" against one -- so a
+  // refresh AFTER the browser has revoked or lost the grant (the user cleared
+  // site data; a private-browsing session that never really persisted)
+  // must not go on reporting "granted". Continuing to claim it would tell
+  // `useWorkSafety`'s verdict -- and so the reviewer -- that a device's
+  // recordings are protected from eviction after the browser has said
+  // otherwise, which is worse than the "still checking" regression the
+  // denial-preserving test guards against. `persisted()` here answers `false`
+  // plainly and consistently, same as that test -- this is not a race or a
+  // throw, only the ordinary case of asking again after the grant no longer
+  // holds.
+  const persistSpy = vi.spyOn(navigator.storage, "persist").mockResolvedValue(true);
+  try {
+    const renders = vi.fn();
+    let seen: string | undefined;
+    let request: (() => Promise<string>) | undefined;
+    let refresh: (() => void) | undefined;
+    function Probe() {
+      renders();
+      const result = useStoragePersistence();
+      seen = result.persistence;
+      request = result.request;
+      refresh = result.refresh;
+      return null;
+    }
+    await render(<Probe />);
+    await vi.waitFor(() => expect(renders.mock.calls.length).toBeGreaterThan(1));
+
+    await request?.();
+    await vi.waitFor(() => expect(seen).toBe("granted"));
+
+    const rendersBeforeRefresh = renders.mock.calls.length;
+    const persistedSpy = vi.spyOn(navigator.storage, "persisted").mockResolvedValue(false);
+    try {
+      refresh?.();
+      await vi.waitFor(() =>
+        expect(renders.mock.calls.length).toBeGreaterThan(rendersBeforeRefresh),
+      );
+      // Exactly "unknown", not "denied": this read never saw a persist() call
+      // refuse anything, so asserting a refusal would invent information the
+      // read does not have.
+      expect(seen).toBe("unknown");
+    } finally {
+      persistedSpy.mockRestore();
+    }
+  } finally {
+    persistSpy.mockRestore();
+  }
+});
+
+test("an older request() call cannot overwrite a newer one's result, however the two settle", async () => {
+  // The concurrency gap named in review: nothing ordered two overlapping
+  // `request()` calls, and this is not hypothetical -- `StoragePanel` calls
+  // `request()` from a mount effect, and React's StrictMode runs every mount
+  // effect twice. Simulated here with two persist() calls resolved OUT OF
+  // invocation order: the SECOND (newer) call settles first, with a real
+  // grant; the FIRST (older, now-stale) call settles after it, with a
+  // refusal. Without an invocation-ordered token, the older call's
+  // later-arriving publish wins on settle order and silently downgrades the
+  // fresh grant back to "denied" -- for no reason but timing.
+  // `persisted()` is pinned to `true` for the whole test -- not to exercise
+  // it, but to remove it as a variable: the component's own mount-time
+  // `refresh()` runs concurrently with the two `request()` calls below and
+  // otherwise races them for real (this file's `persisted()` is genuinely
+  // async), which would make an unrelated, unmocked read the thing that
+  // decides whether this test passes rather than the ordering under test.
+  // Pinned "true" agrees with the eventual "granted" outcome either way, so a
+  // stray publish from it cannot manufacture a false pass OR a false fail.
+  const persistedSpy = vi.spyOn(navigator.storage, "persisted").mockResolvedValue(true);
+  let resolveOlder: ((granted: boolean) => void) | undefined;
+  let resolveNewer: ((granted: boolean) => void) | undefined;
+  const persistSpy = vi
+    .spyOn(navigator.storage, "persist")
+    .mockImplementationOnce(() => new Promise((resolve) => (resolveOlder = resolve)))
+    .mockImplementationOnce(() => new Promise((resolve) => (resolveNewer = resolve)));
+  try {
+    let seen: string | undefined;
+    let request: (() => Promise<string>) | undefined;
+    function Probe() {
+      const result = useStoragePersistence();
+      seen = result.persistence;
+      request = result.request;
+      return null;
+    }
+    await render(<Probe />);
+
+    const older = request?.();
+    const newer = request?.();
+    if (resolveOlder === undefined || resolveNewer === undefined) {
+      throw new Error("both request() calls must have called persist() by now");
+    }
+
+    // Newer settles FIRST, with a real grant.
+    resolveNewer(true);
+    await newer;
+    await vi.waitFor(() => expect(seen).toBe("granted"));
+
+    // Older settles SECOND (later in wall-clock time), with a refusal.
+    resolveOlder(false);
+    const olderResult = await older;
+
+    // The older call's own return value still honestly reports what ITS
+    // persist() call answered -- only the shared published state must not
+    // move because of it.
+    expect(olderResult).toBe("denied");
+    expect(seen).toBe("granted");
+  } finally {
+    persistSpy.mockRestore();
+    persistedSpy.mockRestore();
+  }
+});
+
 test("a transient persisted() rejection does not overwrite a known-good grant", async () => {
   // The data-loss case: a user already granted persistence (real or
   // simulated), and some LATER refresh's persisted() call happens to reject
