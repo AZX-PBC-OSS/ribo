@@ -180,6 +180,12 @@ export function useReview(
 
   // Synchronously empty whenever the state belongs to a different item. No effect,
   // no stale window.
+  //
+  // This hook has no `useEffect` anywhere in it — every derived value here is a
+  // plain read computed during render, including this guard. That is also why
+  // it does not need a dedicated StrictMode test the way `use-subscribed.ts`
+  // does: StrictMode's double mount/cleanup/remount exists to surface a missing
+  // *effect* cleanup, and there is no effect here for it to double-invoke.
   const { decisions, errors } = state.forItem === item?.id ? state : NOTHING;
 
   const setDecision = useCallback(
@@ -310,6 +316,14 @@ export function useReview(
       throw failure;
     }
 
+    // Deliberate, known-redundant defence-in-depth: reaching this line means
+    // `resolveReview` just accepted `complete`, and the only way any leaf's error
+    // could have gone stale is for that leaf's decision to change — which always
+    // routes through `setDecision`'s own `withoutPath` clearing. So `errors` is
+    // already `{}` by construction every time a submit gets this far, and no test
+    // can distinguish removing this line from keeping it. It stays anyway, so a
+    // future change to how a leaf's error gets cleared can't silently leave a
+    // stale one behind here.
     setState((prior) => (prior.forItem === id ? { ...prior, errors: {} } : prior));
     return await settle(outcome);
   }, [decisions, item?.id, paths, request, settle]);
