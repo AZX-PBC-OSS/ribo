@@ -131,7 +131,11 @@ authority for everything in §5 and §6 below.
   nothing else. R1.5 (`docs/roadmap/design/r1.5-field-shape-contracts-design.md`) makes this
   stronger than it used to be: review now addresses flat dotted leaf paths, and each
   `ReviewField` carries its own leaf's zod schema, so a review UI renders and validates entirely
-  off that schema — it needs **no adapter import at all**. That is the payoff of splitting
+  off that schema. Be precise about what that buys: **`ribo-ui-react` imports nothing from any
+  adapter** — `useReview(item, { valuesSchema })` takes the schema as an argument rather than
+  reaching for a `ToolAdapter`, so the hook layer cannot touch `write` or `instructions` and stays
+  genuinely tool-agnostic. A host app of course imports its own adapter to supply that schema; that
+  is a host doing its job, not a leak. That is the payoff of splitting
   `ToolAdapter`'s single field-shape type parameter into a writable patch (`V`) and a derived
   extraction envelope (`Enveloped<V>`).
 - **`import type`** for type-only imports (`verbatimModuleSyntax` + an ESLint rule enforce it).
