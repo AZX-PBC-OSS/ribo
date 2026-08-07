@@ -295,3 +295,46 @@ committed to this repo. Do not commit the spec file as part of this documentatio
   note).
 - [16 — Extraction schema scale](16-extraction-schema-scale.md) — the OpenAI-limits feasibility
   analysis that uses this document's field set as its baseline.
+
+---
+
+## Scoping: why the pilot captures a subset, and what the subset is a subset _of_
+
+Added 2026-08-06. The pilot's bounded field set has always been a deliberate choice, but the
+justification used to be "the printed field sheet covers this much". Now that the machine-readable
+spec is available, the arithmetic is better and the exclusions can be defended individually.
+
+`POST /jobs/{jobId}/basedata` takes **294** form fields. That is not the capture surface:
+
+|                                |   count | why it is or is not captured                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------ | ------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Total `basedata` fields        |     294 |                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `*Improved` variants           |    −122 | The schema is **doubled**: every field has a BASE and an IMPROVED form — "the total R-value of insulation installed (BASE) or to be installed (IMPROVED)". 114 of the 122 pair 1:1 with a base field. An auditor walking a house dictates what is _there_; the IMPROVED column is the proposed retrofit, decided later at a desk. Excluded because it is a different activity, not because it is hard. |
+| Self-described auto-calculated |      −9 | Their own descriptions say "This field will be automatically calculated based on the data you entered in the input form." Writing these would be **wrong**, not merely unnecessary.                                                                                                                                                                                                                    |
+| **Capture surface**            | **163** | What an auditor could plausibly dictate.                                                                                                                                                                                                                                                                                                                                                               |
+
+So the honest target for full coverage is **163**, not 294 — about 5× today's 34 leaves rather than 9×.
+At roughly 489 properties once enveloped, that sits well inside the limits doc 16 establishes; the open
+question at that size is extraction _quality_ and output cost, not feasibility.
+
+**The fields group hard by name prefix**, which is nesting waiting to happen and also happens to match
+how an auditor moves through a house: `basement*` (35), `ashrae*` (25), `pool*` (18), `floor*` (17),
+`clothes*` (16), `ventilation*` (16), `dishwasher*` (14), `crawl*`/`crawlspace*` (22), `ev*` (12).
+
+**281 of the 294 carry descriptions** written for whoever fills the form in ("Select the type of
+materials used, if any, on the basement walls of this home"). That is prompt-ready starting prose for
+extraction instructions — a real head start, though not a substitute for the domain judgment that has
+no counterpart in the spec (the fuel axis-split, the banding rules, the hazard notes).
+
+### The decision, and how to revisit it
+
+**The pilot stays a bounded subset for now.** The 163-field surface is a known, justified target rather
+than an unknown, and nothing here argues the current 34 are the _right_ 34 — only that the gap is
+smaller and better understood than "294 fields, we do 34".
+
+**Revisit with real fill-rate data, not judgement.** The right way to choose the next tranche is to look
+at what auditors actually fill in across real jobs, rather than reasoning about what sounds dictatable.
+Roughly 60 fields sit in `pool*`, `ev*`, `dishwasher*` and `clothes*` — appliance specifics that may be
+spec-sheet data rather than speech, but that is a hypothesis, not a finding. Two cheap sources: the
+14-transcript spike corpus says what auditors _say_, and the API says what real jobs actually _contain_.
+"

@@ -126,6 +126,12 @@ rather than rediscovered.
   5,000 cap, and ~1,490 enum values against the 1,000 cap. The `basedata` subset does fit (~1,201
   properties) but is ~9× the current pilot. Recorded so it is not re-proposed.
   → [doc 16](../implementation/16-extraction-schema-scale.md).
+- **Choose the next field tranche from real fill-rate data, not judgement.** The pilot's bounded field
+  set is now justified rather than assumed — `basedata` is 294 fields, but 122 are `*Improved` retrofit
+  proposals an auditor does not dictate during a walkthrough and 9 are auto-calculated by Snugg Pro
+  itself, leaving a **163-field capture surface** (doc 17 §Scoping). What is still unknown is which of
+  those 163 anyone actually fills in. Two cheap sources answer it: the 14-transcript corpus says what
+  auditors _say_, and the API says what real jobs _contain_. Do that before picking the next tranche.
 - **`Outbox.reopenForReview(id)`.** Three places now point a reader at a raw `patch` back to
   `awaiting-review`, which the relay's own tests describe as "exactly the shape a bug in it would take".
   The only documented recovery path is the one we tell people never to take.
