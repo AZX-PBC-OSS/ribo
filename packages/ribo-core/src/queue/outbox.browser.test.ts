@@ -13,6 +13,7 @@ import {
   ACTIVE_OUTBOX_STATUSES,
   FINISHED_OUTBOX_STATUSES,
   OUTBOX_COLLECTION_NAME,
+  OUTBOX_STATUSES,
   outboxRxSchema,
   type OutboxDocument,
   type OutboxItem,
@@ -788,6 +789,131 @@ test.each([...FINISHED_OUTBOX_STATUSES])(
     expect(settled?.reviewOutcome).toBeUndefined();
   },
 );
+
+// ---------------------------------------------------------------------------
+// reopenForReview — the supported way back into `awaiting-review` from `dead`
+// ---------------------------------------------------------------------------
+
+test("a dead item is reopened for review with a clean slate", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, {
+    status: "dead",
+    extracted: { atticRValue: {} },
+    reviewOutcome: { status: "accepted", fields: { atticRValue: 19 } },
+    attempts: 3,
+    lastError: "the reviewed values are not a valid patch",
+  });
+
+  const reopened = await outbox.reopenForReview(item.id);
+
+  expect(reopened.status).toBe("awaiting-review");
+  expect(reopened.reviewOutcome).toBeUndefined();
+  expect(reopened.attempts).toBe(0);
+  // The diagnostic that explains why the item died is not what is being cleared,
+  // so it survives the reopen for whoever looks at the row next.
+  expect(reopened.lastError).toBe("the reviewed values are not a valid patch");
+  expect(reopened.extracted).toEqual({ atticRValue: {} });
+});
+
+test("reopening drops the stale reviewOutcome on disk, not merely from the returned object", async () => {
+  // Read back with a fresh `get` rather than trusting `reopenForReview`'s own
+  // return value, so a bug that answered honestly while persisting the old
+  // outcome anyway could not hide behind it.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, {
+    status: "dead",
+    extracted: { atticRValue: {} },
+    reviewOutcome: { status: "discarded", reason: "an earlier, unrelated discard" },
+  });
+
+  await outbox.reopenForReview(item.id);
+
+  const settled = await outbox.get(item.id);
+  expect(settled?.reviewOutcome).toBeUndefined();
+});
+
+test("a reopened item leaves nextPending's active set, exactly like any other parked item", async () => {
+  // Proves the interaction the finding named explicitly: ACTIVE_OUTBOX_STATUSES
+  // omits `awaiting-review` regardless of how an item got there, and this asserts
+  // it through the REAL reopenForReview path rather than through a hand-patch —
+  // which is the gap this method exists to close in the first place.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  const other = await outbox.enqueue({
+    recording: { ...recording, id: "other" },
+    audio: audioBlob(),
+  });
+  await outbox.patch(item.id, { status: "dead", extracted: { atticRValue: {} } });
+
+  await outbox.reopenForReview(item.id);
+
+  // `item` has the lower seq, so if reopening it were active it would win here.
+  // It does not: `other` does, because a reopened item is parked, not active.
+  expect((await outbox.nextPending())?.id).toBe(other.id);
+});
+
+test("reopening an unknown id rejects", async () => {
+  const outbox = await open(uniqueName());
+  await expect(outbox.reopenForReview("nope")).rejects.toThrow(/nope/);
+});
+
+test("a dead item with nothing extracted refuses to be reopened", async () => {
+  // Died during transcribe, or during a host `extract` step, before anything
+  // reached review — reopening it to `awaiting-review` would hand a human a
+  // review card with nothing on it, which is not a state anything else in this
+  // package produces.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "dead" });
+
+  await expect(outbox.reopenForReview(item.id)).rejects.toThrow(/no extracted data/);
+
+  const settled = await outbox.get(item.id);
+  expect(settled?.status).toBe("dead");
+});
+
+// Every status but `dead`, driven from the constant so a status added later is
+// covered without anyone remembering to come back here — the same reasoning as
+// the FINISHED_OUTBOX_STATUSES table above, over the wider list this guard
+// actually has to refuse. `done` would risk a second write; `discarded` would
+// undo an audited human decision this method has no business reversing;
+// everything else is a status the relay still owns, where reopening would only
+// race it.
+test.each(OUTBOX_STATUSES.filter((status) => status !== "dead"))(
+  "a %s item cannot be reopened for review",
+  async (status) => {
+    const outbox = await open(uniqueName());
+    const item = await outbox.enqueue({ recording, audio: audioBlob() });
+    await outbox.patch(item.id, { status, extracted: { atticRValue: {} } });
+
+    await expect(outbox.reopenForReview(item.id)).rejects.toThrow(new RegExp(`"${status}"`));
+
+    const settled = await outbox.get(item.id);
+    expect(settled?.status).toBe(status);
+  },
+);
+
+test("two reopenForReview calls in flight at once settle as one winner and one refusal", async () => {
+  // The same genuinely-concurrent 409-and-re-run path `submitReview`'s own
+  // equivalent test drives, exercised here because `reopenForReview` shares the
+  // exposure `incrementalModify` closes: without it, two reopens racing (two
+  // tabs, or two clicks) could both read `status: "dead"` before either write
+  // lands and both "win", which is a lost update, not merely a missing rejection.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "dead", extracted: { atticRValue: {} } });
+
+  const results = await Promise.allSettled([
+    outbox.reopenForReview(item.id),
+    outbox.reopenForReview(item.id),
+  ]);
+
+  expect(results.map((result) => result.status)).toEqual(["fulfilled", "rejected"]);
+  const settled = await outbox.get(item.id);
+  expect(settled?.status).toBe("awaiting-review");
+});
 
 // ---------------------------------------------------------------------------
 // Filtered reads

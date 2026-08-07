@@ -358,6 +358,97 @@ export class Outbox {
     return this.#toItem(settled);
   }
 
+  /**
+   * Move a `dead` item back to `awaiting-review`, so a human can correct whatever
+   * killed it and resubmit through {@link submitReview}.
+   *
+   * **`dead` is the only legal source status**, and each of the others is refused
+   * for a different reason rather than by blanket suspicion:
+   *
+   *   - `done` — the write already reached the host tool. Reopening it is not a
+   *     recovery, it is a way to write twice, which is exactly the double-write
+   *     `submitReview`'s own guard exists to prevent one step later.
+   *   - `discarded` — a human already made a deliberate, audited decision to
+   *     abandon this recording (`submitReview`'s own doc comment). Undoing that is
+   *     a different feature nobody has asked this method to be, and the audio may
+   *     already be gone.
+   *   - `queued` / `transcribing` / `extracting` / `writing` / `failed` — every
+   *     status the relay still owns. There is nothing broken to recover from here,
+   *     only a race with whatever the relay is doing (or about to do) to the same
+   *     row to lose.
+   *
+   * `dead` is also the only status the two documented recovery paths ever produce:
+   * both `toWriteStep` (`write-step.ts`) and `#write` (`relay.ts`) throw a
+   * `TerminalQueueError` when the reviewed data cannot be written, `#recordFailure`
+   * resolves every terminal failure straight to `dead` (never `failed` — that
+   * status is for the transient case, see `schema.ts`), and both throw sites tell
+   * the reader to re-park the item and review it afresh. Before this method, that
+   * advice meant a raw `Outbox.patch(id, { status: "awaiting-review" })` — the same
+   * shape `relay.browser.test.ts` uses to simulate a state-machine bug jumping the
+   * review gate by hand. This method is the supported replacement for that patch,
+   * and both throw sites now name it instead.
+   *
+   * Also refused: a `dead` item with no `extracted` data. That is a row that died
+   * during `transcribe` or a host `extract` step, before it ever reached review —
+   * there being nothing on it for a human to look at, and `awaiting-review` with no
+   * `extracted` is not a state anything else in this package produces.
+   *
+   * **Clears the stale `reviewOutcome`.** Whatever a human decided last time — the
+   * only way a `dead` item can carry `extracted` at all is by having passed through
+   * `submitReview` once already and failed later, at the write step — is deleted
+   * outright rather than left in place or overwritten with `undefined`. Leaving it
+   * would let the NEXT `submitReview` merge a decision nobody just made into a
+   * review that has not happened yet, silently resurrecting a rejected field or an
+   * edit the human never saw this time. `attempts` is also reset to `0`, the same
+   * as every other entry into `awaiting-review` (`relay.ts`'s `#extract`): a fresh
+   * parking gets a clean backoff budget the day it moves on again.
+   *
+   * `lastError` is deliberately left alone. It is why the item needed reopening in
+   * the first place, and clearing it here would remove the one thing on the row
+   * that explains that to whoever is looking at it next.
+   *
+   * Applied through `incrementalModify`, for the identical reason {@link submitReview}
+   * is: the status check and the mutation must not be split by a second tab
+   * reopening — or resubmitting — the same item. See that method's own doc comment
+   * for the mechanism; it applies here unchanged.
+   *
+   * @throws if the item does not exist, is not `dead`, or has no `extracted` data.
+   */
+  async reopenForReview(id: string): Promise<OutboxItem> {
+    const doc = await this.#collection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no item with id "${id}"`);
+
+    const updated = await doc.incrementalModify((current) => {
+      if (current.status !== "dead") {
+        throw new Error(
+          `outbox: item ${id} is "${current.status}", not "dead", so it cannot be reopened for ` +
+            "review. Only a dead item may be re-parked this way — reopening a finished item would " +
+            "risk a second write, and reopening one the relay still owns would only race it.",
+        );
+      }
+      if (current.extracted === undefined) {
+        throw new Error(
+          `outbox: item ${id} has no extracted data to review — it never reached extraction, so ` +
+            "there is nothing to re-park it with.",
+        );
+      }
+
+      // Deleted outright rather than left or set to `undefined`: a key present
+      // with value `undefined` still round-trips through structured clone and
+      // would still parse against `outboxDocumentSchema`'s `.optional()`, but the
+      // point being made is a review that has not happened yet, which an ABSENT
+      // key says unambiguously — see `persistedFieldsOf` for the same instinct
+      // applied to RxDB's own metadata.
+      const merged = { ...current, status: "awaiting-review" as const, attempts: 0 };
+      delete merged.reviewOutcome;
+
+      outboxDocumentSchema.parse(persistedFieldsOf(merged));
+      return merged;
+    });
+
+    return this.#toItem(updated);
+  }
+
   /** The captured audio, or `undefined` once it has been dropped. */
   async getAudio(id: string): Promise<Blob | undefined> {
     const doc = await this.#collection.findOne(id).exec();

@@ -356,10 +356,10 @@ class QueueRelay implements Relay {
           : "the extraction produced no fields to review";
       // The remedy names what the API can actually do. `submitReview` is not a
       // route back: it accepts only `awaiting-review`, and this item is about to be
-      // `dead`, so re-parking is a deliberate `patch` (see `Outbox.patch`) and
-      // nothing else.
+      // `dead`, so re-parking is `Outbox.reopenForReview` — the one method that
+      // accepts `dead` as a source status precisely for this case — and nothing else.
       throw new TerminalQueueError(
-        `outbox item ${item.id} reached the write step with nothing to write — ${cause}. An empty field set is never written. To try again, re-park the item with Outbox.patch(id, { status: "awaiting-review" }) and review it afresh; to abandon it, Outbox.remove(id).`,
+        `outbox item ${item.id} reached the write step with nothing to write — ${cause}. An empty field set is never written. To try again, re-park the item with Outbox.reopenForReview(id) and review it afresh; to abandon it, Outbox.remove(id).`,
       );
     }
 
