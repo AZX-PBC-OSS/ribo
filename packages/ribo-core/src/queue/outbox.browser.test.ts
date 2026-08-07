@@ -7,12 +7,14 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import type { Recording } from "../recording.js";
 import type { PersistedReviewOutcome } from "../review.js";
+import type { Transcript } from "../transcript.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 import { removeOutboxDatabase } from "./database.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
   FINISHED_OUTBOX_STATUSES,
   OUTBOX_COLLECTION_NAME,
+  OUTBOX_STATUSES,
   outboxRxSchema,
   type OutboxDocument,
   type OutboxItem,
@@ -66,6 +68,23 @@ const audioBytes = new Uint8Array(2048).map((_, i) => (i * 31 + 7) % 256);
 function audioBlob(): Blob {
   return new Blob([audioBytes], { type: "audio/webm;codecs=opus" });
 }
+
+/**
+ * A transcript for the `reopenForReview` fixtures below.
+ *
+ * A genuine `dead` item that carries `extracted` data always has one too:
+ * `relay.ts`'s `nextStep` never returns `"extract"` until a transcript is
+ * already persisted, so extraction — and therefore a review-worthy `dead`
+ * item — cannot exist without it. A fixture built with `extracted` but no
+ * transcript would construct a state the real pipeline never produces, and
+ * `reopenForReview` would then be asserted successful on exactly that
+ * fiction rather than on anything reachable in production.
+ */
+const dyingTranscript: Transcript = {
+  recordingId: recording.id,
+  text: "the attic is R-19",
+  engine: "fake",
+};
 
 // ---------------------------------------------------------------------------
 // Raw IndexedDB access — deliberately not going through RxDB.
@@ -788,6 +807,191 @@ test.each([...FINISHED_OUTBOX_STATUSES])(
     expect(settled?.reviewOutcome).toBeUndefined();
   },
 );
+
+// ---------------------------------------------------------------------------
+// reopenForReview — the supported way back into `awaiting-review` from `dead`
+// ---------------------------------------------------------------------------
+
+test("a dead item is reopened for review with a clean slate", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, {
+    status: "dead",
+    transcript: dyingTranscript,
+    extracted: { atticRValue: {} },
+    reviewOutcome: { status: "accepted", fields: { atticRValue: 19 } },
+    attempts: 3,
+    lastError: "the reviewed values are not a valid patch",
+  });
+
+  const reopened = await outbox.reopenForReview(item.id);
+
+  expect(reopened.status).toBe("awaiting-review");
+  expect(reopened.reviewOutcome).toBeUndefined();
+  expect(reopened.attempts).toBe(0);
+  // The diagnostic that explains why the item died is not what is being cleared,
+  // so it survives the reopen for whoever looks at the row next.
+  expect(reopened.lastError).toBe("the reviewed values are not a valid patch");
+  expect(reopened.extracted).toEqual({ atticRValue: {} });
+  expect(reopened.transcript).toEqual(dyingTranscript);
+});
+
+test("reopening drops the stale reviewOutcome from the STORED document, not merely from a live read", async () => {
+  // Two independent reads could each fail to catch a bug here on their own:
+  //
+  //   - `settled?.reviewOutcome` read through `get()` goes through this SAME
+  //     `Outbox`'s own RxDB connection and document cache. An implementation
+  //     that persisted `reviewOutcome: undefined` instead of deleting the key
+  //     would still read back as `undefined` through that live object model —
+  //     property access cannot tell "key absent" from "key present with value
+  //     `undefined`" apart, and neither read proves the WRITE actually dropped
+  //     the key rather than merely not showing it back.
+  //   - Even reading raw storage, `settled.reviewOutcome === undefined` is
+  //     STILL true either way, for the identical reason. Only `Object.hasOwn`
+  //     on the raw persisted object can tell the two cases apart.
+  //
+  // So this closes the outbox and reads the raw IndexedDB store with no RxDB in
+  // the call stack — the technique the nested-review-outcome test above uses,
+  // for the same underlying reason (structured clone is the only step in this
+  // whole path that could plausibly preserve an `undefined`-valued key) — and
+  // asserts key ABSENCE rather than value equality.
+  const name = uniqueName();
+  const outbox = await open(name);
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, {
+    status: "dead",
+    transcript: dyingTranscript,
+    extracted: { atticRValue: {} },
+    reviewOutcome: { status: "discarded", reason: "an earlier, unrelated discard" },
+  });
+
+  await outbox.reopenForReview(item.id);
+  await outbox.close();
+
+  const rawDocs = (await readRawStore(name, "docs")) as Record<string, unknown>[];
+  const raw = rawDocs.find((doc) => doc.id === item.id);
+  expect(raw).toBeDefined();
+  expect(Object.hasOwn(raw!, "reviewOutcome")).toBe(false);
+});
+
+test("a reopened item leaves nextPending's active set, exactly like any other parked item", async () => {
+  // Proves the interaction the finding named explicitly: ACTIVE_OUTBOX_STATUSES
+  // omits `awaiting-review` regardless of how an item got there, and this asserts
+  // it through the REAL reopenForReview path rather than through a hand-patch —
+  // which is the gap this method exists to close in the first place.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  const other = await outbox.enqueue({
+    recording: { ...recording, id: "other" },
+    audio: audioBlob(),
+  });
+  await outbox.patch(item.id, {
+    status: "dead",
+    transcript: dyingTranscript,
+    extracted: { atticRValue: {} },
+  });
+
+  await outbox.reopenForReview(item.id);
+
+  // `item` has the lower seq, so if reopening it were active it would win here.
+  // It does not: `other` does, because a reopened item is parked, not active.
+  expect((await outbox.nextPending())?.id).toBe(other.id);
+});
+
+test("reopening an unknown id rejects", async () => {
+  const outbox = await open(uniqueName());
+  await expect(outbox.reopenForReview("nope")).rejects.toThrow(/nope/);
+});
+
+test("a dead item with nothing extracted refuses to be reopened", async () => {
+  // Died during transcribe, or during a host `extract` step, before anything
+  // reached review — reopening it to `awaiting-review` would hand a human a
+  // review card with nothing on it, which is not a state anything else in this
+  // package produces.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "dead" });
+
+  await expect(outbox.reopenForReview(item.id)).rejects.toThrow(/no extracted data/);
+
+  const settled = await outbox.get(item.id);
+  expect(settled?.status).toBe("dead");
+});
+
+test("a dead item with extracted data but no transcript refuses to be reopened", async () => {
+  // The real pipeline cannot construct this combination on its own — extraction
+  // never runs before a transcript is persisted (`relay.ts`'s `nextStep`) — but
+  // `patch()` is public and unrestricted, so a document built by hand (or by a
+  // future migration, or another build) could still carry `extracted` without a
+  // `transcript`. Reopening it would park an item at `awaiting-review` that
+  // `buildReviewRequest` cannot build an honest review card for: there would be
+  // nothing to check an extracted span's groundedness against.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, { status: "dead", extracted: { atticRValue: {} } });
+
+  await expect(outbox.reopenForReview(item.id)).rejects.toThrow(/no transcript/);
+
+  const settled = await outbox.get(item.id);
+  expect(settled?.status).toBe("dead");
+});
+
+// Every status but `dead`, driven from the constant so a status added later is
+// covered without anyone remembering to come back here — the same reasoning as
+// the FINISHED_OUTBOX_STATUSES table above, over the wider list this guard
+// actually has to refuse. `done` would risk a second write; `discarded` would
+// undo an audited human decision this method has no business reversing;
+// everything else is a status the relay still owns, where reopening would only
+// race it.
+test.each(OUTBOX_STATUSES.filter((status) => status !== "dead"))(
+  "a %s item cannot be reopened for review",
+  async (status) => {
+    const outbox = await open(uniqueName());
+    const item = await outbox.enqueue({ recording, audio: audioBlob() });
+    await outbox.patch(item.id, {
+      status,
+      transcript: dyingTranscript,
+      extracted: { atticRValue: {} },
+    });
+
+    await expect(outbox.reopenForReview(item.id)).rejects.toThrow(new RegExp(`"${status}"`));
+
+    const settled = await outbox.get(item.id);
+    expect(settled?.status).toBe(status);
+  },
+);
+
+test("two reopenForReview calls in flight at once, on ONE Outbox, settle as one winner and one refusal", async () => {
+  // The same genuinely-concurrent 409-and-re-run path `submitReview`'s own
+  // equivalent test drives, exercised here because `reopenForReview` shares the
+  // exposure `incrementalModify` closes: without it, two reopens racing could
+  // both read `status: "dead"` before either write lands and both "win", which
+  // is a lost update, not merely a missing rejection.
+  //
+  // This proves the guard survives two CALLS racing on one connection — it does
+  // NOT prove it survives two TABS, i.e. two independent `RxDatabase` connections
+  // over the same IndexedDB name: an implementation guarded only by an in-memory
+  // mutex scoped to this one `Outbox` instance would also make this test pass
+  // while doing nothing to stop a second, independent connection. That case is
+  // covered separately, in `outbox-reopen-cross-tab.browser.test.ts` — see that
+  // file's header for why it could not simply be added here.
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.patch(item.id, {
+    status: "dead",
+    transcript: dyingTranscript,
+    extracted: { atticRValue: {} },
+  });
+
+  const results = await Promise.allSettled([
+    outbox.reopenForReview(item.id),
+    outbox.reopenForReview(item.id),
+  ]);
+
+  expect(results.map((result) => result.status)).toEqual(["fulfilled", "rejected"]);
+  const settled = await outbox.get(item.id);
+  expect(settled?.status).toBe("awaiting-review");
+});
 
 // ---------------------------------------------------------------------------
 // Filtered reads

@@ -76,7 +76,25 @@ export interface RelayOptions extends BackoffOptions {
   write: WriteStep;
   /** Injectable clock in epoch milliseconds. Defaults to `Date.now`. */
   now?: () => number;
-  /** Failures after which an item is declared `dead`. Defaults to 8. */
+  /**
+   * Failures after which an item is declared `dead`. Defaults to 8.
+   *
+   * **A budget per trip through the machine, not a lifetime cap on the item.**
+   * `attempts` resets to `0` on every fresh entry into `awaiting-review` —
+   * `#extract` does it on the way in, `Outbox.submitReview` does it again on the
+   * way to `writing`, and `Outbox.reopenForReview` does it a third time on the
+   * way back from `dead` — so a human who keeps reopening a deterministically
+   * poisonous item (a write that will always fail the same way, `write-step.ts`'s
+   * two `TerminalQueueError`s being the shipped example) hands it a fresh
+   * `maxAttempts` every time, indefinitely. That is intentional: both `dead` and
+   * `awaiting-review` are inactive statuses the relay never revisits on its own,
+   * so this is not a hot loop burning through attempts unattended — it costs one
+   * human decision per cycle, and a human choosing to try again eight more times
+   * is a deliberate act this field has no business overriding. What it bounds is
+   * *unattended* retries within one cycle: the relay backing off and retrying a
+   * transient failure on its own, with nobody watching, is exactly the case a
+   * hard stop protects.
+   */
   maxAttempts?: number;
   /** Override the transient/terminal decision. Defaults to {@link isTransientFailure}. */
   isTransient?: (error: unknown) => boolean;
@@ -356,10 +374,10 @@ class QueueRelay implements Relay {
           : "the extraction produced no fields to review";
       // The remedy names what the API can actually do. `submitReview` is not a
       // route back: it accepts only `awaiting-review`, and this item is about to be
-      // `dead`, so re-parking is a deliberate `patch` (see `Outbox.patch`) and
-      // nothing else.
+      // `dead`, so re-parking is `Outbox.reopenForReview` — the one method that
+      // accepts `dead` as a source status precisely for this case — and nothing else.
       throw new TerminalQueueError(
-        `outbox item ${item.id} reached the write step with nothing to write — ${cause}. An empty field set is never written. To try again, re-park the item with Outbox.patch(id, { status: "awaiting-review" }) and review it afresh; to abandon it, Outbox.remove(id).`,
+        `outbox item ${item.id} reached the write step with nothing to write — ${cause}. An empty field set is never written. To try again, re-park the item with Outbox.reopenForReview(id) and review it afresh; to abandon it, Outbox.remove(id).`,
       );
     }
 

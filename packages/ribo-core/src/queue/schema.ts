@@ -26,18 +26,25 @@ export const AUDIO_ATTACHMENT_ID = "audio";
  * queued → transcribing → extracting → awaiting-review → writing → done
  *                                                     ↘ discarded
  *                      ↘ (transient) → failed → (backoff elapses) → retry
- *                      ↘ (terminal)  → dead
+ *                      ↘ (terminal)  → dead ⇢ awaiting-review (Outbox.reopenForReview)
  * ```
  *
- * **The two arrows out of `awaiting-review` are the only ones no code takes on
- * its own.** Every other transition is the relay's; those two are
- * `Outbox.submitReview`, driven by a human. Until it is called the item is not in
- * {@link ACTIVE_OUTBOX_STATUSES} and the relay drains straight past it.
+ * **The two arrows out of `awaiting-review`, and the one arrow back into it from
+ * `dead`, are the only ones no code takes on its own.** Every other transition is
+ * the relay's; these three are human-driven: `Outbox.submitReview` for the two out,
+ * `Outbox.reopenForReview` for the one back in. Until `submitReview` is called the
+ * item is not in {@link ACTIVE_OUTBOX_STATUSES} and the relay drains straight past
+ * it; `reopenForReview` only ever arrives FROM `dead`, so it can add an item back
+ * to the parked set but can never let one skip review on the way there.
  *
  * **`dead` is the only terminal state.** `failed` is a *resting* state: the
  * relay picks it back up once `nextAttemptAt` has passed, which is why
  * `failed ∈ ACTIVE_OUTBOX_STATUSES`. An item leaves `failed` for `dead` only by
- * exhausting `maxAttempts` or by a terminal failure classification.
+ * exhausting `maxAttempts` or by a terminal failure classification. "Terminal"
+ * describes what the RELAY does with it — nothing, ever, on its own — not that
+ * nothing can. `Outbox.reopenForReview` is a way out, same as `submitReview` is
+ * for `awaiting-review`: a human decision, never something `#recordFailure`
+ * reaches for itself.
  *
  * Resist the temptation to describe both as "terminal because no step is in
  * flight". That phrasing is *nearly* true and it already cost us one design
@@ -79,7 +86,15 @@ export const ACTIVE_OUTBOX_STATUSES = [
   "failed",
 ] as const satisfies readonly OutboxStatus[];
 
-/** Statuses no further work will ever be done for. */
+/**
+ * Statuses the relay will not act on again unattended. `dead` has a human-driven
+ * way out (`Outbox.reopenForReview`); `done` and `discarded` have none.
+ *
+ * "Finished" here means finished *as far as the relay is concerned* — which is
+ * what {@link OUTBOX_STATUSES} above means when it calls `dead` "the only
+ * terminal state" and `failed` a "resting" one. A human can still move a `dead`
+ * item; nothing moves a `done` or `discarded` one.
+ */
 export const FINISHED_OUTBOX_STATUSES = [
   "done",
   "dead",
@@ -130,7 +145,13 @@ export const outboxDocumentSchema = z.strictObject({
    * this package lets you change it.
    */
   idempotencyKey: z.string().min(1),
-  /** How many times a step has failed for this item. Drives the backoff curve. */
+  /**
+   * How many times a step has failed for this item. Drives the backoff curve
+   * and, against `RelayOptions.maxAttempts`, when the relay gives up and calls
+   * it `dead`. Reset to `0` on every fresh entry into `awaiting-review` — see
+   * that option's own doc comment for why `maxAttempts` is a per-cycle budget
+   * rather than a lifetime cap on the item.
+   */
   attempts: z.number().int().nonnegative(),
   /**
    * Earliest ISO timestamp at which this item may be attempted again. Persisted
