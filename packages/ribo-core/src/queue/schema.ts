@@ -86,7 +86,12 @@ export const ACTIVE_OUTBOX_STATUSES = [
   "failed",
 ] as const satisfies readonly OutboxStatus[];
 
-/** Statuses no further work will ever be done for. */
+/**
+ * Statuses the relay will not act on again unattended. `dead` has a human-driven
+ * way out (`Outbox.reopenForReview`); `done` and `discarded` have none. See the
+ * fuller distinction drawn above {@link OUTBOX_STATUSES} between "terminal" and
+ * "truly final" — this constant's name is the former, not the latter.
+ */
 export const FINISHED_OUTBOX_STATUSES = [
   "done",
   "dead",
@@ -137,7 +142,13 @@ export const outboxDocumentSchema = z.strictObject({
    * this package lets you change it.
    */
   idempotencyKey: z.string().min(1),
-  /** How many times a step has failed for this item. Drives the backoff curve. */
+  /**
+   * How many times a step has failed for this item. Drives the backoff curve
+   * and, against `RelayOptions.maxAttempts`, when the relay gives up and calls
+   * it `dead`. Reset to `0` on every fresh entry into `awaiting-review` — see
+   * that option's own doc comment for why `maxAttempts` is a per-cycle budget
+   * rather than a lifetime cap on the item.
+   */
   attempts: z.number().int().nonnegative(),
   /**
    * Earliest ISO timestamp at which this item may be attempted again. Persisted
