@@ -1,10 +1,11 @@
 # Extraction acceptance gate (Phase 4 Task 3)
 
 The extraction-**quality** acceptance test for the built-default extractor. It runs
-`singleShotExtractor` (over `openAiChat`) against all 14 transcripts in
-`spikes/extraction-snuggpro/`, scores the output with the spike's own `score.mjs`,
-and asserts the four hazards hold with hallucination inside the committed baseline
-band.
+`singleShotExtractor` (over `openAiChat`) against every transcript in the
+`spikes/extraction-snuggpro/` corpus (14, as of the vocabulary-neutral rebuild —
+see `RECONCILIATION.md`), scores the output with the spike's own `score.mjs`, and
+asserts the four hazards hold with hallucination/miss inside a **schema-matched**
+committed baseline.
 
 ## This is MANUAL and needs a key — CI never runs it
 
@@ -49,22 +50,54 @@ spike corpus **read-only** — it never writes into `spikes/`.
 
 ## What it asserts
 
-| Check                      | Rule                                                         | Committed baseline        |
-| -------------------------- | ------------------------------------------------------------ | ------------------------- |
-| Coverage                   | all 14 transcripts produce a scoreable result                | 14/14                     |
-| Hazard 1 — fuel axis       | `fuelDropped == 0` and `fuelInvented == 0`                   | 0 / 0                     |
-| Hazard 2 — health silence  | `hHallucinatedPass == 0`                                     | 0                         |
-| Hazard 3 — R-value         | `rvalueConversion == 0` (no R→band)                          | 0                         |
-| Hazard 4 — enum paraphrase | `enumWrongMember == 0` and `enumInvalid == 0`                | 0                         |
-| Provenance                 | `spanFabricated == 0` and `spanMissing == 0` (100% verbatim) | 100%                      |
-| Hallucination              | hard rate ≤ widest committed baseline + 0.5pp                | codex 0.5%, opencode 1.0% |
-| Miss guard                 | miss rate ≤ widest committed baseline + 5pp                  | ~0–1%                     |
+The first test is a guard: it checks every `ground-truth/*.json` file is in the
+current vocabulary-neutral format and validates against the adapter's real 51-leaf
+schema (`ground-truth.mjs`'s own `isNewFormat`/`validateGroundTruth`, not a
+hand-rolled key comparison). If the corpus and the adapter diverge again, this
+fails loudly instead of letting a run report every field as a miss.
 
-The hallucination and miss bands are computed **at run time** from
-`spikes/extraction-snuggpro/results/{codex,opencode}-score.json`, so the gate tracks
-the committed baseline rather than a hardcoded number. The miss guard exists so a
-degenerate all-`null` output (which scores a perfect 0% hallucination and is
-useless) cannot pass.
+| Check                      | Rule                                                            | Baseline-dependent? |
+| -------------------------- | --------------------------------------------------------------- | ------------------- |
+| Corpus format/vocabulary   | every ground-truth file is new-format and schema-valid          | no                  |
+| Coverage                   | every corpus transcript produces a scoreable (parseable) result | no                  |
+| Hazard 1 — fuel axis       | `fuelDropped == 0` and `fuelInvented == 0`                      | no                  |
+| Hazard 2 — health silence  | `hHallucinatedPass == 0`                                        | no                  |
+| Hazard 3 — R-value         | `rvalueConversion == 0` (no R→band)                             | no                  |
+| Hazard 4 — enum paraphrase | `enumWrongMember == 0` and `enumInvalid == 0`                   | no                  |
+| Provenance                 | `spanFabricated == 0` and `spanMissing == 0` (100% verbatim)    | no                  |
+| Hallucination              | hard rate ≤ committed baseline + 0.5pp                          | **yes**             |
+| Miss guard                 | miss rate ≤ committed baseline + 5pp                            | **yes**             |
+
+## Baseline freshness: `baseline.json`
+
+The hallucination/miss rates are only meaningful compared against a run captured
+under the SAME schema — the field set, enum vocabulary, and prompt all shape what
+"normal" looks like. `baseline.json` (sibling of this file, committed to git)
+carries a `schemaFingerprint`: a sha256 of the frozen JSON Schema at
+`../src/__fixtures__/snugg-fields-json-schema.json`, exactly the artifact sent to
+the model — so the fingerprint changes iff what the model is asked for changes.
+
+Each run computes the CURRENT fingerprint and compares it to `baseline.json`:
+
+- **Match** — the baseline describes this exact schema. The rate-band assertions
+  run as normal.
+- **Mismatch, or no `baseline.json` yet** — the committed baseline is stale (or
+  this is the first run against this schema). Asserting against it would be
+  meaningless, so the gate instead **reports the numbers and writes a fresh
+  `baseline.json`** for the current fingerprint, and skips only the two
+  rate-vs-history assertions. Every baseline-independent check above (coverage,
+  the four hazards, span verbatim-ness) still runs and can still fail the build.
+
+This replaces the two retired per-tool baselines
+(`spikes/extraction-snuggpro/results/{codex,opencode}-score.json` — see their
+removal commit for what they measured: the old spike's own 23-field flat schema,
+graded by the old scorer, run through the `codex`/`opencode` CLIs rather than this
+adapter's built extractor). Comparing across schemas — or across tools that were
+never running this adapter at all — was never a real signal; the fingerprint makes
+that structural instead of accidental.
+
+The miss guard exists so a degenerate all-`null` output (which scores a perfect 0%
+hallucination and is useless) cannot pass.
 
 `confidence` is **not** gated: the spike found a 0.9-confidence hallucination, so it
 is uncalibrated and no accept/reject threshold is built on it.
