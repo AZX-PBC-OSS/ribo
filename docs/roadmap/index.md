@@ -148,6 +148,33 @@ rather than rediscovered.
   lists them as supported for non-fine-tuned models. If that is stale, our schema is more constrained
   than it needs to be — worth one engineer's re-check. → [doc 16 §1](../implementation/16-extraction-schema-scale.md#a-discrepancy-worth-an-engineers-re-check-not-treated-as-settled-here).
 
+## Deferred until write-back unblocks — the MVP cut (2026-08-06)
+
+**The MVP is R2 Phase B + C: the hooks and the review card.** Everything needed for a working loop is
+built except the ability for a human to actually review — capture, the durable outbox and relay,
+on-device transcription, real extraction, the review contract and the write trust boundary all ship
+and gate green. What is missing is a UI to drive them.
+
+**Every remaining Snugg Pro item is downstream of a dependency we do not control.** Write-back is gated
+on the Helix egress HMAC ask (A1, `docs/implementation/13-helix-platform-asks.md`), so work that makes
+a write _correct_ cannot be exercised, demoed, or validated. Deferred until that unblocks:
+
+- **R1.6 — the doc 15 delta list.** Enum formats, the 2 missing health tests, efficiency fields, the
+  heating/cooling equipment-type fusion, `combustionVentType`'s missing write target. All write-side.
+- **R1.7 — `pnpm snugg:refresh`.** Tooling with no user-facing value until the field set grows.
+- **Instance modeling.** Correctness of a write that cannot happen yet.
+- **The schema-generation spike.** Its _design_ is committed (`spikes/schema-generation/`) and
+  deliberately not run — the question is preserved without spending on it.
+
+**What makes deferring safe: the review card is schema-driven.** It renders and validates from
+`ReviewField.schema`, so when R1.6 later corrects an enum or adds a field, the UI adapts with no
+rework. Schema churn does not invalidate UI work — which is exactly why the UI goes first.
+
+**The known-wrong parts are all invisible to the MVP loop.** The pilot ships 34 hand-written leaves
+whose enum vocabularies do not match the API's; that only matters at the moment of writing, which is
+stubbed. Extraction itself measures well against what we ask it for (≈0.5% hard hallucination, 75/75
+enums correct) — the mismatch is a translation problem at the boundary, not a pipeline problem.
+
 ## What is deliberately out of scope
 
 So nobody re-litigates it:
