@@ -84,13 +84,13 @@ Four tiers. Dependencies only ever point **inward toward `ribo-core`**: `ribo-ui
 `ribo-adapter-snuggpro` and `ribo-extractor-openai` each depend on `ribo-core` and never on each
 other; the field app composes them. Nothing depends on the field app.
 
-| Tier                         | Location                         | Responsibility                                                                                                                                                                    |
-| ---------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@azx/ribo-core`             | `packages/ribo-core`             | Headless engine: capture state machine, transcription, extraction, leaf-path review, queue/write. No React, no DOM rendering.                                                     |
-| `@azx/ribo-ui-react`         | `packages/ribo-ui-react`         | Headless React hook layer over the core engine — `RiboProvider` plus recorder, review, outbox, connectivity, work-safety and storage-persistence hooks. No components, no markup. |
-| `@azx/ribo-adapter-snuggpro` | `packages/ribo-adapter-snuggpro` | The **only** tool-specific surface: Snugg Pro field mapping and write-back.                                                                                                       |
-| `@azx/ribo-extractor-openai` | `packages/ribo-extractor-openai` | Tool-agnostic extractor plasmid: single-shot managed-LLM extraction over an OpenAI-compatible transport.                                                                          |
-| Field app                    | **separate repo**                | The deployed Helix app that composes these packages. Not built here.                                                                                                              |
+| Tier                         | Location                         | Responsibility                                                                                                                                                                                          |
+| ---------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@azx/ribo-core`             | `packages/ribo-core`             | Headless engine: capture state machine, transcription, extraction, leaf-path review, queue/write. No React, no DOM rendering.                                                                           |
+| `@azx/ribo-ui-react`         | `packages/ribo-ui-react`         | Headless React hook layer over the core engine — `RiboProvider` plus recorder, review, outbox, connectivity, work-safety and storage-persistence hooks. No components beyond `RiboProvider`, no markup. |
+| `@azx/ribo-adapter-snuggpro` | `packages/ribo-adapter-snuggpro` | The **only** tool-specific surface: Snugg Pro field mapping and write-back.                                                                                                                             |
+| `@azx/ribo-extractor-openai` | `packages/ribo-extractor-openai` | Tool-agnostic extractor plasmid: single-shot managed-LLM extraction over an OpenAI-compatible transport.                                                                                                |
+| Field app                    | **separate repo**                | The deployed Helix app that composes these packages. Not built here.                                                                                                                                    |
 
 Supporting, non-published: `packages/tsconfig` (`@azx/tsconfig`, the shared compiler options) and
 `playground/` (a Vite app that imports **every** published package, so its production build is a real
@@ -424,18 +424,27 @@ Checklist:
   the workspace link exist for typecheck and tests). This is what `ribo-ui-react` does:
   `RiboProvider`'s `RiboInstances` carries the host's own `Recorder`, `Outbox` and `Connectivity`
   instances across the package boundary (`context.ts`) — the provider never constructs them itself,
-  precisely so lifetime stays with the host — and every hook reads one back out of context. The
-  distinguishing test is **runtime object-identity sharing**, not "leaf vs. not": if a consumer
+  precisely so lifetime stays with the host — and every hook but `useStoragePersistence` reads one
+  back out of context, either directly (`useRecorder`, `useOutboxItems`, `useReview`,
+  `useConnectivity`) or indirectly by composing hooks that do (`useWorkSafety`, which calls
+  `useOutboxItems`, `useConnectivity` and `useStoragePersistence` itself).
+  `useStoragePersistence` is the one hook with no core counterpart at all — it wraps
+  `navigator.storage` directly and reads nothing out of context. The distinguishing test for the
+  peer-dependency question is **runtime object-identity sharing**, not "leaf vs. not": if a consumer
   hands core's runtime objects to your package, use `peerDependencies` + `devDependencies`
-  (`ribo-ui-react`); if your package only references core's **types** — even when those types
-  appear in its own emitted declarations — a plain `"dependencies": { "@azx/ribo-core": "workspace:^" }`
-  is right. That type-only case still needs `dependencies` (not `devDependencies`): a consumer's
-  TypeScript must resolve core's `.d.ts`, and devDependencies are never installed for consumers.
+  (`ribo-ui-react`); if your package only references core's **types**, or calls a core function
+  without holding onto a stateful instance with cross-boundary identity — even when that use appears
+  in its own emitted declarations — a plain `"dependencies": { "@azx/ribo-core": "workspace:^" }`
+  is right. That still needs `dependencies` (not `devDependencies`): a consumer's TypeScript must
+  resolve core's `.d.ts`, and devDependencies are never installed for consumers.
   `ribo-adapter-snuggpro`, `ribo-extractor-openai` and `ribo-transcriber-ondevice` are all
-  plain-`dependencies` — they import core type-only and exchange plain data (`Recording`,
-  `Transcript`), not class instances with identity. Use `workspace:^` for the published-facing
-  declaration (pnpm rewrites it to `^<version>` on publish, and Changesets keeps the three libs in
-  lockstep) and `workspace:*` for dev-only links.
+  plain-`dependencies`, but not all for the same reason: `ribo-extractor-openai` and
+  `ribo-transcriber-ondevice` really do import core type-only; `ribo-adapter-snuggpro` also calls
+  the runtime `enveloped()` helper (`schema.ts`) to derive its extraction schema. None of the three
+  holds onto a core `Recorder`/`Outbox`/`Connectivity` instance with identity that must stay shared
+  with a consumer, which — not "type-only" — is the actual criterion. Use `workspace:^` for the
+  published-facing declaration (pnpm rewrites it to `^<version>` on publish, and Changesets keeps
+  the three libs in lockstep) and `workspace:*` for dev-only links.
 - **`@azx/tsconfig` must be in `devDependencies`** as `workspace:*`. Easy to forget because the
   package is only referenced from `tsconfig.json` — and we have already shipped this bug once.
   Without it, `extends: "@azx/tsconfig/base.json"` fails to resolve.

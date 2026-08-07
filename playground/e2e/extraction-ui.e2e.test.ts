@@ -2,6 +2,8 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { build, preview, type PreviewServer } from "vite";
 import { chromium, type Browser, type Page } from "playwright";
+import { z } from "zod";
+import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 
 /**
  * @file Phase 4 Task 4: extraction is visible end to end, on the default
@@ -68,6 +70,43 @@ afterAll(async () => {
   await browser?.close();
   await server?.close();
 });
+
+/**
+ * `field`, stripped of leading `.optional()`/`.nullable()` wrappers, asserted to
+ * be a `z.ZodObject` — the same shape `snuggValuesSchema`'s own seven groups
+ * take. Mirrors `ReviewPanel.browser.test.tsx`'s `unwrapGroup` exactly; kept
+ * local rather than shared, matching this directory's own convention of every
+ * e2e file carrying its own helpers (see `captureOneRecording`, duplicated
+ * rather than imported, in `eviction.e2e.test.ts` and `network-transition.e2e.test.ts`).
+ */
+function unwrapGroup(field: z.ZodType): z.ZodObject {
+  let current = field;
+  while (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
+    current = current.unwrap() as z.ZodType;
+  }
+  if (!(current instanceof z.ZodObject)) {
+    throw new Error("snuggValuesSchema's own groups are expected to be z.ZodObject");
+  }
+  return current;
+}
+
+/**
+ * Every dotted leaf path the real `snuggValuesSchema` declares, in schema
+ * order — computed from the schema itself (two levels: group, then leaf; the
+ * schema's own file header says the seven groups are flat) rather than
+ * hard-coded, so a future field-set change changes what this test expects
+ * instead of silently under- or over-covering it.
+ */
+function allLeafPaths(): readonly string[] {
+  const paths: string[] = [];
+  for (const [groupKey, groupField] of Object.entries(snuggValuesSchema.shape)) {
+    const groupSchema = unwrapGroup(groupField as z.ZodType);
+    for (const leafKey of Object.keys(groupSchema.shape)) {
+      paths.push(`${groupKey}.${leafKey}`);
+    }
+  }
+  return paths;
+}
 
 // Restored for R2 Task 18. This used to poll straight for `done`; R2 Phase A put
 // a human review gate between `extracting` and `writing` (an item now parks at
@@ -139,15 +178,30 @@ test("a recording drains through extraction and its fields show with provenance"
   expect(await submit.isDisabled()).toBe(true);
   await card.getByTestId("review-blocked").waitFor({ state: "visible" });
 
-  // ---- drive the review card: action every leaf, then submit --------------
-  // "Accept" is enabled on every untouched leaf regardless of its grounding, so
-  // clicking every one of them (rather than hand-picking the ungrounded few) is
-  // what actually releases the gate this test's own assertion above pins as
-  // blocked.
-  const acceptButtons = card.getByTestId("accept-field");
-  const leafCount = await acceptButtons.count();
-  for (let i = 0; i < leafCount; i += 1) {
-    await acceptButtons.nth(i).click();
+  // The card renders exactly as many rows as the schema declares leaves — a
+  // card that silently rendered fewer (a broken group walk, a filtered leaf)
+  // would otherwise satisfy every assertion below by having less to action.
+  // Computed from the schema, not hard-coded, so a future field-set change
+  // moves both sides of this comparison together.
+  const leafPaths = allLeafPaths();
+  await expect(card.getByTestId("accept-field").count()).resolves.toBe(leafPaths.length);
+
+  // ---- drive the review card: one leaf, then the rest, then submit --------
+  // The distinguishing assertion: action exactly ONE leaf and confirm the
+  // other 50 still block submit. "Accept all, then check enabled" cannot tell
+  // a working gate (blocks until EVERY ungrounded leaf is actioned) from a
+  // broken one that unlocks after ANY single decision — both pass that
+  // sequence identically. Checking here, between the first click and the
+  // rest, is what only the correct implementation survives.
+  const [firstPath, ...restPaths] = leafPaths;
+  await card.getByTestId(`review-field-${firstPath}`).getByTestId("accept-field").click();
+  await expect(submit.isDisabled()).resolves.toBe(true);
+
+  // Action every remaining leaf, addressed by its own dotted path rather than
+  // a positional index — a missing or renamed row fails on the specific leaf
+  // named in the selector, not an opaque `nth(37)`.
+  for (const path of restPaths) {
+    await card.getByTestId(`review-field-${path}`).getByTestId("accept-field").click();
   }
   await expect(submit.isDisabled()).resolves.toBe(false);
 

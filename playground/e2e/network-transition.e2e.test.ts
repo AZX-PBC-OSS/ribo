@@ -2,6 +2,8 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { build, preview, type PreviewServer } from "vite";
 import { chromium, type Browser, type Page } from "playwright";
+import { z } from "zod";
+import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 
 /**
  * @file Network **transitions**, not network states.
@@ -275,12 +277,29 @@ test("the manual drain runs to completion while offline — the stub steps do no
   // blocks until each one is actioned.
   const card = page.locator('[data-testid="review-card"]').first();
   await card.waitFor({ timeout: 30_000 });
-  const acceptButtons = card.getByTestId("accept-field");
-  const leafCount = await acceptButtons.count();
-  for (let i = 0; i < leafCount; i += 1) {
-    await acceptButtons.nth(i).click();
-  }
   const submit = card.getByRole("button", { name: "Accept all and queue" });
+
+  // Not silent about the gate itself, even though this file's focus is the
+  // link, not the review card: blocked before anything is actioned, and the
+  // card has exactly as many rows as the schema declares leaves (computed, not
+  // hard-coded, so a field-set change moves both sides of the comparison
+  // together).
+  const leafPaths = allLeafPaths();
+  await expect(card.getByTestId("accept-field").count()).resolves.toBe(leafPaths.length);
+  await expect(submit.isDisabled()).resolves.toBe(true);
+
+  // The distinguishing assertion (same property as `extraction-ui.e2e.test.ts`):
+  // action exactly ONE leaf and confirm the other 50 still block submit, before
+  // actioning the rest. A gate that unlocked after any single decision would
+  // release here already; only the real one — blocking until EVERY ungrounded
+  // leaf is actioned — survives this check.
+  const [firstPath, ...restPaths] = leafPaths;
+  await card.getByTestId(`review-field-${firstPath}`).getByTestId("accept-field").click();
+  await expect(submit.isDisabled()).resolves.toBe(true);
+
+  for (const path of restPaths) {
+    await card.getByTestId(`review-field-${path}`).getByTestId("accept-field").click();
+  }
   await expect(submit.isDisabled()).resolves.toBe(false);
   await submit.click();
 
@@ -316,6 +335,42 @@ async function captureOneRecording(target: Page): Promise<void> {
   await target.waitForTimeout(CAPTURE_MS);
   await target.getByRole("button", { name: /Stop and queue/ }).click();
   await target.locator('[data-testid="queue-item"]').first().waitFor({ timeout: 15_000 });
+}
+
+/**
+ * `field`, stripped of leading `.optional()`/`.nullable()` wrappers, asserted to
+ * be a `z.ZodObject` — the same shape `snuggValuesSchema`'s own seven groups
+ * take. Mirrors `ReviewPanel.browser.test.tsx`'s `unwrapGroup` exactly; kept
+ * local rather than shared, matching this file's own convention of duplicating
+ * helpers rather than importing them from a sibling e2e file.
+ */
+function unwrapGroup(field: z.ZodType): z.ZodObject {
+  let current = field;
+  while (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
+    current = current.unwrap() as z.ZodType;
+  }
+  if (!(current instanceof z.ZodObject)) {
+    throw new Error("snuggValuesSchema's own groups are expected to be z.ZodObject");
+  }
+  return current;
+}
+
+/**
+ * Every dotted leaf path the real `snuggValuesSchema` declares, in schema
+ * order — computed from the schema itself rather than hard-coded, so a future
+ * field-set change changes what this test expects instead of silently under-
+ * or over-covering it. Same walk as `extraction-ui.e2e.test.ts`'s helper of the
+ * same name.
+ */
+function allLeafPaths(): readonly string[] {
+  const paths: string[] = [];
+  for (const [groupKey, groupField] of Object.entries(snuggValuesSchema.shape)) {
+    const groupSchema = unwrapGroup(groupField as z.ZodType);
+    for (const leafKey of Object.keys(groupSchema.shape)) {
+      paths.push(`${groupKey}.${leafKey}`);
+    }
+  }
+  return paths;
 }
 
 /**
