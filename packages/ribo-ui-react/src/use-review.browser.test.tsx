@@ -10,7 +10,7 @@ import {
 import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 import { z } from "zod";
 
-import { useReview, type UseReviewResult } from "./use-review.js";
+import { useReview, type UseReviewOptions, type UseReviewResult } from "./use-review.js";
 
 // vitest-browser-react@2.2.0's `render` (and `RenderResult.rerender`) are async —
 // see context.browser.test.tsx. Every render and rerender below is awaited, with
@@ -73,11 +73,20 @@ async function parkedItem() {
   return { outbox, item: parked };
 }
 
-/** Mounts the hook and hands back the live result object. */
-async function probe(item: OutboxItem | undefined, outbox: Outbox) {
+/**
+ * Mounts the hook and hands back the live result object.
+ *
+ * `extra` merges over the base `{ valuesSchema, outbox }` — the one caller that
+ * needs `requiredOnCreate` is what it exists for, so most call sites pass nothing.
+ */
+async function probe(
+  item: OutboxItem | undefined,
+  outbox: Outbox,
+  extra: Partial<UseReviewOptions> = {},
+) {
   const seen: { current: UseReviewResult | undefined } = { current: undefined };
   function Probe({ subject }: { subject: OutboxItem | undefined }) {
-    seen.current = useReview(subject, { valuesSchema, outbox });
+    seen.current = useReview(subject, { valuesSchema, outbox, ...extra });
     return null;
   }
   const screen = await render(<Probe subject={item} />);
@@ -139,6 +148,23 @@ test("each field carries its own leaf schema, so a UI can render an editor witho
   const leaf = seen.current!.fields!["healthSafety.ambientCo"]!.schema;
   expect(leaf.safeParse("passed").success).toBe(true);
   expect(leaf.safeParse("maybe").success).toBe(false);
+  await outbox.close();
+});
+
+test("requiredOnCreate marks the named leaf required and leaves every other leaf not required", async () => {
+  // This is the join that went missing: `buildReviewRequest` and `snuggProAdapter`
+  // were each correct on their own, but nothing threaded the adapter's
+  // `requiredOnCreate` list through `useReview` into the request it builds. Without
+  // it every leaf's `required` is `false`, silently, because
+  // `BuildReviewRequestOptions.requiredOnCreate` defaults to `undefined` there too.
+  const { outbox, item } = await parkedItem();
+  const { seen } = await probe(item, outbox, { requiredOnCreate: ["healthSafety.ambientCo"] });
+
+  expect(seen.current!.fields!["healthSafety.ambientCo"]!.required).toBe(true);
+  // Not named -> not required. An adapter's silence is not a claim of absence,
+  // but it must not be misread as a claim of presence either.
+  expect(seen.current!.fields!.atticRValue!.required).toBe(false);
+  expect(seen.current!.fields!["healthSafety.asbestos"]!.required).toBe(false);
   await outbox.close();
 });
 

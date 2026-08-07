@@ -24,12 +24,13 @@ import { z } from "zod";
  * Callers use this to see *through* a patch's optionality — `enveloped()` to decide what
  * to wrap in a provenance envelope, `buildReviewRequest` to decide whether a field is a
  * nested object to recurse into or a leaf to present. Neither may look at the declared
- * type directly: `HealthSafetyMatrix.optional()` is a `ZodOptional`, not a `ZodObject`,
- * and treating it as a leaf would collapse an 11-test matrix into one review card.
+ * type directly: `HealthFields.optional()` is a `ZodOptional`, not a `ZodObject`, and
+ * treating it as a leaf would collapse a 14-test group into one review card.
  */
 /**
- * A dotted path to one reviewable leaf: `"atticRValue"` for a top-level leaf,
- * `"healthSafety.ambientCo"` for a nested one.
+ * A dotted path to one reviewable leaf: `"basedata.yearBuilt"` for a nested one — every
+ * leaf of Snugg Pro's `snuggValuesSchema` is nested one level under its resource group,
+ * so there is no bare top-level leaf in the real adapter today, though the type admits one.
  *
  * A bare `string` rather than a template-literal type computed from the schema.
  * Typed leaf paths would catch a typo at compile time, but they sit *on top of*
@@ -81,7 +82,7 @@ const INTEGER_LIKE_KEY = /^(?:0|[1-9]\d*)$/;
  *     fields are presented in schema-declaration order and that `editedFields` /
  *     `rejectedFields` follow it; that holds because JavaScript preserves insertion order
  *     for string keys — *except* array-index-like ones, which are hoisted to the front in
- *     numeric order. One such key would reorder a 34-field review card with no error.
+ *     numeric order. One such key would reorder a 51-field review card with no error.
  *
  * Refusing is safe for the field sets this repo has: adapter schemas are bounded,
  * hand-written, and use identifier-shaped names. A tool that genuinely needs a `.` in a

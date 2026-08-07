@@ -5,10 +5,12 @@
 The headless hook layer is real: six hooks and a provider over core's engine.
 
 `RiboProvider` carries host-constructed instances (`recorder`, `outbox`, `connectivity`) through
-context; every hook resolves its dependency through them, or through an explicit override argument
-for tests and for a host that owns more than one instance. A missing instance **throws a named
-error** rather than returning `undefined` — a hook that returned `undefined` here would surface as a
-crash several frames away in a consumer's component, which is the worst version of this bug.
+context; every hook but one resolves its dependency through them, or through an explicit override
+argument for tests and for a host that owns more than one instance. `useWorkSafety` is the exception:
+it composes `useOutboxItems`, `useConnectivity` and `useStoragePersistence` internally and takes no
+override of its own, so it can only be used under a `RiboProvider`. A missing instance **throws a
+named error** rather than returning `undefined` — a hook that returned `undefined` here would surface
+as a crash several frames away in a consumer's component, which is the worst version of this bug.
 
 - `useRecorder` — capture, including the `pause`/`resume` Phase A added, plus a `scaledLevel` the
   hook owns because raw RMS for speech barely leaves the left edge of a meter and every consumer

@@ -337,6 +337,46 @@ test("an older request() call cannot overwrite a newer one's result, however the
   }
 });
 
+test("a thrown persist() does not downgrade a known-good grant to denied", async () => {
+  // The bug this pins: `request()`'s catch used to fold ANY thrown `persist()`
+  // into `granted = "denied"` and publish it unconditionally. That runs on
+  // every app boot -- `StoragePanel` calls `request()` from a mount effect --
+  // so a transient throw on a LATER call would downgrade an already-known
+  // `"granted"` to a manufactured refusal. A throw is not a resolved `false`;
+  // it never told anyone the grant was refused, only that asking failed. The
+  // hook's own doc comment reserves `"denied"` for an actual `persist()` that
+  // resolved `false`, and this is the one path in the file that broke it.
+  const persistSpy = vi.spyOn(navigator.storage, "persist").mockResolvedValueOnce(true);
+  try {
+    const renders = vi.fn();
+    let seen: string | undefined;
+    let request: (() => Promise<string>) | undefined;
+    function Probe() {
+      renders();
+      const result = useStoragePersistence();
+      seen = result.persistence;
+      request = result.request;
+      return null;
+    }
+    await render(<Probe />);
+    await vi.waitFor(() => expect(renders.mock.calls.length).toBeGreaterThan(1));
+
+    await request?.();
+    await vi.waitFor(() => expect(seen).toBe("granted"));
+
+    persistSpy.mockRejectedValueOnce(new Error("transient failure"));
+    const result = await request?.();
+
+    // Neither the published, shared state nor this call's own return value
+    // says "denied" -- both report the best currently-known answer, which is
+    // the grant that was already there, because the throw told nobody anything.
+    expect(seen).toBe("granted");
+    expect(result).toBe("granted");
+  } finally {
+    persistSpy.mockRestore();
+  }
+});
+
 test("a transient persisted() rejection does not overwrite a known-good grant", async () => {
   // The data-loss case: a user already granted persistence (real or
   // simulated), and some LATER refresh's persisted() call happens to reject

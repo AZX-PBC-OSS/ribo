@@ -477,8 +477,8 @@ one.
 - `ready` is `false` while `item.extracted` or `item.transcript` is absent; both are optional on
   `OutboxItem` and neither exists before the relay has run those steps.
 - `fields` is core's `ReviewFields` from `buildReviewRequest`: a `Record<FieldPath, ReviewField>` in
-  schema-declaration order, keyed by dotted leaf path (`"healthSafety.ambientCo"`). Snugg Pro presents
-  34 leaves, not 24 top-level keys. Each carries `isGrounded` precomputed, so no UI re-implements
+  schema-declaration order, keyed by dotted leaf path (`"health.healthGasLeak"`). Snugg Pro presents
+  51 leaves, not 7 top-level group keys. Each carries `isGrounded` precomputed, so no UI re-implements
   `isSpanGrounded`, and its own leaf's zod schema, so a UI can pick the right editor and know an
   enum's members at runtime — which a TypeScript type cannot tell it.
 - **There is no generic, and the two casts this section used to specify are gone rather than
@@ -744,12 +744,12 @@ readonly submit: () => Promise<ReviewOutcome<F>>;
 
 **Why it is no longer possible.**
 
-- **Review addresses flat dotted leaf paths, not top-level keys.** Snugg Pro is 23 top-level fields
-  plus a nested 11-test `healthSafety` matrix; mapping decisions over `keyof F` gave that matrix one
-  provenance envelope and one verdict for all 11, so an auditor could not accept the ambient-CO result
-  while correcting the asbestos one — which is the entire point of field-level review. `ReviewFields`
-  and `FieldDecisions` are `Record<FieldPath, …>` rather than mapped types over a field-set generic
-  (R1.5 §2.4), and Snugg Pro presents 34 leaves.
+- **Review addresses flat dotted leaf paths, not top-level keys.** Snugg Pro nests its leaves under
+  seven top-level resource groups, and the `health` group alone is a 14-test matrix; mapping decisions
+  over `keyof F` gave that matrix one provenance envelope and one verdict for all 14, so an auditor
+  could not accept the ambient-CO result while correcting the gas-leak one — which is the entire point
+  of field-level review. `ReviewFields` and `FieldDecisions` are `Record<FieldPath, …>` rather than
+  mapped types over a field-set generic (R1.5 §2.4), and Snugg Pro presents 51 leaves.
 - **Each `ReviewField` carries its own leaf's zod schema**, which is what lets a UI render an editor
   and validate an edit knowing nothing about any adapter — a TypeScript type cannot tell a UI an
   enum's members at runtime, and that is why the values in the contract are `unknown`.

@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { openOutbox, type Outbox } from "@azx/ribo-core";
-import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
+import { snuggProAdapter, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import { z } from "zod";
 
@@ -160,6 +160,41 @@ test("the submit gate blocks while an ungrounded leaf is untouched, and releases
   // Released: the target has now been explicitly acted on, and every other
   // leaf was already grounded.
   await expect.element(submit).toBeEnabled();
+
+  await outbox.close();
+});
+
+test("a leaf named in requiredOnCreate renders the required marker, and an ordinary leaf does not", async () => {
+  // `snuggProAdapter.requiredOnCreate` names exactly two leaves — the only ones
+  // Snugg Pro refuses to CREATE an HVAC system without (adapter.ts's own doc
+  // comment). This is the join `ReviewPanel` -> `useReview` -> `buildReviewRequest`
+  // is responsible for keeping wired: if any link drops the option, every
+  // `field.required` on the card is `false` and the marker below never renders.
+  const [requiredPath, otherRequiredPath] = snuggProAdapter.requiredOnCreate!;
+  const ordinaryPath = "basedata.yearBuilt";
+
+  const outbox = await openTestOutbox();
+  await parkedItem(outbox, {});
+
+  const screen = await renderReviewPanel(outbox);
+
+  await expect
+    .element(
+      screen.getByTestId(`review-field-${requiredPath}`).getByTitle("required by the host tool"),
+    )
+    .toBeInTheDocument();
+  await expect
+    .element(
+      screen
+        .getByTestId(`review-field-${otherRequiredPath}`)
+        .getByTitle("required by the host tool"),
+    )
+    .toBeInTheDocument();
+  await expect
+    .element(
+      screen.getByTestId(`review-field-${ordinaryPath}`).getByTitle("required by the host tool"),
+    )
+    .not.toBeInTheDocument();
 
   await outbox.close();
 });

@@ -56,13 +56,13 @@ The `playground/` app composes all packages from TypeScript source, so editing a
 Four tiers. Dependencies only ever point **inward toward `ribo-core`**; a second host tool is a new
 adapter package and nothing else.
 
-| Package                          | What it is                                                                                                                                                                                 |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@azx/ribo-core`                 | The headless engine: capture, transcription contracts + selection, connectivity, the durable outbox + relay, the extraction and review seams, work-safety. No React, no DOM rendering.     |
-| `@azx/ribo-transcriber-ondevice` | On-device Whisper implementing `Transcriber`. A separate package because `@huggingface/transformers` pulls heavy native deps no non-transcribing consumer should inherit.                  |
-| `@azx/ribo-adapter-snuggpro`     | The **only** tool-specific surface: the Snugg Pro field schema, the extractor instructions/examples, the deterministic normalization pass, and the write-back seam.                        |
-| `@azx/ribo-extractor-openai`     | Tool-agnostic extractor plasmid: single-shot managed-LLM extraction (`singleShotExtractor`) over an OpenAI-compatible chat transport (`openAiChat`). Works against any `ExtractionTarget`. |
-| `@azx/ribo-ui-react`             | React components over the engine (recorder, review UI). **Still a stub** — no components yet.                                                                                              |
+| Package                          | What it is                                                                                                                                                                                         |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@azx/ribo-core`                 | The headless engine: capture, transcription contracts + selection, connectivity, the durable outbox + relay, the extraction and review seams, work-safety. No React, no DOM rendering.             |
+| `@azx/ribo-transcriber-ondevice` | On-device Whisper implementing `Transcriber`. A separate package because `@huggingface/transformers` pulls heavy native deps no non-transcribing consumer should inherit.                          |
+| `@azx/ribo-adapter-snuggpro`     | The **only** tool-specific surface: the Snugg Pro field schema, the extractor instructions/examples, the deterministic normalization pass, and the write-back seam.                                |
+| `@azx/ribo-extractor-openai`     | Tool-agnostic extractor plasmid: single-shot managed-LLM extraction (`singleShotExtractor`) over an OpenAI-compatible chat transport (`openAiChat`). Works against any `ExtractionTarget`.         |
+| `@azx/ribo-ui-react`             | Headless React hook layer over the engine — `RiboProvider` plus recorder, review, outbox, connectivity, work-safety and storage-persistence hooks. No components beyond `RiboProvider`, no markup. |
 
 The extension points are three interfaces: **`Transcriber`** (how audio becomes text),
 **`Extractor`** (how text becomes fields), and **`ToolAdapter`** (where tool-specific knowledge and

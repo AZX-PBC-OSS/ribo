@@ -46,12 +46,13 @@ export type { FieldPath } from "./field-path.js";
  * ## Review addresses flat dotted leaf paths, not top-level keys
  *
  * The same argument, one level down. An adapter's field set is not flat: Snugg Pro
- * declares 23 top-level fields **plus** a `healthSafety` matrix of 11 named tests.
- * Mapping review over top-level keys would give that matrix a single provenance
- * envelope and a single verdict for all 11 — so an auditor could not accept the
- * ambient-CO result while correcting the asbestos one, which is the entire point of
- * field-level review. So review addresses **leaves**, by dotted path
- * (`"healthSafety.ambientCo"`), and Snugg Pro presents 34 of them.
+ * nests its 51 leaves under seven top-level groups (`basedata`, `hvac`, `attic`,
+ * `wall`, `window`, `dhw`, `health`), and the `health` group alone is 14 named
+ * tests. Mapping review over top-level keys would give that group a single
+ * provenance envelope and a single verdict for all 14 — so an auditor could not
+ * accept the ambient-CO result while correcting the gas-leak one, which is the
+ * entire point of field-level review. So review addresses **leaves**, by dotted
+ * path (`"health.healthGasLeak"`), not group keys.
  *
  * Three consequences, each of which is a property this file establishes:
  *
@@ -153,13 +154,13 @@ export interface ReviewField {
  *
  * **Insertion order is schema-declaration order, and is part of the contract.** The
  * walk visits the shape's keys in declaration order and recurses into a nested object
- * at the position of its own key, so `healthSafety`'s 11 tests appear together, where
- * the schema author put them. A UI that maps over `Object.keys(fields)` therefore
- * renders the same order on every mount, and {@link resolveReview}'s `editedFields` /
- * `rejectedFields` follow the same order. This is deliberately *not* sorted: sorting
- * would discard the grouping the adapter author chose, and 34 fields in an order nobody
- * picked is worse than 34 fields in theirs. `field-path.ts` refuses the one key shape
- * that would break the guarantee.
+ * at the position of its own key, so Snugg Pro's `health` group's 14 tests appear
+ * together, where the schema author put them. A UI that maps over `Object.keys(fields)`
+ * therefore renders the same order on every mount, and {@link resolveReview}'s
+ * `editedFields` / `rejectedFields` follow the same order. This is deliberately *not*
+ * sorted: sorting would discard the grouping the adapter author chose, and 51 fields in
+ * an order nobody picked is worse than 51 fields in theirs. `field-path.ts` refuses the
+ * one key shape that would break the guarantee.
  */
 export type ReviewFields = Readonly<Record<FieldPath, ReviewField>>;
 
@@ -182,7 +183,7 @@ export interface ReviewRequest {
  * absent key ("leave this field alone") and a written `null` ("write it empty").
  *
  * `value` is `unknown`, not a type parameter. The leaf's type is not knowable at
- * this boundary — a `Record<FieldPath, …>` has one value type for 34 differently
+ * this boundary — a `Record<FieldPath, …>` has one value type for 51 differently
  * typed leaves — so the check that an edit is legal moved from the compiler to
  * {@link ReviewField.schema}, applied by {@link resolveReview}. That is a real
  * trade and it is why validation-at-submit exists rather than being optional.
@@ -219,8 +220,8 @@ export type ReviewSubmission =
  *     `rejectedFields` name exactly what the human touched, by dotted path.
  *   - `discarded` — the draft is not going anywhere. No fields, by construction.
  *
- * `fields` is the reassembled **nested** object — `{ healthSafety: { ambientCo } }`,
- * never `{ "healthSafety.ambientCo" }` — because that is the shape the adapter's
+ * `fields` is the reassembled **nested** object — `{ health: { healthGasLeak } }`,
+ * never `{ "health.healthGasLeak" }` — because that is the shape the adapter's
  * patch schema describes and the shape `write` sends. It is deliberately untyped
  * here: `ToolAdapter.schema.parse` at the write step is what turns it into `V`, and
  * that is the trust boundary. Carrying a `V` through review would mean either
@@ -294,7 +295,7 @@ const envelopeSchema = z.object({
  * Fully specified rather than partial: `Extracted` requires a `confidence`, and `0` is
  * the honest number — nothing was extracted, so there is nothing to be confident about.
  * A fresh object each call because `Extracted<T>` is inferred from a zod schema and so
- * is mutable; one shared instance across 34 leaves would let a caller's mutation of one
+ * is mutable; one shared instance across 51 leaves would let a caller's mutation of one
  * card rewrite the rest.
  */
 const omittedLeaf = (): Extracted<unknown> => ({ value: null, confidence: 0, sourceSpan: null });
@@ -488,8 +489,8 @@ const setAtPath = (target: Record<string, unknown>, path: FieldPath, value: unkn
   let node = target;
   for (const segment of segments) {
     // A nested group only materializes when one of its leaves survives review, so
-    // rejecting all 11 health-safety tests leaves no `healthSafety` key at all —
-    // which is what a patch means by "leave this alone".
+    // rejecting every one of Snugg Pro's `health` group's 14 tests leaves no
+    // `health` key at all — which is what a patch means by "leave this alone".
     node[segment] ??= {};
     node = node[segment] as Record<string, unknown>;
   }
@@ -639,8 +640,8 @@ export const resolveReview = (
  * Nested `fields` and dotted touched-field paths needed **no change here**, which is
  * worth stating because a reader would reasonably expect a document version bump:
  * `z.record(z.string(), z.unknown())` accepts a nested object as readily as a flat
- * one, and `z.array(z.string())` accepts `"healthSafety.ambientCo"` as readily as
- * `"atticRValue"`. `review.test.ts` and `queue/outbox-memory.test.ts` pin that.
+ * one, and `z.array(z.string())` accepts `"health.healthGasLeak"` as readily as
+ * `"basedata.yearBuilt"`. `review.test.ts` and `queue/outbox-memory.test.ts` pin that.
  *
  * Strict objects on each branch: an `edited` outcome that lost `editedFields` is
  * indistinguishable from `accepted`, and silently under-reporting review effort is

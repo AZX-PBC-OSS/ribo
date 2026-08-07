@@ -30,8 +30,9 @@ import { messageOf } from "./format.js";
  *
  * TODO: source this from `@azx/ribo-adapter-snuggpro`'s vocabulary once it
  * exposes one — the adapter is where tool-specific knowledge belongs (AGENTS.md
- * §4, doc 03). It is a Phase 0 `PACKAGE_NAME` placeholder today, so the list is
- * inline here, mirroring `transcribe.manual.ts`.
+ * §4, doc 03). It is a real 51-leaf adapter today, but nothing on it exposes a
+ * biasing vocabulary yet, so the list is inline here, mirroring
+ * `transcribe.manual.ts`.
  */
 const DOMAIN_VOCABULARY = [
   "R-value",

@@ -61,8 +61,10 @@ const extractStep = toExtractStep(extractor);
 ## Headless
 
 This package is **headless** (AGENTS §4): no React, no DOM rendering. `fetch` is expressly allowed and
-used as the bare global. Its dependency on `@azx/ribo-core` is **type-only** (`ExtractionTarget`,
-`Extractor`, `ExtractionResult`), so it is a `devDependency`, not a runtime dependency; `zod` is a
-runtime dependency (it builds the strict JSON Schema).
+used as the bare global. `@azx/ribo-core` is a `dependencies` entry, not a `devDependency`: even though
+every import from it here is `import type` (`ExtractionTarget`, `Extractor`, `ExtractionResult`), those
+types leak into this package's own public API (`SingleShotOptions` and friends), so a consumer's
+type-check needs `@azx/ribo-core` resolvable too — a `devDependency` would not be installed for them.
+`zod` is a genuine runtime dependency (it builds the strict JSON Schema).
 
 See the [API Reference](../../docs/reference/) (generated) for the full surface.

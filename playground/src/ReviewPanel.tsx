@@ -9,7 +9,7 @@ import type {
   ReviewFields,
 } from "@azx/ribo-core";
 import { useOutboxItems, useReview } from "@azx/ribo-ui-react";
-import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
+import { snuggProAdapter, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 
 import { extractorStatus } from "./extractor-store.js";
 import { button, errorBox, monospace, muted, noticeBox, panel, statusBadge } from "./styles.js";
@@ -34,8 +34,9 @@ import { button, errorBox, monospace, muted, noticeBox, panel, statusBadge } fro
  *
  * ## The panel is schema-driven, not Snugg-driven
  *
- * `snuggValuesSchema` is imported once, at module scope, to hand to `useReview` —
- * that is the only Snugg Pro knowledge in this file. Every row renders off
+ * `snuggValuesSchema` and `snuggProAdapter.requiredOnCreate` are imported once, at
+ * module scope, to hand to `useReview` — that is the only Snugg Pro knowledge in
+ * this file. Every row renders off
  * `ReviewField.schema`: a `z.enum` gets a `<select>` built from the schema's own
  * members, a `z.number()` gets a numeric input, and anything else falls back to a
  * plain text box whose value round-trips through the schema at submit time. There
@@ -196,7 +197,10 @@ function ReviewCard({ item }: { item: OutboxItem }) {
     discard,
     submitting,
     error,
-  } = useReview(item, { valuesSchema: snuggValuesSchema });
+  } = useReview(item, {
+    valuesSchema: snuggValuesSchema,
+    requiredOnCreate: snuggProAdapter.requiredOnCreate,
+  });
 
   const untouchedSet = useMemo(() => new Set(untouched), [untouched]);
 
