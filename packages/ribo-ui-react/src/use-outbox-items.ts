@@ -62,17 +62,32 @@ export function useOutboxItems(query: OutboxQuery = {}, outbox?: Outbox): UseOut
     // two flags describing the same subscription instead of the error
     // outliving the attempt that produced it.
     setError(undefined);
-    const subscription = instance.watch(stableQuery).subscribe({
-      next: (next) => {
-        setItems(next);
-        setLoading(false);
-      },
-      error: (cause: unknown) => {
-        setError(cause instanceof Error ? cause : new Error(String(cause)));
-        setLoading(false);
-      },
-    });
-    return () => subscription.unsubscribe();
+    // `watch()` and `subscribe()` are both synchronous calls that can throw
+    // directly — a malformed query, a closed collection, a storage failure at
+    // call time — rather than delivering their failure through the
+    // Observable's `error` channel. Without this try/catch, that throw
+    // escapes the effect and crashes the render instead of landing in state,
+    // and with no error boundary in the playground that's a blank screen. A
+    // synchronous throw here means no subscription was ever established, so
+    // `loading` resolves to `false` for the same reason the `error` callback
+    // below sets it to `false`: there is nothing left pending to load.
+    try {
+      const subscription = instance.watch(stableQuery).subscribe({
+        next: (next) => {
+          setItems(next);
+          setLoading(false);
+        },
+        error: (cause: unknown) => {
+          setError(cause instanceof Error ? cause : new Error(String(cause)));
+          setLoading(false);
+        },
+      });
+      return () => subscription.unsubscribe();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause : new Error(String(cause)));
+      setLoading(false);
+      return undefined;
+    }
   }, [instance, stableQuery]);
 
   return { items, loading, error };
