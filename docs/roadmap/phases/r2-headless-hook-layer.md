@@ -57,6 +57,21 @@ Section references below (§2.3, §3.6, …) point into it. Read §1–§2 befor
 
 # Phase A — the review gate in core
 
+> **Phase A has shipped, and R1.5 reshaped part of it afterwards.** Tasks 1–7 are a record of what was
+> built, kept as written rather than back-edited. `packages/ribo-core/src/review.ts` is the authority
+> over anything below it. Three specifics, so nobody copies a superseded snippet forward:
+>
+> - **`ReviewOutcome` has no type parameter.** Where a doc comment here says `ReviewOutcome<F>` or
+>   "generic in `F`" (Task 1 Step 3, Task 4 Step 3), the shipped code says `ReviewOutcome`, and the
+>   reason is unchanged — one document schema describes every host tool's field set.
+> - **`WriteStepInput.reviewed` carries a nested object**, not a flat map. `resolveReview` reassembles
+>   dotted leaf paths into the shape the adapter's patch schema describes.
+> - **`#write` refuses an empty field set**, terminally. Task 4's "rejected every field still goes to
+>   `writing`" is still true of `submitReview`; the relay is what stops it, since it is never handed an
+>   adapter whose `schema.parse` could have.
+>
+> Design §9 records why each changed. Phase B below is written against the current contract.
+
 ## Task 1: Statuses, the persisted review outcome, and the migration
 
 **Files:**
@@ -3181,72 +3196,159 @@ empty: a UI must be able to say 'reading the outbox' rather than flashing
 - Create: `packages/ribo-ui-react/src/use-review.ts`
 - Create: `packages/ribo-ui-react/src/use-review.browser.test.tsx`
 - Modify: `packages/ribo-ui-react/src/index.ts`
+- Modify: `packages/ribo-ui-react/package.json` (declare `zod` — Step 0)
+
+**Read design §4.3 before starting.** It was rewritten in revision 2 against R1.5's leaf-path review
+contract, and design §9 records what the earlier version said. If anything below still reads as though
+review is keyed by top-level field names, that is a leftover and not an instruction.
 
 **Interfaces:**
 
 - Consumes: `Outbox.submitReview` (Task 4), `buildReviewRequest` / `resolveReview` /
-  `reviewOutcomeSchema` (core), `useRiboInstance`.
+  `ReviewValidationError` and the review types (core), `useRiboInstance`.
 - Produces:
 
   ```ts
-  export interface UseReviewResult<F extends Record<string, unknown>> {
+  export interface UseReviewOptions {
+    /** The adapter's patch schema (`ToolAdapter.schema`). Decides which leaves exist. */
+    readonly valuesSchema: z.ZodObject;
+    readonly outbox?: Outbox;
+  }
+
+  export interface UseReviewResult {
     readonly ready: boolean;
-    readonly fields: ReviewFields<F> | undefined;
+    readonly fields: ReviewFields | undefined;
     readonly transcript: Transcript | undefined;
-    readonly decisionOf: <K extends keyof F>(key: K) => FieldDecision<F[K]> | undefined;
-    readonly accept: (key: keyof F) => void;
-    readonly edit: <K extends keyof F>(key: K, value: F[K] | null) => void;
-    readonly reject: (key: keyof F) => void;
-    readonly untouched: readonly (keyof F)[];
-    readonly submit: () => Promise<ReviewOutcome<F>>;
-    readonly discard: (reason?: string) => Promise<ReviewOutcome<F>>;
+    readonly decisionOf: (path: FieldPath) => FieldDecision | undefined;
+    readonly accept: (path: FieldPath) => void;
+    readonly edit: (path: FieldPath, value: unknown) => void;
+    readonly reject: (path: FieldPath) => void;
+    readonly untouched: readonly FieldPath[];
+    /** Per-leaf messages from the last refused submit. Empty when there is nothing wrong. */
+    readonly errors: Readonly<Record<FieldPath, string>>;
+    readonly submit: () => Promise<ReviewOutcome>;
+    readonly discard: (reason?: string) => Promise<ReviewOutcome>;
     readonly submitting: boolean;
     readonly error: Error | undefined;
   }
-  export function useReview<F extends Record<string, unknown>>(
+
+  export function useReview(
     item: OutboxItem | undefined,
-    options?: { readonly outbox?: Outbox },
-  ): UseReviewResult<F>;
+    options: UseReviewOptions,
+  ): UseReviewResult;
   ```
+
+  **No type parameter, and `options` is required** — the hook cannot build a review request without a
+  values schema, so there is no useful call without one. Everything is addressed by `FieldPath`, a
+  dotted leaf path (`"healthSafety.ambientCo"`).
+
+**Four requirements this task must satisfy, each of which has already gone wrong once:**
+
+1. **The values schema comes in as an argument, not off the provider and not as an adapter.** Least
+   privilege: the hook needs the schema, and a whole `ToolAdapter` would hand it `write()` and
+   `instructions` too. It also keeps the `ToolAdapter` type out of `@azx/ribo-ui-react` entirely,
+   which is what makes AGENTS.md §4's "a review UI needs no adapter import" literally true. Design
+   §2.2 records why the provider is the wrong home.
+2. **Decision state is keyed by `item.id` and read through a synchronous guard.** A queue UI reuses
+   one mounted card for the next parked item and leaf paths repeat across recordings, so an
+   effect-based reset leaves one render in which the previous recording's corrections are live and
+   submittable. One render is enough: submit is a click, not a frame.
+3. **`submit()` throws _and_ `errors` reports per leaf.** A caller who ignores the failure must not
+   proceed as though the review had been submitted; a UI must be able to render "expected a number"
+   beside the offending input without a `try`/`catch`. Both, not either.
+4. **An `edited` value of `undefined` is refused, never normalised.** It is type-legal, it is what a
+   React editor with `undefined` state submits, it passes any `.optional()` leaf schema, and it then
+   vanishes on serialisation — leaving the leaf absent, which the patch model defines as "do not touch
+   this field", while `editedFields` still names it as touched. `resolveReview` already refuses it;
+   this hook must not open a path around it, and must not quietly turn it into `null`.
+
+- [ ] **Step 0: Declare `zod`**
+
+The hook's options type names `z.ZodObject`, so `zod` becomes a direct import. Declare it rather than
+leaning on core's copy — `pnpm-workspace.yaml`'s own comment says exactly that ("declared explicitly
+rather than leaned on transitively — see the Phase 1 zod incident").
+
+```jsonc
+  "peerDependencies": {
+    "react": "^18.3 || ^19",
+    "react-dom": "^18.3 || ^19",
+    "@azx/ribo-core": "workspace:^",
+    // A peer, not a dependency: `ReviewField.schema` is a zod instance that this
+    // package hands straight through from core to the host, so all three must be
+    // looking at ONE zod. A second copy would make `instanceof` checks and zod's
+    // own internal brand checks fail across the boundary — the same object-identity
+    // argument the React peer already rests on.
+    "zod": "catalog:",
+  },
+  "devDependencies": {
+    // …
+    "zod": "catalog:",
+  },
+```
+
+The import is type-only, so nothing lands in the bundle and `sideEffects: false` still holds.
+
+```bash
+pnpm install && pnpm check:pkg
+```
+
+Expected: PASS. If `publint`/`arethetypeswrong` objects to a peer used only in types, record what it
+said and switch to a plain `dependencies` entry at the same catalog pin rather than deleting the
+declaration.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```tsx
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
-import { openOutbox, type OutboxItem } from "@azx/ribo-core";
+import { openOutbox, ReviewValidationError, type OutboxItem } from "@azx/ribo-core";
 import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
+import { z } from "zod";
 
 import { useReview } from "./use-review.js";
 
-interface Fields extends Record<string, unknown> {
-  atticRValue: number;
-  heatingFuel: string;
-}
+// A miniature patch schema in the shape a real adapter declares: leaves optional
+// and nullable, and ONE NESTED GROUP -- `healthSafety` is the whole reason review
+// moved to leaf paths, so a fixture without nesting would test none of it.
+const valuesSchema = z.object({
+  atticRValue: z.number().nullable().optional(),
+  healthSafety: z
+    .object({
+      ambientCo: z.enum(["passed", "failed", "not_tested"]).nullable().optional(),
+      asbestos: z.enum(["passed", "failed", "not_tested"]).nullable().optional(),
+    })
+    .optional(),
+});
 
 // `transcriptSchema` is a z.strictObject requiring `recordingId`, `text` and `engine`.
 // `segments` is not a field and a strict schema REJECTS it, so an invented fixture
 // fails at `outbox.patch`'s boundary parse before the hook is ever exercised.
 const transcriptFor = (recordingId: string) => ({
   recordingId,
-  text: "The attic is R-19 and the boiler runs on oil.",
+  text: "The attic is R-19 and ambient CO passed.",
   engine: "fake",
 });
 
-/** A parked item with two extracted fields: one grounded, one invented. */
+const recording = () => ({
+  id: crypto.randomUUID(),
+  capturedAt: new Date().toISOString(),
+  durationMs: 10,
+  mimeType: "audio/webm",
+  ctx: {},
+});
+
+/**
+ * A parked item covering all three cases the schema walk has to handle: a grounded
+ * leaf, an ungrounded one, and `healthSafety.asbestos`, which the model OMITTED —
+ * present here only because the schema says it exists.
+ */
 async function parkedItem() {
   const outbox = await openOutbox({
     name: `t-${crypto.randomUUID()}`,
     storage: getRxStorageMemory(),
   });
   const item = await outbox.enqueue({
-    recording: {
-      id: crypto.randomUUID(),
-      capturedAt: new Date().toISOString(),
-      durationMs: 10,
-      mimeType: "audio/webm",
-      ctx: {},
-    },
+    recording: recording(),
     audio: new Blob(["x"], { type: "audio/webm" }),
   });
   const parked = await outbox.patch(item.id, {
@@ -3254,73 +3356,112 @@ async function parkedItem() {
     transcript: transcriptFor(item.recording.id),
     extracted: {
       atticRValue: { value: 19, confidence: 1, sourceSpan: "R-19" },
-      heatingFuel: { value: "propane", confidence: 1, sourceSpan: "runs on propane" },
+      healthSafety: {
+        ambientCo: { value: "passed", confidence: 1, sourceSpan: "the CO reading was fine" },
+      },
     },
   });
   return { outbox, item: parked };
 }
 
-test("is not ready until the item has both a transcript and an extraction", async () => {
-  const { outbox, item } = await parkedItem();
-  let api: ReturnType<typeof useReview<Fields>> | undefined;
+/** Mounts the hook and hands back the live result object. */
+function probe(item: OutboxItem | undefined, outbox: Outbox) {
+  const seen: { current: UseReviewResult | undefined } = { current: undefined };
   function Probe({ subject }: { subject: OutboxItem | undefined }) {
-    api = useReview<Fields>(subject, { outbox });
+    seen.current = useReview(subject, { valuesSchema, outbox });
     return null;
   }
+  const screen = render(<Probe subject={item} />);
+  return { seen, screen, Probe };
+}
 
-  render(<Probe subject={undefined} />);
-  expect(api!.ready).toBe(false);
-  expect(api!.fields).toBeUndefined();
+test("is not ready until the item has both a transcript and an extraction", async () => {
+  const { outbox, item } = await parkedItem();
+  const { seen, screen, Probe } = probe(undefined, outbox);
 
-  render(<Probe subject={item} />);
-  expect(api!.ready).toBe(true);
+  expect(seen.current!.ready).toBe(false);
+  expect(seen.current!.fields).toBeUndefined();
+
+  screen.rerender(<Probe subject={item} />);
+  expect(seen.current!.ready).toBe(true);
+  await outbox.close();
+});
+
+test("fields are the schema's leaves, by dotted path, in declaration order", async () => {
+  // The schema enumerates the leaves, never the data. `healthSafety.asbestos` is
+  // here because the schema says it exists -- the model never emitted it, and a
+  // field that vanishes from the card is indistinguishable to the auditor from one
+  // that was extracted correctly.
+  const { outbox, item } = await parkedItem();
+  const { seen } = probe(item, outbox);
+
+  expect(Object.keys(seen.current!.fields!)).toEqual([
+    "atticRValue",
+    "healthSafety.ambientCo",
+    "healthSafety.asbestos",
+  ]);
+  expect(seen.current!.fields!["healthSafety.asbestos"]!.extracted).toEqual({
+    value: null,
+    confidence: 0,
+    sourceSpan: null,
+  });
   await outbox.close();
 });
 
 test("grounding comes from core, so every UI flags the same thing", async () => {
   const { outbox, item } = await parkedItem();
-  let api: ReturnType<typeof useReview<Fields>> | undefined;
-  function Probe() {
-    api = useReview<Fields>(item, { outbox });
-    return null;
-  }
-  render(<Probe />);
+  const { seen } = probe(item, outbox);
 
-  expect(api!.fields?.atticRValue.isGrounded).toBe(true);
-  // "runs on propane" was never said — the model invented the quote.
-  expect(api!.fields?.heatingFuel.isGrounded).toBe(false);
+  expect(seen.current!.fields!.atticRValue!.isGrounded).toBe(true);
+  // "the CO reading was fine" was never said -- the model invented the quote.
+  expect(seen.current!.fields!["healthSafety.ambientCo"]!.isGrounded).toBe(false);
+  // A null span cannot be a verbatim quote.
+  expect(seen.current!.fields!["healthSafety.asbestos"]!.isGrounded).toBe(false);
   await outbox.close();
 });
 
-test("every field starts accepted, and untouched names what nobody looked at", async () => {
-  // FieldDecisions is deliberately not Partial: a missing decision is
-  // indistinguishable from a field nobody saw. So decisions start complete, and
-  // `untouched` is what lets a host refuse to submit while an ungrounded field has
-  // not been visited.
+test("each field carries its own leaf schema, so a UI can render an editor without the adapter", async () => {
+  // The property AGENTS.md §4 now rests on: everything needed to render and
+  // validate one editor is on the field, and a TypeScript type could not carry
+  // the enum's members to runtime.
   const { outbox, item } = await parkedItem();
-  let api: ReturnType<typeof useReview<Fields>> | undefined;
-  function Probe() {
-    api = useReview<Fields>(item, { outbox });
-    return null;
-  }
-  render(<Probe />);
+  const { seen } = probe(item, outbox);
 
-  expect(api!.decisionOf("atticRValue")).toEqual({ status: "accepted" });
-  expect([...api!.untouched].sort()).toEqual(["atticRValue", "heatingFuel"]);
+  const leaf = seen.current!.fields!["healthSafety.ambientCo"]!.schema;
+  expect(leaf.safeParse("passed").success).toBe(true);
+  expect(leaf.safeParse("maybe").success).toBe(false);
   await outbox.close();
 });
 
-test("submitting untouched fields yields an accepted outcome and moves the item to writing", async () => {
+test("every leaf starts accepted, and untouched names what nobody looked at", async () => {
+  // Core's contract says a leaf with no decision is indistinguishable from one the
+  // reviewer never saw, so decisions start complete and `untouched` is what lets a
+  // host refuse to submit while an ungrounded leaf has not been visited.
   const { outbox, item } = await parkedItem();
-  let api: ReturnType<typeof useReview<Fields>> | undefined;
-  function Probe() {
-    api = useReview<Fields>(item, { outbox });
-    return null;
-  }
-  render(<Probe />);
+  const { seen } = probe(item, outbox);
 
-  const outcome = await api!.submit();
-  expect(outcome.status).toBe("accepted");
+  expect(seen.current!.decisionOf("atticRValue")).toEqual({ status: "accepted" });
+  expect(seen.current!.untouched).toEqual([
+    "atticRValue",
+    "healthSafety.ambientCo",
+    "healthSafety.asbestos",
+  ]);
+  expect(seen.current!.decisionOf("notALeaf")).toBeUndefined();
+  await outbox.close();
+});
+
+test("submitting untouched leaves yields an accepted outcome with the nesting rebuilt", async () => {
+  const { outbox, item } = await parkedItem();
+  const { seen } = probe(item, outbox);
+
+  const outcome = await seen.current!.submit();
+
+  expect(outcome).toEqual({
+    status: "accepted",
+    // Nested, not dotted -- this is the shape the adapter's patch schema describes.
+    // `asbestos` is a present null: the omitted leaf was accepted as extracted.
+    fields: { atticRValue: 19, healthSafety: { ambientCo: "passed", asbestos: null } },
+  });
 
   const persisted = await outbox.get(item.id);
   expect(persisted?.status).toBe("writing");
@@ -3331,77 +3472,143 @@ test("submitting untouched fields yields an accepted outcome and moves the item 
 test("an edit is reported as edited even when the value is unchanged", async () => {
   // resolveReview's rule: the signal is what the human touched, not whether the
   // bytes changed. Comparing values would under-report review effort for exactly
-  // the fields someone stopped to check.
+  // the leaves someone stopped to check.
   const { outbox, item } = await parkedItem();
-  let api: ReturnType<typeof useReview<Fields>> | undefined;
-  function Probe() {
-    api = useReview<Fields>(item, { outbox });
-    return null;
-  }
-  render(<Probe />);
+  const { seen } = probe(item, outbox);
 
-  api!.edit("atticRValue", 19);
+  seen.current!.edit("atticRValue", 19);
   await vi.waitFor(() =>
-    expect(api!.decisionOf("atticRValue")).toEqual({ status: "edited", value: 19 }),
+    expect(seen.current!.decisionOf("atticRValue")).toEqual({ status: "edited", value: 19 }),
   );
-  const outcome = await api!.submit();
+  const outcome = await seen.current!.submit();
 
   expect(outcome).toMatchObject({ status: "edited", editedFields: ["atticRValue"] });
   await outbox.close();
 });
 
-test("rejecting a field drops it from the written values", async () => {
+test("rejecting the last leaf of a group drops the group entirely", async () => {
+  // A nested group only materialises when one of its leaves survives review, and
+  // an absent key is what a patch means by "leave this alone".
   const { outbox, item } = await parkedItem();
-  let api: ReturnType<typeof useReview<Fields>> | undefined;
-  function Probe() {
-    api = useReview<Fields>(item, { outbox });
-    return null;
-  }
-  render(<Probe />);
+  const { seen } = probe(item, outbox);
 
-  api!.reject("heatingFuel");
-  await vi.waitFor(() => expect(api!.decisionOf("heatingFuel")).toEqual({ status: "rejected" }));
-  const outcome = await api!.submit();
+  seen.current!.reject("healthSafety.ambientCo");
+  seen.current!.reject("healthSafety.asbestos");
+  await vi.waitFor(() =>
+    expect(seen.current!.decisionOf("healthSafety.asbestos")).toEqual({ status: "rejected" }),
+  );
+  const outcome = await seen.current!.submit();
 
-  expect(outcome).toMatchObject({ status: "edited", rejectedFields: ["heatingFuel"] });
-  expect("heatingFuel" in (outcome as { fields: object }).fields).toBe(false);
+  expect(outcome).toMatchObject({
+    status: "edited",
+    fields: { atticRValue: 19 },
+    rejectedFields: ["healthSafety.ambientCo", "healthSafety.asbestos"],
+  });
+  expect("healthSafety" in (outcome as { fields: object }).fields).toBe(false);
   await outbox.close();
 });
 
 test("editing to null is a positive assertion, not a rejection", async () => {
   const { outbox, item } = await parkedItem();
-  let api: ReturnType<typeof useReview<Fields>> | undefined;
-  function Probe() {
-    api = useReview<Fields>(item, { outbox });
-    return null;
-  }
-  render(<Probe />);
+  const { seen } = probe(item, outbox);
 
-  api!.edit("heatingFuel", null);
+  seen.current!.edit("healthSafety.ambientCo", null);
   await vi.waitFor(() =>
-    expect(api!.decisionOf("heatingFuel")).toEqual({ status: "edited", value: null }),
+    expect(seen.current!.decisionOf("healthSafety.ambientCo")).toEqual({
+      status: "edited",
+      value: null,
+    }),
   );
-  const outcome = await api!.submit();
+  const outcome = await seen.current!.submit();
 
-  // Present and null — "there is nothing to record here" — not absent.
-  expect((outcome as { fields: Record<string, unknown> }).fields.heatingFuel).toBeNull();
+  // Present and null -- "there is nothing to record here" -- not absent.
+  const fields = (outcome as { fields: { healthSafety: Record<string, unknown> } }).fields;
+  expect(fields.healthSafety.ambientCo).toBeNull();
   await outbox.close();
 });
 
-test("decisions do not leak between items in a reused component", async () => {
-  // A queue UI reuses one card for the next parked item, and field names repeat
+test("editing to undefined is refused rather than normalised", async () => {
+  // Type-legal, and exactly what a React editor with `undefined` state submits. It
+  // passes an `.optional()` leaf schema and then disappears on serialisation,
+  // leaving the leaf ABSENT -- "do not touch this field" -- while `editedFields`
+  // still names it as touched. Refused at the call site so the report lands on the
+  // keystroke that caused it, and never rewritten to null, which would write an
+  // empty value nobody asked for.
+  const { outbox, item } = await parkedItem();
+  const { seen } = probe(item, outbox);
+
+  expect(() => seen.current!.edit("atticRValue", undefined)).toThrow(/undefined/);
+  expect(() => seen.current!.edit("atticRValue", undefined)).toThrow(/reject/);
+  expect(seen.current!.decisionOf("atticRValue")).toEqual({ status: "accepted" });
+  expect(seen.current!.untouched).toContain("atticRValue");
+  await outbox.close();
+});
+
+test("a submit whose value fails its leaf schema throws AND reports the leaf", async () => {
+  // Both halves are the requirement. Throwing is what stops a caller proceeding as
+  // though the review went in; `errors` is what lets the card show the message
+  // beside the input while the auditor is still looking at it.
+  const { outbox, item } = await parkedItem();
+  const { seen } = probe(item, outbox);
+
+  seen.current!.edit("atticRValue", "thirty");
+  await vi.waitFor(() =>
+    expect(seen.current!.decisionOf("atticRValue")).toMatchObject({ status: "edited" }),
+  );
+
+  await expect(seen.current!.submit()).rejects.toBeInstanceOf(ReviewValidationError);
+  await vi.waitFor(() => expect(seen.current!.errors.atticRValue).toMatch(/not valid/i));
+  expect(seen.current!.error).toBeInstanceOf(ReviewValidationError);
+  // Nothing was persisted, and the item did not move.
+  expect((await outbox.get(item.id))?.status).toBe("awaiting-review");
+  await outbox.close();
+});
+
+test("an error clears for a leaf as soon as that leaf is decided again", async () => {
+  const { outbox, item } = await parkedItem();
+  const { seen } = probe(item, outbox);
+
+  seen.current!.edit("atticRValue", "thirty");
+  await vi.waitFor(() =>
+    expect(seen.current!.decisionOf("atticRValue")).toMatchObject({ status: "edited" }),
+  );
+  await expect(seen.current!.submit()).rejects.toThrow();
+  await vi.waitFor(() => expect(seen.current!.errors.atticRValue).toBeDefined());
+
+  seen.current!.edit("atticRValue", 30);
+  await vi.waitFor(() => expect(seen.current!.errors.atticRValue).toBeUndefined());
+
+  const outcome = await seen.current!.submit();
+  expect(outcome).toMatchObject({ status: "edited" });
+  await outbox.close();
+});
+
+test("a successful submit clears every error left over from a failed one", async () => {
+  const { outbox, item } = await parkedItem();
+  const { seen } = probe(item, outbox);
+
+  seen.current!.edit("atticRValue", "thirty");
+  await vi.waitFor(() =>
+    expect(seen.current!.decisionOf("atticRValue")).toMatchObject({ status: "edited" }),
+  );
+  await expect(seen.current!.submit()).rejects.toThrow();
+  await vi.waitFor(() => expect(seen.current!.errors.atticRValue).toBeDefined());
+
+  seen.current!.reject("atticRValue");
+  await seen.current!.submit();
+
+  await vi.waitFor(() => expect(seen.current!.errors).toEqual({}));
+  await outbox.close();
+});
+
+test("decisions and errors do not leak between items in a reused component", async () => {
+  // A queue UI reuses one card for the next parked item, and leaf paths repeat
   // across recordings. A correction made to recording A must not be submitted
   // against recording B -- and it must be gone on the FIRST render after the swap,
   // not one render later, because that render can submit.
   const { outbox, item: first } = await parkedItem();
   const second = await outbox.enqueue({
-    recording: {
-      id: crypto.randomUUID(),
-      capturedAt: new Date().toISOString(),
-      durationMs: 10,
-      mimeType: "audio/webm",
-      ctx: {},
-    },
+    recording: recording(),
     audio: new Blob(["x"], { type: "audio/webm" }),
   });
   const parkedSecond = await outbox.patch(second.id, {
@@ -3410,35 +3617,28 @@ test("decisions do not leak between items in a reused component", async () => {
     extracted: { atticRValue: { value: 11, confidence: 1, sourceSpan: "R-11" } },
   });
 
-  let api: ReturnType<typeof useReview<Fields>> | undefined;
-  function Probe({ subject }: { subject: OutboxItem }) {
-    api = useReview<Fields>(subject, { outbox });
-    return null;
-  }
-
-  const screen = render(<Probe subject={first} />);
-  api!.edit("atticRValue", 30);
+  const { seen, screen, Probe } = probe(first, outbox);
+  seen.current!.edit("atticRValue", "thirty");
   await vi.waitFor(() =>
-    expect(api!.decisionOf("atticRValue")).toEqual({ status: "edited", value: 30 }),
+    expect(seen.current!.decisionOf("atticRValue")).toMatchObject({ status: "edited" }),
   );
+  await expect(seen.current!.submit()).rejects.toThrow();
+  await vi.waitFor(() => expect(seen.current!.errors.atticRValue).toBeDefined());
 
   screen.rerender(<Probe subject={parkedSecond} />);
 
-  expect(api!.decisionOf("atticRValue")).toEqual({ status: "accepted" });
-  expect([...api!.untouched]).toContain("atticRValue");
+  // Synchronously, on this render -- not after an effect has had a turn.
+  expect(seen.current!.decisionOf("atticRValue")).toEqual({ status: "accepted" });
+  expect(seen.current!.errors).toEqual({});
+  expect(seen.current!.untouched).toContain("atticRValue");
   await outbox.close();
 });
 
 test("discarding is terminal and drops the audio", async () => {
   const { outbox, item } = await parkedItem();
-  let api: ReturnType<typeof useReview<Fields>> | undefined;
-  function Probe() {
-    api = useReview<Fields>(item, { outbox });
-    return null;
-  }
-  render(<Probe />);
+  const { seen } = probe(item, outbox);
 
-  const outcome = await api!.discard("misspoke");
+  const outcome = await seen.current!.discard("misspoke");
   expect(outcome).toEqual({ status: "discarded", reason: "misspoke" });
 
   const persisted = await outbox.get(item.id);
@@ -3447,6 +3647,8 @@ test("discarding is terminal and drops the audio", async () => {
   await outbox.close();
 });
 ```
+
+Import `Outbox` and `UseReviewResult` as types where the `probe` helper needs them.
 
 - [ ] **Step 2: Run and confirm failure**
 
@@ -3459,147 +3661,249 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Implement it**
 
 ````ts
+import type { z } from "zod";
 import type {
-  ExtractedFields,
   FieldDecision,
   FieldDecisions,
+  FieldPath,
   Outbox,
   OutboxItem,
   ReviewFields,
+  ReviewIssue,
   ReviewOutcome,
   ReviewRequest,
   Transcript,
 } from "@azx/ribo-core";
-import { buildReviewRequest, resolveReview } from "@azx/ribo-core";
+import { buildReviewRequest, resolveReview, ReviewValidationError } from "@azx/ribo-core";
 import { useCallback, useMemo, useState } from "react";
 
 import { useRiboInstance } from "./use-ribo-instance.js";
 
-export interface UseReviewResult<F extends Record<string, unknown>> {
+export interface UseReviewOptions {
+  /**
+   * The adapter's **patch** schema (`ToolAdapter.schema`) — what decides which
+   * leaves exist and what a legal value for each one is.
+   *
+   * The schema rather than the adapter, on least privilege: this hook needs to walk
+   * a `ZodObject`, and a `ToolAdapter` would also hand it `write()` and
+   * `instructions`, which a review card has no business with. It also keeps the
+   * `ToolAdapter` type out of this package entirely, which is what makes AGENTS.md
+   * §4's "a review UI needs no adapter import" true rather than nearly true.
+   *
+   * **Hold it still.** It is a `useMemo` dependency, so an inline `z.object({ … })`
+   * rebuilds every field on every render and a text input loses focus on every
+   * keystroke. An adapter's schema is a module-level constant, which is the
+   * intended shape of this argument.
+   */
+  readonly valuesSchema: z.ZodObject;
+  /** Bypasses the provider. What the tests inject through. */
+  readonly outbox?: Outbox;
+}
+
+export interface UseReviewResult {
   /** The item has both a transcript and an extraction, so review can proceed. */
   readonly ready: boolean;
-  readonly fields: ReviewFields<F> | undefined;
+  /** Every leaf of `valuesSchema`, by dotted path, in schema-declaration order. */
+  readonly fields: ReviewFields | undefined;
   readonly transcript: Transcript | undefined;
-  readonly decisionOf: <K extends keyof F>(key: K) => FieldDecision<F[K]> | undefined;
-  readonly accept: (key: keyof F) => void;
-  readonly edit: <K extends keyof F>(key: K, value: F[K] | null) => void;
-  readonly reject: (key: keyof F) => void;
-  /** Fields the human has not acted on. Every field starts here. */
-  readonly untouched: readonly (keyof F)[];
-  readonly submit: () => Promise<ReviewOutcome<F>>;
-  readonly discard: (reason?: string) => Promise<ReviewOutcome<F>>;
+  /** `undefined` if the item is not ready, or the path is not a leaf of this review. */
+  readonly decisionOf: (path: FieldPath) => FieldDecision | undefined;
+  readonly accept: (path: FieldPath) => void;
+  /** @throws if `value` is `undefined` — see the guard's note. */
+  readonly edit: (path: FieldPath, value: unknown) => void;
+  readonly reject: (path: FieldPath) => void;
+  /** Leaves the human has not acted on. Every leaf starts here. */
+  readonly untouched: readonly FieldPath[];
+  /**
+   * One message per leaf the last {@link UseReviewResult.submit} was refused over,
+   * for showing beside that leaf's editor.
+   *
+   * A record rather than core's `ReviewIssue[]` so a field row is an O(1) lookup
+   * instead of a scan every row would rewrite for itself; one string rather than a
+   * list because core already joins a leaf's issues into one sentence and an editor
+   * has one error slot. The ordered original stays on
+   * {@link UseReviewResult.error}`.issues`.
+   */
+  readonly errors: Readonly<Record<FieldPath, string>>;
+  readonly submit: () => Promise<ReviewOutcome>;
+  readonly discard: (reason?: string) => Promise<ReviewOutcome>;
   readonly submitting: boolean;
   readonly error: Error | undefined;
 }
+
+/** What this hook remembers, all of it scoped to one item. */
+interface ReviewState {
+  readonly forItem: string | undefined;
+  readonly decisions: Readonly<Record<FieldPath, FieldDecision>>;
+  readonly errors: Readonly<Record<FieldPath, string>>;
+}
+
+/** What a card shows for an item it holds nothing about — including a different one. */
+const NOTHING: ReviewState = { forItem: undefined, decisions: {}, errors: {} };
+
+/**
+ * `ReviewIssue[]` → one message per leaf.
+ *
+ * First message wins on a repeated path. Core reports at most one issue per leaf
+ * today — `resolveReview` joins a leaf's zod issues into a single sentence itself —
+ * so this only decides a case that does not arise, and deciding it keeps the map
+ * from depending on iteration order if it ever does.
+ */
+const indexIssues = (issues: readonly ReviewIssue[]): Record<FieldPath, string> => {
+  const byPath: Record<FieldPath, string> = {};
+  for (const issue of issues) byPath[issue.path] ??= issue.message;
+  return byPath;
+};
+
+/** The same errors without `path`. */
+const withoutPath = (
+  errors: Readonly<Record<FieldPath, string>>,
+  path: FieldPath,
+): Record<FieldPath, string> =>
+  Object.fromEntries(Object.entries(errors).filter(([key]) => key !== path));
 
 /**
  * Field-by-field review of one parked item.
  *
  * ```tsx
- * const { fields, decisionOf, edit, reject, untouched, submit } = useReview<SnuggFields>(item);
+ * const { fields, decisionOf, edit, reject, errors, submit } = useReview(item, {
+ *   valuesSchema: snuggValuesSchema,
+ * });
  * ```
  *
- * ## Decisions start complete, and `untouched` is why that is safe
+ * ## Leaves, not fields
  *
- * `FieldDecisions` is deliberately not `Partial`: core's contract says a field
- * with no decision is indistinguishable from a field the reviewer never saw, and
- * "I did not look at it" must not silently mean "accepted". So every field starts
- * `{ status: "accepted" }` — which is the sensible default for a UI — and
- * {@link UseReviewResult.untouched} reports what nobody acted on. A host can
- * require every `isGrounded: false` field to be visited before enabling submit,
- * which honours the warning without inventing a fourth decision status.
+ * Everything here is addressed by dotted leaf path — `"healthSafety.ambientCo"`,
+ * not `"healthSafety"` — because an auditor has to be able to accept the ambient-CO
+ * result while correcting the asbestos one. `buildReviewRequest` walks
+ * `valuesSchema` to decide which leaves exist, so a leaf the model omitted is still
+ * presented (with the sentinel envelope) rather than silently missing from the card.
  *
- * ## The generic boundary
+ * ## Decisions start complete, and core is what enforces that
  *
- * `item.extracted` is persisted loose (`Record<string, unknown>`), so `F` is the
- * caller's claim about what the adapter extracts and this hook asserts it on the
- * way in. On the way out, `ReviewOutcome<F>` erases back to the loose shape
- * `Outbox.submitReview` persists. Both crossings happen here, in one place, rather
- * than scattered through a UI — and neither is validation. The adapter's
- * `schema.parse` at write time is the actual trust boundary.
+ * Every leaf starts `{ status: "accepted" }`, and {@link UseReviewResult.untouched}
+ * reports what nobody acted on, so a host can require every `isGrounded: false` leaf
+ * to be visited before enabling submit. That is a UI affordance for the human.
+ *
+ * The *guarantee* — "a leaf with no decision is indistinguishable from a leaf the
+ * reviewer never saw, and 'I did not look at it' must not silently mean 'accepted'"
+ * — is no longer carried by the type: `FieldDecisions` is a string-keyed record and
+ * accepts `{}`. `resolveReview` compares the submitted path set against the
+ * request's and refuses a mismatch either way, and **that** is the authority.
+ * {@link UseReviewResult.submit} below builds a decision for every leaf precisely so
+ * that check passes; if it ever fires from here, this hook is wrong, not its caller.
  */
-export function useReview<F extends Record<string, unknown>>(
+export function useReview(
   item: OutboxItem | undefined,
-  options: { readonly outbox?: Outbox } = {},
-): UseReviewResult<F> {
+  options: UseReviewOptions,
+): UseReviewResult {
+  const { valuesSchema } = options;
   const outbox = useRiboInstance("outbox", options.outbox);
+
   // Keyed by item id, and read through a guard rather than reset in an effect.
   //
-  // A queue UI reuses one mounted card for the next parked item, and field names
-  // repeat across recordings — so decisions carried over from the previous item
-  // would submit silently, attributing one auditor's correction to another
-  // recording. An effect-based reset still leaves one render where the stale
-  // decisions are live and submittable, which is one render too many for this.
-  const [state, setState] = useState<{
-    readonly forItem: string | undefined;
-    readonly decisions: Partial<FieldDecisions<F>>;
-  }>({ forItem: item?.id, decisions: {} });
+  // A queue UI reuses one mounted card for the next parked item, and leaf paths
+  // repeat across recordings — so decisions carried over would submit silently,
+  // attributing one auditor's correction to another recording. An effect-based
+  // reset still leaves one render where the stale decisions are live and
+  // submittable, which is one render too many when submit is a click.
+  const [state, setState] = useState<ReviewState>({
+    forItem: item?.id,
+    decisions: {},
+    errors: {},
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<Error | undefined>(undefined);
 
   // Synchronously empty whenever the state belongs to a different item. No effect,
   // no stale window.
-  const decisions: Partial<FieldDecisions<F>> = state.forItem === item?.id ? state.decisions : {};
+  const { decisions, errors } = state.forItem === item?.id ? state : NOTHING;
 
   const setDecision = useCallback(
-    (key: keyof F, decision: FieldDecision<F[keyof F]>) => {
+    (path: FieldPath, decision: FieldDecision) => {
       const id = item?.id;
-      setState((prior) => ({
-        forItem: id,
-        decisions: { ...(prior.forItem === id ? prior.decisions : {}), [key]: decision },
-      }));
+      setState((prior) => {
+        const base = prior.forItem === id ? prior : NOTHING;
+        return {
+          forItem: id,
+          decisions: { ...base.decisions, [path]: decision },
+          // Deciding a leaf answers whatever the last submit said about it —
+          // including "reject it instead", which is the escape core's own message
+          // names for an extracted value that cannot be accepted as it stands.
+          errors: withoutPath(base.errors, path),
+        };
+      });
     },
     [item?.id],
   );
 
-  const request = useMemo<ReviewRequest<F> | undefined>(() => {
+  const request = useMemo<ReviewRequest | undefined>(() => {
     if (item?.extracted === undefined || item.transcript === undefined) return undefined;
-    return buildReviewRequest(item.extracted as ExtractedFields<F>, item.transcript);
-  }, [item?.extracted, item?.transcript]);
+    // No cast on the way in: `extracted` is persisted as `Record<string, unknown>`
+    // and that is exactly what `buildReviewRequest` takes.
+    return buildReviewRequest(item.extracted, item.transcript, valuesSchema);
+  }, [item?.extracted, item?.transcript, valuesSchema]);
 
-  const keys = useMemo(
-    () => (request === undefined ? [] : (Object.keys(request.fields) as (keyof F)[])),
+  const paths = useMemo<readonly FieldPath[]>(
+    () => (request === undefined ? [] : Object.keys(request.fields)),
     [request],
   );
 
   const decisionOf = useCallback(
-    <K extends keyof F>(key: K): FieldDecision<F[K]> | undefined =>
-      request === undefined
+    (path: FieldPath): FieldDecision | undefined =>
+      request === undefined || !Object.hasOwn(request.fields, path)
         ? undefined
-        : ((decisions[key] ?? { status: "accepted" }) as FieldDecision<F[K]>),
+        : (decisions[path] ?? { status: "accepted" }),
     [decisions, request],
   );
 
   const accept = useCallback(
-    (key: keyof F) => setDecision(key, { status: "accepted" }),
+    (path: FieldPath) => setDecision(path, { status: "accepted" }),
     [setDecision],
   );
 
   const edit = useCallback(
-    <K extends keyof F>(key: K, value: F[K] | null) =>
-      setDecision(key, { status: "edited", value } as FieldDecision<F[keyof F]>),
+    (path: FieldPath, value: unknown) => {
+      // `undefined` PASSES every patch leaf's schema — each is `.optional()` — and
+      // then vanishes on serialisation, leaving the leaf ABSENT, which the patch
+      // model defines as "do not touch this field", while `editedFields` still
+      // names it as touched. `resolveReview` refuses it; this is the same refusal
+      // moved to the call site, because a React editor whose state is `undefined`
+      // submits exactly this and the useful place to report a host bug in an
+      // `onChange` is the keystroke that caused it.
+      //
+      // Deliberately NOT normalised to `null`: that writes an empty value the human
+      // never asked for, and fails anyway on a leaf that is `.optional()` but not
+      // `.nullable()`.
+      if (value === undefined) {
+        throw new Error(
+          `ribo: cannot edit "${path}" to undefined — it would be dropped on save and read back as "leave this field alone". Use edit("${path}", null) to record that there is nothing to put here, or reject("${path}") to leave the field untouched.`,
+        );
+      }
+      setDecision(path, { status: "edited", value });
+    },
     [setDecision],
   );
 
   const reject = useCallback(
-    (key: keyof F) => setDecision(key, { status: "rejected" }),
+    (path: FieldPath) => setDecision(path, { status: "rejected" }),
     [setDecision],
   );
 
   const untouched = useMemo(
-    () => keys.filter((key) => decisions[key] === undefined),
-    [decisions, keys],
+    () => paths.filter((path) => decisions[path] === undefined),
+    [decisions, paths],
   );
 
   const settle = useCallback(
-    async (outcome: ReviewOutcome<F>): Promise<ReviewOutcome<F>> => {
+    async (outcome: ReviewOutcome): Promise<ReviewOutcome> => {
       if (item === undefined) throw new Error("ribo: cannot submit a review with no item.");
       setSubmitting(true);
       setError(undefined);
       try {
-        // The typed outcome erases to the persisted loose shape here. `submitReview`
-        // re-parses it, so a malformed outcome fails at the argument.
-        await outbox.submitReview(item.id, outcome as Parameters<Outbox["submitReview"]>[1]);
+        // No cast on the way out either: `ReviewOutcome` is structurally the
+        // persisted shape, and `submitReview` re-parses it regardless.
+        await outbox.submitReview(item.id, outcome);
         return outcome;
       } catch (cause) {
         const failure = cause instanceof Error ? cause : new Error(String(cause));
@@ -3612,18 +3916,42 @@ export function useReview<F extends Record<string, unknown>>(
     [item, outbox],
   );
 
-  const submit = useCallback(async (): Promise<ReviewOutcome<F>> => {
+  const submit = useCallback(async (): Promise<ReviewOutcome> => {
     if (request === undefined) throw new Error("ribo: this item is not ready for review.");
-    // Every key gets a decision, defaulting to accepted — the complete-by-
-    // construction shape core's FieldDecisions requires.
-    const complete = Object.fromEntries(
-      keys.map((key) => [key, decisions[key] ?? { status: "accepted" }]),
-    ) as FieldDecisions<F>;
-    return await settle(resolveReview(request, { status: "submitted", decisions: complete }));
-  }, [decisions, keys, request, settle]);
+    const id = item?.id;
+    // A decision for every leaf, defaulting to accepted. This is what makes
+    // `resolveReview`'s completeness check pass; the check, not this line, is the
+    // guarantee.
+    const complete: FieldDecisions = Object.fromEntries(
+      paths.map((path) => [path, decisions[path] ?? { status: "accepted" }]),
+    );
+
+    let outcome: ReviewOutcome;
+    try {
+      outcome = resolveReview(request, { status: "submitted", decisions: complete });
+    } catch (cause) {
+      const failure = cause instanceof Error ? cause : new Error(String(cause));
+      // REPLACED, not merged: each submit is a complete verdict over every leaf, so
+      // a message carried over from an earlier attempt would flag a leaf that is
+      // now fine.
+      setState((prior) => ({
+        forItem: id,
+        decisions: prior.forItem === id ? prior.decisions : {},
+        errors: failure instanceof ReviewValidationError ? indexIssues(failure.issues) : {},
+      }));
+      setError(failure);
+      // Still thrown. A caller that ignores a refused submission must not carry on
+      // as though the review went in; `errors` is for showing it, not for replacing
+      // the failure.
+      throw failure;
+    }
+
+    setState((prior) => (prior.forItem === id ? { ...prior, errors: {} } : prior));
+    return await settle(outcome);
+  }, [decisions, item?.id, paths, request, settle]);
 
   const discard = useCallback(
-    async (reason?: string): Promise<ReviewOutcome<F>> =>
+    async (reason?: string): Promise<ReviewOutcome> =>
       await settle(
         reason === undefined ? { status: "discarded" } : { status: "discarded", reason },
       ),
@@ -3639,6 +3967,7 @@ export function useReview<F extends Record<string, unknown>>(
     edit,
     reject,
     untouched,
+    errors,
     submit,
     discard,
     submitting,
@@ -3651,7 +3980,7 @@ export function useReview<F extends Record<string, unknown>>(
 
 ```ts
 export { useReview } from "./use-review.js";
-export type { UseReviewResult } from "./use-review.js";
+export type { UseReviewOptions, UseReviewResult } from "./use-review.js";
 ```
 
 ```bash
@@ -3660,10 +3989,18 @@ pnpm format
 git add packages/ribo-ui-react
 git commit -m "Add useReview
 
-Decisions start complete because core's FieldDecisions is deliberately not
-Partial, and `untouched` is what lets a host refuse to submit while an
-ungrounded field has never been looked at -- honouring the 'I did not look at
-it must not mean accepted' rule without a fourth decision status."
+Addresses dotted leaf paths, so an auditor can accept one health-safety test
+while correcting another. Takes the adapter's values schema rather than the
+adapter or a provider entry: the hook needs a ZodObject to walk, and keeping
+ToolAdapter out of this package is what makes 'a review UI needs no adapter
+import' true.
+
+Decisions start complete with an untouched list for the human, but the
+guarantee is resolveReview's runtime completeness check. Decision state is
+keyed by item.id and read through a synchronous guard, because a reused queue
+card leaves one submittable render otherwise. submit() throws on a refused
+submission AND indexes the issues by path, so a card can flag the offending
+editor without a try/catch. An edited undefined is refused, never normalised."
 ```
 
 ---
@@ -3992,22 +4329,60 @@ grep -rn "connectivity-store" playground/src
 
 If nothing imports it, delete `playground/src/connectivity-store.ts`.
 
-- [ ] **Step 4: Rewrite `ReviewPanel` as the interactive surface**
+- [ ] **Step 4: Rewrite `ReviewPanel` as the schema-driven interactive surface**
 
-Keep, verbatim: `ExtractorBanner`, `MeasurementCaveat`, `flatten`, `humanize`, and the `Envelope`
-handling. They are hard-won and still true — a grounded span proves the model quoted the transcript,
-never that the audio was heard right.
+**Keep verbatim:** `ExtractorBanner`, `MeasurementCaveat`, and `humanize`. The two banners are
+hard-won and still true — a grounded span proves the model quoted the transcript, never that the audio
+was heard right — and turning a dotted path into a label is presentation that nothing in core owns.
 
-Change the data source and add the controls:
+**Delete:** `flatten()`, `isEnvelope()`, the `Envelope` interface and the `Leaf` type. Core produces
+exactly this now, and produces it **better**: `ReviewFields` is computed from the values schema rather
+than from `item.extracted`, so a leaf the model omitted is present with the sentinel envelope instead
+of missing from the card. A field that vanishes is indistinguishable to the auditor from one that was
+extracted correctly, which is the failure the schema walk exists to prevent — so this is not a
+like-for-like swap, and the panel's "silent fields" summary should be re-derived from
+`fields[path].extracted.value === null` rather than from what `flatten` happened to find.
+
+Change the data source:
 
 ```tsx
 const { items: parked, loading } = useOutboxItems({ status: "awaiting-review" });
 ```
 
-and per item, a `ReviewCard` built on `useReview`, with per-field accept / edit / reject controls, an
-"accept all and queue" submit, and a discard. Gate submit while
-`untouched.some((key) => fields?.[key].isGrounded === false)` — the ungrounded fields are precisely the
-ones a human must look at, and `untouched` exists to make that enforceable.
+and per item a `ReviewCard` built on `useReview`, fed the adapter's patch schema:
+
+```tsx
+import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
+
+const { fields, decisionOf, accept, edit, reject, untouched, errors, submit, discard, submitting } =
+  useReview(item, { valuesSchema: snuggValuesSchema });
+```
+
+`snuggValuesSchema` is already exported and the playground already depends on the adapter package
+(`playground/package.json:14`). Import it at module scope — it is a constant, and an inline schema
+would rebuild every field on every render.
+
+**Render each row off `ReviewField.schema`.** This is doc 04's schema-driven `ReviewCard`, and it is
+the part that was not possible when R2 was planned:
+
+- Pick the editor from the leaf's schema, not from a field name — a `z.enum` renders a `<select>`
+  whose options come from the schema's own values, a `z.number()` renders a numeric input. Strip the
+  leaf's `.optional()` / `.nullable()` wrappers to find the kind; keep the wrapped schema for
+  validation, because `null` is a legal reviewed value.
+- Show `errors[path]` beside that row's editor when present. That map exists so this does not need a
+  `try`/`catch` around submit.
+- The panel needs **no adapter-specific knowledge beyond the one schema import** — no field-name
+  switch, no per-field label table beyond `humanize`. If a row needs a special case, that is a signal
+  the information belongs on the schema, not in the panel.
+
+Controls: per-leaf accept / edit / reject, an "accept all and queue" submit, and a discard. Gate
+submit while `untouched.some((path) => fields?.[path]?.isGrounded === false)` — the ungrounded leaves
+are precisely the ones a human must look at, and `untouched` exists to make that enforceable. Note
+this is now over **34** leaves for Snugg Pro rather than 24 top-level fields, so the card needs the
+`healthSafety` group visually grouped (split the dotted path) or it reads as a wall.
+
+`submit()` rejects on a refused submission, so the handler must `await` it inside a `try` or attach a
+`.catch` — an unhandled rejection in an `onClick` is a console error and a card that looks stuck.
 
 The panel's copy must change too: it currently says "Drain the queue above (_sync now_, or
 _Transcribe_) and the fields appear here." That is still true, but the fields now _wait_ for review

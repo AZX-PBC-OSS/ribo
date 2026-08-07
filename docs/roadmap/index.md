@@ -63,11 +63,13 @@ review hook. R1 and R1.5 are both done; the rest proceed in dependency order:
    gap it surfaced: review is a contract in core with no callers, because the relay goes straight from
    `extracting` to `writing`. Phase A makes review a real gate (`awaiting-review`, a persisted outcome,
    pause/resume on `Recorder`); Phase B builds the hooks and migrates the playground onto them.
-   **Phase A has shipped. Phase B is blocked on a design revision:** R1.5 moved review to flat dotted
-   leaf paths, so R2's design and plan still specify `useReview` against `ReviewFields<F>`,
-   `FieldDecision<F[K]>`, `decisionOf<K extends keyof F>` and `ReviewOutcome<F>` — all now impossible,
-   and `ReviewedValues` is deleted. That is a design change, not a docs pass; the hook's whole surface
-   follows from it. → [design](design/r2-headless-hook-layer-design.md)
+   **Phase A has shipped. Phase B is unblocked:** R1.5 moved review to flat dotted leaf paths, which
+   made the published `useReview` — generic in a field set, addressed by `keyof F` — impossible rather
+   than merely dated. Design revision 2 respecifies it: no generic, the adapter's values schema passed
+   in at the call site (`useReview(item, { valuesSchema })`) rather than carried on the provider, and
+   `submit()` both throwing and exposing per-leaf errors. Design §9 records what changed and why.
+   → [design](design/r2-headless-hook-layer-design.md) ·
+   [plan](phases/r2-headless-hook-layer.md)
 2. **R1.6 — Snugg Pro API alignment.** The adapter's field set was reverse-engineered from Snugg Pro's
    public **printed field sheet**; the machine-readable spec later showed that model to be wrong in
    several places. [Doc 15](../implementation/15-snuggpro-api-verified.md) already wrote the delta list

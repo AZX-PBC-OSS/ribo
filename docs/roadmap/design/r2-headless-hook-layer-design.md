@@ -3,6 +3,9 @@
 **Date:** 2026-08-06
 **Author:** AZX
 **Status:** Approved for planning
+**Revision:** 2 — §4.3's `useReview` is respecified against the leaf-path review contract R1.5
+landed. The generic `F` is gone, along with the two casts it existed to justify. §9 records what was
+published, why it no longer compiles, and what replaced it.
 **Task:** **R2** of the Voice-to-Text MVP design, which lives in the separate `franklin-field-app`
 repo (file `docs/roadmap/design/2026-07-28-voice-to-text-mvp-design.md` there; not openable from this
 repo)
@@ -112,6 +115,15 @@ missing and how to supply it, so the failure is a clear message at first render 
 `undefined` three frames later. Each hook also accepts an explicit instance that bypasses context,
 which is what the tests use.
 
+**Three instances, and the admission test is lifetime.** Everything above is about things whose
+_construction_ must happen once and outlive a mount. That is what `RiboInstances` is for, and it is
+why nothing else joins it. `useReview` needs an adapter's values schema (§4.3) and takes it as an
+argument rather than off the context: a `ToolAdapter` is a frozen module-level literal with no
+lifetime at all, so carrying it here would dilute the provider into a general-purpose dependency bag,
+and `RiboInstances` — the one interface in this package every host writes out by hand — would have to
+declare a `ToolAdapter<any, any>`, since the provider cannot know either type parameter. The rule
+stands as it reads: instances the host constructs and owns, nothing else.
+
 ### 2.3 The review gate parks the item; the relay moves on
 
 Review interposes between extraction and writing as a new `awaiting-review` status that is
@@ -150,9 +162,10 @@ system works is worse than an absent one, and keeping it "just in case" invites 
 to build against it.
 
 `buildReviewRequest`, `resolveReview`, `ReviewRequest`, `ReviewSubmission`, `FieldDecision`,
-`FieldDecisions`, `ReviewField`, `ReviewFields`, `ReviewedValues` and `ReviewOutcome` all stay — they
-are the vocabulary the hook is built from, and `resolveReview` remains the single place "was this
-draft edited?" is decided.
+`FieldDecisions`, `ReviewField`, `ReviewFields` and `ReviewOutcome` all stay — they are the
+vocabulary the hook is built from, and `resolveReview` remains the single place "was this draft
+edited?" is decided. R1.5 has since reshaped most of them and deleted `ReviewedValues` outright, so
+the names survive and their signatures do not; see §9.
 
 `review.ts`'s file header needs rewriting: it currently explains the contract in terms of a presenter
 the relay calls, and states that "`ribo-ui-react` implements `ReviewPresenter` in Phase 5". Both
@@ -173,8 +186,11 @@ on the device. The row itself is retained, because "this recording was captured 
 discarded" is worth being able to see.
 
 An `edited` outcome in which every field was rejected still goes to `writing`, not `discarded` — see
-the rule above. Whether an empty field set is writable is the adapter's `schema.parse` to decide, per
-`review.ts`: "Narrowing that to a non-null `F` is the adapter's job."
+the rule above. That routing is unchanged: `submitReview` unparks it like any other edit rather than
+collapsing it into a discard and destroying audio nobody asked to throw away. What happens to it
+downstream is not as this section left it — an empty field set was to be the adapter's `schema.parse`
+to judge, and the relay refuses it outright instead, because nothing on that path is ever handed an
+adapter (§9).
 
 ### 2.6 Pause/resume lands in Phase A
 
@@ -264,10 +280,11 @@ with the original model output going to the host tool.
 
 Two changes fix it:
 
-1. **`WriteStepInput.extracted` is replaced by `reviewed: ExtractedFieldMap`** — the flat reviewed
-   values, which is what `resolveReview` already produces and what `ToolAdapter.write(fields: F, ctx: C)`
-   already wants (it takes plain values, never envelopes). The raw envelopes stay reachable as
-   `input.item.extracted` for provenance and diagnostics.
+1. **`WriteStepInput.extracted` is replaced by `reviewed: ExtractedFieldMap`** — the reviewed values,
+   which is what `resolveReview` already produces and what `ToolAdapter.write` already wants (it takes
+   plain values, never envelopes). The raw envelopes stay reachable as `input.item.extracted` for
+   provenance and diagnostics. Two details this section got ahead of itself on: `reviewed` is
+   **nested**, not flat, and `write` has since gained a third `WriteMetadata` parameter (§9).
 
    Replaced rather than added alongside. Two similarly-named fields on the same input would make
    "wrote the un-reviewed map" a one-word typo whose symptom is silent and whose blast radius is a
@@ -279,10 +296,13 @@ Two changes fix it:
    human has not seen" enforced at the write boundary as well as by status routing — cheap
    defence-in-depth for the one invariant in the system whose violation is invisible and unrecoverable.
 
-Also worth recording, because it looks like it needs handling and does not: an `edited` outcome in which
-every field was rejected reaches `#write` with `reviewed: {}`. That is correct and needs no special
-case — the adapter's `schema.parse` is the trust boundary that decides whether an empty field set is
-writable (§2.5).
+Also worth recording, because this section got it wrong: an `edited` outcome in which every field was
+rejected reaches `#write` with `reviewed: {}`, and that was said to need no special case, on the
+grounds that the adapter's `schema.parse` decides whether an empty field set is writable. It is not a
+boundary on this path — the relay is never handed an adapter, `RelayOptions.write` is a bare
+host-supplied function, and "a real schema would reject this" was therefore a guarantee nothing
+enforced. `#write` refuses an empty field set with a `TerminalQueueError` naming which of the two
+causes it was (§9).
 
 Blast radius is small: every `WriteStep` in the repo today ignores its input. Two playground stubs
 (`QueuePanel.tsx:219`, `TranscribePanel.tsx:257`) and the test doubles need their signatures updated,
@@ -302,8 +322,14 @@ Six files, and the last one is a silent bug rather than an addition.
 - **`discarded`** added to `OUTBOX_STATUSES` and to `FINISHED_OUTBOX_STATUSES`.
 - **`reviewOutcome`**, optional, stored **loose** — `fields: z.record(z.string(), z.unknown())`,
   `editedFields: z.array(z.string())`, `rejectedFields: z.array(z.string())`, `reason: z.string().optional()`,
-  discriminated on `status`. Loose for the same reason `extracted` is loose: the document schema cannot
-  be generic in `F`. The typed `ReviewOutcome<F>` lives at the hook boundary; persistence erases it.
+  discriminated on `status`. Loose for the same reason `extracted` is loose: one document schema
+  describes every host tool's field set, so it cannot be generic in one. `reviewOutcomeSchema` owns
+  that shape and `queue/schema.ts` imports it rather than redeclaring it, so the concept has one
+  owner; `PersistedReviewOutcome` is its inferred type. (`ReviewOutcome` has since lost its type
+  parameter, so "typed at the hook boundary, erased on the way to disk" no longer describes two
+  different shapes — §9. The stored shape needed no further version bump when review moved to nested
+  values and dotted paths: `z.record(z.string(), z.unknown())` takes a nested object as readily as a
+  flat one.)
 - **`outboxRxSchema.version` 0 → 1**, with the new property mirrored into the RxDB JSON schema.
 
 The three drift guards in `schema.test.ts` pin `outboxDocumentSchema` ↔ `outboxRxSchema` ↔
@@ -341,8 +367,11 @@ guard is the second line of defence for exactly this reason.
 A new method:
 
 ```ts
-async submitReview(id: string, outcome: ReviewOutcome<Record<string, unknown>>): Promise<OutboxItem>
+async submitReview(id: string, outcome: PersistedReviewOutcome): Promise<OutboxItem>
 ```
+
+It takes the persisted (loose) outcome and re-parses it, so a malformed one fails at the argument
+rather than on the next reload.
 
 On `Outbox` rather than as a free function because it is a row write: it inherits the existing
 `#serialized` discipline and the pre-write `outboxItemSchema.parse` that makes a bad status fail at
@@ -418,27 +447,115 @@ The query object is serialised for the effect dependency, so an inline `{ status
 tear down and re-establish the subscription on every render — a trap a consumer would hit immediately
 and diagnose slowly.
 
-### 4.3 `useReview(item, options?)`
+### 4.3 `useReview(item, { valuesSchema })`
 
-Generic in `F`. Returns `{ ready, fields, decisionOf, accept, edit, reject, untouched, submit, discard, submitting, error }`.
+Not generic. Returns
+`{ ready, fields, transcript, decisionOf, accept, edit, reject, untouched, errors, submit, discard, submitting, error }`.
+
+```tsx
+const review = useReview(item, { valuesSchema: snuggValuesSchema });
+```
+
+Rewritten against R1.5's leaf-path review contract; §9 records what this section used to say.
+
+**It takes the values schema — not an adapter, and not via the provider.** `buildReviewRequest` walks
+a `ZodObject` to decide which leaves exist, so the schema is the one thing the hook genuinely needs,
+and it is all it gets. Handing it a whole `ToolAdapter` would also hand it `write()` and
+`instructions`, which a review card has no business with, and would pull the `ToolAdapter` type into
+`@azx/ribo-ui-react`'s imports. Keeping it out is what makes AGENTS.md §4's claim literally true: a
+review UI renders and validates entirely off `ReviewField.schema` and needs no adapter import — the
+single adapter-derived value that crosses into the UI is this schema, named once at the call site.
+Rejected alternative: carrying the adapter on `RiboProvider`, because the provider exists for
+instances whose lifetime must live above React and an adapter is a frozen literal with none (§2.2).
+
+**Hold the schema still.** `valuesSchema` is a `useMemo` dependency, so an inline `z.object({ … })`
+rebuilds `fields` on every render. Hosts pass `adapter.schema`, which is a module-level constant, so
+this costs nothing in practice — but it is worth one sentence, because the symptom is a review card
+whose inputs lose focus on every keystroke, which reads as a React bug rather than a schema-identity
+one.
 
 - `ready` is `false` while `item.extracted` or `item.transcript` is absent; both are optional on
   `OutboxItem` and neither exists before the relay has run those steps.
-- `fields` is core's `ReviewFields<F>` from `buildReviewRequest`, so `isGrounded` is precomputed and no
-  UI re-implements `isSpanGrounded`.
-- **The generic boundary is explicit and one-directional.** `item.extracted` is persisted loose
-  (`Record<string, unknown>`), so the hook asserts it to `ExtractedFields<F>` on the way in — `F` is
-  the caller's claim about what the adapter extracts, and the hook cannot verify it. On the way out,
-  `ReviewOutcome<F>` erases back to the loose shape `submitReview` persists. Both crossings happen in
-  this one hook, so the assertion is reviewable in a single place rather than scattered across a UI.
-  The adapter's `schema.parse` at write time remains the actual trust boundary; this is a typing
-  convenience, and the spec is deliberate that it is not a validation.
-- **Decisions initialise complete.** `FieldDecisions` is deliberately not `Partial` — "a field with no
-  decision is indistinguishable from a field the reviewer never saw, and 'I did not look at it' must
-  not silently mean 'accepted'". Every field therefore starts `{ status: "accepted" }`, and
-  **`untouched`** reports which fields the human has not actually acted on. A host can require every
-  `isGrounded: false` field to be visited before enabling submit. That honours the warning without
-  inventing a fourth decision status the core contract does not have.
+- `fields` is core's `ReviewFields` from `buildReviewRequest`: a `Record<FieldPath, ReviewField>` in
+  schema-declaration order, keyed by dotted leaf path (`"healthSafety.ambientCo"`). Snugg Pro presents
+  34 leaves, not 24 top-level keys. Each carries `isGrounded` precomputed, so no UI re-implements
+  `isSpanGrounded`, and its own leaf's zod schema, so a UI can pick the right editor and know an
+  enum's members at runtime — which a TypeScript type cannot tell it.
+- **There is no generic, and the two casts this section used to specify are gone rather than
+  relocated.** `item.extracted` is persisted as `Record<string, unknown>`, which is exactly what
+  `buildReviewRequest` now takes: nothing is asserted on the way in. `ReviewOutcome` has no type
+  parameter and is structurally the `PersistedReviewOutcome` that `submitReview` accepts: nothing is
+  erased on the way out. What this design called "a typing convenience, deliberately not a validation"
+  is now an actual validation, in two places — `resolveReview` parses every accepted and edited value
+  against its own leaf's schema, and `toWriteStep` parses the whole patch with `adapter.schema` before
+  the write.
+- **Decisions still initialise complete, and `untouched` is still why that is safe — but the
+  guarantee now lives in core, and core is the authority.** The reasoning survives intact:
+  `FieldDecisions` must not be `Partial`, because "a field with no decision is indistinguishable from
+  a field the reviewer never saw, and 'I did not look at it' must not silently mean 'accepted'". Every
+  leaf therefore starts `{ status: "accepted" }`, and **`untouched`** reports which leaves the human
+  has not actually acted on, so a host can require every `isGrounded: false` leaf to be visited before
+  enabling submit — honouring the warning without inventing a fourth decision status.
+
+  What changed is who holds it. `FieldDecisions` is now `Record<FieldPath, FieldDecision>` and accepts
+  `{}`, so the type carries nothing; `resolveReview` compares the submission's path set against the
+  request's and refuses a mismatch in **either** direction (R1.5 §2.6). That runtime check is
+  authoritative — it is the one no UI can skip, and it is what protects an item from a hook that is
+  wrong. The hook's complete-by-construction submission is not a second guarantee running alongside
+  it; it is the thing that makes the check pass, since `submit()` builds a decision for every key of
+  `request.fields`, defaulting to accepted. So if the completeness check ever fires from this hook,
+  that is a bug in the hook rather than in its caller — the likeliest cause being the stale-decision
+  guard below failing to re-key — and it arrives as an `errors` entry reading "no decision was
+  submitted for this field". `untouched` remains what it always was: an affordance for the human, with
+  no bearing on whether a submission is well-formed.
+
+- **Decision state is keyed by `item.id` and read through a synchronous guard.** A queue UI reuses one
+  mounted card for the next parked item, and leaf paths repeat across recordings — `atticRValue` is
+  `atticRValue` in every one — so decisions carried over would submit silently, attributing one
+  recording's correction to another. An effect-based reset is not enough: it leaves one render in
+  which the previous recording's corrections are live and submittable, and submit is a click, not a
+  frame. The state therefore holds `{ forItem, decisions, errors }`, and every read evaluates
+  `state.forItem === item?.id ? state.decisions : {}` during render.
+- **`submit()` still throws on a validation failure, and `errors` reports the same failure per leaf.**
+  `resolveReview` refuses any accepted or edited value its leaf's schema rejects, throwing
+  `ReviewValidationError` carrying a `ReviewIssue` per offending path. Both behaviours are required
+  and neither substitutes for the other: a caller who ignores the rejection must not proceed as though
+  the review had been submitted, which is what a thrown error buys; and a UI must be able to render
+  "expected a number" beside the offending input without wrapping submit in a `try`/`catch` to find
+  out. So the result also carries
+
+  ```ts
+  readonly errors: Readonly<Record<FieldPath, string>>;
+  ```
+
+  keyed the way `fields` is, so a field row reads `errors[path]` in O(1). A `readonly ReviewIssue[]`
+  would make each of 34 rows scan the list — the sort of index every consumer would rebuild
+  identically and slightly differently. One string rather than a list of them, because core already
+  joins a leaf's zod issues into a single sentence written for the human looking at that leaf, and one
+  editor has one error slot. The full ordered list stays reachable: `error` holds the thrown
+  `ReviewValidationError` itself, so `error.issues` is there for a summary banner.
+
+  The lifecycle is the part that goes wrong if left unstated:
+  - **Replaced wholesale on every `submit()`** — a failure installs the new index, a success empties
+    it. Each submit is a complete verdict, so carrying a message forward would flag a leaf that is now
+    fine.
+  - **Cleared for one path as soon as any decision is recorded for it** — `edit`, but also `accept`
+    and `reject`, because rejecting is the escape core's own message names for a leaf whose extracted
+    value cannot be accepted as it stands.
+  - **Held in the same `item.id`-keyed state as the decisions**, behind the same guard, so a reused
+    card never shows the previous recording's errors.
+
+- **`edit(path, undefined)` is refused, not normalised.** `edit` takes an `unknown` value, so
+  `undefined` is type-legal, and a React editor whose state is `undefined` submits exactly that. It
+  then passes any `.optional()` leaf schema and disappears on serialisation, leaving the leaf
+  **absent** — which the patch model defines as "do not touch this field" — while `editedFields` still
+  names it as touched. Core refuses it in `resolveReview`, and the hook's job is not to build a road
+  around that: `edit` throws immediately, naming both escapes, `edit(path, null)` for "there is
+  nothing to record here" and `reject(path)` for "leave this field alone". Immediately rather than at
+  submit, because this is a host bug in an `onChange` handler and the useful place to report it is the
+  keystroke that caused it. Normalising to `null` is specifically what must not happen: it writes an
+  empty value the human never asked for, and fails anyway on a leaf that is `.optional()` but not
+  `.nullable()`.
 - `submit()` runs `resolveReview(request, { status: "submitted", decisions })` and passes the outcome
   to `outbox.submitReview`. `discard(reason?)` submits the discarded branch.
 
@@ -490,10 +607,20 @@ available documentation of why the provider constructs nothing.
 | `ReviewPanel`       | Rewritten interactive (below).                                                                                               |
 
 `ReviewPanel` becomes the first real review surface: `useOutboxItems({ status: "awaiting-review" })`
-for the queue, `useReview` per item, per-field accept / edit / reject, and submit / discard. Its two
-caveat banners survive verbatim — the extractor-mode warning (sample data vs live model) and the
-Lennox/"Linux" grounding caveat are hard-won and honest, and a grounded span still proves only that
-the model quoted the transcript, never that the audio was heard correctly.
+for the queue, `useReview(item, { valuesSchema: snuggValuesSchema })` per item, per-leaf accept / edit
+/ reject, and submit / discard. Its two caveat banners survive verbatim — the extractor-mode warning
+(sample data vs live model) and the Lennox/"Linux" grounding caveat are hard-won and honest, and a
+grounded span still proves only that the model quoted the transcript, never that the audio was heard
+correctly.
+
+It also loses code rather than only gaining it. The panel's local `flatten()` and `isEnvelope()` walk
+`item.extracted` to produce dotted paths and unwrap envelopes; `ReviewFields` is already that, and
+computed from the **schema** rather than from the data — which is the difference that matters, because
+a leaf the model omitted is present in the schema walk and simply missing from the data walk, and a
+field that vanishes from a review card is indistinguishable to the auditor from one extracted
+correctly. Each field's editor then comes off `ReviewField.schema`. That is the schema-driven
+`ReviewCard` doc 04 specified from the start and which was not buildable when R2 was planned.
+`humanize()` stays: turning a dotted path into a label is presentation, and nothing in core owns it.
 
 Two write stubs also change signature per §2.9 — `QueuePanel.tsx:219` and `TranscribePanel.tsx:257`
 both build a relay with `write: () => Promise.resolve({ writtenBy: … })`. They ignore their input, so
@@ -529,8 +656,10 @@ dropping the case.
 - Recorder phase transitions including pause/resume; `error.code` surfacing through the injected
   `getUserMedia` seam (denied permission, no device); enqueue-on-stop landing a real `OutboxItem`.
 - `useOutboxItems` going loading → items, updating live on enqueue, and honouring a query filter.
-- `useReview`'s decision state, `untouched` tracking, and submit persisting through to a status
-  change on the real row.
+- `useReview`'s decision state keyed by `item.id` — including that a card reused for a second item
+  shows no trace of the first on the render immediately after the swap, not one render later —
+  `untouched` tracking, a refused `edit(path, undefined)`, per-path `errors` from a failed submit and
+  their clearing, and submit persisting through to a status change on the real row.
 - `useWorkSafety` reporting un-reviewed work as unsafe — the §3.6 bug asserted at the hook level too,
   because that is where a consumer would see it.
 - The provider's missing-instance error message.
@@ -583,3 +712,85 @@ build:app → pkg:gates → test, with the summary line pasted rather than succe
    ordinary flow read as a fault.
 3. **The React floor** (`docs/open-questions.md` §3) stays open. R2 uses no hook beyond React 18, so
    the current `^18.3 || ^19` peer range is not narrowed by this work.
+
+---
+
+## 9. What changed in revision 2
+
+R1.5 landed between this document's approval and Phase B's implementation, and it rewrote the review
+contract §4.3 was specified against. The published `useReview` does not merely need rewording — **it
+no longer compiles**, and an implementer picking up Task 14 would have built a hook against deleted
+types. R1.5's design carries revision notes (its §9, §9.1, §9.2) for exactly this reason, and this is
+the same failure mode one document over.
+
+Phase A is unaffected and has shipped; §3's sections describe what is in `main`. Everything below is
+Phase B, except the last two items, which correct Phase A statements R1.5 falsified after the fact.
+
+**What was specified.** `useReview` generic in a field-set type `F`, with decisions addressed by
+`keyof F`:
+
+```ts
+export function useReview<F extends Record<string, unknown>>(
+  item: OutboxItem | undefined,
+  options?: { readonly outbox?: Outbox },
+): UseReviewResult<F>;
+
+readonly fields: ReviewFields<F> | undefined;
+readonly decisionOf: <K extends keyof F>(key: K) => FieldDecision<F[K]> | undefined;
+readonly edit: <K extends keyof F>(key: K, value: F[K] | null) => void;
+readonly untouched: readonly (keyof F)[];
+readonly submit: () => Promise<ReviewOutcome<F>>;
+```
+
+**Why it is no longer possible.**
+
+- **Review addresses flat dotted leaf paths, not top-level keys.** Snugg Pro is 23 top-level fields
+  plus a nested 11-test `healthSafety` matrix; mapping decisions over `keyof F` gave that matrix one
+  provenance envelope and one verdict for all 11, so an auditor could not accept the ambient-CO result
+  while correcting the asbestos one — which is the entire point of field-level review. `ReviewFields`
+  and `FieldDecisions` are `Record<FieldPath, …>` rather than mapped types over a field-set generic
+  (R1.5 §2.4), and Snugg Pro presents 34 leaves.
+- **Each `ReviewField` carries its own leaf's zod schema**, which is what lets a UI render an editor
+  and validate an edit knowing nothing about any adapter — a TypeScript type cannot tell a UI an
+  enum's members at runtime, and that is why the values in the contract are `unknown`.
+- **`ReviewOutcome` lost its type parameter, and `ReviewedValues<F>` and `ExtractedFields<F>` were
+  deleted** (R1.5 §4). A `Record` has one value type for 34 differently typed leaves, so
+  `FieldDecision.value` is `unknown` and the check that an edit is legal moved from the compiler to a
+  schema.
+- **`buildReviewRequest` takes a third argument**, the values schema to walk. The leaves come from the
+  schema, never from the extracted data, so a leaf the model omitted is still presented — carrying the
+  sentinel envelope rather than vanishing from the card.
+- **`resolveReview` validates.** It rejects a submission whose path set is not the request's, and any
+  accepted or edited value its leaf's schema rejects, throwing `ReviewValidationError` with a per-path
+  issue list (R1.5 §2.5, §2.6).
+
+**What replaced it.** §4.3, rewritten, and Task 14's interfaces and tests with it. In short: no
+generic; the hook takes the adapter's values schema as an option (`useReview(item, { valuesSchema })`)
+and nothing else new, on least-privilege grounds, with the rejected alternative — carrying the adapter
+on `RiboProvider` — recorded in §2.2. The two casts the old §4.3 existed to justify are gone rather
+than relocated, because there is nothing left to cast, and what was explicitly "not a validation" is
+now validation in two places. Decisions still initialise complete with an `untouched` list, for the
+human; the guarantee that used to come free from a non-`Partial` mapped type is now `resolveReview`'s
+runtime completeness check, which is the authoritative one. And `submit()` both throws and populates a
+per-path `errors` map, so a UI can flag the offending editor without a `try`/`catch` while a caller
+who ignores the failure still cannot proceed silently.
+
+**Two Phase A statements R1.5 falsified**, corrected in place above rather than left to be
+rediscovered by whoever next reads them as current:
+
+- §2.5 and §2.9 said an `edited` outcome that rejected every field reaches the write step as
+  `reviewed: {}` and needed no special case, because the adapter's `schema.parse` was the trust
+  boundary deciding whether an empty field set is writable. It is not a boundary on that path: the
+  relay is never handed an adapter, `RelayOptions.write` is a bare host-supplied function, and nothing
+  enforced it. `#write` now refuses an empty field set with a `TerminalQueueError` that names which of
+  the two causes it was — the reviewer rejected everything, or the extraction found nothing — because
+  blaming a reviewer for fields they were never shown sends an operator looking in the wrong place.
+  R1.5's `toWriteStep` is where `adapter.schema.parse` finally became a real boundary.
+- §2.9 called `reviewed` "the flat reviewed values". `resolveReview` reassembles them into the
+  **nested** shape the adapter's patch schema describes and `write` sends; `WriteStepInput.reviewed`
+  is unchanged in name and type, but its contents are a tree. `ToolAdapter.write` also gained a third
+  `WriteMetadata` parameter carrying the idempotency key (R1.5 §2.3).
+
+Smaller, same cause: §3.1 and §3.4 described the persisted outcome by contrast with a typed
+`ReviewOutcome<F>` living at the hook boundary. There is one shape now, not two — `reviewOutcomeSchema`
+and its inferred `PersistedReviewOutcome`, which is what `submitReview` takes.
