@@ -35,6 +35,14 @@ export function useOutboxItems(query: OutboxQuery = {}, outbox?: Outbox): UseOut
   // Serialized rather than deep-compared: the query has two scalar-ish fields, so
   // a string key is cheaper and more obvious than a comparison helper. Key order
   // is stable because the object is built from a fixed set of fields.
+  //
+  // Known, accepted gap: `status` as an array is compared element-order-sensitively,
+  // so `["queued", "failed"]` and `["failed", "queued"]` key differently and
+  // needlessly re-subscribe. Every real call site builds `status` from a fixed
+  // literal or a constant array (`ACTIVE_OUTBOX_STATUSES`), never a
+  // dynamically-reordered one, so this has no observed impact; sorting the
+  // array before serializing would fix it but was judged not worth the extra
+  // branch for a case no caller hits.
   const key = JSON.stringify({ status: query.status, limit: query.limit });
 
   const stableQuery = useMemo<OutboxQuery>(() => JSON.parse(key) as OutboxQuery, [key]);
@@ -45,6 +53,15 @@ export function useOutboxItems(query: OutboxQuery = {}, outbox?: Outbox): UseOut
 
   useEffect(() => {
     setLoading(true);
+    // RxJS terminates a subscription on `.error()` — nothing further can ever
+    // arrive on *this* subscription once that fires. The only way a caller
+    // recovers is a brand-new subscription, and that only happens when this
+    // effect restarts (`instance` or `stableQuery` changed). So a stale error
+    // belongs to the subscription that just ended, not to the one about to
+    // start, and clearing it here — alongside `loading` — is what keeps the
+    // two flags describing the same subscription instead of the error
+    // outliving the attempt that produced it.
+    setError(undefined);
     const subscription = instance.watch(stableQuery).subscribe({
       next: (next) => {
         setItems(next);

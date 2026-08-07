@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
-import { StrictMode } from "react";
+import { StrictMode, useState } from "react";
 import { openOutbox, type Outbox } from "@azx/ribo-core";
 import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 
@@ -182,6 +182,51 @@ test("surfaces a watch error without leaving loading stuck", async () => {
   }
   const screen = await render(<Probe />);
   await expect.element(screen.getByText("state error:boom")).toBeInTheDocument();
+  await outbox.close();
+});
+
+test("recovers after an error once the query changes to one that succeeds", async () => {
+  // RxJS terminates a subscription on `.error()`, so the only way `next` can
+  // ever fire again is through a brand-new subscription -- which only exists
+  // once the effect restarts on a real query change, not a same-content
+  // re-render. This drives a real `useState` update (not a fresh object
+  // literal with the same content) so the hook's own effect dependency sees a
+  // genuine change and restarts.
+  const outbox = await freshOutbox();
+  await outbox.enqueue(aRecording());
+  const originalWatch = outbox.watch.bind(outbox);
+  vi.spyOn(outbox, "watch").mockImplementation((query = {}) => {
+    if (query.status === "dead") {
+      return {
+        subscribe: (observer: { error?: (cause: unknown) => void }) => {
+          observer.error?.(new Error("boom"));
+          return { unsubscribe: () => undefined, closed: true } as WatchSubscription;
+        },
+      } as WatchObservable;
+    }
+    return originalWatch(query);
+  });
+
+  function Probe() {
+    const [dead, setDead] = useState(true);
+    const { items, loading, error } = useOutboxItems({ status: dead ? "dead" : undefined }, outbox);
+    return (
+      <>
+        <button type="button" onClick={() => setDead(false)}>
+          recover
+        </button>
+        <p>state {error ? `error:${error.message}` : loading ? "loading" : "ready"}</p>
+        <p>count {items.length}</p>
+      </>
+    );
+  }
+  const screen = await render(<Probe />);
+  await expect.element(screen.getByText("state error:boom")).toBeInTheDocument();
+
+  await screen.getByRole("button", { name: "recover" }).click();
+
+  await expect.element(screen.getByText("state ready")).toBeInTheDocument();
+  await expect.element(screen.getByText("count 1")).toBeInTheDocument();
   await outbox.close();
 });
 
