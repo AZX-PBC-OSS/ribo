@@ -1,92 +1,123 @@
 {
+  "schemaVersion": "snuggpro-51-leaf-v2",
   "transcript": "transcripts/13-enum-paraphrase.txt",
-  "stresses": "ENUM-PARAPHRASE cluster: \"clad\" -> wood_or_metal_clad, \"power vented ... at the unit\" -> power_vented_at_unit, \"well sealed\" -> well_sealed, \"rigid duct board, inch-and-a-half\" -> duct_board_1_5in, \"concrete block\" -> concrete_block. Every stored token differs from the spoken form. HAZARD 3: CO passed, mold warning, worst-case + natural spillage explicitly not done -> not_tested. dhwAgeBand boundary case (\"fifteen years\" at the 11-15 top edge). Shared-duct AC ambiguity on coolingEquipmentType.",
-  "fields": {
-    "heatingEquipmentType": {
-      "value": "furnace_central_ac",
-      "sourceSpan": "Heating is a furnace, natural gas"
+  "stresses": "ENUM-VOCABULARY PARAPHRASE cluster: colloquial phrasings that must resolve to exact schema.ts members without inventing or dropping a value ('what we call clad' -> 'Wood or metal clad', 'the inch-and-a-half board' -> 'Duct Board 1.5\"', 'well sealed' -> '6% - Well sealed', 'block with a stucco skim' -> 'Stucco', 'a gas storage tank' -> 'Tank Water Heater' + 'Natural Gas'). Also exercises the hvacSystemEquipmentType conflated axis from a DIFFERENT angle than the worked example: here BOTH halves of the conflated axis (furnace identity, shared-ducts-with-AC) are explicitly stated across two sentences, so the leaf resolves cleanly to 'Furnace / Central AC (shared ducts)' with no tie-break needed -- looks superficially like the conflation trap and isn't. THE OTHER textually-exact instance of the ambient-vs-undiluted-flue-CO confusability (RECONCILIATION.md ruling 4) -- 'CO at both appliances was clean, zero ppm' is the corpus's most literal match to the ruling's own illustrative phrasing; annotators split on it outright, resolved here to healthAmbientCarbonMonoxide because neither the flue nor a probe nor combustion gas is named. No blanket disclaimers anywhere: every skip (wall insulation not callable, HVAC output capacity unread, worst-case + natural spillage not done) is individually named rather than generic, so `disclaimers` is empty by design.",
+  "disclaimers": [],
+  "leaves": {
+    "wall.wallExteriorWallSiding": {
+      "status": "asserted",
+      "sourceSpan": "block with a stucco skim on the outside",
+      "member": "Stucco"
     },
-    "heatingFuel": { "value": "natural_gas", "sourceSpan": "Heating is a furnace, natural gas" },
-    "heatingManufacturer": { "value": "Carrier", "sourceSpan": "a Carrier, I got the model" },
-    "heatingModelNumber": { "value": "58STA", "sourceSpan": "it's 58STA" },
-    "heatingModelYear": { "value": 2013, "sourceSpan": "the year reads twenty-thirteen" },
-    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": "Didn't get an output number" },
-    "coolingEquipmentType": {
-      "value": null,
-      "sourceSpan": "Central AC on the same ducts as the furnace, shared"
-    },
-    "ductLocation": {
-      "value": "basement_unconditioned",
-      "sourceSpan": "The ducts run through the basement, which is unconditioned down there"
-    },
-    "ductSealing": { "value": "well_sealed", "sourceSpan": "I'd call that well sealed" },
-    "ductInsulation": {
-      "value": "duct_board_1_5in",
-      "sourceSpan": "that rigid duct board, the inch-and-a-half board"
-    },
-    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
-    "atticInsulationDepthIn": { "value": null, "sourceSpan": null },
-    "atticInsulationType": { "value": null, "sourceSpan": null },
-    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
-    "wallInsulated": {
-      "value": null,
+    "wall.wallsInsulated": {
+      "status": "declared_absent",
       "sourceSpan": "I'm not calling the wall insulation either way, leaving it"
     },
-    "wallConstruction": {
-      "value": "concrete_block",
-      "sourceSpan": "Exterior walls are concrete block"
+    "window.windowFrame": {
+      "status": "asserted",
+      "sourceSpan": "Clad, double pane.",
+      "member": "Wood or metal clad"
     },
-    "blowerDoorCfm50": {
-      "value": 2900,
-      "sourceSpan": "Blower door came in at twenty-nine hundred CFM50"
+    "window.windowType": {
+      "status": "asserted",
+      "sourceSpan": "Clad, double pane.",
+      "member": "Double pane"
     },
-    "windowGlazing": {
-      "value": "double_pane",
-      "sourceSpan": "they're double pane, the newer replacements"
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "sourceSpan": "Central AC on the same ducts as the furnace, shared",
+      "member": "Furnace / Central AC (shared ducts)"
     },
-    "windowFrame": {
-      "value": "wood_or_metal_clad",
-      "sourceSpan": "the wood-frame ones with the metal cladding on the exterior, what we call clad"
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "sourceSpan": "Heating is a furnace, natural gas",
+      "member": "Natural Gas"
     },
-    "dhwFuel": { "value": "natural_gas", "sourceSpan": "Water heater is a gas storage tank" },
-    "dhwSystemType": { "value": "storage", "sourceSpan": "Water heater is a gas storage tank" },
-    "dhwAgeBand": { "value": "11-15", "sourceSpan": "About fifteen years old" },
-    "combustionVentType": {
-      "value": "power_vented_at_unit",
-      "sourceSpan": "power vented right at the unit"
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "sourceSpan": "a Carrier",
+      "member": "Carrier"
     },
-    "healthSafety": {
-      "ambientCo": {
-        "value": "passed",
-        "sourceSpan": "CO at both appliances was clean, zero ppm"
-      },
-      "venting": { "value": null, "sourceSpan": null },
-      "naturalConditionSpillage": {
-        "value": "not_tested",
-        "sourceSpan": "worst case and natural spillage both not done"
-      },
-      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
-      "worstCaseSpillage": {
-        "value": "not_tested",
-        "sourceSpan": "worst case and natural spillage both not done"
-      },
-      "draftPressure": { "value": null, "sourceSpan": null },
-      "gasLeak": { "value": null, "sourceSpan": null },
-      "moldMoisture": {
-        "value": "warning",
-        "sourceSpan": "I'd flag mold and moisture as a warning"
-      },
-      "asbestos": { "value": null, "sourceSpan": null },
-      "lead": { "value": null, "sourceSpan": null },
-      "electrical": { "value": null, "sourceSpan": null }
+    "hvac.hvacHeatingSystemModel": {
+      "status": "asserted",
+      "sourceSpan": "it's 58STA",
+      "value": "58STA"
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "asserted",
+      "sourceSpan": "the year reads twenty-thirteen",
+      "value": 2013
+    },
+    "hvac.hvacHeatingCapacity": {
+      "status": "declared_absent",
+      "sourceSpan": "Didn't get an output number, the plate's tucked behind the ductwork where I can't see it"
+    },
+    "hvac.hvacDuctLocation": {
+      "status": "asserted",
+      "sourceSpan": "The ducts run through the basement, which is unconditioned down there",
+      "value": "the basement, which is unconditioned down there"
+    },
+    "hvac.hvacDuctLeakage": {
+      "status": "asserted",
+      "sourceSpan": "I'd call that well sealed",
+      "member": "6% - Well sealed"
+    },
+    "hvac.hvacDuctInsulation": {
+      "status": "asserted",
+      "sourceSpan": "that rigid duct board, the inch-and-a-half board",
+      "member": "Duct Board 1.5\""
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "sourceSpan": "Water heater is a gas storage tank",
+      "member": "Tank Water Heater"
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "sourceSpan": "Water heater is a gas storage tank",
+      "member": "Natural Gas"
+    },
+    "dhw.dhwAge": {
+      "status": "asserted",
+      "sourceSpan": "About fifteen years old",
+      "member": "11-15"
+    },
+    "basedata.blowerDoorReading": {
+      "status": "asserted",
+      "sourceSpan": "Blower door came in at twenty-nine hundred CFM50.",
+      "value": 2900
+    },
+    "health.healthAmbientCarbonMonoxide": {
+      "status": "asserted",
+      "sourceSpan": "CO at both appliances was clean, zero ppm.",
+      "member": "Passed",
+      "arguable": {
+        "acceptableMiss": true,
+        "note": "RULING 4 SITE (see RECONCILIATION.md) -- the corpus's most textually literal match to the ruling's own illustrative example. The transcript says neither 'ambient' nor 'flue'/'undiluted', so this could plausibly name either healthAmbientCarbonMonoxide or healthUndilutedFlueCo. Applying the reconciliation rule (undiluted flue CO only when the flue/a probe/combustion gas is explicitly named), this resolves to ambient. 'Zero ppm, clean' also reads as the expected result of a background/occupant-safety ambient check, whereas an undiluted flue-gas reading is rarely exactly zero even when passing. The annotators split on this leaf outright; a model landing on healthUndilutedFlueCo instead, or leaving this leaf null, is not scored as a hard miss."
+      }
+    },
+    "health.healthMoldMoisture": {
+      "status": "asserted",
+      "sourceSpan": "I'd flag mold and moisture as a warning",
+      "member": "Warning"
+    },
+    "health.healthWorstCaseSpillage": {
+      "status": "asserted",
+      "sourceSpan": "worst case and natural spillage both not done",
+      "member": "Not Tested"
+    },
+    "health.healthNaturalConditionSpillage": {
+      "status": "asserted",
+      "sourceSpan": "worst case and natural spillage both not done",
+      "member": "Not Tested"
     }
   },
   "notes": {
-    "coolingEquipmentType": "Intended null. The AC shares the furnace's ducts, so it is captured by heatingEquipmentType=furnace_central_ac (the Snugg 'Furnace / Central AC (shared ducts)' combined type). The cooling enum has no 'central AC shared ducts' member, and central_ac_standalone_ducts would be WRONG (it is explicitly NOT standalone). Score null CORRECT; central_ac_standalone_ducts is a wrong member; other is a defensible mild alternative. This is the shared-vs-standalone contrast with transcript 08, where the AC genuinely was standalone.",
-    "dhwAgeBand": "BOUNDARY case: \"about fifteen years\" sits at the top edge of 11-15. Intended 11-15. If a model buckets 15 into 16-20, score it as a boundary error (its own bucket), not a flat wrong -- exactly the edge normalization.md predicts.",
-    "windowFrame": "\"clad\" / \"wood with the metal cladding\" -> wood_or_metal_clad. Pure paraphrase; the spoken form never equals the token.",
-    "ductInsulation": "\"rigid duct board, the inch-and-a-half board\" -> duct_board_1_5in.",
-    "wallInsulated": "null with span: the auditor explicitly declines (\"not calling it either way\"). wallConstruction (concrete_block) is asserted and separate.",
-    "_general": "\"stucco skim\", \"condenser out back\", \"bath fan\", \"twenty-ten\" (install date, corroborates the age band, not the source) carry no field values."
+    "hvac.hvacSystemEquipmentType": "NOT the schema's furnace/shared-ducts conflation trap (contrast the worked example): both halves of the conflated axis are explicitly stated here, just in two different sentences ('Heating is a furnace, natural gas' establishes identity; this span establishes that the AC shares the furnace's ducts). No `arguable` needed -- nothing is actually left unaddressed, unlike 11/01/04/06/07/12's furnace cases.",
+    "health.healthAmbientCarbonMonoxide": "See this leaf's own `arguable` block for the ruling-4 leaf-choice ambiguity.",
+    "health.healthWorstCaseDepressurization": "NOT covered by 'worst case and natural spillage both not done' -- the sentence's 'worst case' modifies 'spillage' specifically (parallel to 'natural spillage'), following directly from the preceding clause 'Did not do any combustion spillage testing today.' Depressurization is a different test never mentioned in this transcript, and stays genuinely unmentioned rather than swept in by the word 'worst case' alone.",
+    "basedata.blowerDoorTestPerformed": "Left unmentioned. 'Blower door came in at twenty-nine hundred CFM50' states the reading itself but never uses a word ('test'/'estimate'/'ran') that addresses whether this was an actual test or an estimate -- asserting 'Tested' would be supplying an assumption the auditor gestured toward but never committed to (rule 3), not transcribing something said. Contrast transcripts 10/12, where 'I ran'/'I duct-blasted it' explicitly signals a performed test.",
+    "wall.wallCavityInsulation": "Unmentioned. The auditor addresses only whether the wall is insulated at all (wallsInsulated, declared_absent -- 'no easy access to check'), and never separately states a material or R-value, so nothing individually addresses this leaf or wallCavityInsulationType.",
+    "_general": "Several things said out loud have no leaf in this 51-leaf schema and are deliberately not parked anywhere nearby (rule 9): the wall's construction/assembly material ('concrete block', 'a masonry house' -- SCHEMA FINDING, see RECONCILIATION.md; WallFields has siding/insulation leaves but no assembly-material leaf, same gap as transcripts 01/03); the water heater's power-venting detail ('power-vented, there's a blower on top forcing it out the side wall' -- SCHEMA FINDING, DHW venting, see RECONCILIATION.md, same gap as transcripts 06/09); the water heater's install-tag year ('twenty-ten' -- DhwFields has an age BAND but no numeric year leaf, so only the stated 'about fifteen years old' age is captured); the window vintage ('the newer replacements' -- no age/replacement-year leaf in WindowFields); the AC condenser's location ('out back on the pad' -- no leaf for outdoor-unit placement). 'the Thompson bungalow' is also deliberately not mapped to basedata.typeOfHome: a bungalow is a house STYLE, not one of TypeOfHome's enum members, and inferring 'Single Family Detached' from the style name would be domain inference the auditor never stated (rule 3)."
   }
 }

@@ -1,60 +1,44 @@
 {
+  "schemaVersion": "snuggpro-51-leaf-v2",
   "transcript": "transcripts/09-chatter-and-scheduling.txt",
-  "stresses": "MEASURE-RELEVANCE / chatter-heavy short visit (dog, scheduling, kid, rain, a previous job). Only the DHW is real. \"tankless\" -> instantaneous (enum paraphrase), \"power vented ... at the unit\" -> power_vented_at_unit. dhwAgeBand uses homeowner info the auditor DOES confirm in his own words (\"Yeah, two years\") -> 0-5 -- the deliberate contrast with transcript 06 where he refuses. A previous job's \"three furnaces\" is a distractor that must not populate heating.",
-  "fields": {
-    "heatingEquipmentType": { "value": null, "sourceSpan": null },
-    "heatingFuel": { "value": null, "sourceSpan": null },
-    "heatingManufacturer": { "value": null, "sourceSpan": null },
-    "heatingModelNumber": { "value": null, "sourceSpan": null },
-    "heatingModelYear": { "value": null, "sourceSpan": null },
-    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
-    "coolingEquipmentType": { "value": null, "sourceSpan": null },
-    "ductLocation": { "value": null, "sourceSpan": null },
-    "ductSealing": { "value": null, "sourceSpan": null },
-    "ductInsulation": { "value": null, "sourceSpan": null },
-    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
-    "atticInsulationDepthIn": { "value": null, "sourceSpan": null },
-    "atticInsulationType": { "value": null, "sourceSpan": null },
-    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
-    "wallInsulated": { "value": null, "sourceSpan": null },
-    "wallConstruction": { "value": null, "sourceSpan": null },
-    "blowerDoorCfm50": { "value": null, "sourceSpan": null },
-    "windowGlazing": { "value": null, "sourceSpan": null },
-    "windowFrame": { "value": null, "sourceSpan": null },
-    "dhwFuel": {
-      "value": "natural_gas",
-      "sourceSpan": "It's tankless, on-demand, natural gas, a Navien"
+  "stresses": "A DHW-only visit wrapped in homeowner/dog/scheduling side-chatter, testing: (1) an off-topic distractor from a DIFFERENT job ('the guy had three furnaces in one house' at the prior Cedar job) that must not be attributed to this house's hvac; (2) a homeowner-stated appliance age ('we put that in two years ago') that the auditor only echoes ('Yeah, two years, so no concern on that one at all') without independently confirming it himself (no plate read, no 'let me check') -- BOTH annotators, independently, read this as failing rule 3's attribution bar and left dhw.dhwAge unmentioned; the PRE-EXISTING old-format ground truth had asserted dhwAgeBand: 0-5 here, apparently BY DESIGN as a contrast case against transcript 06's refusal, but the new consensus reading is that an uncritical echo does not clear rule 3's 'independently confirms ... in their own words' bar any better than transcript 06's outright refusal does -- see RECONCILIATION.md; (3) a compound deferral ('the furnace and the attic and all that, we said next Tuesday') naming TWO different resource groups (hvac, attic) in one clause, recorded as two separate group-scoped disclaimers rather than one mis-scoped one or a 'shell' named-set (which does not include hvac); (4) two spoken facts with no write target anywhere in the 51 leaves -- a DHW model number ('Navien NPE-something') and DHW venting hardware ('power-vented ... PVC going out the wall') -- schema findings, see RECONCILIATION.md.",
+  "disclaimers": [
+    {
+      "span": "the furnace and the attic and all that, we said next Tuesday for the full assessment",
+      "topic": "the furnace / HVAC system, deferred to next Tuesday's full assessment",
+      "scope": { "kind": "group", "group": "hvac" }
     },
-    "dhwSystemType": {
-      "value": "instantaneous",
-      "sourceSpan": "It's tankless, on-demand, natural gas, a Navien"
+    {
+      "span": "the furnace and the attic and all that, we said next Tuesday for the full assessment",
+      "topic": "the attic, deferred to next Tuesday's full assessment",
+      "scope": { "kind": "group", "group": "attic" }
+    }
+  ],
+  "leaves": {
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "sourceSpan": "tankless, on-demand, natural gas",
+      "member": "Tankless Water Heater"
     },
-    "dhwAgeBand": {
-      "value": "0-5",
-      "sourceSpan": "Yeah, two years, so no concern on that one at all"
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "sourceSpan": "tankless, on-demand, natural gas",
+      "member": "Natural Gas"
     },
-    "combustionVentType": {
-      "value": "power_vented_at_unit",
-      "sourceSpan": "power vented right at the unit"
+    "dhw.dhwManufacturer": {
+      "status": "asserted",
+      "sourceSpan": "a Navien",
+      "member": "Navien"
     },
-    "healthSafety": {
-      "ambientCo": { "value": null, "sourceSpan": null },
-      "venting": { "value": null, "sourceSpan": null },
-      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
-      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
-      "worstCaseSpillage": { "value": null, "sourceSpan": null },
-      "draftPressure": { "value": null, "sourceSpan": null },
-      "gasLeak": { "value": null, "sourceSpan": null },
-      "moldMoisture": { "value": null, "sourceSpan": null },
-      "asbestos": { "value": null, "sourceSpan": null },
-      "lead": { "value": null, "sourceSpan": null },
-      "electrical": { "value": null, "sourceSpan": null }
+    "dhw.dhwLocation": {
+      "status": "asserted",
+      "sourceSpan": "mounted out in the garage",
+      "member": "Garage or Unconditioned Space"
     }
   },
   "notes": {
-    "dhwSystemType": "\"tankless\"/\"on-demand\" -> instantaneous. The spoken word never equals the stored token.",
-    "dhwAgeBand": "The homeowner says \"two years ago\"; the auditor CONFIRMS in his own words (\"Yeah, two years, so no concern\"). Rule 6 makes this a usable value -> 2 yr -> 0-5. This is the intended contrast with transcript 06, where the auditor refuses the homeowner's age. A model that treats all second-speaker numbers identically will get exactly one of these two wrong.",
-    "heatingEquipmentType": "null. \"three furnaces\" belongs to a DIFFERENT house (the previous Cedar job) and the furnace here is deferred to next Tuesday. No heating value.",
-    "_general": "No DHW manufacturer/model field exists in this schema, so \"Navien\" / \"Navien NPE-something\" is correctly dropped (heatingManufacturer/heatingModelNumber are the HEATING unit's, not the DHW's). Chatter with no fields: the dog, \"scheduled for two\", the kid's schedule, rain, the ladder."
+    "dhw.dhwAge": "GENUINELY ARGUABLE, deliberately left unasserted rather than written with a value -- both independent annotators agreed on this. '[homeowner] We put that in two years ago.' is the homeowner's statement, not the auditor's. The auditor's own line, 'Yeah, two years, so no concern on that one at all, that's a good unit', repeats the homeowner's number back but does no independent confirming act (no plate reading, no 'let me check') the way rule 3's sanctioned example does ('I hear you, but I need to read the plate myself' followed by the auditor's own reading). This reads as the uncritical repeat-back rule 3 explicitly rules out. NOTE: the pre-existing OLD-format ground truth for this transcript asserted an age here (0-5, from '2 years'), apparently designed as a deliberate CONTRAST with transcript 06's outright refusal -- but under the new format's explicit rule-3 language, an uncritical echo does not obviously clear a higher bar than an outright refusal does; both leave the auditor's own words short of an independent confirming act. Treated as evidence, not authority (see RECONCILIATION.md); the new consensus is to leave this leaf unmentioned. A different, more permissive reading of 'Yeah' as the auditor adopting the number as his own professional record would not be unreasonable.",
+    "dhw.dhwTankSize": "NOT recorded. The unit is tankless, so a tank size does not apply, but the auditor never says so explicitly -- inferring 'no tank size' from 'it's tankless' would be deriving one field from another (rule 3's first bullet), not transcribing something said.",
+    "_general": "Not attributed to any leaf: 'the guy had three furnaces in one house' describes a DIFFERENT job (the prior stop on Cedar), not this house's HVAC system -- scene-setting chatter, not data about the current job. 'Navien NPE-something' (the model number the auditor starts to note for the rebate form) has no write target: the rebuilt dhw group (dhwType2, dhwFuel2, dhwAge, dhwLocation, dhwTankSize, dhwManufacturer) has no model-number leaf at all, unlike hvac's hvacHeatingSystemModel -- SCHEMA FINDING (DHW model number; see RECONCILIATION.md), a genuinely empty leaf slot, not a dropped value. Likewise 'the water heater's power-vented, there's the little blower on it and the PVC going out the wall' describes the venting HARDWARE type -- the rebuilt schema has no DHW-venting leaf at all (SCHEMA FINDING; see RECONCILIATION.md); health.healthVenting is a pass/fail/warning/not-tested SAFETY TEST OUTCOME, a different axis entirely, and was not asserted here because no test result was stated, only a hardware description."
   }
 }

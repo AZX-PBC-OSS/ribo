@@ -1,57 +1,49 @@
 {
+  "schemaVersion": "snuggpro-51-leaf-v2",
   "transcript": "transcripts/03-quick-exterior-short.txt",
-  "stresses": "ABSENT-HEAVY short visit (exterior only). Core hallucination test: almost every field is null. Contains a HEDGE trap on glazing (leans double pane but explicitly \"not certain\" -> null) set against a confident frame (\"that I'm sure of\" -> vinyl). Attic and heating explicitly not seen.",
-  "fields": {
-    "heatingEquipmentType": {
-      "value": null,
-      "sourceSpan": "didn't see the heating"
+  "stresses": "A short, deliberately incomplete exterior-only visit -- the headline hallucination probe: almost every leaf is genuinely absent. Two whole-group blanket disclaimers (attic, hvac) plus a broader, topic-naming-but-unresolvable trailing statement ('nothing on the inside today') recorded as `unresolved` rather than guessed at. A hedged visual read on window glazing ('looks like double pane ... I'm not certain') set against an immediately confident frame read ('Vinyl frames though, that I'm sure of') -- THE ONE RULE's core test: something WAS said, so the leaf is asserted (not omitted), but the auditor's own hedge is recorded via `arguable`, licensing both a null miss and the enum's own 'Don't Know' escape hatch as non-penalized alternatives. A wall-framing detail ('two-by-six frame') and an architectural-style word ('ranch') both have no home in the 51 leaves -- schema findings, not misses (rule 9).",
+  "disclaimers": [
+    {
+      "span": "Didn't get into the attic",
+      "topic": "the attic",
+      "scope": { "kind": "group", "group": "attic" }
     },
-    "heatingFuel": { "value": null, "sourceSpan": null },
-    "heatingManufacturer": { "value": null, "sourceSpan": null },
-    "heatingModelNumber": { "value": null, "sourceSpan": null },
-    "heatingModelYear": { "value": null, "sourceSpan": null },
-    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
-    "coolingEquipmentType": { "value": null, "sourceSpan": null },
-    "ductLocation": { "value": null, "sourceSpan": null },
-    "ductSealing": { "value": null, "sourceSpan": null },
-    "ductInsulation": { "value": null, "sourceSpan": null },
-    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
-    "atticInsulationDepthIn": {
-      "value": null,
-      "sourceSpan": "Didn't get into the attic"
+    {
+      "span": "didn't see the heating",
+      "topic": "the heating system",
+      "scope": { "kind": "group", "group": "hvac" }
     },
-    "atticInsulationType": { "value": null, "sourceSpan": "Didn't get into the attic" },
-    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
-    "wallInsulated": { "value": null, "sourceSpan": null },
-    "wallConstruction": {
-      "value": "frame_2x6",
-      "sourceSpan": "looks like a two-by-six frame"
+    {
+      "span": "nothing on the inside today",
+      "topic": "anything else that required going inside the house (beyond the attic and heating already covered above)",
+      "scope": { "kind": "unresolved" },
+      "note": "Broader than the two preceding, already-disclaimed items (attic, heating) in the same sentence, but does not name a specific resource or either of the other two closed NAMED_SETS. It most plausibly extends to the dhw and health groups (both indoor-only assessments) and possibly interior-only wall/basedata details, but the auditor names none of them specifically -- picking dhw, health, or both myself would be exactly the annotator judgment call rule 4 exists to avoid. Not `shell` either: the window and (partially) wall/basedata facts in this transcript were explicitly gathered from OUTSIDE, so `shell`'s attic+wall+window+blowerDoor bundle is not what this phrase is negating. Recorded as unresolved rather than forced into the nearest group; reaches no leaf today, but is worth keeping as data per rule 4.3."
+    }
+  ],
+  "leaves": {
+    "basedata.floorsAboveGrade": {
+      "status": "asserted",
+      "sourceSpan": "a single story ranch",
+      "value": 1
     },
-    "blowerDoorCfm50": { "value": null, "sourceSpan": null },
-    "windowGlazing": { "value": null, "sourceSpan": "so I'm not certain" },
-    "windowFrame": { "value": "vinyl", "sourceSpan": "Vinyl frames though, that I'm sure of" },
-    "dhwFuel": { "value": null, "sourceSpan": null },
-    "dhwSystemType": { "value": null, "sourceSpan": null },
-    "dhwAgeBand": { "value": null, "sourceSpan": null },
-    "combustionVentType": { "value": null, "sourceSpan": null },
-    "healthSafety": {
-      "ambientCo": { "value": null, "sourceSpan": null },
-      "venting": { "value": null, "sourceSpan": null },
-      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
-      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
-      "worstCaseSpillage": { "value": null, "sourceSpan": null },
-      "draftPressure": { "value": null, "sourceSpan": null },
-      "gasLeak": { "value": null, "sourceSpan": null },
-      "moldMoisture": { "value": null, "sourceSpan": null },
-      "asbestos": { "value": null, "sourceSpan": null },
-      "lead": { "value": null, "sourceSpan": null },
-      "electrical": { "value": null, "sourceSpan": null }
+    "window.windowType": {
+      "status": "asserted",
+      "sourceSpan": "Windows from outside look like double pane",
+      "member": "Double pane",
+      "arguable": {
+        "acceptableAlternatives": ["Don't Know"],
+        "acceptableMiss": true,
+        "note": "Not a retraction -- no second value is ever offered -- but the auditor immediately qualifies the observation with 'I couldn't get up close on all of them so I'm not certain,' an explicit self-rated low-confidence hedge on the very fact just stated. 'Double pane' is still the best-supported reading (the only value ever stated), so per THE ONE RULE it is asserted rather than omitted -- but two things are true at once: WindowType has a real 'Don't Know' member that exists for exactly this stated-but-unconfirmed situation (a model landing there is defensible, not a symmetric schema-forced tie-break -- this is an ordinary asymmetric lesser alternative, so `symmetric` is not set), AND a model that declines to commit at all and leaves this leaf null is also a defensible caution given the auditor's own words, not a careless miss. Both non-penalized outs are recorded."
+      }
+    },
+    "window.windowFrame": {
+      "status": "asserted",
+      "sourceSpan": "Vinyl frames",
+      "member": "Vinyl"
     }
   },
   "notes": {
-    "windowGlazing": "Intended null: the auditor leans double pane but explicitly refuses to commit (\"I'm not certain\"). Score null CORRECT; double_pane is WRONG-but-grounded (quoted, not asserted), report separately from invented values. This is paired with the frame to test whether a model can hold a hedge and a certainty apart in the same sentence.",
-    "windowFrame": "Deliberately certain by contrast (\"that I'm sure of\") -> vinyl is a real value. A model that nulls this after nulling glazing is over-correcting.",
-    "wallConstruction": "frame_2x6 from \"looks like a two-by-six frame\" observed via the garage framing. Mildly hedged (\"looks like\") but a direct visual observation, so non-null is acceptable; null is a defensible miss, not a hallucination.",
-    "_general": "Absent-heavy transcript: the correct emission for the entire mechanical/attic/DHW/safety set is null. This is the headline hallucination probe. \"single story ranch\" and \"next week\" carry no field values."
+    "basedata.typeOfHome": "'a single story ranch' names an architectural style, not one of TypeOfHome's structure-category members (Single Family Detached / Attached / Apartment / Condominium / mobile-home variants / Don't Know). The auditor never addresses that axis at all -- a ranch is conventionally detached, but inferring 'Single Family Detached' from the style word alone is exactly the domain-knowledge inference rule 3 forbids, so this leaf stays unmentioned rather than filled from a plausible assumption.",
+    "_general": "'looks like a two-by-six frame from the addition framing' (wall stud/framing dimension, seen through the garage window) is a real observation with NO corresponding leaf anywhere in the 51 -- WallFields captures insulation and siding, not framing dimension (SCHEMA FINDING, see RECONCILIATION.md; the pre-rebuild field set's 'wallConstruction' concept has no rebuilt equivalent). Per rule 9, deliberately not parked on wallCavityInsulationType, wallsInsulated, or anything else nearby. 'white vinyl all the way around' (following 'Vinyl frames though, that I'm sure of') reads as continuing to describe the WINDOW frames, not the exterior wall siding (wall.wallExteriorWallSiding has a 'Metal/vinyl siding' member a less careful extraction might reach for) -- no siding topic is ever introduced, so wall.wallExteriorWallSiding is genuinely unmentioned. The window observations imply multiple physical window groups with possibly-different reads, but the schema models exactly one window-group instance (schema.ts's cardinality note), so the single windowType/windowFrame entries are read as the auditor's one best summary judgment."
   }
 }

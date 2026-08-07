@@ -423,7 +423,17 @@ heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
     ok && errors.length === 0,
   );
 
-  const oldFormat = JSON.parse(readFileSync(join(GT_DIR, "01-attic-r-value-shell.json"), "utf8"));
+  // A synthetic OLD-format fixture (the pre-rebuild shape: flat snake_case `fields`, no `leaves`
+  // key) — inlined rather than read from `ground-truth/`, because every file in that directory is
+  // now new-format (see RECONCILIATION.md: the corpus reconciliation this test suite gates).
+  const oldFormat = {
+    transcript: "transcripts/01-attic-r-value-shell.txt",
+    stresses: "old-format fixture for the isNewFormat negative case",
+    fields: {
+      heatingEquipmentType: { value: "furnace_central_ac", sourceSpan: "a gas furnace" },
+    },
+    notes: {},
+  };
   check(
     "an old-format file (no `leaves` key) is NOT detected as new format",
     !isNewFormat(oldFormat),
