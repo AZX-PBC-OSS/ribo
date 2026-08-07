@@ -11,3 +11,5 @@ export type { AnyRecorder, RiboInstances } from "./context.js";
 export { useConnectivity } from "./use-connectivity.js";
 export { useStoragePersistence } from "./use-storage-persistence.js";
 export type { UseStoragePersistenceResult } from "./use-storage-persistence.js";
+export { useReview } from "./use-review.js";
+export type { UseReviewOptions, UseReviewResult } from "./use-review.js";
