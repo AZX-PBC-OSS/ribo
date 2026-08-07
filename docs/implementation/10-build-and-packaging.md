@@ -40,7 +40,7 @@ here.
 | Library build   | **tsdown** for all five packages                                   | One tool, one syntax target, no drift to police — see §3.1 for the split this replaced |
 | App build       | **Vite 8** (playground + field app)                                | Rolldown is now the default bundler; `rollupOptions` → **`rolldownOptions`**           |
 | Types           | `tsc`-based dts via tsdown's `tsc` generator, all five             | zod's `z.infer` cannot survive `isolatedDeclarations`/oxc (see §3.1)                   |
-| Tests           | **Vitest** (jsdom + browser mode)                                  | See §7                                                                                 |
+| Tests           | **Vitest** (node + browser mode + e2e)                             | See §7                                                                                 |
 | Versioning      | **Changesets**, independent versioning, no `fixed`/`linked` groups | Each package bumps on its own line — see [Releasing](../design/releasing.md)           |
 
 ### 2.1 The target platform baseline (decided 2026-07-23)
@@ -207,7 +207,7 @@ Regardless: **feature-detect `crossOriginIsolated` and surface the degraded mode
 
 ## 5. Dev loop
 
-**Primary — the in-repo `playground/`.** One pnpm workspace means React is a **single instance by construction** rather than patched, and the source condition gives HMR straight into library code with no watch/build chain. It imports all five libraries, and its **production build** runs in CI on every PR (the `build` stage of `./check.sh`), so "do the libraries still resolve, typecheck and bundle inside an app" is a gate, not a vibe. What CI does **not** do is run the app: there is no runtime smoke test yet, so "does the library still _work_ in an app" remains a manual browser step until a browser-mode/E2E project exists (§7).
+**Primary — the in-repo `playground/`.** One pnpm workspace means React is a **single instance by construction** rather than patched, and the source condition gives HMR straight into library code with no watch/build chain. It imports all five libraries, and its **production build** runs in CI on every PR (the `build` stage of `./check.sh`), so "do the libraries still resolve, typecheck and bundle inside an app" is a gate, not a vibe. The `build:app` stage alone does not run the app — but `./check.sh`'s `test` stage's `e2e` project does: it serves that same production build through `vite preview` and drives a real Chromium through it, so "does the library still _work_ in an app" is answered by CI too, not left as a manual step (§7 has the full tier).
 
 **Cross-repo — canary snapshot publishes.** CI publishes `0.0.0-canary-<ts>` under a `canary` dist-tag (never `latest`); the field app pins the **exact version**. This is the only mechanism that also serves the eventual third-party host, and it validates packaging on every PR.
 
@@ -249,15 +249,36 @@ Peer+dev deps (never `dependencies`) · one React version via `catalog:` · `ded
 
 ## 7. Testing
 
-| Tier                 | Environment                         | Scope                                                                           |
-| -------------------- | ----------------------------------- | ------------------------------------------------------------------------------- |
-| Unit                 | node/jsdom                          | Pure logic: zod schemas, state machine, transcript post-processing              |
-| Browser              | **Vitest browser mode, Playwright** | Anything touching **MediaRecorder, IndexedDB, Workers, WASM**                   |
-| **Pack-and-consume** | scratch Vite / webpack / Next apps  | `pnpm pack` → install tarball → build → assert the worker spawns and WASM loads |
+| Tier                 | Environment                                               | Scope                                                                                                                                                     |
+| -------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit                 | **node**                                                  | Pure logic: zod schemas, state machine, transcript post-processing                                                                                        |
+| Browser              | **Vitest browser mode, real Chromium (Playwright)**       | Anything touching **MediaRecorder, IndexedDB, Workers, WASM**                                                                                             |
+| **E2E**              | **Playwright driving `vite preview` over a real `dist/`** | The production build, actually run: real audio capture, an offline reload, IndexedDB/Cache eviction, storage persistence (`playground/e2e/*.e2e.test.ts`) |
+| **Pack-and-consume** | scratch Vite / webpack / Next apps                        | `pnpm pack` → install tarball → build → assert the worker spawns and WASM loads — **not built on this branch yet**                                        |
 
-jsdom has no MediaRecorder, a shimmed IndexedDB, and doesn't faithfully simulate workers/WASM — mocking through it produces tests that pass while production is broken.
+The `unit` project runs in a plain **node** environment (`environment: "node"` in
+`vitest.config.ts`), not jsdom — jsdom sits pinned in the catalog but nothing in this repo actually
+uses it. Node has no `MediaRecorder`, no `IndexedDB`, and doesn't simulate workers/WASM at all, so
+anything touching those is pushed to `browser` or `e2e` rather than mocked through `unit` — mocking
+through a shimmed environment produces tests that pass while production is broken, which is the
+failure this split exists to prevent.
 
-**The third tier is mandatory, not optional.** The source-condition playground _hides packaging bugs by design_ (it never touches `dist/`), and every WASM/worker failure mode is production-build-only. This is the highest-value test in the repo.
+**`e2e` already gates real browser behavior on every `./check.sh` run — it is not a manual step and
+not future work.** Seven spec files, fifteen tests today, none skipped (`check.sh`'s own `test` stage
+comment has the roster). Each builds the playground and serves the built `dist/` through
+`vite preview`, then drives a real Chromium: a recording that survives an offline reload with its
+audio intact, a wiped IndexedDB/Cache reported as eviction rather than an empty queue, the storage
+panel repeating what `persist()` actually answered. This is the runtime smoke test the rest of this
+doc has, in places, described as not existing yet — that was true when written and has not been true
+for a while.
+
+**The pack-and-consume tier is the one still missing, and it is mandatory, not optional, once it
+lands.** The source-condition playground _hides packaging bugs by design_ (it never touches `dist/`
+for its own HMR), and `e2e` does not close that gap either — it builds `dist/` but never packs or
+installs a tarball into a separate host app, so a `package.json` `exports`/`files` mistake that
+`publint`/`attw` miss would still slip through both `build:app` and `e2e` today. Every WASM/worker
+failure mode of that specific kind is production-build-only and pack-only; this is the highest-value
+test still absent from the repo.
 
 ## 8. CI gates
 

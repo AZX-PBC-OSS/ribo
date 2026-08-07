@@ -6,7 +6,7 @@ Two tracks: ordinary component tests, and the **accuracy harness** — the proje
 
 | Area                  | What to test                                                                                                                                                                                             |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Queue`               | Durability across reload/offline; retry + backoff; ordering.                                                                                                                                             |
+| `Outbox`              | Durability across reload/offline; retry + backoff; ordering.                                                                                                                                             |
 | Chunking              | Segments stay under the 10 MB/hop cap; reassembly/ordering correct.                                                                                                                                      |
 | Transcriber selection | Capability probe routes on-device vs managed STT correctly; graceful fallback on probe failure.                                                                                                          |
 | `Extractor`           | zod validation; retry-on-parse-fail; malformed-LLM-output handling.                                                                                                                                      |
@@ -23,11 +23,16 @@ Verified, not assumed, while building the outbox ([09](09-offline-first.md)): sw
 
 ## The playground is a testing tier, not a demo
 
-[10 §7](10-build-and-packaging.md) lists three tiers: unit, browser, and pack-and-consume. There is a
-fourth, and it is the `playground/` app: **consuming our own published surface the way a host app
-would.** It is distinct from the others by what it exercises — not "does this function return the
-right value" (unit), not "does this work against a real browser API" (browser), not "does the tarball
-resolve" (pack-and-consume), but **is this API usable, and does it behave when driven by a UI**.
+[10 §7](10-build-and-packaging.md) lists four tiers: unit, browser, e2e, and pack-and-consume (the
+last still not built on this branch). Using the playground the way this section does is a fifth,
+informal one: **consuming our own published surface the way a host app would, by hand, in dev.** It
+is distinct from the others by what it exercises — not "does this function return the right value"
+(unit), not "does this work against a real browser API" (browser), not "does the production build
+survive a real session" (`e2e`, which already drives the playground's own production build headlessly
+— the two are not the same tier, since this section is about developing against the dev-mode app by
+hand), not "does the tarball resolve" (pack-and-consume), but **is this API usable, and does it behave
+when driven by a UI, discovered by a person poking at it rather than by an assertion someone thought
+to write.**
 
 The evidence is direct. Within one session of existing, the playground found an API race that unit
 tests, browser tests, `tsc` and **four independent design reviews** had all missed. Nothing was wrong
