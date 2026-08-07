@@ -46,6 +46,7 @@ pnpm target:refresh                   # regenerate the syntax floor from browser
 pnpm --filter playground dev          # dev server on http://localhost:5173
 pnpm vitest run packages/ribo-core    # one package's tests (path filter, not --filter)
 pnpm --filter @azx/ribo-core typecheck # one package's typecheck
+pnpm test:pack-and-consume            # R3's pack-and-consume tier — NOT part of ./check.sh, see §7
 ```
 
 The two `--filter` arguments above look inconsistent but are both correct: `--filter` takes a
@@ -55,7 +56,8 @@ unscoped), while the libraries are scoped `@azx/*`. Not a typo.
 Root scripts, if you need a stage on its own: `pnpm typecheck` (runs each package's own
 `typecheck` in parallel), `pnpm lint`, `pnpm format:check`, `pnpm build:packages` (the five
 library builds), `pnpm build:app` (the playground's production build), `pnpm build` (both,
-in order), `pnpm check:resolve`, `pnpm check:pkg`, `pnpm target:refresh`, `pnpm test`.
+in order), `pnpm check:resolve`, `pnpm check:pkg`, `pnpm target:refresh`, `pnpm test`,
+`pnpm test:pack-and-consume`.
 
 Three of the root scripts **write to the working tree** and are not safe to run for information:
 `pnpm format` (Prettier `--write`), `pnpm lint:fix` (ESLint `--fix`), and `pnpm target:refresh`
@@ -491,6 +493,20 @@ that exercises Vite's resolver, the `@azx/source` condition, the JSX transform, 
 real bundling — `tsc` sees none of that). So most §5 breakage is caught by `./check.sh` alone.
 Note what it still does **not** do: the app is compiled, never executed. There is no runtime
 smoke test.
+
+**`./check.sh` does not include R3's pack-and-consume tier** (`pnpm test:pack-and-consume`,
+`scripts/pack-and-consume/`). That tier packs the five publishable packages into real tarballs,
+installs them into a fresh app **outside this repository** via `file:` tarball dependencies, runs
+that app's own production Vite build, and drives a real headless Chromium against the result —
+asserting, per `docs/implementation/10-build-and-packaging.md` §7, that
+`@azx/ribo-transcriber-ondevice`'s published `./worker` entry spawns and its ONNX Runtime WASM
+backend actually loads. It is deliberately its own `pnpm` script and its own CI step (after
+`./check.sh`, replacing what was a standing `TODO(R3)` in `.github/workflows/ci.yml`) rather than a
+`./check.sh` stage: it is slow (a full `pnpm install` and `vite build` outside the workspace, plus a
+small real network fetch) and writes outside the repo, which would tax the fast local edit-save-
+check loop `./check.sh` exists to be. Every push still runs it, though — unlike
+`packages/ribo-adapter-snuggpro/acceptance/gate.manual.ts`, this tier needs no secret, so leaving it
+purely manual would make it the gate nobody runs.
 
 If you touched anything under §5, `./check.sh`'s **resolve** stage already verifies source-first
 resolution end to end, in both directions, for all five packages — that is what
