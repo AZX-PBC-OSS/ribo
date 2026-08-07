@@ -37,7 +37,7 @@ export function WorkSafetyPanel() {
       )}
 
       {work !== undefined && work.awaitingReview > 0 && (
-        <p style={{ ...muted, margin: "0.5rem 0 0" }} data-testid="awaiting-review-count">
+        <p style={{ ...muted, margin: "0.5rem 0 0" }}>
           {plural(work.awaitingReview, "recording")} need review — see{" "}
           <strong>4 · Review extracted fields</strong> below.
         </p>
