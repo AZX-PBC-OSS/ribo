@@ -4,10 +4,12 @@ import { SNUGGPRO_ADAPTER_NAME as ADAPTER } from "@azx/ribo-adapter-snuggpro";
 import type { Outbox } from "@azx/ribo-core";
 
 import { ConnectivityPanel } from "./ConnectivityPanel.js";
+import { getConnectivity } from "./connectivity-store.js";
 import { EvictionNotice } from "./EvictionNotice.js";
 import { messageOf } from "./format.js";
 import { getOutbox } from "./outbox-handle.js";
 import { QueuePanel } from "./QueuePanel.js";
+import { getRecorder } from "./recorder-handle.js";
 import { RecordPanel } from "./RecordPanel.js";
 import { ReviewPanel } from "./ReviewPanel.js";
 import { StoragePanel } from "./StoragePanel.js";
@@ -27,6 +29,12 @@ import { WorkSafetyPanel } from "./WorkSafetyPanel.js";
  * `ribo-core` alone. `ribo-ui-react` is now the hook layer's `RiboProvider`;
  * `ribo-adapter-snuggpro` now ships a real `ToolAdapter`, so the footer shows its
  * adapter name. `ribo-core` is the entire rest of this page.
+ *
+ * `RiboProvider`'s `value` carries the three host-owned singletons — `recorder`
+ * and `connectivity` are available immediately (their handles construct lazily
+ * but synchronously), `outbox` only once `useOutbox()` below resolves its
+ * promise. Every panel below the outbox-ready gate resolves what it needs
+ * through the provider now, rather than being handed an `Outbox` prop by hand.
  */
 
 const COMPOSED_NAMES = ["@azx/ribo-ui-react", ADAPTER];
@@ -35,11 +43,21 @@ export function App() {
   const outbox = useOutbox();
 
   return (
-    // Empty `value`: no hook in this tree resolves an instance through context
-    // yet (Task 17 migrates the panels). Rendering the provider here — rather
-    // than merely importing it — is what makes this a *runtime* composition
-    // check rather than a type-only one; see the `@file` note above.
-    <RiboProvider value={{}}>
+    // The instances a host constructs above React: `recorder` and `connectivity`
+    // are always ready (their handles construct lazily but synchronously);
+    // `outbox` is `undefined` until `useOutbox()` below resolves its promise, so
+    // every hook that requires one throws only once a caller tries to use it
+    // before the outbox-ready gate — which no panel below does. Rendering the
+    // provider here — rather than merely importing it — is what makes this a
+    // *runtime* composition check rather than a type-only one; see the `@file`
+    // note above.
+    <RiboProvider
+      value={{
+        recorder: getRecorder(),
+        outbox: outbox.kind === "ready" ? outbox.outbox : undefined,
+        connectivity: getConnectivity(),
+      }}
+    >
       <main style={page}>
         <h1 style={{ marginBottom: 0 }}>ribo playground</h1>
         <p style={muted}>
@@ -63,11 +81,11 @@ export function App() {
         )}
         {outbox.kind === "ready" && (
           <>
-            <WorkSafetyPanel outbox={outbox.outbox} />
-            <RecordPanel outbox={outbox.outbox} />
+            <WorkSafetyPanel />
+            <RecordPanel />
             <QueuePanel outbox={outbox.outbox} />
             <TranscribePanel outbox={outbox.outbox} />
-            <ReviewPanel outbox={outbox.outbox} />
+            <ReviewPanel />
           </>
         )}
 

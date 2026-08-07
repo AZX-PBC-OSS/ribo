@@ -1,4 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
+import type { StoragePersistence } from "@azx/ribo-core";
+import { useStoragePersistence } from "@azx/ribo-ui-react";
 
 import { formatBytes } from "./format.js";
 import { InstallNudge } from "./InstallNudge.js";
@@ -8,9 +10,7 @@ import {
   hasModelHeadroom,
   MODEL_HEADROOM_BYTES,
   refreshEstimate,
-  startStorage,
   subscribeToStorage,
-  type PersistenceStatus,
   type StorageState,
 } from "./storage-store.js";
 
@@ -25,16 +25,41 @@ import {
  *
  * The panel is always visible, like `UpdatePanel`, for the same reason: the
  * wrong answer to "is my data safe?" is silence.
+ *
+ * The persistence grant itself now comes from `@azx/ribo-ui-react`'s
+ * `useStoragePersistence()` — the module-level store every caller of that hook
+ * shares (§ its own doc comment), so a grant made here is visible to
+ * `useWorkSafety()`'s verdict without either side re-reading `navigator.storage`
+ * on its own. Headroom (the quota/usage estimate this panel needs to warn about
+ * Phase 3's model download) stays on `storage-store.ts`, unchanged: that
+ * computation — `freeBytes`, `hasModelHeadroom` — has no counterpart in the hook,
+ * which only hands back the raw `StorageEstimate`.
  */
 
 export function StoragePanel() {
+  const { persistence, request } = useStoragePersistence();
   const storage = useSyncExternalStore(subscribeToStorage, getStorageState);
 
   // The request is a side effect of the app being on screen; keeping it in the
   // component that reports the outcome means the report can never describe a
-  // request that was never made. `startStorage` is idempotent.
+  // request that was never made. `request()` itself calls `navigator.storage
+  // .persist()` unconditionally, so this only fires once per mount — StrictMode's
+  // double mount asks the browser twice, which is harmless (a browser that
+  // already granted persistence answers a repeat `persist()` with no fresh
+  // prompt).
   useEffect(() => {
-    startStorage();
+    request().catch(() => {
+      // The hook already folds a thrown `persist()` into `persistence: "denied"`;
+      // nothing further to do with the rejection here.
+    });
+  }, [request]);
+
+  // Headroom is not gated on the persistence request settling — it is an
+  // independent read, and the two used to be chained only because they shared
+  // one function (`startStorage`). Firing it directly on mount keeps that read
+  // from silently depending on `request()` resolving first.
+  useEffect(() => {
+    void refreshEstimate();
   }, []);
 
   return (
@@ -42,11 +67,9 @@ export function StoragePanel() {
       <h2 style={{ fontSize: "1rem", margin: 0 }}>Storage durability</h2>
 
       <p style={{ margin: "0.35rem 0 0" }}>
-        <strong>{headline(storage.persistence)}</strong>
+        <strong>{headline(persistence)}</strong>
       </p>
-      <p style={{ ...muted, margin: "0.25rem 0 0" }}>
-        {detail(storage.persistence, storage.message)}
-      </p>
+      <p style={{ ...muted, margin: "0.25rem 0 0" }}>{detail(persistence)}</p>
 
       <Headroom storage={storage} />
       <InstallNudge />
@@ -120,38 +143,30 @@ function Limits() {
   );
 }
 
-function headline(status: PersistenceStatus): string {
+function headline(status: StoragePersistence): string {
   switch (status) {
-    case "checking":
+    case "unknown":
       return "Asking the browser to keep this app's storage…";
-    case "already-persistent":
-      return "Persistent ✓ — granted on an earlier visit.";
     case "granted":
-      return "Persistent ✓ — the browser granted the request.";
+      return "Persistent ✓ — the browser has granted this app's storage.";
     case "denied":
       return "NOT persistent — the browser declined.";
     case "unsupported":
       return "NOT persistent — this browser cannot be asked.";
-    case "error":
-      return "NOT persistent — the request failed.";
   }
 }
 
-function detail(status: PersistenceStatus, message: string | undefined): string {
+function detail(status: StoragePersistence): string {
   const EVICTABLE =
     "Queued recordings and the offline shell can be removed by the browser at any time. On iPhone and iPad that happens after about seven days without opening the app, and it takes both at once.";
   switch (status) {
-    case "checking":
-      return "navigator.storage.persisted() first, then persist() only if the answer was no.";
-    case "already-persistent":
-      return "navigator.storage.persisted() was already true, so nothing was re-requested. The browser will not evict this app's data to reclaim space. Clearing website data by hand still removes it, and so does deleting the app from the Home Screen.";
+    case "unknown":
+      return 'This origin has not been asked yet, or the answer has not come back. Not the same as a refusal — see @azx/ribo-ui-react\'s useStoragePersistence, which reserves "denied" for an actual persist() that resolved false.';
     case "granted":
-      return "navigator.storage.persist() returned true. The browser will not evict this app's data to reclaim space. Clearing website data by hand still removes it.";
+      return "The browser will not evict this app's data to reclaim space, whether that was granted just now or on an earlier visit. Clearing website data by hand still removes it, and so does deleting the app from the Home Screen.";
     case "denied":
-      return `navigator.storage.persist() returned false. This is the ordinary answer in an iOS Safari tab — WebKit grants persistence to web apps launched from the Home Screen, and rarely otherwise. ${EVICTABLE}`;
+      return `navigator.storage.persist() returned false, or threw. This is the ordinary answer in an iOS Safari tab — WebKit grants persistence to web apps launched from the Home Screen, and rarely otherwise. ${EVICTABLE}`;
     case "unsupported":
       return `navigator.storage.persist is not implemented here, so persistence could not be requested at all. ${EVICTABLE}`;
-    case "error":
-      return `The request threw: ${message ?? "unknown error"}. Treated as a refusal. ${EVICTABLE}`;
   }
 }
