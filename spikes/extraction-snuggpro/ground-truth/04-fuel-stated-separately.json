@@ -1,79 +1,89 @@
 {
+  "schemaVersion": "snuggpro-51-leaf-v2",
   "transcript": "transcripts/04-fuel-stated-separately.txt",
-  "stresses": "HAZARD 1 fuel stated SEPARATELY from equipment (\"it's a boiler ... and it runs on oil\") -> boiler + fuel_oil across two clauses. DHW fuel differs from heating fuel (electric tank, not off the oil boiler) -> tests independent-axis discipline. HAZARD 3 three-way: gas-leak clean -> passed, worst-case explicitly skipped -> not_tested, CO 4ppm below action -> passed. Attic explicitly inaccessible -> null with span.",
-  "fields": {
-    "heatingEquipmentType": { "value": "boiler", "sourceSpan": "it's a boiler, hot water boiler" },
-    "heatingFuel": { "value": "fuel_oil", "sourceSpan": "it runs on oil" },
-    "heatingManufacturer": {
-      "value": "Weil-McLain",
-      "sourceSpan": "Weil-McLain, the model's a WGO"
+  "stresses": "HAZARD 1 (fuel-is-a-separate-axis) exercised TWICE, once per resource: the HVAC system is 'a boiler, hot water boiler ... runs on oil' (equipment and fuel stated in two separate clauses, never fused) and the DHW system is 'a standalone electric tank' (type and fuel likewise separate, and deliberately NOT the heating fuel -- the auditor stresses it is 'not tied to the boiler'). A closed manufacturer enum hit with a real but unlisted brand ('Weil-McLain', mirroring schema.ts's own hypothetical 'Burnham' for this exact leaf) -- THE FORK transcript for RECONCILIATION.md ruling 1 (member: 'Other', not noFittingMember, because the enum HAS a fitting catch-all). Three health-matrix tests each individually, specifically addressed (gas leak clean, worst-case depressurization explicitly not done, ambient CO a real instrument pass at 4 ppm) with NO blanket 'no tests' disclaimer anywhere -- contrast with the worked example's blanket coverage. A trailing attic disclaimer ('No attic access from inside ... nothing on attic insulation') whose stated REASON ('no attic access') is wider than its own trailing clause ('attic insulation') -- resolved to group:attic per ruling 2 (widest scope the auditor's stated reason supports). 'it's a flat roof' names roof GEOMETRY, which atticRoofType (a covering-material enum with no catch-all) cannot represent -- a schema finding, not an annotation gap.",
+  "disclaimers": [
+    {
+      "span": "No attic access from inside, it's a flat roof, so I've got nothing on attic insulation.",
+      "topic": "the attic (no access at all, hence nothing on its insulation)",
+      "scope": { "kind": "group", "group": "attic" },
+      "note": "The trailing clause names only 'attic insulation', narrower than the whole attic group, but the auditor's STATED REASON is 'No attic access from inside' -- categorically wider, since no access means nothing about the attic (insulation, knee wall, or roof covering) was observable, not merely the insulation. Per RECONCILIATION.md ruling 2, scope is set to the WIDEST reading the stated reason supports: group:attic. 'it's a flat roof' is not read as an atticRoofType value (see notes) -- roof geometry has no leaf at all -- so that leaf, too, is left to this disclaimer's default rather than given an individual noFittingMember entry."
+    }
+  ],
+  "leaves": {
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "sourceSpan": "it's a boiler, hot water boiler",
+      "member": "Boiler"
     },
-    "heatingModelNumber": { "value": "WGO", "sourceSpan": "the model's a WGO" },
-    "heatingModelYear": {
-      "value": 1999,
-      "sourceSpan": "it says nineteen ninety-nine on the burner tag"
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "sourceSpan": "it runs on oil",
+      "member": "Fuel Oil"
     },
-    "heatingOutputCapacityBtuh": {
-      "value": 105000,
-      "sourceSpan": "Hundred and five thousand BTU output on the rating plate"
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "sourceSpan": "Weil-McLain",
+      "member": "Other"
     },
-    "coolingEquipmentType": { "value": null, "sourceSpan": null },
-    "ductLocation": { "value": null, "sourceSpan": null },
-    "ductSealing": { "value": null, "sourceSpan": null },
-    "ductInsulation": { "value": null, "sourceSpan": null },
-    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
-    "atticInsulationDepthIn": {
-      "value": null,
-      "sourceSpan": "I've got nothing on attic insulation"
+    "hvac.hvacHeatingSystemModel": {
+      "status": "asserted",
+      "sourceSpan": "the model's a WGO",
+      "value": "WGO"
     },
-    "atticInsulationType": {
-      "value": null,
-      "sourceSpan": "I've got nothing on attic insulation"
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "asserted",
+      "sourceSpan": "it says nineteen ninety-nine on the burner tag",
+      "value": 1999
     },
-    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
-    "wallInsulated": { "value": null, "sourceSpan": null },
-    "wallConstruction": { "value": null, "sourceSpan": null },
-    "blowerDoorCfm50": { "value": null, "sourceSpan": null },
-    "windowGlazing": { "value": null, "sourceSpan": null },
-    "windowFrame": { "value": null, "sourceSpan": null },
-    "dhwFuel": {
-      "value": "electricity",
-      "sourceSpan": "separate electric water heater, Rheem"
+    "hvac.hvacHeatingCapacity": {
+      "status": "asserted",
+      "sourceSpan": "Hundred and five thousand BTU output on the rating plate.",
+      "value": 105000
     },
-    "dhwSystemType": {
-      "value": "storage",
-      "sourceSpan": "Hot water is a standalone electric tank"
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "sourceSpan": "a standalone electric tank",
+      "member": "Tank Water Heater"
     },
-    "dhwAgeBand": { "value": "11-15", "sourceSpan": "it's maybe twelve years old" },
-    "combustionVentType": { "value": null, "sourceSpan": null },
-    "healthSafety": {
-      "ambientCo": {
-        "value": "passed",
-        "sourceSpan": "the ambient carbon monoxide by the burner read four ppm, which is fine, below any action level, so that's a pass on CO"
-      },
-      "venting": { "value": null, "sourceSpan": null },
-      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
-      "worstCaseDepressurization": {
-        "value": "not_tested",
-        "sourceSpan": "I did not do the worst-case depressurization test today"
-      },
-      "worstCaseSpillage": { "value": null, "sourceSpan": null },
-      "draftPressure": { "value": null, "sourceSpan": null },
-      "gasLeak": {
-        "value": "passed",
-        "sourceSpan": "sniffed all the fittings, came back completely clean, no leaks"
-      },
-      "moldMoisture": { "value": null, "sourceSpan": null },
-      "asbestos": { "value": null, "sourceSpan": null },
-      "lead": { "value": null, "sourceSpan": null },
-      "electrical": { "value": null, "sourceSpan": null }
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "sourceSpan": "a standalone electric tank",
+      "member": "Electricity"
+    },
+    "dhw.dhwTankSize": {
+      "status": "asserted",
+      "sourceSpan": "fifty gallon",
+      "value": 50
+    },
+    "dhw.dhwManufacturer": {
+      "status": "asserted",
+      "sourceSpan": "Rheem",
+      "member": "Rheem"
+    },
+    "dhw.dhwAge": {
+      "status": "asserted",
+      "sourceSpan": "maybe twelve years old",
+      "member": "11-15"
+    },
+    "health.healthGasLeak": {
+      "status": "asserted",
+      "sourceSpan": "sniffed all the fittings, came back completely clean, no leaks.",
+      "member": "Passed"
+    },
+    "health.healthWorstCaseDepressurization": {
+      "status": "asserted",
+      "sourceSpan": "I did not do the worst-case depressurization test today",
+      "member": "Not Tested"
+    },
+    "health.healthAmbientCarbonMonoxide": {
+      "status": "asserted",
+      "sourceSpan": "the ambient carbon monoxide by the burner read four ppm, which is fine, below any action level, so that's a pass on CO",
+      "member": "Passed"
     }
   },
   "notes": {
-    "heatingFuel": "The fuel is stated in a SEPARATE clause from the equipment (\"it's a boiler ... and it runs on oil\"), not fused as an adjective. Both axes still fill: boiler + fuel_oil. The fused span for equipment and the separate span for fuel are different substrings here, unlike the adjective cases.",
-    "dhwFuel": "electricity, and deliberately NOT fuel_oil: the DHW is a standalone electric tank the auditor stresses is \"not tied to the boiler.\" Do not let the heating fuel bleed onto the DHW axis.",
-    "worstCaseDepressurization": "Explicit skip -> not_tested (\"I did not do the worst-case ... today\"), distinct from the silent tests which are null. This is the not_tested vs null distinction the matrix exists to keep.",
-    "ambientCo": "4 ppm reported explicitly below action level, auditor calls it a pass -> passed. The number 4 is not a field value.",
-    "_general": "Distractors: \"fifty gallon\" (tank size), \"early two-thousand-tens\" (a vague date, not the age band source; band comes from the stated \"twelve years old\"), \"four ppm\" (a reading behind the CO pass, not a numeric field)."
+    "hvac.hvacHeatingSystemManufacturer": "RULING 1 SITE (see RECONCILIATION.md): 'Weil-McLain' is a real boiler manufacturer not on HvacHeatingSystemManufacturer's closed list. schema.ts's own docstring for this exact leaf gives the mirror-image hypothetical ('Burnham') and states outright that an unlisted real manufacturer 'maps to \"Other\" instead, which is a real answer' -- an enum WITH a catch-all is not a nothing-fits case, so `member: \"Other\"` is used directly, not `noFittingMember` (reserved for enums with no catch-all at all). One annotator on this transcript used noFittingMember + acceptableAlternatives:[\"Other\"] instead, reading ground-truth-format.md's general 'when nothing fits' guidance in isolation from schema.ts's own docstring; applying the ruling uniformly resolves it to plain `member: \"Other\"`.",
+    "_general": "The auditor ran the gas-leak sniff test on an oil-fueled boiler 'out of habit' -- unusual (gas leak checks are normally for gas-fired equipment) but the result is stated plainly ('completely clean, no leaks') and is recorded as healthGasLeak: Passed regardless of fuel type; the fuel mismatch does not change what leaf this addresses. Unlike the worked example, this transcript has no blanket 'no tests' statement: only three of the thirteen health-matrix leaves are addressed at all, each individually and specifically; the other ten are genuinely unmentioned, with no leaves entry and no disclaimer. 'it's a flat roof' is the auditor's stated REASON for no attic access, not a statement about roofing material (atticRoofType is a covering-material enum -- shingles/tile/shakes/tar-and-gravel -- not a shape axis, and has no catch-all member at all) -- SCHEMA FINDING (roof geometry vs. covering material; see RECONCILIATION.md), not an annotation gap. No basedata, wall, or window leaf is addressed anywhere in this transcript, and none of them carries a blanket negation either, so all of those leaves are simply, silently unmentioned."
   }
 }

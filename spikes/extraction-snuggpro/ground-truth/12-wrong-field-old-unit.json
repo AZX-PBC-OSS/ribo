@@ -1,63 +1,91 @@
 {
+  "schemaVersion": "snuggpro-51-leaf-v2",
   "transcript": "transcripts/12-wrong-field-old-unit.txt",
-  "stresses": "WRONG-FIELD headliner: a NEW gas furnace (Bryant, 2024, 60000 BTU) and the OLD oil boiler it replaced (Burnham, 1980s, 80000 BTU) are BOTH described in detail; only the new unit is the system. Every heating field has a tempting wrong value from the old boiler -- fuel (fuel_oil), equipment (boiler), BTU (80000), year (eighties). DHW age band from a stated age (26-27 -> 26-30). Two clean safety tests -> passed.",
-  "fields": {
-    "heatingEquipmentType": {
-      "value": "furnace_central_ac",
-      "sourceSpan": "The new one is a gas furnace"
+  "stresses": "WRONG-FIELD / OLD-UNIT trap, the second transcript task-flagged for the single-hvac-instance cardinality finding (see RECONCILIATION.md finding 5) -- but a CONTRAST to transcript 08, not a duplicate: here only ONE system is current (a brand-new Bryant gas furnace); the OLD oil Burnham boiler it replaced is fully described but explicitly decommissioned ('disconnected, capped off, stone cold') and the auditor is unambiguous -- 'Do not log the old boiler, it's just scrap sitting there... The furnace is the system now.' Unlike 08, this is cleanly resolvable: every hvac.* leaf reflects only the new furnace, with zero information loss, because the old unit was never a competing CURRENT system. Every heating field has a tempting wrong value sitting right next to the right one (fuel, equipment family, BTU capacity, model year) -- the corpus's sharpest wrong-field/wrong-unit bait. Also exercises: HAZARD 4 (spoken efficiency, 'ninety-plus, condensing', no write target); the schema-forced furnace/shared-ducts symmetric enum ambiguity (no cooling ever mentioned); a DHW age stated as a range that still lands cleanly in one band; a whole-group attic disclaimer; an explicit 'I ran' blower-door reading; and a leaf-CHOICE ambiguity (not a member choice) on a furnace-side CO check that could name either healthAmbientCarbonMonoxide or healthUndilutedFlueCo -- resolved to ambient per RECONCILIATION.md ruling 4, since neither the flue nor a probe nor combustion gas is explicitly named.",
+  "disclaimers": [
+    {
+      "span": "Attic I didn't get to today.",
+      "topic": "the attic",
+      "scope": { "kind": "group", "group": "attic" }
+    }
+  ],
+  "leaves": {
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "sourceSpan": "The new one is a gas furnace",
+      "member": "Furnace with standalone ducts",
+      "arguable": {
+        "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
+        "symmetric": true,
+        "note": "SCHEMA FINDING, same pattern as the worked example: hvacSystemEquipmentType conflates the furnace's identity with an unrelated fact (whether it shares ducts with a central AC unit). The auditor says 'a gas furnace' and never mentions cooling/AC at all, so neither the standalone-ducts member nor the shared-ducts-with-AC member is more supportable. `member` is 'Furnace with standalone ducts' only because it is FIRST in schema.ts's enum-list order (index 2 of 17 vs. index 16) -- the mechanical tie-break, not a preferred reading. SEPARATELY (see notes._general and RECONCILIATION.md finding 5): this leaf also carries the OLD-BOILER exclusion -- the auditor narrates a second, real, disconnected HVAC unit in the same breath ('the OLD boiler... an old Burnham... probably from the eighties, eighty thousand BTU') and explicitly instructs 'Do not log the old boiler.' Because the old unit is decommissioned (not a second CURRENT system, unlike transcript 08), this resolves cleanly: the furnace occupies the one hvac slot and none of the boiler's attributes (Boiler/Fuel Oil/Burnham/80000 BTU/1980s) appear on any leaf. Not recorded as `retracted` (rule 5) -- the auditor never asserted the boiler AS the current system before withdrawing it; it is a distinct real unit explicitly excluded, not a self-correction about the same entity."
+      }
     },
-    "heatingFuel": { "value": "natural_gas", "sourceSpan": "The new one is a gas furnace" },
-    "heatingManufacturer": {
-      "value": "Bryant",
-      "sourceSpan": "it's a Bryant, model 926T"
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "sourceSpan": "The new one is a gas furnace",
+      "member": "Natural Gas"
     },
-    "heatingModelNumber": { "value": "926T", "sourceSpan": "model 926T" },
-    "heatingModelYear": { "value": 2024, "sourceSpan": "the year on it is twenty twenty-four" },
-    "heatingOutputCapacityBtuh": { "value": 60000, "sourceSpan": "Output is sixty thousand BTU" },
-    "coolingEquipmentType": { "value": null, "sourceSpan": null },
-    "ductLocation": { "value": null, "sourceSpan": null },
-    "ductSealing": { "value": null, "sourceSpan": null },
-    "ductInsulation": { "value": null, "sourceSpan": null },
-    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
-    "atticInsulationDepthIn": { "value": null, "sourceSpan": "Attic I didn't get to today" },
-    "atticInsulationType": { "value": null, "sourceSpan": "Attic I didn't get to today" },
-    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
-    "wallInsulated": { "value": null, "sourceSpan": null },
-    "wallConstruction": { "value": null, "sourceSpan": null },
-    "blowerDoorCfm50": { "value": 4100, "sourceSpan": "forty-one hundred CFM50" },
-    "windowGlazing": { "value": null, "sourceSpan": null },
-    "windowFrame": { "value": null, "sourceSpan": null },
-    "dhwFuel": { "value": "natural_gas", "sourceSpan": "a gas storage tank" },
-    "dhwSystemType": { "value": "storage", "sourceSpan": "a gas storage tank" },
-    "dhwAgeBand": { "value": "26-30", "sourceSpan": "that's twenty-six, twenty-seven years old" },
-    "combustionVentType": { "value": null, "sourceSpan": null },
-    "healthSafety": {
-      "ambientCo": {
-        "value": "passed",
-        "sourceSpan": "CO check by the new furnace, clean, zero ppm"
-      },
-      "venting": { "value": null, "sourceSpan": null },
-      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
-      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
-      "worstCaseSpillage": { "value": null, "sourceSpan": null },
-      "draftPressure": { "value": null, "sourceSpan": null },
-      "gasLeak": {
-        "value": "passed",
-        "sourceSpan": "Gas sniff on the new furnace and the water heater connections, all clean, no leaks anywhere"
-      },
-      "moldMoisture": { "value": null, "sourceSpan": null },
-      "asbestos": { "value": null, "sourceSpan": null },
-      "lead": { "value": null, "sourceSpan": null },
-      "electrical": { "value": null, "sourceSpan": null }
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "sourceSpan": "it's a Bryant",
+      "member": "Bryant"
+    },
+    "hvac.hvacHeatingSystemModel": {
+      "status": "asserted",
+      "sourceSpan": "model 926T",
+      "value": "926T"
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "asserted",
+      "sourceSpan": "the year on it is twenty twenty-four",
+      "value": 2024
+    },
+    "hvac.hvacHeatingCapacity": {
+      "status": "asserted",
+      "sourceSpan": "Output is sixty thousand BTU.",
+      "value": 60000
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "sourceSpan": "a gas storage tank",
+      "member": "Tank Water Heater"
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "sourceSpan": "a gas storage tank",
+      "member": "Natural Gas"
+    },
+    "dhw.dhwAge": {
+      "status": "asserted",
+      "sourceSpan": "twenty-six, twenty-seven years old",
+      "member": "26-30"
+    },
+    "basedata.blowerDoorReading": {
+      "status": "asserted",
+      "sourceSpan": "Blower door I ran after: forty-one hundred CFM50.",
+      "value": 4100
+    },
+    "basedata.blowerDoorTestPerformed": {
+      "status": "asserted",
+      "sourceSpan": "Blower door I ran after: forty-one hundred CFM50.",
+      "member": "Tested"
+    },
+    "health.healthAmbientCarbonMonoxide": {
+      "status": "asserted",
+      "sourceSpan": "CO check by the new furnace, clean, zero ppm.",
+      "member": "Passed",
+      "arguable": {
+        "note": "RULING 4 SITE (see RECONCILIATION.md): a LEAF-CHOICE ambiguity, not a member-choice one. 'CO check by the new furnace, clean, zero ppm' names neither 'ambient' nor 'flue' explicitly, so it could plausibly describe either healthAmbientCarbonMonoxide or healthUndilutedFlueCo. Per the reconciliation rule (undiluted flue CO only when the flue/a probe/combustion gas is explicitly named), this resolves to ambient. 'Zero ppm' is also characteristic of a clean ambient reading -- an undiluted flue reading is raw combustion gas and is essentially never exactly zero even on a passing system. healthUndilutedFlueCo is left unmentioned rather than also asserted, to avoid double-counting one span against two leaves that are not two axes of one fused mention (unlike rule 7's fuel/equipment case)."
+      }
+    },
+    "health.healthGasLeak": {
+      "status": "asserted",
+      "sourceSpan": "Gas sniff on the new furnace and the water heater connections, all clean, no leaks anywhere.",
+      "member": "Passed"
     }
   },
   "notes": {
-    "heatingOutputCapacityBtuh": "60000 (the NEW Bryant), NOT 80000. The 80000 belongs to the disconnected old oil boiler and is the single sharpest wrong-field bait in the corpus -- both numbers are spoken plainly, only one is the system.",
-    "heatingFuel": "natural_gas (new furnace), NOT fuel_oil. fuel_oil attaches only to the capped-off old boiler the auditor says explicitly not to log.",
-    "heatingEquipmentType": "furnace_central_ac (new), NOT boiler (old). Same trap on the equipment axis.",
-    "heatingModelYear": "2024 (new), NOT \"the eighties\" (old boiler, and vague anyway).",
-    "dhwAgeBand": "\"twenty-six, twenty-seven years old\" -> 26-30. The \"nineteen ninety-eight\" sticker corroborates but is a date, not the band source.",
-    "combustionVentType": "Intended null: the furnace is described as \"ninety-plus, condensing\" (implies sealed/PVC) but no vent-system-type token is actually spoken. Inferring direct_vented from \"condensing\" is a domain-knowledge inference the prompt forbids. Score null correct; direct_vented is a mild grounded-inference error.",
-    "_general": "Every old-unit detail (oil boiler, Burnham, \"the eighties\", 80000 BTU, oil tank) is present in the audio and must be dropped. This is the corpus's cleanest measure of value-present-but-should-not-be-extracted."
+    "hvac.hvacSystemEquipmentType": "See this leaf's own arguable block. FINDING-5 CONTRAST NOTE (task-mandated cross-reference to transcript 08): 08's two systems (furnace + central AC) are BOTH current and BOTH get real duct/identity detail mixed onto one record -- a genuine, unrecoverable loss. Here, only the furnace is current; the boiler is decommissioned and unambiguously excluded by the auditor's own words, so there is no comparable loss -- every hvac.* leaf below is 100% attributable to the furnace. The two transcripts share a SURFACE pattern (two HVAC systems narrated, one hvac slot) but differ in whether the schema's single-instance limitation actually costs any information.",
+    "_general": "The OLD boiler (Burnham, oil, probably eighties, 80000 BTU, disconnected/capped/stone cold, oil tank already removed) is fully narrated but deliberately gets NO leaf entries anywhere in this file and no disclaimer entry either -- consistent with how transcript 05's decommissioned floor furnace and transcript 10's neighboring house's oil boiler are handled: a real, named, excluded decoy unit is documented here in notes, not given an `unresolved` disclaimer, since it negates no leaf of THIS file's single hvac record (the furnace's own leaves are all individually asserted, not swept by any negation). 'ninety-plus, condensing' (the new furnace's efficiency) has no write target per schema.ts's HAZARD 4 and is deliberately not parked on hvacHeatingCapacity or anywhere else. 'The oil tank's already gone' likewise has no corresponding leaf. hvac.hvacUpgradeAction (one of the two API-required fields) is never addressed for the new furnace -- it is described as already installed and working, not as a recommendation going forward -- so it is left unmentioned rather than inferred from 'they just put in a new heating system.' The opening scene-setting line ('Basement, the Abernathy house...') was considered as a possible basis for dhw.dhwLocation but declined: DhwLocation's enum has no member that cleanly matches an unspecified basement without knowing whether it is conditioned space."
   }
 }
