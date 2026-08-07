@@ -46,6 +46,7 @@ pnpm target:refresh                   # regenerate the syntax floor from browser
 pnpm --filter playground dev          # dev server on http://localhost:5173
 pnpm vitest run packages/ribo-core    # one package's tests (path filter, not --filter)
 pnpm --filter @azx/ribo-core typecheck # one package's typecheck
+pnpm test:pack-and-consume            # R3's pack-and-consume tier — NOT part of ./check.sh, see §7
 ```
 
 The two `--filter` arguments above look inconsistent but are both correct: `--filter` takes a
@@ -55,7 +56,8 @@ unscoped), while the libraries are scoped `@azx/*`. Not a typo.
 Root scripts, if you need a stage on its own: `pnpm typecheck` (runs each package's own
 `typecheck` in parallel), `pnpm lint`, `pnpm format:check`, `pnpm build:packages` (the five
 library builds), `pnpm build:app` (the playground's production build), `pnpm build` (both,
-in order), `pnpm check:resolve`, `pnpm check:pkg`, `pnpm target:refresh`, `pnpm test`.
+in order), `pnpm check:resolve`, `pnpm check:pkg`, `pnpm target:refresh`, `pnpm test`,
+`pnpm test:pack-and-consume`.
 
 Three of the root scripts **write to the working tree** and are not safe to run for information:
 `pnpm format` (Prettier `--write`), `pnpm lint:fix` (ESLint `--fix`), and `pnpm target:refresh`
@@ -94,9 +96,13 @@ other; the field app composes them. Nothing depends on the field app.
 
 Supporting, non-published: `packages/tsconfig` (`@azx/tsconfig`, the shared compiler options) and
 `playground/` (a Vite app that imports **every** published package, so its production build is a real
-composition check of the whole workspace). CI runs that production **build** via `./check.sh`; it
-never starts or loads the app, so there is **no runtime smoke test yet** — bundling and module
-resolution are gated, actual behavior in a browser is not.
+composition check of the whole workspace). CI runs that production **build** via `./check.sh`'s
+`build:app` stage, which on its own never starts or loads the app — but the same `./check.sh` run's
+`test` stage does, through its `e2e` Vitest project: it builds the playground, serves the built
+`dist/` through `vite preview`, and drives a real Chromium through it (`playground/e2e/*.e2e.test.ts`
+— real audio capture, an offline reload, IndexedDB/Cache eviction, storage persistence). So actual
+behavior in a browser **is** gated, not just bundling and module resolution — see §7's Definition of
+Done for the stage breakdown.
 
 Design docs, one per tier: [`03-ribo-core.md`](docs/implementation/03-ribo-core.md) ·
 [`04-ribo-ui.md`](docs/implementation/04-ribo-ui.md) ·
@@ -489,8 +495,27 @@ The two build stages are `build:packages` (tsdown produces every publishable `di
 publint and attw in-build) and `build:app` (the playground's production Vite build, the only gate
 that exercises Vite's resolver, the `@azx/source` condition, the JSX transform, React dedup and
 real bundling — `tsc` sees none of that). So most §5 breakage is caught by `./check.sh` alone.
-Note what it still does **not** do: the app is compiled, never executed. There is no runtime
-smoke test.
+`build:app` alone only compiles the app, never executes it — but `./check.sh` does not stop there:
+its later `test` stage runs the `e2e` Vitest project, which serves that same build through
+`vite preview` and drives a real Chromium through it (seven spec files, fifteen tests, none skipped —
+real audio capture, an offline reload, IndexedDB/Cache eviction, storage persistence). That **is** a
+runtime smoke test, gated on every `./check.sh` run, not a manual step — see
+`docs/implementation/10-build-and-packaging.md` §7 for the full tier and `check.sh`'s own comment
+above its `test` stage for the roster.
+
+**`./check.sh` does not include R3's pack-and-consume tier** (`pnpm test:pack-and-consume`,
+`scripts/pack-and-consume/`). That tier packs the five publishable packages into real tarballs,
+installs them into a fresh app **outside this repository** via `file:` tarball dependencies, runs
+that app's own production Vite build, and drives a real headless Chromium against the result —
+asserting, per `docs/implementation/10-build-and-packaging.md` §7, that
+`@azx/ribo-transcriber-ondevice`'s published `./worker` entry spawns and its ONNX Runtime WASM
+backend actually loads. It is deliberately its own `pnpm` script and its own CI step (after
+`./check.sh`, replacing what was a standing `TODO(R3)` in `.github/workflows/ci.yml`) rather than a
+`./check.sh` stage: it is slow (a full `pnpm install` and `vite build` outside the workspace, plus a
+small real network fetch) and writes outside the repo, which would tax the fast local edit-save-
+check loop `./check.sh` exists to be. Every push still runs it, though — unlike
+`packages/ribo-adapter-snuggpro/acceptance/gate.manual.ts`, this tier needs no secret, so leaving it
+purely manual would make it the gate nobody runs.
 
 If you touched anything under §5, `./check.sh`'s **resolve** stage already verifies source-first
 resolution end to end, in both directions, for all five packages — that is what
@@ -515,4 +540,7 @@ curl -s http://localhost:5173/src/App.tsx | head -3   # expect /@fs/.../packages
 
 `curl http://localhost:5173/` is **not** a check — the HTML is a shell with an empty `<div
 id="root">`; React fills it in the browser. Confirming the page visually renders the three package
-names is a **manual browser step**, and the only way to observe the app actually running.
+names is a **manual browser step** — the only way to observe **dev-mode source resolution**
+specifically, since the automated `e2e` tier above always exercises the built `dist/` through
+`vite preview`, never the dev server. It is not the only way to observe the app running at all
+anymore: `e2e` does that headlessly, on every `./check.sh` run.

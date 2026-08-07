@@ -88,7 +88,7 @@ Capability is assumed per the baseline; the column that matters is throughput. F
 ## Deliverables
 
 - A short spike report (numbers per device/runtime/model + recommendation).
-- A `capability probe` function that `ribo-core`'s `Controller` uses to pick `OnDeviceTranscriber` vs `ManagedTranscriber` at runtime ([03](03-ribo-core.md)). Given the baseline, its **feature-detection half shrinks to a cheap safety net** (it should still not crash on an out-of-baseline browser) and its **micro-benchmark half becomes the load-bearing part** — the routing decision is now a throughput measurement, not an API-presence check.
+- A `capability probe` — each `Transcriber`'s `capability()` method — that `ribo-core`'s `firstCapable()` composes into an ordered roster to pick `OnDeviceTranscriber` vs `ManagedTranscriber` at runtime ([03](03-ribo-core.md)). Given the baseline, its **feature-detection half shrinks to a cheap safety net** (it should still not crash on an out-of-baseline browser) and its **micro-benchmark half becomes the load-bearing part** — the routing decision is now a throughput measurement, not an API-presence check.
   - One feature-detection job does **not** shrink: **engine sniffing for iOS**. `IS_WEBGPU_AVAILABLE` is `true` on iOS while the shipped runtime has no WebGPU path, and transformers.js's own `isSafari()` misses `CriOS`/`FxiOS`/`EdgiOS` (Finding 1). The probe must detect the **engine** and route all iOS browsers to the WASM path, rather than trusting either the vendor check or the capability flag.
 - The **model-size decision rule** the download step uses to choose `tiny.en` / `base.en` / `small.en` per device, including the ORT runtime binary in the quoted total.
 

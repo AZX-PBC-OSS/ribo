@@ -1,6 +1,6 @@
 # 10 — Build, Packaging & Repo Setup
 
-Covers **this repo** — the Ribo SDK monorepo (three publishable packages). The field app lives in its own repo and consumes the published packages; that relationship is §6 below.
+Covers **this repo** — the Ribo SDK monorepo (five publishable packages). The field app lives in its own repo and consumes the published packages; that relationship is §6 below.
 
 Backed by a 2026 best-practices review (monorepo/publishing, library build tooling, cross-repo dev workflow). Versions were verified live, not recalled.
 
@@ -9,34 +9,43 @@ Backed by a 2026 best-practices review (monorepo/publishing, library build tooli
 ```
 ribo/
 ├── pnpm-workspace.yaml        # catalog + settings (pnpm 11 keeps settings HERE, not .npmrc)
-├── .npmrc                     # ONLY @azx:registry + ${AZX_NPM_TOKEN}
-├── turbo.json
 ├── .changeset/
 ├── packages/
+│   ├── build-config/          # private shared tsdown config package (§2.2)
 │   ├── ribo-core/
-│   ├── ribo-ui/
+│   ├── ribo-ui-react/
 │   ├── ribo-adapter-snuggpro/
-│   └── tsconfig/              # private shared config package
+│   ├── ribo-extractor-openai/
+│   ├── ribo-transcriber-ondevice/
+│   └── tsconfig/              # private shared tsconfig package
 └── playground/                # private Vite app — THE PRIMARY DEV LOOP
 ```
+
+Five publishable packages, not the three this diagram once showed — `ribo-extractor-openai` (Phase 4)
+and `ribo-transcriber-ondevice` (Phase 3) both landed after this doc was written, and `ribo-ui`
+became `ribo-ui-react` in R2. `build-config` and `tsconfig` are private, unpublished workspace
+members (§2.2, §6.2). There is no `turbo.json`: Turborepo is discussed as an option in §2 and §9,
+but nothing in this repo depends on it today. There is no `.npmrc` yet either — nothing is published
+(AGENTS.md §2) — so the registry config it will eventually hold does not exist as a file to show
+here.
 
 `playground` is `"private": true` so no release tool ever publishes it.
 
 ## 2. Toolchain
 
-| Concern         | Pick                                                                                            | Why                                                                                                                       |
-| --------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Package manager | **pnpm** workspaces + `catalog:`                                                                | Matches Helix; catalogs rewrite to concrete ranges at pack time                                                           |
-| Task runner     | **Turborepo 2.x** (`tasks`, not the removed `pipeline`)                                         | Caching; _optional at 3 packages — see §9_                                                                                |
-| Library build   | **tsdown** for `ribo-core`; **Vite 8 library mode** for `ribo-ui`                               | The repo needs Vite regardless (playground + field app), so a split costs **no extra tool** — pick each for fit. See §3.1 |
-| App build       | **Vite 8** (playground + field app)                                                             | Rolldown is now the default bundler; `rollupOptions` → **`rolldownOptions`**                                              |
-| Types           | `tsc`-based dts in both — tsdown's `tsc` generator (`ribo-core`), `vite-plugin-dts` (`ribo-ui`) | zod's `z.infer` cannot survive `isolatedDeclarations`/oxc (see §3.1)                                                      |
-| Tests           | **Vitest** (jsdom + browser mode)                                                               | See §7                                                                                                                    |
-| Versioning      | **Changesets**, three libs `fixed`                                                              | One version number to communicate to a host team                                                                          |
+| Concern         | Pick                                                               | Why                                                                                    |
+| --------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Package manager | **pnpm** workspaces + `catalog:`                                   | Matches Helix; catalogs rewrite to concrete ranges at pack time                        |
+| Task runner     | **Turborepo 2.x** (`tasks`, not the removed `pipeline`)            | Caching; _optional at five packages — see §9_                                          |
+| Library build   | **tsdown** for all five packages                                   | One tool, one syntax target, no drift to police — see §3.1 for the split this replaced |
+| App build       | **Vite 8** (playground + field app)                                | Rolldown is now the default bundler; `rollupOptions` → **`rolldownOptions`**           |
+| Types           | `tsc`-based dts via tsdown's `tsc` generator, all five             | zod's `z.infer` cannot survive `isolatedDeclarations`/oxc (see §3.1)                   |
+| Tests           | **Vitest** (node + browser mode + e2e)                             | See §7                                                                                 |
+| Versioning      | **Changesets**, independent versioning, no `fixed`/`linked` groups | Each package bumps on its own line — see [Releasing](../design/releasing.md)           |
 
 ### 2.1 The target platform baseline (decided 2026-07-23)
 
-Both library builds compile down to one agreed floor. Previously there was none — only `target: "ES2023"` in the shared tsconfig, which is a _TypeScript downlevel_ setting, not a browser policy ([open questions §4](../open-questions.md)).
+All five library builds compile down to one agreed floor. Previously there was none — only `target: "ES2023"` in the shared tsconfig, which is a _TypeScript downlevel_ setting, not a browser policy ([open questions §4](../open-questions.md)).
 
 | Platform                  | Browser                          | Versions supported |
 | ------------------------- | -------------------------------- | ------------------ |
@@ -46,7 +55,12 @@ Both library builds compile down to one agreed floor. Previously there was none 
 
 **Assumed present, no polyfill and no defensive detection:** WebGPU, WASM SIMD, OPFS, IndexedDB, MediaRecorder, Web Workers, `crypto.randomUUID`, top-level await.
 
-**Pin it in both build tools.** tsdown (`ribo-core`) and Vite library mode (`ribo-ui`) have **independent** syntax targets; left to their defaults the two published packages drift to different floors and a host app gets one package it can run and one it can't. Set a single shared browserslist (or an explicit `target` in each config) derived from the table above, and treat a divergence between the two as a build bug.
+**Pin it in the one build tool.** All five packages build with tsdown, and share a single generated
+target (`BROWSER_TARGET` in `packages/build-config/src/target.generated.ts`, produced by
+`pnpm target:refresh` from the table above) via the `sharedTsdown` config each package's
+`tsdown.config.ts` spreads. A second, independently-configured build tool — Vite library mode,
+originally planned for `ribo-ui` — would have reintroduced exactly the drift this section used to
+warn about; see §3.1 for why that plan did not survive the headless-hook-layer decision.
 
 **What the baseline does _not_ settle:** performance. WebGPU being present says nothing about whether Whisper hits real-time on a phone GPU — that is [01](01-feasibility-spike.md)'s narrowed question, and it is why the managed-STT fallback stays. Nor does it settle `crossOriginIsolated`: `SharedArrayBuffer` depends on **host response headers**, not browser version (§4), so the single-threaded fallback stays regardless.
 
@@ -82,48 +96,73 @@ Wired in three places: `customConditions: ["@azx/source"]` in the base tsconfig,
 
 **Never use the bare `development` condition** for this: Vite sets it by default in dev, so a published package carrying it would have a _third-party host's_ dev server resolve into our source branch.
 
-**Not every subpath gets a `@azx/source` branch — and the asymmetry is deliberate.** `@azx/ribo-transcriber-ondevice`'s `./worker` has one (`./src/worker.ts` exists, so dev resolves into source like `.` does — this is what lets the playground exercise the worker without building the package first). `@azx/ribo-ui`'s `./styles.css` deliberately has **none**: it maps straight to `./dist/styles.css` in both `exports` and `publishConfig.exports`. There is no source stylesheet — `styles.css` is _generated_ by Vite from the CSS Modules (§3.1). Adding a branch that points at a file we intend to create later inverts the usual failure mode: `@azx/source` is **first in the condition order, so it wins the match**, and inside this workspace the import would hard-fail on a nonexistent path — **broken in development, still fine for published consumers**. That is the worst shape this bug can take, because the people who can fix it are the only ones who see it, and CI's `build` stage (playground, source condition) would go red for a packaging change that is correct for every real consumer. Add the branch **in the same commit that creates a source stylesheet**, never in advance. (`package.json` admits no comments, so this reasoning has no other home.)
+**Not every subpath needs a `@azx/source` branch, and getting the order wrong is asymmetrically
+dangerous.** `@azx/ribo-transcriber-ondevice`'s `./worker` has one (`./src/worker.ts` exists, so dev
+resolves into source like `.` does — this is what lets the playground exercise the worker without
+building the package first). Today it is the only subpath beyond `.` across all five packages, and
+every one of them carries a source branch — there is currently no live example of a subpath
+_without_ one. (`@azx/ribo-ui`'s planned `./styles.css` would have been that example, mapping
+straight to `./dist/styles.css` with no source branch because there was no source stylesheet to
+resolve; it was never added, because `@azx/ribo-ui-react` shipped headless — no markup, no
+stylesheet — before the subpath was ever needed.) The caution still applies to whatever subpath
+comes next: adding a branch that points at a file we intend to create later inverts the usual
+failure mode. `@azx/source` is **first in the condition order, so it wins the match**, and inside
+this workspace the import would hard-fail on a nonexistent path — **broken in development, still
+fine for published consumers**. That is the worst shape this bug can take, because the people who
+can fix it are the only ones who see it, and CI's `build` stage (playground, source condition) would
+go red for a packaging change that is correct for every real consumer. Add the branch **in the same
+commit that creates the source file it points at**, never in advance. (`package.json` admits no
+comments, so this reasoning has no other home.)
 
 ### Other required fields
 
 - `"types"` **first** among conditions (publint enforces it). No `typesVersions`.
-- `sideEffects`: `false` for `ribo-core`/`ribo-adapter-snuggpro`; **`["*.css"]` for `ribo-ui`** — a flat `false` gets the stylesheet tree-shaken away in the host app.
-- **No dependency the host has to adopt.** The rule the React peer range expresses generalizes: a published package must not make a host install, version-match or provider-wrap anything to render our components. That is why `ribo-ui` ships CSS Modules compiled to one stylesheet rather than a styling framework or a CSS-in-JS runtime — and, decided 2026-07-23, why it carries **no component library (no Mantine)** either. Applications (`playground`, the field app) are unconstrained; only published packages are. Full reasoning in [04](04-ribo-ui.md).
+- `sideEffects`: `false` for all five packages — none ships a stylesheet or other side-effectful module, so every one is safely tree-shakeable in the host app.
+- **No dependency the host has to adopt.** The rule the React peer range expresses generalizes: a published package must not make a host install, version-match or provider-wrap anything to render our components. `ribo-ui-react` goes further than "no styling framework, no CSS-in-JS runtime, no component library (no Mantine, decided 2026-07-23)": per the headless-hook-layer decision it ships **no components beyond `RiboProvider`, no markup and no stylesheet at all**, so there is nothing to render that a host didn't build itself. Applications (`playground`, the field app) are unconstrained; only published packages are. Full reasoning in [04](04-ribo-ui.md).
 - React in **`peerDependencies` with a wide range** (`^18.3 || ^19`), mirrored in `devDependencies` as `catalog:`. **Never `dependencies`, never `catalog:` in the peer range** — the host's React version isn't ours to pin.
 - Build must externalize React **by regex**: `[/^react($|\/)/, /^react-dom($|\/)/]`. A bare `'react'` misses `react/jsx-runtime` and breaks consumer builds.
 - `ribo-core` and `ribo-adapter-snuggpro` compile with `"lib": ["ES2023", "DOM", "DOM.Iterable"]` (`@azx/tsconfig/browser-library.json`) — they are browser libraries and need `MediaRecorder`, `IndexedDB`, `fetch`, `Blob`, `AudioContext` and `Worker`. The headless constraint from [03](03-ribo-core.md) is **no React and no DOM _rendering_**, which is a layering rule, so it is enforced by ESLint (`no-restricted-imports` on react/react-dom, `no-restricted-globals` on `document`/`window`, scoped to those two packages), not by omitting the DOM lib. Omitting `lib.DOM` was tried and reverted: `lib` controls type availability, not layering.
 
-### 3.1 Per-package build notes (verified 2026-07-22)
+### 3.1 Per-package build notes (verified 2026-07-22; reversed 2026-08-04 — see below)
 
-**Why a split rather than one tool.** The repo needs Vite anyway for the playground and the field app, so building `ribo-ui` with Vite library mode adds **no new dependency** — the tool count is identical either way. Given that, each package gets the tool that fits it: tsdown's designed niche is headless multi-entry TypeScript; Vite's CSS pipeline is the mature, years-proven one that tsdown's is explicitly modeled on. Using tsdown for `ribo-ui` would have meant accepting `@tsdown/css` (four months old, self-described experimental, `url()` asset resolution unimplemented) — which would have let a bundler gap dictate what the UI can look like (no background images, no web fonts). Not a trade worth making for zero tooling saved.
+**One tool for all five, reversed from an earlier split.** This section originally split the build:
+tsdown for headless packages, Vite library mode for `ribo-ui`, on the reasoning that the repo needs
+Vite anyway for the playground and the field app, so building `ribo-ui` with it added no new tool —
+and Vite's CSS pipeline is the mature, years-proven one that tsdown's `@tsdown/css` (four months old
+at the time, self-described experimental, `url()` asset resolution unimplemented) was not. `ribo-ui`
+was going to ship CSS Modules compiled to one stylesheet, and a bundler gap was not a trade worth
+making against the UI's design.
 
-#### `ribo-core` — tsdown
+That split did not survive contact with the headless-hook-layer decision
+([R2 design](../roadmap/design/r2-headless-hook-layer-design.md)): `@azx/ribo-ui-react` ships no
+markup and no stylesheet, so there is no CSS to compile and Vite library mode buys nothing — only a
+second syntax target to keep pinned in sync with tsdown's (§2.1)
+([R1 design §2.1](../roadmap/design/r1-package-build-configs-design.md)). So: **tsdown for all
+five**, sharing one config (`@azx/build-config`'s `sharedTsdown`, which every package's
+`tsdown.config.ts` spreads and adds only its own `entry` to) and one generated syntax floor
+(`BROWSER_TARGET`, §2.1). One tool, one target, no drift to police.
 
-- **Declarations: use the `tsc` generator**, `isolatedDeclarations` **off**. zod's `z.infer<typeof Schema>` cannot be emitted under `isolatedDeclarations`/oxc — types are inferred from runtime values, which isolated declarations forbid (one real package hit 374 errors).
-- **Entries: single `index`.** `ribo-core` has **no** worker entry — the `./worker` subpath moved to `@azx/ribo-transcriber-ondevice` in Phase 3 (it was a placeholder here in Phase 2). Use the object form (`{ index: 'src/index.ts' }`) anyway so output filenames stay stable; the array form leaves you trusting name derivation.
+#### `ribo-core`, `ribo-adapter-snuggpro`, `ribo-extractor-openai`, `ribo-ui-react` — tsdown, single `index` entry
+
+Four of the five packages have nothing package-specific to say about their build — which is the
+point of the reversal above, `ribo-ui-react` included:
+
+- **Declarations: the shared `tsc` generator**, `isolatedDeclarations` **off**. zod's `z.infer<typeof Schema>` cannot be emitted under `isolatedDeclarations`/oxc — types are inferred from runtime values, which isolated declarations forbid (one real package hit 374 errors).
+- **Entries: single `index`.** None of the four has a worker entry. Use the object form (`{ index: 'src/index.ts' }`) anyway so output filenames stay stable; the array form leaves you trusting name derivation.
+- **`ribo-ui-react` has no CSS pipeline because it has no CSS.** The headless-hook-layer decision means this package ships `RiboProvider` and six hooks, no components that render markup, and no stylesheet. `sideEffects: false` (not `["*.css"]`) and no `./styles.css` export follow directly from that — there was never a build-tool question here once the package went headless.
 
 #### `@azx/ribo-transcriber-ondevice` — tsdown (worker build)
 
-The worker-entry build wisdom, relocated from `ribo-core` with the `./worker` subpath. Applies once this package gains a build (Phase 3; scaffolded Task 1, build config a later task):
+The one package with a second entry, because it is the one package with a worker:
 
 - **Entries: use the object form** (`{ index: 'src/index.ts', worker: 'src/worker.ts' }`) so output filenames are stable for the `./worker` subpath export; the array form leaves you trusting name derivation.
 - **Shared chunks:** code-splitting is on by default, so shared imports between `index` and `worker` hoist into a shared chunk — `dist/worker.js` is _not_ self-contained and carries a sibling import. Fine for a `{type:'module'}` worker; if we ever need a standalone worker file, build it as a **separate tsdown config** rather than fighting chunking.
 - **Do not enable `experimental.resolveNewUrlToAsset`.** Rolldown's own tracking issue says it _"does not work well when bundling libraries."_ With the flag **off** (the default), `new URL('./worker.js', import.meta.url)` passes through roughly verbatim — exactly what we want, since native ESM and webpack 5 do their own static analysis of that pattern.
 
-#### `ribo-ui` — Vite library mode
-
-- **CSS Modules → a single `styles.css`**, imported explicitly by consumers. Vite's CSS pipeline handles `url()` assets, so there is **no constraint on the UI's design** (background images, web fonts and CSS-referenced icons are all fine).
-- **Declarations via `vite-plugin-dts`** (tsc-based, so zod-derived types are fine here too).
-- **Externals must be explicit — this is the footgun.** Vite library mode will happily bundle React if you let it:
-  ```ts
-  build: {
-    lib: { entry: { index: 'src/index.ts' }, formats: ['es'] },
-    rolldownOptions: {
-      external: [/^react($|\/)/, /^react-dom($|\/)/, /^@azx\/ribo-core($|\/)/],
-    },
-  }
-  ```
-  A bare `'react'` does **not** match `react/jsx-runtime` — hence the regexes. This is caught by CI (§8): `pnpm ls react --depth=Infinity` failing on >1 copy, plus the pack-and-consume matrix.
+`ribo-ui-react` is the only one of the five with a React peer dependency at all, and its React
+externalization is still guarded the same way for every package regardless: `deps.neverBundle:
+[/^react($|\/)/, /^react-dom($|\/)/]` in the shared config (§8), because a bare `'react'` does not
+match `react/jsx-runtime` and a missing regex breaks consumer builds.
 
 ## 4. WASM + Web Workers — non-negotiable rules
 
@@ -168,7 +207,7 @@ Regardless: **feature-detect `crossOriginIsolated` and surface the degraded mode
 
 ## 5. Dev loop
 
-**Primary — the in-repo `playground/`.** One pnpm workspace means React is a **single instance by construction** rather than patched, and the source condition gives HMR straight into library code with no watch/build chain. It imports all three libraries, and its **production build** runs in CI on every PR (the `build` stage of `./check.sh`), so "do the libraries still resolve, typecheck and bundle inside an app" is a gate, not a vibe. What CI does **not** do is run the app: there is no runtime smoke test yet, so "does the library still _work_ in an app" remains a manual browser step until a browser-mode/E2E project exists (§7).
+**Primary — the in-repo `playground/`.** One pnpm workspace means React is a **single instance by construction** rather than patched, and the source condition gives HMR straight into library code with no watch/build chain. It imports all five libraries, and its **production build** runs in CI on every PR (the `build` stage of `./check.sh`), so "do the libraries still resolve, typecheck and bundle inside an app" is a gate, not a vibe. The `build:app` stage alone does not run the app — but `./check.sh`'s `test` stage's `e2e` project does: it serves that same production build through `vite preview` and drives a real Chromium through it, so "does the library still _work_ in an app" is answered by CI too, not left as a manual step (§7 has the full tier).
 
 **Cross-repo — canary snapshot publishes.** CI publishes `0.0.0-canary-<ts>` under a `canary` dist-tag (never `latest`); the field app pins the **exact version**. This is the only mechanism that also serves the eventual third-party host, and it validates packaging on every PR.
 
@@ -181,7 +220,7 @@ pnpm changeset publish --tag canary --no-git-tag   # do NOT commit these bumps
 
 **Do not:**
 
-- **`pnpm link`** — Node resolves from **realpath**, so `ribo-ui` binds _our_ React → two Reacts, broken hooks. Further restricted in pnpm 11.
+- **`pnpm link`** — Node resolves from **realpath**, so `ribo-ui-react` binds _our_ React → two Reacts, broken hooks. Further restricted in pnpm 11.
 - **Committed `pnpm.overrides` with local paths** — poisons the lockfile; CI installs then fail.
 - **Verdaccio** — redundant given a private registry.
 
@@ -193,24 +232,53 @@ Peer+dev deps (never `dependencies`) · one React version via `catalog:` · `ded
 
 ## 6. Publishing
 
-- Changesets, `fixed` across the three libs, `ignore: ["playground"]`.
-- Release = `turbo run build lint:pkg test && changeset publish`. **Publish with pnpm, never npm.**
-- `.npmrc` (committed, no secrets): `@azx:registry=…` + `//host/:_authToken=${AZX_NPM_TOKEN}`. Same file shape locally and in CI.
+- Changesets, **independent versioning** across the five libs — no `fixed` or `linked` groups, so a
+  change to one package never drags an unrelated one along. `playground` and `@azx/tsconfig` are
+  `private: true` and excluded from versioning entirely. See
+  [Releasing](../design/releasing.md) for the authoritative policy and everyday workflow
+  (`pnpm changeset` / `pnpm changeset:version` / `pnpm changeset:publish`); this predates that page and
+  the `turbo run build lint:pkg test && changeset publish` release command it once described has no
+  `lint:pkg` script or `turbo` behind it today. **Publish with pnpm, never npm**, whenever publishing
+  actually happens.
+- `.npmrc` (to be committed, no secrets, not yet written): `@azx:registry=…` +
+  `//host/:_authToken=${AZX_NPM_TOKEN}`. Same file shape locally and in CI, once the registry is
+  chosen — see [Releasing](../design/releasing.md)'s "Nothing is published yet" note and AGENTS.md §2.
 - The third-party host needs a **read-only, scope-limited token** plus those two lines — the most common onboarding failure; document it.
 
 > **pnpm 11 trap:** `minimumReleaseAge` now defaults to **1440 (one day)** — a canary published 30 seconds ago is **invisible to `pnpm add`**. Set `minimumReleaseAgeExclude: ['@azx/*']` in both repos.
 
 ## 7. Testing
 
-| Tier                 | Environment                         | Scope                                                                           |
-| -------------------- | ----------------------------------- | ------------------------------------------------------------------------------- |
-| Unit                 | node/jsdom                          | Pure logic: zod schemas, state machine, transcript post-processing              |
-| Browser              | **Vitest browser mode, Playwright** | Anything touching **MediaRecorder, IndexedDB, Workers, WASM**                   |
-| **Pack-and-consume** | scratch Vite / webpack / Next apps  | `pnpm pack` → install tarball → build → assert the worker spawns and WASM loads |
+| Tier                 | Environment                                               | Scope                                                                                                                                                     |
+| -------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit                 | **node**                                                  | Pure logic: zod schemas, state machine, transcript post-processing                                                                                        |
+| Browser              | **Vitest browser mode, real Chromium (Playwright)**       | Anything touching **MediaRecorder, IndexedDB, Workers, WASM**                                                                                             |
+| **E2E**              | **Playwright driving `vite preview` over a real `dist/`** | The production build, actually run: real audio capture, an offline reload, IndexedDB/Cache eviction, storage persistence (`playground/e2e/*.e2e.test.ts`) |
+| **Pack-and-consume** | scratch Vite / webpack / Next apps                        | `pnpm pack` → install tarball → build → assert the worker spawns and WASM loads — **not built on this branch yet**                                        |
 
-jsdom has no MediaRecorder, a shimmed IndexedDB, and doesn't faithfully simulate workers/WASM — mocking through it produces tests that pass while production is broken.
+The `unit` project runs in a plain **node** environment (`environment: "node"` in
+`vitest.config.ts`), not jsdom — jsdom sits pinned in the catalog but nothing in this repo actually
+uses it. Node has no `MediaRecorder`, no `IndexedDB`, and doesn't simulate workers/WASM at all, so
+anything touching those is pushed to `browser` or `e2e` rather than mocked through `unit` — mocking
+through a shimmed environment produces tests that pass while production is broken, which is the
+failure this split exists to prevent.
 
-**The third tier is mandatory, not optional.** The source-condition playground _hides packaging bugs by design_ (it never touches `dist/`), and every WASM/worker failure mode is production-build-only. This is the highest-value test in the repo.
+**`e2e` already gates real browser behavior on every `./check.sh` run — it is not a manual step and
+not future work.** Seven spec files, fifteen tests today, none skipped (`check.sh`'s own `test` stage
+comment has the roster). Each builds the playground and serves the built `dist/` through
+`vite preview`, then drives a real Chromium: a recording that survives an offline reload with its
+audio intact, a wiped IndexedDB/Cache reported as eviction rather than an empty queue, the storage
+panel repeating what `persist()` actually answered. This is the runtime smoke test the rest of this
+doc has, in places, described as not existing yet — that was true when written and has not been true
+for a while.
+
+**The pack-and-consume tier is the one still missing, and it is mandatory, not optional, once it
+lands.** The source-condition playground _hides packaging bugs by design_ (it never touches `dist/`
+for its own HMR), and `e2e` does not close that gap either — it builds `dist/` but never packs or
+installs a tarball into a separate host app, so a `package.json` `exports`/`files` mistake that
+`publint`/`attw` miss would still slip through both `build:app` and `e2e` today. Every WASM/worker
+failure mode of that specific kind is production-build-only and pack-only; this is the highest-value
+test still absent from the repo.
 
 ## 8. CI gates
 
@@ -218,17 +286,24 @@ jsdom has no MediaRecorder, a shimmed IndexedDB, and doesn't faithfully simulate
 
 ## 9. Maintainability
 
-This stack has a real complexity budget, and we should be honest about it — a 3-package repo maintained by a very small team (the DRB's lone-wolf concern is live) can drown in tooling.
+This stack has a real complexity budget, and we should be honest about it — a five-package repo maintained by a very small team (the DRB's lone-wolf concern is live) can drown in tooling.
 
-**What's load-bearing vs. optional.** The **package contract** (§3), the **WASM/worker rules** (§4), and the **CI gates** (§8) are load-bearing — they're what stops us shipping a broken artifact to a team we can't hot-fix for. **Turborepo is optional at three packages**: `pnpm -r` already respects topological order via `workspace:` deps, and Turbo buys caching for one config file. If the repo feels heavy, **cut Turborepo first**, then Storybook if we add it. Do not cut publint/attw/pack-test — they are the cheapest insurance here by a wide margin.
+**What's load-bearing vs. optional.** The **package contract** (§3), the **WASM/worker rules** (§4), and the **CI gates** (§8) are load-bearing — they're what stops us shipping a broken artifact to a team we can't hot-fix for. **Turborepo is optional at five packages**: `pnpm -r` already respects topological order via `workspace:` deps, and Turbo buys caching for one config file. If the repo feels heavy, **cut Turborepo first**, then Storybook if we add it. Do not cut publint/attw/pack-test — they are the cheapest insurance here by a wide margin.
 
 **We're adopting genuinely new tooling.** tsdown is **pre-1.0** (0.22.x, shipping multiple times a week, no published 1.0 roadmap), Vite 8/Rolldown landed March 2026, and **TypeScript 7 went GA in July 2026**. Mitigations: **pin exact versions** (not carets) for tsdown; keep the toolchain in the `catalog:` so upgrades are one-line and reviewable; and treat **TS 7 as a fast-follow rather than a day-one dependency** — the ecosystem (ESLint parser, editor plugins) typically lags a new major by weeks, and nothing in our design needs it.
 
-We deliberately kept the newest, least-settled piece off the critical path: **`@tsdown/css`** is four months old and self-described as experimental, so `ribo-ui` uses Vite's mature CSS pipeline instead (§3.1). tsdown's remaining job — headless multi-entry TypeScript — is its most settled use case.
+**`@tsdown/css` never became relevant here.** It was the reason `ribo-ui` (now `ribo-ui-react`) was
+slated for Vite library mode instead of tsdown: `@tsdown/css` was four months old, self-described
+experimental, with `url()` asset resolution unimplemented, and a styled UI package would have needed
+all of it. The headless-hook-layer decision removed the need before the split ever shipped —
+`ribo-ui-react` has no CSS to compile, so tsdown's remaining job, headless multi-entry TypeScript, is
+the only job any of the five packages needs from it, and it is tsdown's most settled use case.
 
 **Longevity is not the concern.** tsdown is maintained by VoidZero (the Vite/Rolldown/Oxc company) and is slated to underpin Vite's own library mode — core infrastructure, not a side project. tsup's fate is a poor analogy: that was a solo-maintainer project. The residual risk is **API churn from healthy, rapid development**, not abandonment — which is what pinning addresses.
 
-**The split costs one thing:** two config styles across two packages, so an engineer touching both context-switches slightly. Judged worth it against letting a bundler gap constrain the UI's design.
+**What the split would have cost, avoided rather than merely managed:** two build-tool config styles
+across the workspace, and a second syntax target to keep pinned in sync with tsdown's own (§2.1). One
+tool now, so neither cost exists to pay.
 
 **Two mechanisms here are non-obvious and will look like mistakes to a newcomer**: the `@azx/source` export condition, and injecting `createWorker` instead of just constructing a Worker. Both are load-bearing and both are the kind of thing someone "simplifies" on a quiet afternoon and breaks published consumers. Each needs a comment at the definition site plus a short `ARCHITECTURE.md` note explaining _why_, with a link to the issue that forced it.
 
@@ -243,7 +318,10 @@ We deliberately kept the newest, least-settled piece off the critical path: **`@
 - Confirm the private registry URL + token issuance path (and read-only tokens for the host team).
 - Ask Helix for per-app COOP/COEP headers as an **iOS-performance lever** (§4) — and be ready to accept single-threaded-only, which is now the assumed baseline rather than the failure case.
 - Confirm the host's CSP allows `blob:` in `script-src`/`worker-src` (§4.1), or find out the hard way at runtime.
-- Name and scaffold the separate on-device-transcriber package (§4.1) — the §1 layout still shows three publishable packages, and this makes four.
+- ~~Name and scaffold the separate on-device-transcriber package (§4.1) — the §1 layout still shows
+  three publishable packages, and this makes four.~~ **Done, and overtaken.** `ribo-transcriber-ondevice`
+  shipped in Phase 3; `ribo-extractor-openai` shipped in Phase 4 alongside it, so the count settled at
+  **five**, not four. §1's layout now lists all five.
 - Decide whether Storybook earns its place alongside the playground, or is deferred.
 - Pin the initial tsdown/Vite/TypeScript versions and record them in the catalog.
-- Translate the §2.1 baseline into a concrete shared browserslist / per-tool `target`, and add a check that the two library builds agree on it. (The baseline is decided; the wiring is not done.)
+- ~~Translate the §2.1 baseline into a concrete shared browserslist / per-tool `target`, and add a check that the two library builds agree on it.~~ **Done.** `pnpm target:refresh` (`scripts/refresh-target.mjs`) generates `BROWSER_TARGET` in `packages/build-config/src/target.generated.ts` from the §2.1 table, and every one of the five packages' `tsdown.config.ts` gets it from the same `sharedTsdown` object rather than declaring its own — there is one tool and one target now, not two builds that could disagree.
