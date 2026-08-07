@@ -12,8 +12,9 @@ changed (attic R-value is the standing example: read `schema.ts`'s HAZARD 2b not
 **Read [`ground-truth/11-ambiguous-attic.json`](ground-truth/11-ambiguous-attic.json) end to end
 before you start.** It is the worked reference every rule below is illustrated against, chosen
 because it hits nearly every hard case in this guide in one short transcript: two retractions, a
-health-matrix trap, two whole-group negations, and a genuinely new ambiguity the schema rebuild
-introduced. Where this guide says "see the worked example," it means that file.
+health-matrix trap, three blanket disclaimers recorded as data rather than resolved by judgment, and
+a genuinely new ambiguity the schema rebuild introduced. Where this guide says "see the worked
+example," it means that file.
 
 **Run `node validate-ground-truth.mjs ground-truth/NN-slug.json` before you consider yourself done.**
 It catches every mechanical mistake below (missing leaf, typo'd member, wrong-shaped envelope) in
@@ -29,12 +30,16 @@ you find yourself unsure whether a call is "the obviously right answer" or "argu
 arguable — a spurious `arguable` costs a reviewer thirty seconds; a silently-swallowed genuine
 ambiguity costs the whole point of running this twice per transcript.
 
-## 1. Every one of the 51 leaves gets an entry — always
+## 1. Write a `leaves` entry only for what you can address SPECIFICALLY
 
-Walk `schema-leaves.mjs`'s `LEAF_PATHS` (or just run the validator, which tells you what's missing)
-and produce a `LeafTruth` for every one, even the ones the transcript never comes near. "Never
-discussed" is not an omission from the file — it is `{ "status": "unmentioned", "sourceSpan": null }`,
-a real, correct answer for the large majority of leaves on any short transcript.
+`leaves` is sparse. Write an entry for a leaf when the transcript says something specific enough to
+name that exact leaf — an asserted value, or an individually-addressed absence
+(`"I'm leaving the year blank"`). Do **not** write `{ "status": "unmentioned", "sourceSpan": null }`
+entries for every leaf the transcript never touches — that is the default every leaf gets
+automatically; writing it out changes nothing and just adds noise to diff against. A leaf that a
+BLANKET statement covers ("no water heater," "No tests") is not addressed by you at all — see rule 4.
+When in doubt, write less: an unwritten leaf is either the plain default or a disclaimer's default,
+never an error.
 
 ## 2. Choosing a `sourceSpan`
 
@@ -49,9 +54,11 @@ a real, correct answer for the large majority of leaves on any short transcript.
   same fused mention — `"it's a furnace, a gas furnace"` legitimately backs both
   `hvac.hvacSystemEquipmentType` and `hvac.hvacHeatingEnergySource` in the worked example. This is
   correct, not a defect; do not invent two different sub-spans to avoid the repeat.
-- For `status: "declared_absent"` or a group-negation cascade (rule 4), the span is whatever
-  sentence explicitly addresses the absence — `"no water heater"`, `"I'm giving you the R-value, not
-a depth"`. For `"unmentioned"`, the span is `null`, always — there is no sentence to point at.
+- For `status: "declared_absent"` on a leaf you address individually, the span is whatever sentence
+  explicitly addresses the absence — `"I'm giving you the R-value, not a depth"`. For a BLANKET
+  negation covering many leaves at once ("no water heater"), that span goes on a `disclaimers` entry
+  instead (rule 4) — not repeated across every leaf it covers. For `"unmentioned"`, the span is
+  `null`, always — there is no sentence to point at.
 
 ## 3. Stated vs. inferred — the line that matters most
 
@@ -76,30 +83,53 @@ Never:
   words** — "I hear you, but I need to read the plate myself" followed by the auditor's own reading
   is fine; repeating the homeowner's number back uncritically is not.
 
-## 4. Group-negation: when "no X" answers every leaf about X
+## 4. Blanket negations: record them as a `disclaimer`, never decide their reach yourself
 
-When the auditor explicitly says a whole **thing** does not exist, was not done, or does not apply
-("no water heater", "no blower door", "no ducts, it's hydronic"), every leaf that describes an
-attribute of that specific thing is `"declared_absent"` with that same span — not `"unmentioned"`.
-The worked example cascades `"no water heater"` across all six `dhw.*` leaves, and `"no blower
-door"` across both `basedata.blowerDoorReading` and `basedata.blowerDoorTestPerformed` (the latter
-is a qualifier of a measurement that doesn't exist, so the question is moot, not merely unaddressed).
+When the auditor says a whole **thing** does not exist, was not done, or was skipped ("no water
+heater", "No tests, no blower door", "the rest of the shell next visit"), do **not** decide for
+yourself which leaves that reaches and do **not** write `declared_absent`/`"Not Tested"` onto each
+one by hand. Add an entry to the top-level `disclaimers` array instead:
 
-**Scope this to the THING named, not to the JSON object it happens to live in.** `basedata` also
-holds `yearBuilt`, `numberOfBedrooms`, and other leaves with nothing to do with a blower door — "no
-blower door" does not cascade to those just because they share a resource group in `schema.ts`.
+```jsonc
+{
+  "span": "no water heater",
+  "topic": "the water heater",
+  "scope": { "kind": "group", "group": "dhw" },
+}
+```
 
-**A generic, uncommitted disclaimer does NOT cascade as broadly as a specific one.** The worked
-example's `notes._general` walks through exactly this: "No tests, no blower door, no water heater,
-none of that stuff" names two specific things (blower door, water heater) and cascades to both — but
-"no tests" names no specific test, and the file treats the other 12 health-matrix leaves as
-`"unmentioned"` rather than asserting `"Not Tested"` on all of them. Naming twelve tests the auditor
-never individually mentions is closer to inference than transcription (rule 3), even under a
-blanket disclaimer. **This is a genuinely arguable scope call — a broader cascade is defensible.**
-If you make the broader call on your transcript, that is fine; flag it with `arguable` on the leaves
-you cascade to, so a reviewer sees you made a deliberate choice rather than missing the disclaimer
-entirely, and so the other annotator's narrower reading is a legible, expected disagreement rather
-than an error.
+This is the single most important mechanical rule in this guide, because the alternative — "prefer
+the narrower reading, flag the broader one as arguable" — asks for a judgment call, and judgment
+calls do not converge across 26 independent, blind annotators. Two annotators who each pick a
+DIFFERENT scope for every blanket statement in their transcript produce files that look like ordinary
+careful disagreement but are actually a systematic split, invisible to a disagreement count and far
+worse than noise. Recording the disclaimer as data sidesteps the question entirely: which leaves it
+reaches is decided once, centrally, by `disclaimer-policy.mjs` — the same policy for every transcript
+— not by you.
+
+**How to pick `scope`** (see `ground-truth-format.md`'s "Disclaimers" section for the full rationale):
+
+1. If the auditor names a whole **resource** that maps to one of the 7 `schema.ts` groups and
+   nothing outside it (a water heater → `dhw`; an attic → `attic`), use
+   `{ "kind": "group", "group": "<name>" }`.
+2. If the auditor's statement is narrower than a full group — the standing cases are the blower-door
+   pair (`namedSet: "blowerDoor"`), the 13-test health battery specifically (`namedSet: "healthTests"`
+   — the word "tests," bare and unqualified, conventionally means this in an energy-audit
+   transcript), or the whole building envelope (`namedSet: "shell"`) — use
+   `{ "kind": "namedSet", "set": "<name>" }`. These three are the complete list today; do not invent
+   a fourth without a second real transcript needing the same one (see `disclaimer-policy.mjs`'s own
+   comment).
+3. If neither fits, use `{ "kind": "unresolved" }`. The disclaimer is still recorded (a future policy
+   update may resolve it); it simply reaches no leaf today. Do not force it into the nearest
+   approximation.
+4. A trailing, topic-free "nothing else today" needs **no disclaimer at all** — "unmentioned" is
+   already every leaf's default, so a statement that names nothing specific changes nothing.
+
+**A leaf you address individually always overrides a disclaimer covering it** — this is structural
+(`resolveGroundTruth`'s resolution order), not something you have to manage. The worked example's
+`healthAmbientCarbonMonoxide` leaf is covered by the "No tests" disclaimer AND has its own, more
+specific `leaves` entry; the explicit entry wins, with no conflict and no judgment call about which
+should apply.
 
 ## 5. Self-correction: the LAST assertion wins, always
 
@@ -128,15 +158,27 @@ available real member(s) if any exist, so a run can still be scored against some
 the auditor's words into the nearest wrong member, and do not drop a real, stated answer to
 `"unmentioned"` just because it doesn't fit.
 
-**When the schema rebuild introduced a distinction the auditor's words don't resolve**, that is a
-new, first-class kind of ambiguity this corpus has never had before, and you should expect to hit it
-occasionally: the schema now encodes an axis the pre-rebuild field set collapsed. The worked
-example's `hvac.hvacSystemEquipmentType` call is the template — the auditor says "a gas furnace" and
-nothing else about cooling, and the rebuilt schema splits furnaces into a standalone-ducts member and
-a shared-ducts-with-AC member. Pick the reading closest to what was actually said (here: no cooling
-mentioned → standalone), flag the untouched-by-the-transcript alternative as `arguable`, and say in
-the note that this is a rebuild-introduced ambiguity, not something the transcript itself is unclear
-about — that distinction matters to whoever triages disagreements later.
+**When the schema conflates two independently-addressable facts into ONE enum axis, and the
+transcript addresses only one of them, this is a MECHANICAL rule, not a per-transcript judgment
+call.** `hvacSystemEquipmentType` is the standing example: `"Furnace with standalone ducts"` and
+`"Furnace / Central AC (shared ducts)"` differ only on whether the furnace shares ducts with a
+central AC unit — an axis the pre-rebuild field set never had to distinguish. An auditor who says "a
+gas furnace" and nothing else about cooling has stated the equipment family and left that axis
+completely unaddressed; **neither member is more supportable than the other**, because both are
+correct about the part that was said and neither is contradicted by anything that wasn't.
+
+The rule: **pick either one of the conflated members as `member`, list the other in
+`arguable.acceptableAlternatives`, and write the note stating explicitly that the two are symmetric —
+not that one is preferred.** Do not use `noFittingMember` here — that is for when NOTHING fits (rule
+above); this is the opposite problem, where something fits equally well in two ways, and
+`noFittingMember` would incorrectly make ANY real member (including a genuinely wrong one, like
+`"Boiler"`) score as merely "unscorable" instead of "wrong." The symmetry is what
+`acceptableAlternatives` is for: a run landing on either member is never penalized, while a run
+landing on a real but genuinely different equipment family is still a hard wrong answer, because
+something real actually was contradicted. If you hit this pattern on your transcript, note in the
+`arguable.note` that it is a schema-rebuild-introduced ambiguity, not something the transcript itself
+is unclear about — that distinction is a finding about the schema, worth escalating, and is different
+in kind from an ordinary contested reading.
 
 ## 7. Bands and axes: no arithmetic, no fused tokens
 
@@ -174,7 +216,11 @@ schema's own "explicitly did not happen" state).
   catch. Read the worked example's `arguable` block on that leaf for how to phrase this kind of trap
   once you've spotted one on your own transcript.
 - `health.healthRoofCondition` is **not** one of the 13 — it's a separate, 3-member condition enum
-  (`Good`/`Potential Issues`/`NA`), scored like any other enum leaf.
+  (`Good`/`Potential Issues`/`NA`), scored like any other enum leaf, and is NOT part of the
+  `healthTests` named set (rule 4) — a blanket "no tests" does not touch it.
+- A BARE, unqualified "tests" in a blanket disclaimer ("No tests," "no safety tests") means the
+  `healthTests` named set — record it as a disclaimer (rule 4), not as 13 individual `"Not Tested"`
+  leaf entries. Only write an individual leaf entry when the auditor names that specific test.
 
 ## 9. Fields with no write target — say nothing, not something nearby
 

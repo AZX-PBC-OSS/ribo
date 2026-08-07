@@ -118,6 +118,17 @@ export const LEAF_BY_PATH = new Map(leaves.map((l) => [l.path, l]));
 /** The seven resource-group keys, in schema order. */
 export const GROUPS = Object.keys(snuggValuesSchema.shape);
 
+/**
+ * The 13 health-matrix TEST leaves, derived by finding every enum leaf whose exact member set
+ * equals schema.ts's `HealthTestState` (Passed/Failed/Warning/Not Tested) — not hand-listed. This
+ * is what excludes `health.healthRoofCondition` (a different, 3-member condition enum) without
+ * anyone having to remember it is the one health-group leaf that isn't a "test".
+ */
+const HEALTH_STATE_SHAPE = JSON.stringify(["Passed", "Failed", "Warning", "Not Tested"]);
+export const HEALTH_TEST_PATHS = leaves
+  .filter((l) => l.kind === "enum" && JSON.stringify(l.options) === HEALTH_STATE_SHAPE)
+  .map((l) => l.path);
+
 // ---------------------------------------------------------------------------
 // Vocabulary A: the API's literal wire strings — schema.ts's own enum members,
 // unmodified. This is not "derived" from anything else; it IS schema.ts.

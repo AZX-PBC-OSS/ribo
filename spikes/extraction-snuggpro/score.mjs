@@ -32,8 +32,16 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { GROUPS, LEAF_BY_PATH, LEAF_PATHS, LEAVES, resolveEnumMember } from "./schema-leaves.mjs";
-import { isNewFormat, validateGroundTruth } from "./ground-truth.mjs";
+import {
+  GROUPS,
+  HEALTH_TEST_PATHS,
+  LEAF_BY_PATH,
+  LEAF_PATHS,
+  resolveEnumMember,
+} from "./schema-leaves.mjs";
+import { isNewFormat, resolveGroundTruth, validateGroundTruth } from "./ground-truth.mjs";
+
+export { HEALTH_TEST_PATHS };
 
 // ---------------------------------------------------------------------------
 // Domain knowledge NOT visible in a zod enum's shape, kept as two short,
@@ -53,13 +61,6 @@ const AXIS_PAIRS = [
   { equipment: "dhw.dhwType2", fuel: "dhw.dhwFuel2" },
 ];
 
-/** The 13 health-matrix test leaves — derived by finding every enum leaf whose exact member set is
- * schema.ts's `HealthTestState` (Passed/Failed/Warning/Not Tested). This is what excludes
- * `health.healthRoofCondition` (a different, 3-member enum) without hand-listing 13 paths. */
-const HEALTH_STATE_SHAPE = JSON.stringify(["Passed", "Failed", "Warning", "Not Tested"]);
-export const HEALTH_TEST_PATHS = LEAVES.filter(
-  (l) => l.kind === "enum" && JSON.stringify(l.options) === HEALTH_STATE_SHAPE,
-).map((l) => l.path);
 const HEALTH_TEST_SET = new Set(HEALTH_TEST_PATHS);
 
 /** Every leaf EXCEPT the 13 health-matrix tests — these get the generic hallucination/miss/enum/
@@ -489,12 +490,16 @@ function emptyCounts() {
 /**
  * Score one transcript against its new-format ground truth.
  * @param slug transcript slug
- * @param gt the parsed, VALIDATED new-format ground-truth object ({ leaves: {...}, notes })
+ * @param rawGt the parsed, VALIDATED new-format ground-truth object — RAW, i.e. `leaves` may be
+ *   sparse and `disclaimers` unresolved; this function resolves it (see `ground-truth.mjs`'s
+ *   `resolveGroundTruth`) before scoring anything, so a scope-policy change re-scores every
+ *   transcript without anyone touching a ground-truth file.
  * @param transcript raw transcript text
  * @param model parsed model output object, or null when missing/malformed
  * @param loadProblem optional string describing why model is null
  */
-export function scoreTranscript(slug, gt, transcript, model, loadProblem = null) {
+export function scoreTranscript(slug, rawGt, transcript, model, loadProblem = null) {
+  const gt = resolveGroundTruth(rawGt);
   const r = {
     slug,
     status: model ? "scored" : "unscored",
@@ -728,13 +733,37 @@ function scoreAxis(pair, gt, model) {
   const eqLeaf = readLeaf(model, pair.equipment);
   const fuelLeaf = readLeaf(model, pair.fuel);
 
+  // "correct" here means "the ordinary comparison says correct, OR the leaf's own `arguable`
+  // sanctions this exact value" — the SAME rule scoreOneLeaf applies, so a leaf whose equipment
+  // member is a symmetric noFittingMember (see the worked example) is not falsely reported as
+  // axis-wrong just because compareValue alone can never call it "correct".
+  const eqArguable = gtExtras(gt.leaves[pair.equipment]).arguable;
   const eqCmp = eqLeaf.value !== null ? compareValue(pair.equipment, eqGt, eqLeaf.value) : null;
-  const eqCorrect = eqCmp?.verdict === "correct";
+  const eqCorrect =
+    eqCmp?.verdict === "correct" ||
+    (eqCmp !== null &&
+      eqCmp.verdict !== "correct" &&
+      matchesAlternative(
+        pair.equipment,
+        eqGt.kind,
+        eqLeaf.value,
+        eqArguable?.acceptableAlternatives,
+      ));
+  const fuelArguable = gtExtras(gt.leaves[pair.fuel]).arguable;
   const fuelCmp =
     !fuelGt.isNull && fuelLeaf.value !== null
       ? compareValue(pair.fuel, fuelGt, fuelLeaf.value)
       : null;
-  const fuelCorrect = fuelCmp?.verdict === "correct";
+  const fuelCorrect =
+    fuelCmp?.verdict === "correct" ||
+    (fuelCmp !== null &&
+      fuelCmp.verdict !== "correct" &&
+      matchesAlternative(
+        pair.fuel,
+        fuelGt.kind,
+        fuelLeaf.value,
+        fuelArguable?.acceptableAlternatives,
+      ));
 
   let category;
   if (fuelGt.isNull) {
@@ -770,14 +799,22 @@ function scoreAxis(pair, gt, model) {
 // into the nested envelope shape (with confidence), so a copy scores clean.
 // ---------------------------------------------------------------------------
 
-export function buildPerfectModel(gt, confidence = 0.9) {
+export function buildPerfectModel(rawGt, confidence = 0.9) {
+  const gt = resolveGroundTruth(rawGt);
   const out = {};
   for (const group of GROUPS) out[group] = {};
   for (const path of LEAF_PATHS) {
     const [group, leafKey] = path.split(".");
     const leafTruth = gt.leaves[path];
     const gtc = gtCanonical(path, leafTruth);
-    const value = gtc.isNull ? null : gtc.kind === "enum" ? gtc.member : gtc.value;
+    // A `noFittingMember` leaf has no single canonical value to copy — score a "perfect" run as
+    // emitting the first sanctioned alternative, since that is what "scores clean" means for a
+    // leaf the ground truth itself says has no one right answer (see the worked example).
+    const value = gtc.isNull
+      ? null
+      : gtc.kind !== "enum"
+        ? gtc.value
+        : (gtc.member ?? gtExtras(leafTruth).arguable?.acceptableAlternatives?.[0] ?? null);
     const sourceSpan = leafTruth?.sourceSpan ?? null;
     out[group][leafKey] = { value, confidence, sourceSpan };
   }
@@ -838,7 +875,8 @@ function main() {
       pending.push({ slug, reason: 'old format (no "leaves" key) — not yet re-annotated' });
       continue;
     }
-    const { ok, errors } = validateGroundTruth(raw);
+    const transcript = readFileSync(join(TRANSCRIPT_DIR, `${slug}.txt`), "utf8");
+    const { ok, errors } = validateGroundTruth(raw, transcript);
     if (!ok) {
       pending.push({
         slug,
@@ -846,7 +884,6 @@ function main() {
       });
       continue;
     }
-    const transcript = readFileSync(join(TRANSCRIPT_DIR, `${slug}.txt`), "utf8");
     const loaded = loadResult(resultsDir, slug);
     reports.push(scoreTranscript(slug, raw, transcript, loaded.data, loaded.problem));
   }

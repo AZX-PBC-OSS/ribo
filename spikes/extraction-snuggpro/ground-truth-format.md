@@ -32,11 +32,19 @@ against.
 
 ```jsonc
 {
-  "schemaVersion": "snuggpro-51-leaf-v1",
+  "schemaVersion": "snuggpro-51-leaf-v2",
   "transcript": "transcripts/NN-slug.txt",
   "stresses": "free-text summary of what this transcript is built to exercise",
+  "disclaimers": [
+    // blanket/generic negations, recorded as DATA — see "Disclaimers" below. Optional; most
+    // transcripts will have zero to a handful.
+    { "span": "no water heater", "topic": "the water heater", "scope": { "kind": "group", "group": "dhw" } },
+  ],
   "leaves": {
-    "<dotted leaf path>": LeafTruth, // one entry for EVERY ONE of schema.ts's 51 leaves, always
+    // SPARSE: one entry per leaf the annotator can address SPECIFICALLY — not all 51. Every leaf
+    // NOT here, and not covered by a disclaimer's scope, resolves to "unmentioned". An explicit
+    // entry always overrides a disclaimer covering the same leaf (see "Resolution" below).
+    "<dotted leaf path>": LeafTruth,
     // ...
   },
   "notes": {
@@ -51,6 +59,11 @@ nesting is real: it is Snugg Pro's own per-endpoint resource layout, not an arti
 annotation format. [`schema-leaves.mjs`](schema-leaves.mjs)'s `LEAF_PATHS` is the literal list, walked
 out of the built `snuggValuesSchema`, so it is impossible for this format to describe a leaf that
 doesn't exist or to omit one that does.
+
+**`leaves` is sparse by design — v2 dropped the v1 requirement that all 51 keys be present.** See
+"Disclaimers" below for why: an annotator only writes a `leaves` entry for a leaf they can address
+specifically. `resolveGroundTruth` (`ground-truth.mjs`) is what materializes the full 51-leaf map
+the scorer actually scores against, by layering `disclaimers` under the explicit `leaves` entries.
 
 ### `LeafTruth`
 
@@ -152,13 +165,81 @@ two axes" are facts about what the leaves MEAN, invisible in a bare zod enum's s
 derived from `schema.ts` the way the leaf list and the 233 members can — but they are two short,
 named facts, not a parallel enumeration of every member.
 
+### Disclaimers: blanket negations are DATA, not an annotator's judgment call
+
+An auditor sometimes negates a whole topic at once — "no water heater," "No tests, no blower door,"
+"the rest of the shell next visit." The v1 format asked the annotator to decide, per transcript,
+which leaves such a statement reaches, with the guide saying "prefer the narrower reading." That is
+a **judgment call**, and judgment calls do not converge across 26 independent, blind annotators. The
+specific danger is not ordinary disagreement — it is a **systematic split**: half the annotators
+read every blanket disclaimer broadly, half read every one narrowly, and the result is 26
+individually-defensible files that disagree on scope for a reason invisible to a disagreement count.
+Reconciling that degenerates into re-annotating everything by hand.
+
+**v2's fix: the annotator records a disclaimer as data (a verbatim `span` plus a mechanical `scope`)
+and never decides which leaves it reaches.** Resolution — turning a scope into leaf paths, and those
+leaf paths into a default `LeafTruth` — is a single, versioned POLICY (`disclaimer-policy.mjs`),
+applied uniformly to every transcript. Change the policy and every ground-truth file's SCORED
+meaning changes with it — no re-annotation, the same property vocabulary-neutrality gets enums, one
+level up.
+
+```ts
+type Disclaimer = {
+  span: string; // verbatim, same rules as any sourceSpan
+  topic: string; // free-text gloss for humans — NOT mechanically applied, see below
+  scope:
+    | { kind: "group"; group: string } // every leaf under one of the 7 resource groups
+    | { kind: "namedSet"; set: string } // a key of disclaimer-policy.mjs's NAMED_SETS
+    | { kind: "unresolved" }; // real, worth recording — reaches no leaf today
+};
+```
+
+**Why `scope` is a closed mechanical vocabulary and not free text.** Free text ("the topic is: the
+combustion tests") is the easiest thing for an annotator to write and the hardest thing to apply the
+same way twice — resolving it mechanically would need string-matching or an LLM call, reintroducing
+exactly the judgment-call problem this feature exists to remove. A **resource group name** is the
+opposite extreme: fully mechanical (a `LEAF_PATHS` prefix match) and requires no named list at all,
+but is sometimes too coarse — `"no blower door"` under `group: "basedata"` would incorrectly sweep in
+`yearBuilt`, `numberOfBedrooms`, and every other basedata leaf that has nothing to do with a blower
+door. **`namedSet`** is the deliberate middle ground: a SMALL, closed, hand-named table
+(`disclaimer-policy.mjs`'s `NAMED_SETS`) for the few scopes that recur but are narrower than a whole
+group — today: `healthTests` (the 13 pass/fail/warning/not-tested matrix leaves, narrower than
+`group: "health"` because it excludes `healthRoofCondition`), `blowerDoor` (the two basedata leaves
+about the blower-door reading), and `shell` (the building envelope: attic + wall + window +
+blower-door, justified by real corpus text — see that file's own comments). This is domain knowledge
+about what recurs, exactly like `BAND_LEAVES`/`AXIS_PAIRS` in `score.mjs` — a few short, named facts,
+not a parallel enumeration of leaves.
+
+**When a disclaimer genuinely cannot be captured by a group or a named set, it is `{ kind:
+"unresolved" }`, not forced into the nearest approximation.** The disclaimer is still recorded (span
+
+- topic, for a human or a future policy update to act on); it simply reaches no leaf today, and every
+  leaf it might plausibly cover stays at its ordinary default. On inspection of all 14 transcripts,
+  every real blanket disclaimer found so far resolves cleanly to a group or one of the three named sets
+  above — `unresolved` exists as a safety valve for a case none of the 14 has actually needed yet, not
+  a workaround for one that has.
+
+**Resolution order (`resolveGroundTruth` in `ground-truth.mjs`), most to least specific:** (1) an
+explicit `leaves[path]` entry the annotator wrote, (2) a disclaimer whose scope covers `path`, (3) the
+default, `{ status: "unmentioned", sourceSpan: null }`. This is "most specific wins," now structural
+rather than a guideline: `ANNOTATOR_GUIDE.md`'s worked example uses it directly — a generic `"No
+tests"` disclaimer covers all 13 health-matrix leaves, and the transcript's own, separately-addressed
+statement about `healthAmbientCarbonMonoxide` overrides the disclaimer's default for that one leaf
+with a more specific span and an `arguable` block, without the two ever conflicting or requiring the
+annotator to decide which "wins" — the format decides.
+
+**Disclaimer scopes must not overlap.** Two disclaimers both claiming the same leaf is either a
+redundant annotation or a sign that one should be narrowed and the other's target leaf given its own
+explicit `leaves` entry instead; `validateGroundTruth` rejects the overlap rather than picking a
+winner silently.
+
 ### When nothing fits: `noFittingMember`
 
 Several enums have no catch-all member at all — `hvacSystemEquipmentType` (17 members, no "Other"),
-`dhwType2` (4 members, no "Other"), `atticRoofType`, `hvacUpgradeAction`, and others. An auditor can
-say something real that fits none of them (a solar water heater; a metal roof). For these cases the
-leaf is `status: "asserted"` with `noFittingMember: { auditorMeaning: "<what they actually said>" }`
-instead of `member`. There is deliberately no invented sentinel value pretending to be a real member.
+`dhwType2` (4 members, no "Other"), `atticRoofType`, and others. An auditor can say something real
+that fits **none** of them (a solar water heater; a metal roof). For these cases the leaf is
+`status: "asserted"` with `noFittingMember: { auditorMeaning: "<what they actually said>" }` instead
+of `member`. There is deliberately no invented sentinel value pretending to be a real member.
 
 When you use `noFittingMember`, also set `arguable.acceptableAlternatives` to whatever real member(s)
 would be the best available imperfect answer (often the enum's actual catch-all when one exists on a
@@ -167,6 +248,40 @@ doesn't fit any NAMED member either). If truly nothing is even a defensible impe
 `acceptableAlternatives` empty: the scorer reports the leaf separately as **unscorable** rather than
 silently grading a run's real, defensible answer as wrong against a ground truth that has no correct
 answer to offer.
+
+**`noFittingMember` is specifically for "nothing fits" — not for "more than one thing fits equally
+well."** Those are different problems and this format does not conflate them (an earlier draft of
+the worked example did, and it broke in a revealing way — see the next section).
+
+### When TOO MANY things fit: a schema-forced axis ambiguity
+
+`hvacSystemEquipmentType` conflates two independent facts into one enum axis: a furnace's identity,
+and whether it shares ducts with a central AC unit (`"Furnace with standalone ducts"` vs `"Furnace /
+Central AC (shared ducts)"`). An auditor who says "it's a gas furnace" and nothing else about cooling
+has stated the identity and left the ducts-sharing axis completely unaddressed — and unlike the
+"nothing fits" case, **two real members fit equally well**, because both are correct about the part
+that WAS said and neither is contradicted by anything that wasn't.
+
+The first draft of the worked example used `noFittingMember` here, reasoning "neither is fully
+supportable, so nothing fits." That broke a real property once tested: `noFittingMember` makes
+`compareValue` return `"unscorable"` for **any** real member a run emits, including a genuinely wrong
+one — a model answering `"Boiler"` (a different equipment family entirely, contradicting what was
+said) was reported as merely "unscorable" instead of "wrong," which is not honest. "Nothing fits" and
+"two things fit, so a genuinely different third thing is still wrong" are different claims, and
+`noFittingMember` can only make the first one.
+
+**The rule: pick one of the co-equally-fitting members as `member`, and list the other(s) in
+`arguable.acceptableAlternatives`, with a note stating explicitly that they are symmetric.** This is
+NOT a preference for the one in `member` — it is a format constraint (`member` holds exactly one
+literal value) applied to a case where either answer is equally correct, and `acceptableAlternatives`
+proves the symmetry structurally: a run landing on either member scores identically (never
+penalized), while a run landing on a genuinely different equipment family (`"Boiler"`, `"Electric
+Resistance"`, a heat pump — anything real but NOT one of the conflated pair) is still scored as a
+hard wrong answer, because something real actually was contradicted. `ANNOTATOR_GUIDE.md` states this
+as a mechanical rule, not a per-transcript judgment call — and the underlying finding (schema.ts
+fuses two independently-addressable facts onto one axis, so a very common style of utterance is now
+inherently underdetermined by the schema itself, not by the transcript) is reported as what it is: a
+consequence of the schema rebuild's design, not an annotation gap.
 
 ### `retracted` and `arguable`: information the old corpus carried in the SCORER, not the ground truth
 
@@ -202,3 +317,22 @@ through either vocabulary. It adds exactly one new one: a **vocabulary mix** cou
 enum matches resolved via the API literal vs the derived slug), which is the measurement this whole
 rewrite exists to make possible. See `score.mjs`'s own header and `score.test.mjs` for the mutation
 tests proving each of these can actually fail.
+
+## What `validate-ground-truth.mjs` catches mechanically
+
+Run it before submitting; it is the fast, solo feedback loop that catches these WITHOUT waiting for
+a second annotator's file to diff against:
+
+- an unknown leaf path (typo, or a leaf from the old schema that no longer exists)
+- a `member` that is not one of that leaf's real `schema.ts` options — i.e. anything outside the
+  neutral vocabulary this format is built around
+- a leaf's shape inconsistent with its `status` (a value where "unmentioned" forbids one, a missing
+  `sourceSpan` where "asserted"/"declared_absent" require one, an asserted enum leaf with neither
+  `member` nor `noFittingMember`)
+- a `sourceSpan` — on a leaf OR a disclaimer — that is **not a verbatim substring of the actual
+  transcript file** (checked against the real transcript text, not trusted to a careful re-read)
+- a disclaimer with an empty/missing `span` or `topic`, or a `scope` that isn't a recognized group,
+  a recognized `namedSet`, or `"unresolved"`
+- two disclaimers whose scopes overlap
+- (defense in depth) the fully RESOLVED 51-leaf map is re-validated after applying the disclaimer
+  policy, so a bug in the policy itself — not just in one annotator's file — is still caught

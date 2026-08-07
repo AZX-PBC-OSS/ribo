@@ -1,20 +1,32 @@
 /**
- * The vocabulary-neutral ground-truth format: its runtime shape check, and the
- * loader both `score.mjs` and annotators (via `validate-ground-truth.mjs`) use.
- * The FORMAT ITSELF is documented in `ground-truth-format.md` — read that
- * first; this file enforces what it describes and must not drift from it.
+ * The vocabulary-neutral ground-truth format: its runtime shape check, its resolver, and the
+ * loader both `score.mjs` and annotators (via `validate-ground-truth.mjs`) use. The FORMAT ITSELF
+ * is documented in `ground-truth-format.md` — read that first; this file enforces what it
+ * describes and must not drift from it.
  *
- * A ground-truth file is "new format" iff it has a `leaves` object; the 14
- * pre-existing files (old adapter shape: flat snake_case fields, an 11-test
- * `healthSafety` object, no `schemaVersion`) have `fields` instead and are
- * left alone by everything here — `isNewFormat` below is the single place
- * that draws the line, so score.mjs can report "not yet re-annotated" instead
- * of crashing on the 13 the fan-out has not reached yet.
+ * A ground-truth file is "new format" iff it has a `leaves` object; the 13 pre-existing files (old
+ * adapter shape: flat snake_case fields, an 11-test `healthSafety` object, no `schemaVersion`) have
+ * `fields` instead and are left alone by everything here — `isNewFormat` below is the single place
+ * that draws the line, so score.mjs can report "not yet re-annotated" instead of crashing on the
+ * ones the fan-out has not reached yet.
+ *
+ * TWO LAYERS, not one:
+ *   - The RAW file an annotator writes: `leaves` is SPARSE — only the leaves they can address
+ *     specifically — plus `disclaimers`, a list of blanket/generic negations recorded as data (a
+ *     verbatim span + a mechanical scope), never resolved by the annotator's own judgment. See
+ *     `disclaimer-policy.mjs` for why, and for the scope vocabulary.
+ *   - The RESOLVED ground truth `score.mjs` actually scores against: all 51 leaves, filled in by
+ *     applying every disclaimer's scope through the CURRENT policy, then overlaid with the
+ *     annotator's explicit `leaves` entries (which always win — the most specific statement about a
+ *     leaf beats a blanket one covering it). `resolveGroundTruth` is the only place this happens,
+ *     so changing the disclaimer policy re-scores every transcript without touching a single
+ *     ground-truth file.
  */
 
 import { LEAF_BY_PATH, LEAF_PATHS } from "./schema-leaves.mjs";
+import { defaultTruthForDisclaimer, leavesInScope, scopeError } from "./disclaimer-policy.mjs";
 
-export const SCHEMA_VERSION = "snuggpro-51-leaf-v1";
+export const SCHEMA_VERSION = "snuggpro-51-leaf-v2";
 
 /** @param {unknown} raw parsed JSON */
 export function isNewFormat(raw) {
@@ -126,11 +138,40 @@ function validateLeaf(path, leafSpec, truth, errors) {
 }
 
 /**
- * Validate a whole new-format ground-truth document.
+ * Materialize the full 51-leaf ground truth a disclaimer-bearing raw file implies, under the
+ * CURRENT disclaimer policy (`disclaimer-policy.mjs`). Precedence, most to least specific:
+ *   1. an explicit `leaves[path]` entry the annotator wrote
+ *   2. a disclaimer whose scope covers `path`
+ *   3. the default: `{ status: "unmentioned", sourceSpan: null }`
+ * @param {object} raw
+ */
+export function resolveGroundTruth(raw) {
+  const leaves = {};
+  for (const path of LEAF_PATHS) leaves[path] = { status: "unmentioned", sourceSpan: null };
+  for (const disclaimer of raw.disclaimers ?? []) {
+    if (scopeError(disclaimer?.scope)) continue; // invalid; validateGroundTruth already reports it
+    for (const path of leavesInScope(disclaimer.scope)) {
+      leaves[path] = defaultTruthForDisclaimer(path, disclaimer);
+    }
+  }
+  for (const [path, truth] of Object.entries(raw.leaves ?? {})) {
+    if (LEAF_BY_PATH.has(path)) leaves[path] = truth;
+  }
+  return { ...raw, leaves };
+}
+
+/**
+ * Validate a whole new-format ground-truth document: the RAW shape (sparse `leaves`, `disclaimers`,
+ * no overlapping scopes), then — if the raw shape is clean — the fully RESOLVED 51-leaf map, so a
+ * bug in the disclaimer policy itself (not just in one file) is still caught.
+ *
  * @param {unknown} raw parsed JSON
+ * @param {string | null} transcriptText when given, every `sourceSpan` (on leaves AND disclaimers)
+ *   is checked as a verbatim substring — the same rule prompt.md rule 3 states, enforced mechanically
+ *   rather than trusted to a careful re-read.
  * @returns {{ ok: boolean, errors: string[] }}
  */
-export function validateGroundTruth(raw) {
+export function validateGroundTruth(raw, transcriptText = null) {
   const errors = [];
   if (typeof raw !== "object" || raw === null) return { ok: false, errors: ["not an object"] };
   if (typeof raw.transcript !== "string") errors.push('"transcript" must be a string path');
@@ -138,32 +179,81 @@ export function validateGroundTruth(raw) {
     errors.push('"leaves" must be an object');
     return { ok: false, errors };
   }
-  const seen = new Set(Object.keys(raw.leaves));
-  for (const path of LEAF_PATHS) {
-    if (!seen.has(path)) {
-      errors.push(
-        `missing leaf "${path}" — every one of the 51 leaves must be a key, even when unmentioned`,
-      );
+
+  for (const [path, truth] of Object.entries(raw.leaves)) {
+    if (!LEAF_BY_PATH.has(path)) {
+      errors.push(`unknown leaf key "${path}" — not one of schema.ts's 51 leaves (typo?)`);
       continue;
     }
-    seen.delete(path);
-    validateLeaf(path, LEAF_BY_PATH.get(path), raw.leaves[path], errors);
+    validateLeaf(path, LEAF_BY_PATH.get(path), truth, errors);
+    if (
+      transcriptText !== null &&
+      truth?.sourceSpan &&
+      !transcriptText.includes(truth.sourceSpan)
+    ) {
+      errors.push(
+        `${path}: sourceSpan ${JSON.stringify(truth.sourceSpan)} is not a verbatim substring of the transcript`,
+      );
+    }
   }
-  for (const extra of seen)
-    errors.push(`unknown leaf key "${extra}" — not one of schema.ts's 51 leaves (typo?)`);
+
+  const disclaimers = raw.disclaimers ?? [];
+  if (!Array.isArray(disclaimers)) {
+    errors.push('"disclaimers" must be an array when present');
+  } else {
+    const coveredBy = new Map(); // leaf path -> disclaimer index that already claimed it
+    for (const [i, d] of disclaimers.entries()) {
+      const tag = (msg) => errors.push(`disclaimers[${i}]: ${msg}`);
+      if (typeof d?.span !== "string" || d.span.length === 0)
+        tag("requires a non-empty verbatim span");
+      else if (transcriptText !== null && !transcriptText.includes(d.span)) {
+        tag(`span ${JSON.stringify(d.span)} is not a verbatim substring of the transcript`);
+      }
+      if (typeof d?.topic !== "string" || d.topic.length === 0) {
+        tag("requires a non-empty topic (a human-readable gloss — not consumed mechanically)");
+      }
+      const se = scopeError(d?.scope);
+      if (se) {
+        tag(se);
+        continue;
+      }
+      for (const path of leavesInScope(d.scope)) {
+        if (coveredBy.has(path)) {
+          tag(
+            `and disclaimers[${coveredBy.get(path)}] both cover leaf "${path}" — overlapping disclaimer ` +
+              "scopes are not allowed; narrow one, or address that leaf with an explicit `leaves` entry instead",
+          );
+        } else {
+          coveredBy.set(path, i);
+        }
+      }
+    }
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+
+  // Defense in depth: resolve and re-validate the full 51-leaf map, catching a bug in the
+  // disclaimer POLICY itself (disclaimer-policy.mjs), not just in one annotator's file.
+  const resolved = resolveGroundTruth(raw);
+  for (const path of LEAF_PATHS)
+    validateLeaf(path, LEAF_BY_PATH.get(path), resolved.leaves[path], errors);
   return { ok: errors.length === 0, errors };
 }
 
 /**
- * Read + parse + validate a ground-truth file. Never throws on a validation
- * problem (returns it in `errors`); throws only on missing file / bad JSON,
- * same as any other "this run cannot proceed" condition in this spike.
- * @param {string} path
+ * Read + parse + validate a ground-truth file, checking spans against its transcript. Never throws
+ * on a validation problem (returns it in `errors`); throws only on missing file / bad JSON, same as
+ * any other "this run cannot proceed" condition in this spike.
+ * @param {string} path path to the ground-truth JSON file
+ * @param {string} spikeRoot directory `raw.transcript` (e.g. "transcripts/NN-slug.txt") is relative to
  */
-export async function readGroundTruth(path) {
-  const { readFileSync } = await import("node:fs");
+export async function readGroundTruth(path, spikeRoot) {
+  const { existsSync, readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
   const raw = JSON.parse(readFileSync(path, "utf8"));
   if (!isNewFormat(raw)) return { raw, isNew: false, ok: null, errors: [] };
-  const { ok, errors } = validateGroundTruth(raw);
+  const transcriptPath = join(spikeRoot, raw.transcript ?? "");
+  const transcriptText = existsSync(transcriptPath) ? readFileSync(transcriptPath, "utf8") : null;
+  const { ok, errors } = validateGroundTruth(raw, transcriptText);
   return { raw, isNew: true, ok, errors };
 }

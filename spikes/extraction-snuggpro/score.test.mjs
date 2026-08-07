@@ -134,11 +134,14 @@ heading("0b. RESOLVER (resolveEnumMember) — either vocabulary, same leaf");
 // ---------------------------------------------------------------------------
 heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
 {
-  const { gt } = loadWorkedExample();
+  const { gt, transcript } = loadWorkedExample();
   check("the worked example is detected as new format", isNewFormat(gt));
-  const { ok, errors } = validateGroundTruth(gt);
+  const { ok, errors } = validateGroundTruth(gt, transcript);
   console.log(`   worked example: ok=${ok} errors=${errors.length}`);
-  check("the worked example validates clean", ok && errors.length === 0);
+  check(
+    "the worked example validates clean (leaves + disclaimers + resolved 51-leaf map, spans checked against the real transcript)",
+    ok && errors.length === 0,
+  );
 
   const oldFormat = JSON.parse(readFileSync(join(GT_DIR, "01-attic-r-value-shell.json"), "utf8"));
   check(
@@ -150,18 +153,21 @@ heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
   const clone = () => JSON.parse(JSON.stringify(gt));
 
   {
-    const bad = clone();
-    delete bad.leaves["hvac.hvacSystemEquipmentType"];
-    const res = validateGroundTruth(bad);
+    // A leaf NOT covered by any disclaimer, removed from the explicit `leaves` map, is NOT an
+    // error — it resolves to "unmentioned". This is the whole point of moving disclaimers out of
+    // annotator judgment: the annotator only writes what they can address specifically.
+    const sparse = clone();
+    delete sparse.leaves["attic.atticInsulationType"]; // not covered by any of the 3 disclaimers
+    const res = validateGroundTruth(sparse, transcript);
     check(
-      "a missing leaf key is caught",
-      !res.ok && res.errors.some((e) => e.includes("hvac.hvacSystemEquipmentType")),
+      "removing an explicit, disclaimer-uncovered leaf entry is VALID (defaults to unmentioned)",
+      res.ok,
     );
   }
   {
     const bad = clone();
     bad.leaves["hvac.hvacHeatingEnergySource"].member = "Some Fuel Nobody Publishes";
-    const res = validateGroundTruth(bad);
+    const res = validateGroundTruth(bad, transcript);
     check(
       "a member not in schema.ts's list is caught",
       !res.ok && res.errors.some((e) => e.includes("Some Fuel Nobody Publishes")),
@@ -174,7 +180,7 @@ heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
       sourceSpan: "x",
       value: "not a number",
     };
-    const res = validateGroundTruth(bad);
+    const res = validateGroundTruth(bad, transcript);
     check(
       "a non-numeric value on a number leaf is caught",
       !res.ok && res.errors.some((e) => e.includes("basedata.yearBuilt")),
@@ -183,7 +189,7 @@ heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
   {
     const bad = clone();
     bad.leaves["hvac.hvacUpgradeAction"] = { status: "unmentioned", sourceSpan: "should be null" };
-    const res = validateGroundTruth(bad);
+    const res = validateGroundTruth(bad, transcript);
     check(
       "a non-null sourceSpan on an unmentioned leaf is caught",
       !res.ok && res.errors.some((e) => e.includes("hvac.hvacUpgradeAction")),
@@ -192,8 +198,78 @@ heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
   {
     const bad = clone();
     bad.leaves["hvac.hvacUpgradeAction"] = { status: "asserted", sourceSpan: "x" }; // neither member nor noFittingMember
-    const res = validateGroundTruth(bad);
+    const res = validateGroundTruth(bad, transcript);
     check("asserted enum leaf missing both member and noFittingMember is caught", !res.ok);
+  }
+  {
+    const bad = clone();
+    bad.leaves["basedata.yearBuilt"] = {
+      status: "asserted",
+      sourceSpan: "this text is not in the transcript at all",
+      value: 1962,
+    };
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "a leaf sourceSpan that is not a verbatim substring of the transcript is caught",
+      !res.ok && res.errors.some((e) => e.includes("basedata.yearBuilt") && e.includes("verbatim")),
+    );
+  }
+  {
+    const bad = clone();
+    bad.disclaimers[0].span = "this text is also not in the transcript";
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "a disclaimer span that is not a verbatim substring of the transcript is caught",
+      !res.ok && res.errors.some((e) => e.includes("disclaimers[0]") && e.includes("verbatim")),
+    );
+  }
+  {
+    const bad = clone();
+    bad.disclaimers.push({
+      span: "no water heater",
+      topic: "duplicate dhw disclaimer",
+      scope: { kind: "group", group: "dhw" },
+    });
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "two disclaimers whose scopes overlap are caught",
+      !res.ok && res.errors.some((e) => e.includes("overlapping")),
+    );
+  }
+  {
+    const bad = clone();
+    bad.disclaimers.push({
+      span: "no water heater",
+      topic: "x",
+      scope: { kind: "group", group: "not-a-real-group" },
+    });
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "an unrecognized disclaimer scope group is caught",
+      !res.ok && res.errors.some((e) => e.includes("not-a-real-group")),
+    );
+  }
+  {
+    const bad = clone();
+    bad.disclaimers.push({
+      span: "no water heater",
+      topic: "x",
+      scope: { kind: "namedSet", set: "notARealSet" },
+    });
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "an unrecognized disclaimer named set is caught",
+      !res.ok && res.errors.some((e) => e.includes("notARealSet")),
+    );
+  }
+  {
+    const bad = clone();
+    bad.disclaimers.push({ span: "", topic: "x", scope: { kind: "unresolved" } });
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "a disclaimer with no span is caught",
+      !res.ok && res.errors.some((e) => e.includes("non-empty verbatim span")),
+    );
   }
 }
 
@@ -349,16 +425,21 @@ heading("6. R-VALUE -> BAND INVENTION gate");
 // ---------------------------------------------------------------------------
 // 7. HALLUCINATED HEALTH PASS vs SILENT NOT-TESTED gate
 // ---------------------------------------------------------------------------
-heading("7a. HALLUCINATED-HEALTH-PASS gate");
+// 7a-7c use a SYNTHETIC ground truth with NO disclaimers, specifically so a health-test leaf is
+// genuinely "unmentioned" (true silence) to mutate against. In the worked example itself, every one
+// of the 13 health-test leaves is now either explicitly asserted (ambientCarbonMonoxide) or covered
+// by the "No tests" disclaimer (asserted "Not Tested") — a direct, intended consequence of moving
+// disclaimer scope out of annotator judgment: this corpus genuinely has no leftover silent health
+// leaf once "No tests" is honored uniformly. That is not a gap in coverage; it is what "the disclaimer
+// covers everything a blanket statement plausibly reaches" is supposed to produce.
+heading("7a. HALLUCINATED-HEALTH-PASS gate (synthetic: a truly silent health test)");
 {
-  const before = run();
-  const after = run((m) => {
-    m.health.healthAsbestos = {
-      value: "Passed",
-      confidence: 0.9,
-      sourceSpan: "fiberglass batts between the joists",
-    };
-  });
+  const gt = emptyGroundTruth();
+  const transcript = "nothing about asbestos is ever said";
+  const before = scoreTranscript("synthetic", gt, transcript, buildPerfectModel(gt));
+  const afterModel = buildPerfectModel(gt);
+  afterModel.health.healthAsbestos = { value: "Passed", confidence: 0.9, sourceSpan: transcript };
+  const after = scoreTranscript("synthetic", gt, transcript, afterModel);
   console.log(
     `   before hHallucinatedPass=${before.counts.hHallucinatedPass}   after=${after.counts.hHallucinatedPass}`,
   );
@@ -373,15 +454,13 @@ heading("7a. HALLUCINATED-HEALTH-PASS gate");
     ),
   );
 }
-heading("7b. SILENT -> 'Not Tested' is a SOFT overreach, not a hard hallucination");
+heading("7b. SILENT -> 'Not Tested' is a SOFT overreach, not a hard hallucination (synthetic)");
 {
-  const after = run((m) => {
-    m.health.healthRadon = {
-      value: "Not Tested",
-      confidence: 0.9,
-      sourceSpan: "No tests, no blower door, no water heater, none of that stuff",
-    };
-  });
+  const gt = emptyGroundTruth();
+  const transcript = "nothing about radon is ever said";
+  const model = buildPerfectModel(gt);
+  model.health.healthRadon = { value: "Not Tested", confidence: 0.9, sourceSpan: transcript };
+  const after = scoreTranscript("synthetic", gt, transcript, model);
   console.log(
     `   hSilentNotTested=${after.counts.hSilentNotTested}   hHallucinatedProblem=${after.counts.hHallucinatedProblem}`,
   );
@@ -390,15 +469,15 @@ heading("7b. SILENT -> 'Not Tested' is a SOFT overreach, not a hard hallucinatio
     after.counts.hSilentNotTested === 1 && after.counts.hHallucinatedProblem === 0,
   );
 }
-heading("7c. CONTRAST — 'Failed' on the same silent test IS a hard hallucinatedProblem");
+heading(
+  "7c. CONTRAST — 'Failed' on the same silent test IS a hard hallucinatedProblem (synthetic)",
+);
 {
-  const after = run((m) => {
-    m.health.healthRadon = {
-      value: "Failed",
-      confidence: 0.9,
-      sourceSpan: "No tests, no blower door, no water heater, none of that stuff",
-    };
-  });
+  const gt = emptyGroundTruth();
+  const transcript = "nothing about radon is ever said";
+  const model = buildPerfectModel(gt);
+  model.health.healthRadon = { value: "Failed", confidence: 0.9, sourceSpan: transcript };
+  const after = scoreTranscript("synthetic", gt, transcript, model);
   console.log(
     `   hHallucinatedProblem=${after.counts.hHallucinatedProblem}   hSilentNotTested=${after.counts.hSilentNotTested}`,
   );
