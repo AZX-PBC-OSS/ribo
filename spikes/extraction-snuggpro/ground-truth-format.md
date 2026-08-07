@@ -85,6 +85,11 @@ type LeafTruth = {
   arguable?: {
     acceptableAlternatives?: (number | string)[];
     acceptableMiss?: boolean;
+    // enum leaves ONLY, and ONLY for the "too many things fit" pattern — see below. Marks
+    // `{member} ∪ acceptableAlternatives` as co-equally-fitting, which makes the schema-order
+    // tie-break mechanically checked. Never set this for an ordinary asymmetric "lesser but
+    // tolerated" alternative — schema order has no bearing on that case.
+    symmetric?: boolean;
     note: string; // required whenever `arguable` is present
   };
 };
@@ -314,6 +319,24 @@ independently-addressable facts onto one axis, so a very common style of utteran
 underdetermined by the schema itself, not by the transcript) is reported as what it is: a consequence
 of the schema rebuild's design, not an annotation gap.
 
+**The tie-break was enforced only by prose, and prose does not survive 26 blind annotators — so it is
+now also mechanically checked, via `arguable.symmetric: true`, without a hand-listed table of which
+members conflate with which.** The conflated-pair shape is schema-wide, not specific to the furnace
+leaf — `hvacSystemEquipmentType`'s `"Central Heat Pump (shared ducts)"` and its three ground-source
+variants have the identical structural risk (an auditor says "heat pump" and nothing about which loop
+technology, leaving several equally-fitting members on the table) — and only 1 of 14 transcripts is
+annotated, so a silent violation of "first in schema order" is exactly the class of error this whole
+redesign exists to catch before it reaches 26 files, not after. Hand-listing which member GROUPS are
+conflated (`{furnace-standalone, furnace-shared}`, `{the four heat-pump loop variants}`, ...) would
+itself be a second, hand-maintained table — precisely the drift risk this design has been careful to
+avoid everywhere else. `arguable.symmetric: true` sidesteps that: it does not require knowing which
+members conflate with which in general — it only requires the annotator to say, on the ONE leaf they
+are annotating, "the set I am ordering is `{member} ∪ acceptableAlternatives`, exactly as written
+here." `validate-ground-truth.mjs` then asserts, using `schema.ts`'s own enum order (looked up live,
+never hand-copied), that `member`'s index is the smallest in that set — and does nothing at all when
+`symmetric` is absent or `false`, so it never fires on the genuinely different, asymmetric "lesser but
+tolerated alternative" pattern, where schema order carries no meaning.
+
 ### `retracted` and `arguable`: information the old corpus carried in the SCORER, not the ground truth
 
 The old `score.mjs` had four hand-maintained, slug-keyed tables — `TOP_PARTIAL`, `MISS_EXCUSED`,
@@ -394,6 +417,10 @@ whole batch:
   a recognized `namedSet`, or `"unresolved"`
 - an `"unresolved"` scope with no `note` explaining why nothing else fits
 - two disclaimers whose scopes overlap
+- **`arguable.symmetric: true` where `member` is not the earliest, in `schema.ts`'s own enum order, of
+  `{member} ∪ acceptableAlternatives`** — the mechanical enforcement of rule 6's tie-break; also
+  rejects `symmetric: true` on a number/string leaf, on a leaf using `noFittingMember` instead of
+  `member`, or with an empty/missing `acceptableAlternatives` (there is nothing to be symmetric with)
 - (defense in depth) the fully RESOLVED 51-leaf map is re-validated after applying the disclaimer
   policy, so a bug in the policy itself — not just in one annotator's file — is still caught
 

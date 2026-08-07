@@ -313,6 +313,103 @@ heading("1b. DISCLAIMER / SCHEMA-SHAPE VALIDATION (fix-round-2)");
 }
 
 // ---------------------------------------------------------------------------
+// 1c. SYMMETRIC TIE-BREAK is now MECHANICALLY enforced (final review item).
+//
+// Rule 6's determinism ("member must be the earliest, in schema.ts's own enum order, of the
+// co-equally-fitting set") was previously prose only — an annotator ERROR (not discretion; the
+// design removed the discretion on purpose) passed validation silently. The conflated-pair shape is
+// schema-wide (hvacSystemEquipmentType's shared-ducts heat-pump and ground-source variants have the
+// identical structure), and only 1 of 14 transcripts is annotated, so this needed to be closed
+// before the fan-out, not caught in reconciliation after it. `arguable.symmetric: true` makes it
+// checkable without a hand-listed table of which members conflate — the "set" is just
+// `{member} ∪ acceptableAlternatives`, exactly what the annotator wrote on THIS leaf.
+// ---------------------------------------------------------------------------
+heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item this fix closes");
+{
+  const { gt, transcript } = loadWorkedExample();
+  const clone = () => JSON.parse(JSON.stringify(gt));
+
+  check(
+    "the worked example's furnace leaf is marked symmetric: true",
+    gt.leaves["hvac.hvacSystemEquipmentType"].arguable.symmetric === true,
+  );
+
+  {
+    // THE mutation that fails without the check: swap which member sits in `member` vs
+    // `acceptableAlternatives`, keeping `symmetric: true`. Before this fix, this validated clean —
+    // an annotator who wrote the pair in the wrong order would never find out.
+    const bad = clone();
+    const leaf = bad.leaves["hvac.hvacSystemEquipmentType"];
+    const original = leaf.member;
+    leaf.member = leaf.arguable.acceptableAlternatives[0]; // "Furnace / Central AC (shared ducts)" — index 16
+    leaf.arguable.acceptableAlternatives = [original]; // "Furnace with standalone ducts" — index 2, now demoted
+    const res = validateGroundTruth(bad, transcript);
+    console.log(`   swapped order: ok=${res.ok} errors=${JSON.stringify(res.errors)}`);
+    check(
+      "swapping which conflated member sits in `member` (now NOT the earliest) is REJECTED",
+      !res.ok &&
+        res.errors.some(
+          (e) => e.includes("hvac.hvacSystemEquipmentType") && e.includes("NOT the earliest"),
+        ),
+    );
+  }
+  {
+    // The correct order (the real worked example, unmodified) must still pass — the check does not
+    // merely fire on any symmetric pair, only on the wrong order.
+    const res = validateGroundTruth(clone(), transcript);
+    check("the worked example's ACTUAL (correct) order still validates clean", res.ok);
+  }
+  {
+    // symmetric: true requires an enum leaf with a real `member` — not noFittingMember, and not a
+    // number/string leaf, since schema order has no meaning there.
+    const bad = clone();
+    bad.leaves["attic.atticInsulation"].arguable = {
+      symmetric: true,
+      note: "nonsensical: atticInsulation is a NUMBER leaf, not an enum",
+    };
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "arguable.symmetric on a NUMBER leaf is rejected (schema order has no meaning there)",
+      !res.ok && res.errors.some((e) => e.includes("attic.atticInsulation")),
+    );
+  }
+  {
+    const bad = clone();
+    bad.leaves["hvac.hvacSystemEquipmentType"].arguable.acceptableAlternatives = []; // nothing to be symmetric WITH
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "arguable.symmetric with an empty acceptableAlternatives is rejected",
+      !res.ok && res.errors.some((e) => e.includes("non-empty acceptableAlternatives")),
+    );
+  }
+  {
+    const bad = clone();
+    bad.leaves["hvac.hvacSystemEquipmentType"].arguable.symmetric = "yes"; // not a boolean
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "a non-boolean arguable.symmetric is rejected",
+      !res.ok && res.errors.some((e) => e.includes("symmetric") && e.includes("boolean")),
+    );
+  }
+  {
+    // symmetric: false (or absent) must NEVER fire, even on an order that would fail if checked —
+    // this is the guard against the check firing on the genuinely different, asymmetric "lesser but
+    // tolerated alternative" pattern, where schema order carries no meaning at all.
+    const bad = clone();
+    const leaf = bad.leaves["hvac.hvacSystemEquipmentType"];
+    const original = leaf.member;
+    leaf.member = leaf.arguable.acceptableAlternatives[0];
+    leaf.arguable.acceptableAlternatives = [original];
+    leaf.arguable.symmetric = false; // explicitly NOT claiming symmetry
+    const res = validateGroundTruth(bad, transcript);
+    check(
+      "the same 'wrong order' is NOT rejected when symmetric is false — it is a different (asymmetric) claim",
+      res.ok,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 1. GROUND-TRUTH VALIDATOR
 // ---------------------------------------------------------------------------
 heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");

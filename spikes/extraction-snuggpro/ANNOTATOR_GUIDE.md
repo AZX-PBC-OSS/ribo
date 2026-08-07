@@ -229,6 +229,16 @@ on your transcript, note in the `arguable.note` that it is a schema-rebuild-intr
 something the transcript itself is unclear about — that distinction is a finding about the schema,
 worth escalating, and is different in kind from an ordinary contested reading.
 
+**Set `arguable.symmetric: true` whenever you use this pattern — it is what makes the tie-break
+MECHANICALLY checked rather than resting on prose you might get wrong under fan-out pressure.** The
+validator then asserts, using `schema.ts`'s own enum order (never a hand-listed table — it reads
+whatever `member` and `acceptableAlternatives` you actually wrote on THIS leaf, nothing pre-declared
+elsewhere), that `member`'s index is earliest among itself and every listed alternative, and rejects
+the file otherwise. Do **not** set `symmetric: true` on an ordinary asymmetric "lesser but tolerated"
+alternative (a real answer that is more defensible than a hard wrong one but not equally as correct
+as `member`) — schema order has no bearing on that case, the check would fire on the wrong thing, and
+`symmetric` exists specifically to distinguish the two rather than force one rule onto both.
+
 ## 7. Bands and axes: no arithmetic, no fused tokens
 
 - **Fuel is never fused with equipment.** "Oil boiler" is TWO leaves —

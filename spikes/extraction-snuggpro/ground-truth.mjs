@@ -149,12 +149,15 @@ function validateLeaf(path, leafSpec, truth, errors) {
       if (typeof a.note !== "string" || a.note.length === 0) {
         tag("arguable requires a non-empty note explaining the call");
       }
+      let alternativesAreValidMembers = false;
       if ("acceptableAlternatives" in a) {
         if (!Array.isArray(a.acceptableAlternatives)) {
           tag("arguable.acceptableAlternatives must be an array when present");
         } else if (leafSpec.kind === "enum") {
+          alternativesAreValidMembers = true;
           for (const alt of a.acceptableAlternatives) {
             if (!leafSpec.options.includes(alt)) {
+              alternativesAreValidMembers = false;
               tag(
                 `arguable.acceptableAlternatives includes ${JSON.stringify(alt)}, not one of this leaf's members`,
               );
@@ -164,6 +167,54 @@ function validateLeaf(path, leafSpec, truth, errors) {
       }
       if ("acceptableMiss" in a && typeof a.acceptableMiss !== "boolean") {
         tag("arguable.acceptableMiss must be a boolean when present");
+      }
+      // Rule 6's determinism (ANNOTATOR_GUIDE.md): when several enum members equally fit and the
+      // schema forces a pick between them, `member` must be whichever one appears FIRST in
+      // schema.ts's own enum-list order — never a free choice, because two annotators each "picking
+      // either one" would disagree on WHICH member sits in `member` even though their files score
+      // identically. That rule was previously enforced only by prose; `arguable.symmetric: true` is
+      // the marker that makes it checkable WITHOUT hand-listing which members form a conflated
+      // set anywhere: the "set" being ordered is simply `{member} ∪ acceptableAlternatives` — exactly
+      // what the annotator wrote on THIS leaf, nothing pre-declared elsewhere. This does NOT fire on
+      // the (legitimate, different) case of an asymmetric "lesser but tolerated" alternative — that
+      // case never sets `symmetric: true`, and schema order has no bearing on it (the annotator's own
+      // note explains why a specific member is more correct, not the order they happen to appear in).
+      if ("symmetric" in a) {
+        if (typeof a.symmetric !== "boolean") {
+          tag("arguable.symmetric must be a boolean when present");
+        } else if (a.symmetric) {
+          if (leafSpec.kind !== "enum") {
+            tag(
+              "arguable.symmetric only applies to enum leaves (schema order has no meaning for a number/string)",
+            );
+          } else if (typeof truth.member !== "string") {
+            tag(
+              "arguable.symmetric requires an asserted `member` to order (not `noFittingMember` — " +
+                "there is no schema member there to place first)",
+            );
+          } else if (
+            !Array.isArray(a.acceptableAlternatives) ||
+            a.acceptableAlternatives.length === 0
+          ) {
+            tag(
+              "arguable.symmetric requires a non-empty acceptableAlternatives to be symmetric WITH",
+            );
+          } else if (alternativesAreValidMembers) {
+            const options = leafSpec.options;
+            const memberIndex = options.indexOf(truth.member);
+            for (const alt of a.acceptableAlternatives) {
+              const altIndex = options.indexOf(alt);
+              if (altIndex !== -1 && altIndex < memberIndex) {
+                tag(
+                  `member ${JSON.stringify(truth.member)} (index ${memberIndex}) is NOT the earliest of its ` +
+                    `symmetric set in schema.ts's enum order — ${JSON.stringify(alt)} appears earlier ` +
+                    `(index ${altIndex}). Swap them: the earliest member goes in \`member\`, the rest in ` +
+                    "`acceptableAlternatives` (ANNOTATOR_GUIDE.md rule 6).",
+                );
+              }
+            }
+          }
+        }
       }
     }
   }
