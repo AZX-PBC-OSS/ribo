@@ -1,6 +1,7 @@
 import type { core, ZodObject, ZodType } from "zod";
 
 import type { Enveloped } from "./enveloped.js";
+import type { FieldPath } from "./field-path.js";
 
 /**
  * An object schema that is both **walkable** and **binding**: it has a `shape`, so
@@ -184,6 +185,28 @@ export interface ToolAdapter<V extends Record<string, unknown>, C> {
    */
   readonly ctxSchema: ZodType<C>;
   /** Natural-language guidance for the extractor: what each field means. */
+  /**
+   * Leaf paths the host tool refuses to CREATE the record without.
+   *
+   * Surfaced to a human during review (`ReviewField.required`), so a write that
+   * would be rejected by the host becomes a question asked while the auditor is
+   * still on site rather than a dead queue row found that evening.
+   *
+   * **A list here rather than metadata on `schema`.** zod `.meta()` propagates
+   * through `enveloped()` into the derived extraction schema and lands in the
+   * JSON Schema sent to the model, where an unknown keyword is what strict
+   * structured-output mode rejects. The cost of a parallel list is drift, so an
+   * adapter must pin it: assert every path here appears in
+   * `buildReviewRequest(...).fields`, which fails loudly on a typo or a rename
+   * instead of silently marking nothing required.
+   *
+   * **Interim shape.** Requiredness is really a property of *(leaf, create
+   * endpoint)* — a host tool typically requires different fields to create a
+   * heating system than to create an attic — and nothing here models endpoints
+   * yet. A flat list is honest for a single-component pilot and gets regenerated
+   * once components are modeled; see the roadmap's instance-modeling item.
+   */
+  readonly requiredOnCreate?: readonly FieldPath[];
   readonly instructions: string;
   /** Optional few-shot examples, in the enveloped shape the model emits. */
   readonly examples?: readonly ToolAdapterExample<Enveloped<V>>[];

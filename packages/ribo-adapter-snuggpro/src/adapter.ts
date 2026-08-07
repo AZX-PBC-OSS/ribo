@@ -28,6 +28,25 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
   schema: snuggValuesSchema,
   extractionSchema: snuggExtractionSchema,
   ctxSchema: snuggCtxSchema,
+
+  /**
+   * What Snugg Pro refuses to create an HVAC system without.
+   *
+   * `POST /jobs/{jobId}/hvac` is the **only** component endpoint with required
+   * capture fields — every other component (attic, wall, window, DHW, health,
+   * and the base-data singleton) has none, which is why a partial dictation
+   * writes cleanly (doc 17 §"The required-field surface").
+   *
+   * That endpoint requires two: `hvacSystemEquipmentType`, which is this leaf,
+   * and `hvacUpgradeAction`, which **we do not extract yet**. The second joins
+   * this list the moment it exists in `snuggValuesSchema` — doc 15 ranks it
+   * blocking (B2) and recommends hard-coding a constant, but that recommendation
+   * is superseded: auditors narrate recommendations, so "there's an oil boiler
+   * here, we should get rid of it" carries the upgrade action as plainly as it
+   * carries the equipment type (doc 17, correction of 2026-08-06).
+   */
+  requiredOnCreate: ["heatingEquipmentType"],
+
   instructions: snuggProInstructions,
   examples: snuggExamples,
 

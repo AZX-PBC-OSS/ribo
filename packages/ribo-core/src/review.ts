@@ -1,10 +1,16 @@
 import { z } from "zod";
 
 import { childPath, stripOptionalNullable } from "./field-path.js";
+import type { FieldPath } from "./field-path.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 import { isSpanGrounded } from "./provenance.js";
 import type { Extracted } from "./provenance.js";
 import type { Transcript } from "./transcript.js";
+
+// `FieldPath` moved to `field-path.js` so `adapter.ts` can use it without the
+// adapter contract depending on the review contract. Re-exported here so the
+// package surface is unchanged.
+export type { FieldPath } from "./field-path.js";
 
 /**
  * @file Human review of an extraction draft, one **leaf** at a time.
@@ -96,18 +102,6 @@ import type { Transcript } from "./transcript.js";
  */
 
 /**
- * A leaf's address inside an adapter's values schema: `"atticRValue"` for a
- * top-level leaf, `"healthSafety.ambientCo"` for a nested one.
- *
- * A bare `string` rather than a template-literal type computed from the schema.
- * Typed leaf paths would catch a typo at compile time, but they sit *on top of*
- * the runtime mechanism rather than replacing it — a UI still has to look the
- * path up in a `Record` at runtime, and completeness still has to be checked
- * there ({@link resolveReview}). Purely additive later.
- */
-export type FieldPath = string;
-
-/**
  * One leaf as the human sees it: the model's answer, its justification, whether
  * that justification checks out, and what a legal value for it looks like.
  */
@@ -134,6 +128,24 @@ export interface ReviewField {
    * accepting an omitted leaf must parse.
    */
   readonly schema: z.ZodType<unknown>;
+  /**
+   * Does the host tool refuse to CREATE the record without this leaf?
+   *
+   * Surfaced so a review card can mark the leaf and refuse a submit that leaves
+   * it empty — turning a write that would fail at the host into a question the
+   * auditor can answer while they are still on site, instead of a dead queue row
+   * discovered that evening.
+   *
+   * Comes from {@link ToolAdapter.requiredOnCreate}, which is a list on the
+   * adapter rather than metadata on the schema. That is deliberate: zod `.meta()`
+   * propagates through `enveloped()` into the derived extraction schema and lands
+   * in the JSON Schema sent to the model, and an unknown keyword is exactly what
+   * strict structured-output mode rejects.
+   *
+   * `false` when the adapter declares nothing — absence of a claim, not a claim
+   * of absence.
+   */
+  readonly required: boolean;
 }
 
 /**
@@ -325,6 +337,7 @@ const collectFields = (
   prefix: string,
   node: unknown,
   transcript: Transcript,
+  required: ReadonlySet<FieldPath>,
   out: Record<FieldPath, ReviewField>,
 ): void => {
   for (const [key, declared] of Object.entries(values.shape) as [string, z.ZodType][]) {
@@ -332,7 +345,7 @@ const collectFields = (
     const stripped = stripOptionalNullable(declared);
 
     if (stripped instanceof z.ZodObject) {
-      collectFields(stripped, path, readChild(node, key), transcript, out);
+      collectFields(stripped, path, readChild(node, key), transcript, required, out);
       continue;
     }
 
@@ -342,6 +355,7 @@ const collectFields = (
       isGrounded: isSpanGrounded(extracted.sourceSpan, transcript.text),
       // The DECLARED schema, wrappers and all — see `ReviewField.schema`.
       schema: declared,
+      required: required.has(path),
     };
   }
 };
@@ -363,11 +377,30 @@ export const buildReviewRequest = (
   extracted: Record<string, unknown>,
   transcript: Transcript,
   valuesSchema: z.ZodObject,
+  options: BuildReviewRequestOptions = {},
 ): ReviewRequest => {
   const fields: Record<FieldPath, ReviewField> = {};
-  collectFields(valuesSchema, "", extracted, transcript, fields);
+  const required = new Set(options.requiredOnCreate ?? []);
+  collectFields(valuesSchema, "", extracted, transcript, required, fields);
   return { transcript, fields };
 };
+
+/**
+ * The adapter facts `buildReviewRequest` cannot read off the values schema.
+ *
+ * An options object rather than more positional parameters: this is where
+ * per-leaf adapter metadata will accumulate (requiredness today; the API's
+ * field descriptions are the obvious next one), and each addition should not
+ * be another signature change for every caller.
+ */
+export interface BuildReviewRequestOptions {
+  /**
+   * Leaf paths the host tool requires in order to CREATE the record. Unknown
+   * paths are ignored here — an adapter is responsible for keeping its own list
+   * honest, and `ToolAdapter.requiredOnCreate` says how to guard that.
+   */
+  readonly requiredOnCreate?: readonly FieldPath[];
+}
 
 /**
  * Did the submission actually decide `path`?

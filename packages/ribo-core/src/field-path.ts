@@ -27,6 +27,22 @@ import { z } from "zod";
  * type directly: `HealthSafetyMatrix.optional()` is a `ZodOptional`, not a `ZodObject`,
  * and treating it as a leaf would collapse an 11-test matrix into one review card.
  */
+/**
+ * A dotted path to one reviewable leaf: `"atticRValue"` for a top-level leaf,
+ * `"healthSafety.ambientCo"` for a nested one.
+ *
+ * A bare `string` rather than a template-literal type computed from the schema.
+ * Typed leaf paths would catch a typo at compile time, but they sit *on top of*
+ * the runtime mechanism rather than replacing it — a UI still has to look the
+ * path up in a `Record` at runtime, and completeness still has to be checked
+ * there (`resolveReview`). Purely additive later.
+ *
+ * Lives here rather than in `review.ts` because `adapter.ts` needs it too
+ * (`ToolAdapter.requiredOnCreate`), and the adapter contract sits *below* the
+ * review contract — an adapter importing from review would invert that.
+ */
+export type FieldPath = string;
+
 export const stripOptionalNullable = (field: z.ZodType): z.ZodType => {
   let current = field;
   while (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {

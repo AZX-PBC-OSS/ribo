@@ -752,3 +752,25 @@ test("an edited decision must actually carry a value", () => {
 
   expect(decisions.rValue?.status).toBe("edited");
 });
+
+test("a leaf is marked required only when the adapter says so", () => {
+  const plain = buildReviewRequest({}, transcript, atticSchema);
+  for (const field of Object.values(plain.fields)) expect(field.required).toBe(false);
+
+  const marked = buildReviewRequest({}, transcript, atticSchema, {
+    requiredOnCreate: ["rValue"],
+  });
+  expect(marked.fields.rValue?.required).toBe(true);
+  // Every OTHER leaf stays false — a required list must not leak across leaves.
+  for (const [path, field] of Object.entries(marked.fields)) {
+    if (path !== "rValue") expect(field.required).toBe(false);
+  }
+});
+
+test("a nested leaf can be required, addressed by its dotted path", () => {
+  const marked = buildReviewRequest({}, transcript, atticSchema, {
+    requiredOnCreate: ["healthSafety.ambientCo"],
+  });
+  expect(marked.fields["healthSafety.ambientCo"]?.required).toBe(true);
+  expect(marked.fields.rValue?.required).toBe(false);
+});

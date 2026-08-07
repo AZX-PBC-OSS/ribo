@@ -1,4 +1,4 @@
-import { isSpanGrounded } from "@azx/ribo-core";
+import { buildReviewRequest, isSpanGrounded } from "@azx/ribo-core";
 import { expect, test } from "vitest";
 import { SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
 import type { SnuggWriteContext } from "./context.js";
@@ -127,3 +127,26 @@ function _ctxIsReadonly(ctx: SnuggWriteContext): void {
   // @ts-expect-error - assessmentId is readonly; a caller cannot retarget the write.
   ctx.assessmentId = "somewhere-else";
 }
+
+test("every requiredOnCreate path is a real leaf of the values schema", () => {
+  // The drift guard, and the reason a parallel list is acceptable at all rather
+  // than metadata on the schema. A typo or a renamed field must fail HERE, loudly,
+  // instead of silently marking nothing required and letting a write die at the
+  // host that evening. Uses the same walk a review card sees, so it cannot drift
+  // from what buildReviewRequest actually enumerates.
+  const leaves = Object.keys(
+    buildReviewRequest({}, { recordingId: "r", text: "", engine: "fake" }, snuggProAdapter.schema)
+      .fields,
+  );
+  for (const path of snuggProAdapter.requiredOnCreate ?? []) {
+    expect(leaves).toContain(path);
+  }
+});
+
+test("the one required leaf is the HVAC equipment type", () => {
+  // Snugg Pro's ONLY component endpoint with required capture fields is
+  // POST /jobs/{jobId}/hvac, and it wants two. `hvacUpgradeAction` is the other
+  // and is not extracted yet, so this list is deliberately one entry — see the
+  // comment on `requiredOnCreate`.
+  expect(snuggProAdapter.requiredOnCreate).toEqual(["heatingEquipmentType"]);
+});
