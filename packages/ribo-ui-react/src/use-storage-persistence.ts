@@ -42,7 +42,13 @@ import { useSubscribed } from "./use-subscribed.js";
 export interface UseStoragePersistenceResult {
   readonly persistence: StoragePersistence;
   readonly estimate: StorageEstimate | undefined;
-  /** Asks the browser for a persistence grant. Resolves to the resulting state. */
+  /**
+   * Asks the browser for a persistence grant. Resolves to the resulting state —
+   * or, if `persist()` itself throws rather than resolving, to whatever state was
+   * already known: a throw is not a refusal, so it must not be reported as
+   * `"denied"` any more than it may be published as one. See `request`'s own
+   * implementation note.
+   */
   readonly request: () => Promise<StoragePersistence>;
   /** Re-reads the grant and the estimate. */
   readonly refresh: () => void;
@@ -205,7 +211,9 @@ export function useStoragePersistence(): UseStoragePersistenceResult {
     // after this point always gets a higher one — see `requestSeq`'s own doc
     // comment. `isCurrent()` is checked again after every await below; once a
     // newer call has started, this one's publishes are skipped, but its OWN
-    // return value still reports what `persist()` actually told ITS caller.
+    // return value still reports what `persist()` actually told ITS caller —
+    // or, if it never told this caller anything (the catch below), the best
+    // currently-known answer.
     const token = ++requestSeq;
     const isCurrent = () => token === requestSeq;
 
@@ -218,15 +226,30 @@ export function useStoragePersistence(): UseStoragePersistenceResult {
       if (isCurrent()) publish({ persistence: "unsupported" });
       return "unsupported";
     }
-    let granted: StoragePersistence;
+    // `undefined` — not a `StoragePersistence` — means "persist() never told us
+    // anything", which is a THIRD case distinct from both `granted` and `denied`.
+    let granted: StoragePersistence | undefined;
     try {
       granted = (await navigator.storage.persist()) ? "granted" : "denied";
     } catch {
-      granted = "denied";
+      // A THROWN persist() is not a resolved `false`. The doc comment above
+      // reserves `"denied"` for an actual refusal — a promise that resolved
+      // `false` — and a throw is not that: it is the request failing to get an
+      // answer at all, the same way a thrown `persisted()` in `readStorage`
+      // does not get to assert `"unknown"` over a known `"granted"`. Setting
+      // `granted = "denied"` here used to publish exactly that manufactured
+      // refusal, over whatever was already known — including a real "granted"
+      // from an earlier successful request, on every mount that calls
+      // `request()` (`StoragePanel` does, unconditionally). Leaving `granted`
+      // unset instead keeps this path consistent with every other failure path
+      // in this file: the publish below is skipped for this field entirely, so
+      // `publish`'s merge leaves whatever was last known alone.
     }
     // Published to the shared store, so every consumer — including useWorkSafety —
-    // sees the new grant. This is the case per-hook state got wrong.
-    if (isCurrent()) publish({ persistence: granted });
+    // sees the new grant. This is the case per-hook state got wrong. Skipped
+    // when `granted` is unset (the catch above): there is nothing honest to
+    // publish for a request that never resolved.
+    if (granted !== undefined && isCurrent()) publish({ persistence: granted });
     // Refresh the estimate only — NOT via `readStorage()`. `readStorage`'s own
     // `persisted()` read is a plain re-check, and the grant we just learned
     // from `persist()` itself is more authoritative than a follow-up read of
@@ -239,7 +262,9 @@ export function useStoragePersistence(): UseStoragePersistenceResult {
     } catch {
       // A failed estimate read shouldn't blank out a previously-known one.
     }
-    return granted;
+    // `granted` if `persist()` resolved; otherwise the best currently-known
+    // state, which is honest precisely because the throw above changed nothing.
+    return granted ?? snapshot.persistence;
   }, []);
 
   return { ...current, request, refresh };

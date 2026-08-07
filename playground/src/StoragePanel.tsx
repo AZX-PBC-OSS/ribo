@@ -49,8 +49,11 @@ export function StoragePanel() {
   // prompt).
   useEffect(() => {
     request().catch(() => {
-      // The hook already folds a thrown `persist()` into `persistence: "denied"`;
-      // nothing further to do with the rejection here.
+      // `request()` never throws — a rejected `persist()` is caught inside the
+      // hook and reported as whatever was already known, not as a fabricated
+      // `"denied"` (see @azx/ribo-ui-react's useStoragePersistence). This handler
+      // exists only so a hypothetical future throw does not surface as an
+      // unhandled rejection on every app boot; there is nothing to do with it.
     });
   }, [request]);
 
@@ -165,7 +168,7 @@ function detail(status: StoragePersistence): string {
     case "granted":
       return "The browser will not evict this app's data to reclaim space, whether that was granted just now or on an earlier visit. Clearing website data by hand still removes it, and so does deleting the app from the Home Screen.";
     case "denied":
-      return `navigator.storage.persist() returned false, or threw. This is the ordinary answer in an iOS Safari tab — WebKit grants persistence to web apps launched from the Home Screen, and rarely otherwise. ${EVICTABLE}`;
+      return `navigator.storage.persist() resolved false — the browser was asked and refused. This is the ordinary answer in an iOS Safari tab — WebKit grants persistence to web apps launched from the Home Screen, and rarely otherwise. ${EVICTABLE}`;
     case "unsupported":
       return `navigator.storage.persist is not implemented here, so persistence could not be requested at all. ${EVICTABLE}`;
   }
