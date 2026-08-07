@@ -9,7 +9,10 @@ This directory proposes _how_ we build Ribo. It is design-level — approach, in
 
 A field auditor speaks their audit findings; the system transcribes → extracts audit fields → review/accept → writes into Snugg Pro. Deliverables:
 
-- **SDK (the reusable product):** `@azx/ribo-core`, `@azx/ribo-ui`, `@azx/ribo-adapter-snuggpro`
+- **SDK (the reusable product):** `@azx/ribo-core`, `@azx/ribo-ui-react`, `@azx/ribo-adapter-snuggpro`,
+  plus two packages this proposal did not yet name — `@azx/ribo-extractor-openai` (the extraction
+  plasmid) and `@azx/ribo-transcriber-ondevice` (on-device Whisper, split out in Phase 3) — five
+  publishable packages in total today, not three. See [10 §1](10-build-and-packaging.md).
 - **The field app** _(separate repo; name TBD)_ — a Helix-hosted proof-of-concept host that consumes the SDK — ships/demos without waiting on Snugg Pro's dev team
 - **Server STT:** on-device WASM (OSS Whisper) primary; a **managed Azure STT endpoint proxied through Helix** as fallback — **no custom service in v1** (a custom STT service is conditional; see [02](02-server-stt.md))
 
@@ -33,7 +36,7 @@ The heavy lifting is open source (or managed); our net-new code is the _composit
 | [01-feasibility-spike](01-feasibility-spike.md)       | On-device WASM spike — **gates everything, do first**                                  |
 | [02-server-stt](02-server-stt.md)                     | Server STT (managed Azure) + conditional service                                       |
 | [03-ribo-core](03-ribo-core.md)                       | Headless engine                                                                        |
-| [04-ribo-ui](04-ribo-ui.md)                           | UI components                                                                          |
+| [04-ribo-ui](04-ribo-ui.md)                           | Headless React hook layer (`@azx/ribo-ui-react`) — no components beyond `RiboProvider` |
 | [05-adapter-snuggpro](05-adapter-snuggpro.md)         | Snugg Pro adapter                                                                      |
 | [06-field-app-helix](06-field-app-helix.md)           | Helix host app + wiring                                                                |
 | [07-testing-and-accuracy](07-testing-and-accuracy.md) | Test strategy + accuracy harness                                                       |

@@ -6,8 +6,12 @@ The deployable. A small static frontend that imports the SDK, mounts the UI, and
 
 ```
 field-app  (React + Vite static bundle, azx deploy)
-  imports @azx/ribo-core, @azx/ribo-ui, @azx/ribo-adapter-snuggpro
-  mounts CaptureControl + StatusIndicator + ReviewCard
+  imports @azx/ribo-core, @azx/ribo-ui-react, @azx/ribo-adapter-snuggpro,
+          @azx/ribo-transcriber-ondevice, @azx/ribo-extractor-openai
+  wires RiboProvider around its own UI, built on ribo-ui-react's headless hooks
+    (useRecorder, useReview, useOutboxItems, useConnectivity, useWorkSafety) —
+    there is no CaptureControl/StatusIndicator/ReviewCard to mount; those never
+    shipped (superseded by the headless-hook-layer decision, see 04)
   holds NO secrets, picks NO vendor — Helix injects both keys server-side
 ```
 

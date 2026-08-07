@@ -120,7 +120,7 @@ The read-sync backend is where our "no backend" stance ends — **by design, onl
 ## Build vs adopt
 
 - **Adopt:** RxDB (+ Dexie RxStorage) for the local DB and the future replication protocol; the Cache API for the model; browser `MediaRecorder` + `@ricky0123/vad` for capture.
-- **Build (small, owned):** the outbox state machine + foreground relay + idempotency/backoff/ordering, as an RxDB collection. No library gives a _multi-step-resumable_ outbox turnkey without a backend, so this thin orchestration is ours — behind `ribo-core`'s `Queue`/`Controller` interface, so the engine stays swappable.
+- **Build (small, owned):** the outbox state machine + foreground relay + idempotency/backoff/ordering, as an RxDB collection. No library gives a _multi-step-resumable_ outbox turnkey without a backend, so this thin orchestration is ours — behind `ribo-core`'s `Outbox` class and `Relay` interface, so the engine stays swappable.
 
 ## Open items
 

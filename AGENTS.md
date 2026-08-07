@@ -94,9 +94,13 @@ other; the field app composes them. Nothing depends on the field app.
 
 Supporting, non-published: `packages/tsconfig` (`@azx/tsconfig`, the shared compiler options) and
 `playground/` (a Vite app that imports **every** published package, so its production build is a real
-composition check of the whole workspace). CI runs that production **build** via `./check.sh`; it
-never starts or loads the app, so there is **no runtime smoke test yet** — bundling and module
-resolution are gated, actual behavior in a browser is not.
+composition check of the whole workspace). CI runs that production **build** via `./check.sh`'s
+`build:app` stage, which on its own never starts or loads the app — but the same `./check.sh` run's
+`test` stage does, through its `e2e` Vitest project: it builds the playground, serves the built
+`dist/` through `vite preview`, and drives a real Chromium through it (`playground/e2e/*.e2e.test.ts`
+— real audio capture, an offline reload, IndexedDB/Cache eviction, storage persistence). So actual
+behavior in a browser **is** gated, not just bundling and module resolution — see §7's Definition of
+Done for the stage breakdown.
 
 Design docs, one per tier: [`03-ribo-core.md`](docs/implementation/03-ribo-core.md) ·
 [`04-ribo-ui.md`](docs/implementation/04-ribo-ui.md) ·
@@ -489,8 +493,13 @@ The two build stages are `build:packages` (tsdown produces every publishable `di
 publint and attw in-build) and `build:app` (the playground's production Vite build, the only gate
 that exercises Vite's resolver, the `@azx/source` condition, the JSX transform, React dedup and
 real bundling — `tsc` sees none of that). So most §5 breakage is caught by `./check.sh` alone.
-Note what it still does **not** do: the app is compiled, never executed. There is no runtime
-smoke test.
+`build:app` alone only compiles the app, never executes it — but `./check.sh` does not stop there:
+its later `test` stage runs the `e2e` Vitest project, which serves that same build through
+`vite preview` and drives a real Chromium through it (seven spec files, fifteen tests, none skipped —
+real audio capture, an offline reload, IndexedDB/Cache eviction, storage persistence). That **is** a
+runtime smoke test, gated on every `./check.sh` run, not a manual step — see
+`docs/implementation/10-build-and-packaging.md` §7 for the full tier and `check.sh`'s own comment
+above its `test` stage for the roster.
 
 If you touched anything under §5, `./check.sh`'s **resolve** stage already verifies source-first
 resolution end to end, in both directions, for all five packages — that is what
@@ -515,4 +524,7 @@ curl -s http://localhost:5173/src/App.tsx | head -3   # expect /@fs/.../packages
 
 `curl http://localhost:5173/` is **not** a check — the HTML is a shell with an empty `<div
 id="root">`; React fills it in the browser. Confirming the page visually renders the three package
-names is a **manual browser step**, and the only way to observe the app actually running.
+names is a **manual browser step** — the only way to observe **dev-mode source resolution**
+specifically, since the automated `e2e` tier above always exercises the built `dist/` through
+`vite preview`, never the dev server. It is not the only way to observe the app running at all
+anymore: `e2e` does that headlessly, on every `./check.sh` run.
