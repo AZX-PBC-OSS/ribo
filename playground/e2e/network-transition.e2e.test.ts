@@ -2,6 +2,8 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { build, preview, type PreviewServer } from "vite";
 import { chromium, type Browser, type Page } from "playwright";
+import { z } from "zod";
+import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 
 /**
  * @file Network **transitions**, not network states.
@@ -228,17 +230,25 @@ test("flapping the link around a queued item neither duplicates it, loses it, no
  * test will start to fail, which is the correct signal that the gap has closed
  * and the four currently-unreachable scenarios have become testable here.
  */
-// SKIPPED — and this test predicted its own skip. The comment above says that a
-// change wiring a real drain "will start to fail, which is the correct signal that
-// the gap has closed". R2 Phase A's review gate is that change: the item parks at
-// `awaiting-review` instead of reaching `done`, so the drain no longer runs to
-// completion unaided.
+// Restored for R2 Task 18. This test predicted its own skip: the comment above
+// says that a change wiring a real drain "will start to fail, which is the
+// correct signal that the gap has closed". R2 Phase A's review gate was that
+// change — the item parked at `awaiting-review` instead of reaching `done`, so
+// the drain no longer ran to completion unaided.
 //
-// Restore in R2 Task 18. The connectivity property this test exists for is
-// untouched by the gate — it is about the link, not the review card — so it can be
-// restored by driving `Outbox.submitReview` in the page context, without waiting
-// for the review UI.
-test.skip("the manual drain runs to completion while offline — the stub steps do no network I/O", async () => {
+// The connectivity property this test exists for is untouched by the gate — it
+// is about the link, not the review card — so the fix drives `Outbox.submitReview`
+// the same way `extraction-ui.e2e.test.ts` does: through the actual review card,
+// not a page-context call straight into core. There is no app-exposed handle onto
+// the live `Outbox` instance to call `submitReview` on directly without adding new
+// production surface area for it, and this file's own header says every invariant
+// here is asserted "through observable app behaviour ... and never through
+// internals" — clicking the card is that same discipline applied to the gate.
+// Every step of driving the card (reading fields, clicking Accept, submitting) is
+// a local DOM/IndexedDB operation with no network I/O, so doing it with the
+// context still offline is exactly as informative about "no network I/O" as the
+// original, gate-free version was.
+test("the manual drain runs to completion while offline — the stub steps do no network I/O", async () => {
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(baseUrl);
@@ -254,11 +264,56 @@ test.skip("the manual drain runs to completion while offline — the stub steps 
   await proveOfflineIsReal(page);
 
   // Drive the queue with the link down. A real network step would fail and park
-  // the item under backoff; the stub reaches `done` regardless.
+  // the item under backoff; the stub reaches `awaiting-review` regardless — the
+  // review gate stops the relay on purpose, which is a different thing from a
+  // network failure parking it under backoff.
+  await page.getByRole("button", { name: /sync now/ }).click();
+  await expect.poll(() => statusOf(page), { timeout: 30_000 }).toBe("awaiting-review");
+
+  // Drive the review card to a decision on every leaf — still fully offline.
+  // Every leaf here is the FakeExtractor's fixed fixture output, which this
+  // fake recording's transcript never contains, so — same as
+  // `extraction-ui.e2e.test.ts` — every leaf starts ungrounded and the gate
+  // blocks until each one is actioned.
+  const card = page.locator('[data-testid="review-card"]').first();
+  await card.waitFor({ timeout: 30_000 });
+  const submit = card.getByRole("button", { name: "Accept all and queue" });
+
+  // Not silent about the gate itself, even though this file's focus is the
+  // link, not the review card: blocked before anything is actioned, and the
+  // card has exactly as many rows as the schema declares leaves (computed, not
+  // hard-coded, so a field-set change moves both sides of the comparison
+  // together).
+  const leafPaths = allLeafPaths();
+  await expect(card.getByTestId("accept-field").count()).resolves.toBe(leafPaths.length);
+  await expect(submit.isDisabled()).resolves.toBe(true);
+
+  // The distinguishing assertion (same property as `extraction-ui.e2e.test.ts`):
+  // action exactly ONE leaf and confirm the other 50 still block submit, before
+  // actioning the rest. A gate that unlocked after any single decision would
+  // release here already; only the real one — blocking until EVERY ungrounded
+  // leaf is actioned — survives this check.
+  const [firstPath, ...restPaths] = leafPaths;
+  await card.getByTestId(`review-field-${firstPath}`).getByTestId("accept-field").click();
+  await expect(submit.isDisabled()).resolves.toBe(true);
+
+  for (const path of restPaths) {
+    await card.getByTestId(`review-field-${path}`).getByTestId("accept-field").click();
+  }
+  await expect(submit.isDisabled()).resolves.toBe(false);
+  await submit.click();
+
+  // `Outbox.submitReview` moved the item to `writing`, dropping it out of the
+  // review panel's `awaiting-review` filter.
+  await card.waitFor({ state: "detached", timeout: 15_000 });
+
+  // `writing` needs its own drain, same as `extracting` did — nothing here
+  // watches the gate open and continues automatically.
   await page.getByRole("button", { name: /sync now/ }).click();
 
-  // The status badge reaches `done`, i.e. the drain ran the whole pipeline with
-  // the link down. `statusOf` reads the badge element's own text, not the always
+  // The status badge reaches `done`, i.e. the drain ran the whole pipeline —
+  // extraction, review, and the write step — with the link down throughout.
+  // `statusOf` reads the badge element's own text, not the always
   // "queued <time>" muted line.
   await expect.poll(() => statusOf(page), { timeout: 30_000 }).toBe("done");
   expect(await item.first().innerText()).toContain("transcript:");
@@ -280,6 +335,42 @@ async function captureOneRecording(target: Page): Promise<void> {
   await target.waitForTimeout(CAPTURE_MS);
   await target.getByRole("button", { name: /Stop and queue/ }).click();
   await target.locator('[data-testid="queue-item"]').first().waitFor({ timeout: 15_000 });
+}
+
+/**
+ * `field`, stripped of leading `.optional()`/`.nullable()` wrappers, asserted to
+ * be a `z.ZodObject` — the same shape `snuggValuesSchema`'s own seven groups
+ * take. Mirrors `ReviewPanel.browser.test.tsx`'s `unwrapGroup` exactly; kept
+ * local rather than shared, matching this file's own convention of duplicating
+ * helpers rather than importing them from a sibling e2e file.
+ */
+function unwrapGroup(field: z.ZodType): z.ZodObject {
+  let current = field;
+  while (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
+    current = current.unwrap() as z.ZodType;
+  }
+  if (!(current instanceof z.ZodObject)) {
+    throw new Error("snuggValuesSchema's own groups are expected to be z.ZodObject");
+  }
+  return current;
+}
+
+/**
+ * Every dotted leaf path the real `snuggValuesSchema` declares, in schema
+ * order — computed from the schema itself rather than hard-coded, so a future
+ * field-set change changes what this test expects instead of silently under-
+ * or over-covering it. Same walk as `extraction-ui.e2e.test.ts`'s helper of the
+ * same name.
+ */
+function allLeafPaths(): readonly string[] {
+  const paths: string[] = [];
+  for (const [groupKey, groupField] of Object.entries(snuggValuesSchema.shape)) {
+    const groupSchema = unwrapGroup(groupField as z.ZodType);
+    for (const leafKey of Object.keys(groupSchema.shape)) {
+      paths.push(`${groupKey}.${leafKey}`);
+    }
+  }
+  return paths;
 }
 
 /**

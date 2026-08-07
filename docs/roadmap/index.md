@@ -35,7 +35,7 @@ source-condition resolver assertion, and tarball/duplicate-React checks. All fiv
 `./check.sh`. → [design](design/r1-package-build-configs-design.md) ·
 [plan](phases/r1-package-build-configs.md)
 
-**R1.5 — field-shape contracts** (the most recent work) split `ToolAdapter<F, C>`'s one type
+**R1.5 — field-shape contracts** split `ToolAdapter<F, C>`'s one type
 parameter, which was doing two incompatible jobs, into a declared writable patch (`V`) and an
 extraction schema **derived** from it (`Enveloped<V>`, via `enveloped()`), so the extractor's
 provenance-envelope needs and `write`'s plain-value needs stop fighting over one shape. Review now
@@ -52,25 +52,30 @@ The original design spec (D1–D10 decisions, architecture, data flow, risks) is
 [design/ribo-design.md](design/ribo-design.md). The docs-site plan is at
 [phases/docs-site.md](phases/docs-site.md).
 
+**R2 — the headless hook layer** populated `@azx/ribo-ui-react`, which had been a one-line
+`PACKAGE_NAME` stub since R1 gave it a real build with nothing in it. Phase A closed the gap R2
+surfaced while planning the hooks: core carried a complete, tested review vocabulary
+(`buildReviewRequest`, `resolveReview`) that nothing called, because the relay went straight from
+`extracting` to `writing`. Review is now a real gate — an item parks at `awaiting-review` (deliberately
+absent from `ACTIVE_OUTBOX_STATUSES`, so the relay drains past it rather than stalling), a persisted
+`ReviewOutcome` records the human's decision, and `Outbox.submitReview` is the only way out, to
+`writing`. The pipeline is now
+`queued → transcribing → extracting → awaiting-review → writing → done`. Phase B built `RiboProvider`
+and six hooks over the core engine — `useRecorder`, `useOutboxItems`, `useReview`, `useConnectivity`,
+`useWorkSafety`, `useStoragePersistence` — respecified against R1.5's leaf-path review contract
+(no generic `F`; the adapter's values schema is passed at the call site instead). Phase C migrated the
+playground onto the hooks, built the interactive review card (`ReviewPanel`, gated on every ungrounded
+leaf being actioned), restored the two e2e specs the gate had made temporarily unreachable, and
+corrected the AGENTS.md statements R2 itself falsified. → [design](design/r2-headless-hook-layer-design.md) ·
+[plan](phases/r2-headless-hook-layer.md)
+
 ## What is next
 
 The post-Phase-4 work is organized as tasks **R1–R5** and **F1**, defined in a Voice-to-Text MVP
 design that is not in this repo. R1.5 was inserted between R1 and R2, surfaced while planning R2's
-review hook. R1 and R1.5 are both done; the rest proceed in dependency order:
+review hook. R1, R1.5 and R2 are all done; the rest proceed in dependency order:
 
-1. **R2 — populate the headless hook layer** (`@azx/ribo-ui-react`). The package builds but is still a
-   `PACKAGE_NAME` stub. R2 fills it with six hooks and a provider over the core engine — and closes the
-   gap it surfaced: review is a contract in core with no callers, because the relay goes straight from
-   `extracting` to `writing`. Phase A makes review a real gate (`awaiting-review`, a persisted outcome,
-   pause/resume on `Recorder`); Phase B builds the hooks and migrates the playground onto them.
-   **Phase A has shipped. Phase B is unblocked:** R1.5 moved review to flat dotted leaf paths, which
-   made the published `useReview` — generic in a field set, addressed by `keyof F` — impossible rather
-   than merely dated. Design revision 2 respecifies it: no generic, the adapter's values schema passed
-   in at the call site (`useReview(item, { valuesSchema })`) rather than carried on the provider, and
-   `submit()` both throwing and exposing per-leaf errors. Design §9 records what changed and why.
-   → [design](design/r2-headless-hook-layer-design.md) ·
-   [plan](phases/r2-headless-hook-layer.md)
-2. **R1.6 — Snugg Pro API alignment. _Largely done (2026-08-06)._** The adapter's field set was
+1. **R1.6 — Snugg Pro API alignment. _Largely done (2026-08-06)._** The adapter's field set was
    reverse-engineered from Snugg Pro's public **printed field sheet**; the machine-readable spec later
    showed that model to be wrong in several places, and `schema.ts` has now been rebuilt from the spec
    directly. What that closed: the wire property names are the schema's keys, the enum members are the
@@ -85,25 +90,25 @@ review hook. R1 and R1.5 are both done; the rest proceed in dependency order:
    surface — see the fill-rate open question below), instance/cardinality modelling, and re-annotating
    the spike corpus so extraction quality is measured against this vocabulary rather than the old one.
    → see also R1.7, which mechanises the parts of this that should not be hand-maintained.
-3. **R1.7 — generate the base types (`pnpm snugg:refresh`).** A script that regenerates wire field names
+2. **R1.7 — generate the base types (`pnpm snugg:refresh`).** A script that regenerates wire field names
    and leaf types from the spec into a committed `*.generated.ts`, following the `pnpm target:refresh`
    precedent exactly: thin script, real logic in a typechecked and unit-tested module, deliberately not
    run by CI so a vendor change lands in a reviewable diff. **Enum vocabularies are deliberately out of
    the first cut** — see "Open questions" below. The frozen JSON Schema fixture already means a
    regeneration cannot silently change what is sent to the model: it goes red and a human looks.
-4. **R3 — pack-and-consume test tier.** The scratch-app matrix from doc 10 §8: pack each tarball,
+3. **R3 — pack-and-consume test tier.** The scratch-app matrix from doc 10 §8: pack each tarball,
    install into a fresh app, build, and assert the worker spawns and WASM loads. The source-condition
    playground never touches `dist/`, so every WASM/worker failure mode is production-build-only. This
    is the only test that exercises a real tarball in a real host build.
-5. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
+4. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
    Includes the `.npmrc` registry config, `publishConfig.access` change, and release-workflow
    activation. Nothing is published today.
-6. **R5 — correct the docs the newer decisions falsify.** Doc 10 §3.1's Vite-library-mode mandate and
+5. **R5 — correct the docs the newer decisions falsify.** Doc 10 §3.1's Vite-library-mode mandate and
    doc 04's styled-components design are superseded by the tsdown-for-all and headless-hook-layer
    decisions; R5 rewrites them (and finishes what R1.5 left it: doc 04's `ReviewCard` example and the
    rest of its now-superseded `run<F>`/`ReviewPresenter` shape). Also covers any AGENTS.md statements
    R1–R4 have made false.
-7. **F1 — the field app** (separate repo). The deployed Helix app that composes the published packages.
+6. **F1 — the field app** (separate repo). The deployed Helix app that composes the published packages.
    Not built here; the `playground/` app is this repo's stand-in for a consumer.
 
 ## Open questions and findings pending action
@@ -163,10 +168,11 @@ rather than rediscovered.
 
 ## Deferred until write-back unblocks — the MVP cut (2026-08-06)
 
-**The MVP is R2 Phase B + C: the hooks and the review card.** Everything needed for a working loop is
-built except the ability for a human to actually review — capture, the durable outbox and relay,
-on-device transcription, real extraction, the review contract and the write trust boundary all ship
-and gate green. What is missing is a UI to drive them.
+**The MVP was R2 Phase B + C: the hooks and the review card — now shipped.** Capture, the durable
+outbox and relay, on-device transcription, real extraction, the review gate and card, and the write
+trust boundary all ship and gate green, e2e included. The loop runs end to end up to the write itself,
+which stays stubbed behind the Helix egress ask below — the human can review and submit; only the
+actual write to Snugg Pro is gated off.
 
 **Every remaining Snugg Pro item is downstream of a dependency we do not control.** Write-back is gated
 on the Helix egress HMAC ask (A1, `docs/implementation/13-helix-platform-asks.md`), so work that makes
