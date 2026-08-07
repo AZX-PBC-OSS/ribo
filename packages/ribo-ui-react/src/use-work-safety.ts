@@ -40,6 +40,12 @@ export interface UseWorkSafetyResult {
  * `safe` / `nothing-captured`. That verdict is withheld rather than shown: a UI
  * that renders it unconditionally tells the auditor their work is safe before it
  * has looked.
+ *
+ * **No override argument, unlike every other hook in this package.** It composes
+ * `useOutboxItems`, `useConnectivity` and `useStoragePersistence` internally rather
+ * than taking their instances as parameters, so there is nothing here for a caller
+ * to override — which means this hook can only be used under a `RiboProvider`
+ * (see its own doc comment), never bypassed the way a test can bypass the others.
  */
 export function useWorkSafety(): UseWorkSafetyResult {
   const { items, loading, error } = useOutboxItems();

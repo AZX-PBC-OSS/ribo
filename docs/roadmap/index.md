@@ -39,8 +39,8 @@ source-condition resolver assertion, and tarball/duplicate-React checks. All fiv
 parameter, which was doing two incompatible jobs, into a declared writable patch (`V`) and an
 extraction schema **derived** from it (`Enveloped<V>`, via `enveloped()`), so the extractor's
 provenance-envelope needs and `write`'s plain-value needs stop fighting over one shape. Review now
-addresses flat dotted leaf paths — Snugg Pro reviews as 34 leaves, not 24 top-level keys, so the
-nested `healthSafety` matrix no longer collapses to one envelope for all 11 tests — with each leaf's
+addresses flat dotted leaf paths, not top-level keys — so a nested group of tests like Snugg Pro's
+`health` no longer collapses to one envelope and one verdict for every test in it — with each leaf's
 own zod schema carried on `ReviewField` for rendering and submit-time validation, and submission
 completeness enforced at runtime. `toWriteStep(adapter)` installs the `schema.parse` trust boundary
 that write-back had documented but never actually wired to anything, resolving `ctx` per item from
@@ -152,7 +152,7 @@ rather than rediscovered.
   itself, leaving a **163-field capture surface** (doc 17 §Scoping). What is still unknown is which of
   those 163 anyone actually fills in. Two cheap sources answer it: the 14-transcript corpus says what
   auditors _say_, and the API says what real jobs _contain_. Do that before picking the next tranche.
-- **`Outbox.reopenForReview(id)`.** Three places now point a reader at a raw `patch` back to
+- **`Outbox.reopenForReview(id)`.** Two places now point a reader at a raw `patch` back to
   `awaiting-review`, which the relay's own tests describe as "exactly the shape a bug in it would take".
   The only documented recovery path is the one we tell people never to take.
 - **Cross-tab relay leader election.** Pre-existing, not introduced by R2: `multiInstance: true` with no
