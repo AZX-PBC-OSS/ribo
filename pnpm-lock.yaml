@@ -195,6 +195,9 @@ importers:
       '@azx/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      ajv:
+        specifier: 'catalog:'
+        version: 8.20.0
       publint:
         specifier: 'catalog:'
         version: 0.3.23
