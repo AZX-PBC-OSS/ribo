@@ -1,5 +1,6 @@
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
+import { StrictMode } from "react";
 import { createConnectivity, type Connectivity, type ConnectivityState } from "@azx/ribo-core";
 
 import { RiboProvider } from "./RiboProvider.js";
@@ -125,4 +126,55 @@ test("does not loop against Connectivity's allocating state -- pins the memoized
   // before the fake goes quiet -- see the file comment above for why this
   // fake exists instead of asserting against the real Connectivity model.
   expect(renders.mock.calls.length).toBeLessThan(RUNAWAY_CAP);
+});
+
+/**
+ * A `Connectivity` double that tracks how many listeners are currently live,
+ * mirroring `use-subscribed.browser.test.tsx`'s `makeSource`. The real
+ * `Connectivity` returned by `createConnectivity` has no public listener-count
+ * accessor, so proving StrictMode's double mount/cleanup/remount settles to
+ * exactly one live subscription -- not two, not zero -- needs a double built
+ * for it.
+ */
+function makeCountingConnectivity(): Connectivity & { readonly liveCount: number } {
+  let liveCount = 0;
+  return {
+    get liveCount() {
+      return liveCount;
+    },
+    get state(): ConnectivityState {
+      return { status: "offline" };
+    },
+    subscribe(listener: (state: ConnectivityState) => void) {
+      liveCount += 1;
+      listener({ status: "offline" });
+      return () => {
+        liveCount -= 1;
+      };
+    },
+    start: () => undefined,
+    stop: () => undefined,
+  };
+}
+
+test("under StrictMode, the double mount/cleanup/remount settles to one live subscription, and zero after unmount", async () => {
+  // playground/src/main.tsx wraps the real app in <StrictMode>; vitest-browser-react
+  // defaults reactStrictMode to false, so nothing else in this file exercises the
+  // mode the real app actually renders in. React 19 StrictMode mounts, cleans up,
+  // and re-mounts effects to surface missing cleanup -- this asserts the
+  // subscription settles to exactly one live listener, not two or zero, matching
+  // use-subscribed.browser.test.tsx's own StrictMode test for the underlying hook.
+  const connectivity = makeCountingConnectivity();
+  function Probe() {
+    return <p>status {useConnectivity(connectivity).status}</p>;
+  }
+  const screen = await render(
+    <StrictMode>
+      <Probe />
+    </StrictMode>,
+  );
+  await expect.element(screen.getByText("status offline")).toBeInTheDocument();
+  expect(connectivity.liveCount).toBe(1);
+  await screen.unmount();
+  expect(connectivity.liveCount).toBe(0);
 });

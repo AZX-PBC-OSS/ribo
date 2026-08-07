@@ -1,5 +1,6 @@
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
+import { StrictMode } from "react";
 
 import { useStoragePersistence } from "./use-storage-persistence.js";
 
@@ -28,17 +29,60 @@ test("reports a persistence grant from the real Storage API", async () => {
     .toBeInTheDocument();
 });
 
+test("renders a real value under StrictMode too", async () => {
+  // playground/src/main.tsx wraps the real app in <StrictMode>; vitest-browser-react
+  // defaults reactStrictMode to false, so nothing else in this file exercises the
+  // mode the real app actually renders in. Same honestly-weak scope as the test
+  // above -- this does not call `request()` or assert which vocabulary member
+  // renders, only that StrictMode's double mount/cleanup/remount settles to a
+  // real value rather than a stuck or duplicated one. Placed before the tests
+  // below that depend on the module-level snapshot still being "unknown": this
+  // one never asks for persistence, so it cannot flip that shared state.
+  function Probe() {
+    return <p>persistence {useStoragePersistence().persistence}</p>;
+  }
+  const screen = await render(
+    <StrictMode>
+      <Probe />
+    </StrictMode>,
+  );
+  await expect
+    .element(screen.getByText(/persistence (granted|denied|unsupported|unknown)/))
+    .toBeInTheDocument();
+});
+
 test("an un-asked origin reports unknown, never denied", async () => {
   // `persisted() === false` means "not persisted", which is also true before anyone
   // asks. Reporting that as `denied` would tell workSafety a request was refused
   // when none was made -- and `denied` is what drives the at-risk verdict.
+  //
+  // This must wait for the mount's own `readStorage()`/`persisted()` call to
+  // actually settle before asserting -- NOT merely for `seen` to be defined.
+  // `seen` is already "unknown" (the module's synchronous initial value)
+  // before that async call ever resolves, so a `not.toBe(undefined)` guard is
+  // a no-op: in isolation it is satisfied on the very first render and the
+  // assertion below fires against the pre-refresh value, never observing
+  // whatever `readStorage()` actually produced. (It went red anyway when this
+  // whole file ran in order, only because the *previous* test's mount had
+  // already resolved its own `readStorage()` and mutated the shared
+  // module-level snapshot by the time this one mounted -- an accident of file
+  // order, not synchronization this test performs, and exactly the kind of
+  // false-negative-in-isolation this comment exists to rule out.)
+  //
+  // `publish()` always allocates a fresh snapshot object
+  // (`{ ...snapshot, ...next }`), and `useSubscribed` re-renders on ANY new
+  // object identity even when every field is unchanged -- so counting renders
+  // past the initial mount is a value-independent signal that the refresh
+  // cycle actually completed, whether or not the answer changed.
+  const renders = vi.fn();
   let seen: string | undefined;
   function Probe() {
+    renders();
     seen = useStoragePersistence().persistence;
     return null;
   }
   await render(<Probe />);
-  await vi.waitFor(() => expect(seen).not.toBe(undefined));
+  await vi.waitFor(() => expect(renders.mock.calls.length).toBeGreaterThan(1));
   expect(seen).not.toBe("denied");
 });
 
