@@ -35,3 +35,19 @@ export function useRiboInstance<K extends keyof RiboInstances>(
   }
   return resolved as NonNullable<RiboInstances[K]>;
 }
+
+/**
+ * Like {@link useRiboInstance} but yields `undefined` instead of throwing.
+ *
+ * For the caller whose need is conditional — `useRecorder({ enqueue: false })` has
+ * no use for an outbox. A conditional `useRiboInstance` call would break the rules
+ * of hooks, so the resolution stays unconditional and the *requirement* becomes a
+ * plain check at the call site.
+ */
+export function useOptionalRiboInstance<K extends keyof RiboInstances>(
+  key: K,
+  override?: RiboInstances[K],
+): RiboInstances[K] {
+  const instances = useContext(RiboContext);
+  return override ?? instances[key];
+}

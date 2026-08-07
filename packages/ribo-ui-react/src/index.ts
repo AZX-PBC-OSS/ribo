@@ -11,6 +11,8 @@ export type { AnyRecorder, RiboInstances } from "./context.js";
 export { useConnectivity } from "./use-connectivity.js";
 export { useOutboxItems } from "./use-outbox-items.js";
 export type { UseOutboxItemsResult } from "./use-outbox-items.js";
+export { useRecorder } from "./use-recorder.js";
+export type { StopResult, UseRecorderOptions, UseRecorderResult } from "./use-recorder.js";
 export { useReview } from "./use-review.js";
 export type { UseReviewOptions, UseReviewResult } from "./use-review.js";
 export { useStoragePersistence } from "./use-storage-persistence.js";
