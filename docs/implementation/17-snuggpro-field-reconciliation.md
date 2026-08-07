@@ -338,3 +338,45 @@ Roughly 60 fields sit in `pool*`, `ev*`, `dishwasher*` and `clothes*` — applia
 spec-sheet data rather than speech, but that is a hypothesis, not a finding. Two cheap sources: the
 14-transcript spike corpus says what auditors _say_, and the API says what real jobs actually _contain_.
 "
+
+### Correction (2026-08-06, from the repo owner): auditors narrate recommendations
+
+Two domain corrections that supersede parts of this document and of doc 15, recorded because they came
+from someone who knows what auditors actually say, and neither is derivable from the spec.
+
+**1. `hvacUpgradeAction` is extractable — doc 15's B2 is wrong.** Doc 15 ranks it blocking and
+recommends a **write-layer constant**, on the reasoning that an upgrade action is a retrofit decision
+rather than a walkthrough observation. That reasoning treats an auditor as a pure observer. An energy
+auditor's _job_ is recommending retrofits, and they narrate them: _"there's an oil boiler here, we
+should get rid of it"_ carries `"Remove a system permanently"` as plainly as it carries `Boiler`. So
+this is a real extraction field, not a constant.
+
+**2. Writes are mostly creates, not updates.** So the required-on-create parameters are the common path
+rather than a first-time edge case.
+
+**Consequence for the §Scoping table above.** The `*Improved` exclusion (−122) was justified as "the
+proposed retrofit, decided later at a desk". That is too broad. The finer cut is that **upgrade
+_intent_ is dictated while improved _specs_ are not** — an auditor says the boiler should go, not the
+AFUE of the boiler that replaces it. The 163-field capture surface is therefore a floor, not a ceiling,
+and the `*Improved` block needs re-examining field by field rather than being excluded wholesale.
+
+### The required-field surface is small, and worth surfacing to the auditor
+
+Requiredness is declared in the spec, so it is generator territory rather than something to
+hand-maintain. Across every component create endpoint:
+
+| endpoint                                                                         |                               required (excl. `jobId`) |  of |
+| -------------------------------------------------------------------------------- | -----------------------------------------------------: | --: |
+| `/jobs/{jobId}/hvac`                                                             | **2** — `hvacSystemEquipmentType`, `hvacUpgradeAction` |  73 |
+| `/jobs/{jobId}/stage`                                                            |                  1 — `stageId` (workflow, not capture) |   2 |
+| `/jobs/{jobId}/incentives`                                                       |                  1 — `fromTemplateUuid` (template ref) |   3 |
+| `/jobs/{jobId}/recommendation`                                                   |             2 — `recDefinitionId`, `status` (workflow) |  10 |
+| `basedata`, `attic`, `dhw`, `wall`, `window`, `health`, `report`, `utilities`, … |                                                  **0** |   — |
+
+**HVAC is the only component with required _capture_ fields**, and it needs exactly the two an auditor
+would say. Everything else is optional on create, which is why a partial dictation writes cleanly.
+
+**Product direction:** surface requiredness in review. The generator can emit a `required` flag per
+leaf, `ReviewField` can carry it, and the review card can mark those leaves and refuse a submit that
+leaves one empty — turning a write that would fail at the API into a prompt the auditor can answer
+while they are still standing in the basement. It fires on two fields today and scales for free.
