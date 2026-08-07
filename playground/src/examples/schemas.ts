@@ -1,14 +1,30 @@
 /**
  * @file Example JSON Schemas for the dev-only "Try it" extraction panel.
  *
- * Two schemas, both using the SnuggPro-style `{ value, confidence, sourceSpan }`
- * provenance envelope so the panel can render a grounded quote per field:
+ * Two schemas, both using the `{ value, confidence, sourceSpan }` provenance
+ * envelope every adapter's extraction schema uses, so the panel can render a
+ * grounded quote per field:
  *
  *   - {@link DEFAULT_SCHEMA} — a small, legible 3-field starter, prefilled so the
  *     panel is runnable immediately.
- *   - {@link SNUGGPRO_SCHEMA} — a larger, realistic subset of the real SnuggPro
- *     field set (equipment/fuel split, the attic depth-band vs spoken-R-value pair,
- *     a nested health-and-safety matrix) for a meatier demo.
+ *   - {@link LARGER_SCHEMA} — a bigger, still-synthetic example (equipment/fuel
+ *     split, an attic depth-band vs spoken-R-value pair, a nested health-and-safety
+ *     matrix) for a meatier demo of nested groups and closed enums.
+ *
+ * **Neither schema is a mirror of `@azx/ribo-adapter-snuggpro`'s actual field set,
+ * and {@link LARGER_SCHEMA} used to claim otherwise.** It was named and described
+ * as "a realistic subset of the SnuggPro capture fields" while using vocabulary
+ * (`heatingEquipmentType`, snake_case enum members like `"fuel_oil"`, a flat
+ * `healthSafety.ambientCo`) that predates the adapter's rebuild — the real schema
+ * now prefixes every field by group (`hvacSystemEquipmentType`,
+ * `healthAmbientCarbonMonoxide`) and uses title-case enum members (`"Fuel Oil"`).
+ * Relabelled rather than rewritten to match: this panel demonstrates generic
+ * JSON-Schema-driven extraction with provenance envelopes, which is orthogonal to
+ * any one adapter's wire format, and keeping a second full copy of a 51-leaf
+ * schema here — already owned, tested and versioned by
+ * `packages/ribo-adapter-snuggpro/src/schema.ts` — would just be a second place
+ * for that vocabulary to drift out from under, for a demo fixture that has no
+ * need to track it.
  *
  * Exported as pretty-printed JSON strings — the panel drops them straight into the
  * CodeMirror editor.
@@ -110,11 +126,11 @@ const healthState = {
   enum: ["passed", "failed", "warning", "not_tested", null],
 };
 
-const snuggProSchema: JsonSchema = {
+const largerSchema: JsonSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
-  title: "SnuggPro energy audit — bounded field set (demo subset)",
+  title: "Home energy audit — extended example",
   description:
-    "A realistic subset of the SnuggPro capture fields. Every leaf is a { value, confidence, sourceSpan } envelope; healthSafety is a nested matrix of named tests.",
+    "A larger, synthetic example — not a mirror of any adapter's real field names. Every leaf is a { value, confidence, sourceSpan } envelope; healthSafety is a nested matrix of named tests.",
   type: "object",
   additionalProperties: false,
   required: [
@@ -162,4 +178,4 @@ const snuggProSchema: JsonSchema = {
 };
 
 export const DEFAULT_SCHEMA = JSON.stringify(defaultSchema, null, 2);
-export const SNUGGPRO_SCHEMA = JSON.stringify(snuggProSchema, null, 2);
+export const LARGER_SCHEMA = JSON.stringify(largerSchema, null, 2);

@@ -221,6 +221,40 @@ try {
         "`resolve.conditions` and ignores `ssr.resolve.conditions` entirely.",
     );
   }
+
+  // The two checks above are exact-name lookups: they fail loudly if "unit" or a
+  // "browser"-prefixed project goes missing (a rename), but they say nothing
+  // about a project neither name matches — which is exactly how a NEWLY ADDED
+  // project would slip through ungated, unlike the per-package check above,
+  // which enumerates `packages/*` from the filesystem for the identical reason
+  // (a package added there fails the count check rather than being silently
+  // skipped). This does the same thing for Vitest projects: every project name
+  // is enumerated, and anything that is neither "unit", "browser"-prefixed, nor
+  // named in `EXEMPT_PROJECT_NAMES` fails here, forcing whoever added it to
+  // decide — and say, in this file — whether it needs the condition.
+  //
+  // `e2e` is the one project that genuinely does not: it drives a built `dist/`
+  // through `vite preview`, resolved entirely by the playground's own Vite
+  // config, and imports only `vite`/`playwright` itself (see that project's own
+  // comment in `vitest.config.ts`). It is named here rather than left as a
+  // silent third case, so "some project besides unit/browser needs no
+  // condition" reads as a deliberate, single-item exemption instead of a rule
+  // this script forgot to write.
+  const EXEMPT_PROJECT_NAMES = new Set(["e2e"]);
+  const unclassifiedProjects = vitest.projects
+    .map((project) => project.name)
+    .filter(
+      (name) => name !== "unit" && !name.startsWith("browser") && !EXEMPT_PROJECT_NAMES.has(name),
+    );
+  if (unclassifiedProjects.length > 0) {
+    vitestFailures.push(
+      `vitest.config.ts: found project(s) ${unclassifiedProjects.map((name) => `"${name}"`).join(", ")} ` +
+        "that this script does not know how to classify. Add a resolved-conditions assertion for it " +
+        'above (like "unit" and "browser" get) if it needs @azx/source, or add its name to ' +
+        'EXEMPT_PROJECT_NAMES just above if it genuinely does not (like "e2e") — a project must be ' +
+        "one or the other, not neither.",
+    );
+  }
 } finally {
   await vitest.close();
 }

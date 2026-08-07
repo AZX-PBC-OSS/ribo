@@ -74,7 +74,7 @@ test("the panel renders its editors, examples and backend banner", async () => {
   expect(await page.getByTestId("text-editor").innerText()).toMatch(/Linden Street/);
 
   // Example buttons present.
-  await page.getByRole("button", { name: "SnuggPro schema (larger)" }).waitFor();
+  await page.getByRole("button", { name: "Larger example" }).waitFor();
   await page.getByRole("button", { name: "Attic R-value shell" }).waitFor();
   await page.getByRole("button", { name: "Full walkthrough" }).waitFor();
   await page.getByRole("button", { name: "Silent fuel drop" }).waitFor();

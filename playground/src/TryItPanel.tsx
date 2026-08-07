@@ -4,7 +4,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { isSpanGrounded } from "@azx/ribo-core";
 
 import { fetchExtractStatus, runExtract, type ExtractStatus } from "./extract-api.js";
-import { DEFAULT_SCHEMA, SNUGGPRO_SCHEMA } from "./examples/schemas.js";
+import { DEFAULT_SCHEMA, LARGER_SCHEMA } from "./examples/schemas.js";
 import { DEFAULT_TEXT, TRANSCRIPT_EXAMPLES } from "./examples/transcripts.js";
 import { messageOf } from "./format.js";
 import { button, errorBox, monospace, muted, noticeBox, panel } from "./styles.js";
@@ -167,8 +167,8 @@ export function TryItPanel() {
           <button type="button" style={smallButton} onClick={() => setSchema(DEFAULT_SCHEMA)}>
             Starter schema
           </button>
-          <button type="button" style={smallButton} onClick={() => setSchema(SNUGGPRO_SCHEMA)}>
-            SnuggPro schema (larger)
+          <button type="button" style={smallButton} onClick={() => setSchema(LARGER_SCHEMA)}>
+            Larger example
           </button>
         </div>
         <div style={editorWrap}>

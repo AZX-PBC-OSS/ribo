@@ -108,8 +108,7 @@ export function toWriteStep<V extends Record<string, unknown>, C>(
         `outbox item ${item.id}: the reviewed values are not a valid patch for the ` +
           `"${adapter.name}" adapter — ${describeLocated(zodIssues(fields.error))}. Nothing was written. ` +
           "The review outcome is already persisted, so a retry would fail identically; " +
-          'to try again, re-park the item with Outbox.patch(id, { status: "awaiting-review" }) ' +
-          "and review it afresh.",
+          "to try again, re-park the item with Outbox.reopenForReview(id) and review it afresh.",
       );
     }
 
