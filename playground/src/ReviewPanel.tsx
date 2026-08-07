@@ -1,5 +1,6 @@
 import { useMemo, type ChangeEvent } from "react";
 import { z } from "zod";
+import { stripOptionalNullable } from "@azx/ribo-core";
 import type {
   FieldDecision,
   FieldPath,
@@ -334,7 +335,7 @@ function FieldGroup({
             path={path}
             field={fields[path]!}
             decision={decisionOf(path)}
-            needsReview={untouchedSet.has(path) && fields[path]?.isGrounded === false}
+            isUntouched={untouchedSet.has(path)}
             errorMessage={errors[path]}
             onAccept={onAccept}
             onEdit={onEdit}
@@ -350,7 +351,7 @@ function FieldRow({
   path,
   field,
   decision,
-  needsReview,
+  isUntouched,
   errorMessage,
   onAccept,
   onEdit,
@@ -359,7 +360,8 @@ function FieldRow({
   readonly path: FieldPath;
   readonly field: ReviewField;
   readonly decision: FieldDecision | undefined;
-  readonly needsReview: boolean;
+  /** From `useReview`'s own `untouched`, not from `decision` — see the note below. */
+  readonly isUntouched: boolean;
   readonly errorMessage: string | undefined;
   readonly onAccept: (path: FieldPath) => void;
   readonly onEdit: (path: FieldPath, value: unknown) => void;
@@ -369,6 +371,9 @@ function FieldRow({
   const status = decision?.status ?? "accepted";
   const currentValue =
     decision !== undefined && decision.status === "edited" ? decision.value : value;
+  // A row needs the reviewer's eyes precisely when it is both untouched AND
+  // ungrounded — the property the submit gate itself enforces.
+  const needsReview = isUntouched && !field.isGrounded;
 
   return (
     <div
@@ -377,7 +382,10 @@ function FieldRow({
         padding: "0.5rem 0",
         ...(needsReview ? { background: "#fff8c5" } : {}),
       }}
-      data-testid="review-field"
+      // Path-specific rather than a shared "review-field" testid: with 51
+      // leaves on one card, a test driving one specific row needs to reach it
+      // directly rather than filtering 51 matches by hand.
+      data-testid={`review-field-${path}`}
       data-path={path}
     >
       <div style={{ alignItems: "baseline", display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
@@ -429,14 +437,24 @@ function FieldRow({
         <button
           type="button"
           style={button}
+          data-testid="accept-field"
           onClick={() => onAccept(path)}
-          disabled={status === "accepted"}
+          // NOT simply `status === "accepted"`: `decisionOf` defaults an
+          // untouched leaf's DISPLAYED status to "accepted" (so submit()
+          // treats leaving it alone as acceptance), which means that
+          // comparison alone is true from the very first render — disabling
+          // the one button a reviewer needs to press to actually touch an
+          // untouched, ungrounded leaf, and so a real click could never
+          // release the submit gate for it. Disabling requires an EXPLICIT
+          // "accepted" decision, which `isUntouched` is what rules out.
+          disabled={!isUntouched && status === "accepted"}
         >
           Accept
         </button>
         <button
           type="button"
           style={button}
+          data-testid="reject-field"
           onClick={() => onReject(path)}
           disabled={status === "rejected"}
         >
@@ -470,23 +488,6 @@ function DecisionBadge({ status }: { status: "accepted" | "edited" | "rejected" 
 }
 
 /**
- * Strip every `.optional()` / `.nullable()` wrapper off `field`.
- *
- * `ribo-core`'s own `stripOptionalNullable` (`field-path.ts`) is not part of its
- * public surface, and this package only ever imports public entry points — so
- * this is the same walk, re-implemented against zod's own public API rather than
- * reached into `@azx/ribo-core/src/...`. Both walks must agree on what a wrapper
- * is, or a leaf's editor would be picked off a shape it does not actually have.
- */
-function unwrap(field: z.ZodType): z.ZodType {
-  let current = field;
-  while (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
-    current = current.unwrap() as z.ZodType;
-  }
-  return current;
-}
-
-/**
  * Picks an editor from the leaf's own schema — never from its name.
  *
  * A `z.enum` gets a `<select>` built from the schema's own members; a
@@ -508,7 +509,11 @@ function FieldEditor({
   readonly value: unknown;
   readonly onEdit: (path: FieldPath, value: unknown) => void;
 }) {
-  const kind = unwrap(schema);
+  // `stripOptionalNullable` is `@azx/ribo-core`'s own walk — the same one
+  // `enveloped()` and `buildReviewRequest` use to decide what a leaf's real
+  // kind is — so this file has no zod-wrapper logic of its own to disagree
+  // with core about.
+  const kind = stripOptionalNullable(schema);
 
   if (kind instanceof z.ZodEnum) {
     // Every enum this repo declares is string-valued (`schema.ts`'s file header:
@@ -520,6 +525,7 @@ function FieldEditor({
     return (
       <select
         aria-label={humanize(path)}
+        data-testid="field-editor"
         value={current}
         onChange={(event: ChangeEvent<HTMLSelectElement>) => {
           onEdit(path, event.target.value === "" ? null : event.target.value);
@@ -540,6 +546,7 @@ function FieldEditor({
     return (
       <input
         aria-label={humanize(path)}
+        data-testid="field-editor"
         type="number"
         defaultValue={current}
         onChange={(event: ChangeEvent<HTMLInputElement>) => {
@@ -555,6 +562,7 @@ function FieldEditor({
     return (
       <select
         aria-label={humanize(path)}
+        data-testid="field-editor"
         value={current}
         onChange={(event: ChangeEvent<HTMLSelectElement>) => {
           const raw = event.target.value;
@@ -573,6 +581,18 @@ function FieldEditor({
   // must NOT run the JSON leaf's fallback below: `JSON.parse("2011")` returns the
   // *number* `2011`, which would silently turn a typed model number like
   // `hvacHeatingSystemModel` from a string into a number underneath the reviewer.
+  //
+  // DELIBERATE CHOICE, not an oversight: `z.string().nullable()` admits both
+  // `""` and `null` as distinct legal values, but this editor cannot produce
+  // `""` at all — clearing the box always sends `null`. A blank text input
+  // already reads as "nothing here" to a reviewer; asking them to distinguish
+  // "I typed nothing on purpose" from "delete this value" for a free-text
+  // leaf (Snugg Pro's two string leaves are a model number and a duct
+  // location — neither has a use for an explicit empty string that a `null`
+  // does not already cover) is a second control on every string row for a
+  // distinction with no product payoff. If a future leaf's write target ever
+  // treats `""` and `null` differently at the API, that concrete case is the
+  // trigger to add the distinction back — not a preemptive one here.
   if (kind instanceof z.ZodString || kind instanceof z.ZodLiteral) {
     const current =
       typeof value === "string"
@@ -583,6 +603,7 @@ function FieldEditor({
     return (
       <input
         aria-label={humanize(path)}
+        data-testid="field-editor"
         type="text"
         defaultValue={current}
         onChange={(event: ChangeEvent<HTMLInputElement>) => {
@@ -607,6 +628,7 @@ function FieldEditor({
   return (
     <input
       aria-label={humanize(path)}
+      data-testid="field-editor"
       type="text"
       defaultValue={current}
       onChange={(event: ChangeEvent<HTMLInputElement>) => {
