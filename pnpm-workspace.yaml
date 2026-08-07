@@ -94,6 +94,12 @@ catalog:
   # package ships no browser binaries — `pnpm exec playwright install chromium`
   # is a separate step, and CI must run it before ./check.sh.
   playwright: "1.61.1"
+  # The Vitest-4-native React renderer for browser mode: `render` returns
+  # locators and cleanup is automatic, so hook tests need no per-file teardown.
+  # @testing-library/react also works in browser mode but wants explicit cleanup
+  # wiring and an act() model that fits Vitest 4 browser tests less well.
+  # R2 is the first task in this repo to render React in a test.
+  vitest-browser-react: "2.2.0"
   jsdom: "29.1.1"
   "@vitejs/plugin-react": "6.0.4"
   eslint-plugin-react-hooks: "7.1.1"
