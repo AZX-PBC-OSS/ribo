@@ -185,6 +185,28 @@ test("surfaces a watch error without leaving loading stuck", async () => {
   await outbox.close();
 });
 
+test("surfaces a synchronous throw from watch() without crashing the render", async () => {
+  // Unlike the Observable-channel error above, this is `watch()` itself
+  // throwing before ever returning an Observable to subscribe to -- a
+  // malformed query, a closed collection, a storage failure at call time.
+  // With no try/catch around the call, this exception used to escape the
+  // effect and crash the render instead of landing in `error`, and with no
+  // error boundary in the playground that's a blank screen rather than a
+  // hook reporting `error`.
+  const outbox = await freshOutbox();
+  vi.spyOn(outbox, "watch").mockImplementation(() => {
+    throw new Error("boom");
+  });
+
+  function Probe() {
+    const { error, loading } = useOutboxItems({}, outbox);
+    return <p>state {error ? `error:${error.message}` : loading ? "loading" : "ready"}</p>;
+  }
+  const screen = await render(<Probe />);
+  await expect.element(screen.getByText("state error:boom")).toBeInTheDocument();
+  await outbox.close();
+});
+
 test("recovers after an error once the query changes to one that succeeds", async () => {
   // RxJS terminates a subscription on `.error()`, so the only way `next` can
   // ever fire again is through a brand-new subscription -- which only exists
