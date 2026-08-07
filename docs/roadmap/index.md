@@ -69,7 +69,10 @@ design that is not in this repo. R1 is done; the rest proceed in dependency orde
    steady-state efficiency fields and a writable attic R-value that `schema.ts` deliberately omits; the
    health matrix is **13** tests where we ship 11; `heatingEquipmentType` and `coolingEquipmentType` are
    the _same_ spec field on a per-system record, not two; and `combustionVentType` has no write target
-   at all. → see also R1.7, which mechanises the parts of this that should not be hand-maintained.
+   at all. [Doc 17](../implementation/17-snuggpro-field-reconciliation.md) now has the full
+   field-by-field mapping and verbatim enum lists behind this (the spec turned out to be public, not
+   vendor-private — see doc 15's amended redaction note). → see also R1.7, which mechanises the parts
+   of this that should not be hand-maintained.
 4. **R1.7 — generate the base types (`pnpm snugg:refresh`).** A script that regenerates wire field names
    and leaf types from the spec into a committed `*.generated.ts`, following the `pnpm target:refresh`
    precedent exactly: thin script, real logic in a typechecked and unit-tested module, deliberately not
@@ -109,10 +112,12 @@ rather than rediscovered.
 - **Custom fields exist and cannot be enumerated at build time.** The API attaches per-account custom
   fields with their own type/bounds/options metadata. The likely shape is a generated static base schema
   plus a runtime-discovered overlay, cached and available offline — not a wholly dynamic adapter.
+  → [doc 17 §4](../implementation/17-snuggpro-field-reconciliation.md#4-custom-fields--confirmed-present-and-they-matter).
 - **Whole-spec extraction is closed, on hard limits rather than quality.** The combined job-data schema
   is ~1,326 leaves, which after provenance-enveloping is ~5,360 properties against OpenAI's documented
   5,000 cap, and ~1,490 enum values against the 1,000 cap. The `basedata` subset does fit (~1,201
   properties) but is ~9× the current pilot. Recorded so it is not re-proposed.
+  → [doc 16](../implementation/16-extraction-schema-scale.md).
 - **`Outbox.reopenForReview(id)`.** Three places now point a reader at a raw `patch` back to
   `awaiting-review`, which the relay's own tests describe as "exactly the shape a bug in it would take".
   The only documented recovery path is the one we tell people never to take.
@@ -125,7 +130,7 @@ rather than rediscovered.
 - **`minimum`/`maximum` may no longer be forbidden.** `provenance.ts` asserts strict structured-output
   mode rejects them, which is why `confidence` is a bare `z.number()`. Current OpenAI documentation
   lists them as supported for non-fine-tuned models. If that is stale, our schema is more constrained
-  than it needs to be — worth one engineer's re-check.
+  than it needs to be — worth one engineer's re-check. → [doc 16 §1](../implementation/16-extraction-schema-scale.md#a-discrepancy-worth-an-engineers-re-check-not-treated-as-settled-here).
 
 ## What is deliberately out of scope
 

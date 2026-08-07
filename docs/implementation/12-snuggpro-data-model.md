@@ -1,14 +1,23 @@
 # 12 — Snugg Pro Data Model & Write API (grounding the adapter schema)
 
-> **⚠️ Superseded in part by [15 — Snugg Pro API, verified (architectural conclusions)](15-snuggpro-api-verified.md).**
-> Snugg Pro's machine-readable OpenAPI spec (a proprietary vendor artifact, **not** committed to this
-> repo — see the private integration notes) resolves **every `[unknown]` below** — the API key names,
-> the serialized enum tokens, and the write endpoints. **Where 12 and 15 disagree, 15 wins.** In
-> particular 15 **overturns** three conclusions on this page: efficiency
-> **is** writable (§3 rows 5/7/22 and the "no AFUE slot" reasoning), attic R-value **does** have a
-> direct write target (`atticInsulation`, §3 row 12's framing), and the health matrix has **13**
-> tests, not 11 (§4 row 24). This document is left unedited as the dated research record of what was
-> knowable from the printed field sheet alone, and of how the field sheet and the API differ.
+> **⚠️ Superseded in part by [15 — Snugg Pro API, verified (architectural conclusions)](15-snuggpro-api-verified.md)
+> and, with the field-by-field detail, by
+> [17 — Snugg Pro field reconciliation](17-snuggpro-field-reconciliation.md).**
+> Snugg Pro's machine-readable OpenAPI spec — publicly served, unauthenticated, at
+> `https://app.snuggpro.com/apidocs/swagger.json` (this page's own "login-gated Swagger UI" note
+> below was itself later found to be a wrong premise: the UI page is gated, the spec JSON it renders
+> is not — see 15's amended redaction note) — resolves **every `[unknown]` below**: the API key
+> names, the serialized enum tokens, and the write endpoints. **Where 12 and 15 disagree, 15 wins;
+> where 15 and 17 disagree, 17 wins**, being the closer read of the primary source. In particular 15
+> **overturns** three conclusions on this page: efficiency **is** writable (§3 rows 5/7/22 and the
+> "no AFUE slot" reasoning), attic R-value **does** have a direct write target (`atticInsulation`,
+> §3 row 12's framing), and the health matrix has **13** tests, not 11 (§4 row 24) — and 17
+> independently confirms all three directly against the spec, plus several more format/membership
+> deltas (17 §2). [16 — Extraction schema scale](16-extraction-schema-scale.md) separately answers
+> whether this page's whole field-sheet-derived model (or the full API surface) could just be
+> handed to the LLM as one schema: no, on two independent OpenAI hard limits, not a quality
+> judgment. This document is left unedited as the dated research record of what was knowable from
+> the printed field sheet alone, and of how the field sheet and the API differ.
 
 **Status:** Research findings, for review. Replaces the earlier invented field schema and the
 placeholder `write()` in
