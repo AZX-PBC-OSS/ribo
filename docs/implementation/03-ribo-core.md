@@ -4,14 +4,14 @@ The reusable heart. Framework-free (no React) and no DOM _rendering_ — but ver
 
 ## Modules & responsibilities
 
-| Module                        | Responsibility                                                                                                                                                                                                                                                                                                                                                                                          |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Recorder`                    | Mic capture via `MediaRecorder` (web standard) + **@ricky0123/vad** for voice-activity; → audio `Blob`s, live level + (on-device) partials.                                                                                                                                                                                                                                                             |
-| `Queue`                       | The durable outbox — an **RxDB** collection (Dexie `RxStorage`) with a per-item state machine + foreground relay; audio held as an RxDB attachment; survives reload/offline; idempotency + jittered backoff + serial ordering. Full design + rationale in [09](09-offline-first.md).                                                                                                                    |
-| `Transcriber` (interface)     | `OnDeviceTranscriber` (**OSS Whisper** via **`@huggingface/transformers` ^4.2.0**, primary) and `ManagedTranscriber` (proxies a managed **Azure STT** endpoint, fallback — see [02](02-server-stt.md)). Selected at runtime by the capability probe from [01](01-feasibility-spike.md). The on-device impl ships in **its own package**, not in `ribo-core` — see [10 §4.1](10-build-and-packaging.md). |
-| `Extractor`                   | One schema-constrained call against Helix's **OpenAI-compatible route** — official `openai` SDK + `zodResponseFormat`, so the response is schema-conformant by construction — then deterministic normalization in TypeScript.                                                                                                                                                                           |
-| `Controller`                  | Orchestrates the loop; drives the queue; calls the injected `ReviewPresenter`.                                                                                                                                                                                                                                                                                                                          |
-| `ReviewPresenter` (interface) | Rendering seam — the UI layer ([04](04-ribo-ui.md)) implements it; core stays headless.                                                                                                                                                                                                                                                                                                                 |
+| Module                    | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Recorder`                | Mic capture via `MediaRecorder` (web standard) + **@ricky0123/vad** for voice-activity; → audio `Blob`s, live level + (on-device) partials.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `Outbox`                  | The durable outbox — a concrete class over an **RxDB** collection (Dexie `RxStorage`) with a per-item state machine; audio held as an RxDB attachment; survives reload/offline; idempotency + jittered backoff + serial ordering. Full design + rationale in [09](09-offline-first.md).                                                                                                                                                                                                                                                                                                                                                  |
+| `Transcriber` (interface) | `OnDeviceTranscriber` (**OSS Whisper** via **`@huggingface/transformers` ^4.2.0**, primary) and `ManagedTranscriber` (proxies a managed **Azure STT** endpoint, fallback — see [02](02-server-stt.md)). Selected at runtime by the capability probe from [01](01-feasibility-spike.md). The on-device impl ships in **its own package**, not in `ribo-core` — see [10 §4.1](10-build-and-packaging.md).                                                                                                                                                                                                                                  |
+| `Extractor`               | One schema-constrained call against Helix's **OpenAI-compatible route** — official `openai` SDK + `zodResponseFormat`, so the response is schema-conformant by construction — then deterministic normalization in TypeScript.                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `Relay` (`createRelay`)   | Drives the queue end to end: `queued → transcribing → extracting → awaiting-review → writing → done`. Parks an item at `awaiting-review` and moves straight on to the next one rather than blocking on a human — see "Review" below.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Review (`review.ts`)      | Not a rendering seam and not a class — a vocabulary (`buildReviewRequest`, `resolveReview`) plus a queue status. `awaiting-review` is deliberately absent from `ACTIVE_OUTBOX_STATUSES` so the relay drains past a parked item; `Outbox.submitReview` is the only way out, to `writing`. The UI layer ([04](04-ribo-ui.md)) reads the status and calls `submitReview` — core holds no callback into it, which is what keeps it headless. An earlier design injected a `ReviewPresenter.present(draft): Promise<T \| null>` the relay awaited; it was deleted, not renamed — see 04's "Review is a queue state, not a presenter" for why. |
 
 ## Key interfaces
 
@@ -64,16 +64,20 @@ export interface ToolAdapter<V, C> {
   write(fields: V, ctx: C, meta: WriteMetadata): Promise<void>; // meta carries idempotencyKey
 }
 
-export interface ReviewPresenter<T> {
-  present(draft: T): Promise<T | null>;
+// Review is a status, not a callback — there is no `run<F>` loop and no
+// `ReviewPresenter` to implement. An earlier design had exactly that: the relay
+// awaited an injected `ReviewPresenter.present(draft): Promise<T | null>`. It
+// was deleted rather than kept unused: the relay processes items in strictly
+// ascending order, so a step blocked on a human `await` stalled every later
+// recording behind it, and a page reload mid-await dropped the promise with
+// nothing left to resolve. See the "Review" row above, and
+// [04](04-ribo-ui.md)'s "Review is a queue state, not a presenter".
+//
+// What replaces it: `createRelay` drives the loop itself, and a UI's only
+// touchpoint is this method, which is the only way out of `awaiting-review`.
+export class Outbox {
+  submitReview(id: string, outcome: PersistedReviewOutcome): Promise<OutboxItem>;
 }
-
-// the loop
-export async function run<F>(
-  rec: Recording,
-  a: ToolAdapter<F>,
-  ui: ReviewPresenter<F>,
-): Promise<void>;
 ```
 
 ## Transcriber strategy (research pass 2026-07-22)
@@ -108,7 +112,7 @@ The core deliberately does **not** impose an extraction _strategy_ (chunking, mu
 
 ## Behaviours worth calling out
 
-- **`RecorderState.level` is raw RMS, deliberately.** It is the measurement, not a display value: the SDK reports what the analyser saw and **presentation decides the curve**. Speech RMS is small, so a linear bar drawn straight from it looks broken — which is a rendering problem with a rendering fix, and the fix lives in `ribo-ui`'s meter ([04](04-ribo-ui.md)), not here. Do **not** "fix" it by applying `sqrt` or a dB mapping inside core: `level` is a published, observable value, and rescaling it silently changes the reading for every consumer at once — including any host that already compensated, which would then double-correct.
+- **`RecorderState.level` is raw RMS, deliberately.** It is the measurement, not a display value: the SDK reports what the analyser saw and **presentation decides the curve**. Speech RMS is small, so a linear bar drawn straight from it looks broken — which is a rendering problem with a rendering fix, and the fix lives in `ribo-ui-react`'s `useRecorder` hook (`scaledLevel`, [04](04-ribo-ui.md)), not here. Do **not** "fix" it by applying `sqrt` or a dB mapping inside core: `level` is a published, observable value, and rescaling it silently changes the reading for every consumer at once — including any host that already compensated, which would then double-correct.
 - **Offline:** on-device transcription needs no network; only extraction (LLM) + write need it, and those queue with retry. The managed STT path is batch on reconnect.
 - **Chunking:** audio is split to stay under the fetch-proxy's 10 MB/hop cap on the managed STT path.
 - **Transcriber selection:** see below. The earlier wording here — "the probe runs once; result cached; a device that fails the probe **silently** uses the managed STT path" — is superseded on both counts, and both were wrong. Once is not enough (availability is dynamic), and silently is exactly the failure we cannot ship.

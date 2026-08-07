@@ -1,74 +1,98 @@
 {
+  "schemaVersion": "snuggpro-51-leaf-v2",
   "transcript": "transcripts/10-crawlspace-loose-units.txt",
-  "stresses": "UNIT-DISAMBIGUATION crux: three leakage references in one breath -- 210 CFM25 (duct), 3600 CFM50 (blower door), ~8 ACH50 (NO field) -- must land on ductLeakageCfm25 and blowerDoorCfm50 respectively and NOT cross-contaminate. HAZARD 1 heat-pump on shared ducts -> central_heat_pump on both heating and cooling axes, fuel electricity. WRONG-FIELD trap: the identical neighbor's OIL BOILER is in the audio and must not populate this all-electric house. HPWH -> heat_pump_water_heater; \"six or seven years\" -> 6-10.",
-  "fields": {
-    "heatingEquipmentType": {
-      "value": "central_heat_pump",
-      "sourceSpan": "it's a central heat pump on the shared ducts"
+  "stresses": "A multi-house scoping preamble and an explicit off-topic digression about a neighboring house's DIFFERENT system (an oil boiler) that the auditor pointedly disclaims applies here -- a distractor that must not leak into this house's HVAC leaves, and is not a rule-5 retraction (never asserted for THIS house in the first place). Three distinct numeric readings requiring careful disambiguation by pressure/purpose (CFM25 duct-blaster at 25 Pa = 210, CFM50 blower door at 50 Pa = 3600, and a derived ACH50 = 8 that has no write target at all), which the auditor themselves is careful to keep straight ('I always get asked which is which'). A schema-directed override on hvac.hvacDuctLeakage: a qualitative 'somewhat leaky' impression is superseded by 'Measured (CFM25)' once an actual duct-blaster number is read, per schema.ts's own explicit per-leaf instruction (mechanical, not an annotator judgment call or a rule-5 retraction -- no 'no wait' language was used). A cleanly-stated, non-conflated hvacSystemEquipmentType ('central heat pump on the shared ducts' -- both axes explicit, unlike the worked example's furnace case). A coreference-dependent DHW location ('sitting in the crawl too') whose 'unconditioned' status is only established three sentences earlier for the ducts, not restated for the water heater itself. A single blanket 'No attic' disclaimer. Total silence on wall, window, and all 14 health leaves.",
+  "disclaimers": [
+    {
+      "span": "No attic on this one",
+      "topic": "the attic",
+      "scope": { "kind": "group", "group": "attic" }
+    }
+  ],
+  "leaves": {
+    "hvac.hvacDuctLocation": {
+      "status": "asserted",
+      "sourceSpan": "the crawlspace, unconditioned crawl, dirt floor down there",
+      "value": "the crawlspace, unconditioned crawl, dirt floor down there"
     },
-    "heatingFuel": {
-      "value": "electricity",
-      "sourceSpan": "Electric, obviously, it's a heat pump"
+    "hvac.hvacDuctInsulation": {
+      "status": "asserted",
+      "sourceSpan": "fiberglass wrap, the two-inch stuff",
+      "member": "Fiberglass 2\""
     },
-    "heatingManufacturer": { "value": "Bosch", "sourceSpan": "A Bosch" },
-    "heatingModelNumber": { "value": null, "sourceSpan": "no model or year I could get to" },
-    "heatingModelYear": { "value": null, "sourceSpan": "no model or year I could get to" },
-    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
-    "coolingEquipmentType": {
-      "value": "central_heat_pump",
-      "sourceSpan": "it's a central heat pump on the shared ducts"
+    "hvac.hvacDuctLeakage": {
+      "status": "asserted",
+      "sourceSpan": "The duct leakage, that's the duct blaster at twenty-five pascals, read two hundred and ten.",
+      "member": "Measured (CFM25)"
     },
-    "ductLocation": {
-      "value": "crawlspace_unconditioned",
-      "sourceSpan": "Ducts run in the crawlspace, unconditioned crawl"
+    "hvac.hvacDuctLeakageValue": {
+      "status": "asserted",
+      "sourceSpan": "Two-ten CFM25 on the ducts.",
+      "value": 210
     },
-    "ductSealing": { "value": "somewhat_leaky", "sourceSpan": "somewhat leaky I'd say" },
-    "ductInsulation": {
-      "value": "fiberglass_2in",
-      "sourceSpan": "fiberglass wrap, the two-inch stuff"
+    "basedata.blowerDoorReading": {
+      "status": "asserted",
+      "sourceSpan": "the number you write down for the blower door is the thirty-six hundred",
+      "value": 3600
     },
-    "ductLeakageCfm25": { "value": 210, "sourceSpan": "Two-ten CFM25 on the ducts" },
-    "atticInsulationDepthIn": { "value": null, "sourceSpan": "No attic on this one" },
-    "atticInsulationType": { "value": null, "sourceSpan": "No attic on this one" },
-    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
-    "wallInsulated": { "value": null, "sourceSpan": null },
-    "wallConstruction": { "value": null, "sourceSpan": null },
-    "blowerDoorCfm50": {
-      "value": 3600,
-      "sourceSpan": "that came in at thirty-six hundred CFM50"
+    "basedata.blowerDoorTestPerformed": {
+      "status": "asserted",
+      "sourceSpan": "the blower door, the whole-house one at fifty pascals, that came in at thirty-six hundred CFM50",
+      "member": "Tested"
     },
-    "windowGlazing": { "value": null, "sourceSpan": null },
-    "windowFrame": { "value": null, "sourceSpan": null },
-    "dhwFuel": {
-      "value": "electricity",
-      "sourceSpan": "a hybrid, sitting in the crawl too, electric"
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "sourceSpan": "it's a central heat pump on the shared ducts",
+      "member": "Central Heat Pump (shared ducts)"
     },
-    "dhwSystemType": {
-      "value": "heat_pump_water_heater",
-      "sourceSpan": "Water heater's a heat pump water heater, actually, a hybrid"
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "sourceSpan": "Electric, obviously, it's a heat pump.",
+      "member": "Electricity"
     },
-    "dhwAgeBand": { "value": "6-10", "sourceSpan": "It's maybe six or seven years old" },
-    "combustionVentType": { "value": null, "sourceSpan": null },
-    "healthSafety": {
-      "ambientCo": { "value": null, "sourceSpan": null },
-      "venting": { "value": null, "sourceSpan": null },
-      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
-      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
-      "worstCaseSpillage": { "value": null, "sourceSpan": null },
-      "draftPressure": { "value": null, "sourceSpan": null },
-      "gasLeak": { "value": null, "sourceSpan": null },
-      "moldMoisture": { "value": null, "sourceSpan": null },
-      "asbestos": { "value": null, "sourceSpan": null },
-      "lead": { "value": null, "sourceSpan": null },
-      "electrical": { "value": null, "sourceSpan": null }
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "sourceSpan": "A Bosch",
+      "member": "Bosch"
+    },
+    "hvac.hvacHeatingSystemModel": {
+      "status": "declared_absent",
+      "sourceSpan": "no model or year I could get to"
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "declared_absent",
+      "sourceSpan": "no model or year I could get to"
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "sourceSpan": "a heat pump water heater",
+      "member": "Heat Pump"
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "sourceSpan": "electric, that's a nice find",
+      "member": "Electricity"
+    },
+    "dhw.dhwAge": {
+      "status": "asserted",
+      "sourceSpan": "It's maybe six or seven years old.",
+      "member": "6-10"
+    },
+    "dhw.dhwLocation": {
+      "status": "asserted",
+      "sourceSpan": "sitting in the crawl too",
+      "member": "Garage or Unconditioned Space",
+      "arguable": {
+        "acceptableMiss": true,
+        "note": "The water heater is placed 'in the crawl too' -- the same crawlspace already characterized, three sentences earlier while discussing the ducts, as an 'unconditioned crawl, dirt floor down there.' The word 'too' ties it back to that same space, which supports reading this as an unconditioned location, but the DHW sentence itself never restates 'unconditioned,' so this requires connecting two non-adjacent statements rather than one self-contained clause. A model (or annotator) that leaves this leaf null instead of asserting 'Garage or Unconditioned Space' is a defensible, milder miss, not a wrong answer."
+      }
     }
   },
   "notes": {
-    "ductLeakageCfm25": "210, explicitly the duct-blaster-at-25-Pa number. Must NOT receive the 3600 (that's CFM50) or the 8 (ACH50). The auditor narrates the disambiguation on purpose.",
-    "blowerDoorCfm50": "3600, explicitly the whole-house blower door at 50 Pa. The ~8 ACH50 has NO field in this schema and must be dropped, not filed here.",
-    "heatingFuel": "electricity, NOT fuel_oil. The neighbor's oil boiler is a WRONG-FIELD distractor the auditor explicitly excludes (\"nothing to do with this house, ignore that\"). heatingEquipmentType must be central_heat_pump, never boiler.",
-    "coolingEquipmentType": "central_heat_pump: the same shared-duct heat pump provides cooling, so it fills the cooling axis too (the schema comment notes central_heat_pump is shared between heating and cooling). The same span justifies both.",
-    "dhwAgeBand": "\"six or seven years\" -> 6-10.",
-    "_general": "This house has no combustion appliances (all electric), so combustionVentType and every safety test are null. Distractors: \"minus\"-nothing here, but the ACH50 (8) is the key no-field number."
+    "hvac.hvacSystemEquipmentType": "The neighbor's oil boiler ('theirs is an oil boiler') is explicitly attributed to a DIFFERENT house ('that mirror-image house... I did their audit last month') and explicitly disclaimed twice as irrelevant to this house ('that's got nothing to do with this house, ignore that, this house is the heat pump'; also line 1's 'not the identical mirror-image house next door'). It was never asserted for THIS house's leaf in the first place, so it is not recorded as `retracted` (retracted is for a withdrawn assertion about the SAME entity, not a decoy about a different one) and does not appear anywhere in this file.",
+    "hvac.hvacDuctLeakage": "The auditor first characterizes the ducts qualitatively ('somewhat leaky') before duct-blasting them, but schema.ts's own comment on hvacDuctLeakage says to pick 'Measured (CFM25)' specifically 'when the auditor read a duct-blaster number' -- which they explicitly did (210 CFM25). This is a mechanical rule from the schema's own per-leaf documentation, not a per-transcript judgment call and not a rule-5 retraction (no 'no wait'/'scratch that'), so 'Measured (CFM25)' is asserted cleanly with no `arguable` block -- consistent with how the same pattern is resolved on transcript 05.",
+    "basedata.blowerDoorReading": "The auditor explicitly rejects deriving/reporting an ACH50 instead of the CFM50 reading ('if you want air changes, that works out to about eight ACH50, but the number you write down for the blower door is the thirty-six hundred') -- a textbook instance of rule 3's 'do not derive an ACH50 from a CFM50' trap, correctly resisted by not recording the 8 ACH50 anywhere in this file.",
+    "hvac.hvacHeatingCapacity": "No BTU/tonnage is ever stated for this heat pump; genuinely unmentioned, not a dropped value.",
+    "_general": "Walls, windows, and all 14 health-endpoint leaves (13 tests plus healthRoofCondition) are never mentioned at all in this transcript, not even by a blanket dismissal -- so no disclaimer was written for them; they resolve to 'unmentioned' by the ordinary default. 'the air handler's in the crawl' and 'it's crammed up in a tight spot' have no dedicated leaf (no air-handler-location/accessibility field in hvac) and are excluded per rule 9."
   }
 }

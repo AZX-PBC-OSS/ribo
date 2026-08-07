@@ -63,3 +63,10 @@ snugg-pro.html
 # under docs/roadmap/ — tracked, but excluded from the published docs site via
 # srcExclude in docs/.vitepress/config.ts. Distinct from .superpowers/ above,
 # which is agent coordination scratch (ledger, task briefs) and stays ignored.
+
+# R3's pack-and-consume tier (scripts/pack-and-consume/): a persistent Chromium profile, reused
+# across local/CI runs so the pinned HF Hub test model's fetched bytes survive between runs in the
+# browser's own Cache API storage. Regenerable, never edited by hand; CI restores/saves it with
+# actions/cache. The tarballs/scratch-app themselves live outside the repo entirely (os.tmpdir()),
+# not here — see that script's header for why.
+.cache/pack-and-consume/

@@ -113,6 +113,14 @@ export interface OnDeviceTranscriberOptions {
   /** Optional weight quantization passed through to the pipeline. */
   readonly dtype?: OnnxDtype;
   /**
+   * HuggingFace Hub revision (branch, tag, or full commit hash) to fetch `modelId` at. Omitted
+   * defaults to transformers.js's own default, `"main"` — the moving branch tip, which is fine for
+   * an app but not for anything that must be reproducible across runs. Pin a commit hash wherever
+   * an upstream push to the model repo must not silently change what downloads and runs. Forwarded
+   * verbatim as `PrimeConfig.revision` (`./protocol.ts`) to the worker's `pipeline()` call.
+   */
+  readonly revision?: string;
+  /**
    * Domain-jargon priming applied to every transcription this instance runs. Supplied at
    * construction because `ribo-core`'s `Transcriber.transcribe` takes no hints argument (see
    * {@link TranscribeHints}). Omitted means unbiased decoding.

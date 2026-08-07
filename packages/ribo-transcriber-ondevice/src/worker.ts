@@ -116,7 +116,7 @@ interface AsrPipeline {
 let pipelineCache: { readonly key: string; readonly pipeline: Promise<AsrPipeline> } | undefined;
 
 function pipelineKey(config: PrimeConfig): string {
-  return `${config.modelId}|${config.device ?? "auto"}|${config.dtype ?? "default"}`;
+  return `${config.modelId}|${config.device ?? "auto"}|${config.dtype ?? "default"}|${config.revision ?? "main"}`;
 }
 
 /**
@@ -144,6 +144,7 @@ function getPipeline(
     return (await pipeline("automatic-speech-recognition", config.modelId, {
       ...(config.device ? { device: config.device } : {}),
       ...(config.dtype ? { dtype: config.dtype } : {}),
+      ...(config.revision ? { revision: config.revision } : {}),
       progress_callback: (item: RawProgressItem) => {
         const progress = normalizeProgress(item);
         if (progress && onProgress) onProgress(progress);

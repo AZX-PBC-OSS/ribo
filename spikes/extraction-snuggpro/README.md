@@ -5,6 +5,19 @@ Pro capture model instead of an invented one. The question is: can a
 single schema-constrained LLM call pull an auditor's dictation into a fixed field set without
 inventing the parts that were never said? What matters here is the schema — and the schema is the point.
 
+> **Ground truth is being re-annotated (track-b0).** `schema.ts`, `prompt.md` and `normalization.md`
+> in this directory still describe the PRE-REBUILD field set — 23 flat snake_case fields plus an
+> 11-test `healthSafety` object. The real authority is now
+> [`packages/ribo-adapter-snuggpro/src/schema.ts`](../../packages/ribo-adapter-snuggpro/src/schema.ts)
+> (51 leaves under 7 resource groups, the API's own literal enum strings). `ground-truth/`,
+> `score.mjs` and `score.test.mjs` have been rebuilt against the real schema — see
+> [`ground-truth-format.md`](ground-truth-format.md) for the new, vocabulary-neutral ground-truth
+> format and its rationale, and [`ANNOTATOR_GUIDE.md`](ANNOTATOR_GUIDE.md) for how to re-annotate a
+> transcript. `schema.ts`/`prompt.md`/`normalization.md`/the extraction-running instructions below
+> are **not yet updated** for the new schema — that is a separate, follow-on task; the four hazards
+> they describe are still real, but the field names, enum members and test count they quote are the
+> old ones. Do not hand a model `schema.ts` from this directory expecting new-schema output.
+
 ## Why the schema is the point
 
 An earlier, throwaway extraction attempt scored well against a convenient invented schema, but
@@ -244,14 +257,19 @@ plainly and do not build review-card flagging on the number. The deterministic f
 
 ## Files
 
-| Path               | What                                                                                      |
-| ------------------ | ----------------------------------------------------------------------------------------- |
-| `schema.ts`        | Zod schema — the REAL Snugg Pro model from doc 12; 23 fields + the 11-test health matrix  |
-| `prompt.md`        | The exact extraction prompt; self-contained; carries the four-hazard normalization intent |
-| `normalization.md` | Design note: LLM-vs-code split, framed as the hypothesis the corpus tests                 |
-| `transcripts/`     | Synthetic auditor dictations — **authored by a different agent** (not built here)         |
-| `ground-truth/`    | Expected values + per-field notes — **different agent; never in the extractor's context** |
-| `results/<model>/` | Raw extraction output, one file per transcript (not committed)                            |
+| Path                        | What                                                                                                                                                                       |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema.ts`                 | STALE — pre-rebuild 23-field/11-test copy; kept only because `prompt.md`'s run instructions reference it. The authority is `packages/ribo-adapter-snuggpro/src/schema.ts`. |
+| `prompt.md`                 | STALE — the extraction prompt, still written against the pre-rebuild field set; not yet updated                                                                            |
+| `normalization.md`          | Design note: LLM-vs-code split. The 4 hazards it names are still real; the field names it quotes are old                                                                   |
+| `ground-truth-format.md`    | **The vocabulary-neutral ground-truth format and its rationale** — read this before annotating                                                                             |
+| `ANNOTATOR_GUIDE.md`        | **How to re-annotate one transcript** — span rules, retraction, group-negation, the health matrix                                                                          |
+| `schema-leaves.mjs`         | Introspects the REAL adapter schema for the leaf list + both enum vocabularies — the resolver                                                                              |
+| `ground-truth.mjs`          | The new format's runtime shape check; `isNewFormat` distinguishes new vs. the 13 still-old files                                                                           |
+| `validate-ground-truth.mjs` | CLI: `node validate-ground-truth.mjs ground-truth/NN-slug.json` — run this before submitting                                                                               |
+| `transcripts/`              | Synthetic auditor dictations — **authored by a different agent** (not built here)                                                                                          |
+| `ground-truth/`             | Expected values, in the NEW format for `11-ambiguous-attic` only; the other 13 are pending re-annotation                                                                   |
+| `results/<model>/`          | Raw extraction output, one file per transcript (not committed); predates the schema rebuild — stale until re-run                                                           |
 
 Nothing here is production code; nothing is imported by a package. Once the accuracy harness exists
 against real recordings, this directory's job is done and the corpus becomes at most a regression

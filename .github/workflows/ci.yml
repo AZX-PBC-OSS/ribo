@@ -50,8 +50,25 @@ jobs:
       # `origin/main` matches `baseBranch` in .changeset/config.json.
       - if: github.event_name == 'pull_request'
         run: pnpm changeset status --since=origin/main
-      # TODO(R3): add the pack-and-consume matrix from
-      # docs/implementation/10-build-and-packaging.md section 8 — pack the
-      # tarballs, install into a scratch app, build, and assert the worker spawns
-      # and WASM loads. The source-condition playground never touches dist/, so
-      # every WASM/worker failure mode is production-build-only.
+
+      # Caches the persistent Chromium profile the pack-and-consume tier below reuses across runs
+      # (scripts/pack-and-consume/index.mjs's "Network dependency" section) — the pinned HF Hub
+      # test model's fetched bytes land in that profile's Cache API storage, so a cache hit means
+      # THIS step below makes no network call at all beyond `pnpm install`. Keyed on a hash of
+      # app-template.mjs, where the pinned revision lives: bumping the pin changes the key, so a
+      # cache from an old pin is never restored (no stale-cache confusion), and the bump costs
+      # exactly one real cold fetch, not one per run thereafter.
+      - uses: actions/cache@v4
+        with:
+          path: .cache/pack-and-consume/chromium-profile
+          key: pack-and-consume-chromium-${{ hashFiles('scripts/pack-and-consume/app-template.mjs') }}
+
+      # R3 (docs/implementation/10-build-and-packaging.md §7/§8, doc's own "mandatory, not
+      # optional ... the highest-value test in the repo"): pack the five tarballs, install them
+      # into a fresh app OUTSIDE this repo, build it for real, and assert the on-device
+      # transcriber's published worker spawns and its ONNX Runtime WASM backend loads. Deliberately
+      # its OWN CI step rather than a `./check.sh` stage — see `scripts/pack-and-consume/index.mjs`'s
+      # header for why (it packs, installs and builds outside the repo, which is too slow and too
+      # side-effecting for the local edit-save-check loop) — but still a step every push runs, not a
+      # manual command nobody remembers, because unlike `gate.manual.ts` it needs no secret.
+      - run: pnpm test:pack-and-consume

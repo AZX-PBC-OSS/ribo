@@ -1,76 +1,102 @@
 {
+  "schemaVersion": "snuggpro-51-leaf-v2",
   "transcript": "transcripts/07-combustion-safety.txt",
-  "stresses": "HAZARD 3 stress test: six of the eleven tests get non-null states in one file -- ambientCo failed, worstCaseSpillage failed, draftPressure passed, gasLeak warning, venting warning, naturalConditionSpillage passed -- plus mold/asbestos/lead explicitly out of scope -> not_tested, and worstCaseDepressurization/electrical silent -> null. Tests the passed/failed/warning/not_tested/null five-way and the natural-vs-worst-case spillage split. Unit trap: \"minus fifty pascals\" is a depressurization reference, NOT a blower-door CFM50.",
-  "fields": {
-    "heatingEquipmentType": { "value": "furnace_central_ac", "sourceSpan": "a gas furnace" },
-    "heatingFuel": { "value": "natural_gas", "sourceSpan": "a gas furnace" },
-    "heatingManufacturer": { "value": null, "sourceSpan": null },
-    "heatingModelNumber": { "value": null, "sourceSpan": null },
-    "heatingModelYear": { "value": null, "sourceSpan": null },
-    "heatingOutputCapacityBtuh": { "value": null, "sourceSpan": null },
-    "coolingEquipmentType": { "value": null, "sourceSpan": null },
-    "ductLocation": { "value": null, "sourceSpan": null },
-    "ductSealing": { "value": null, "sourceSpan": null },
-    "ductInsulation": { "value": null, "sourceSpan": null },
-    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
-    "atticInsulationDepthIn": { "value": null, "sourceSpan": null },
-    "atticInsulationType": { "value": null, "sourceSpan": null },
-    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
-    "wallInsulated": { "value": null, "sourceSpan": null },
-    "wallConstruction": { "value": null, "sourceSpan": null },
-    "blowerDoorCfm50": { "value": null, "sourceSpan": null },
-    "windowGlazing": { "value": null, "sourceSpan": null },
-    "windowFrame": { "value": null, "sourceSpan": null },
-    "dhwFuel": { "value": "natural_gas", "sourceSpan": "a gas storage water heater" },
-    "dhwSystemType": { "value": "storage", "sourceSpan": "a gas storage water heater" },
-    "dhwAgeBand": { "value": null, "sourceSpan": null },
-    "combustionVentType": { "value": null, "sourceSpan": null },
-    "healthSafety": {
-      "ambientCo": {
-        "value": "failed",
-        "sourceSpan": "I'm calling that a fail on ambient CO"
+  "stresses": "A combustion-safety-only recording (shell was captured on a separate file, explicitly not negated here -- a REDIRECTION, not a rule-4 disclaimer). THE clearest corpus instance of the ambient-vs-undiluted-flue-CO confusability (RECONCILIATION.md ruling 4): 'The furnace flue itself was fine but ambient CO in the room climbed to thirty-five ppm' contrasts a flue-side reading against a room-side reading in one sentence -- the annotators split on this outright, one asserting healthUndilutedFlueCo: Passed, the other leaving it unmentioned on the theory that 'fine' might describe the flue's physical condition rather than a CO reading; resolved per ruling 4 to healthUndilutedFlueCo: Passed because the flue is explicitly named. Six of the 13 health-matrix tests get explicit, distinct verdicts and three MORE are individually named and declared not-in-scope ('Mold, asbestos, lead ... none of that was in scope') -- rule 8's 'name the specific test' pattern, not a blanket disclaimer. The furnace mention reproduces the hvacSystemEquipmentType/shared-ducts schema conflation. A dhwLocation ('the utility room') names a real, specific location without stating its conditioning status, fitting no DhwLocation member cleanly -- noFittingMember, per THE ONE RULE (something was said; omission is not the answer just because the mapping is unclear). The worst-case-depressurization procedure states a pressure reading that sets up the worst-case-spillage verdict, but the auditor never renders a pass/fail/warning verdict for the depressurization test itself as its own leaf -- genuinely unmentioned, not a schema gap.",
+  "disclaimers": [],
+  "leaves": {
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "sourceSpan": "a gas furnace",
+      "member": "Furnace with standalone ducts",
+      "arguable": {
+        "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
+        "symmetric": true,
+        "note": "SCHEMA FINDING, same as the worked example's furnace case, not a transcript ambiguity. The auditor states only the equipment's identity ('a gas furnace') and never addresses whether it shares ducts with a central AC unit -- cooling is not mentioned anywhere in this transcript. `member` is 'Furnace with standalone ducts' because it is FIRST in schema.ts's enum-list order (index 2 of 17 vs. index 16 for the shared-ducts member), per ANNOTATOR_GUIDE.md rule 6's deterministic tie-break, not because it is a better reading."
+      }
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "sourceSpan": "a gas furnace",
+      "member": "Natural Gas"
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "sourceSpan": "a gas storage water heater",
+      "member": "Tank Water Heater"
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "sourceSpan": "a gas storage water heater",
+      "member": "Natural Gas"
+    },
+    "dhw.dhwLocation": {
+      "status": "asserted",
+      "sourceSpan": "both in the utility room",
+      "noFittingMember": {
+        "auditorMeaning": "the water heater is in the utility room (a real, specific location the auditor names directly), but the auditor never states whether that utility room is within the conditioned/heated envelope or not"
       },
-      "venting": {
-        "value": "warning",
-        "sourceSpan": "I'm flagging venting as a warning too"
-      },
-      "naturalConditionSpillage": {
-        "value": "passed",
-        "sourceSpan": "no spillage under natural conditions"
-      },
-      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
-      "worstCaseSpillage": {
-        "value": "failed",
-        "sourceSpan": "Worst case spillage is a fail"
-      },
-      "draftPressure": {
-        "value": "passed",
-        "sourceSpan": "good steady draft, that one passes"
-      },
-      "gasLeak": {
-        "value": "warning",
-        "sourceSpan": "I'd call that a warning"
-      },
-      "moldMoisture": {
-        "value": "not_tested",
-        "sourceSpan": "none of that was in scope for this combustion visit, I didn't look at any of it today"
-      },
-      "asbestos": {
-        "value": "not_tested",
-        "sourceSpan": "none of that was in scope for this combustion visit, I didn't look at any of it today"
-      },
-      "lead": {
-        "value": "not_tested",
-        "sourceSpan": "none of that was in scope for this combustion visit, I didn't look at any of it today"
-      },
-      "electrical": { "value": null, "sourceSpan": null }
+      "arguable": {
+        "acceptableAlternatives": [
+          "Indoors and within heated area",
+          "Garage or Unconditioned Space"
+        ],
+        "note": "'The utility room' is squarely on-topic for dhwLocation (schema.ts: 'where the tank lives, which drives its standby losses') but doesn't map cleanly to any of the 4 members: it isn't 'Outbuilding', and it isn't genuinely 'Don't Know' either (the auditor DOES know the location, by name, they just never say whether it's conditioned). It could plausibly be either 'Indoors and within heated area' or 'Garage or Unconditioned Space', and nothing in the transcript resolves which. Per THE ONE RULE, something WAS said, so omission is not the answer merely because the exact mapping is unclear -- noFittingMember (not a symmetric tie-break: these two members are both genuine guesses, not two equally-textually-supported readings of one stated fact)."
+      }
+    },
+    "health.healthAmbientCarbonMonoxide": {
+      "status": "asserted",
+      "sourceSpan": "I'm calling that a fail on ambient CO",
+      "member": "Failed"
+    },
+    "health.healthUndilutedFlueCo": {
+      "status": "asserted",
+      "sourceSpan": "The furnace flue itself was fine",
+      "member": "Passed"
+    },
+    "health.healthWorstCaseSpillage": {
+      "status": "asserted",
+      "sourceSpan": "Worst case spillage is a fail.",
+      "member": "Failed"
+    },
+    "health.healthDraftPressure": {
+      "status": "asserted",
+      "sourceSpan": "good steady draft, that one passes.",
+      "member": "Passed"
+    },
+    "health.healthGasLeak": {
+      "status": "asserted",
+      "sourceSpan": "I'd call that a warning",
+      "member": "Warning"
+    },
+    "health.healthVenting": {
+      "status": "asserted",
+      "sourceSpan": "I'm flagging venting as a warning too",
+      "member": "Warning"
+    },
+    "health.healthNaturalConditionSpillage": {
+      "status": "asserted",
+      "sourceSpan": "So natural condition passes.",
+      "member": "Passed"
+    },
+    "health.healthMoldMoisture": {
+      "status": "asserted",
+      "sourceSpan": "Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today.",
+      "member": "Not Tested"
+    },
+    "health.healthAsbestos": {
+      "status": "asserted",
+      "sourceSpan": "Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today.",
+      "member": "Not Tested"
+    },
+    "health.healthLead": {
+      "status": "asserted",
+      "sourceSpan": "Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today.",
+      "member": "Not Tested"
     }
   },
   "notes": {
-    "worstCaseDepressurization": "Intended null. The auditor DEPRESSURIZED the house (to about -50 Pa) only as the METHOD to run the worst-case spillage test; he reports a result for spillage, not a discrete pass/fail on the depressurization test itself. Arguable: a model reading the -50 Pa achievement as a passed depressurization is defensible -- score passed here as a mild reading, not a hallucination. failed/warning are wrong.",
-    "naturalConditionSpillage": "passed and DISTINCT from worstCaseSpillage=failed: the appliance was fine under natural operation and only spilled under induced worst-case depressurization. The two spillage tests are separate matrix keys and must not be collapsed.",
-    "gasLeak": "A real but small leak at the range shutoff, auditor grades it warning (not failed): borderline, needs a plumber, not evacuate-now. Reading it as failed is a severity error, score per severity.",
-    "combustionVentType": "Intended null. \"shared B-vent\" is atmospheric/natural-draft venting, not one of the four members. Same rule as transcript 06: null correct, other defensible, a named member wrong.",
-    "_general": "Unit distractors that must NOT become field values: \"thirty-five ppm\" (the CO reading behind ambientCo=failed), \"minus fifty pascals\" (the worst-case depressurization reference pressure -- NOT blowerDoorCfm50; there is no blower-door number in this transcript, blowerDoorCfm50 is null). Shell was done on a separate file, so the entire envelope/attic/window set is correctly null here."
+    "health.healthUndilutedFlueCo": "RULING 4 SITE (see RECONCILIATION.md): 'The furnace flue itself was fine but ambient CO in the room climbed to thirty-five ppm' explicitly names the flue in direct contrast with the room/ambient reading in the same breath -- the corpus's clearest textual instance of the ambient-CO-vs-undiluted-flue-CO confusability the schema does not disambiguate on its own. Applying the reconciliation rule (undiluted flue CO only when the flue/a probe/combustion gas is explicitly named), this resolves to Passed. One annotator on this transcript left the leaf unmentioned, reading 'fine' as possibly describing the flue's physical/mechanical condition rather than a CO measurement; the ruling is applied uniformly here in favor of asserting it, given the explicit 'flue' word and the sentence's own 'but' contrast against the ambient figure.",
+    "dhw.dhwType2": "'Storage water heater' is the standard industry term for a tank-type unit (as opposed to tankless/on-demand); it maps to 'Tank Water Heater' with no other DhwType member fitting instead.",
+    "_general": "health.healthWorstCaseDepressurization is left unmentioned -- the auditor narrates the depressurization procedure and a pressure reading ('minus fifty pascals') that sets up the worst-case-spillage test, but never states a pass/fail/warning verdict for the depressurization test itself as its own leaf, only for spillage; converting the raw pressure into a verdict would be exactly the derivation rule 3 forbids. hvac.hvacUpgradeAction is left unmentioned -- 'I shut the furnace down' is an immediate safety shutdown taken during testing, not one of the four upgrade-action members, so it is not parked there. The opening line ('I did the shell separately on another file') is NOT treated as a disclaimer -- it confirms the shell WAS captured, just in a different recording, so no shell-related leaf or namedSet is negated by it; those leaves are simply, correctly unmentioned by default for THIS transcript. health.healthRadon, health.healthElectrical, health.healthRoofCondition, and every basedata/attic/wall/window leaf are never mentioned at all in this combustion-only transcript."
   }
 }

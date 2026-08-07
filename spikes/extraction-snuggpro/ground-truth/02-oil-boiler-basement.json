@@ -1,70 +1,96 @@
 {
+  "schemaVersion": "snuggpro-51-leaf-v2",
   "transcript": "transcripts/02-oil-boiler-basement.txt",
-  "stresses": "HAZARD 1 fuel-as-adjective (\"oil boiler\" -> boiler + fuel_oil). HAZARD 2 stated DEPTH (\"six inches\" -> band 4-6, NOT an R-value). DHW indirect off the boiler -> space_heating_boiler_with_tank on fuel_oil. Age band from a stated age (\"about eight years\" -> 6-10). Two clean safety tests -> passed. Output BTU explicitly unreadable -> null with span. Blower door explicitly deferred -> null with span.",
-  "fields": {
-    "heatingEquipmentType": { "value": "boiler", "sourceSpan": "it's an oil boiler" },
-    "heatingFuel": { "value": "fuel_oil", "sourceSpan": "it's an oil boiler" },
-    "heatingManufacturer": { "value": "Burnham", "sourceSpan": "it's an oil boiler, Burnham" },
-    "heatingModelNumber": { "value": "V8", "sourceSpan": "Model plate says V8" },
-    "heatingModelYear": { "value": 2004, "sourceSpan": "the tag year is two thousand four" },
-    "heatingOutputCapacityBtuh": {
-      "value": null,
-      "sourceSpan": "I don't see an output on the plate that I can read, it's painted over, so no BTU number from me"
+  "stresses": "Fuel/equipment fusion on a boiler ('it's an oil boiler' -> Boiler + Fuel Oil, one span backing two leaves). Two closed manufacturer enums (hvacHeatingSystemManufacturer, dhwManufacturer) both hit a real, named brand ('Burnham', 'Amtrol') that is not on Snugg's published list -- schema.ts's own docstring names Burnham as the worked example of the 'Other' catch-all (RECONCILIATION.md ruling 1). An indirect DHW tank maps to 'Sidearm Tank' per schema.ts's own gloss. A depth-only attic reading (six inches of cellulose, no R-value spoken) exercises atticInsulationDepth without ever touching atticInsulation (rule 7 -- no derivation). A declared-absent BTU output (painted-over plate). Two clean-result health tests stated as positive data (gas/oil-line sniffer, draft) rather than silence (rule 8). A narrow blanket disclaimer ('No blower door today') mapping to the blowerDoor named set. Two non-conflicting DHW age sources (an eight-year estimate and a 2017 install-sticker year) that corroborate rather than retract each other, with the bare install year having no write target of its own.",
+  "disclaimers": [
+    {
+      "span": "No blower door today",
+      "topic": "the blower-door test",
+      "scope": { "kind": "namedSet", "set": "blowerDoor" }
+    }
+  ],
+  "leaves": {
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "sourceSpan": "it's an oil boiler",
+      "member": "Boiler"
     },
-    "coolingEquipmentType": { "value": null, "sourceSpan": null },
-    "ductLocation": { "value": null, "sourceSpan": null },
-    "ductSealing": { "value": null, "sourceSpan": null },
-    "ductInsulation": { "value": null, "sourceSpan": null },
-    "ductLeakageCfm25": { "value": null, "sourceSpan": null },
-    "atticInsulationDepthIn": { "value": "4-6", "sourceSpan": "I got about six inches of it" },
-    "atticInsulationType": {
-      "value": "cellulose",
-      "sourceSpan": "it's cellulose, gray blown-in"
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "sourceSpan": "it's an oil boiler",
+      "member": "Fuel Oil"
     },
-    "atticInsulationSpokenRValue": { "value": null, "sourceSpan": null },
-    "wallInsulated": { "value": null, "sourceSpan": null },
-    "wallConstruction": { "value": null, "sourceSpan": null },
-    "blowerDoorCfm50": {
-      "value": null,
-      "sourceSpan": "No blower door today, I'll come back with the fan, ran out of time"
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "sourceSpan": "Burnham",
+      "member": "Other"
     },
-    "windowGlazing": { "value": null, "sourceSpan": null },
-    "windowFrame": { "value": null, "sourceSpan": null },
-    "dhwFuel": {
-      "value": "fuel_oil",
-      "sourceSpan": "So that runs on the oil too, same as the boiler"
+    "hvac.hvacHeatingSystemModel": {
+      "status": "asserted",
+      "sourceSpan": "Model plate says V8, V-eight series",
+      "value": "V8"
     },
-    "dhwSystemType": {
-      "value": "space_heating_boiler_with_tank",
-      "sourceSpan": "Hot water's made right off the boiler, it's an indirect tank"
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "asserted",
+      "sourceSpan": "the tag year is two thousand four",
+      "value": 2004
     },
-    "dhwAgeBand": { "value": "6-10", "sourceSpan": "that tank's about eight years old" },
-    "combustionVentType": { "value": null, "sourceSpan": null },
-    "healthSafety": {
-      "ambientCo": { "value": null, "sourceSpan": null },
-      "venting": { "value": null, "sourceSpan": null },
-      "naturalConditionSpillage": { "value": null, "sourceSpan": null },
-      "worstCaseDepressurization": { "value": null, "sourceSpan": null },
-      "worstCaseSpillage": { "value": null, "sourceSpan": null },
-      "draftPressure": {
-        "value": "passed",
-        "sourceSpan": "I got good draft, nice steady pull up the chimney, that passes"
-      },
-      "gasLeak": {
-        "value": "passed",
-        "sourceSpan": "no leaks at the fittings either, all dry"
-      },
-      "moldMoisture": { "value": null, "sourceSpan": null },
-      "asbestos": { "value": null, "sourceSpan": null },
-      "lead": { "value": null, "sourceSpan": null },
-      "electrical": { "value": null, "sourceSpan": null }
+    "hvac.hvacHeatingCapacity": {
+      "status": "declared_absent",
+      "sourceSpan": "no BTU number from me"
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "sourceSpan": "it's an indirect tank",
+      "member": "Sidearm Tank"
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "sourceSpan": "So that runs on the oil too, same as the boiler.",
+      "member": "Fuel Oil"
+    },
+    "dhw.dhwAge": {
+      "status": "asserted",
+      "sourceSpan": "that tank's about eight years old",
+      "member": "6-10"
+    },
+    "dhw.dhwTankSize": {
+      "status": "asserted",
+      "sourceSpan": "a forty-gallon Amtrol",
+      "value": 40
+    },
+    "dhw.dhwManufacturer": {
+      "status": "asserted",
+      "sourceSpan": "Amtrol",
+      "member": "Other"
+    },
+    "attic.atticInsulationType": {
+      "status": "asserted",
+      "sourceSpan": "it's cellulose, gray blown-in",
+      "member": "Cellulose"
+    },
+    "attic.atticInsulationDepth": {
+      "status": "asserted",
+      "sourceSpan": "about six inches of it across most of the attic",
+      "member": "4-6"
+    },
+    "health.healthGasLeak": {
+      "status": "asserted",
+      "sourceSpan": "I put the sniffer around the boiler and the oil lines, no gas smell obviously it's oil, but no leaks at the fittings either, all dry.",
+      "member": "Passed"
+    },
+    "health.healthDraftPressure": {
+      "status": "asserted",
+      "sourceSpan": "I got good draft, nice steady pull up the chimney, that passes.",
+      "member": "Passed"
     }
   },
   "notes": {
-    "atticInsulationDepthIn": "A DEPTH is stated (\"about six inches\"), so the band IS filled: 6 in falls in 4-6. Contrast transcript 01, where only an R-value was given and the band stays null. atticInsulationSpokenRValue stays null here because no R-value was spoken.",
-    "dhwAgeBand": "\"about eight years old\" -> 8 -> 6-10. The install sticker \"twenty seventeen\" is a corroborating date, not the value to band; band the stated age.",
-    "dhwFuel": "Indirect tank off an oil boiler; the auditor confirms it runs on oil (\"runs on the oil too\"). fuel_oil, not null. Fuel is an axis here just like heating.",
-    "gasLeak": "The auditor sniffed for leaks and found none (\"no leaks at the fittings either, all dry\"). Maps to gasLeak=passed even though the house is oil; he ran the leak check. \"no gas smell obviously it's oil\" alone would be weaker, but the dry-fittings result is an affirmative clean.",
-    "_general": "Distractor numbers: \"forty-gallon\" (tank size), \"two-seventy-five gallon\" (oil tank size), \"two-thirds full\", \"twenty seventeen\" (install date, not the DHW age band source). None are field values."
+    "hvac.hvacHeatingSystemManufacturer": "'Burnham' is a real boiler manufacturer not on HvacHeatingSystemManufacturer's closed list. schema.ts's own comment on this enum names Burnham specifically as the example of a real-but-unlisted make that maps to 'Other' -- a mechanical vocabulary mapping (RECONCILIATION.md ruling 1), not a contested reading; not marked arguable.",
+    "dhw.dhwManufacturer": "'Amtrol' (a real indirect/sidearm-tank manufacturer) is likewise absent from DhwManufacturer's closed list. Same ruling-1 catch-all logic as the hvac manufacturer leaf: maps to 'Other', not noFittingMember, because 'Other' is a real, fitting member.",
+    "hvac.hvacHeatingSystemModel": "The plate reads 'V8'; 'V-eight series' is the auditor phonetically spelling out the same model number for dictation, not a second, different model detail. Recorded as the bare model number.",
+    "dhw.dhwAge": "'about eight years old' and 'the install sticker says twenty seventeen' are offered as corroborating detail, not a retraction of each other (no 'no wait' / 'scratch that' language, and the two figures are consistent under an ordinary audit date). Only the spoken age band is asserted -- the bare 2017 install year has no write target in this schema (dhwAge is a band from a stated AGE, not a year) and is not converted or forced into one.",
+    "health.healthGasLeak": "'no gas smell obviously it's oil, but no leaks at the fittings either, all dry' is a real, performed sniffer/leak check with a clean result -- this is rule 8's own 'gas sniffer was quiet' example, essentially verbatim, so it is asserted Passed with no hedge. (One annotator flagged this as possibly not addressing a true GAS-leak test on an oil system with no gas piping; see RECONCILIATION.md -- resolved as a clean Passed, not arguable, because a dry-fittings result on a performed sniffer sweep is exactly the rule-8 pattern, and this is the only leaf a fittings/leak check could plausibly address.)",
+    "_general": "Two details are said out loud but have no leaf anywhere in the 51: the bulk fuel-oil storage tank itself ('two-seventy-five gallon, about two-thirds full' -- a fuel-supply tank, distinct from the 40-gallon DHW tank dhwTankSize describes) and the boiler's construction material ('cast iron sections'). Both deliberately excluded per rule 9, not missed. attic.atticInsulation (the R-value leaf) is never stated -- only a depth -- and stays unmentioned, never derived from the six-inch depth. hvac.hvacUpgradeAction, hvac.hvacCoolingCapacity, every basedata leaf besides the blower-door pair (covered by the disclaimer), every wall and window leaf, dhw.dhwLocation, and every health leaf besides healthGasLeak/healthDraftPressure are never addressed at all in this transcript."
   }
 }
