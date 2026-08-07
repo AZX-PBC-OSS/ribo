@@ -82,19 +82,61 @@ self.addEventListener("message", (event) => {
 `;
 
 /**
+ * A tiny (~4 MB total, fp32/unquantized) HF Hub test fixture — the same kind of randomly-
+ * initialized, real-shaped ONNX model transformers.js's own test suite downloads for CI. It is
+ * Whisper-shaped (encoder + decoder, same graph topology as the real whisper-tiny.en/base.en this
+ * package ships for production), so priming it exercises the exact code path production priming
+ * does — worker spawn, dynamic `import("@huggingface/transformers")` inside the worker bundle, and
+ * ONNX Runtime WASM session creation — without the real models' 175–970 MB fp32 download (fp32
+ * because q4/q8 do not load on this pinned ORT build on wasm — see the package's own
+ * `prime.manual.ts`).
+ */
+export const TEST_MODEL_ID = "Xenova/tiny-random-WhisperForConditionalGeneration";
+
+/**
+ * A specific commit on `TEST_MODEL_ID`'s repo, not the moving `main` branch tip. Two reasons, both
+ * load-bearing:
+ *
+ * 1. **Determinism.** An upstream push to this HF Hub repo — a re-export, a README edit that still
+ *    bumps `main`, an account takeover, anything — must not be able to change what this tier
+ *    downloads and runs on the NEXT push to THIS repo, for a change unrelated to Ribo at all. That
+ *    is the same property `pnpm-workspace.yaml`'s exact (no-caret) catalog pins buy for this
+ *    workspace's npm dependencies, applied to a model repo instead.
+ * 2. **The failure this guards against is structurally the "network fetch masquerading as a
+ *    check" trap `vitest.manual.config.ts`'s header already rejects for a slower, heavier case**
+ *    (a real Whisper model) — pinning a revision does not remove the network dependency, but it
+ *    does remove the "the model repo changed" axis, leaving only "the Hub is unreachable" as a
+ *    possible non-Ribo cause of a red run. Combined with CI-side caching of the fetched bytes,
+ *    keyed on this exact value (see `.github/workflows/ci.yml`), the ordinary path does not hit
+ *    the network at all — this pin only fires cold, and only ever fires the SAME cold fetch.
+ *
+ * Refresh by re-running the same lookup this constant was pinned from:
+ *   `curl -s https://huggingface.co/api/models/${TEST_MODEL_ID}` → `.sha`
+ */
+export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
+
+/**
  * The scratch app's entry point. Touches all five published packages from their real tarball
  * installs and records what happened onto \`globalThis.__RIBO_PACK_CONSUME_RESULT__\` — a plain,
- * JSON-serializable object Playwright reads back with \`page.evaluate\`. Every step is wrapped so
- * one failure still reports which step it was, rather than leaving the page hung.
+ * JSON-serializable object Playwright reads back with \`page.evaluate\`.
  *
- * `modelId` is a tiny (~4 MB total, fp32/unquantized) HF Hub test fixture —
- * \`Xenova/tiny-random-WhisperForConditionalGeneration\` — the same kind of randomly-initialized,
- * real-shaped ONNX model transformers.js's own test suite downloads for CI. It is Whisper-shaped
- * (encoder + decoder, same graph topology as the real whisper-tiny.en/base.en this package ships
- * for production), so priming it exercises the exact code path production priming does — worker
- * spawn, dynamic `import("@huggingface/transformers")` inside the worker bundle, and ONNX Runtime
- * WASM session creation — without the real models' 175–970 MB fp32 download (fp32 because q4/q8
- * do not load on this pinned ORT build on wasm — see the package's own `prime.manual.ts`).
+ * Split into two independently-caught phases so a failure's `category` tells a human reading a red
+ * CI run which of three unrelated things broke, without opening this script:
+ *
+ *   - `"setup-before-worker"` — one of ribo-core / ribo-adapter-snuggpro / ribo-extractor-openai /
+ *     ribo-ui-react threw. None of this touches the network, so a Hub outage can never explain it —
+ *     this is a real packaging regression in one of those four packages.
+ *   - `"worker-spawn-or-import"` — `prime()` threw and the worker never reported even an `initiate`
+ *     progress event. A worker that never started can never have posted one, so this is very
+ *     likely a real regression in `@azx/ribo-transcriber-ondevice`'s published `./worker` entry
+ *     itself (a broken export map — see the header of `index.mjs` for the `MISSING_EXPORT` case
+ *     this class of mutation was actually caught with — a dropped dependency, or a worker that
+ *     cannot spawn in a real production bundle at all).
+ *   - `"network-fetch-after-spawn"` — `prime()` threw, but the worker DID report at least one
+ *     progress event first. The worker spawned, imported transformers.js, and started fetching —
+ *     so the failure is most likely the pinned model fixture's fetch itself (an HF Hub outage or
+ *     rate limit), not a packaging defect. Not a certainty — a heuristic — but the cheapest real
+ *     signal available.
  */
 export const MAIN_JS = `import { isSpanGrounded } from "@azx/ribo-core";
 import { normalizeFields, snuggProAdapter } from "@azx/ribo-adapter-snuggpro";
@@ -104,72 +146,96 @@ import { RiboProvider } from "@azx/ribo-ui-react";
 import React from "react";
 import { createRoot } from "react-dom/client";
 
-const TEST_MODEL_ID = "Xenova/tiny-random-WhisperForConditionalGeneration";
+const TEST_MODEL_ID = "${TEST_MODEL_ID}";
+const TEST_MODEL_REVISION = "${TEST_MODEL_REVISION}";
 
-/** Every step is independently recorded so a single failure still reports which check regressed. */
+function errorMessage(error) {
+  return error instanceof Error ? \`\${error.message}\\n\${error.stack ?? ""}\` : String(error);
+}
+
+function report(ok, extra) {
+  globalThis.__RIBO_PACK_CONSUME_RESULT__ = { ok, ...extra };
+}
+
 async function run() {
   const checks = {};
 
-  // ---- ribo-core: a real zod-backed call, not just a bundled-and-unused import -----------------
-  checks.riboCoreGroundedSpanTrue = isSpanGrounded("R-49", "The attic insulation is R-49 today.");
-  checks.riboCoreGroundedSpanFalse = isSpanGrounded("R-99", "The attic insulation is R-49 today.");
+  // ---- setup: ribo-core, ribo-adapter-snuggpro, ribo-extractor-openai, ribo-ui-react ------------
+  try {
+    // ribo-core: a real zod-backed call, not just a bundled-and-unused import.
+    checks.riboCoreGroundedSpanTrue = isSpanGrounded("R-49", "The attic insulation is R-49 today.");
+    checks.riboCoreGroundedSpanFalse = isSpanGrounded("R-99", "The attic insulation is R-49 today.");
 
-  // ---- ribo-adapter-snuggpro: the schema resolved and has real shape -----------------------------
-  checks.adapterSchemaKeyCount = Object.keys(snuggProAdapter.schema.shape).length;
+    // ribo-adapter-snuggpro: the schema resolved and has real shape.
+    checks.adapterSchemaKeyCount = Object.keys(snuggProAdapter.schema.shape).length;
 
-  // ---- ribo-extractor-openai composed with the adapter across a tarball boundary ----------------
-  const extractor = singleShotExtractor({
-    target: snuggProAdapter,
-    // Constructed only, never called: openAiChat needs a baseUrl to build its request URL eagerly
-    // (not lazily inside complete()), but nothing here ever calls .extract(), so no network happens.
-    chat: openAiChat({ apiKey: "unused-not-called", baseUrl: "https://api.openai.com/v1" }),
-    model: "gpt-4o-2024-08-06",
-    normalize: normalizeFields,
-  });
-  checks.extractorHasExtractFn = typeof extractor.extract === "function";
+    // ribo-extractor-openai composed with the adapter across a tarball boundary. Constructed only,
+    // never called: openAiChat needs a baseUrl to build its request URL eagerly (not lazily inside
+    // complete()), but nothing here ever calls .extract(), so no network happens.
+    const extractor = singleShotExtractor({
+      target: snuggProAdapter,
+      chat: openAiChat({ apiKey: "unused-not-called", baseUrl: "https://api.openai.com/v1" }),
+      model: "gpt-4o-2024-08-06",
+      normalize: normalizeFields,
+    });
+    checks.extractorHasExtractFn = typeof extractor.extract === "function";
 
-  // ---- ribo-ui-react: a REAL React render through RiboProvider, proving one React instance ------
-  const mountNode = document.getElementById("app");
-  const root = createRoot(mountNode);
-  await new Promise((resolve) => {
-    root.render(
-      React.createElement(
-        RiboProvider,
-        { value: {} },
-        React.createElement("div", { id: "provider-rendered" }, "ok"),
-      ),
-    );
-    // Flush after paint so the check below sees the committed DOM.
-    requestAnimationFrame(() => requestAnimationFrame(resolve));
-  });
-  checks.uiReactRendered = document.getElementById("provider-rendered")?.textContent === "ok";
-  root.unmount();
+    // ribo-ui-react: a REAL React render through RiboProvider, proving one React instance.
+    const mountNode = document.getElementById("app");
+    const root = createRoot(mountNode);
+    await new Promise((resolve) => {
+      root.render(
+        React.createElement(
+          RiboProvider,
+          { value: {} },
+          React.createElement("div", { id: "provider-rendered" }, "ok"),
+        ),
+      );
+      // Flush after paint so the check below sees the committed DOM.
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+    checks.uiReactRendered = document.getElementById("provider-rendered")?.textContent === "ok";
+    root.unmount();
+  } catch (error) {
+    report(false, { stage: "setup", category: "setup-before-worker", message: errorMessage(error) });
+    return;
+  }
 
   // ---- ribo-transcriber-ondevice: the one this tier exists for -----------------------------------
   // Worker spawns from the PUBLISHED "./worker" entry (the consumer's own bundler context, per
-  // AGENTS.md §5.2) and primes a tiny real ONNX model — proving the worker actually starts AND
-  // the ONNX Runtime WASM backend actually initializes a session, in a real production bundle.
+  // AGENTS.md §5.2) and primes a tiny real, REVISION-PINNED ONNX model — proving the worker
+  // actually starts AND the ONNX Runtime WASM backend actually initializes a session, in a real
+  // production bundle.
   const progressStages = [];
   const transcriber = new OnDeviceTranscriber({
     modelId: TEST_MODEL_ID,
+    revision: TEST_MODEL_REVISION,
     device: "wasm",
     dtype: "fp32",
     wasmPaths: "/ort/",
     createWorker: () => new Worker(new URL("./whisper.worker.js", import.meta.url), { type: "module" }),
   });
-  await transcriber.prime((progress) => progressStages.push(progress.stage));
+  try {
+    await transcriber.prime((progress) => progressStages.push(progress.stage));
+  } catch (error) {
+    transcriber.dispose();
+    report(false, {
+      stage: "prime",
+      category: progressStages.length > 0 ? "network-fetch-after-spawn" : "worker-spawn-or-import",
+      progressStagesSeen: progressStages,
+      message: errorMessage(error),
+    });
+    return;
+  }
   transcriber.dispose();
   checks.workerPrimedWithoutThrowing = true;
   checks.workerReportedProgress = progressStages.length > 0;
 
-  globalThis.__RIBO_PACK_CONSUME_RESULT__ = { ok: true, checks };
+  report(true, { checks });
 }
 
 run().catch((error) => {
-  globalThis.__RIBO_PACK_CONSUME_RESULT__ = {
-    ok: false,
-    message: error instanceof Error ? \`\${error.message}\\n\${error.stack ?? ""}\` : String(error),
-  };
+  report(false, { stage: "unexpected", category: "unexpected", message: errorMessage(error) });
 });
 `;
 

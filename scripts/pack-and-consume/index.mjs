@@ -35,6 +35,17 @@
  *    spawns and its ONNX Runtime WASM backend actually initializes a session, plus that the other
  *    four packages resolved, bundled and ran correctly from their tarballs too.
  *
+ * ## A defect class this tier actually caught, that no static gate here does
+ *
+ * During review, pointing the published `./worker` entry's `default` at an EXISTING but
+ * semantically wrong file (`./dist/index.js` instead of `./dist/worker.js`) sailed straight
+ * through `build:packages` (publint's existence check is satisfied — the file is there) and
+ * `check:pkg`, then failed this tier cleanly with rolldown's own `[MISSING_EXPORT] "handleMessage"
+ * is not exported by ".../dist/index.js"`. That is a sharper example than the "removed
+ * dependency" mutation this file's own tests exercise (see the R3 report): it is a defect that
+ * looks structurally identical to a correct `exports` block to every tool that only checks
+ * existence, and is invisible anywhere else in this repo.
+ *
  * ## Why this is NOT in `./check.sh`
  *
  * `./check.sh` is the fast, frequent, "am I done?" loop (AGENTS.md §7) — every stage in it runs
@@ -61,6 +72,55 @@
  * `SCRATCH_DIR` unconditionally (before creating anything), and removes it again in a `finally`
  * block that runs on both success and failure. Set `RIBO_PACK_AND_CONSUME_KEEP=1` to skip the
  * final cleanup for debugging.
+ *
+ * `CHROME_PROFILE_DIR`, by contrast, is deliberately NOT wiped at start or end — see "Network
+ * dependency" below for why it persists on purpose.
+ *
+ * ## Network dependency: pinned, cached, and reported distinguishably
+ *
+ * The one real network call this tier makes beyond `pnpm install` (registry + this workspace's own
+ * `.pnpm` store, which is not this tier's to fix) is priming `TEST_MODEL_ID` from the HF Hub. Two
+ * belts, both load-bearing:
+ *
+ *   1. **`TEST_MODEL_REVISION` pins a commit hash, not the moving `main` branch** (see
+ *      `app-template.mjs`'s doc comment on that constant) — an upstream change to the fixture
+ *      repo cannot alter what this tier tests on the next unrelated push.
+ *   2. **`CHROME_PROFILE_DIR` is a persistent (not ephemeral) Chromium profile**, inside this repo
+ *      at `.cache/pack-and-consume/chromium-profile/` (gitignored), reused across runs instead of a
+ *      fresh incognito context every time. The model's weights land in that profile's Cache API
+ *      storage (`transformers-cache`), so a warm run never touches the network at all.
+ *      `.github/workflows/ci.yml` restores/saves this exact directory with `actions/cache`, keyed
+ *      on a hash of `app-template.mjs` (which is where the pin lives) — so CI is warm on every run
+ *      after the first for a given pin, and only a change to that pin (or the file around it) ever
+ *      forces one cold fetch.
+ *
+ * This does NOT eliminate the network dependency — a first-ever run, a bumped pin, or an evicted
+ * CI cache still fetches for real — but it removes the "the model repo changed under us" axis
+ * entirely and makes the steady-state path network-free, which is the same reasoning
+ * `vitest.manual.config.ts`'s header rejects a much larger, unpinned, uncached version of.
+ *
+ * `assertResult` below reports a `category` distinguishing three unrelated failure shapes — see
+ * `app-template.mjs`'s doc comment on `MAIN_JS` — so a red run names which one before you open
+ * this file: a real packaging regression in one of the other four packages
+ * (`setup-before-worker`), a real regression in the worker entry itself
+ * (`worker-spawn-or-import`), or a probable transient Hub issue (`network-fetch-after-spawn`).
+ *
+ * ## Two known, accepted gaps (not fixed here — recorded so they are decided, not rediscovered)
+ *
+ * - **Same-worktree concurrent runs race on one `SCRATCH_DIR` and one `CHROME_PROFILE_DIR`.**
+ *   `SCRATCH_DIR` is already namespaced by a hash of the repo root (cross-worktree runs never
+ *   collide), but two `pnpm test:pack-and-consume` invocations against the SAME worktree at the
+ *   same time will step on each other's tarballs/app files, and Chromium will refuse to open a
+ *   second persistent context on a profile directory it already holds a `SingletonLock` on. This
+ *   tier is not designed for concurrent invocation against one worktree — same as `./check.sh`
+ *   itself, which no one runs twice at once for the same reason. Not fixed with a lock file: the
+ *   failure mode (a loud, immediate Chromium/pnpm error) is already distinguishable from a real
+ *   test failure, which is the bar this repo's other manual/CI-only gates hold to as well.
+ * - **`discoverPublishablePackages`/`EXPECTED_PUBLISHED_COUNT` is duplicated from
+ *   `scripts/pkg-gates.mjs`**, rather than extracted to a shared module. Deliberate: the two
+ *   scripts have no other reason to import from each other, and a shared `scripts/lib/` module
+ *   for one four-line function is its own maintenance surface. Accepted, not ideal — if a THIRD
+ *   script ever needs the same discovery, that is the signal to extract it, not this one.
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -84,6 +144,8 @@ import { preview } from "vite";
 import {
   INDEX_HTML,
   MAIN_JS,
+  TEST_MODEL_ID,
+  TEST_MODEL_REVISION,
   VITE_CONFIG_JS,
   WHISPER_WORKER_JS,
   scratchPackageJson,
@@ -98,15 +160,13 @@ const SCRATCH_DIR = join(os.tmpdir(), `ribo-pack-and-consume-${REPO_HASH}`);
 const TARBALL_DIR = join(SCRATCH_DIR, "tarballs");
 const APP_DIR = join(SCRATCH_DIR, "app");
 
-const KEEP_SCRATCH = process.env.RIBO_PACK_AND_CONSUME_KEEP === "1";
+// Persistent (not cleaned per-run) Chromium profile — see the file header's "Network dependency"
+// section. Inside the repo, unlike SCRATCH_DIR: it holds no tarball/module-resolution state, only
+// the browser's own Cache API storage, so keeping it here is not in tension with SCRATCH_DIR's
+// "outside the workspace" requirement.
+const CHROME_PROFILE_DIR = join(REPO_ROOT, ".cache", "pack-and-consume", "chromium-profile");
 
-// The tiny HF Hub test fixture this tier primes instead of a real (175-970 MB fp32) Whisper
-// model. Same org (Xenova) transformers.js's own test suite uses for CI: a randomly-initialized
-// but real, Whisper-shaped ONNX export (encoder + decoder, ~4 MB total unquantized). Priming it
-// exercises the exact production code path — worker spawn, the worker's dynamic
-// `import("@huggingface/transformers")`, and ONNX Runtime WASM session creation — without the
-// real models' network cost.
-const TEST_MODEL_ID = "Xenova/tiny-random-WhisperForConditionalGeneration";
+const KEEP_SCRATCH = process.env.RIBO_PACK_AND_CONSUME_KEEP === "1";
 
 const EXPECTED_PUBLISHED_COUNT = 5;
 
@@ -238,10 +298,35 @@ function buildScratchApp() {
 }
 
 /**
+ * Launches the persistent Chromium profile at `CHROME_PROFILE_DIR`, repairing it once if the
+ * profile itself is the problem (e.g. a `SingletonLock` left by a process that was killed rather
+ * than closed) — the same "clean up, retry once, then fail loudly" shape `cleanScratch` uses for
+ * `SCRATCH_DIR`, applied to the one other piece of state this tier leaves on disk between runs.
+ */
+async function launchPersistentContext() {
+  mkdirSync(CHROME_PROFILE_DIR, { recursive: true });
+  try {
+    return await chromium.launchPersistentContext(CHROME_PROFILE_DIR, { headless: true });
+  } catch (error) {
+    log(
+      `launching Chromium against ${CHROME_PROFILE_DIR} failed (${error.message}); ` +
+        "removing the profile and retrying once (this loses the model-fetch cache for this run)",
+    );
+    rmSync(CHROME_PROFILE_DIR, { recursive: true, force: true });
+    mkdirSync(CHROME_PROFILE_DIR, { recursive: true });
+    return await chromium.launchPersistentContext(CHROME_PROFILE_DIR, { headless: true });
+  }
+}
+
+/**
  * Serves the scratch app's `dist/` and drives a real headless Chromium against it, returning the
  * page's reported result. Uses THIS repo's own `vite` purely as a static file server for already-
  * built output — no module resolution happens at this stage, so reusing it does not blur the line
  * this tier exists to hold (the app was BUILT with its own, independently-installed `vite`).
+ *
+ * The Chromium context is PERSISTENT (`CHROME_PROFILE_DIR`, not a fresh incognito context) so the
+ * pinned test model's fetched bytes survive between runs in the browser's own Cache API storage —
+ * see the file header's "Network dependency" section.
  */
 async function runInBrowser() {
   const server = await preview({
@@ -252,9 +337,9 @@ async function runInBrowser() {
   const url = server.resolvedUrls?.local[0];
   if (!url) throw new Error("vite preview reported no local URL");
 
-  const browser = await chromium.launch({ headless: true });
+  const context = await launchPersistentContext();
   try {
-    const page = await browser.newPage();
+    const page = await context.newPage();
     const consoleErrors = [];
     page.on("console", (msg) => {
       if (msg.type() === "error") consoleErrors.push(msg.text());
@@ -273,8 +358,40 @@ async function runInBrowser() {
     const result = await page.evaluate(() => globalThis.__RIBO_PACK_CONSUME_RESULT__);
     return { result, consoleErrors, pageErrors };
   } finally {
-    await browser.close();
+    await context.close();
     await server.close();
+  }
+}
+
+/**
+ * When the scratch app itself reports failure, the error message leads with `result.category` (set
+ * in `app-template.mjs`'s `MAIN_JS`) so a human reading a red run — in CI, hours later, with no
+ * memory of this file — can tell "the Hub is down" from "we broke the published worker entry"
+ * without opening the script. See the file header's "Network dependency" section for the three
+ * categories.
+ */
+function describeFailure(result) {
+  const message = result?.message ?? "(no result at all — the page never reported)";
+  switch (result?.category) {
+    case "setup-before-worker":
+      return (
+        "packaging regression in ribo-core / ribo-adapter-snuggpro / ribo-extractor-openai / " +
+        `ribo-ui-react — none of this phase touches the network:\n${message}`
+      );
+    case "worker-spawn-or-import":
+      return (
+        "the worker never reported even one progress event before failing — very likely a real " +
+        "regression in @azx/ribo-transcriber-ondevice's published ./worker entry (a broken " +
+        `export map, a dropped dependency, or a worker that cannot spawn), NOT the network:\n${message}`
+      );
+    case "network-fetch-after-spawn":
+      return (
+        `the worker spawned and reported progress (${JSON.stringify(result.progressStagesSeen)}) ` +
+        "before failing — likely a transient issue fetching the pinned test model from the HF " +
+        `Hub (an outage or rate limit), not a packaging regression. Underlying error:\n${message}`
+      );
+    default:
+      return `unexpected failure (stage: ${result?.stage ?? "unknown"}):\n${message}`;
   }
 }
 
@@ -288,7 +405,7 @@ function assertResult({ result, consoleErrors, pageErrors }) {
     );
   }
   if (!result || result.ok !== true) {
-    throw new Error(`scratch app reported failure: ${result?.message ?? "(no result at all)"}`);
+    throw new Error(`scratch app reported failure — ${describeFailure(result)}`);
   }
   const c = result.checks;
   const expectations = [
@@ -306,7 +423,7 @@ function assertResult({ result, consoleErrors, pageErrors }) {
   }
   log(
     "PASS — 5 tarballs installed via file: (not the workspace), production build succeeded, " +
-      `@azx/ribo-transcriber-ondevice's worker spawned and primed ${TEST_MODEL_ID} ` +
+      `@azx/ribo-transcriber-ondevice's worker spawned and primed ${TEST_MODEL_ID}@${TEST_MODEL_REVISION} ` +
       "(ONNX Runtime WASM session created) with real progress events.",
   );
 }

@@ -168,6 +168,39 @@ test("prime posts a prime command and relays per-file progress to the callback",
   });
 });
 
+test("a configured revision is forwarded to the worker; omitted, it is absent from the config", async () => {
+  const pin = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
+  let pinnedWorker: FakeWorker | undefined;
+  const pinned = new OnDeviceTranscriber({
+    wasmPaths: WASM_PATHS,
+    modelId: "Xenova/whisper-tiny.en",
+    revision: pin,
+    createWorker: () => {
+      pinnedWorker = new FakeWorker((command) => [
+        { type: "primed", requestId: command.requestId },
+      ]);
+      return pinnedWorker as unknown as Worker;
+    },
+  });
+  await pinned.prime();
+  expect(pinnedWorker?.posted[0]).toMatchObject({ config: { revision: pin } });
+
+  let unpinnedWorker: FakeWorker | undefined;
+  const unpinned = new OnDeviceTranscriber({
+    wasmPaths: WASM_PATHS,
+    modelId: "Xenova/whisper-tiny.en",
+    createWorker: () => {
+      unpinnedWorker = new FakeWorker((command) => [
+        { type: "primed", requestId: command.requestId },
+      ]);
+      return unpinnedWorker as unknown as Worker;
+    },
+  });
+  await unpinned.prime();
+  const posted = unpinnedWorker?.posted[0] as MainToWorkerMessage & { config: object };
+  expect(posted.config).not.toHaveProperty("revision");
+});
+
 test("prime rejects when the worker reports an error", async () => {
   const transcriber = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,
