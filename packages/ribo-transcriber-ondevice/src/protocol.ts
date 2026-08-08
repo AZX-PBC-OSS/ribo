@@ -39,6 +39,14 @@ export interface PrimeConfig {
   /** HuggingFace repo id of the ASR model, e.g. `"Xenova/whisper-base.en"`. */
   readonly modelId: string;
   /**
+   * HuggingFace repo id of the voice-activity model used to segment audio longer than Whisper's
+   * 30 s receptive field. Everything downstream assumes **this** model's frame geometry, sampling
+   * rate and powerset class map, so it is not a general substitution point — it exists so a
+   * consumer can pin a revision or mirror the weights, not so they can swap in a different
+   * architecture. Absent means long audio takes the fixed-window fallback instead.
+   */
+  readonly vadModelId?: string;
+  /**
    * Same-origin base URL the ONNX Runtime `.wasm`/`.mjs` files are served from — assigned to
    * `env.backends.onnx.wasm.wasmPaths` in the worker. Must end in `/`. The default is a jsDelivr
    * CDN URL, which breaks the offline guarantee and trips strict host CSPs; the consumer supplies

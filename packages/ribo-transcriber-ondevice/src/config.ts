@@ -83,9 +83,31 @@ export const MODEL_DOWNLOAD_BYTES: Readonly<Record<string, number>> = {
 /** Fallback total for an unrecognized model id — base.en-ish, so the bar is never absurdly wrong. */
 export const FALLBACK_DOWNLOAD_BYTES = 314_000_000;
 
-/** Best-effort download-size estimate for the consent screen. */
-export function estimateDownloadBytes(modelId: string): number {
-  return MODEL_DOWNLOAD_BYTES[modelId] ?? FALLBACK_DOWNLOAD_BYTES;
+/**
+ * The voice-activity model used to segment recordings longer than Whisper's 30 s receptive field.
+ *
+ * `pyannote-segmentation-3.0` rather than Silero, which is smaller, because transformers.js already
+ * supports it (`PyAnnoteForAudioFrameClassification` ships in 4.2.0): it reuses the same cache
+ * bucket, the same download-progress relay, the same same-origin ORT config and the same worker,
+ * where Silero's stateful RNN would need a second loading path through raw `onnxruntime-web`. It is
+ * also what WhisperX uses.
+ */
+export const VAD_MODEL_ID = "onnx-community/pyannote-segmentation-3.0";
+
+/** fp32 weights for {@link VAD_MODEL_ID} — 1.9% of the ASR download it rides alongside. */
+export const VAD_DOWNLOAD_BYTES = 6_000_000;
+
+/**
+ * Best-effort download-size estimate for the consent screen.
+ *
+ * `includeVad` exists because the two callers want different numbers. The one-time consent prompt
+ * needs the full figure; `capability()` needs only what is actually **missing**, since telling a
+ * user with Whisper already cached that they need another ~314 MB — when they need 6 MB — is a
+ * false prompt that would talk them out of a trivial download.
+ */
+export function estimateDownloadBytes(modelId: string, includeVad = true): number {
+  const asr = MODEL_DOWNLOAD_BYTES[modelId] ?? FALLBACK_DOWNLOAD_BYTES;
+  return includeVad ? asr + VAD_DOWNLOAD_BYTES : asr;
 }
 
 /**

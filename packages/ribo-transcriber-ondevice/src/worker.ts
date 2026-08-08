@@ -30,6 +30,7 @@
  * mono PCM and transfers the samples; this worker only ever sees {@link TranscribeWorkerRequest}.
  */
 
+import { WHISPER_SAMPLE_RATE } from "./decode.js";
 import type {
   MainToWorkerMessage,
   PrimeConfig,
@@ -37,6 +38,14 @@ import type {
   TranscribeWorkerRequest,
   WorkerToMainMessage,
 } from "./protocol.js";
+import {
+  planFallbackChunks,
+  planVadChunks,
+  rootMeanSquare,
+  speechProbabilities,
+  WHISPER_WINDOW_SECONDS,
+} from "./segmentation.js";
+import type { FrameGeometry, SampleRange } from "./segmentation.js";
 
 /** The subpath this module is published under — the stable name of the worker entry. */
 export const WORKER_ENTRY_NAME = "@azx/ribo-transcriber-ondevice/worker" as const;
@@ -161,12 +170,215 @@ function getPipeline(
   return built;
 }
 
-/** Construct the pipeline for its download side effect, relaying progress (Task 2's `prime`). */
+/**
+ * Minimal structural view of the voice-activity model. Same reasoning as {@link AsrPipeline}: naming
+ * only what we touch keeps transformers.js out of this module's static type graph, so the node-side
+ * unit tests can import it without dragging in `onnxruntime-node`.
+ */
+interface VadPipeline {
+  readonly processor: ((audio: Float32Array) => Promise<Record<string, unknown>>) & {
+    readonly feature_extractor: {
+      readonly config: { readonly step: number; readonly offset: number };
+    };
+  };
+  readonly model: (inputs: Record<string, unknown>) => Promise<{
+    readonly logits: { readonly dims: readonly number[]; readonly data: Float32Array };
+  }>;
+}
+
+let vadCache: { readonly key: string; readonly pipeline: Promise<VadPipeline> } | undefined;
+
+/**
+ * Get (or build) the voice-activity model. Same promise-caching shape as {@link getPipeline}, for
+ * the same reasons: concurrent callers share one build, and a failed build is evicted so a transient
+ * load error does not poison every later call.
+ */
+function getVad(
+  config: PrimeConfig,
+  onProgress?: (p: PrimeProgress) => void,
+): Promise<VadPipeline> {
+  const modelId = config.vadModelId;
+  if (modelId === undefined) return Promise.reject(new Error("no VAD model configured"));
+  const key = `${modelId}|${config.device ?? "auto"}|${config.revision ?? "main"}`;
+  if (vadCache && vadCache.key === key) return vadCache.pipeline;
+
+  const built = (async (): Promise<VadPipeline> => {
+    const { AutoModelForAudioFrameClassification, AutoProcessor, env } =
+      await import("@huggingface/transformers");
+    const wasm = env.backends?.onnx?.wasm;
+    if (wasm) wasm.wasmPaths = config.wasmPaths;
+
+    const progress_callback = (item: RawProgressItem): void => {
+      const progress = normalizeProgress(item);
+      if (progress && onProgress) onProgress(progress);
+    };
+    const [processor, model] = await Promise.all([
+      AutoProcessor.from_pretrained(modelId, { progress_callback }),
+      AutoModelForAudioFrameClassification.from_pretrained(modelId, {
+        // fp32 deliberately, matching the ASR default: q4/q8 do not load on the ORT build
+        // transformers.js 4.2.0 pins (Task 2 finding). 6 MB either way.
+        dtype: "fp32",
+        ...(config.device ? { device: config.device } : {}),
+        progress_callback,
+      }),
+    ]);
+    return { processor, model } as unknown as VadPipeline;
+  })();
+
+  vadCache = { key, pipeline: built };
+  built.catch(() => {
+    if (vadCache?.pipeline === built) vadCache = undefined;
+  });
+  return built;
+}
+
+/** Construct the pipelines for their download side effect, relaying progress (Task 2's `prime`). */
 async function prime(
   config: PrimeConfig,
   onProgress: (progress: PrimeProgress) => void,
 ): Promise<void> {
   await getPipeline(config, onProgress);
+  // The VAD model is a quality upgrade, not a prerequisite: long audio falls back to fixed windows
+  // without it. So a failure here must NOT fail the prime and strand a user whose ASR weights
+  // downloaded perfectly well.
+  if (config.vadModelId !== undefined) {
+    try {
+      await getVad(config, onProgress);
+    } catch {
+      /* fallback covers it */
+    }
+  }
+}
+
+/** pyannote-segmentation-3.0's training duration. Feeding it far longer audio is out of distribution. */
+const VAD_WINDOW_SECONDS = 10;
+
+/**
+ * Per-frame `P(speech)` across the whole recording.
+ *
+ * The model is run over **fixed windows of its training duration**, not the whole buffer in one
+ * pass. pyannote itself warns that whole-recording inference for frame models degrades quality and
+ * inflates memory, and defaults to the training duration; the ONNX graph declaring a dynamic time
+ * axis means it *accepts* longer input, which is not the same as being trained for it.
+ *
+ * Two details that are easy to get wrong and would silently corrupt every downstream threshold:
+ *
+ *   - **The advance is snapped to a whole number of frames.** A nominal 50% advance of 80,000
+ *     samples is 296.3 frames at a 270-sample step — fractional, so "average the overlapping frames"
+ *     would have no index-to-index meaning at all. Rounding to 296 frames makes every window's
+ *     frames land exactly on the global grid.
+ *   - **Only `pSpeech` is averaged, never the seven class probabilities.** Speaker slots permute
+ *     between independently processed windows, so class-wise averaging is meaningless. `pSpeech` is
+ *     immune because all six non-empty powerset states collapse to one speaker-independent event.
+ *
+ * This is deliberately NOT pyannote's reference aggregation, which uses a ~10% advance with Hamming
+ * weighting and warm-up suppression. A 50% advance is a cost tradeoff — 5× fewer passes — and is
+ * unmeasured here.
+ */
+async function speechTimeline(
+  vad: VadPipeline,
+  samples: Float32Array,
+  geometry: FrameGeometry,
+): Promise<Float32Array> {
+  const windowSamples = VAD_WINDOW_SECONDS * geometry.sampleRate;
+  const advanceFrames = Math.max(1, Math.round(windowSamples / 2 / geometry.step));
+  const advanceSamples = advanceFrames * geometry.step;
+
+  const totalFrames = Math.max(
+    0,
+    Math.floor((samples.length - geometry.offset) / geometry.step) + 1,
+  );
+  const sum = new Float64Array(totalFrames);
+  const hits = new Uint32Array(totalFrames);
+
+  for (let start = 0; start < samples.length; start += advanceSamples) {
+    const view = samples.subarray(start, Math.min(start + windowSamples, samples.length));
+    // Zero-pad the final short window to the full training duration, then crop its frames back
+    // below — the model expects its trained input length.
+    let input = view;
+    if (view.length < windowSamples) {
+      input = new Float32Array(windowSamples);
+      input.set(view);
+    }
+
+    const { logits } = await vad.model(await vad.processor(input));
+    const frames = logits.dims[1] ?? 0;
+    const classes = logits.dims[2] ?? 0;
+    const p = speechProbabilities(logits.data, frames, classes);
+
+    const frameOffset = start / geometry.step;
+    // Frames past the real audio are padding artefacts, not silence the model observed.
+    const usable = Math.min(frames, Math.ceil((view.length - geometry.offset) / geometry.step) + 1);
+    for (let i = 0; i < usable; i++) {
+      const global = frameOffset + i;
+      if (global < 0 || global >= totalFrames) continue;
+      sum[global] = (sum[global] ?? 0) + (p[i] ?? 0);
+      hits[global] = (hits[global] ?? 0) + 1;
+    }
+    if (start + windowSamples >= samples.length) break;
+  }
+
+  const out = new Float32Array(totalFrames);
+  for (let i = 0; i < totalFrames; i++) {
+    const count = hits[i] ?? 0;
+    out[i] = count > 0 ? (sum[i] ?? 0) / count : 0;
+  }
+  return out;
+}
+
+/**
+ * Below this RMS a recording with no detected speech is taken as genuinely silent.
+ *
+ * Without an energy check, "VAD found nothing" and "this recording is silent" are indistinguishable,
+ * and they want opposite responses: running fixed windows of padded silence through a decoder primed
+ * with domain jargon is a way to manufacture content out of nothing.
+ */
+const SILENCE_RMS = 1e-4;
+
+/**
+ * Decide how to cut `samples` into chunks Whisper can actually consume.
+ *
+ * Order matters, and each branch exists for a reason worth stating:
+ *   1. **At or under 30 s → one chunk over the original array.** The overwhelmingly common case
+ *      keeps the exact path it has always taken; no VAD is loaded and none of its risk applies.
+ *   2. **VAD segments it** into non-overlapping chunks that mostly begin and end in silence.
+ *   3. **Speech found but audio is silent** → no chunks, empty transcript. Correct, and safer than
+ *      inventing text from padded silence.
+ *   4. **VAD unavailable, failing, or finding nothing in audible audio** → the fixed-window march,
+ *      which duplicates a little text but never loses any.
+ */
+export async function planChunks(
+  config: PrimeConfig,
+  samples: Float32Array,
+): Promise<readonly SampleRange[]> {
+  if (samples.length === 0) return [];
+  if (samples.length <= WHISPER_WINDOW_SECONDS * WHISPER_SAMPLE_RATE) {
+    return [{ start: 0, end: samples.length }];
+  }
+
+  if (config.vadModelId !== undefined) {
+    try {
+      const vad = await getVad(config);
+      const extractorConfig = vad.processor.feature_extractor.config;
+      const geometry: FrameGeometry = {
+        step: extractorConfig.step,
+        offset: extractorConfig.offset,
+        sampleRate: WHISPER_SAMPLE_RATE,
+      };
+      const chunks = planVadChunks(
+        await speechTimeline(vad, samples, geometry),
+        geometry,
+        samples.length,
+      );
+      if (chunks.length > 0) return chunks;
+      // No speech. Silent recording, or a VAD failure on audible speech? Energy tells them apart.
+      if (rootMeanSquare(samples) < SILENCE_RMS) return [];
+    } catch {
+      // Fall through to the march — a VAD that will not load must never cost the user their audio.
+    }
+  }
+
+  return planFallbackChunks(samples.length, WHISPER_SAMPLE_RATE);
 }
 
 /** How many jargon prompt tokens to keep. Whisper's decoder context is 448; a prompt beyond ~half
@@ -210,29 +422,98 @@ function toTokenIds(output: unknown): number[] {
 }
 
 /**
- * Run inference on the decoded samples. Bypasses the pipeline's `_call_whisper` decode/merge on
- * purpose: it decodes the *whole* generated sequence including our injected prefix, which would
- * prepend the jargon to the transcript. Driving `model.generate` directly lets us slice the known
- * prefix off before decoding, so priming biases without leaking.
+ * One inference pass over at most Whisper's 30 s receptive field.
  *
- * Long-audio chunking is out of scope (plan: batch, short clips): the feature extractor truncates to
- * Whisper's 30 s window, so audio beyond that is silently clipped — a known PoC limitation, not a
- * bug to hide.
+ * Bypasses the pipeline's `_call_whisper` decode/merge on purpose: it decodes the *whole* generated
+ * sequence including our injected prefix, which would prepend the jargon to the transcript. Driving
+ * `model.generate` directly lets us slice the known prefix off before decoding, so priming biases
+ * without leaking — and that bypass is also why the pipeline's own `chunk_length_s` is unavailable,
+ * so {@link transcribe} segments the audio itself.
  */
-async function transcribe(config: PrimeConfig, request: TranscribeWorkerRequest): Promise<string> {
-  const pipeline = await getPipeline(config);
-  const { input_features } = await pipeline.processor(request.samples);
-
-  const prefix = request.prompt ? buildDecoderPrefix(pipeline, request.prompt) : [];
+async function transcribeChunk(
+  pipeline: AsrPipeline,
+  samples: Float32Array,
+  prefix: readonly number[],
+): Promise<string> {
+  const { input_features } = await pipeline.processor(samples);
   const output = await pipeline.model.generate({
     inputs: input_features,
-    ...(prefix.length > 0 ? { decoder_input_ids: prefix } : {}),
+    ...(prefix.length > 0 ? { decoder_input_ids: [...prefix] } : {}),
   });
 
   // Slice our injected prefix off; the model's own init tokens (sot/notimestamps, when we did not
   // inject a prefix) are special and fall out under `skip_special_tokens`.
   const generated = toTokenIds(output).slice(prefix.length);
   return pipeline.tokenizer.decode(generated, { skip_special_tokens: true }).trim();
+}
+
+/**
+ * Serializes every inference pass through this worker.
+ *
+ * The message handler does not await one request before starting the next, and the main thread
+ * explicitly supports several outstanding correlated requests — so without this, two concurrent
+ * `transcribe()` calls interleave `generate()` against the one shared ORT session. Long audio makes
+ * that window much wider, because a single request now issues many passes rather than one.
+ */
+let inferenceQueue: Promise<unknown> = Promise.resolve();
+export function serialize<T>(work: () => Promise<T>): Promise<T> {
+  const next = inferenceQueue.then(work, work);
+  // Swallow rejections on the CHAIN only — the caller still sees them through `next`. Without this a
+  // single failed request would reject the shared chain and poison every request behind it.
+  inferenceQueue = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
+}
+
+/**
+ * Transcribe the decoded samples, segmenting anything past Whisper's 30 s receptive field.
+ *
+ * ## Two decisions worth stating, because both could reasonably have gone the other way
+ *
+ * **Every chunk gets the same jargon prefix.** Priming is vocabulary bias, and the vocabulary does
+ * not stop applying at 00:30. Building it once also keeps the per-chunk cost to the inference itself.
+ *
+ * **No chunk is conditioned on the previous chunk's text** — Whisper's `condition_on_previous_text`
+ * is deliberately NOT emulated. It buys coherence across a boundary, but it makes one bad chunk
+ * poison every chunk after it, and OpenAI's reference only dares it because it can detect a failed
+ * decode (temperature fallback, compression-ratio and log-prob thresholds) and drop the context.
+ * Without that machinery the failure is unbounded and silent — precisely the class of bug this change
+ * exists to remove. It would also compete with the jargon for the same {@link MAX_PROMPT_TOKENS}.
+ *
+ * Chunks are **non-overlapping**, so their texts are simply joined. There is no alignment step, and
+ * therefore no alignment step to get wrong — the reason this design was preferred over an overlapped
+ * sliding window, whose merge can silently delete speech.
+ *
+ * Chunks run **sequentially**: they share one ORT session, so overlapping `generate` calls would
+ * contend for it rather than finish sooner.
+ */
+async function transcribe(config: PrimeConfig, request: TranscribeWorkerRequest): Promise<string> {
+  return serialize(async () => {
+    const pipeline = await getPipeline(config);
+    const { samples } = request;
+    const chunks = await planChunks(config, samples);
+    if (chunks.length === 0) return "";
+
+    const prefix = request.prompt ? buildDecoderPrefix(pipeline, request.prompt) : [];
+
+    const texts: string[] = [];
+    for (const { start, end } of chunks) {
+      // `subarray`, not `slice`: a VIEW over the samples already in memory, so a 10-minute recording
+      // (~38 MB) is not re-copied per chunk. Verified safe against the feature extractor, which
+      // reads `audio.slice(0, n_samples)` / `waveform.set(audio)` — both view-relative, neither
+      // reaching past the view into the backing buffer.
+      const view =
+        chunks.length === 1 && start === 0 && end === samples.length
+          ? samples
+          : samples.subarray(start, end);
+      const text = await transcribeChunk(pipeline, view, prefix);
+      if (text.length > 0) texts.push(text);
+    }
+
+    return texts.join(" ").trim();
+  });
 }
 
 /**
