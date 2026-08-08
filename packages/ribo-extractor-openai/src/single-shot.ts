@@ -23,6 +23,7 @@
 
 import { z } from "zod";
 
+import { TerminalQueueError } from "@azx/ribo-core";
 import type { Enveloped, Extractor, ExtractionResult, ExtractionTarget } from "@azx/ribo-core";
 
 import type { ChatClient, ChatMessage } from "./chat-client.js";
@@ -122,12 +123,20 @@ export function singleShotExtractor<V extends Record<string, unknown>>({
       // a truncated or filtered response is not misreported as "invalid JSON" —
       // the diagnostic failure this cap exists to prevent. "length" names
       // maxTokens (the knob that fixes it); "content_filter" names the cause.
+      //
+      // TerminalQueueError, NOT a plain Error: `isTransientFailure` treats any
+      // error without a numeric `status` as retryable, and both of these are
+      // deterministic. Re-sending an identical request with an identical
+      // `maxTokens` truncates at the identical point, and a content filter fires
+      // again on the same content — so a plain Error would burn every attempt and
+      // land the item in `dead`, hiding a configuration problem behind a retry
+      // storm. The fix is to change `maxTokens` or the input, never to try again.
       if (completion.finishReason && completion.finishReason !== "stop") {
         const hint =
           completion.finishReason === "length"
-            ? " — the response was truncated; increase maxTokens and retry"
+            ? " — the response was truncated; increase maxTokens and re-run"
             : " — the response was content-filtered; the model declined to complete it";
-        throw new Error(
+        throw new TerminalQueueError(
           `singleShotExtractor: model response for "${target.name}" ended with finishReason "${completion.finishReason}"${hint}.`,
         );
       }

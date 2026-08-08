@@ -303,6 +303,29 @@ describe("singleShotExtractor — pre-parse check (non-stop finishReason)", () =
     expect((error as Error).message).not.toContain("did not match the schema");
   });
 
+  test("BOTH non-stop outcomes are TERMINAL, not transient — the queue must not retry them", async () => {
+    // The counterpart to the "failure is transient" block above, and the reason
+    // these throw TerminalQueueError rather than a plain Error: isTransientFailure
+    // treats any error without a numeric `status` as retryable, so a plain Error
+    // would make the outbox re-send an identical request. Truncation at a fixed
+    // maxTokens is deterministic and a content filter fires again on the same
+    // content, so every retry fails identically and the item reaches `dead` with
+    // a configuration problem hidden behind a retry storm.
+    for (const reason of ["length", "content_filter"] as const) {
+      const { chat } = fakeChat(JSON.stringify(wellFormed), reason);
+      const extractor = singleShotExtractor({ target: demoTarget, chat, model: "m" });
+
+      const error = await extractor.extract("t").then(
+        () => {
+          throw new Error(`expected extract() to reject on finishReason "${reason}"`);
+        },
+        (caught: unknown) => caught,
+      );
+
+      expect(isTransientFailure(error)).toBe(false);
+    }
+  });
+
   test("a response with finishReason 'stop' and valid content parses normally", async () => {
     const { chat } = fakeChat(JSON.stringify(wellFormed), "stop");
     const result = await singleShotExtractor({

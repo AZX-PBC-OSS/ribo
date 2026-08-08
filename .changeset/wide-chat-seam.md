@@ -19,7 +19,11 @@ the package-private `OpenAiHttpError`.
 `singleShotExtractor` rejects any non-`"stop"` `finishReason` before the zod parse,
 so a truncated (`"length"`) or content-filtered response is not misreported as
 "invalid JSON" — the truncation message names `maxTokens`, the knob that fixes it.
-`SingleShotOptions` gains `maxTokens`, passed through to the request.
+Both are thrown as `TerminalQueueError`, so the outbox does **not** retry them:
+re-sending an identical request truncates at the identical point and a content
+filter fires again on the same content, so retrying would only burn attempts and
+bury a configuration problem in a retry storm. `SingleShotOptions` gains
+`maxTokens`, passed through to the request.
 
 `cliChat` honours the `AbortSignal` (killing the running child), throws
 `ChatError.unsupported` for `maxTokens` (a CLI cannot cap generated tokens), and
