@@ -15,12 +15,19 @@ export type { SingleShotOptions } from "./single-shot.js";
 export { openAiChat } from "./openai-chat.js";
 export type { OpenAiChatOptions } from "./openai-chat.js";
 
-// The chat transport seam: the interface an extractor calls, and its request/response types.
+// The chat transport seam: the interface an extractor calls, its request/response
+// types, its call options, and the typed error its implementations throw.
+// `ChatError` is a VALUE export (a class); the rest are types.
+export { ChatError } from "./chat-client.js";
 export type {
+  ChatCallOptions,
   ChatClient,
   ChatCompletion,
+  ChatErrorKind,
+  ChatFinishReason,
   ChatMessage,
   ChatRequest,
   ChatResponseFormat,
   ChatRole,
+  ChatUsage,
 } from "./chat-client.js";

@@ -3,7 +3,7 @@ import type { Enveloped, ExtractionTarget, ToolAdapterExample } from "@azx/ribo-
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import type { ChatClient, ChatRequest } from "./chat-client.js";
+import type { ChatClient, ChatFinishReason, ChatRequest } from "./chat-client.js";
 import { singleShotExtractor } from "./single-shot.js";
 
 /**
@@ -85,12 +85,15 @@ function normalizeDemo(fields: DemoExtraction): DemoExtraction {
 }
 
 /** A ChatClient that records every request and replays a fixed response body. */
-function fakeChat(content: string): { chat: ChatClient; requests: ChatRequest[] } {
+function fakeChat(
+  content: string,
+  finishReason?: ChatFinishReason,
+): { chat: ChatClient; requests: ChatRequest[] } {
   const requests: ChatRequest[] = [];
   const chat: ChatClient = {
     complete: (request) => {
       requests.push(request);
-      return Promise.resolve({ content });
+      return Promise.resolve({ content, finishReason });
     },
   };
   return { chat, requests };
@@ -257,5 +260,74 @@ describe("singleShotExtractor — failure is transient (queue retries)", () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toContain("did not match the schema");
     expect(isTransientFailure(error)).toBe(true);
+  });
+});
+
+describe("singleShotExtractor — pre-parse check (non-stop finishReason)", () => {
+  test("a truncated response (finishReason 'length') is rejected before parsing, naming maxTokens", async () => {
+    // Content that would ALSO fail the zod parse — if the extractor reached the
+    // parse, the error would say "did not match the schema", not "maxTokens". So a
+    // truncation error here proves the pre-parse check fired first, which is the
+    // single most important assertion in the work: plumbing the field through
+    // without this check adds a foot-gun and no safety.
+    const { chat } = fakeChat(JSON.stringify({ equipment: "not an envelope" }), "length");
+    const extractor = singleShotExtractor({ target: demoTarget, chat, model: "m" });
+
+    let error: unknown;
+    try {
+      await extractor.extract("t");
+      throw new Error("expected extract() to reject on a truncated response");
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect((error as Error).message).toContain("maxTokens");
+    expect((error as Error).message).not.toContain("did not match the schema");
+  });
+
+  test("a content-filtered response (finishReason 'content_filter') is rejected before parsing", async () => {
+    // Same proof strategy as the truncation test: content that would also fail the
+    // parse, so an error that is NOT the parse error proves the pre-parse check fired.
+    const { chat } = fakeChat(JSON.stringify({ equipment: "not an envelope" }), "content_filter");
+    const extractor = singleShotExtractor({ target: demoTarget, chat, model: "m" });
+
+    let error: unknown;
+    try {
+      await extractor.extract("t");
+      throw new Error("expected extract() to reject on a content-filtered response");
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect((error as Error).message).toContain("content_filter");
+    expect((error as Error).message).not.toContain("did not match the schema");
+  });
+
+  test("a response with finishReason 'stop' and valid content parses normally", async () => {
+    const { chat } = fakeChat(JSON.stringify(wellFormed), "stop");
+    const result = await singleShotExtractor({
+      target: demoTarget,
+      chat,
+      model: "m",
+      normalize: normalizeDemo,
+    }).extract("t");
+
+    expect(result.fields.equipment.value).toBe("boiler");
+    expect(result.fields.equipment.confidence).toBe(0.9);
+    expect(result.usage).toEqual({ calls: 1 });
+  });
+
+  test("an absent finishReason (a fake/CLI that cannot report one) still parses normally", async () => {
+    // finishReason is optional on the type; an implementation that cannot report
+    // one (cliChat, a test fake) omits it, and the pre-parse check must not fire.
+    const { chat } = fakeChat(JSON.stringify(wellFormed));
+    const result = await singleShotExtractor({
+      target: demoTarget,
+      chat,
+      model: "m",
+      normalize: normalizeDemo,
+    }).extract("t");
+
+    expect(result.fields.equipment.value).toBe("boiler");
   });
 });

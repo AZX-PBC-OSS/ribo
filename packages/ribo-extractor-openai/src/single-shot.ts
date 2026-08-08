@@ -36,6 +36,15 @@ export interface SingleShotOptions<V extends Record<string, unknown>> {
   /** The model id passed through to the endpoint (e.g. the Helix-routed model). */
   readonly model: string;
   /**
+   * Cap on generated tokens, passed through to `ChatRequest.maxTokens` and
+   * validated there. Sits next to `model`, the existing precedent for transport
+   * configuration living on the extractor — NOT on the adapter, which is field
+   * knowledge. A token budget is inference configuration owned by whoever runs
+   * the model; putting it on the adapter would force a second host with different
+   * limits to fork the adapter to change a number.
+   */
+  readonly maxTokens?: number;
+  /**
    * The deterministic, model-free pass run AFTER the schema parse — the second
    * half of the trust boundary. It consumes and returns `Enveloped<V>` because it
    * runs on the model's output, before review: for the Snugg Pro adapter this is
@@ -71,7 +80,12 @@ function buildMessages<V extends Record<string, unknown>>(
  *   1. Convert the target's `extractionSchema` to a strict JSON Schema
  *      (`z.toJSONSchema`, draft-2020-12) and send one chat call with
  *      `response_format: json_schema`.
- *   2. **Trust boundary.** Parse the response with `target.extractionSchema`, then
+ *   2. **Pre-parse check.** If the completion carries a `finishReason` that is not
+ *      `"stop"`, reject immediately — a truncated (`"length"`) or content-filtered
+ *      (`"content_filter"`) response is not a complete result, and letting it
+ *      reach the zod parse would misreport it as "invalid JSON" rather than the
+ *      real cause. The `"length"` message names `maxTokens`, the knob that fixes it.
+ *   3. **Trust boundary.** Parse the response with `target.extractionSchema`, then
  *      run `normalize`. A response that is not JSON, or does not satisfy the
  *      schema, throws a plain `Error` — which `ribo-core`'s `isTransientFailure`
  *      classifies as **transient/retryable** (its default for an unrecognised
@@ -83,6 +97,7 @@ export function singleShotExtractor<V extends Record<string, unknown>>({
   target,
   chat,
   model,
+  maxTokens,
   normalize = (fields) => fields,
 }: SingleShotOptions<V>): Extractor<Enveloped<V>> {
   const jsonSchema = z.toJSONSchema(target.extractionSchema, { target: "draft-2020-12" }) as Record<
@@ -92,18 +107,34 @@ export function singleShotExtractor<V extends Record<string, unknown>>({
 
   return {
     async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
-      const { content } = await chat.complete({
+      const completion = await chat.complete({
         model,
         messages: buildMessages(target, transcript),
         response_format: {
           type: "json_schema",
           json_schema: { name: target.name, schema: jsonSchema, strict: true },
         },
+        maxTokens,
       });
+
+      // The other half of the token cap: a non-"stop" finish reason means the
+      // model's output is not a complete result. Reject BEFORE the zod parse, so
+      // a truncated or filtered response is not misreported as "invalid JSON" —
+      // the diagnostic failure this cap exists to prevent. "length" names
+      // maxTokens (the knob that fixes it); "content_filter" names the cause.
+      if (completion.finishReason && completion.finishReason !== "stop") {
+        const hint =
+          completion.finishReason === "length"
+            ? " — the response was truncated; increase maxTokens and retry"
+            : " — the response was content-filtered; the model declined to complete it";
+        throw new Error(
+          `singleShotExtractor: model response for "${target.name}" ended with finishReason "${completion.finishReason}"${hint}.`,
+        );
+      }
 
       let raw: unknown;
       try {
-        raw = JSON.parse(content);
+        raw = JSON.parse(completion.content);
       } catch (cause) {
         // Transient by default: a truncated/garbled body is worth a retry, and a
         // plain Error (no HTTP status) is exactly what isTransientFailure retries.
