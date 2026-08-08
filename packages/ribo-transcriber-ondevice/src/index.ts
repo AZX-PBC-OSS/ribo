@@ -20,6 +20,7 @@ import {
   DEFAULT_MODEL_ID,
   defaultCreateWorker,
   estimateDownloadBytes,
+  VAD_MODEL_ID,
   type OnDeviceTranscriberOptions,
   type TranscribeHints,
 } from "./config.js";
@@ -38,6 +39,8 @@ export {
   buildHintPrompt,
   DEFAULT_MODEL_ID,
   MODEL_DOWNLOAD_BYTES,
+  VAD_MODEL_ID,
+  VAD_DOWNLOAD_BYTES,
   estimateDownloadBytes,
 } from "./config.js";
 export type { OnDeviceTranscriberOptions, TranscribeHints } from "./config.js";
@@ -126,6 +129,11 @@ export class OnDeviceTranscriber implements Transcriber {
         detail: "Cache API unavailable — the model cannot be cached for offline use here.",
       };
     }
+    // `ready` is judged on the ASR weights ALONE. The voice-activity model is a quality upgrade for
+    // recordings past 30 s, and its absence is covered by the fixed-window fallback — so reporting
+    // `needs-download` without it would be actively harmful: `firstCapable` selects only `ready`
+    // transcribers and skips `needs-download`, so a user who primed before VAD shipped would
+    // silently switch to a managed transcriber, or get nothing at all offline.
     if (await isModelCached(this.#modelId, cacheStorage)) {
       return { status: "ready" };
     }
@@ -192,6 +200,7 @@ export class OnDeviceTranscriber implements Transcriber {
   #pipelineConfig(): PrimeConfig {
     return {
       modelId: this.#modelId,
+      vadModelId: VAD_MODEL_ID,
       wasmPaths: this.#wasmPaths,
       ...(this.#device ? { device: this.#device } : {}),
       ...(this.#dtype ? { dtype: this.#dtype } : {}),
