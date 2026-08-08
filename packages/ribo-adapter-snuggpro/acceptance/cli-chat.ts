@@ -24,9 +24,10 @@
  * entry and its published `files: ["dist"]`, so this file is never typechecked, built, or shipped
  * as part of that package either), and already the sole consumer of this transport
  * ({@link file://./gate.manual.ts}). It imports `ChatClient`/`ChatCompletion`/`ChatMessage`/
- * `ChatRequest` from `@azx/ribo-extractor-openai`'s PUBLISHED surface — a type-only import,
- * erased at build, so it adds no runtime coupling back to that package beyond the dependency
- * `ribo-adapter-snuggpro` already has on it.
+ * `ChatRequest`/`ChatCallOptions` from `@azx/ribo-extractor-openai`'s PUBLISHED surface as
+ * type-only imports (erased at build), and `ChatError` as a value — the typed error the transport
+ * now throws. See the import comment below for the coupling that value import adds and why it is
+ * confined to this harness.
  *
  * ## What makes this different from `openAiChat`
  *
@@ -66,9 +67,14 @@ import { join } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import type { ValidateFunction } from "ajv";
 
-// Type-only: erased at build, so this adds no runtime coupling beyond the dependency
-// `ribo-adapter-snuggpro` already has on `@azx/ribo-extractor-openai` (see the file header).
+// `ChatError` is a VALUE import (the typed error this transport now throws); the
+// rest are type-only, erased at build. The value import adds runtime coupling, but
+// `ribo-adapter-snuggpro` already depends on `@azx/ribo-extractor-openai`, and this
+// file is never shipped (see the file header), so that coupling is confined to the
+// acceptance harness.
+import { ChatError } from "@azx/ribo-extractor-openai";
 import type {
+  ChatCallOptions,
   ChatClient,
   ChatCompletion,
   ChatMessage,
@@ -243,6 +249,10 @@ export function extractLastJsonObject(text: string): string | null {
  * repo), stdin closed (never inherited), and the prompt passed as a single argv argument — no
  * shell, so nothing in it is interpreted. Deliberately duplicated shell-out mechanics from
  * `playground/vite-extract.ts`'s `runCliIn` — see the file header for why.
+ *
+ * If `signal` is given, an in-flight abort kills the child (`SIGKILL`) and rejects with
+ * `ChatError.aborted`. The abort listener and the timeout timer are removed in every exit path
+ * (close, error, timeout, abort) so neither leaks.
  */
 async function runCliOnce(
   descriptor: CliDescriptor,
@@ -250,6 +260,7 @@ async function runCliOnce(
   prompt: string,
   timeoutMs: number,
   backendLabel: string,
+  signal?: AbortSignal,
 ): Promise<string> {
   const cwd = mkdtempSync(join(tmpdir(), "ribo-cli-chat-"));
   try {
@@ -260,14 +271,44 @@ async function runCliOnce(
       });
       let out = "";
       let err = "";
+
+      // Centralised teardown: clear the timer AND remove the abort listener, so every
+      // exit path (close, error, timeout, abort) cleans up both without repeating itself.
+      // Defined before `timer` and `onAbort` — the references are inside a function body
+      // and only resolved when `cleanup` is called, by which point both are assigned.
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
+      };
+
+      const onAbort = () => {
+        child.kill("SIGKILL");
+        cleanup();
+        reject(ChatError.aborted(`cliChat(${backendLabel}): aborted by the caller`));
+      };
+
       const timer = setTimeout(() => {
         child.kill("SIGKILL");
+        cleanup();
         reject(new Error(`cliChat(${backendLabel}): did not respond within ${timeoutMs / 1000}s`));
       }, timeoutMs);
+
+      if (signal) {
+        if (signal.aborted) {
+          // Already aborted before spawn — kill the child (which may not have started) and
+          // reject without waiting. `cleanup` runs before `reject` so the timer is cleared.
+          child.kill("SIGKILL");
+          cleanup();
+          reject(ChatError.aborted(`cliChat(${backendLabel}): aborted before start`));
+          return;
+        }
+        signal.addEventListener("abort", onAbort);
+      }
+
       child.stdout.on("data", (chunk: Buffer) => (out += chunk.toString("utf8")));
       child.stderr.on("data", (chunk: Buffer) => (err += chunk.toString("utf8")));
       child.on("error", (cause: Error) => {
-        clearTimeout(timer);
+        cleanup();
         reject(
           new CliUnavailableError(
             `could not run ${backendLabel} (${messageOf(cause)}). Is the ${backendLabel} CLI installed and on PATH?`,
@@ -275,7 +316,7 @@ async function runCliOnce(
         );
       });
       child.on("close", (code: number | null) => {
-        clearTimeout(timer);
+        cleanup();
         if (code === 0) resolvePromise(out);
         else
           reject(
@@ -307,7 +348,18 @@ export function cliChat(options: CliChatOptions): ChatClient {
   const backend = options.backend;
 
   return {
-    async complete(request: ChatRequest): Promise<ChatCompletion> {
+    async complete(request: ChatRequest, callOptions?: ChatCallOptions): Promise<ChatCompletion> {
+      // A CLI cannot cap generated tokens — it has no wire-level keyword for it.
+      // Refusing is loud and correct: the acceptance gate swaps this client and
+      // `openAiChat` behind one `ChatClient`, so silently ignoring a configured cap
+      // would make request semantics implementation-dependent in a way nothing
+      // surfaces. `unsupported` *before* any work, so nothing is spawned.
+      if (request.maxTokens !== undefined) {
+        throw ChatError.unsupported(
+          `cliChat(${backend}): maxTokens is not supported — a CLI cannot cap generated tokens`,
+        );
+      }
+
       const ajv = new Ajv2020({ strict: false, allErrors: true });
       let validate: ValidateFunction;
       try {
@@ -329,14 +381,24 @@ export function cliChat(options: CliChatOptions): ChatClient {
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          lastReply = await runCliOnce(descriptor, spawnImpl, prompt, timeoutMs, backend);
+          lastReply = await runCliOnce(
+            descriptor,
+            spawnImpl,
+            prompt,
+            timeoutMs,
+            backend,
+            callOptions?.signal,
+          );
         } catch (cause) {
           // A missing/unrunnable binary will not appear on the next attempt either — retrying
           // would just burn the budget on a problem retries cannot fix, so this rethrows
-          // immediately instead of looping. A non-zero exit (a crash, a transient hiccup) is
-          // different: it MAY succeed next time, so it falls through to the same
+          // immediately instead of looping. An abort is the same: it is the caller cancelling,
+          // not a transient failure a retry would fix, so it rethrows rather than becoming
+          // another attempt. A non-zero exit (a crash, a transient hiccup) is different: it
+          // MAY succeed next time, so it falls through to the same
           // record-the-problem-and-retry path a non-conforming reply takes.
           if (cause instanceof CliUnavailableError) throw cause;
+          if (cause instanceof ChatError && cause.kind === "aborted") throw cause;
           lastReply = "";
           lastError = messageOf(cause);
           if (attempt < maxAttempts) prompt = buildRetryPrompt(basePrompt, lastReply, lastError);
@@ -358,6 +420,9 @@ export function cliChat(options: CliChatOptions): ChatClient {
           if (!parseFailed) {
             if (validate(parsed)) {
               options.onShapeResult?.({ backend, attempts: attempt, conforming: true });
+              // No finishReason: a CLI cannot truncate, so its inability to report one
+              // is sound (see the ChatCompletion guarantee). Omitting the field entirely,
+              // rather than setting it to undefined, keeps the exact-equality tests honest.
               return { content: json };
             }
             lastError = ajv.errorsText(validate.errors, { separator: "; " });

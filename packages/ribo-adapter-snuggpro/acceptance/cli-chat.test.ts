@@ -14,6 +14,7 @@ import type { spawn } from "node:child_process";
 
 import { describe, expect, test, vi } from "vitest";
 
+import { ChatError } from "@azx/ribo-extractor-openai";
 import type { ChatRequest } from "@azx/ribo-extractor-openai";
 
 import { cliChat, extractLastJsonObject } from "./cli-chat.js";
@@ -216,6 +217,90 @@ describe("cliChat — shape conformance is a first-class, separately-reported re
     expect(completion).toEqual({ content: '{"ok":true}' });
     expect(calls).toHaveLength(2);
     expect(shapeResults).toEqual([{ backend: "claude", attempts: 2, conforming: true }]);
+  });
+});
+
+describe("cliChat — maxTokens is not supported", () => {
+  test("throws ChatError.unsupported when the request carries maxTokens, without spawning", async () => {
+    const { spawnImpl, calls } = fakeSpawn(() => ({ stdout: '{"ok":true}' }));
+    const shapeResults: CliShapeResult[] = [];
+    const chat = cliChat({
+      backend: "codex",
+      spawnImpl,
+      onShapeResult: (r) => shapeResults.push(r),
+    });
+
+    const requestWithCap: ChatRequest = { ...sampleRequest, maxTokens: 500 };
+
+    let error: unknown;
+    try {
+      await chat.complete(requestWithCap);
+      throw new Error("expected complete() to reject on maxTokens");
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(ChatError);
+    expect((error as ChatError).kind).toBe("unsupported");
+    // Nothing was spawned and no shape verdict was reported.
+    expect(calls).toHaveLength(0);
+    expect(shapeResults).toEqual([]);
+  });
+});
+
+describe("cliChat — in-flight cancellation", () => {
+  test("aborts a running child: kill called, ChatError aborted, no retry, no shape verdict, listener removed", async () => {
+    const controller = new AbortController();
+    const removeSpy = vi.spyOn(controller.signal, "removeEventListener");
+
+    const calls: RecordedCall[] = [];
+    let childKill: ReturnType<typeof vi.fn> | undefined;
+    // A fake spawn whose child STAYS OPEN — it never auto-emits "close". The abort
+    // must kill a RUNNING child, which a pre-spawn check alone would never do.
+    const spawnImpl = ((cmd: string, args: readonly string[]) => {
+      calls.push({ cmd, args });
+      const child = new EventEmitter();
+      const stdout = new EventEmitter();
+      const stderr = new EventEmitter();
+      const kill = vi.fn();
+      Object.assign(child, { stdout, stderr, kill });
+      childKill = kill;
+      return child;
+    }) as unknown as typeof spawn;
+
+    const shapeResults: CliShapeResult[] = [];
+    const chat = cliChat({
+      backend: "codex",
+      spawnImpl,
+      maxAttempts: 3,
+      onShapeResult: (r) => shapeResults.push(r),
+    });
+
+    const promise = chat.complete(sampleRequest, { signal: controller.signal });
+    // The child is spawned synchronously during complete(); abort now, while it is
+    // running — not before spawn, which would pass an implementation that only
+    // checks `signal.aborted` up front and never kills a live child.
+    controller.abort();
+
+    let error: unknown;
+    try {
+      await promise;
+      throw new Error("expected complete() to reject on abort");
+    } catch (caught) {
+      error = caught;
+    }
+
+    // kill was called on the running child.
+    expect(childKill).toHaveBeenCalled();
+    // The promise rejects with a ChatError of kind "aborted".
+    expect(error).toBeInstanceOf(ChatError);
+    expect((error as ChatError).kind).toBe("aborted");
+    // No retry was attempted — an aborted run rethrows immediately rather than
+    // becoming another attempt the loop would retry.
+    expect(calls).toHaveLength(1);
+    // No shape-result callback fired — abort is not a shape verdict.
+    expect(shapeResults).toEqual([]);
+    // The abort listener was removed (cleanup ran), so the signal does not leak.
+    expect(removeSpy).toHaveBeenCalledWith("abort", expect.any(Function));
   });
 });
 
