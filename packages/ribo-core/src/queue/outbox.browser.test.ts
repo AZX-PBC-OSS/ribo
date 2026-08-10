@@ -12,6 +12,7 @@ import { openOutbox, type Outbox } from "./outbox.js";
 import { removeOutboxDatabase } from "./database.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
+  AUDIO_ATTACHMENT_ID,
   FINISHED_OUTBOX_STATUSES,
   OUTBOX_COLLECTION_NAME,
   OUTBOX_STATUSES,
@@ -344,6 +345,11 @@ test("an outbox stored at schema version 0 opens and migrates to version 2", asy
   expect(items).toHaveLength(1);
   expect(items[0]?.reviewOutcome).toBeUndefined();
   expect(items[0]?.status).toBe("queued");
+  // The pointer must name the LEGACY attachment, not merely be non-empty: zod
+  // accepts any string, so a migration writing "wrong-id" would satisfy the
+  // invariant while pointing at nothing. Asserting the exact id is what makes
+  // this test prove what the migration claims.
+  expect(items[0]?.canonicalAttachmentId).toBe(AUDIO_ATTACHMENT_ID);
 });
 
 // ---------------------------------------------------------------------------

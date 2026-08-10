@@ -241,7 +241,16 @@ test("recording is a status, and it is in exactly one category", () => {
 test("a recording document must carry capture, and must not claim committed audio", () => {
   const base = validDocument();
   expect(() =>
-    outboxDocumentSchema.parse({ ...base, status: "recording", capture: undefined }),
+    // `canonicalAttachmentId: undefined` too, or this passes against an
+    // implementation that never checks for `capture` at all — the OTHER invariant
+    // (a recording row must not claim committed audio) would fire on the
+    // fixture's inherited pointer and the assertion could not tell the two apart.
+    outboxDocumentSchema.parse({
+      ...base,
+      status: "recording",
+      capture: undefined,
+      canonicalAttachmentId: undefined,
+    }),
   ).toThrow();
   expect(() =>
     outboxDocumentSchema.parse({

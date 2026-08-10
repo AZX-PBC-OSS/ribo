@@ -289,9 +289,29 @@ export type OutboxItem = z.infer<typeof outboxItemSchema>;
  * `id`, `seq`, `enqueuedAt`, `recording` and `idempotencyKey` are deliberately
  * absent: they are decided once and re-deciding any of them would break
  * ordering, provenance or idempotency.
+ *
+ * **`capture`, `canonicalAttachmentId` and `step` are absent for a stronger
+ * reason: they are AUTHORITY, and a patchable authority is no authority at all.**
+ * Each is changed by exactly one narrow guarded operation — takeover rotates
+ * `capture.owner`, the commit transition publishes `canonicalAttachmentId`, a
+ * relay claim rotates `step.generation` — and each of those comparisons is what
+ * makes a stale writer's work land inert instead of corrupting. Leaving them in
+ * this type would let any caller replace `capture.sourceId` and make a
+ * recording's chunks undiscoverable, or publish a pointer at unverified bytes,
+ * through the ordinary public API and without holding anything.
  */
 export type OutboxPatch = Partial<
-  Omit<OutboxDocument, "id" | "seq" | "enqueuedAt" | "recording" | "idempotencyKey">
+  Omit<
+    OutboxDocument,
+    | "id"
+    | "seq"
+    | "enqueuedAt"
+    | "recording"
+    | "idempotencyKey"
+    | "capture"
+    | "canonicalAttachmentId"
+    | "step"
+  >
 >;
 
 /**
