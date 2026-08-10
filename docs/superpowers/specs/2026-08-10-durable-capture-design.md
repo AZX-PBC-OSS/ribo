@@ -1,6 +1,6 @@
 # Durable capture — audio survives a crash mid-recording
 
-**Status:** Design, revision 7. Piece 1 of 2. Not yet planned or implemented.
+**Status:** Design, revision 8. Piece 1 of 2. Not yet planned or implemented.
 **Date:** 2026-08-10
 
 > **Why this document exists.** Split out of `2026-08-08-live-transcription-design.md` after two review
@@ -300,7 +300,20 @@ which nothing points at. It cannot overwrite the published attachment, and it ca
 authoritative.
 
 This also replaces `audioCommitted`: the pointer's presence **is** the commitment, so one field does
-both jobs. `audioReady` projects from `canonicalAttachmentId != null`.
+both jobs.
+
+**But `audioReady` is not simply "the pointer is set."** `dropAudio()` removes the attachment and does
+not clear the pointer, and §6.2 requires a dropped recording to project `audioReady: false` — so pointer
+presence alone would report deleted or evicted audio as playable. The three facts are distinct:
+
+|                         | Meaning                                                               |
+| ----------------------- | --------------------------------------------------------------------- |
+| `canonicalAttachmentId` | **which** attachment is authoritative — historical, survives deletion |
+| `audioReady`            | the attachment that pointer names **physically exists**               |
+| `audioBytes`            | that attachment's live stub size                                      |
+
+The pointer records authority; `audioReady` records presence. Keeping the pointer after a deliberate
+drop is correct — it is still the answer to "which one _was_ the real audio".
 
 **Revision 6 rejected this on the grounds that renaming canonical would fork the attachment every
 consumer reads. That was wrong** — `Outbox.getAudio()` already abstracts the lookup, so resolving a
@@ -434,7 +447,11 @@ capture finished", `durationMs` is the final duration, the recorder mints neithe
 - **`capturedAt` becomes capture START.** Natural for an item that exists during capture. No in-repo
   runtime reader depends on the old meaning — ordering uses `seq`, display uses `enqueuedAt` — but its
   documented meaning and tests change, since `recording.ts` currently declares capture-finish.
-- **`durationMs` is `0` while recording**, written at commit.
+- **`durationMs` is `0` while recording**, and at commit is **always derived from the decoded audio** —
+  on the normal path as well as on recovery. An earlier revision specified decoded duration only for
+  recovery, which would have given the same recording different metadata semantics depending on how it
+  ended. Decoded duration is what is actually on disk, and because a paused `MediaRecorder` emits no
+  data, it closely tracks the elapsed-active time the recorder measures today.
 - **A narrow `finalizeRecording(id, { durationMs })`**, legal only on the guarded `recording → queued`
   transition, rather than widening `OutboxPatch`.
 
@@ -445,11 +462,18 @@ its result and its dependencies, both of which are published contract.
 
 1. **Acquire `ribo-capture` with `ifAvailable`** — refuse early if another tab holds it, before touching
    the microphone.
-2. Request microphone permission.
-3. Negotiate the MIME type from the live `MediaRecorder` (it must exist first; the type is what the real
-   recorder reports, never a guess).
-4. Insert the outbox row in `recording` with that type and `capturedAt`.
-5. Start `MediaRecorder` with the timeslice.
+2. **Select a supported requested MIME type** from the preference list. This must happen **before** the
+   microphone, not after: the current recorder deliberately refuses an unsupported configuration without
+   ever prompting, and an earlier revision's ordering regressed that.
+3. Request microphone permission.
+4. Construct `MediaRecorder` with the requested type.
+5. **Read the type the live recorder actually reports** — negotiated, never assumed, since it may differ
+   from what was requested.
+6. Insert the outbox row in `recording` with the reported type, `capturedAt` and `capture`.
+7. `start(timeslice)`.
+
+An earlier revision collapsed 2 and 5 into "negotiate from the live `MediaRecorder`", which is circular:
+constructing one requires already having chosen a requested type.
 
 **Failure at any step unwinds the earlier ones** through the existing teardown, so the instance returns to
 `idle` and stays reusable: permission denial releases the lock, and a failure after row creation deletes
@@ -503,12 +527,34 @@ start()  ─► request(lock, async () => {         // pending for the whole ses
 for `stop()` to stamp onto the `Recording`, rather than the recorder minting its own and the session
 adopting it. `enqueue()`'s factory stays for the non-durable path.
 
+**Outbox-free recording still takes the lock.** §3 requires one capture lock per recording, and that is
+about the microphone and the recorder, not about storage — two tabs recording at once is wrong whether
+or not either persists. So `enqueue: false` still acquires `ribo-capture`; it simply has no outbox, no
+chunks, no `capture` row, and no durability. The session object exists to own the lock either way.
+
 **The context needs a coordinator, not a field.** A session created inside a descendant `useRecorder()`
 cannot publish itself to a sibling `useWorkSafety()` by mutating the provider's value —
 `RiboProvider` passes a host-owned object straight through. So the host (or provider) constructs a
 **stable, observable capture coordinator** that both hooks read: `useRecorder` registers the active
 session on it, `useWorkSafety` subscribes to its health. Explicit `recorder`/`outbox` hook overrides
 publish through the same coordinator, or they silently lose health reporting.
+
+**The coordinator is a named, published thing, not an implementation detail.** `RiboProvider`
+deliberately constructs nothing today — it passes host instances straight through — so the design must
+say which side builds this one:
+
+- A `CaptureCoordinator` is added to `RiboInstances` alongside recorder, outbox and connectivity, with a
+  factory exported from `ribo-core`. **The host constructs it**, consistent with how every other
+  instance is supplied; the provider does not quietly create one, which would make its behaviour depend
+  on whether a field was passed.
+- It is **optional in `RiboInstances`**. Absent, there is no durable capture and no capture health —
+  `useWorkSafety` behaves exactly as today. That keeps this additive for hosts that do not want it.
+- It exposes: register/unregister an active session, an observable `health`, and the active session's
+  item id. `useRecorder` registers; `useWorkSafety` subscribes.
+- **Explicit `recorder`/`outbox` hook overrides read the coordinator from context regardless**, so a
+  host that overrides one instance does not silently lose health reporting.
+- `Recorder` receives the capture session as a **constructor collaborator**, not per-call, so its state
+  machine owns one relationship for its lifetime.
 
 **`useRecorder.start()` returns `string | undefined`** — the id when durable capture is active,
 `undefined` when `enqueue: false`. It currently swallows start failures deliberately, and that stays:
@@ -582,18 +628,30 @@ it cannot and does not need to.
   connectivity.
 - `WorkSafety` gains a reason for the recording case and one for `stalled`.
 
-**Precedence must be stated, not left to implementation**, because `WorkSafety` is a public
-discriminated union whose existing levels already have an explicit order. Danger wins over reassurance,
-and the most actionable reason wins within a level:
+**The new reasons slot into the EXISTING precedence; they do not redefine it.** An earlier revision
+wrote a precedence table from scratch and got the current contract wrong twice — it claimed persistence
+denial "outranks everything", and filed permanent failure under `at-risk`. Neither is true. The real
+order is documented in `work-safety.ts` and stays exactly as it is:
 
-| Situation                             | Result                                                                       |
-| ------------------------------------- | ---------------------------------------------------------------------------- |
-| Persistence denied (any work)         | `at-risk` / `not-persisted` — outranks everything; nothing survives eviction |
-| Capture stalled                       | `at-risk` / `capture-stalled`                                                |
-| A permanently failed item             | existing `at-risk` reason, unchanged                                         |
-| Healthy recording + other queued work | `protected` / `recording` — the recording is the newer, more surprising fact |
-| Healthy recording alone               | `protected` / `recording`                                                    |
-| No recording                          | exactly as today                                                             |
+```
+action-required  >  at-risk  >  protected  >  safe
+```
+
+and a permanently-failed item is `action-required` / `failed-permanently`, checked **before**
+persistence, because it is the one state that never resolves on its own.
+
+So the two new reasons take their place inside that order rather than around it:
+
+| Situation                                             | Result                                                                        |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------- |
+| A `dead` item                                         | `action-required` / `failed-permanently` — unchanged, still outranks the rest |
+| Persistence denied                                    | `at-risk` / `not-persisted` — unchanged                                       |
+| Capture stalled (§1.2)                                | `at-risk` / `capture-stalled` — **new**, same level as other at-risk causes   |
+| Healthy recording (with or without other queued work) | `protected` / `recording` — **new** reason at an existing level               |
+| No recording                                          | exactly as today                                                              |
+
+Two new reasons, no new levels, and no change to how levels rank. That is the smallest change that
+carries the information, and it keeps a public discriminated union predictable.
 
 Absent the input — no recording, or a host that does not wire it — behaviour is exactly as today.
 
@@ -644,11 +702,22 @@ exists that anyone depends on. An earlier revision specified a fallback from a m
 That was solving for a population that does not exist, and it bought a permanent second read path in
 `getAudio()`. Deleted.
 
-**The `capture` invariant, which the schema states rather than merely allowing:**
+**The invariants, stated rather than merely allowed — and an earlier revision contradicted itself here**,
+saying `capture` was present _iff_ `recording` and then that committed rows retain `sourceId`. Both
+cannot hold. What is actually true:
 
-- `status === "recording"` ⇒ `capture.sourceId` **and** `capture.owner` present.
-- A row that has been through `recording` retains `capture.sourceId` — it identifies chunks that may
-  still need sweeping — and its `owner` no longer authorises anything.
+- `status === "recording"` ⇒ `capture.sourceId` **and** `capture.owner` present, and
+  `canonicalAttachmentId` **absent** (nothing is committed yet, by definition).
+- A row that **has been** through `recording` **retains** `capture.sourceId`, because it identifies
+  chunks that may still need sweeping (§8). Its `owner` authorises nothing outside `recording`.
+- **Every committed row has a `canonicalAttachmentId`** — including rows created by the surviving
+  non-durable `enqueue()` path, which never had a capture session. That path mints a unique canonical
+  attachment id and persists the pointer like any other; it simply has no `capture`.
+- Dropping the physical attachment does **not** clear the pointer (see `audioReady` above).
+
+These are conditional relationships between fields, so they are validated at the **zod boundary** with
+refinements, not expressed as bare optional properties. An optional-only schema would let a `recording`
+document parse while being unfenceable, or a committed one parse with no authoritative audio.
 
 A merely-optional `capture` would let a `recording` document pass the trust boundary while being
 unfenceable and unrecoverable.
@@ -659,8 +728,20 @@ Recovery scans for **two** conditions, both inside the `ribo-capture` lock:
 
 - **`recording` rows** — if the lock was grantable, no live session holds it, so they are abandoned. Full
   recovery per §4.
-- **`queued` rows that still hold chunk attachments** — interrupted after step 2. Run step 3's deletion
-  idempotently; no merge, no status change.
+- **Any non-`recording` row carrying leftover attachments.** Not just `queued` — an earlier revision
+  scanned only that status and would have leaked in a plausible sequence: recovery publishes the pointer
+  and reaches `queued`, its tab dies before sweeping, another tab's outbox subscription immediately
+  advances the item to `transcribing`, and on the next startup the row no longer matches. Its chunks are
+  then never collected.
+
+  On every non-`recording` row, delete:
+  - every chunk attachment under its retained `capture.sourceId`;
+  - **every `audio-canonical-*` attachment except the one named by `canonicalAttachmentId`.** §3.1.3
+    deliberately lets stale canonical writes land inert, and each one is a **whole recording** — so
+    leaving them uncollected is a storage-quota leak and a retention problem, not untidiness.
+
+  The sweep is idempotent and runs every startup, which is also what collects writes that landed after a
+  previous sweep.
 
 This runs **before `relay.start()`** in the recovering tab, so a recovered item is `queued` with its
 canonical attachment in place before that tab's relay could select it.
@@ -767,6 +848,10 @@ where that is so, the discriminating version is described.
 - **Recovery finds the chunks AFTER rotating the owner.** Rotate, then recover, and assert the audio is
   merged rather than swept. **This is the test that would have caught revision 5's data-loss bug**, in
   which rotation orphaned every chunk the recording depended on.
+- **A dropped recording reports `audioReady: false` while keeping its pointer.** The two facts are
+  distinct, and pointer-presence-alone passes every other test while failing this one.
+- **An unpointed canonical attachment is swept, on a row well past `queued`.** Advance the item to
+  `transcribing` before the sweep runs; a sweep scanning only `queued` leaks a whole recording.
 - **A stale canonical write cannot overwrite a PUBLISHED one.** Both orderings, because revision 6
   tested only the easy one: (a) the stale write lands _before_ commit, and (b) the stale write is
   **in flight across** the commit — begun before, conflicting, retried against the committed revision,
