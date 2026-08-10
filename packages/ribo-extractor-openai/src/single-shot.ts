@@ -26,7 +26,8 @@ import { z } from "zod";
 import { TerminalQueueError } from "@azx/ribo-core";
 import type { Enveloped, Extractor, ExtractionResult, ExtractionTarget } from "@azx/ribo-core";
 
-import type { ChatClient, ChatMessage } from "./chat-client.js";
+import { ChatError } from "./chat-client.js";
+import type { ChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
 
 /** Options for {@link singleShotExtractor}. */
 export interface SingleShotOptions<V extends Record<string, unknown>> {
@@ -75,6 +76,40 @@ function buildMessages<V extends Record<string, unknown>>(
 }
 
 /**
+ * Send the request, translating the transport's terminal failures into terminal QUEUE
+ * failures.
+ *
+ * `isTransientFailure` reads any error without a numeric `status` as retryable, so a
+ * bare {@link ChatError} of these kinds would be re-sent until the item reached `dead` —
+ * defeating the exact reasoning that makes a non-`"stop"` finish reason terminal a few
+ * lines below.
+ *
+ *   - `refusal` — the model declined THIS input. Re-sending it produces the same refusal.
+ *   - `unsupported` — this client cannot honour something the request asked for (a CLI
+ *     transport given `maxTokens`, say). A configuration error, fixed by changing the
+ *     configuration, never by trying again.
+ *
+ * `aborted` is deliberately left retryable, which is where this departs from a review
+ * that grouped all three: an abort is caller-initiated, and a host that cancels on a
+ * deadline may well succeed on a later attempt with a fresh one. `transport`,
+ * `malformed-response` and a 5xx/408/429 `http` stay retryable for the same reason they
+ * always were — they describe a blip, not a verdict.
+ */
+async function completeOrClassify(chat: ChatClient, request: ChatRequest) {
+  try {
+    return await chat.complete(request);
+  } catch (cause) {
+    if (cause instanceof ChatError && (cause.kind === "refusal" || cause.kind === "unsupported")) {
+      throw new TerminalQueueError(
+        `singleShotExtractor: the transport failed terminally (${cause.kind}): ${cause.message}`,
+        { cause },
+      );
+    }
+    throw cause;
+  }
+}
+
+/**
  * Build a single-shot {@link Extractor} for a target.
  *
  * On each `extract`:
@@ -108,7 +143,7 @@ export function singleShotExtractor<V extends Record<string, unknown>>({
 
   return {
     async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
-      const completion = await chat.complete({
+      const completion = await completeOrClassify(chat, {
         model,
         messages: buildMessages(target, transcript),
         response_format: {

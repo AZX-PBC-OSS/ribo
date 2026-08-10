@@ -82,6 +82,25 @@ const AXIS_PAIRS = [
 
 const HEALTH_TEST_SET = new Set(HEALTH_TEST_PATHS);
 
+/**
+ * Transcripts that must NOT be graded, and why.
+ *
+ * `02-oil-boiler-basement` is **byte-for-byte identical** to the few-shot example
+ * transcript in `packages/ribo-adapter-snuggpro/src/examples.ts` — 1094 characters, the
+ * same 1094. So the model is shown that transcript's exact answer in the prompt and then
+ * scored on producing it. Grading it measures copying, and it silently inflated every
+ * published figure that included it (docs/implementation/18).
+ *
+ * Excluded rather than deleted: the transcript is a perfectly good few-shot example and a
+ * useful sanity check. It is simply not evidence.
+ */
+export const CONTAMINATED_SLUGS = new Map([
+  [
+    "02-oil-boiler-basement",
+    "identical to the few-shot example in examples.ts — grading it measures copying",
+  ],
+]);
+
 /** Every leaf EXCEPT the 13 health-matrix tests — these get the generic hallucination/miss/enum/
  * band treatment; the 13 get their own section (hallucinated-pass is the crux there, not a generic
  * "wrong enum"). Derived, not hand-counted: 51 - 13 = 38. */
@@ -931,6 +950,11 @@ function main() {
   const slugs = readdirSync(GT_DIR)
     .filter((f) => f.endsWith(".json"))
     .map((f) => f.replace(/\.json$/, ""))
+    .filter((slug) => {
+      if (!CONTAMINATED_SLUGS.has(slug)) return true;
+      console.warn(`   excluded from grading: ${slug} — ${CONTAMINATED_SLUGS.get(slug)}`);
+      return false;
+    })
     .sort();
 
   const reports = [];
@@ -1030,6 +1054,18 @@ function main() {
   const missDen = totals.gtNonNull - totals.missExcused;
   console.log(
     `   miss rate : ${padL(pct(totals.miss, missDen), 7)}  (${totals.miss}/${missDen} stated values left null; ${totals.missExcused} excused)`,
+  );
+  // The COMBINED figure, printed here so the partial one above cannot be quoted as the
+  // whole. `gtNonNull` iterates GENERIC_LEAF_PATHS only, so the rate above excludes all
+  // 13 health tests by construction — which is correct for that section and was
+  // misleading the moment it was lifted out of it. doc 18 reported "miss rate 1.5%" from
+  // this number while a materially larger share of stated HEALTH states had been dropped,
+  // because those live in `hMiss` and are counted in section 5.
+  const allMissDen =
+    totals.gtNonNull - totals.missExcused + (totals.hGtState - totals.hMissExcused);
+  const allMiss = totals.miss + totals.hMiss;
+  console.log(
+    `   miss rate, ALL 51 leaves : ${padL(pct(allMiss, allMissDen), 7)}  (${allMiss}/${allMissDen}) <- quote THIS one`,
   );
   console.log(
     `   accuracy on both-non-null : ${padL(pct(totals.correct, totals.correct + totals.wrong), 7)}  (${totals.correct}/${totals.correct + totals.wrong} correct)`,
