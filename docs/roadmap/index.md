@@ -257,6 +257,16 @@ So nobody re-litigates it:
 - [R2 — Headless Hook Layer — Design](design/r2-headless-hook-layer-design.md) — the R2 design: the
   review gate in the outbox state machine, pause/resume, and the six hooks plus provider that make
   `@azx/ribo-ui-react` real.
+- [Durable Capture — Design](design/durable-capture-design.md) — making audio durable _during_ capture
+  so a crash partway through a recording stops losing all of it: chunk attachments named from an
+  immutable `capture.sourceId`, Web Locks for cross-tab exclusion, and a rotating `capture.owner` token
+  for write authorisation. Revision 8. Its [plan](design/durable-capture-plan.md) is 12 tasks, of which
+  2 and 3 have landed; **Task 1, the bfcache spike that decides whether the write fence defends a real
+  path, has not run.**
+- [Live Transcription — Design](design/live-transcription-design.md) — utterance-level preview while the
+  auditor is still dictating, delivered through the existing reactive outbox rather than a new API.
+  **Blocked on durable capture**, and carrying two unresolved problems of its own (worker contention,
+  and what must survive a VAD feed boundary).
 
 ## Phase records
 
