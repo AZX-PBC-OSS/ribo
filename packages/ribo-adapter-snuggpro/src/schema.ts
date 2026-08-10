@@ -144,6 +144,10 @@ import { enveloped } from "@azx/ribo-core";
 import type { Enveloped } from "@azx/ribo-core";
 import { z } from "zod";
 
+import { stripOptionalNullable } from "@azx/ribo-core";
+
+import { VENDOR_DESCRIPTIONS } from "./descriptions.generated.js";
+
 // --- Enumerations -----------------------------------------------------------
 // Every member below is COPIED VERBATIM from the swagger spec's `enum` array for
 // that property. Do not tidy the casing, the spacing, the percent signs or the
@@ -545,51 +549,81 @@ export const HealthCondition = z.enum(["Good", "Potential Issues", "NA"]);
 // of field-level review.
 
 /** `POST /jobs/{jobId}/basedata` — the house-level singleton. 7 of its 294 fields. */
+/**
+ * Compose the vendor's own description with ours, per leaf.
+ *
+ * Two different jobs, and the model wants both. The vendor sentence says what the field
+ * IS — it is the same text a Snugg Pro user reads in their UI, so it anchors our
+ * vocabulary to theirs. Ours says what mistake NOT to make ("never ACH50, never CFM25"),
+ * which no vendor description would ever contain because it is specific to extracting
+ * from dictated speech.
+ *
+ * Vendor first: the definition orients the model before the prohibition constrains it.
+ *
+ * Applied to the whole group at once rather than at 51 call sites — the leaf's own
+ * `.describe()` is read back out and appended, so a note written the obvious way is
+ * picked up automatically. Leaves the vendor does not describe keep their note alone.
+ */
+function withVendorDescriptions<T extends z.ZodRawShape>(shape: T): T {
+  const described: Record<string, z.ZodType> = {};
+  for (const [name, field] of Object.entries(shape) as [string, z.ZodType][]) {
+    const vendor = VENDOR_DESCRIPTIONS[name];
+    // Read through the `.nullable().optional()` wrapper: a leaf's own note is written on
+    // the inner type, which is where it has to be to survive `enveloped()`.
+    const ours = stripOptionalNullable(field).description;
+    const composed = [vendor, ours].filter(Boolean).join(" ");
+    described[name] = composed.length > 0 ? field.describe(composed) : field;
+  }
+  return described as unknown as T;
+}
+
 export const BasedataFields = z
-  .object({
-    /** Year of construction. Spec types this `string`; `write` stringifies. */
-    yearBuilt: z.number().nullable().optional(),
+  .object(
+    withVendorDescriptions({
+      /** Year of construction. Spec types this `string`; `write` stringifies. */
+      yearBuilt: z.number().nullable().optional(),
 
-    /** Heated/cooled floor area in ft². Not the lot, not the footprint. */
-    conditionedArea: z
-      .number()
-      .describe(
-        "Heated and cooled floor area in square feet — not the lot size and not the building footprint.",
-      )
-      .nullable()
-      .optional(),
+      /** Heated/cooled floor area in ft². Not the lot, not the footprint. */
+      conditionedArea: z
+        .number()
+        .describe(
+          "Heated and cooled floor area in square feet — not the lot size and not the building footprint.",
+        )
+        .nullable()
+        .optional(),
 
-    /** Stories of living area, excluding basement and attic. */
-    floorsAboveGrade: z
-      .number()
-      .describe(
-        "Number of stories of living area above grade; do not count the basement or the attic.",
-      )
-      .nullable()
-      .optional(),
+      /** Stories of living area, excluding basement and attic. */
+      floorsAboveGrade: z
+        .number()
+        .describe(
+          "Number of stories of living area above grade; do not count the basement or the attic.",
+        )
+        .nullable()
+        .optional(),
 
-    /** Bedroom count (RESNET definition), which drives the DHW and ventilation loads. */
-    numberOfBedrooms: z.number().nullable().optional(),
+      /** Bedroom count (RESNET definition), which drives the DHW and ventilation loads. */
+      numberOfBedrooms: z.number().nullable().optional(),
 
-    /** Building type. */
-    typeOfHome: TypeOfHome.nullable().optional(),
+      /** Building type. */
+      typeOfHome: TypeOfHome.nullable().optional(),
 
-    /**
-     * Blower-door result in CFM at 50 Pa. Do NOT derive this from an ACH50, and do
-     * NOT put a duct-blaster CFM25 here — `hvac.hvacDuctLeakageValue` is that field
-     * and they are different references entirely.
-     */
-    blowerDoorReading: z
-      .number()
-      .describe(
-        "Blower-door result in CFM at 50 pascals. Never ACH50, and never CFM25 — those are different measurements with their own fields.",
-      )
-      .nullable()
-      .optional(),
+      /**
+       * Blower-door result in CFM at 50 Pa. Do NOT derive this from an ACH50, and do
+       * NOT put a duct-blaster CFM25 here — `hvac.hvacDuctLeakageValue` is that field
+       * and they are different references entirely.
+       */
+      blowerDoorReading: z
+        .number()
+        .describe(
+          "Blower-door result in CFM at 50 pascals. Never ACH50, and never CFM25 — those are different measurements with their own fields.",
+        )
+        .nullable()
+        .optional(),
 
-    /** Whether `blowerDoorReading` was measured or estimated. */
-    blowerDoorTestPerformed: BlowerDoorTestPerformed.nullable().optional(),
-  })
+      /** Whether `blowerDoorReading` was measured or estimated. */
+      blowerDoorTestPerformed: BlowerDoorTestPerformed.nullable().optional(),
+    }),
+  )
   .strict();
 
 /**
@@ -599,169 +633,179 @@ export const BasedataFields = z
  * `adapter.ts`'s `requiredOnCreate`.
  */
 export const HvacFields = z
-  .object({
-    /** REQUIRED by the API. The equipment axis, heating and cooling in one field. */
-    hvacSystemEquipmentType: HvacSystemEquipmentType.nullable().optional(),
+  .object(
+    withVendorDescriptions({
+      /** REQUIRED by the API. The equipment axis, heating and cooling in one field. */
+      hvacSystemEquipmentType: HvacSystemEquipmentType.nullable().optional(),
 
-    /** REQUIRED by the API. What the auditor recommends doing with this system. */
-    hvacUpgradeAction: HvacUpgradeAction.nullable().optional(),
+      /** REQUIRED by the API. What the auditor recommends doing with this system. */
+      hvacUpgradeAction: HvacUpgradeAction.nullable().optional(),
 
-    /** The fuel axis. "Oil boiler" -> `"Fuel Oil"` here, `"Boiler"` above. */
-    hvacHeatingEnergySource: HvacHeatingEnergySource.nullable().optional(),
+      /** The fuel axis. "Oil boiler" -> `"Fuel Oil"` here, `"Boiler"` above. */
+      hvacHeatingEnergySource: HvacHeatingEnergySource.nullable().optional(),
 
-    /** Manufacturer, from Snugg's closed list. An unlisted make is `"Other"`. */
-    hvacHeatingSystemManufacturer: HvacHeatingSystemManufacturer.nullable().optional(),
+      /** Manufacturer, from Snugg's closed list. An unlisted make is `"Other"`. */
+      hvacHeatingSystemManufacturer: HvacHeatingSystemManufacturer.nullable().optional(),
 
-    /** Model number / model name as stated, free text in the spec too. */
-    hvacHeatingSystemModel: z.string().nullable().optional(),
+      /** Model number / model name as stated, free text in the spec too. */
+      hvacHeatingSystemModel: z.string().nullable().optional(),
 
-    /** The UNIT's model year, e.g. 2011 — never the home's year. Stringified at write. */
-    hvacHeatingSystemModelYear: z
-      .number()
-      .describe(
-        "The heating unit's model year — never the home's year built, which is a separate field.",
-      )
-      .nullable()
-      .optional(),
+      /** The UNIT's model year, e.g. 2011 — never the home's year. Stringified at write. */
+      hvacHeatingSystemModelYear: z
+        .number()
+        .describe(
+          "The heating unit's model year — never the home's year built, which is a separate field.",
+        )
+        .nullable()
+        .optional(),
 
-    /**
-     * Rated heating output in BTU/h: "eighty thousand BTU" -> 80000. This is the
-     * capture field; efficiency is not (HAZARD 4). A spoken "ninety-two percent
-     * furnace" has no home in this schema and must not be forced into this one.
-     */
-    hvacHeatingCapacity: z
-      .number()
-      .describe(
-        'Rated heating output in BTU per hour, not efficiency — a spoken "ninety-two percent furnace" has no field here; only a stated BTU number goes in.',
-      )
-      .nullable()
-      .optional(),
+      /**
+       * Rated heating output in BTU/h: "eighty thousand BTU" -> 80000. This is the
+       * capture field; efficiency is not (HAZARD 4). A spoken "ninety-two percent
+       * furnace" has no home in this schema and must not be forced into this one.
+       */
+      hvacHeatingCapacity: z
+        .number()
+        .describe(
+          'Rated heating output in BTU per hour, not efficiency — a spoken "ninety-two percent furnace" has no field here; only a stated BTU number goes in.',
+        )
+        .nullable()
+        .optional(),
 
-    /** Rated cooling output in BTU/h. "Three ton" is 36000 — a conversion `normalization.ts` owns. */
-    hvacCoolingCapacity: z
-      .number()
-      .describe("Rated cooling output in BTU per hour.")
-      .nullable()
-      .optional(),
+      /** Rated cooling output in BTU/h. "Three ton" is 36000 — a conversion `normalization.ts` owns. */
+      hvacCoolingCapacity: z
+        .number()
+        .describe("Rated cooling output in BTU per hour.")
+        .nullable()
+        .optional(),
 
-    /**
-     * Where the ducts run. The spec declares this property with `enum: []` and
-     * publishes no value list, so this stays free text rather than inventing one —
-     * the extracted phrase reaches review intact and a human picks the dropdown
-     * entry. The other unpublished-enum field, `hvacHeatingEnergySource`, borrows a
-     * sibling's list because fuel has one; duct location has no sibling to borrow from.
-     */
-    hvacDuctLocation: z.string().nullable().optional(),
+      /**
+       * Where the ducts run. The spec declares this property with `enum: []` and
+       * publishes no value list, so this stays free text rather than inventing one —
+       * the extracted phrase reaches review intact and a human picks the dropdown
+       * entry. The other unpublished-enum field, `hvacHeatingEnergySource`, borrows a
+       * sibling's list because fuel has one; duct location has no sibling to borrow from.
+       */
+      hvacDuctLocation: z.string().nullable().optional(),
 
-    /** Qualitative duct tightness, or `"Measured (CFM25)"` when a number was read. */
-    hvacDuctLeakage: HvacDuctLeakage.nullable().optional(),
+      /** Qualitative duct tightness, or `"Measured (CFM25)"` when a number was read. */
+      hvacDuctLeakage: HvacDuctLeakage.nullable().optional(),
 
-    /** Duct leakage in CFM at 25 Pa (duct blaster). Pairs with `"Measured (CFM25)"` above. */
-    hvacDuctLeakageValue: z
-      .number()
-      .describe(
-        'Duct leakage in CFM at 25 pascals from a duct blaster — not a blower-door CFM50, and only meaningful when hvacDuctLeakage is "Measured (CFM25)".',
-      )
-      .nullable()
-      .optional(),
+      /** Duct leakage in CFM at 25 Pa (duct blaster). Pairs with `"Measured (CFM25)"` above. */
+      hvacDuctLeakageValue: z
+        .number()
+        .describe(
+          'Duct leakage in CFM at 25 pascals from a duct blaster — not a blower-door CFM50, and only meaningful when hvacDuctLeakage is "Measured (CFM25)".',
+        )
+        .nullable()
+        .optional(),
 
-    /** Duct insulation, the Snugg material/thickness member. */
-    hvacDuctInsulation: HvacDuctInsulation.nullable().optional(),
-  })
+      /** Duct insulation, the Snugg material/thickness member. */
+      hvacDuctInsulation: HvacDuctInsulation.nullable().optional(),
+    }),
+  )
   .strict();
 
 /** `POST /jobs/{jobId}/attic` — one attic. 5 of its 35 fields. */
 export const AtticFields = z
-  .object({
-    /** Depth BAND in inches. Set from a stated depth, never converted from an R-value. */
-    atticInsulationDepth: AtticInsulationDepth.nullable().optional(),
+  .object(
+    withVendorDescriptions({
+      /** Depth BAND in inches. Set from a stated depth, never converted from an R-value. */
+      atticInsulationDepth: AtticInsulationDepth.nullable().optional(),
 
-    /** Insulation material. */
-    atticInsulationType: AtticInsulationType.nullable().optional(),
+      /** Insulation material. */
+      atticInsulationType: AtticInsulationType.nullable().optional(),
 
-    /**
-     * Total installed R-value, as a number: "R-38 up top" -> 38. A REAL write
-     * target — the field the old design wrongly believed did not exist, which is why
-     * this schema has no `atticInsulationSpokenRValue` holding pen any more.
-     */
-    atticInsulation: z
-      .number()
-      .describe(
-        'Total installed R-value as a number ("R-38" → 38) — never converted into a depth band, which is a separate field.',
-      )
-      .nullable()
-      .optional(),
+      /**
+       * Total installed R-value, as a number: "R-38 up top" -> 38. A REAL write
+       * target — the field the old design wrongly believed did not exist, which is why
+       * this schema has no `atticInsulationSpokenRValue` holding pen any more.
+       */
+      atticInsulation: z
+        .number()
+        .describe(
+          'Total installed R-value as a number ("R-38" → 38) — never converted into a depth band, which is a separate field.',
+        )
+        .nullable()
+        .optional(),
 
-    /** Whether the attic has a knee wall — a distinct, commonly-uninsulated assembly. */
-    atticHasKneeWall: z.enum(["Yes", "No"]).nullable().optional(),
+      /** Whether the attic has a knee wall — a distinct, commonly-uninsulated assembly. */
+      atticHasKneeWall: z.enum(["Yes", "No"]).nullable().optional(),
 
-    /** Roof covering. */
-    atticRoofType: AtticRoofType.nullable().optional(),
-  })
+      /** Roof covering. */
+      atticRoofType: AtticRoofType.nullable().optional(),
+    }),
+  )
   .strict();
 
 /** `POST /jobs/{jobId}/wall` — one wall assembly. 4 of its 17 fields. */
 export const WallFields = z
-  .object({
-    /** 4-state, not boolean. "Some but thin" -> `"Poorly"`. */
-    wallsInsulated: WallsInsulated.nullable().optional(),
+  .object(
+    withVendorDescriptions({
+      /** 4-state, not boolean. "Some but thin" -> `"Poorly"`. */
+      wallsInsulated: WallsInsulated.nullable().optional(),
 
-    /** Exterior cladding. */
-    wallExteriorWallSiding: WallExteriorWallSiding.nullable().optional(),
+      /** Exterior cladding. */
+      wallExteriorWallSiding: WallExteriorWallSiding.nullable().optional(),
 
-    /** Cavity insulation R-value as a number. */
-    wallCavityInsulation: z
-      .number()
-      .describe("Cavity insulation R-value as a number; the material is a separate field.")
-      .nullable()
-      .optional(),
+      /** Cavity insulation R-value as a number. */
+      wallCavityInsulation: z
+        .number()
+        .describe("Cavity insulation R-value as a number; the material is a separate field.")
+        .nullable()
+        .optional(),
 
-    /** Cavity insulation material. */
-    wallCavityInsulationType: WallCavityInsulationType.nullable().optional(),
-  })
+      /** Cavity insulation material. */
+      wallCavityInsulationType: WallCavityInsulationType.nullable().optional(),
+    }),
+  )
   .strict();
 
 /** `POST /jobs/{jobId}/window` — one window group. 3 of its 34 fields. */
 export const WindowFields = z
-  .object({
-    /** Glazing, including the storm and low-e variants. */
-    windowType: WindowType.nullable().optional(),
+  .object(
+    withVendorDescriptions({
+      /** Glazing, including the storm and low-e variants. */
+      windowType: WindowType.nullable().optional(),
 
-    /** Frame material. */
-    windowFrame: WindowFrame.nullable().optional(),
+      /** Frame material. */
+      windowFrame: WindowFrame.nullable().optional(),
 
-    /** Energy Star rated. */
-    windowEnergyStar: z.enum(["Yes", "No"]).nullable().optional(),
-  })
+      /** Energy Star rated. */
+      windowEnergyStar: z.enum(["Yes", "No"]).nullable().optional(),
+    }),
+  )
   .strict();
 
 /** `POST /jobs/{jobId}/dhw` — one water heater. 6 of its 48 fields. */
 export const DhwFields = z
-  .object({
-    /** System type. "Tankless" -> `"Tankless Water Heater"`. */
-    dhwType2: DhwType.nullable().optional(),
+  .object(
+    withVendorDescriptions({
+      /** System type. "Tankless" -> `"Tankless Water Heater"`. */
+      dhwType2: DhwType.nullable().optional(),
 
-    /** The DHW fuel axis. "Gas water heater" -> `"Natural Gas"`. */
-    dhwFuel2: DhwFuel.nullable().optional(),
+      /** The DHW fuel axis. "Gas water heater" -> `"Natural Gas"`. */
+      dhwFuel2: DhwFuel.nullable().optional(),
 
-    /** Age BAND. "About twelve years" -> `"11-15"`. */
-    dhwAge: DhwAgeBand.nullable().optional(),
+      /** Age BAND. "About twelve years" -> `"11-15"`. */
+      dhwAge: DhwAgeBand.nullable().optional(),
 
-    /** Where the tank is, which drives standby loss. */
-    dhwLocation: DhwLocation.nullable().optional(),
+      /** Where the tank is, which drives standby loss. */
+      dhwLocation: DhwLocation.nullable().optional(),
 
-    /** Nominal tank capacity in gallons. A tankless unit has none — leave it `null`. */
-    dhwTankSize: z
-      .number()
-      .describe(
-        "Nominal tank capacity in gallons; a tankless water heater has no tank, so leave it null.",
-      )
-      .nullable()
-      .optional(),
+      /** Nominal tank capacity in gallons. A tankless unit has none — leave it `null`. */
+      dhwTankSize: z
+        .number()
+        .describe(
+          "Nominal tank capacity in gallons; a tankless water heater has no tank, so leave it null.",
+        )
+        .nullable()
+        .optional(),
 
-    /** Manufacturer, from Snugg's closed list. */
-    dhwManufacturer: DhwManufacturer.nullable().optional(),
-  })
+      /** Manufacturer, from Snugg's closed list. */
+      dhwManufacturer: DhwManufacturer.nullable().optional(),
+    }),
+  )
   .strict();
 
 /**
@@ -774,24 +818,26 @@ export const DhwFields = z
  * absence was dropping real dictation on the floor.
  */
 export const HealthFields = z
-  .object({
-    healthAmbientCarbonMonoxide: HealthTestState.nullable().optional(),
-    healthNaturalConditionSpillage: HealthTestState.nullable().optional(),
-    healthWorstCaseDepressurization: HealthTestState.nullable().optional(),
-    healthWorstCaseSpillage: HealthTestState.nullable().optional(),
-    healthUndilutedFlueCo: HealthTestState.nullable().optional(),
-    healthDraftPressure: HealthTestState.nullable().optional(),
-    healthGasLeak: HealthTestState.nullable().optional(),
-    healthVenting: HealthTestState.nullable().optional(),
-    healthMoldMoisture: HealthTestState.nullable().optional(),
-    healthRadon: HealthTestState.nullable().optional(),
-    healthAsbestos: HealthTestState.nullable().optional(),
-    healthLead: HealthTestState.nullable().optional(),
-    healthElectrical: HealthTestState.nullable().optional(),
+  .object(
+    withVendorDescriptions({
+      healthAmbientCarbonMonoxide: HealthTestState.nullable().optional(),
+      healthNaturalConditionSpillage: HealthTestState.nullable().optional(),
+      healthWorstCaseDepressurization: HealthTestState.nullable().optional(),
+      healthWorstCaseSpillage: HealthTestState.nullable().optional(),
+      healthUndilutedFlueCo: HealthTestState.nullable().optional(),
+      healthDraftPressure: HealthTestState.nullable().optional(),
+      healthGasLeak: HealthTestState.nullable().optional(),
+      healthVenting: HealthTestState.nullable().optional(),
+      healthMoldMoisture: HealthTestState.nullable().optional(),
+      healthRadon: HealthTestState.nullable().optional(),
+      healthAsbestos: HealthTestState.nullable().optional(),
+      healthLead: HealthTestState.nullable().optional(),
+      healthElectrical: HealthTestState.nullable().optional(),
 
-    /** Not a 4-state test — a condition judgement on its own enum. */
-    healthRoofCondition: HealthCondition.nullable().optional(),
-  })
+      /** Not a 4-state test — a condition judgement on its own enum. */
+      healthRoofCondition: HealthCondition.nullable().optional(),
+    }),
+  )
   .strict();
 
 // --- The bounded field set, as a writable patch -----------------------------

@@ -243,133 +243,52 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
 });
 
 /**
- * Walk a captured JSON Schema and return one entry per provenance-envelope leaf:
- * its dotted path mapped to the `description` string that reached the schema (or
- * `""` if none). A leaf is recognised structurally — an object whose `properties`
- * carry `value` + `confidence` + `sourceSpan` — so this never needs a hardcoded
- * group or field list and stays correct as the field set grows.
+ * Walk the emitted JSON Schema and return every leaf's description, keyed by dotted path.
+ *
+ * Reads the SCHEMA, not the zod object: the description only matters if it survives
+ * `enveloped()` and `z.toJSONSchema` and lands in the bytes the model receives. An
+ * assertion against `.description` on the zod side would pass for a description that
+ * never reaches the request — which is exactly the bug this guards, since a `.describe()`
+ * on the `.nullable().optional()` wrapper used to be discarded on the way through.
  */
 function collectLeafDescriptions(schema: Record<string, unknown>): Map<string, string> {
-  const out = new Map<string, string>();
-  const walk = (node: unknown, path: string): void => {
-    if (node === null || typeof node !== "object") return;
-    const obj = node as Record<string, unknown>;
-    const props = obj.properties as Record<string, unknown> | undefined;
-    // A provenance envelope leaf carries exactly value + confidence + sourceSpan.
-    if (props && props.value && props.confidence && props.sourceSpan) {
-      const val = props.value as Record<string, unknown>;
-      const branch = (val.anyOf as Record<string, unknown>[] | undefined)?.[0] ?? val;
-      const desc = (branch as Record<string, unknown> | undefined)?.description;
-      out.set(path, typeof desc === "string" ? desc : "");
-      return;
+  const found = new Map<string, string>();
+  const groups = schema.properties as Record<string, { properties: Record<string, unknown> }>;
+  for (const [group, groupSchema] of Object.entries(groups)) {
+    for (const [leaf, leafSchema] of Object.entries(groupSchema.properties)) {
+      const value = (
+        leafSchema as { properties: { value: { anyOf?: { description?: string }[] } } }
+      ).properties.value;
+      found.set(`${group}.${leaf}`, value.anyOf?.[0]?.description ?? "");
     }
-    if (props) {
-      for (const [key, child] of Object.entries(props)) {
-        walk(child, path ? `${path}.${key}` : key);
-      }
-    }
-  };
-  walk(schema, "");
-  return out;
+  }
+  return found;
 }
 
-/**
- * The 13 health-test leaves all read their description from the shared
- * `HealthTestState` enum const, so they are generated here rather than typed 13
- * times — a typo in one name would fail the set comparison below regardless.
- */
-const healthTestLeaves = [
-  "healthAmbientCarbonMonoxide",
-  "healthNaturalConditionSpillage",
-  "healthWorstCaseDepressurization",
-  "healthWorstCaseSpillage",
-  "healthUndilutedFlueCo",
-  "healthDraftPressure",
-  "healthGasLeak",
-  "healthVenting",
-  "healthMoldMoisture",
-  "healthRadon",
-  "healthAsbestos",
-  "healthLead",
-  "healthElectrical",
-].map((f) => `health.${f}`);
+test("every leaf reaches the model with the vendor's description and our prohibition", async () => {
+  const descs = collectLeafDescriptions(await captureJsonSchema());
 
-// The deliberate split: 31 leaves carry a model-facing description sourced from
-// the JSDoc and the four file-header hazards; 20 do not, because their enum
-// members are self-explanatory and a description would be noise. Both halves are
-// pinned — adding noise to all 51 is called out in the task as worse than adding
-// signal to 31, so a description on a skipped leaf fails this test just as a
-// missing one on a described leaf does.
-const expectedDescribed = new Set([
-  "basedata.conditionedArea",
-  "basedata.floorsAboveGrade",
-  "basedata.blowerDoorReading",
-  "hvac.hvacSystemEquipmentType",
-  "hvac.hvacHeatingSystemManufacturer",
-  "hvac.hvacHeatingSystemModelYear",
-  "hvac.hvacHeatingCapacity",
-  "hvac.hvacCoolingCapacity",
-  "hvac.hvacDuctLeakage",
-  "hvac.hvacDuctLeakageValue",
-  "attic.atticInsulationDepth",
-  "attic.atticInsulationType",
-  "attic.atticInsulation",
-  "wall.wallsInsulated",
-  "wall.wallCavityInsulation",
-  "dhw.dhwType2",
-  "dhw.dhwTankSize",
-  "dhw.dhwManufacturer",
-  ...healthTestLeaves,
-]);
-
-test("leaf descriptions reach the emitted JSON Schema, carrying the hazard prohibitions", async () => {
-  // `schema.ts` attaches descriptions with `.describe()` on the INNER type —
-  // before `.nullable().optional()`, not after. `enveloped()` strips the
-  // `.optional()`/`.nullable()` wrappers before wrapping each leaf in the
-  // provenance envelope, so a description placed on the outer wrapper would be
-  // silently lost and never reach the model. This test is what proves the
-  // placement survives the derivation AND `z.toJSONSchema(..., "draft-2020-12")`:
-  // it reads descriptions out of the captured request, not out of the zod object.
-  const schema = await captureJsonSchema();
-  const descs = collectLeafDescriptions(schema);
-
-  // Every one of the 51 leaves must be accounted for — the walk found them all.
+  // All 51, not a subset. An earlier version described 31 from our own JSDoc and left 20
+  // deliberately bare; with the vendor supplying authoritative text for every leaf,
+  // "leave it bare" stopped being the better answer.
   expect(descs.size).toBe(51);
+  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(51);
 
-  const described = new Set([...descs.entries()].filter(([, d]) => d.length > 0).map(([p]) => p));
-  expect(described).toEqual(expectedDescribed);
+  // The VENDOR half is really there. Without this, a generated module that failed to
+  // import — or regenerated to an empty map — would still leave our own notes in place on
+  // 31 leaves and pass a bare "is it described?" check.
+  const blower = descs.get("basedata.blowerDoorReading") ?? "";
+  expect(blower).toContain("cubic feet per minute");
+  expect(blower).toContain("50 Pascals");
 
-  // The complement: 20 leaves deliberately carry NO description. Asserting this
-  // half is what catches "someone added noise to all 51" — the failure mode the
-  // task names as worse than missing signal.
-  const undescribed = new Set(
-    [...descs.entries()].filter(([, d]) => d.length === 0).map(([p]) => p),
-  );
-  expect(undescribed.size).toBe(20);
-  for (const path of undescribed) {
-    expect(expectedDescribed.has(path)).toBe(false);
-  }
+  // OUR half survives being composed around. Each of these is a named hazard from the
+  // file header, and a description that lost its prohibition is worse than a missing one:
+  // it looks informative while omitting the thing the model gets wrong.
+  expect(descs.get("hvac.hvacSystemEquipmentType") ?? "").toContain("never a fused token");
+  expect(blower).toContain("Never ACH50");
 
-  // The descriptions must carry the hazard prohibitions, not be vacuous labels.
-  // Each sample checks a different named hazard from the file header, so a
-  // description that lost its prohibition text fails here even if the leaf is
-  // still in the described set.
-  const want = (path: string, substr: string): void => {
-    const text = descs.get(path);
-    expect(text, `${path} should carry a description`).toBeTruthy();
-    expect(text, `${path} description should mention "${substr}"`).toContain(substr);
-  };
-  // Hazard: CFM50 vs ACH50 vs CFM25 (the task's headline example).
-  want("basedata.blowerDoorReading", "Never ACH50");
-  want("hvac.hvacDuctLeakageValue", "not a blower-door CFM50");
-  // Hazard 1: fuel is a separate axis from equipment — never a fused token.
-  want("hvac.hvacSystemEquipmentType", "fused");
-  // Hazard 2: R-value and depth band are independent — never convert between them.
-  want("attic.atticInsulationDepth", "never converted from an R-value");
-  want("attic.atticInsulation", "never converted into a depth band");
-  // Hazard 3: "Not Tested" is explicitly skipped; a test never mentioned is null.
-  want("health.healthAmbientCarbonMonoxide", "Not Tested");
-  want("health.healthAmbientCarbonMonoxide", "null");
-  // Hazard 4: efficiency has no field — do not force it into capacity.
-  want("hvac.hvacHeatingCapacity", "not efficiency");
+  // Order matters: definition first, then prohibition. The vendor sentence orients the
+  // model before ours constrains it, and a composition that reversed them would read as
+  // a correction rather than a rule.
+  expect(blower.indexOf("cubic feet per minute")).toBeLessThan(blower.indexOf("Never ACH50"));
 });

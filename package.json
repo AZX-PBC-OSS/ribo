@@ -26,7 +26,9 @@
     "docs:api": "typedoc --options docs/typedoc.json",
     "docs:dev": "pnpm run docs:api && vitepress dev docs",
     "docs:build": "pnpm run docs:api && vitepress build docs",
-    "target:refresh": "node scripts/refresh-target.mjs"
+    "target:refresh": "node scripts/refresh-target.mjs",
+    "snugg:refresh": "node scripts/snugg-descriptions.mjs --refresh",
+    "snugg:check": "node scripts/snugg-descriptions.mjs --check"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",

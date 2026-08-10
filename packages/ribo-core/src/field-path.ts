@@ -46,6 +46,12 @@ export type FieldPath = string;
 
 export const stripOptionalNullable = (field: z.ZodType): z.ZodType => {
   let current = field;
+  // Carry the OUTERMOST description down. A patch leaf is `X.nullable().optional()`, so a
+  // `.describe()` written the natural way lands on the wrapper — and unwrapping would drop
+  // it silently, since an absent description is not a type error and nothing downstream
+  // complains. That made description placement a trap: correct-looking code produced a
+  // schema the model never saw. Preserving it here means either placement works.
+  const outer = field.description;
   while (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
     // `.unwrap()`'s declared return type is generic over the wrapped type, defaulting to the
     // core (not classic) `$ZodType` once narrowed only by `instanceof`; every real wrapper in
@@ -53,7 +59,10 @@ export const stripOptionalNullable = (field: z.ZodType): z.ZodType => {
     // around it.
     current = current.unwrap() as z.ZodType;
   }
-  return current;
+  // The OUTER wins when both exist: it was applied last, so it is the more considered
+  // one. That matters where a leaf carries its own note and something later composes a
+  // fuller description around it.
+  return outer !== undefined ? current.describe(outer) : current;
 };
 
 /**
