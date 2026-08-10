@@ -18,6 +18,7 @@ import type { Recording, Transcript, Transcriber, TranscriberCapability } from "
 import {
   buildHintPrompt,
   DEFAULT_MODEL_ID,
+  DEFAULT_WORKER_TIMEOUT_MS,
   defaultCreateWorker,
   estimateDownloadBytes,
   VAD_MODEL_ID,
@@ -38,6 +39,7 @@ import type {
 export {
   buildHintPrompt,
   DEFAULT_MODEL_ID,
+  DEFAULT_WORKER_TIMEOUT_MS,
   MODEL_DOWNLOAD_BYTES,
   VAD_MODEL_ID,
   VAD_DOWNLOAD_BYTES,
@@ -88,6 +90,7 @@ export class OnDeviceTranscriber implements Transcriber {
   readonly #downloadBytes: number;
   readonly #cacheStorage?: CacheStorage;
   readonly #createWorker: () => Worker;
+  readonly #timeoutMs: number;
 
   /** Constructed lazily on the first {@link prime}, then reused. */
   #worker?: Worker;
@@ -103,6 +106,7 @@ export class OnDeviceTranscriber implements Transcriber {
     // `?? undefined` so an explicit override still wins but the default is read lazily at probe time.
     this.#cacheStorage = options.cacheStorage;
     this.#createWorker = options.createWorker ?? defaultCreateWorker;
+    this.#timeoutMs = options.workerTimeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS;
   }
 
   /**
@@ -221,10 +225,28 @@ export class OnDeviceTranscriber implements Transcriber {
     verb: string,
     onProgress?: PrimeProgressListener,
     transfer: Transferable[] = [],
+    timeoutMs: number = this.#timeoutMs,
   ): Promise<string | undefined> {
     const requestId = message.requestId;
     return new Promise<string | undefined>((resolve, reject) => {
+      // Without this, a worker that dies WITHOUT firing `error` — the shape an
+      // out-of-memory kill takes, and the likeliest failure on a long recording —
+      // leaves this promise pending forever. The relay drains serially and has no
+      // timeout of its own, so that one silent death strands every capture behind
+      // it for the rest of the day: no `failed` status, no backoff, no surface. A
+      // timeout converts the worst outcome available (a bricked queue) into an
+      // ordinary attempt failure the existing retry machinery already handles.
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(
+          new Error(
+            `on-device transcription worker did not reply while ${verb} within ${timeoutMs} ms — ` +
+              `it may have been killed (out of memory is the usual cause on long audio)`,
+          ),
+        );
+      }, timeoutMs);
       const cleanup = (): void => {
+        clearTimeout(timer);
         worker.removeEventListener("message", onMessage);
         worker.removeEventListener("error", onError);
       };

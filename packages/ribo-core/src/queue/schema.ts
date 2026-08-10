@@ -53,6 +53,7 @@ export const AUDIO_ATTACHMENT_ID = "audio";
  * one resting state, one terminal state.
  */
 export const OUTBOX_STATUSES = [
+  "recording",
   "queued",
   "transcribing",
   "extracting",
@@ -102,6 +103,15 @@ export const FINISHED_OUTBOX_STATUSES = [
 ] as const satisfies readonly OutboxStatus[];
 
 /**
+ * In-flight capture. Its own category because it is neither: the relay must not
+ * act on it (there is no committed audio yet — see `canonicalAttachmentId`), and
+ * it is plainly not finished. The status-partition test fails for any status that
+ * belongs to no named bucket, and naming this one is how that invariant is kept
+ * rather than weakened.
+ */
+export const RECORDING_OUTBOX_STATUSES = ["recording"] as const;
+
+/**
  * The persisted shape of one outbox document — exactly the fields that live in
  * IndexedDB, and nothing else.
  *
@@ -114,70 +124,105 @@ export const FINISHED_OUTBOX_STATUSES = [
  * Pinned field-for-field against {@link outboxRxSchema} by `schema.test.ts`.
  * Anything added here must be added there, and vice versa.
  */
-export const outboxDocumentSchema = z.strictObject({
-  /** Stable id, and the RxDB primary key. */
-  id: z.string().min(1),
-  /**
-   * Monotonic ordering key. The relay processes the lowest-`seq` **active** item
-   * first, which is what "serial, lowest first" in `09` buys: capture order is the
-   * order items are *offered* to the relay, and it stays write order for every step
-   * the relay decides on its own.
-   *
-   * **Review is the one step a human orders, so writes follow review order.** An
-   * item parked at `awaiting-review` leaves the active set, the next capture drains
-   * past it, and — once the recordings ahead of it have parked, finished or died —
-   * whichever recording is reviewed first writes first, even if it was captured
-   * second. (A lower-`seq` sibling resting in `failed` is still active, and still
-   * holds the queue until its backoff elapses; `relay.ts`'s `#drain` explains why
-   * that one must not be overtaken.) This used to read "capture order is write
-   * order" and that is no longer true; it is narrowed on purpose rather than
-   * defended, because holding writes to capture order would let one un-reviewed
-   * recording block every write behind it, which is the exact stall the parked
-   * design exists to avoid.
-   */
-  seq: z.number().int().nonnegative(),
-  status: z.enum(OUTBOX_STATUSES),
-  /**
-   * Generated once, at enqueue, and reused on **every** retry — that is the
-   * whole point. Sent as `Idempotency-Key` on external writes so an ambiguous
-   * success (write landed, response lost) cannot double-write. Regenerating it
-   * on retry would silently undo the guarantee, which is why no patch type in
-   * this package lets you change it.
-   */
-  idempotencyKey: z.string().min(1),
-  /**
-   * How many times a step has failed for this item. Drives the backoff curve
-   * and, against `RelayOptions.maxAttempts`, when the relay gives up and calls
-   * it `dead`. Reset to `0` on every fresh entry into `awaiting-review` — see
-   * that option's own doc comment for why `maxAttempts` is a per-cycle budget
-   * rather than a lifetime cap on the item.
-   */
-  attempts: z.number().int().nonnegative(),
-  /**
-   * Earliest ISO timestamp at which this item may be attempted again. Persisted
-   * rather than held in a timer so the backoff schedule survives a reload — on
-   * iOS the tab is the only execution context there is, and it dies often.
-   */
-  nextAttemptAt: z.iso.datetime(),
-  /** When the item entered the queue. */
-  enqueuedAt: z.iso.datetime(),
-  /** Message from the most recent failure, for the "needs attention" UI. */
-  lastError: z.string().optional(),
-  /** Capture metadata. The audio bytes live in the attachment, not here. */
-  recording: baseRecordingSchema,
-  /** Step output — present once transcription has succeeded. */
-  transcript: transcriptSchema.optional(),
-  /** Step output — present once extraction has succeeded. */
-  extracted: z.record(z.string(), z.unknown()).optional(),
-  /** Step output — whatever the tool adapter returned from the write. */
-  writeResult: z.record(z.string(), z.unknown()).optional(),
-  /**
-   * What the human decided. Present once review has been submitted; absent means
-   * this item has not been reviewed, which `relay.ts` treats as a hard error at
-   * write time rather than a default-accept.
-   */
-  reviewOutcome: reviewOutcomeSchema.optional(),
-});
+export const outboxDocumentSchema = z
+  .strictObject({
+    /** Stable id, and the RxDB primary key. */
+    id: z.string().min(1),
+    /**
+     * Monotonic ordering key. The relay processes the lowest-`seq` **active** item
+     * first, which is what "serial, lowest first" in `09` buys: capture order is the
+     * order items are *offered* to the relay, and it stays write order for every step
+     * the relay decides on its own.
+     *
+     * **Review is the one step a human orders, so writes follow review order.** An
+     * item parked at `awaiting-review` leaves the active set, the next capture drains
+     * past it, and — once the recordings ahead of it have parked, finished or died —
+     * whichever recording is reviewed first writes first, even if it was captured
+     * second. (A lower-`seq` sibling resting in `failed` is still active, and still
+     * holds the queue until its backoff elapses; `relay.ts`'s `#drain` explains why
+     * that one must not be overtaken.) This used to read "capture order is write
+     * order" and that is no longer true; it is narrowed on purpose rather than
+     * defended, because holding writes to capture order would let one un-reviewed
+     * recording block every write behind it, which is the exact stall the parked
+     * design exists to avoid.
+     */
+    seq: z.number().int().nonnegative(),
+    status: z.enum(OUTBOX_STATUSES),
+    /**
+     * Generated once, at enqueue, and reused on **every** retry — that is the
+     * whole point. Sent as `Idempotency-Key` on external writes so an ambiguous
+     * success (write landed, response lost) cannot double-write. Regenerating it
+     * on retry would silently undo the guarantee, which is why no patch type in
+     * this package lets you change it.
+     */
+    idempotencyKey: z.string().min(1),
+    /**
+     * How many times a step has failed for this item. Drives the backoff curve
+     * and, against `RelayOptions.maxAttempts`, when the relay gives up and calls
+     * it `dead`. Reset to `0` on every fresh entry into `awaiting-review` — see
+     * that option's own doc comment for why `maxAttempts` is a per-cycle budget
+     * rather than a lifetime cap on the item.
+     */
+    attempts: z.number().int().nonnegative(),
+    /**
+     * Earliest ISO timestamp at which this item may be attempted again. Persisted
+     * rather than held in a timer so the backoff schedule survives a reload — on
+     * iOS the tab is the only execution context there is, and it dies often.
+     */
+    nextAttemptAt: z.iso.datetime(),
+    /** When the item entered the queue. */
+    enqueuedAt: z.iso.datetime(),
+    /** Message from the most recent failure, for the "needs attention" UI. */
+    lastError: z.string().optional(),
+    /** Capture metadata. The audio bytes live in the attachment, not here. */
+    recording: baseRecordingSchema,
+    /** Step output — present once transcription has succeeded. */
+    transcript: transcriptSchema.optional(),
+    /** Step output — present once extraction has succeeded. */
+    extracted: z.record(z.string(), z.unknown()).optional(),
+    /** Step output — whatever the tool adapter returned from the write. */
+    writeResult: z.record(z.string(), z.unknown()).optional(),
+    /**
+     * What the human decided. Present once review has been submitted; absent means
+     * this item has not been reviewed, which `relay.ts` treats as a hard error at
+     * write time rather than a default-accept.
+     */
+    reviewOutcome: reviewOutcomeSchema.optional(),
+    /**
+     * Capture identity, present while (and after) this row was recorded through the
+     * durable path. TWO fields because they have opposite requirements: `sourceId`
+     * names the chunk attachments and must NEVER change or recovery cannot find
+     * them; `owner` authorises writes and MUST rotate on takeover or a restored tab
+     * keeps writing. Conflating them made recovery delete the audio it was
+     * recovering (design §3.1.1).
+     */
+    capture: z.object({ sourceId: z.string().min(1), owner: z.string().min(1) }).optional(),
+    /**
+     * WHICH attachment is the authoritative audio. Published only in the guarded
+     * `recording → queued` transition, so a stale writer's bytes can land under
+     * their own name and never become authoritative. Survives `dropAudio` — it is
+     * still the answer to "which one WAS the real audio", which is why `audioReady`
+     * is a separate, presence-based fact.
+     */
+    canonicalAttachmentId: z.string().min(1).optional(),
+    /** Relay claim token, rotated on every claim and compared by every step write. */
+    step: z.object({ generation: z.string().min(1) }).optional(),
+  })
+  .superRefine((doc, ctx) => {
+    if (doc.status === "recording") {
+      if (!doc.capture)
+        ctx.addIssue({ code: "custom", message: "a recording row must carry capture" });
+      if (doc.canonicalAttachmentId)
+        ctx.addIssue({ code: "custom", message: "a recording row has committed nothing yet" });
+    } else if (!doc.canonicalAttachmentId) {
+      // Every non-recording row was created as playable — including via the
+      // non-durable enqueue() path, which has no capture but still mints a pointer.
+      ctx.addIssue({
+        code: "custom",
+        message: "a committed row must name its canonical attachment",
+      });
+    }
+  });
 
 /** Inferred from {@link outboxDocumentSchema} — never hand-declared alongside it. */
 export type OutboxDocument = z.infer<typeof outboxDocumentSchema>;
@@ -192,7 +237,7 @@ export type OutboxDocument = z.infer<typeof outboxDocumentSchema>;
  * and the one that pins {@link outboxItemSchema} against the document schema
  * (these keys, and only these, are the difference).
  */
-export const DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "hasAudio"] as const;
+export const DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "audioReady"] as const;
 
 /**
  * What a *consumer* sees: the persisted document plus the attachment facts.
@@ -205,7 +250,7 @@ export const DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "hasAudio"] as const;
  * honestly report a dropped recording (once `dropAudioAfterTranscription` is on,
  * or once iOS evicts the origin's storage) needs to tell them apart.
  *
- * Persisting a `hasAudio` **column** would be the wrong fix: it is a second copy
+ * Persisting an `audioReady` **column** would be the wrong fix: it is a second copy
  * of a truth the attachment store already holds, and it would go stale the
  * moment anything removed the bytes without going through this class — which is
  * exactly what iOS eviction does. So it is computed, per read, from the
@@ -215,8 +260,10 @@ export const DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "hasAudio"] as const;
  *
  * `audioBytes` rides along for the same free reason — the stub carries the
  * length — and it lets a queue UI show a size without loading a recording into
- * memory just to call `.size` on it. `hasAudio` is the signal to branch on;
- * `audioBytes` is `0` whenever `hasAudio` is `false`.
+ * memory just to call `.size` on it. `audioReady` is the signal to branch on;
+ * `audioBytes` is `0` whenever `audioReady` is `false` (for a committed row —
+ * while recording, `audioReady` is `false` but `audioBytes` reflects the
+ * accumulated chunks, so a UI can show capture progressing).
  *
  * Both fields also make `items$` re-emit *meaningfully* across an attachment
  * change. The document's own fields are byte-identical before and after a
@@ -224,9 +271,10 @@ export const DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "hasAudio"] as const;
  * tell that anything happened.
  */
 export const outboxItemSchema = outboxDocumentSchema.extend({
-  /** Whether the audio attachment exists **right now**. */
-  hasAudio: z.boolean(),
-  /** Size of that attachment in bytes; `0` when there is none. */
+  /** Whether the attachment named by `canonicalAttachmentId` exists **right now**. */
+  audioReady: z.boolean(),
+  /** Durable bytes on disk for this item: the canonical attachment, or the
+   * accumulated chunks while still recording. `0` when there are neither. */
   audioBytes: z.number().int().nonnegative(),
 });
 
@@ -237,16 +285,36 @@ export type OutboxItem = z.infer<typeof outboxItemSchema>;
  * The fields a caller may change after enqueue.
  *
  * Derived from the **document** schema, so the projection's computed fields
- * (`hasAudio`, `audioBytes`) are unpatchable by construction — they are facts
+ * (`audioReady`, `audioBytes`) are unpatchable by construction — they are facts
  * about the attachment store, and `putAttachment` / `dropAudio` are the only
  * things entitled to change them.
  *
  * `id`, `seq`, `enqueuedAt`, `recording` and `idempotencyKey` are deliberately
  * absent: they are decided once and re-deciding any of them would break
  * ordering, provenance or idempotency.
+ *
+ * **`capture`, `canonicalAttachmentId` and `step` are absent for a stronger
+ * reason: they are AUTHORITY, and a patchable authority is no authority at all.**
+ * Each is changed by exactly one narrow guarded operation — takeover rotates
+ * `capture.owner`, the commit transition publishes `canonicalAttachmentId`, a
+ * relay claim rotates `step.generation` — and each of those comparisons is what
+ * makes a stale writer's work land inert instead of corrupting. Leaving them in
+ * this type would let any caller replace `capture.sourceId` and make a
+ * recording's chunks undiscoverable, or publish a pointer at unverified bytes,
+ * through the ordinary public API and without holding anything.
  */
 export type OutboxPatch = Partial<
-  Omit<OutboxDocument, "id" | "seq" | "enqueuedAt" | "recording" | "idempotencyKey">
+  Omit<
+    OutboxDocument,
+    | "id"
+    | "seq"
+    | "enqueuedAt"
+    | "recording"
+    | "idempotencyKey"
+    | "capture"
+    | "canonicalAttachmentId"
+    | "step"
+  >
 >;
 
 /**
@@ -258,12 +326,12 @@ export type OutboxPatch = Partial<
  * fixed-width index keys. `schema.test.ts` pins the two descriptions of the same
  * document against each other so they cannot drift apart unnoticed.
  *
- * Typed against `OutboxDocument`, not `OutboxItem`: `hasAudio` and `audioBytes`
+ * Typed against `OutboxDocument`, not `OutboxItem`: `audioReady` and `audioBytes`
  * are projected, never stored, and a storage schema that mentioned them would be
  * claiming to persist something it does not.
  */
 export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
-  version: 1,
+  version: 2,
   primaryKey: "id",
   type: "object",
   properties: {
@@ -283,6 +351,9 @@ export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
     extracted: { type: "object" },
     writeResult: { type: "object" },
     reviewOutcome: { type: "object" },
+    capture: { type: "object" },
+    canonicalAttachmentId: { type: "string", maxLength: 128 },
+    step: { type: "object" },
   },
   required: [
     "id",

@@ -1,5 +1,5 @@
 import type { ConnectivityStatus } from "./connectivity.js";
-import { ACTIVE_OUTBOX_STATUSES } from "./queue/schema.js";
+import { ACTIVE_OUTBOX_STATUSES, RECORDING_OUTBOX_STATUSES } from "./queue/schema.js";
 import type { OutboxItem } from "./queue/schema.js";
 
 /**
@@ -62,9 +62,9 @@ import type { OutboxItem } from "./queue/schema.js";
  * eviction risk because it is the one state that will never resolve on its own —
  * and reporting it does not overstate safety, so the load-bearing rule still holds.
  *
- * ## On `hasAudio`
+ * ## On `audioReady`
  *
- * `OutboxItem.hasAudio` is intentionally *not* an input to the level. On this
+ * `OutboxItem.audioReady` is intentionally *not* an input to the level. On this
  * selector's axis — persistence and sync — it changes nothing: eviction and a
  * lost device take the audio attachment and the persisted transcript *together*,
  * and only leaving the device makes either safe. Whether the audio has been
@@ -148,7 +148,7 @@ export type WorkSafety =
 /**
  * Reduce outbox items to a {@link WorkOnDevice} summary.
  *
- * Classifies on `status` only — see the note on `hasAudio` in the file header.
+ * Classifies on `status` only — see the note on `audioReady` in the file header.
  * `done` is the sole synced (off-device) state; `dead` is the sole terminal
  * failure; every {@link ACTIVE_OUTBOX_STATUSES} entry, plus `awaiting-review`,
  * is pending recoverable work — `awaiting-review` just also increments the
@@ -172,6 +172,12 @@ export const summarizeWork = (items: readonly Pick<OutboxItem, "status">[]): Wor
       // workSafety answer "safe" over an un-reviewed recording.
       pending += 1;
       awaitingReview += 1;
+    } else if ((RECORDING_OUTBOX_STATUSES as readonly string[]).includes(status)) {
+      // Pending, deliberately, even though the relay will not touch it: the audio
+      // exists only on this device, so reporting it as no work at all would let
+      // workSafety answer `safe` mid-recording — the one thing this module must
+      // never do.
+      pending += 1;
     } else if ((ACTIVE_OUTBOX_STATUSES as readonly string[]).includes(status)) pending += 1;
     // `discarded` is counted nowhere, deliberately: work the human abandoned is
     // not outstanding, has not synced, and did not fail.

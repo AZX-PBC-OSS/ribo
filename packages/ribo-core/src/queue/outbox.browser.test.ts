@@ -12,6 +12,7 @@ import { openOutbox, type Outbox } from "./outbox.js";
 import { removeOutboxDatabase } from "./database.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
+  AUDIO_ATTACHMENT_ID,
   FINISHED_OUTBOX_STATUSES,
   OUTBOX_COLLECTION_NAME,
   OUTBOX_STATUSES,
@@ -221,10 +222,10 @@ test("step outputs written before a close are readable after a reopen", async ()
 });
 
 // ---------------------------------------------------------------------------
-// The v0 → v1 schema migration.
+// The v0 → v2 schema migration.
 //
-// A reopen does not test this: `openOutbox` can only ever create a v1 store, so
-// two opens against the same name both see version 1, nothing migrates, and the
+// A reopen does not test this: `openOutbox` can only ever create a v2 store, so
+// two opens against the same name both see version 2, nothing migrates, and the
 // test would pass whether or not the migration plugin and strategy exist at all
 // — the exact "passes while production is broken" shape this file's own header
 // warns about for the durability test above.
@@ -237,19 +238,21 @@ test("step outputs written before a close are readable after a reopen", async ()
 // store (one per `<collection>-<version>`, holding that version's schema), not
 // from the presence of rows in the versioned physical database. A hand-written
 // `docs` row with no matching internal meta document is invisible to
-// `mustMigrate()` — RxDB just creates a fresh v1 collection and never looks at
+// `mustMigrate()` — RxDB just creates a fresh v2 collection and never looks at
 // the row, so the test would report a pass while testing nothing, which is a
 // worse failure mode than the reopen it was meant to replace.
 //
 // So the v0 store here is seeded through RxDB's own public API instead: a real
 // collection, created at `version: 0` with the schema this file *used* to have
 // before this change, populates that internal bookkeeping for real. Opening a
-// v1 database over the same name then runs the actual migration path, not an
+// v2 database over the same name then runs the actual migration path, not an
 // imitation of it.
 // ---------------------------------------------------------------------------
 
 /** The outbox's RxDB schema exactly as it was before this task's version bump. */
-const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<Omit<OutboxDocument, "reviewOutcome">> = {
+const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<
+  Omit<OutboxDocument, "reviewOutcome" | "capture" | "canonicalAttachmentId" | "step">
+> = {
   version: 0,
   primaryKey: "id",
   type: "object",
@@ -282,7 +285,10 @@ const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<Omit<OutboxDocument, "reviewOutcome">> =
 };
 
 /** The v0 document shape: everything the current schema has, minus `reviewOutcome`. */
-function v0Document(): Omit<OutboxDocument, "reviewOutcome"> {
+function v0Document(): Omit<
+  OutboxDocument,
+  "reviewOutcome" | "capture" | "canonicalAttachmentId" | "step"
+> {
   return {
     id: "a",
     seq: 0,
@@ -308,17 +314,20 @@ function v0Document(): Omit<OutboxDocument, "reviewOutcome"> {
  */
 async function seedVersionZeroOutbox(
   name: string,
-  document: Omit<OutboxDocument, "reviewOutcome">,
+  document: Omit<OutboxDocument, "reviewOutcome" | "capture" | "canonicalAttachmentId" | "step">,
 ): Promise<void> {
   addRxPlugin(RxDBAttachmentsPlugin);
-  const database: RxDatabase<{ outbox: RxCollection<Omit<OutboxDocument, "reviewOutcome">> }> =
-    await createRxDatabase({
-      name,
-      storage: getRxStorageDexie(),
-      multiInstance: true,
-      eventReduce: true,
-      cleanupPolicy: {},
-    });
+  const database: RxDatabase<{
+    outbox: RxCollection<
+      Omit<OutboxDocument, "reviewOutcome" | "capture" | "canonicalAttachmentId" | "step">
+    >;
+  }> = await createRxDatabase({
+    name,
+    storage: getRxStorageDexie(),
+    multiInstance: true,
+    eventReduce: true,
+    cleanupPolicy: {},
+  });
   await database.addCollections({
     [OUTBOX_COLLECTION_NAME]: { schema: OUTBOX_RX_SCHEMA_V0 },
   });
@@ -326,7 +335,7 @@ async function seedVersionZeroOutbox(
   await database.close();
 }
 
-test("an outbox stored at schema version 0 opens and migrates to version 1", async () => {
+test("an outbox stored at schema version 0 opens and migrates to version 2", async () => {
   const name = uniqueName();
   await seedVersionZeroOutbox(name, v0Document());
 
@@ -336,6 +345,11 @@ test("an outbox stored at schema version 0 opens and migrates to version 1", asy
   expect(items).toHaveLength(1);
   expect(items[0]?.reviewOutcome).toBeUndefined();
   expect(items[0]?.status).toBe("queued");
+  // The pointer must name the LEGACY attachment, not merely be non-empty: zod
+  // accepts any string, so a migration writing "wrong-id" would satisfy the
+  // invariant while pointing at nothing. Asserting the exact id is what makes
+  // this test prove what the migration claims.
+  expect(items[0]?.canonicalAttachmentId).toBe(AUDIO_ATTACHMENT_ID);
 });
 
 // ---------------------------------------------------------------------------
@@ -417,20 +431,39 @@ test("audio can be dropped once it is no longer needed, leaving the item intact"
 });
 
 // ---------------------------------------------------------------------------
-// hasAudio / audioBytes — attachment presence as an observable fact.
+// audioReady / audioBytes — attachment presence as an observable fact.
 //
 // Without these, "audio was never attached", "audio was dropped" and "audio is
 // still being written" are one indistinguishable state on `OutboxItem`, because
 // `toJSON()` strips `_attachments`. A UI cannot legitimately report a dropped
 // recording without them, and that is a real state the moment
 // `dropAudioAfterTranscription` is on or iOS evicts the origin.
+//
+// `audioReady` reads the attachment the `canonicalAttachmentId` POINTER names,
+// not the pointer itself: the pointer survives `dropAudio` (it records WHICH
+// attachment was authoritative), so reading presence off the pointer would
+// report deleted audio as playable.
 // ---------------------------------------------------------------------------
 
-test("hasAudio is true from the moment of enqueue, with the attachment's size", async () => {
+test("audioReady tracks the POINTED attachment, not the pointer", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  expect(item.audioReady).toBe(true);
+  await outbox.dropAudio(item.id);
+  const after = await outbox.get(item.id);
+  // dropAudio removes the attachment and leaves the pointer — the pointer records
+  // WHICH attachment was authoritative and is still true after deletion. Reading
+  // audioReady off pointer presence would report deleted audio as playable.
+  expect(after!.canonicalAttachmentId).toBeDefined();
+  expect(after!.audioReady).toBe(false);
+  expect(after!.audioBytes).toBe(0);
+});
+
+test("audioReady is true from the moment of enqueue, with the attachment's size", async () => {
   const outbox = await open(uniqueName());
   const item = await outbox.enqueue({ recording, audio: audioBlob() });
 
-  expect(item.hasAudio).toBe(true);
+  expect(item.audioReady).toBe(true);
   expect(item.audioBytes).toBe(audioBytes.byteLength);
   // The value the caller got back and the value a reader sees must agree — the
   // return of `enqueue` is a projection of the very document that was written,
@@ -439,32 +472,32 @@ test("hasAudio is true from the moment of enqueue, with the attachment's size", 
   expect((await outbox.list())[0]).toEqual(item);
 });
 
-test("hasAudio goes false after dropAudio, and items$ re-emits to say so", async () => {
+test("audioReady goes false after dropAudio, and items$ re-emits to say so", async () => {
   const outbox = await open(uniqueName());
-  const seen: { hasAudio: boolean; audioBytes: number }[] = [];
+  const seen: { audioReady: boolean; audioBytes: number }[] = [];
   const subscription = outbox.items$.subscribe((items) => {
     const item = items[0];
-    if (item) seen.push({ hasAudio: item.hasAudio, audioBytes: item.audioBytes });
+    if (item) seen.push({ audioReady: item.audioReady, audioBytes: item.audioBytes });
   });
 
   try {
     const item = await outbox.enqueue({ recording, audio: audioBlob() });
-    await vi.waitFor(() => expect(seen.at(-1)?.hasAudio).toBe(true));
+    await vi.waitFor(() => expect(seen.at(-1)?.audioReady).toBe(true));
 
     await outbox.dropAudio(item.id);
 
     // The document's own fields are byte-identical across a `dropAudio`, so
-    // before `hasAudio` existed this re-emission carried no information at all
+    // before `audioReady` existed this re-emission carried no information at all
     // and a memoizing consumer could not tell anything had happened.
-    await vi.waitFor(() => expect(seen.at(-1)).toEqual({ hasAudio: false, audioBytes: 0 }));
+    await vi.waitFor(() => expect(seen.at(-1)).toEqual({ audioReady: false, audioBytes: 0 }));
     expect(await outbox.getAudio(item.id)).toBeUndefined();
-    expect((await outbox.get(item.id))?.hasAudio).toBe(false);
+    expect((await outbox.get(item.id))?.audioReady).toBe(false);
   } finally {
     subscription.unsubscribe();
   }
 });
 
-test("hasAudio survives a close and reopen, and matches what is physically in IndexedDB", async () => {
+test("audioReady survives a close and reopen, and matches what is physically in IndexedDB", async () => {
   const keptName = uniqueName();
   const droppedName = uniqueName();
 
@@ -477,7 +510,7 @@ test("hasAudio survives a close and reopen, and matches what is physically in In
   await withoutAudio.dropAudio(dropped.id);
   await withoutAudio.close();
 
-  // Read the raw stores rather than trusting the RxDB handle: `hasAudio` is a
+  // Read the raw stores rather than trusting the RxDB handle: `audioReady` is a
   // claim about the attachment store, so the assertion that it is *true* has to
   // come from that store, not from the layer computing the claim.
   expect(
@@ -487,12 +520,12 @@ test("hasAudio survives a close and reopen, and matches what is physically in In
 
   const reopenedKept = await open(keptName);
   expect(await reopenedKept.get(kept.id)).toMatchObject({
-    hasAudio: true,
+    audioReady: true,
     audioBytes: audioBytes.byteLength,
   });
 
   const reopenedDropped = await open(droppedName);
-  expect(await reopenedDropped.get(dropped.id)).toMatchObject({ hasAudio: false, audioBytes: 0 });
+  expect(await reopenedDropped.get(dropped.id)).toMatchObject({ audioReady: false, audioBytes: 0 });
 });
 
 test("remove deletes the item and its attachment for good", async () => {
@@ -599,7 +632,7 @@ test("a discarded review is terminal and drops the audio", async () => {
   });
 
   expect(updated.status).toBe("discarded");
-  expect(updated.hasAudio).toBe(false);
+  expect(updated.audioReady).toBe(false);
   expect(await outbox.getAudio(item.id)).toBeUndefined();
   expect(updated.reviewOutcome).toEqual({ status: "discarded", reason: "misspoke" });
 });
@@ -616,7 +649,7 @@ test("a discard commits the status BEFORE it drops the audio", async () => {
   // status first makes the worst case a `discarded` row that still holds its bytes,
   // which is merely untidy.
   //
-  // `items$` re-emits across an attachment change (that is what `hasAudio` is for,
+  // `items$` re-emits across an attachment change (that is what `audioReady` is for,
   // proven in its own test above), so the emission sequence is the observable form
   // of the ordering.
   const outbox = await open(uniqueName());
@@ -626,7 +659,7 @@ test("a discard commits the status BEFORE it drops the audio", async () => {
   const seen: [string, boolean][] = [];
   const subscription = outbox.items$.subscribe((items) => {
     const row = items.find((entry) => entry.id === item.id);
-    if (row) seen.push([row.status, row.hasAudio]);
+    if (row) seen.push([row.status, row.audioReady]);
   });
 
   try {
@@ -727,7 +760,7 @@ test("a second submission for the same item fails rather than rewriting it", asy
 
   const settled = await outbox.get(item.id);
   expect(settled?.status).toBe("writing");
-  expect(settled?.hasAudio).toBe(true);
+  expect(settled?.audioReady).toBe(true);
 });
 
 test("two submissions in flight at once settle as one winner and one refusal", async () => {
@@ -771,7 +804,7 @@ test("two submissions in flight at once settle as one winner and one refusal", a
   expect(settled?.status).toBe("writing");
   // The discard lost, so the recording is still on the device: a refused
   // submission must have no side effects at all, audio included.
-  expect(settled?.hasAudio).toBe(true);
+  expect(settled?.audioReady).toBe(true);
   expect(await outbox.getAudio(item.id)).toBeDefined();
 });
 
@@ -943,7 +976,13 @@ test("a dead item with extracted data but no transcript refuses to be reopened",
 // undo an audited human decision this method has no business reversing;
 // everything else is a status the relay still owns, where reopening would only
 // race it.
-test.each(OUTBOX_STATUSES.filter((status) => status !== "dead"))(
+// `recording` is excluded alongside `dead` for a different reason: this fixture
+// builds its row with `enqueue`, which by construction produces COMMITTED audio,
+// and a `recording` row must carry no canonical pointer. The state is simply
+// unconstructible here. It gets covered once `beginRecording` exists and can
+// build one honestly — until then, asserting on a row this test cannot legally
+// create would prove nothing.
+test.each(OUTBOX_STATUSES.filter((status) => status !== "dead" && status !== "recording"))(
   "a %s item cannot be reopened for review",
   async (status) => {
     const outbox = await open(uniqueName());
@@ -1100,7 +1139,7 @@ test("the first items$ emission carrying a new item already has its audio", asyn
 
     expect(audio).toBeInstanceOf(Blob);
     expect(new Uint8Array(await audio!.arrayBuffer())).toEqual(audioBytes);
-    expect(item.hasAudio).toBe(true);
+    expect(item.audioReady).toBe(true);
     expect(item.audioBytes).toBe(audioBytes.byteLength);
   } finally {
     subscription?.unsubscribe();

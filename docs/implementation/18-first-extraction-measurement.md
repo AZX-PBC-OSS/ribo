@@ -1,7 +1,31 @@
 # 18 — First extraction measurement against the rebuilt schema
 
 **Date:** 2026-08-07
-**Status:** Result, recorded. No code changed by this document.
+**Status:** Result, recorded — **and since CORRECTED. Read the correction below before quoting any
+number on this page.** No code changed by this document.
+
+> ## Correction, 2026-08-10
+>
+> Two measurement defects were found after this was written. Both inflate the figures below, and
+> neither is a small effect.
+>
+> **1. One of the 14 graded transcripts was in the prompt.** `02-oil-boiler-basement.txt` is
+> **byte-for-byte identical** to the few-shot example transcript in `examples.ts` — 1094 characters,
+> verified. The model was shown that transcript's exact answer and then scored on reproducing it, so
+> roughly 1/14 of every aggregate here measures copying rather than extraction. `score.mjs` now
+> excludes it from grading and says so when it runs.
+>
+> **2. The miss rate excluded the health matrix.** "Miss rate 5.4% / 1.5%" came from a denominator
+> (`gtNonNull`) that iterates the 38 **generic** leaves only; the 13 health tests are counted
+> separately as `hMiss` and never entered it. The section printing it was labelled "38 generic
+> leaves"; this document dropped that qualifier and presented it as _the_ miss rate. `score.mjs` now
+> also prints a combined rate over all 51 leaves, marked as the one to quote.
+>
+> **What that means for the conclusions.** The _shape_ results — 28/28 schema conformance, 100%
+> API-literal enum vocabulary, verbatim spans — are unaffected: they are structural properties, not
+> per-leaf accuracy, and the contaminated transcript cannot manufacture them across the other 13.
+> The _accuracy_ results — miss rate, hallucination rate, enum accuracy — must be re-measured on the
+> clean corpus with the combined denominator before they are cited anywhere.
 
 Until this run, **no real model had ever been sent the adapter's rebuilt 51-leaf schema.** The
 playground falls back to `FakeExtractor` without a key, the acceptance gate had been blocked since the

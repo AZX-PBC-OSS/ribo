@@ -3,6 +3,7 @@ import type { Enveloped, ExtractionTarget, ToolAdapterExample } from "@azx/ribo-
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
+import { ChatError } from "./chat-client.js";
 import type { ChatClient, ChatFinishReason, ChatRequest } from "./chat-client.js";
 import { singleShotExtractor } from "./single-shot.js";
 
@@ -301,6 +302,46 @@ describe("singleShotExtractor — pre-parse check (non-stop finishReason)", () =
 
     expect((error as Error).message).toContain("content_filter");
     expect((error as Error).message).not.toContain("did not match the schema");
+  });
+
+  test("a refusal and an unsupported request are TERMINAL — the queue must not retry them", async () => {
+    // isTransientFailure reads any error with no numeric `status` as retryable, and a
+    // bare ChatError has none. Without classification these would be re-sent until the
+    // item reached `dead`: a refusal repeats on the same input, and `unsupported` is a
+    // configuration error no amount of retrying fixes.
+    for (const kind of ["refusal", "unsupported"] as const) {
+      const chat: ChatClient = {
+        complete: () =>
+          Promise.reject(
+            kind === "refusal" ? ChatError.refusal("declined") : ChatError.unsupported("no cap"),
+          ),
+      };
+      const error = await singleShotExtractor({ target: demoTarget, chat, model: "m" })
+        .extract("t")
+        .then(
+          () => {
+            throw new Error(`expected extract() to reject for ${kind}`);
+          },
+          (caught: unknown) => caught,
+        );
+      expect(isTransientFailure(error)).toBe(false);
+    }
+  });
+
+  test("an abort stays RETRYABLE — it is caller-initiated, not a verdict", async () => {
+    // Where this departs from grouping all three together: a host that cancels on a
+    // deadline may succeed on a later attempt with a fresh one, so the queue should be
+    // allowed to try again. A transport blip behaves the same way and always has.
+    const chat: ChatClient = { complete: () => Promise.reject(ChatError.aborted("deadline")) };
+    const error = await singleShotExtractor({ target: demoTarget, chat, model: "m" })
+      .extract("t")
+      .then(
+        () => {
+          throw new Error("expected extract() to reject");
+        },
+        (caught: unknown) => caught,
+      );
+    expect(isTransientFailure(error)).toBe(true);
   });
 
   test("BOTH non-stop outcomes are TERMINAL, not transient — the queue must not retry them", async () => {

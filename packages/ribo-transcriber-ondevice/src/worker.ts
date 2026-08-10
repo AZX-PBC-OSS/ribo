@@ -427,8 +427,20 @@ function toTokenIds(output: unknown): number[] {
  * Bypasses the pipeline's `_call_whisper` decode/merge on purpose: it decodes the *whole* generated
  * sequence including our injected prefix, which would prepend the jargon to the transcript. Driving
  * `model.generate` directly lets us slice the known prefix off before decoding, so priming biases
- * without leaking — and that bypass is also why the pipeline's own `chunk_length_s` is unavailable,
- * so {@link transcribe} segments the audio itself.
+ * without leaking.
+ *
+ * **Why the library's own long-form path is not used instead** — the previous version of this comment
+ * implied the prefix was the whole reason, and that was wrong. transformers.js 4.2.0 does ship
+ * `_generate_with_seek`, a timestamp-driven seek loop, and it carries an injected prefix perfectly
+ * well: it passes `decoder_input_ids` into every segment and slices `init_tokens.length` off the
+ * result, exactly as this function does by hand.
+ *
+ * The real obstacle is upstream of `generate`. `WhisperFeatureExtractor` truncates the waveform to
+ * `n_samples` before producing features (`feature_extraction_whisper.js`), so a spectrogram built
+ * through `processor()` is always one segment — the seek loop iterates once and audio past 30 s is
+ * gone before generation starts. Measured, not reasoned: see `long-audio.manual.ts`, which drives it
+ * and asserts that 54 s of audio yields exactly 3000 mel frames. Using it would mean building a
+ * full-length mel spectrogram ourselves, which is more work than {@link planChunks}.
  */
 async function transcribeChunk(
   pipeline: AsrPipeline,

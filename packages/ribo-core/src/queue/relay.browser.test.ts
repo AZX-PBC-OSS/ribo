@@ -1265,3 +1265,41 @@ test("a transcript with no engine never reaches storage", async () => {
   expect(dead?.status).toBe("dead");
   expect(dead?.transcript).toBeUndefined();
 });
+
+test("a step that never settles fails the attempt instead of stalling the queue", async () => {
+  // The relay drains SERIALLY, so a collaborator that never settles does not fail one
+  // item — it stops the queue, and every capture behind it waits with no `failed`, no
+  // backoff and nothing surfaced. This is the worst outcome the machinery can produce and
+  // it is reachable from a hung worker or a managed service that goes quiet.
+  const outbox = await openTestOutbox(uniqueName());
+  const first = await outbox.enqueue({ recording, audio: audio() });
+  const second = await outbox.enqueue({
+    recording: { ...recording, id: "rec-2" },
+    audio: audio(),
+  });
+
+  const relay = createRelay({
+    outbox,
+    // Never settles — an out-of-memory worker kill looks exactly like this.
+    transcriber: {
+      engine: "hung",
+      capability: async () => ({ status: "ready" }) as const,
+      transcribe: () => new Promise<never>(() => {}),
+    },
+    extract: async () => ({ fields: {}, usage: { calls: 1 } }),
+    write: async () => undefined,
+    stepTimeoutMs: 50,
+    maxAttempts: 1,
+  });
+
+  await relay.syncNow();
+
+  // The hung item failed as an ordinary attempt...
+  const stalled = await outbox.get(first.id);
+  expect(stalled?.lastError).toMatch(/did not settle/i);
+  // ...and the queue is no longer blocked behind it: the SECOND item was reached.
+  const behind = await outbox.get(second.id);
+  expect(behind?.status).not.toBe("queued");
+
+  await outbox.close();
+});

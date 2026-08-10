@@ -56,7 +56,7 @@ test("an injected non-Dexie (memory) RxStorage drives the same Outbox API", asyn
 
   // Same projection contract the Dexie-backed tests assert.
   expect(enqueued.status).toBe("queued");
-  expect(enqueued.hasAudio).toBe(true);
+  expect(enqueued.audioReady).toBe(true);
   expect(enqueued.audioBytes).toBe(audioBytes.byteLength);
 
   // Read the item back through the public API — off the injected engine, in a
@@ -79,7 +79,9 @@ test("a nested review outcome with dotted paths round-trips storage with no migr
   // claim is about PERSISTENCE, so checking it against the zod schema alone would not
   // settle it — the RxDB collection carries its own JSON schema and its own `version`.
   // This drives the real thing: a nested outcome through `submitReview`, out to storage
-  // and back through `get`, on a collection at the unchanged `version: 1`.
+  // and back through `get`, on a collection at `version: 2` (bumped for the
+  // durable-capture fields, not for this — the R1.5 claim is that nesting needed no
+  // bump of its own, and it still does not).
   const storage = getRxStorageMemory();
   const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
 

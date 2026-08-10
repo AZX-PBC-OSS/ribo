@@ -96,6 +96,22 @@ export interface RelayOptions extends BackoffOptions {
    * hard stop protects.
    */
   maxAttempts?: number;
+  /**
+   * How long any one step may take before the attempt is failed.
+   *
+   * Defaults to {@link DEFAULT_STEP_TIMEOUT_MS}. The relay drains **serially**, so an
+   * injected collaborator that never settles does not fail one item — it stops the queue
+   * dead, and every capture behind it waits indefinitely with no `failed` status, no
+   * backoff and nothing surfaced to the human. That is the worst outcome this machinery
+   * can produce, and it is reachable from a hung worker, a fetch with no timeout, or a
+   * managed service that accepts a request and goes quiet.
+   *
+   * The bound belongs here as well as in each collaborator, because the relay cannot know
+   * which of them are careful. A step that exceeds it fails as an ORDINARY attempt —
+   * retryable, backed off, counted — which is a state the queue already knows how to
+   * recover from.
+   */
+  stepTimeoutMs?: number;
   /** Override the transient/terminal decision. Defaults to {@link isTransientFailure}. */
   isTransient?: (error: unknown) => boolean;
   /**
@@ -170,6 +186,41 @@ const STEP_STATUS = {
 function messageOf(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+/**
+ * Default per-step budget: 15 minutes.
+ *
+ * Above the on-device transcriber's own 10-minute worker budget on purpose, so the
+ * collaborator's specific error wins the race and produces the better message. This is
+ * the backstop for collaborators that have no timeout of their own.
+ */
+export const DEFAULT_STEP_TIMEOUT_MS = 900_000;
+
+/** Fail `work` if it has not settled within `ms`, naming the step so the error is actionable. */
+async function withTimeout<T>(work: Promise<T>, ms: number, step: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `relay: the ${step} step did not settle within ${ms} ms — failing the attempt so ` +
+                  `the queue keeps draining rather than stalling behind it`,
+              ),
+            ),
+          ms,
+        );
+      }),
+    ]);
+  } finally {
+    // The losing promise keeps running — we cannot cancel an arbitrary collaborator — but
+    // the timer must not keep the process alive after a fast success.
+    clearTimeout(timer);
+  }
 }
 
 export function createRelay(options: RelayOptions): Relay {
@@ -313,7 +364,11 @@ class QueueRelay implements Relay {
       throw new TerminalQueueError(`audio attachment is missing for item ${item.id}`);
     }
     const transcript = transcriptSchema.parse(
-      await this.#options.transcriber.transcribe(item.recording, audio),
+      await withTimeout(
+        this.#options.transcriber.transcribe(item.recording, audio),
+        this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
+        "transcribe",
+      ),
     );
     // Persisted BEFORE the status moves on, so a crash between the two lands on
     // "transcript present, status stale" — which `nextStep` reads correctly —
@@ -325,7 +380,11 @@ class QueueRelay implements Relay {
   }
 
   async #extract(item: OutboxItem): Promise<void> {
-    const extracted = await this.#options.extract({ item, transcript: item.transcript! });
+    const extracted = await withTimeout(
+      this.#options.extract({ item, transcript: item.transcript! }),
+      this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
+      "extract",
+    );
     // Parks for a human rather than advancing to `writing`. `awaiting-review` is
     // not in ACTIVE_OUTBOX_STATUSES, so `nextPending()` stops selecting this item
     // and the drain moves on to the next capture. `Outbox.submitReview` is the
@@ -381,11 +440,15 @@ class QueueRelay implements Relay {
       );
     }
 
-    const writeResult = await this.#options.write({
-      item,
-      reviewed: outcome.fields,
-      idempotencyKey: item.idempotencyKey,
-    });
+    const writeResult = await withTimeout(
+      this.#options.write({
+        item,
+        reviewed: outcome.fields,
+        idempotencyKey: item.idempotencyKey,
+      }),
+      this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
+      "write",
+    );
     await this.#patch(item.id, {
       status: "done",
       attempts: 0,
