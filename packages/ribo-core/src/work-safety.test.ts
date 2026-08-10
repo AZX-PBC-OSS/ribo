@@ -56,6 +56,12 @@ describe("summarizeWork", () => {
     expect(work).toEqual({ pending: 1, dead: 0, synced: 0, awaitingReview: 1 });
   });
 
+  test("a recording in progress is pending work, never invisible", () => {
+    // Without this, `recording` — correctly not in ACTIVE — falls through uncounted
+    // and workSafety answers `safe` while the only copy of the audio is local.
+    expect(summarizeWork([{ status: "recording" }])).toMatchObject({ pending: 1 });
+  });
+
   test("a discarded item is not work at all", () => {
     // Deliberately abandoned. Not pending (nothing to do), not synced (it never
     // left), not dead (it did not fail).

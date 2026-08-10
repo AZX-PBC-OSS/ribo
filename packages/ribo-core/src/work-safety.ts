@@ -1,5 +1,5 @@
 import type { ConnectivityStatus } from "./connectivity.js";
-import { ACTIVE_OUTBOX_STATUSES } from "./queue/schema.js";
+import { ACTIVE_OUTBOX_STATUSES, RECORDING_OUTBOX_STATUSES } from "./queue/schema.js";
 import type { OutboxItem } from "./queue/schema.js";
 
 /**
@@ -172,6 +172,12 @@ export const summarizeWork = (items: readonly Pick<OutboxItem, "status">[]): Wor
       // workSafety answer "safe" over an un-reviewed recording.
       pending += 1;
       awaitingReview += 1;
+    } else if ((RECORDING_OUTBOX_STATUSES as readonly string[]).includes(status)) {
+      // Pending, deliberately, even though the relay will not touch it: the audio
+      // exists only on this device, so reporting it as no work at all would let
+      // workSafety answer `safe` mid-recording — the one thing this module must
+      // never do.
+      pending += 1;
     } else if ((ACTIVE_OUTBOX_STATUSES as readonly string[]).includes(status)) pending += 1;
     // `discarded` is counted nowhere, deliberately: work the human abandoned is
     // not outstanding, has not synced, and did not fail.

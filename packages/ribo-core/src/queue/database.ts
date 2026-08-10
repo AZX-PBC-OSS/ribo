@@ -28,11 +28,17 @@ export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
  * before a non-trivial one needs it. Nothing is published and there are no
  * users, so no deployed data is at risk here.
  *
+ * v1 → v2 added `capture`, `canonicalAttachmentId` and `step` — all optional,
+ * so the strategy is identity for the same reason.
+ *
  * Exported (rather than inlined into `addCollections`) so a test can exercise
  * the strategy function directly, independent of a real migration run.
  */
 export const OUTBOX_MIGRATION_STRATEGIES = {
   1: (doc: OutboxDocument) => doc,
+  // No users yet, so no compatibility logic is owed. RxDB simply requires a
+  // strategy per version.
+  2: (doc: OutboxDocument) => doc,
 };
 
 /**

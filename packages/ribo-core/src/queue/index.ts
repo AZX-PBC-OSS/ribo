@@ -50,6 +50,7 @@ export {
   FINISHED_OUTBOX_STATUSES,
   OUTBOX_COLLECTION_NAME,
   OUTBOX_STATUSES,
+  RECORDING_OUTBOX_STATUSES,
   outboxDocumentSchema,
   outboxItemSchema,
   outboxRxSchema,
