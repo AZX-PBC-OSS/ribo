@@ -655,8 +655,7 @@ export class Outbox {
     //
     // Stripping `_attachments` is also exactly why the attachment facts have to
     // be read off the document separately. `getAttachment` reads the in-memory
-    // stub on `doc._data`; it does not fetch the bytes, so this stays as cheap
-    // as the projection it replaced.
+    // stub on `doc._data`, so it does not fetch bytes — a property lookup, not I/O.
     //
     // `audioReady` reads the attachment the `canonicalAttachmentId` POINTER
     // names, not the pointer itself: the pointer survives `dropAudio` (it
@@ -668,16 +667,28 @@ export class Outbox {
     // While recording there is no canonical yet, but the chunks ARE durable — so a
     // UI can show capture progressing instead of reporting nothing, and cannot
     // mistake "not yet" for "the bytes were dropped".
-    const chunkBytes = doc.capture
-      ? doc
-          .allAttachments()
-          .filter((a) => a.id.startsWith(chunkPrefix(doc.capture!.sourceId)))
-          .reduce((total, a) => total + a.length, 0)
-      : 0;
+    //
+    // Gated on the STATUS, not on `capture`: `capture.sourceId` is deliberately
+    // retained after commit (it identifies chunks that may still need sweeping),
+    // so keying off its presence would make a committed row whose canonical audio
+    // was dropped report `audioReady: false` with non-zero `audioBytes` — which
+    // contradicts the documented dropped state and would let a UI offer playback
+    // for bytes it cannot assemble. It also scans attachments on every projection
+    // of every durable row, for a number the canonical length then wins anyway.
+    // NOT YET TESTED, and that is a known gap rather than an oversight: proving this
+    // needs a `recording` row carrying chunk attachments, and no public API can build
+    // one until `beginRecording` lands (plan Task 6). Two assertions are owed then —
+    // a mid-recording row reporting `audioReady: false` with non-zero `audioBytes`,
+    // and a committed row with leftover chunks reporting canonical bytes only, `0`
+    // once dropped. Reaching past `Outbox` to fake those states was tried and is not
+    // worth the fixture; through the real constructor they are three lines each.
+    const audioBytes =
+      canonical?.length ??
+      (doc.status === "recording" && doc.capture ? sumChunkBytes(doc, doc.capture.sourceId) : 0);
     return outboxItemSchema.parse({
       ...doc.toJSON(),
       audioReady: canonical !== null,
-      audioBytes: canonical?.length ?? chunkBytes,
+      audioBytes,
     });
   }
 
@@ -750,3 +761,13 @@ function mangoQuery({ status, limit }: OutboxQuery): MangoQuery<OutboxDocument> 
  * identify chunk attachments by id prefix, and that is the only consumer.
  */
 const chunkPrefix = (sourceId: string): string => `audio-${sourceId}-`;
+
+/** Total durable bytes of one capture's chunk attachments. Reads stub lengths, never bytes. */
+function sumChunkBytes(doc: RxDocument<OutboxDocument>, sourceId: string): number {
+  const prefix = chunkPrefix(sourceId);
+  let total = 0;
+  for (const attachment of doc.allAttachments()) {
+    if (attachment.id.startsWith(prefix)) total += attachment.length;
+  }
+  return total;
+}
