@@ -1,6 +1,6 @@
 # Durable capture — audio survives a crash mid-recording
 
-**Status:** Design, revision 4. Piece 1 of 2. Not yet planned or implemented.
+**Status:** Design, revision 5. Piece 1 of 2. Not yet planned or implemented.
 **Date:** 2026-08-10
 
 > **Why this document exists.** Split out of `2026-08-08-live-transcription-design.md` after two review
@@ -196,26 +196,99 @@ The conclusion does not depend on which browser does which thing today. **"Lock 
 an invariant this design cannot verify, that differs between engines, and that has demonstrably
 changed.** It is not a safe foundation, and revision 3 built on it.
 
-### 3.1.1 What returns: one owner token, checked on writes
+### 3.1.1 What returns: one owner token, rotated on takeover
 
 ```
 capture: { owner: string }    // persisted, top-level on the outbox item. No leaseAt.
 ```
 
-Every mutation of a recording item — each chunk attachment, the canonical write, the status transition —
-happens inside a **guarded `incrementalModify`** that compares `capture.owner` and rejects on mismatch.
-Because comparison and mutation are one write against one document, RxDB's retry-against-latest works in
-our favour: a stale writer's modifier re-runs, sees a different owner, and throws instead of applying.
+Every **document** mutation of a recording item — the status transitions, `capture` itself — happens
+inside a guarded `incrementalModify` that compares `capture.owner` **and** `status === "recording"`, and
+rejects on either mismatch. Comparison and mutation are one write against one document, so RxDB's
+retry-against-latest works in our favour: a stale writer's modifier re-runs, sees a different owner, and
+throws instead of applying.
+
+**Owner equality alone is insufficient**, which revision 4 missed: after the row transitions to `queued`
+the original owner is still recorded, so a stale writer would pass an owner-only check. The status must
+be part of the same comparison.
+
+**Recovery MUST rotate the token, as its first operation.** This is what revision 4 omitted, and without
+it the entire fence is inert — a restored recorder still holding the original owner passes revalidation
+and every subsequent write. So, authorised by holding `ribo-capture`: mint a fresh owner and atomically
+install it while confirming the item is still `recording`. Every later recovery write uses the new owner.
+
+With rotation in place the token is sufficient against both races:
+
+- An old IndexedDB transaction that commits _first_ is folded into the revision that takeover then
+  retries against.
+- If takeover commits first, the stale transaction conflicts and cannot overwrite the newer revision.
+- Revalidate-then-taken-over-again is still safe, because authorisation is re-checked atomically on
+  every write rather than once.
 
 **This is much less than revision 2 carried.** No heartbeat, no `leaseAt`, no staleness threshold, no
-recovery-lease renewal, no tuning — Web Locks still answers _"is anyone recording?"_ and _"did that tab
-die?"_ far better than a wall clock could. The token answers only the question locks cannot: _"is this
-write still authorised?"_ Liveness detection and write authorisation are different problems, and
-revision 3's mistake was assuming one primitive settled both.
+recovery-lease renewal — Web Locks still answer _"is anyone recording?"_ and _"did that tab die?"_ far
+better than a wall clock. The token answers only what locks cannot: _"is this write still authorised?"_
+Liveness detection and write authorisation are different problems, and revision 3's mistake was assuming
+one primitive settled both.
 
-**On resume, a restored context must re-validate before writing anything** — the item still exists, is
-still `recording`, and still carries its owner. Failing that check means the session was taken over: stop
-capture and surface it. This is the specific path a released-on-bfcache lock creates.
+### 3.1.2 Attachment writes cannot be fenced — so make stale ones inert
+
+Revision 4 said every chunk write goes through a guarded `incrementalModify`. **That is not buildable
+with RxDB's public API**, and it is the third appearance of the same trap:
+
+- `putAttachment()` submits its **own** modifier to the incremental write queue. That modifier sees the
+  whole document and _could_ compare `capture.owner`, but there is no way for us to inject the
+  comparison.
+- Public `RxDocument.incrementalModify()` runs through `modifierFromPublicToInternal`, which **strips
+  `_attachments` before the public modifier and restores the old value afterwards**. A public modifier
+  therefore cannot mutate attachments at all, let alone atomically with a field comparison.
+
+The same applies to chunk deletion and canonical replacement, not only insertion. There is no public
+primitive that does what revision 4 assumed.
+
+**So stop trying to prevent the stale write, and make it harmless instead.** Chunk attachment names are
+scoped by the owner that wrote them:
+
+```
+audio-<owner>-000123-04            // chunk 123, slice 4, written by session <owner>
+```
+
+A stale writer that wakes and lands a chunk writes it under **its own** owner prefix. Recovery and
+commit read only chunks matching the **current** `capture.owner`, so a stale write is invisible rather
+than corrupting: it can never be spliced into another session's audio, and it cannot overwrite a live
+chunk because the names cannot collide. Orphaned prefixes are deleted during recovery.
+
+This narrows the guarded-`incrementalModify` requirement to **document mutations only** — status
+transitions and `capture` — which `incrementalModify` genuinely can do atomically. The two mechanisms
+now match what the storage layer actually supports:
+
+| Mutation                      | Mechanism                                            |
+| ----------------------------- | ---------------------------------------------------- |
+| status, `capture`             | guarded `incrementalModify`, owner + status compared |
+| chunk / canonical attachments | owner-scoped naming; stale writes inert and swept    |
+
+**On resume, a restored context must re-validate before writing anything** — the item exists, is still
+`recording`, and still carries its owner. Failing that means takeover: stop capture and surface it. §3.3
+defines how that check is guaranteed to run first.
+
+### 3.3 The restored-context protocol
+
+"Re-validate on resume" is easy to write and hard to guarantee, because a `dataavailable` handler can
+fire before an asynchronous check completes. Revision 4 named the requirement without specifying the
+mechanism.
+
+- **Mark the session suspended synchronously** on `pagehide` with `event.persisted === true`, through an
+  injected lifecycle seam so it is testable and so `ribo-core` does not reach for `window` directly.
+  `pageshow` with `persisted` is the portable restore signal; Chromium's Page Lifecycle `resume` is not
+  a portable foundation and lifecycle ordering is not consistently implemented across engines.
+- **Route every mutation through one serialized session queue** — `dataavailable`, finalisation, the
+  error fallback. `Recorder` currently installs `dataavailable` straight onto the `MediaRecorder`, so
+  this is a real change, and it is what makes ordering a property of our code rather than of the
+  browser's event scheduling.
+- **The first post-suspension operation awaits revalidation.** Anything queued behind it waits; on
+  failure, capture stops and the operation is discarded rather than written.
+- **The per-write fence stays regardless**, because takeover can happen _after_ a successful
+  revalidation. Revalidation reduces wasted work; the fence is what provides safety.
 
 ### 3.2 Exclusion and abandonment, with one primitive
 
@@ -354,8 +427,35 @@ survives:
   published on the context, with a defined lifetime: created at `start()`, disposed at `stop()` or on
   unwind, and absent when `enqueue: false`.
 
-Without these three, "start returns the item id", "useWorkSafety composes session health" and "durable
-capture is a separate collaborator" do not compose into one ownership model.
+**The lock forces a two-promise handshake.** `navigator.locks.request()` does not resolve until its
+callback ends — so `start()` cannot await it, or it would block for the entire recording. The callback
+holds the lock and stays pending until stop or unwind; a separate deferred resolves as soon as setup
+succeeds and is what `start()` returns. Getting this backwards produces a `start()` that never returns.
+
+```
+start()  ─► request(lock, async () => {         // pending for the whole session
+              …setup…
+              setupDone.resolve(itemId)         // ← start() resolves here
+              await sessionEnded                // ← lock held until stop/unwind
+            })
+         ─► return setupDone.promise
+```
+
+**The id flows one way.** The capture session mints it at `start()` and it is passed _into_ the recorder
+for `stop()` to stamp onto the `Recording`, rather than the recorder minting its own and the session
+adopting it. `enqueue()`'s factory stays for the non-durable path.
+
+**The context needs a coordinator, not a field.** A session created inside a descendant `useRecorder()`
+cannot publish itself to a sibling `useWorkSafety()` by mutating the provider's value —
+`RiboProvider` passes a host-owned object straight through. So the host (or provider) constructs a
+**stable, observable capture coordinator** that both hooks read: `useRecorder` registers the active
+session on it, `useWorkSafety` subscribes to its health. Explicit `recorder`/`outbox` hook overrides
+publish through the same coordinator, or they silently lose health reporting.
+
+**`useRecorder.start()` returns `string | undefined`** — the id when durable capture is active,
+`undefined` when `enqueue: false`. It currently swallows start failures deliberately, and that stays:
+refusal because another tab holds the lock is surfaced as recorder state, not a rejection, so the
+existing error-handling contract does not change.
 
 ## 6. Reporting contracts that change
 
@@ -394,10 +494,21 @@ condition it watches for occurs — and on resume the browser may deliver the ac
 _before_ the detector runs. If that handler simply resets the last-emission timestamp, **the stall is
 never observed at all** and the signal is worthless.
 
+The robust implementation does not depend on a timer winning an event-loop race: **the `dataavailable`
+handler itself computes `now - lastEmission` before updating it**, so a late event detects the interval
+it missed.
+
 So: the gap is computed from the **timestamp carried into the resume**, before any late event is
 accepted as healthy. A resumed session that observes a gap past the threshold reports `stalled` for that
 interval even though audio ultimately arrived — because the report is about the window in which a crash
-would have lost it, not about the eventual outcome. The detector reads the recorder phase to
+would have lost it, not about the eventual outcome.
+
+**That requires a clearing rule, which revision 4 left undefined**, and without one the signal is
+useless in either direction: if the same handler returns straight to `flushing`, React may never render
+`at-risk` at all; if it never clears, the value stops meaning current health. So capture health is
+**latched**: entering `stalled` holds it for a defined minimum interval, and it clears only after
+emission has been healthy for that long. The value then means "emission is healthy _and_ has been
+recently", which is what a safety report should say. The detector reads the recorder phase to
 distinguish this from `stopped` or `paused`; it does **not** try to infer _why_ emission stalled, which
 it cannot and does not need to.
 
@@ -481,25 +592,45 @@ Two changes, and the first is the real fix:
   `watch()`; today it drains only on `syncNow()`, startup, or a connectivity edge. This closes the
   general gap, not just this instance of it — any path that produces a `queued` item without an explicit
   trigger has the same problem.
+
+  **Wire it on eligibility edges, not on every emission.** `watch()` fires on every matching document
+  write, and the relay itself produces several active-to-active writes per item, so calling `syncNow()`
+  per emission appends a drain to the chain for each one. That is serialized rather than re-entrant, so
+  it is not a correctness bug, but it leaves a tail of redundant drains each contending for
+  `ribo-relay`. Detect the transition into eligibility and **coalesce "drain requested while draining"
+  into at most one follow-up**. The relay also needs a **separate unsubscribe handle** for this
+  subscription; it currently keeps only one, for connectivity.
+
 - Recovery still calls `syncNow()`, now as an optimisation rather than the mechanism.
 
-### 8.2 Relay work needs its own cross-tab exclusion
+### 8.2 Relay work needs claim-on-select, not just a lock
 
-Deleting the leader-election plugin (§3.2) removed the only thing that would have stopped two tabs
-running relays over one queue. The relay's serialization is **per-instance**, and `nextPending()`
-performs no claim — so two relays can read the same `queued` item and begin the same step. The remote
-idempotency key protects the vendor write, but not duplicate transcription and extraction, which are the
-expensive parts.
+Deleting the leader-election plugin removed the only thing stopping two tabs running relays over one
+queue. The relay's serialization is per-instance, and `nextPending()` performs no claim, so two relays
+can read the same `queued` item and begin the same step.
 
-This is partly pre-existing, but this design makes it worse by specifying simultaneous multi-tab startup,
-so it is in scope: **the relay drains under a second Web Lock, `ribo-relay`**, held for the duration of a
-drain. Distinct from `ribo-capture`, because recording and relaying may legitimately proceed in different
-tabs.
+**Revision 4 answered this with a second Web Lock, `ribo-relay`, and dismissed the residual risk as
+"merely duplicated work". That was wrong**, and wrong for the same reason revision 3 was: under this
+design's own bfcache premise, a lock can be released while the holder's context survives.
 
-A bfcache release mid-drain is tolerable here in a way it is not for capture: the failure mode is
-duplicated work, not corrupted or lost audio. Claim-on-select — transitioning an item's status as part of
-selecting it, so the claim is storage-level rather than lock-level — is the more robust answer and is
-noted as a follow-up rather than folded in.
+The concrete failure, which is corruption rather than waste:
+
+1. Relay A selects a `queued` item, starts transcription, and is frozen.
+2. A's lock is released; relay B transcribes and extracts the item to `awaiting-review`.
+3. A resumes and writes its stale transcription result with `status: "extracting"`.
+
+**The item has regressed out of `awaiting-review`.** A stale failure handler can equally overwrite
+success with `failed` or `dead`. If review or writing had already happened, it is worse still. Relay
+step mutations are unconditional patches today, so nothing stops any of this.
+
+So relay work needs **the same class of protection as capture**: a persisted claim taken when an item is
+selected, and re-checked by every mutation of that item's step. Either claim-on-select (transition the
+status as part of selecting) or a persisted relay generation compared on each write — but not deferred,
+and not a lock alone.
+
+`ribo-relay` is still worth holding: it prevents routine contention between two live tabs, exactly as
+`ribo-capture` does. It is the acquisition mechanism, not the authorisation one — the same division as
+§3.1.
 
 ## 9. Consumer-visible API changes, declared
 
@@ -510,38 +641,45 @@ must say so**, not be described as additive.
 
 ## 10. Testing
 
-**Eight that must be able to fail:**
+**Nine that must be able to fail.** Several of revision 4's would have passed a broken implementation;
+where that is so, the discriminating version is described.
 
-- **Two tabs starting simultaneously: exactly one wins**, via `ifAvailable`. A sequential test proves
-  nothing about the race.
-- **A write from a session that no longer owns the item is rejected.** The fence, directly: set a
-  different `capture.owner`, then attempt a chunk write. This is the test revision 3 had no need for and
-  was wrong not to have.
-- **A restored context re-validates before writing.** Simulate the bfcache path — lock released, another
-  session takes over, original resumes — and assert it stops rather than writing. **This is the case that
-  invalidated revision 3**; a test that only covers destroyed contexts proves the wrong half.
-- **`workSafety` reports `at-risk` when a stall is only observable after resume** — the late
-  `dataavailable` must not reset the gap first. A detector that processes the event before computing the
-  gap passes a naive stall test and fails this one.
-- **A recovered item is drained even if the recovering tab dies before `syncNow()`.** Kill the recoverer
-  after the status transition; another open tab's relay must still pick it up.
-- **Two tabs cannot drain the relay concurrently** — the `ribo-relay` lock, asserted with both tabs live.
-- **A truncated final chunk recovers via drop-last-and-retry; one that cannot decode at all leaves the
-  item recoverable with chunks intact** — and **the chunk-write-failure fallback decode-verifies before
-  writing canonical**, and assembles from **attachments**, not from an assumed in-memory buffer.
+- **Two tabs starting simultaneously: exactly one wins.** Only discriminating if the first lock callback
+  is **held at a barrier** while the second `ifAvailable` request runs. Sequential acquisition proves
+  nothing.
+- **A stale write cannot land, tested as a real race.** Revision 4 set a different owner and _then_
+  called the writer — which a non-atomic pre-flight check passes. Instead: **pause the old mutation
+  mid-flight, commit the takeover, release the old mutation**, and assert the conflict retry rejects it
+  with no status change.
+- **Recovery rotates the owner.** Without this the fence is inert and every other fence test passes
+  anyway, because they set the owner by hand. **This is the test that would have caught revision 4.**
+- **A stale chunk write is inert, not corrupting.** Write a chunk under a superseded owner prefix and
+  assert commit and recovery both ignore it, and that it is swept.
+- **A restored context revalidates before any write.** Drive the actual lifecycle seam, **deliver
+  `dataavailable` while revalidation is still pending**, and assert no attachment, canonical or status
+  mutation occurs — not merely that the recorder eventually stops.
+- **A frozen relay cannot regress an item.** Model release mid-step: A selects and freezes, B advances
+  to `awaiting-review`, A resumes and writes. Assert the item does not regress. The two-live-tab lock
+  test does **not** cover this and is not a substitute.
+- **`workSafety` surfaces a stall observable only after resume**, exercised **through `useWorkSafety`
+  and the session detector** — not by calling `workSafety(…, "stalled")` directly, which only tests the
+  classifier. Assert the latch holds and then clears.
+- **A recovered item drains even if the recovering tab dies before `syncNow()`**, with the surviving
+  relay receiving **no** manual, startup or connectivity trigger.
 - **`audioReady` is `false` while `audioBytes` is non-zero mid-recording**, plus `recording` membership
   asserted directly in each status list alongside the relay behaviour test.
 
 Also: every row of the §4 table against a reopened database, including a `queued` row with leftover
-chunks; an oversized chunk sliced into ordered attachments **with a non-empty MIME type** and a lexical
-order that holds past 9999; merge ordering and decode-verification in real Chromium; `start()` unwinding
-cleanly when permission is denied after the lock is acquired, and when the unwind itself fails;
-`useRecorder({ enqueue: false })` still working with no durability; and the v1→v2 migration on a database
-with existing documents.
+chunks; **one id proven identical across `start()`, the provisional row and the final `Capture`**; the
+active session appearing on the coordinator at `start()` and disappearing at stop **and** on unwind;
+oversized chunks sliced with a non-empty MIME type and an order that holds past 9999; merge ordering and
+decode-verification in real Chromium; `start()` unwinding cleanly when permission is denied after the
+lock is acquired and when the unwind itself fails; `useRecorder({ enqueue: false })` still working with
+no durability; and the v1→v2 migration on a database with existing documents.
 
-**One honest limit on all of it:** the bfcache behaviour these tests simulate is _modelled_, not
-observed. Playwright can destroy and restore contexts, but "what a real Safari does to a held lock on
-bfcache entry" is not something this harness establishes — see §11.
+**One honest limit:** the bfcache behaviour these tests model is not observed. Playwright can destroy and
+restore contexts, but what a real Safari does to a held lock on bfcache entry is not established here —
+see §11.
 
 ## 11. Open questions
 
