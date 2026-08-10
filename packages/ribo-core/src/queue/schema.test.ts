@@ -5,6 +5,7 @@ import {
   DERIVED_OUTBOX_ITEM_KEYS,
   FINISHED_OUTBOX_STATUSES,
   OUTBOX_STATUSES,
+  RECORDING_OUTBOX_STATUSES,
   outboxDocumentSchema,
   outboxItemSchema,
   outboxRxSchema,
@@ -42,11 +43,14 @@ test("the RxDB required list is exactly zod's non-optional fields", () => {
   expect(required).toEqual(zodKeys.filter((key) => !optionalKeys.includes(key)));
 });
 
-test("the optional fields are the step outputs and the error message", () => {
+test("the optional fields are the step outputs, the error message, and the durable-capture fields", () => {
   expect(optionalKeys).toEqual([
+    "canonicalAttachmentId",
+    "capture",
     "extracted",
     "lastError",
     "reviewOutcome",
+    "step",
     "transcript",
     "writeResult",
   ]);
@@ -127,14 +131,19 @@ test("the projection's extra keys do not leak back into a document parse", () =>
   ).toBe(false);
 });
 
-test("every status is active, finished, or explicitly parked for a human", () => {
+test("every status is active, finished, recording, or explicitly parked for a human", () => {
   // `awaiting-review` is in neither set on purpose — that omission is the review
   // gate. It is named here rather than left as a hole, so a future status added
   // to neither set fails this test instead of silently joining it.
   const PARKED: readonly OutboxStatus[] = ["awaiting-review"];
-  expect([...ACTIVE_OUTBOX_STATUSES, ...FINISHED_OUTBOX_STATUSES, ...PARKED].sort()).toEqual(
-    [...OUTBOX_STATUSES].sort(),
-  );
+  expect(
+    [
+      ...ACTIVE_OUTBOX_STATUSES,
+      ...FINISHED_OUTBOX_STATUSES,
+      ...RECORDING_OUTBOX_STATUSES,
+      ...PARKED,
+    ].sort(),
+  ).toEqual([...OUTBOX_STATUSES].sort());
 });
 
 test("awaiting-review is a status but is deliberately not active", () => {
@@ -167,6 +176,7 @@ test("a document carries an optional review outcome", () => {
     attempts: 0,
     nextAttemptAt: new Date(0).toISOString(),
     enqueuedAt: new Date(0).toISOString(),
+    canonicalAttachmentId: "audio",
     recording: {
       id: "r",
       capturedAt: new Date(0).toISOString(),
@@ -184,8 +194,8 @@ test("a document carries an optional review outcome", () => {
   expect(reviewed.reviewOutcome).toEqual({ status: "accepted", fields: { atticRValue: 19 } });
 });
 
-test("the RxDB schema is at version 1", () => {
-  expect(outboxRxSchema.version).toBe(1);
+test("the RxDB schema is at version 2", () => {
+  expect(outboxRxSchema.version).toBe(2);
 });
 
 /** A minimal document that parses, for the negative cases to mutate. */
@@ -205,6 +215,7 @@ function validDocument() {
       mimeType: "audio/webm",
       ctx: {},
     },
+    canonicalAttachmentId: "audio",
   };
 }
 
@@ -214,4 +225,37 @@ test("a status not in the state machine is rejected at the boundary", () => {
   expect(outboxDocumentSchema.safeParse({ ...valid, status: "uploading" }).success).toBe(false);
   expect(outboxDocumentSchema.safeParse({ ...valid, nextAttemptAt: "soon" }).success).toBe(false);
   expect(outboxDocumentSchema.safeParse({ ...valid, seq: -1 }).success).toBe(false);
+});
+
+test("recording is a status, and it is in exactly one category", () => {
+  expect(OUTBOX_STATUSES).toContain("recording");
+  // The partition test already fails for a status in no bucket. This asserts the
+  // membership DIRECTLY, because the behavioural relay test can pass even if
+  // `recording` were wrongly added to the active set — some other guard might
+  // still skip it.
+  expect(ACTIVE_OUTBOX_STATUSES).not.toContain("recording");
+  expect(FINISHED_OUTBOX_STATUSES).not.toContain("recording");
+  expect(RECORDING_OUTBOX_STATUSES).toEqual(["recording"]);
+});
+
+test("a recording document must carry capture, and must not claim committed audio", () => {
+  const base = validDocument();
+  expect(() =>
+    outboxDocumentSchema.parse({ ...base, status: "recording", capture: undefined }),
+  ).toThrow();
+  expect(() =>
+    outboxDocumentSchema.parse({
+      ...base,
+      status: "recording",
+      capture: { sourceId: "s1", owner: "o1" },
+      canonicalAttachmentId: "audio-canonical-o1",
+    }),
+  ).toThrow();
+});
+
+test("a committed row must name its canonical attachment", () => {
+  // Including the non-durable enqueue() path, which has no capture at all.
+  expect(() =>
+    outboxDocumentSchema.parse({ ...validDocument(), canonicalAttachmentId: undefined }),
+  ).toThrow();
 });

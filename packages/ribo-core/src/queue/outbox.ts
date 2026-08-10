@@ -184,6 +184,10 @@ export class Outbox {
         nextAttemptAt: this.#nowIso(),
         enqueuedAt: this.#nowIso(),
         recording: baseRecordingSchema.parse(recording),
+        // The non-durable enqueue path has no `capture` (audio is committed in one
+        // write, not chunked), but it still mints the canonical attachment pointer
+        // the schema invariant requires of every committed row.
+        canonicalAttachmentId: AUDIO_ATTACHMENT_ID,
       } satisfies OutboxDocument);
 
       const insert: OutboxInsert = {
