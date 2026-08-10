@@ -227,29 +227,59 @@ expires.
 
 ## 6. Reporting contracts that change
 
-### 6.1 `workSafety` — `protected` currently overstates safety
+### 6.1 `workSafety` stays `protected` during normal recording
 
-Counting `recording` as pending fixes the dangerous `safe` result, but with persistent storage granted
-`workSafety` returns **`protected`** for pending work and claims it survives reload, crash and
-eviction. **During recording that is too strong**: audio between `dataavailable` events, and any write
-still in the persistence chain, is not on disk.
+An earlier draft downgraded `protected` for the whole duration of a recording, on the grounds that the
+tail between `dataavailable` events is not yet on disk. **That is the wrong trade.**
 
-`recording` therefore reports a distinct state meaning _"durable up to the last flush, with a bounded
-tail at risk."_ The bound is the timeslice — 5 seconds — and it should be stated in the detail text
-rather than implied. Overstating durability here would be the same class of error as the original
-truncation bug: a confident report that is quietly wrong.
+The risk that the last moment of a recording may not be saved is well understood by anyone who has used
+a recording app, and it is not what this report is about — `workSafety` answers _"is the work I have
+already done safe?"_, and a bounded 5-second tail is not that work. Worse, a warning that fires on
+**every single recording** is not a signal; it is noise that teaches the user to ignore the one time it
+matters. `protected` therefore keeps its meaning and its value during healthy recording.
 
-### 6.2 `hasAudio` — a recording row would claim its bytes were dropped
+**What does warrant a downgrade is persistence actually falling behind** — a real, detectable condition
+rather than a permanent property of recording:
+
+- a chunk write has **failed**, or
+- outstanding chunk writes in the persistence chain **exceed a documented threshold**, meaning far more
+  than one timeslice is at risk.
+
+Either condition reports `at-risk`. This is strictly more useful than the constant downgrade: it stays
+quiet when things are fine and speaks up exactly when the durability guarantee is genuinely degrading.
+
+### 6.2 `hasAudio` is renamed, because during recording it is simply wrong
 
 `hasAudio` is projected from the existence of `AUDIO_ATTACHMENT_ID`. A recording row holds chunk
-attachments but no canonical one, so it projects `hasAudio: false` — and the playground renders that as
-**"the bytes were dropped"** (`ItemAudio.tsx`), which is precisely backwards while capture is in
-progress.
+attachments but no canonical one, so it would project `hasAudio: false` — and the playground renders
+that as **"the bytes were dropped"** (`ItemAudio.tsx`). That is not ambiguous, it is false: the item
+demonstrably _has_ audio, in chunks, on disk.
 
-`hasAudio` keeps its exact meaning (the canonical attachment exists) because other consumers depend on
-it. The projection gains a **separate** fact for accruing chunk bytes, so "no audio yet, still
-recording" is distinguishable from "audio existed and was dropped after transcription". This is a
-public projection contract change and its tests change with it.
+Adding a second field beside a misleading one would preserve the wrong name. **Rename it instead:**
+
+```
+hasAudio  ─►  audioReady    // the canonical, playable attachment exists
+```
+
+`audioReady` says what the flag has always actually meant — the merged attachment is present, so it can
+be played and the relay can transcribe it. Consumers branch on it exactly as before.
+
+`audioBytes` then widens to mean **durable bytes on disk for this item**, summing chunk attachments
+while recording and the canonical attachment afterwards. So a UI can show capture progressing rather
+than reporting nothing.
+
+**"Not yet" and "dropped" are then already distinguishable with no third field**, which is why this
+shape is simpler than the one it replaces:
+
+| State                       | `status`            | `audioReady` | `audioBytes`   |
+| --------------------------- | ------------------- | ------------ | -------------- |
+| Capturing                   | `recording`         | `false`      | growing        |
+| Ready                       | `queued`+           | `true`       | canonical size |
+| Dropped after transcription | past `transcribing` | `false`      | `0`            |
+
+Both keys stay **projected, never stored** (`DERIVED_OUTBOX_ITEM_KEYS`), so this is a public API rename
+with **no schema migration** — the storage schema never mentioned them. It is a breaking change for
+consumers and the changeset must say so.
 
 ## 7. Schema migration
 
