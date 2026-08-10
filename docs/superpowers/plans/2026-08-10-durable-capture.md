@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Audio becomes durable *during* capture, so a crash partway through a recording no longer loses the whole thing.
+**Goal:** Audio becomes durable _during_ capture, so a crash partway through a recording no longer loses the whole thing.
 
-**Architecture:** `MediaRecorder` runs with a timeslice; each `dataavailable` is written as its own RxDB attachment named from an immutable `capture.sourceId`. At stop, the chunks are merged, decode-verified, written as an owner-scoped canonical attachment, and published by a guarded `canonicalAttachmentId` pointer in the same modify that transitions `recording → queued`. Cross-tab exclusion and crash detection use the Web Locks API; write *authorisation* uses a rotating `capture.owner` token compared inside every guarded `incrementalModify`, because a lock can be released while its holder's context survives (bfcache).
+**Architecture:** `MediaRecorder` runs with a timeslice; each `dataavailable` is written as its own RxDB attachment named from an immutable `capture.sourceId`. At stop, the chunks are merged, decode-verified, written as an owner-scoped canonical attachment, and published by a guarded `canonicalAttachmentId` pointer in the same modify that transitions `recording → queued`. Cross-tab exclusion and crash detection use the Web Locks API; write _authorisation_ uses a rotating `capture.owner` token compared inside every guarded `incrementalModify`, because a lock can be released while its holder's context survives (bfcache).
 
 **Tech Stack:** TypeScript 6.0.3 (ESM-only), RxDB 17.4.0 (Dexie storage, attachments plugin), zod 4, Vitest 4 (`unit` = node, `browser` = real Chromium via Playwright), React 19.
 
@@ -17,7 +17,7 @@
 - **Comments explain WHY, not what.** This codebase comments heavily on rationale and not at all on mechanics. Match that.
 - **`ribo-core` must not depend on any engine package** (`ribo-transcriber-ondevice`, adapters). Seams are defined in core; engines implement them.
 - **No back-compat burden.** The SDK has no users; breaking changes are fine and migrations need no compatibility logic.
-- **Every test must be able to fail.** Before finishing a task, break the implementation the test covers and confirm *that* test goes red. Report which mutations you ran.
+- **Every test must be able to fail.** Before finishing a task, break the implementation the test covers and confirm _that_ test goes red. Report which mutations you ran.
 - **Gates:** `pnpm typecheck`, `pnpm lint`, `pnpm format:check` after every task; `./check.sh` before the final commit of the plan.
 - **Whisper's window is 30 s at 16 kHz** — irrelevant here, but do not "helpfully" touch `ribo-transcriber-ondevice`. This plan is piece 1 of 2 and does not implement live transcription preview.
 
@@ -25,12 +25,12 @@
 
 **Created:**
 
-| File | Responsibility |
-| --- | --- |
-| `packages/ribo-core/src/queue/capture-lock.ts` | Web Locks wrapper: `ifAvailable` probing and the two-promise handshake |
-| `packages/ribo-core/src/queue/chunk-names.ts` | Pure attachment naming/parsing and oversize slicing |
-| `packages/ribo-core/src/queue/capture-session.ts` | Ingestion→persistence pipeline, health, the session object |
-| `packages/ribo-core/src/queue/recovery.ts` | Startup discovery, merge, decode-verify, publish, sweep |
+| File                                                | Responsibility                                                             |
+| --------------------------------------------------- | -------------------------------------------------------------------------- |
+| `packages/ribo-core/src/queue/capture-lock.ts`      | Web Locks wrapper: `ifAvailable` probing and the two-promise handshake     |
+| `packages/ribo-core/src/queue/chunk-names.ts`       | Pure attachment naming/parsing and oversize slicing                        |
+| `packages/ribo-core/src/queue/capture-session.ts`   | Ingestion→persistence pipeline, health, the session object                 |
+| `packages/ribo-core/src/queue/recovery.ts`          | Startup discovery, merge, decode-verify, publish, sweep                    |
 | `packages/ribo-ui-react/src/capture-coordinator.ts` | Observable registry so `useRecorder` and `useWorkSafety` share one session |
 
 **Modified:** `queue/schema.ts`, `queue/outbox.ts`, `queue/database.ts`, `queue/relay.ts`, `work-safety.ts`, `recorder.ts`, `queue/index.ts`, `index.ts`, `ribo-ui-react/src/{context.ts,use-recorder.ts,use-work-safety.ts,index.ts}`, `playground/src/ItemAudio.tsx`.
@@ -44,10 +44,12 @@
 The whole fencing design exists because **lock release and context death are not the same event** (spec §3.1). That claim is from documentation, not observation, and it decides how much of §3 is necessary. Measure it before building on it.
 
 **Files:**
+
 - Create: `spikes/web-locks-bfcache/README.md`
 - Create: `spikes/web-locks-bfcache/index.html`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: a written answer in `README.md`. No production code.
 
@@ -70,10 +72,15 @@ The whole fencing design exists because **lock release and context death are not
   document.getElementById("log").textContent = sessionStorage.getItem("log") ?? "";
 
   let released = false;
-  navigator.locks.request("spike", async () => {
-    log(`acquired @ ${new Date().toISOString()}`);
-    await new Promise(() => {}); // hold forever
-  }).catch((e) => { released = true; log(`lock promise rejected: ${e.name}`); });
+  navigator.locks
+    .request("spike", async () => {
+      log(`acquired @ ${new Date().toISOString()}`);
+      await new Promise(() => {}); // hold forever
+    })
+    .catch((e) => {
+      released = true;
+      log(`lock promise rejected: ${e.name}`);
+    });
 
   addEventListener("pagehide", (e) => log(`pagehide persisted=${e.persisted}`));
   addEventListener("pageshow", async (e) => {
@@ -94,6 +101,7 @@ Serve it (`npx serve spikes/web-locks-bfcache`), open it, navigate away, press B
 `spikes/web-locks-bfcache/README.md` records, per browser and version: what was observed, and which of the three states in spec §3.1 it corresponds to (frozen-lock-held / destroyed / **bfcache-released-context-alive**).
 
 State the consequence explicitly:
+
 - If **no** browser releases the lock while the context survives → say so, and note that the `capture.owner` fence is defence against a documented-but-unobserved behaviour. **Keep it anyway** — it is cheap, and this measurement is a point-in-time observation of behaviour that has already changed once.
 - If **any** browser does → the fence is load-bearing. Say which.
 
@@ -109,12 +117,14 @@ git commit -m "spike: measure Web Lock behaviour across bfcache in Chromium and 
 ## Task 2: Schema — the `recording` status and three persisted fields
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/queue/schema.ts`
 - Modify: `packages/ribo-core/src/queue/database.ts`
 - Modify: `packages/ribo-core/src/work-safety.ts`
 - Test: `packages/ribo-core/src/queue/schema.test.ts`, `packages/ribo-core/src/work-safety.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `OutboxStatus` includes `"recording"`; `RECORDING_OUTBOX_STATUSES`; `OutboxDocument` gains `capture?: { sourceId: string; owner: string }`, `canonicalAttachmentId?: string`, `step?: { generation: string }`; `outboxRxSchema.version === 2`.
 
@@ -172,6 +182,7 @@ test("a recording in progress is pending work, never invisible", () => {
 ```
 pnpm vitest run --project unit packages/ribo-core/src/queue/schema.test.ts packages/ribo-core/src/work-safety.test.ts
 ```
+
 Expected: FAIL — `recording` is not a status, `RECORDING_OUTBOX_STATUSES` is not exported.
 
 - [ ] **Step 3: Add the status and its category**
@@ -263,6 +274,7 @@ In `work-safety.ts`'s `summarizeWork`, add before the `ACTIVE` branch:
 ```
 pnpm vitest run --project unit packages/ribo-core/src/queue/ packages/ribo-core/src/work-safety.test.ts
 ```
+
 Expected: PASS.
 
 - [ ] **Step 8: Mutate to prove the tests bite**
@@ -281,11 +293,13 @@ git commit -m "feat(core): add the recording status and durable-capture fields t
 ## Task 3: `hasAudio` → `audioReady`, and `audioBytes` widens
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/queue/schema.ts`, `packages/ribo-core/src/queue/outbox.ts`
 - Modify: `playground/src/ItemAudio.tsx`
 - Test: `packages/ribo-core/src/queue/outbox.browser.test.ts`
 
 **Interfaces:**
+
 - Consumes: `canonicalAttachmentId` from Task 2.
 - Produces: `OutboxItem.audioReady: boolean`; `OutboxItem.audioBytes` = durable bytes on disk; `DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "audioReady"]`.
 
@@ -311,6 +325,7 @@ test("audioReady tracks the POINTED attachment, not the pointer", async () => {
 ```
 pnpm vitest run --project browser packages/ribo-core/src/queue/outbox.browser.test.ts
 ```
+
 Expected: FAIL — `audioReady` is not a property.
 
 - [ ] **Step 3: Rename the derived key and reproject**
@@ -328,22 +343,21 @@ In `schema.ts`: `DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "audioReady"] as cons
 In `outbox.ts`'s projection (currently reading `AUDIO_ATTACHMENT_ID` directly):
 
 ```ts
-    const canonical = doc.canonicalAttachmentId
-      ? doc.getAttachment(doc.canonicalAttachmentId)
-      : null;
-    // While recording there is no canonical yet, but the chunks ARE durable — so a
-    // UI can show capture progressing instead of reporting nothing, and cannot
-    // mistake "not yet" for "the bytes were dropped".
-    const chunkBytes = doc.capture
-      ? doc.allAttachments()
-          .filter((a) => a.id.startsWith(chunkPrefix(doc.capture!.sourceId)))
-          .reduce((total, a) => total + a.length, 0)
-      : 0;
-    return outboxItemSchema.parse({
-      ...doc.toJSON(),
-      audioReady: canonical !== null,
-      audioBytes: canonical?.length ?? chunkBytes,
-    });
+const canonical = doc.canonicalAttachmentId ? doc.getAttachment(doc.canonicalAttachmentId) : null;
+// While recording there is no canonical yet, but the chunks ARE durable — so a
+// UI can show capture progressing instead of reporting nothing, and cannot
+// mistake "not yet" for "the bytes were dropped".
+const chunkBytes = doc.capture
+  ? doc
+      .allAttachments()
+      .filter((a) => a.id.startsWith(chunkPrefix(doc.capture!.sourceId)))
+      .reduce((total, a) => total + a.length, 0)
+  : 0;
+return outboxItemSchema.parse({
+  ...doc.toJSON(),
+  audioReady: canonical !== null,
+  audioBytes: canonical?.length ?? chunkBytes,
+});
 ```
 
 `getAudio(id)` resolves `canonicalAttachmentId` instead of the constant; if the pointer is absent it returns `undefined`.
@@ -370,10 +384,12 @@ git commit -m "feat(core)!: rename hasAudio to audioReady and widen audioBytes t
 ## Task 4: The capture lock
 
 **Files:**
+
 - Create: `packages/ribo-core/src/queue/capture-lock.ts`
 - Test: `packages/ribo-core/src/queue/capture-lock.browser.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `CAPTURE_LOCK`, `RELAY_LOCK`, `holdLock(name, run): Promise<{ ready: Promise<T>; release: () => void } | undefined>`, `isLockFree(name): Promise<boolean>`.
 
@@ -384,7 +400,10 @@ test("only one holder at a time, proven with a barrier", async () => {
   // A SEQUENTIAL test proves nothing about the race: the point is that the second
   // request arrives while the first is still inside its callback.
   let releaseFirst!: () => void;
-  const first = await holdLock("t", () => new Promise<string>((r) => (releaseFirst = () => r("a"))));
+  const first = await holdLock(
+    "t",
+    () => new Promise<string>((r) => (releaseFirst = () => r("a"))),
+  );
   expect(first).toBeDefined();
   const second = await holdLock("t", () => Promise.resolve("b"));
   expect(second).toBeUndefined(); // refused, not queued
@@ -394,7 +413,10 @@ test("only one holder at a time, proven with a barrier", async () => {
 
 test("start resolves before the lock does — otherwise start() never returns", async () => {
   let releaseIt!: () => void;
-  const held = await holdLock("t2", () => new Promise<string>((r) => (releaseIt = () => r("done"))));
+  const held = await holdLock(
+    "t2",
+    () => new Promise<string>((r) => (releaseIt = () => r("done"))),
+  );
   // The two-promise handshake: `holdLock` resolved while the lock callback is
   // still pending. Awaiting locks.request() directly would block for the whole
   // recording, which is the shape bug this test exists to pin.
@@ -480,7 +502,10 @@ export async function holdLock<T>(
 
 /** Whether `name` could be taken right now. Used to tell an abandoned recording
  * from a live one without any clock comparison. */
-export async function isLockFree(name: string, locks: LockManager = navigator.locks): Promise<boolean> {
+export async function isLockFree(
+  name: string,
+  locks: LockManager = navigator.locks,
+): Promise<boolean> {
   return (await locks.request(name, { ifAvailable: true }, (lock) => lock !== null)) as boolean;
 }
 ```
@@ -489,7 +514,7 @@ export async function isLockFree(name: string, locks: LockManager = navigator.lo
 
 - [ ] **Step 5: Mutate**
 
-Change `{ ifAvailable: true }` to `{}` in `holdLock`. The barrier test must fail (the second request queues instead of being refused). Resolve `entered` *after* `await run()` instead of before; the handshake test must hang or fail. Restore both, re-run, report.
+Change `{ ifAvailable: true }` to `{}` in `holdLock`. The barrier test must fail (the second request queues instead of being refused). Resolve `entered` _after_ `await run()` instead of before; the handshake test must hang or fail. Restore both, re-run, report.
 
 - [ ] **Step 6: Commit**
 
@@ -503,10 +528,12 @@ git commit -m "feat(core): add Web Locks based capture and relay exclusion"
 ## Task 5: Attachment naming and oversize slicing
 
 **Files:**
+
 - Create: `packages/ribo-core/src/queue/chunk-names.ts`
 - Test: `packages/ribo-core/src/queue/chunk-names.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `chunkPrefix(sourceId)`, `chunkName(sourceId, chunkIndex, sliceIndex)`, `canonicalName(owner)`, `isChunkOf(id, sourceId)`, `isCanonical(id)`, `sliceOversized(blob, mimeType, max)`, `MAX_CHUNK_INDEX`, `MAX_SLICE_INDEX`.
 
@@ -515,7 +542,11 @@ git commit -m "feat(core): add Web Locks based capture and relay exclusion"
 ```ts
 test("names sort chronologically", () => {
   const names = [chunkName("s", 9, 0), chunkName("s", 10, 0), chunkName("s", 9, 1)];
-  expect([...names].sort()).toEqual([chunkName("s", 9, 0), chunkName("s", 9, 1), chunkName("s", 10, 0)]);
+  expect([...names].sort()).toEqual([
+    chunkName("s", 9, 0),
+    chunkName("s", 9, 1),
+    chunkName("s", 10, 0),
+  ]);
 });
 
 test("an index that would overflow fails loudly rather than sorting wrongly", () => {
@@ -568,14 +599,19 @@ export const chunkPrefix = (sourceId: string): string => `audio-${sourceId}-`;
 
 export function chunkName(sourceId: string, chunkIndex: number, sliceIndex: number): string {
   if (chunkIndex > MAX_CHUNK_INDEX)
-    throw new Error(`chunk index overflow at ${chunkIndex}: capture must stop before names mis-sort`);
+    throw new Error(
+      `chunk index overflow at ${chunkIndex}: capture must stop before names mis-sort`,
+    );
   if (sliceIndex > MAX_SLICE_INDEX)
-    throw new Error(`slice index overflow at ${sliceIndex}: capture must stop before names mis-sort`);
+    throw new Error(
+      `slice index overflow at ${sliceIndex}: capture must stop before names mis-sort`,
+    );
   return `${chunkPrefix(sourceId)}${String(chunkIndex).padStart(6, "0")}-${String(sliceIndex).padStart(2, "0")}`;
 }
 
 export const canonicalName = (owner: string): string => `audio-canonical-${owner}`;
-export const isChunkOf = (id: string, sourceId: string): boolean => id.startsWith(chunkPrefix(sourceId));
+export const isChunkOf = (id: string, sourceId: string): boolean =>
+  id.startsWith(chunkPrefix(sourceId));
 export const isCanonical = (id: string): boolean => id.startsWith("audio-canonical-");
 
 /**
@@ -615,10 +651,12 @@ git commit -m "feat(core): add durable-capture attachment naming and oversize sl
 ## Task 6: Guarded outbox writes for capture
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/queue/outbox.ts`
 - Test: `packages/ribo-core/src/queue/outbox.browser.test.ts`
 
 **Interfaces:**
+
 - Consumes: Tasks 2, 3, 5.
 - Produces: `beginRecording({ recording, sourceId, owner }): Promise<OutboxItem>`, `appendChunk(id, owner, name, blob, mimeType): Promise<void>`, `rotateOwner(id, owner): Promise<string>`, `commitRecording(id, owner, { canonicalAttachmentId, durationMs }): Promise<OutboxItem>`, `sweepAttachments(id): Promise<void>`.
 
@@ -639,7 +677,10 @@ test("a write from a superseded owner is rejected — as a real race, not a pre-
 
 test("owner equality alone is not enough once the row has committed", async () => {
   const item = await outbox.beginRecording({ recording, sourceId: "s1", owner: "o1" });
-  await outbox.commitRecording(item.id, "o1", { canonicalAttachmentId: canonicalName("o1"), durationMs: 1000 });
+  await outbox.commitRecording(item.id, "o1", {
+    canonicalAttachmentId: canonicalName("o1"),
+    durationMs: 1000,
+  });
   // Same owner, but the row is no longer `recording`. A check on owner alone
   // would let this land on a committed item.
   await expect(
@@ -653,7 +694,10 @@ test("the sweep removes every chunk and every unpointed canonical", async () => 
   const item = await outbox.beginRecording({ recording, sourceId: "s1", owner: "o1" });
   await outbox.appendChunk(item.id, "o1", chunkName("s1", 0, 0), blob, "audio/webm");
   await putRaw(item.id, canonicalName("stale"), blob);
-  await outbox.commitRecording(item.id, "o1", { canonicalAttachmentId: canonicalName("o1"), durationMs: 1000 });
+  await outbox.commitRecording(item.id, "o1", {
+    canonicalAttachmentId: canonicalName("o1"),
+    durationMs: 1000,
+  });
   await outbox.sweepAttachments(item.id);
   const names = await attachmentIdsOf(item.id);
   expect(names).toEqual([canonicalName("o1")]);
@@ -689,7 +733,7 @@ test("the sweep removes every chunk and every unpointed canonical", async () => 
 
 `rotateOwner(id, owner)` mints a new owner and installs it through a modify that re-checks `status === "recording"` — recovery's **first** operation, and the thing that makes the fence work at all.
 
-`appendChunk` runs `#guarded` as a **pre-check that throws on mismatch**, and only then calls `putAttachment`. RxDB gives no way to compare a field inside an attachment write, which is exactly why a stale write must be *inert* rather than *prevented* — the naming from Task 5 is what makes it so. The guard still runs because it turns the common case into a clean rejection instead of a silent orphan.
+`appendChunk` runs `#guarded` as a **pre-check that throws on mismatch**, and only then calls `putAttachment`. RxDB gives no way to compare a field inside an attachment write, which is exactly why a stale write must be _inert_ rather than _prevented_ — the naming from Task 5 is what makes it so. The guard still runs because it turns the common case into a clean rejection instead of a silent orphan.
 
 `commitRecording` publishes `canonicalAttachmentId`, writes `durationMs`, and sets `status: "queued"` in **one** guarded modify.
 
@@ -713,10 +757,12 @@ git commit -m "feat(core): add owner-guarded outbox writes for durable capture"
 ## Task 7: The capture session
 
 **Files:**
+
 - Create: `packages/ribo-core/src/queue/capture-session.ts`
 - Test: `packages/ribo-core/src/queue/capture-session.test.ts`
 
 **Interfaces:**
+
 - Consumes: Tasks 4, 5, 6.
 - Produces: `openCaptureSession({ outbox, recording, mimeType, now })`, and on it: `ingest(blob)`, `finalize(): Promise<{ chunkNames: string[] }>`, `abort()`, `itemId`, `sourceId`, `owner`, `health$`, `CaptureHealth = "flushing" | "stalled"`.
 
@@ -730,7 +776,7 @@ test("ingestion is synchronous and persistence is a separate stage", async () =>
   const session = openCaptureSession({ outbox: slowFake, recording, mimeType: "audio/webm", now });
   session.ingest(blobOf(10));
   session.ingest(blobOf(10));
-  const done = session.finalize();          // must not hang
+  const done = session.finalize(); // must not hang
   await expect(done).resolves.toMatchObject({ chunkNames: expect.any(Array) });
 });
 
@@ -739,7 +785,7 @@ test("finalize drains everything ingested before it", async () => {
   session.ingest(blobOf(10));
   session.ingest(blobOf(10));
   const { chunkNames } = await session.finalize();
-  expect(chunkNames).toHaveLength(2);       // the last chunk is not dropped
+  expect(chunkNames).toHaveLength(2); // the last chunk is not dropped
 });
 
 test("a stall is observed even when the late event arrives before the detector runs", async () => {
@@ -747,19 +793,29 @@ test("a stall is observed even when the late event arrives before the detector r
   // while backgrounded. The dataavailable handler must compute now - lastEmission
   // BEFORE updating it, or the stall is never seen at all.
   const clock = fakeClock();
-  const session = openCaptureSession({ outbox: fake, recording, mimeType: "audio/webm", now: clock.now });
+  const session = openCaptureSession({
+    outbox: fake,
+    recording,
+    mimeType: "audio/webm",
+    now: clock.now,
+  });
   session.ingest(blobOf(10));
   clock.advance(60_000);
-  session.ingest(blobOf(10));               // the late event
+  session.ingest(blobOf(10)); // the late event
   expect(await firstValueFrom(session.health$)).toBe("stalled");
 });
 
 test("a user pause is not a stall", async () => {
   const clock = fakeClock();
-  const session = openCaptureSession({ outbox: fake, recording, mimeType: "audio/webm", now: clock.now });
+  const session = openCaptureSession({
+    outbox: fake,
+    recording,
+    mimeType: "audio/webm",
+    now: clock.now,
+  });
   session.ingest(blobOf(10));
   clock.advance(60_000);
-  session.resumed();                        // user-initiated Recorder.resume()
+  session.resumed(); // user-initiated Recorder.resume()
   session.ingest(blobOf(10));
   expect(await firstValueFrom(session.health$)).toBe("flushing");
 });
@@ -819,10 +875,12 @@ git commit -m "feat(core): add the capture session with split ingestion and pers
 ## Task 8: Recovery and startup discovery
 
 **Files:**
+
 - Create: `packages/ribo-core/src/queue/recovery.ts`
 - Test: `packages/ribo-core/src/queue/recovery.browser.test.ts`
 
 **Interfaces:**
+
 - Consumes: Tasks 4, 5, 6.
 - Produces: `recoverInterrupted({ outbox, decode, onRecovered }): Promise<string[]>`.
 
@@ -845,9 +903,9 @@ test("recovery finds the chunks AFTER rotating the owner", async () => {
 
 test("a stale canonical write in flight ACROSS the commit cannot become authoritative", async () => {
   const id = await plantInterruptedRecording({ sourceId: "s1", owner: "o1", chunks: 2 });
-  const stale = putRaw(id, canonicalName("o1"), garbageBlob);   // begun before takeover
+  const stale = putRaw(id, canonicalName("o1"), garbageBlob); // begun before takeover
   await recoverInterrupted({ outbox, decode: okDecode, onRecovered: noop });
-  await stale;                                                   // lands after
+  await stale; // lands after
   const item = await outbox.get(id);
   // The pointer names the VERIFIED attachment, so the stale bytes are inert.
   expect(item!.canonicalAttachmentId).not.toBe(canonicalName("o1"));
@@ -858,13 +916,18 @@ test("audio that will not decode stays recoverable rather than being committed",
   const id = await plantInterruptedRecording({ sourceId: "s1", owner: "o1", chunks: 2 });
   await recoverInterrupted({ outbox, decode: alwaysFails, onRecovered: noop });
   const item = await outbox.get(id);
-  expect(item!.status).toBe("recording");        // not queued
+  expect(item!.status).toBe("recording"); // not queued
   expect(item!.lastError).toMatch(/unrecoverable/i);
-  expect(await attachmentIdsOf(id)).toHaveLength(2);   // chunks intact, not swept
+  expect(await attachmentIdsOf(id)).toHaveLength(2); // chunks intact, not swept
 });
 
 test("a truncated final chunk recovers by dropping it", async () => {
-  const id = await plantInterruptedRecording({ sourceId: "s1", owner: "o1", chunks: 3, truncateLast: true });
+  const id = await plantInterruptedRecording({
+    sourceId: "s1",
+    owner: "o1",
+    chunks: 3,
+    truncateLast: true,
+  });
   await recoverInterrupted({ outbox, decode: failsUnlessLastDropped, onRecovered: noop });
   expect((await outbox.get(id))!.status).toBe("queued");
 });
@@ -888,7 +951,7 @@ Order matters and is the design's §4:
 
 - [ ] **Step 5: Mutate**
 
-Rotate the owner *after* taking the chunk inventory, and change the inventory to read by `owner` instead of `sourceId` — the first test must fail with zero recovered bytes. Restrict the sweep to `queued` rows only and advance a row to `transcribing` in the fixture; the leftover-attachment assertion must fail. Restore, re-run, report.
+Rotate the owner _after_ taking the chunk inventory, and change the inventory to read by `owner` instead of `sourceId` — the first test must fail with zero recovered bytes. Restrict the sweep to `queued` rows only and advance a row to `transcribing` in the fixture; the leftover-attachment assertion must fail. Restore, re-run, report.
 
 - [ ] **Step 6: Commit**
 
@@ -902,10 +965,12 @@ git commit -m "feat(core): recover interrupted recordings with decode verificati
 ## Task 9: Recorder integration
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/recorder.ts`
 - Test: `packages/ribo-core/src/recorder.browser.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 7 (`CaptureSession`).
 - Produces: `RecorderOptions.captureSession?: CaptureSessionFactory`; `Recorder.start(): Promise<string | undefined>`.
 
@@ -934,15 +999,15 @@ test("MIME is chosen before the microphone and read back after construction", as
 test("a failure after the row is created unwinds it and releases the lock", async () => {
   const recorder = new Recorder({ captureSession: factoryThatFailsOnStart });
   await expect(recorder.start()).rejects.toThrow();
-  expect(await isLockFree(CAPTURE_LOCK)).toBe(true);   // or one refusal locks capture out
+  expect(await isLockFree(CAPTURE_LOCK)).toBe(true); // or one refusal locks capture out
   expect(await outbox.list({ status: ["recording"] })).toHaveLength(0);
 });
 
 test("enqueue-free recording still takes the lock and still gets no durability", async () => {
-  const recorder = new Recorder({});          // no captureSession
+  const recorder = new Recorder({}); // no captureSession
   const id = await recorder.start();
   expect(id).toBeUndefined();
-  expect(await isLockFree(CAPTURE_LOCK)).toBe(false);  // two tabs recording at once is wrong either way
+  expect(await isLockFree(CAPTURE_LOCK)).toBe(false); // two tabs recording at once is wrong either way
   await recorder.stop();
 });
 ```
@@ -983,10 +1048,12 @@ git commit -m "feat(core)!: acquire the capture lock and persist chunks during r
 ## Task 10: Capture health in `workSafety`
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/work-safety.ts`
 - Test: `packages/ribo-core/src/work-safety.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 7 (`CaptureHealth`).
 - Produces: `workSafety(work, persistence, connectivity, capture?)`; new reasons `"recording"` (on `protected`) and `"capture-stalled"` (on `at-risk`).
 
@@ -997,25 +1064,41 @@ test("healthy recording is protected, with a reason that names the unflushed tai
   // NOT at-risk. A warning that fires on every single recording is noise that
   // teaches the user to ignore the one time it matters, and the question this
   // module answers is "is the work I have already DONE safe?".
-  const result = workSafety({ pending: 1, dead: 0, synced: 0, awaitingReview: 0 }, "granted", "online", "flushing");
+  const result = workSafety(
+    { pending: 1, dead: 0, synced: 0, awaitingReview: 0 },
+    "granted",
+    "online",
+    "flushing",
+  );
   expect(result).toMatchObject({ level: "protected", reason: "recording" });
 });
 
 test("a stalled capture is at-risk", () => {
-  const result = workSafety({ pending: 1, dead: 0, synced: 0, awaitingReview: 0 }, "granted", "online", "stalled");
+  const result = workSafety(
+    { pending: 1, dead: 0, synced: 0, awaitingReview: 0 },
+    "granted",
+    "online",
+    "stalled",
+  );
   expect(result).toMatchObject({ level: "at-risk", reason: "capture-stalled" });
 });
 
 test("the existing precedence is unchanged — a dead item still outranks a stall", () => {
   // action-required > at-risk > protected > safe, and `dead` is checked BEFORE
   // persistence. The new reasons slot INTO that order; they do not redefine it.
-  const result = workSafety({ pending: 1, dead: 1, synced: 0, awaitingReview: 0 }, "denied", "online", "stalled");
+  const result = workSafety(
+    { pending: 1, dead: 1, synced: 0, awaitingReview: 0 },
+    "denied",
+    "online",
+    "stalled",
+  );
   expect(result).toMatchObject({ level: "action-required", reason: "failed-permanently" });
 });
 
 test("omitting capture health behaves exactly as today", () => {
-  expect(workSafety({ pending: 1, dead: 0, synced: 0, awaitingReview: 0 }, "granted", "online"))
-    .toMatchObject({ level: "protected", reason: "awaiting-sync" });
+  expect(
+    workSafety({ pending: 1, dead: 0, synced: 0, awaitingReview: 0 }, "granted", "online"),
+  ).toMatchObject({ level: "protected", reason: "awaiting-sync" });
 });
 ```
 
@@ -1043,11 +1126,13 @@ git commit -m "feat(core): report capture health through workSafety"
 ## Task 11: The capture coordinator and React wiring
 
 **Files:**
+
 - Create: `packages/ribo-ui-react/src/capture-coordinator.ts`
 - Modify: `packages/ribo-ui-react/src/{context.ts,use-recorder.ts,use-work-safety.ts,index.ts}`
 - Test: `packages/ribo-ui-react/src/capture-coordinator.browser.test.tsx`
 
 **Interfaces:**
+
 - Consumes: Tasks 7, 10.
 - Produces: `createCaptureCoordinator()`; `RiboInstances.captureCoordinator?: CaptureCoordinator`; `useRecorder().start(): Promise<string | undefined>`.
 
@@ -1060,7 +1145,9 @@ test("a session registered by useRecorder is visible to a SIBLING useWorkSafety"
   // through. The coordinator is the shared, observable thing that makes this work.
   const { result } = renderHooks({ captureCoordinator, recorder, outbox });
   await act(() => result.current.recorder.start());
-  await waitFor(() => expect(result.current.safety).toMatchObject({ level: "protected", reason: "recording" }));
+  await waitFor(() =>
+    expect(result.current.safety).toMatchObject({ level: "protected", reason: "recording" }),
+  );
 });
 
 test("the session disappears on stop AND on a failed start", async () => {
@@ -1070,7 +1157,7 @@ test("the session disappears on stop AND on a failed start", async () => {
 });
 
 test("no coordinator means no durable capture and today's behaviour", async () => {
-  const { result } = renderHooks({ recorder, outbox });     // no coordinator
+  const { result } = renderHooks({ recorder, outbox }); // no coordinator
   await act(() => result.current.recorder.start());
   expect(result.current.safety.reason).not.toBe("recording");
 });
@@ -1122,10 +1209,12 @@ git commit -m "feat(ui-react): share the active capture session through a coordi
 ## Task 12: Relay claim and hand-off
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/queue/relay.ts`, `packages/ribo-core/src/queue/outbox.ts`
 - Test: `packages/ribo-core/src/queue/relay.browser.test.ts`
 
 **Interfaces:**
+
 - Consumes: Tasks 2, 4, 8.
 - Produces: `Outbox.claimStep(id, observedGeneration): Promise<string | undefined>`; the relay drains under `RELAY_LOCK` and subscribes to the outbox.
 
@@ -1138,10 +1227,10 @@ test("a relay frozen between select and claim cannot steal the item back", async
   // successor already advanced.
   const item = await outbox.nextPending();
   const observed = item!.step?.generation;
-  await outbox.claimStep(item!.id, observed);            // successor claims
+  await outbox.claimStep(item!.id, observed); // successor claims
   await outbox.patch(item!.id, { status: "awaiting-review" });
   // The frozen predecessor finally claims, with the generation it saw at selection.
-  await expect(outbox.claimStep(item!.id, observed)).resolves.toBeUndefined();  // claim LOST, not an error
+  await expect(outbox.claimStep(item!.id, observed)).resolves.toBeUndefined(); // claim LOST, not an error
 });
 
 test("a stale step result cannot regress a finished item", async () => {
@@ -1149,7 +1238,9 @@ test("a stale step result cannot regress a finished item", async () => {
   const stale = item!.step!.generation;
   await outbox.claimStep(item!.id, stale);
   await outbox.patch(item!.id, { status: "awaiting-review" });
-  await expect(outbox.completeStep(item!.id, stale, { status: "extracting" })).rejects.toThrow(/generation/i);
+  await expect(outbox.completeStep(item!.id, stale, { status: "extracting" })).rejects.toThrow(
+    /generation/i,
+  );
   expect((await outbox.get(item!.id))!.status).toBe("awaiting-review");
 });
 
@@ -1168,7 +1259,7 @@ test("a recovered item drains even though the recovering tab died before syncNow
   const relay = createRelay({ outbox, transcriber, extractor, writer });
   await relay.start();
   await drainToEmpty(relay);
-  await plantRecoveredQueuedItem(outbox);      // as if another tab recovered it
+  await plantRecoveredQueuedItem(outbox); // as if another tab recovered it
   await waitFor(async () => expect((await outbox.get(id))!.status).not.toBe("queued"));
 });
 ```
@@ -1177,7 +1268,7 @@ test("a recovered item drains even though the recovering tab died before syncNow
 
 - [ ] **Step 3: Implement**
 
-`claimStep(id, observedGeneration)` is a guarded `incrementalModify` that compares the generation **and** re-derives eligibility from the current revision before rotating. Mismatch resolves `undefined` — *claim lost*, which is not a step failure and must not consume an attempt.
+`claimStep(id, observedGeneration)` is a guarded `incrementalModify` that compares the generation **and** re-derives eligibility from the current revision before rotating. Mismatch resolves `undefined` — _claim lost_, which is not a step failure and must not consume an attempt.
 
 `completeStep` / `failStep` compare the generation and reject on mismatch.
 
@@ -1194,6 +1285,7 @@ Make `claimStep` rotate unconditionally without comparing; the steal-back test m
 ```
 ./check.sh
 ```
+
 Expected: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, pkg:gates, and all three Vitest projects.
 
 - [ ] **Step 7: Add a changeset**
@@ -1223,4 +1315,4 @@ git commit -m "feat(core)!: fence relay steps with a claim generation and drain 
 - **MP4 chunk recovery** cannot be verified in this harness (Playwright is Chromium). Task 8's tests prove WebM. The failure is honest — an undecodable merge leaves the row recoverable — but the Safari success rate is unknown.
 - **The emission-stall threshold** (`STALL_AFTER_MS`) needs a real backgrounded device to choose well. Task 7 uses a placeholder constant with a comment saying so; tune it after measuring, not before.
 
-**One risk worth naming to whoever executes this.** Task 6's `appendChunk` guard is a **pre-check, not an atomic fence** — RxDB exposes no way to compare a document field inside an attachment write. That is why Task 5's owner-scoped naming exists: the safety property is that a stale write is *inert*, not that it is *prevented*. If you find yourself "fixing" the guard to be atomic, read the design's §3.1.2 first — three revisions tried and the API does not permit it.
+**One risk worth naming to whoever executes this.** Task 6's `appendChunk` guard is a **pre-check, not an atomic fence** — RxDB exposes no way to compare a document field inside an attachment write. That is why Task 5's owner-scoped naming exists: the safety property is that a stale write is _inert_, not that it is _prevented_. If you find yourself "fixing" the guard to be atomic, read the design's §3.1.2 first — three revisions tried and the API does not permit it.

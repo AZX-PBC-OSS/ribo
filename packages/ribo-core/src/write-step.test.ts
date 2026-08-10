@@ -78,6 +78,9 @@ const itemAt = (id: string, ctx: unknown): OutboxItem =>
     id,
     seq: 0,
     status: "writing",
+    // Every committed row names its canonical audio attachment — the invariant
+    // that lets a stale write land inert instead of becoming authoritative.
+    canonicalAttachmentId: "audio",
     idempotencyKey: `key-${id}`,
     attempts: 0,
     nextAttemptAt: "2026-07-23T14:00:00.000Z",

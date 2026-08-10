@@ -29,6 +29,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "OUTBOX_STATUSES",
     "Outbox",
     "PERMANENT_TRANSCRIBER_UNAVAILABLE_REASONS",
+    "RECORDING_OUTBOX_STATUSES",
     "Recorder",
     "RecorderError",
     "ReviewValidationError",

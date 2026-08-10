@@ -4,7 +4,12 @@ import { RxDBAttachmentsPlugin } from "rxdb/plugins/attachments";
 import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 
-import { OUTBOX_COLLECTION_NAME, outboxRxSchema, type OutboxDocument } from "./schema.js";
+import {
+  AUDIO_ATTACHMENT_ID,
+  OUTBOX_COLLECTION_NAME,
+  outboxRxSchema,
+  type OutboxDocument,
+} from "./schema.js";
 
 /**
  * The RxDB collection holding the outbox documents.
@@ -36,9 +41,16 @@ export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
  */
 export const OUTBOX_MIGRATION_STRATEGIES = {
   1: (doc: OutboxDocument) => doc,
-  // No users yet, so no compatibility logic is owed. RxDB simply requires a
-  // strategy per version.
-  2: (doc: OutboxDocument) => doc,
+  /**
+   * Populate `canonicalAttachmentId`, which v2 requires of every committed row.
+   *
+   * NOT back-compatibility logic — there are no users to be compatible with. A
+   * migration simply has to emit documents the CURRENT schema accepts, and an
+   * identity function here produces v1 rows that fail their own invariant on the
+   * next read. No pre-v2 row can be `recording` (the status did not exist), so
+   * every migrated row is committed and the constant is always the right answer.
+   */
+  2: (doc: OutboxDocument) => ({ ...doc, canonicalAttachmentId: AUDIO_ATTACHMENT_ID }),
 };
 
 /**

@@ -951,7 +951,13 @@ test("a dead item with extracted data but no transcript refuses to be reopened",
 // undo an audited human decision this method has no business reversing;
 // everything else is a status the relay still owns, where reopening would only
 // race it.
-test.each(OUTBOX_STATUSES.filter((status) => status !== "dead"))(
+// `recording` is excluded alongside `dead` for a different reason: this fixture
+// builds its row with `enqueue`, which by construction produces COMMITTED audio,
+// and a `recording` row must carry no canonical pointer. The state is simply
+// unconstructible here. It gets covered once `beginRecording` exists and can
+// build one honestly — until then, asserting on a row this test cannot legally
+// create would prove nothing.
+test.each(OUTBOX_STATUSES.filter((status) => status !== "dead" && status !== "recording"))(
   "a %s item cannot be reopened for review",
   async (status) => {
     const outbox = await open(uniqueName());
