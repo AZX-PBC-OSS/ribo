@@ -99,7 +99,7 @@ test("the projection is the persisted document plus exactly the derived keys", (
 });
 
 test("the derived keys are never persisted", () => {
-  // The whole point of computing them: a stored `hasAudio` would be a second
+  // The whole point of computing them: a stored `audioReady` would be a second
   // copy of a truth the attachment store already holds, and iOS eviction can
   // remove the bytes without touching the document.
   for (const key of DERIVED_OUTBOX_ITEM_KEYS) {
@@ -114,19 +114,19 @@ test("the derived keys are required on the projection — absence is not a third
   // unable to tell "no audio" from "not known yet".
   expect(outboxItemSchema.safeParse(document).success).toBe(false);
   expect(
-    outboxItemSchema.safeParse({ ...document, hasAudio: true, audioBytes: 2048 }).success,
+    outboxItemSchema.safeParse({ ...document, audioReady: true, audioBytes: 2048 }).success,
   ).toBe(true);
-  expect(outboxItemSchema.safeParse({ ...document, hasAudio: false, audioBytes: -1 }).success).toBe(
-    false,
-  );
+  expect(
+    outboxItemSchema.safeParse({ ...document, audioReady: false, audioBytes: -1 }).success,
+  ).toBe(false);
 });
 
 test("the projection's extra keys do not leak back into a document parse", () => {
   // `outboxDocumentSchema` is what `enqueue` validates before the storage write,
   // and it is strict — so an item accidentally handed to it fails loudly rather
-  // than writing `hasAudio` into IndexedDB.
+  // than writing `audioReady` into IndexedDB.
   expect(
-    outboxDocumentSchema.safeParse({ ...validDocument(), hasAudio: true, audioBytes: 2048 })
+    outboxDocumentSchema.safeParse({ ...validDocument(), audioReady: true, audioBytes: 2048 })
       .success,
   ).toBe(false);
 });

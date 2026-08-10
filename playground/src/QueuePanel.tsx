@@ -173,7 +173,8 @@ function QueueRow({ outbox, item }: { outbox: Outbox; item: OutboxItem }) {
         <ItemAudio
           outbox={outbox}
           id={item.id}
-          hasAudio={item.hasAudio}
+          status={item.status}
+          audioReady={item.audioReady}
           audioBytes={item.audioBytes}
           mimeType={item.recording.mimeType}
         />

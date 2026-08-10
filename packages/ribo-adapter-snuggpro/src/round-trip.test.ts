@@ -125,7 +125,7 @@ const item: OutboxItem = outboxItemSchema.parse({
     mimeType: "audio/webm;codecs=opus",
     ctx,
   },
-  hasAudio: false,
+  audioReady: false,
   audioBytes: 0,
 });
 

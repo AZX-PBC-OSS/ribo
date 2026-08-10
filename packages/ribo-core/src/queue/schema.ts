@@ -237,7 +237,7 @@ export type OutboxDocument = z.infer<typeof outboxDocumentSchema>;
  * and the one that pins {@link outboxItemSchema} against the document schema
  * (these keys, and only these, are the difference).
  */
-export const DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "hasAudio"] as const;
+export const DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "audioReady"] as const;
 
 /**
  * What a *consumer* sees: the persisted document plus the attachment facts.
@@ -250,7 +250,7 @@ export const DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "hasAudio"] as const;
  * honestly report a dropped recording (once `dropAudioAfterTranscription` is on,
  * or once iOS evicts the origin's storage) needs to tell them apart.
  *
- * Persisting a `hasAudio` **column** would be the wrong fix: it is a second copy
+ * Persisting an `audioReady` **column** would be the wrong fix: it is a second copy
  * of a truth the attachment store already holds, and it would go stale the
  * moment anything removed the bytes without going through this class — which is
  * exactly what iOS eviction does. So it is computed, per read, from the
@@ -260,8 +260,10 @@ export const DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "hasAudio"] as const;
  *
  * `audioBytes` rides along for the same free reason — the stub carries the
  * length — and it lets a queue UI show a size without loading a recording into
- * memory just to call `.size` on it. `hasAudio` is the signal to branch on;
- * `audioBytes` is `0` whenever `hasAudio` is `false`.
+ * memory just to call `.size` on it. `audioReady` is the signal to branch on;
+ * `audioBytes` is `0` whenever `audioReady` is `false` (for a committed row —
+ * while recording, `audioReady` is `false` but `audioBytes` reflects the
+ * accumulated chunks, so a UI can show capture progressing).
  *
  * Both fields also make `items$` re-emit *meaningfully* across an attachment
  * change. The document's own fields are byte-identical before and after a
@@ -269,9 +271,10 @@ export const DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "hasAudio"] as const;
  * tell that anything happened.
  */
 export const outboxItemSchema = outboxDocumentSchema.extend({
-  /** Whether the audio attachment exists **right now**. */
-  hasAudio: z.boolean(),
-  /** Size of that attachment in bytes; `0` when there is none. */
+  /** Whether the attachment named by `canonicalAttachmentId` exists **right now**. */
+  audioReady: z.boolean(),
+  /** Durable bytes on disk for this item: the canonical attachment, or the
+   * accumulated chunks while still recording. `0` when there are neither. */
   audioBytes: z.number().int().nonnegative(),
 });
 
@@ -282,7 +285,7 @@ export type OutboxItem = z.infer<typeof outboxItemSchema>;
  * The fields a caller may change after enqueue.
  *
  * Derived from the **document** schema, so the projection's computed fields
- * (`hasAudio`, `audioBytes`) are unpatchable by construction — they are facts
+ * (`audioReady`, `audioBytes`) are unpatchable by construction — they are facts
  * about the attachment store, and `putAttachment` / `dropAudio` are the only
  * things entitled to change them.
  *
@@ -323,7 +326,7 @@ export type OutboxPatch = Partial<
  * fixed-width index keys. `schema.test.ts` pins the two descriptions of the same
  * document against each other so they cannot drift apart unnoticed.
  *
- * Typed against `OutboxDocument`, not `OutboxItem`: `hasAudio` and `audioBytes`
+ * Typed against `OutboxDocument`, not `OutboxItem`: `audioReady` and `audioBytes`
  * are projected, never stored, and a storage schema that mentioned them would be
  * claiming to persist something it does not.
  */

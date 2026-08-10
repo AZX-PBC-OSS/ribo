@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Outbox } from "@azx/ribo-core";
+import type { Outbox, OutboxStatus } from "@azx/ribo-core";
 
 import { formatBytes, messageOf } from "./format.js";
 import { muted } from "./styles.js";
@@ -13,13 +13,20 @@ import { muted } from "./styles.js";
  * survived" is a claim only an ear can settle. Hence a real `<audio controls>`
  * per item rather than a byte count.
  *
- * There is no retry loop here, and there must not be one. `hasAudio` on the
+ * There is no retry loop here, and there must not be one. `audioReady` on the
  * item is authoritative at the moment it is emitted: `Outbox.enqueue` writes
  * the document and its attachment in a single storage transaction, so `items$`
- * cannot publish an item whose bytes have not landed. `hasAudio: false` means
- * the audio is genuinely gone — dropped after transcription, or evicted by iOS
- * — and polling for it would only delay an honest answer. This component used
- * to poll six times at 250ms because the queue could not tell the two apart.
+ * cannot publish an item whose bytes have not landed. `audioReady: false` on a
+ * committed row means the audio is genuinely gone — dropped after
+ * transcription, or evicted by iOS — and polling for it would only delay an
+ * honest answer. This component used to poll six times at 250ms because the
+ * queue could not tell the two apart.
+ *
+ * A `recording` row is the exception: `audioReady` is `false` because the
+ * canonical attachment does not exist yet, but the chunks ARE durable. Showing
+ * "the bytes were dropped" for that would be a lie, so the component branches
+ * on `status === "recording"` first and shows capture progress from
+ * `audioBytes` instead.
  */
 
 type Load =
@@ -31,25 +38,31 @@ type Load =
 export function ItemAudio({
   outbox,
   id,
-  hasAudio,
+  status,
+  audioReady,
   audioBytes,
   mimeType,
 }: {
   outbox: Outbox;
   id: string;
-  hasAudio: boolean;
+  status: OutboxStatus;
+  audioReady: boolean;
   audioBytes: number;
   mimeType: string;
 }) {
   const [load, setLoad] = useState<Load>({ kind: "loading" });
 
   useEffect(() => {
+    // A recording row has no canonical attachment yet — the chunks are durable
+    // but not playable. Nothing to load; the render below shows capture progress.
+    if (status === "recording") return;
+
     // Tracked outside React state so the cleanup can revoke the URL without
     // reading it through a stale render closure.
     let objectUrl: string | undefined;
     let cancelled = false;
 
-    if (!hasAudio) {
+    if (!audioReady) {
       setLoad({ kind: "missing" });
       return;
     }
@@ -60,7 +73,7 @@ export function ItemAudio({
       try {
         const blob = await outbox.getAudio(id);
         if (cancelled) return;
-        // `hasAudio` was true when this item was emitted; a `false` here means
+        // `audioReady` was true when this item was emitted; a `false` here means
         // the bytes were dropped between that emission and this read, and the
         // next emission will say so. Reporting it as missing is the honest
         // answer either way.
@@ -81,7 +94,14 @@ export function ItemAudio({
       // whole recording in memory.
       if (objectUrl !== undefined) URL.revokeObjectURL(objectUrl);
     };
-  }, [outbox, id, hasAudio]);
+  }, [outbox, id, audioReady, status]);
+
+  // A recording row: the canonical attachment does not exist yet, but the
+  // chunks ARE durable — show capture progress instead of "missing", which
+  // would read as "the bytes were dropped" and is not what is happening.
+  if (status === "recording") {
+    return <span style={muted}>recording… {formatBytes(audioBytes)} captured</span>;
+  }
 
   if (load.kind === "loading") return <span style={muted}>loading audio…</span>;
   if (load.kind === "missing")

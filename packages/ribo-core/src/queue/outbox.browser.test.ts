@@ -431,20 +431,39 @@ test("audio can be dropped once it is no longer needed, leaving the item intact"
 });
 
 // ---------------------------------------------------------------------------
-// hasAudio / audioBytes — attachment presence as an observable fact.
+// audioReady / audioBytes — attachment presence as an observable fact.
 //
 // Without these, "audio was never attached", "audio was dropped" and "audio is
 // still being written" are one indistinguishable state on `OutboxItem`, because
 // `toJSON()` strips `_attachments`. A UI cannot legitimately report a dropped
 // recording without them, and that is a real state the moment
 // `dropAudioAfterTranscription` is on or iOS evicts the origin.
+//
+// `audioReady` reads the attachment the `canonicalAttachmentId` POINTER names,
+// not the pointer itself: the pointer survives `dropAudio` (it records WHICH
+// attachment was authoritative), so reading presence off the pointer would
+// report deleted audio as playable.
 // ---------------------------------------------------------------------------
 
-test("hasAudio is true from the moment of enqueue, with the attachment's size", async () => {
+test("audioReady tracks the POINTED attachment, not the pointer", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  expect(item.audioReady).toBe(true);
+  await outbox.dropAudio(item.id);
+  const after = await outbox.get(item.id);
+  // dropAudio removes the attachment and leaves the pointer — the pointer records
+  // WHICH attachment was authoritative and is still true after deletion. Reading
+  // audioReady off pointer presence would report deleted audio as playable.
+  expect(after!.canonicalAttachmentId).toBeDefined();
+  expect(after!.audioReady).toBe(false);
+  expect(after!.audioBytes).toBe(0);
+});
+
+test("audioReady is true from the moment of enqueue, with the attachment's size", async () => {
   const outbox = await open(uniqueName());
   const item = await outbox.enqueue({ recording, audio: audioBlob() });
 
-  expect(item.hasAudio).toBe(true);
+  expect(item.audioReady).toBe(true);
   expect(item.audioBytes).toBe(audioBytes.byteLength);
   // The value the caller got back and the value a reader sees must agree — the
   // return of `enqueue` is a projection of the very document that was written,
@@ -453,32 +472,32 @@ test("hasAudio is true from the moment of enqueue, with the attachment's size", 
   expect((await outbox.list())[0]).toEqual(item);
 });
 
-test("hasAudio goes false after dropAudio, and items$ re-emits to say so", async () => {
+test("audioReady goes false after dropAudio, and items$ re-emits to say so", async () => {
   const outbox = await open(uniqueName());
-  const seen: { hasAudio: boolean; audioBytes: number }[] = [];
+  const seen: { audioReady: boolean; audioBytes: number }[] = [];
   const subscription = outbox.items$.subscribe((items) => {
     const item = items[0];
-    if (item) seen.push({ hasAudio: item.hasAudio, audioBytes: item.audioBytes });
+    if (item) seen.push({ audioReady: item.audioReady, audioBytes: item.audioBytes });
   });
 
   try {
     const item = await outbox.enqueue({ recording, audio: audioBlob() });
-    await vi.waitFor(() => expect(seen.at(-1)?.hasAudio).toBe(true));
+    await vi.waitFor(() => expect(seen.at(-1)?.audioReady).toBe(true));
 
     await outbox.dropAudio(item.id);
 
     // The document's own fields are byte-identical across a `dropAudio`, so
-    // before `hasAudio` existed this re-emission carried no information at all
+    // before `audioReady` existed this re-emission carried no information at all
     // and a memoizing consumer could not tell anything had happened.
-    await vi.waitFor(() => expect(seen.at(-1)).toEqual({ hasAudio: false, audioBytes: 0 }));
+    await vi.waitFor(() => expect(seen.at(-1)).toEqual({ audioReady: false, audioBytes: 0 }));
     expect(await outbox.getAudio(item.id)).toBeUndefined();
-    expect((await outbox.get(item.id))?.hasAudio).toBe(false);
+    expect((await outbox.get(item.id))?.audioReady).toBe(false);
   } finally {
     subscription.unsubscribe();
   }
 });
 
-test("hasAudio survives a close and reopen, and matches what is physically in IndexedDB", async () => {
+test("audioReady survives a close and reopen, and matches what is physically in IndexedDB", async () => {
   const keptName = uniqueName();
   const droppedName = uniqueName();
 
@@ -491,7 +510,7 @@ test("hasAudio survives a close and reopen, and matches what is physically in In
   await withoutAudio.dropAudio(dropped.id);
   await withoutAudio.close();
 
-  // Read the raw stores rather than trusting the RxDB handle: `hasAudio` is a
+  // Read the raw stores rather than trusting the RxDB handle: `audioReady` is a
   // claim about the attachment store, so the assertion that it is *true* has to
   // come from that store, not from the layer computing the claim.
   expect(
@@ -501,12 +520,12 @@ test("hasAudio survives a close and reopen, and matches what is physically in In
 
   const reopenedKept = await open(keptName);
   expect(await reopenedKept.get(kept.id)).toMatchObject({
-    hasAudio: true,
+    audioReady: true,
     audioBytes: audioBytes.byteLength,
   });
 
   const reopenedDropped = await open(droppedName);
-  expect(await reopenedDropped.get(dropped.id)).toMatchObject({ hasAudio: false, audioBytes: 0 });
+  expect(await reopenedDropped.get(dropped.id)).toMatchObject({ audioReady: false, audioBytes: 0 });
 });
 
 test("remove deletes the item and its attachment for good", async () => {
@@ -613,7 +632,7 @@ test("a discarded review is terminal and drops the audio", async () => {
   });
 
   expect(updated.status).toBe("discarded");
-  expect(updated.hasAudio).toBe(false);
+  expect(updated.audioReady).toBe(false);
   expect(await outbox.getAudio(item.id)).toBeUndefined();
   expect(updated.reviewOutcome).toEqual({ status: "discarded", reason: "misspoke" });
 });
@@ -630,7 +649,7 @@ test("a discard commits the status BEFORE it drops the audio", async () => {
   // status first makes the worst case a `discarded` row that still holds its bytes,
   // which is merely untidy.
   //
-  // `items$` re-emits across an attachment change (that is what `hasAudio` is for,
+  // `items$` re-emits across an attachment change (that is what `audioReady` is for,
   // proven in its own test above), so the emission sequence is the observable form
   // of the ordering.
   const outbox = await open(uniqueName());
@@ -640,7 +659,7 @@ test("a discard commits the status BEFORE it drops the audio", async () => {
   const seen: [string, boolean][] = [];
   const subscription = outbox.items$.subscribe((items) => {
     const row = items.find((entry) => entry.id === item.id);
-    if (row) seen.push([row.status, row.hasAudio]);
+    if (row) seen.push([row.status, row.audioReady]);
   });
 
   try {
@@ -741,7 +760,7 @@ test("a second submission for the same item fails rather than rewriting it", asy
 
   const settled = await outbox.get(item.id);
   expect(settled?.status).toBe("writing");
-  expect(settled?.hasAudio).toBe(true);
+  expect(settled?.audioReady).toBe(true);
 });
 
 test("two submissions in flight at once settle as one winner and one refusal", async () => {
@@ -785,7 +804,7 @@ test("two submissions in flight at once settle as one winner and one refusal", a
   expect(settled?.status).toBe("writing");
   // The discard lost, so the recording is still on the device: a refused
   // submission must have no side effects at all, audio included.
-  expect(settled?.hasAudio).toBe(true);
+  expect(settled?.audioReady).toBe(true);
   expect(await outbox.getAudio(item.id)).toBeDefined();
 });
 
@@ -1120,7 +1139,7 @@ test("the first items$ emission carrying a new item already has its audio", asyn
 
     expect(audio).toBeInstanceOf(Blob);
     expect(new Uint8Array(await audio!.arrayBuffer())).toEqual(audioBytes);
-    expect(item.hasAudio).toBe(true);
+    expect(item.audioReady).toBe(true);
     expect(item.audioBytes).toBe(audioBytes.byteLength);
   } finally {
     subscription?.unsubscribe();

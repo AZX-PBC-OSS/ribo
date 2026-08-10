@@ -62,9 +62,9 @@ import type { OutboxItem } from "./queue/schema.js";
  * eviction risk because it is the one state that will never resolve on its own —
  * and reporting it does not overstate safety, so the load-bearing rule still holds.
  *
- * ## On `hasAudio`
+ * ## On `audioReady`
  *
- * `OutboxItem.hasAudio` is intentionally *not* an input to the level. On this
+ * `OutboxItem.audioReady` is intentionally *not* an input to the level. On this
  * selector's axis — persistence and sync — it changes nothing: eviction and a
  * lost device take the audio attachment and the persisted transcript *together*,
  * and only leaving the device makes either safe. Whether the audio has been
@@ -148,7 +148,7 @@ export type WorkSafety =
 /**
  * Reduce outbox items to a {@link WorkOnDevice} summary.
  *
- * Classifies on `status` only — see the note on `hasAudio` in the file header.
+ * Classifies on `status` only — see the note on `audioReady` in the file header.
  * `done` is the sole synced (off-device) state; `dead` is the sole terminal
  * failure; every {@link ACTIVE_OUTBOX_STATUSES} entry, plus `awaiting-review`,
  * is pending recoverable work — `awaiting-review` just also increments the

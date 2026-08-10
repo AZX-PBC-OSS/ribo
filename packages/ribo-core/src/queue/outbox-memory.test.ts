@@ -56,7 +56,7 @@ test("an injected non-Dexie (memory) RxStorage drives the same Outbox API", asyn
 
   // Same projection contract the Dexie-backed tests assert.
   expect(enqueued.status).toBe("queued");
-  expect(enqueued.hasAudio).toBe(true);
+  expect(enqueued.audioReady).toBe(true);
   expect(enqueued.audioBytes).toBe(audioBytes.byteLength);
 
   // Read the item back through the public API — off the injected engine, in a
