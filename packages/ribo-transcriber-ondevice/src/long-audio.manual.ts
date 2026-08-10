@@ -93,26 +93,44 @@ test("the VAD path transcribes a 54 s clip in full, with hints and without leaki
     ].join("\n"),
   );
 
-  // Reaches the END of the clip. The fixture's closing sentence is about wall
-  // insulation; truncation at 30 s cuts off around the furnace. This is the assertion
-  // the whole feature exists to satisfy and nothing else in the repo makes it.
-  expect(transcript.text.toLowerCase()).toMatch(/wall/);
-  // And the MIDDLE, because a seam that silently drops a segment would still pass an
+  // Reaches the END of the clip — truncation at 30 s cuts off around the furnace, so
+  // anything from the windows sentence onward proves the whole recording was seen. This
+  // is the assertion the feature exists to satisfy and nothing else in the repo makes it.
+  //
+  // Anchored on "south elevation" rather than the fixture's final word: the closing
+  // sentence is "WALL insulation is rated well throughout" and whisper-base.en hears
+  // "while insulation". A brittle anchor made this fail on a transcription error the
+  // first time it ran, which proves nothing about coverage.
+  expect(transcript.text.toLowerCase()).toMatch(/south elevation/);
+  // And the MIDDLE, because a seam that silently dropped a segment would still pass an
   // ends-only check.
-  expect(transcript.text.toLowerCase()).toMatch(/attic|insulation/);
+  expect(transcript.text.toLowerCase()).toMatch(/blown cellulose|joist/);
   // The prefix is sliced off, not decoded.
   expect(transcript.text.toLowerCase()).not.toContain(SENTINEL);
 });
 
-test("COMPARISON: the library's own seek loop, for the delete-the-VAD-layer decision", async () => {
-  // Drives `model.generate` directly with `return_timestamps: true` and no
-  // `max_new_tokens`, which is the condition `generate()` uses to enter
-  // `_generate_with_seek`. Everything else matches what `transcribeChunk` does.
+test("the library's seek loop is UNREACHABLE through the standard processor", async () => {
+  // MEASURED NEGATIVE RESULT, and the reason the VAD layer stays.
   //
-  // Not asserted against the VAD path's exact text — two decoders will differ in
-  // punctuation and that is not a defect. What matters is whether this reaches the end
-  // of the clip, keeps the jargon bias, and does not leak the prefix. If it does all
-  // three, the hand-rolled layer is redundant.
+  // `WhisperForConditionalGeneration._generate_with_seek` really does implement long-form
+  // transcription, and it really does carry an injected decoder prefix safely — it passes
+  // `decoder_input_ids: init_tokens` into every segment and slices `init_tokens.length`
+  // off the result, the same inject-then-slice `transcribeChunk` does by hand. Reading
+  // that, it looks like ~360 lines of `segmentation.ts` plus a 6 MB VAD model could be
+  // replaced by two generation flags.
+  //
+  // They cannot, and this test records why. The seek loop derives its work from
+  // `input_features.dims[2]`, but **`WhisperFeatureExtractor` truncates the waveform to
+  // `n_samples` before producing features** (`feature_extraction_whisper.js`:
+  // `waveform = audio.slice(0, length)`, with the "longer than 30 seconds" warning right
+  // above it). So a spectrogram built through `processor()` is always exactly one
+  // segment, the seek loop iterates once, and everything past 30 s is already gone before
+  // `generate` is called. Reaching it would mean building a full-length mel spectrogram
+  // ourselves — strictly more work than the layer it would replace.
+  //
+  // This ran and failed with `token_ids must be a non-empty array of integers` after
+  // emitting that truncation warning, which is what a one-segment seek over truncated
+  // input looks like from the outside.
   const { pipeline, env } = await import("@huggingface/transformers");
   const wasm = env.backends?.onnx?.wasm;
   if (wasm) wasm.wasmPaths = __ORT_WASM_BASE__;
@@ -121,62 +139,17 @@ test("COMPARISON: the library's own seek loop, for the delete-the-VAD-layer deci
     device: "wasm",
     dtype: "fp32",
   });
-  const audio = await (await fetch(longWavUrl)).blob();
-  const samples = await decodeTo16kMono(audio);
-
-  const tokenizer = (asr as unknown as { tokenizer: { encode(t: string, o?: object): number[] } })
-    .tokenizer;
-  const model = (
-    asr as unknown as {
-      model: {
-        generation_config?: { decoder_start_token_id?: number };
-        generate(i: Record<string, unknown>): Promise<unknown>;
-      };
-    }
-  ).model;
+  const samples = await decodeTo16kMono(await (await fetch(longWavUrl)).blob());
   const processor = (
-    asr as unknown as { processor(a: Float32Array): Promise<{ input_features: unknown }> }
+    asr as unknown as {
+      processor(a: Float32Array): Promise<{ input_features: { dims: number[] } }>;
+    }
   ).processor;
 
-  // The same prefix `buildDecoderPrefix` builds, MINUS `<|notimestamps|>`: the seek loop
-  // is timestamp-driven, so suppressing timestamps is what would keep it from working.
-  const sot = model.generation_config?.decoder_start_token_id;
-  const prefix = [
-    ...tokenizer.encode("<|startofprev|>", { add_special_tokens: false }),
-    ...tokenizer.encode(` ${[...VOCABULARY, SENTINEL].join(", ")}`, { add_special_tokens: false }),
-    ...(sot == null ? [] : [sot]),
-  ];
-
-  const started = performance.now();
   const { input_features } = await processor(samples);
-  const output = await model.generate({
-    inputs: input_features,
-    decoder_input_ids: prefix,
-    return_timestamps: true,
-  });
-  const elapsed = performance.now() - started;
+  const framesPerSegment = 3000; // input_stride (2) x max_source_positions (1500)
 
-  const ids = (output as { sequences?: { tolist(): number[][] } }).sequences?.tolist()[0] ?? [];
-  const text = (tokenizer as unknown as { decode(i: number[], o?: object): string }).decode(ids, {
-    skip_special_tokens: true,
-  });
-
-  const audioSeconds = samples.length / 16_000;
-  // eslint-disable-next-line no-console
-  console.log(
-    [
-      "",
-      "── library seek loop (_generate_with_seek) ───────────────────────",
-      `audio ${audioSeconds.toFixed(1)}s · wall ${(elapsed / 1000).toFixed(1)}s · RTF ${(elapsed / 1000 / audioSeconds).toFixed(3)}`,
-      `tokens ${ids.length}`,
-      "",
-      text.trim(),
-      "",
-      "DECIDE: does this reach the end of the clip, keep the jargon, and not leak the",
-      "sentinel? If yes, segmentation.ts and the 6 MB VAD model are redundant.",
-      "",
-    ].join("\n"),
-  );
-
-  expect(text.length).toBeGreaterThan(0);
+  // The whole finding, as one assertion: 54 s of audio yields ONE segment of features.
+  expect(input_features.dims[2]).toBe(framesPerSegment);
+  expect(samples.length / 16_000).toBeGreaterThan(30);
 });
