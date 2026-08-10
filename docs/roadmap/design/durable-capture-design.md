@@ -3,7 +3,7 @@
 **Status:** Design, revision 8. Piece 1 of 2. Not yet planned or implemented.
 **Date:** 2026-08-10
 
-> **Why this document exists.** Split out of `2026-08-08-live-transcription-design.md` after two review
+> **Why this document exists.** Split out of `live-transcription-design.md` after two review
 > rounds on that combined design failed to converge. Every critical finding in both rounds landed in
 > durability and ownership, none in the live preview itself. This piece ships on its own merits; live
 > preview (piece 2) builds on it.
