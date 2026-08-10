@@ -1,6 +1,6 @@
 # Durable capture — audio survives a crash mid-recording
 
-**Status:** Design, revision 6. Piece 1 of 2. Not yet planned or implemented.
+**Status:** Design, revision 7. Piece 1 of 2. Not yet planned or implemented.
 **Date:** 2026-08-10
 
 > **Why this document exists.** Split out of `2026-08-08-live-transcription-design.md` after two review
@@ -83,8 +83,10 @@ original exactly, for WebM and MP4 alike. Two details that are not free, though:
   be given the negotiated MIME type explicitly.
 - **The naming scheme needs a defined total order.** `audio-chunk-NNNN` alone stops sorting correctly
   past 9999 and says nothing about slices within a chunk. Use a fixed-width chunk index plus a
-  fixed-width slice index — `audio-chunk-000123-04` — so lexical order is chronological without
-  exception.
+  fixed-width slice index — `audio-<sourceId>-000123-04` — so lexical order is chronological. **Define
+  the overflow**: six digits and two are ample (a million chunks is ~58 days at 5 s), but "ample" is not
+  "impossible". Capture **fails safely and stops** before an index would overflow, rather than silently
+  emitting a name that sorts wrongly and corrupts the merge order.
 
 ### 1.2 What this does NOT protect — the honest bound
 
@@ -269,29 +271,43 @@ deletes every attachment under that `sourceId` **after** the status transition. 
 those points is deleted by the sweep; one landing after the sweep is orphaned on an item that is no
 longer `recording`, and is collected by startup discovery (§8), which already scans for exactly that.
 
-### 3.1.3 Canonical authority is a document field, not attachment existence
+### 3.1.3 Canonical authority is a guarded POINTER, not a fixed id
 
-Revision 5 claimed owner-scoped naming made **canonical** writes harmless too, but defined a scoped name
-only for chunks. Canonical remains the fixed `AUDIO_ATTACHMENT_ID`, because `getAudio()` and the
-`audioReady` projection both read exactly that id. So a pre-takeover `putAttachment("audio")` can
-conflict, retry against the new revision, and **land after takeover** — and §4's recovery trusts
-canonical existence and skips both merge and decode-verification.
+Canonical cannot keep the fixed `AUDIO_ATTACHMENT_ID`. Revision 6 tried to fix this with an
+`audioCommitted` flag, which settled _authority_ but not _bytes_:
 
-Renaming canonical per-owner is the wrong fix: it would fork the one attachment every consumer reads.
+1. Recorder A begins `putAttachment("audio", staleBlob)`.
+2. Recovery B takes ownership, writes and **verifies** the correct canonical blob.
+3. B atomically sets the commit flag and transitions to `queued`.
+4. A's write conflicts, **retries against B's latest revision, and overwrites `"audio"` after the
+   commit**.
 
-Instead, **canonical existence stops being the authority.** A persisted, guarded field records it:
+The row still reads as committed, and the relay consumes A's unverified bytes. RxDB's attachment
+modifier assigns unconditionally by id, and conflicts retry against the current document — so any fixed
+id is clobberable by anyone who ever held a handle to it. Revision 6 covered only the ordering where the
+stale write lands _first_.
+
+**So the canonical attachment is owner-scoped too, and a guarded pointer says which one is real:**
 
 ```
-audioCommitted: boolean     // set ONLY in the guarded recording → queued transition
+audio-canonical-<owner>              // the attachment; a new one per owner
+canonicalAttachmentId: string        // persisted pointer, set ONLY in the guarded transition
 ```
 
-- `audioReady` projects from `audioCommitted`, not from raw attachment presence.
-- §4's recovery asks **"is `audioCommitted` set?"**, not "does the attachment exist?".
-- A stale canonical write therefore lands as inert bytes on an item nobody treats as committed, and is
-  overwritten by the real commit.
+Recovery writes `audio-canonical-<owner>`, decode-verifies it, and then **atomically publishes that id
+while transitioning `recording → queued`**. A stale writer can still land bytes — under _its own_ name,
+which nothing points at. It cannot overwrite the published attachment, and it cannot become
+authoritative.
 
-This restores the property §4's table depends on — that reaching step 2 is what makes canonical
-authoritative — and puts it in the one place RxDB can guard atomically.
+This also replaces `audioCommitted`: the pointer's presence **is** the commitment, so one field does
+both jobs. `audioReady` projects from `canonicalAttachmentId != null`.
+
+**Revision 6 rejected this on the grounds that renaming canonical would fork the attachment every
+consumer reads. That was wrong** — `Outbox.getAudio()` already abstracts the lookup, so resolving a
+pointer instead of a constant is a change in one place.
+
+**Legacy rows keep working** (§7): a row with no `canonicalAttachmentId` falls back to
+`AUDIO_ATTACHMENT_ID`, so audio recorded before this change stays readable and stays `audioReady`.
 
 ### 3.3 The restored-context protocol
 
@@ -347,21 +363,30 @@ question.
 RxDB cannot span the canonical write, the status change, and chunk deletion in one transaction. The order
 is load-bearing.
 
-**Order: (1) write canonical attachment → (2) status `recording → queued` → (3) delete chunks.**
+**Order: (1) write and verify `audio-canonical-<owner>` → (2) publish the pointer and transition
+`recording → queued`, atomically → (3) delete chunks.**
 
-| Interrupted after | On-disk state                         | Recovery                                          |
-| ----------------- | ------------------------------------- | ------------------------------------------------- |
-| — (before 1)      | `recording`, chunks only              | Merge, decode-verify, write canonical → (2) → (3) |
-| 1                 | `recording`, canonical **and** chunks | Canonical exists: **skip the merge**, go to (2)   |
-| 2                 | `queued`, canonical and chunks        | Harmless; run (3) idempotently                    |
-| 3                 | `queued`, canonical only              | Nothing to do                                     |
+| Interrupted after | On-disk state                                          | Recovery                                                                                                  |
+| ----------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| — (before 1)      | `recording`, chunks, no pointer                        | Merge, decode-verify, write canonical → (2) → (3)                                                         |
+| 1                 | `recording`, an owner-scoped canonical, **no pointer** | Bytes exist but were never published. **Re-verify and re-publish** rather than trusting them — see below. |
+| 2                 | `queued`, pointer published, chunks remain             | Harmless; run (3) idempotently                                                                            |
+| 3                 | `queued`, pointer published, chunks gone               | Nothing to do                                                                                             |
 
-Recovery's first question is always **"does the canonical attachment exist?"**, never "are there chunks?".
-`queued` before canonical would recreate the relay race `recording` exists to prevent; deleting chunks
-before the canonical commit could lose the recording. Both orderings are forbidden.
+**Recovery's first question is "is `canonicalAttachmentId` published?"**, never "does an attachment
+exist?". Revision 6 added §3.1.3 and left this table asserting the opposite rule — an internal
+contradiction that would have reintroduced the exact stale-write hole the section was written to close.
 
-Because all of this runs inside the lock (§3), it needs no additional guard to be idempotent under
-concurrent recoverers — there cannot be one.
+Row 1 deserves its own note. An unpublished owner-scoped canonical is _probably_ the interrupted work of
+the current owner, but it may equally be a stale writer's bytes. Recovery therefore re-runs
+decode-verification against it before publishing, or simply re-merges from chunks — both are safe, and
+the choice is a cost question, not a correctness one, because the pointer is what confers authority.
+
+`queued` before publishing would recreate the relay race `recording` exists to prevent; deleting chunks
+before publishing could lose the recording. Both orderings are forbidden.
+
+Because all of this runs inside the `ribo-capture` lock (§3), it needs no additional guard to be
+idempotent under concurrent recoverers — there cannot be one.
 
 ### 4.1 Recovery decode-verifies — what that proves, and what it does not
 
@@ -534,7 +559,13 @@ accepted as healthy. A resumed session that observes a gap past the threshold re
 interval even though audio ultimately arrived — because the report is about the window in which a crash
 would have lost it, not about the eventual outcome.
 
-**That requires a clearing rule, which revision 4 left undefined**, and without one the signal is
+**A user pause is not a stall, and the recorder phase cannot tell you so.** By the time the first
+post-resume `dataavailable` arrives the recorder has already returned to `recording`, so a long
+intentional pause would be reported as a stall. The emission baseline is therefore **reset on a
+user-initiated `Recorder.resume()`**, and deliberately **not** reset on page restoration — which is the
+whole distinction: one is the user choosing to stop capturing, the other is capture being taken away.
+
+**Latching requires a clearing rule, which revision 4 left undefined**, and without one the signal is
 useless in either direction: if the same handler returns straight to `flushing`, React may never render
 `at-risk` at all; if it never clears, the value stops meaning current health. So capture health is
 **latched**: entering `stalled` holds it for a defined minimum interval, and it clears only after
@@ -548,6 +579,19 @@ it cannot and does not need to.
 - `useWorkSafety()` composes it from the active session, as it already composes outbox, storage and
   connectivity.
 - `WorkSafety` gains a reason for the recording case and one for `stalled`.
+
+**Precedence must be stated, not left to implementation**, because `WorkSafety` is a public
+discriminated union whose existing levels already have an explicit order. Danger wins over reassurance,
+and the most actionable reason wins within a level:
+
+| Situation                             | Result                                                                       |
+| ------------------------------------- | ---------------------------------------------------------------------------- |
+| Persistence denied (any work)         | `at-risk` / `not-persisted` — outranks everything; nothing survives eviction |
+| Capture stalled                       | `at-risk` / `capture-stalled`                                                |
+| A permanently failed item             | existing `at-risk` reason, unchanged                                         |
+| Healthy recording + other queued work | `protected` / `recording` — the recording is the newer, more surprising fact |
+| Healthy recording alone               | `protected` / `recording`                                                    |
+| No recording                          | exactly as today                                                             |
 
 Absent the input — no recording, or a host that does not wire it — behaviour is exactly as today.
 
@@ -577,34 +621,43 @@ canonical attachment afterwards.
 Both keys are in `DERIVED_OUTBOX_ITEM_KEYS` — projected, never stored — so this is a public API rename with
 **no storage migration**. It is a breaking consumer change and the changeset must say so.
 
-## 7. Schema migration: v2, for `capture` alone
+## 7. Schema migration: v2, and a legacy compatibility rule
 
-Revision 3 claimed no migration was needed. **Restoring the owner token (§3.1.1) puts one persisted
-field back**, so `outboxRxSchema` goes to **version 2** with a migration strategy. The strategy is
-mechanical: no v1 document can have been recording, so v1 documents pass through with `capture` absent.
+Revision 6 titled this "for `capture` alone" while the design also introduced two more persisted fields.
+**Three fields are added, and all three must appear in both the zod document schema and the RxDB schema**,
+which are deliberately pinned against each other field-for-field:
 
-**The schema must state the invariant, not merely make the field optional:**
+```
+capture: { sourceId: string; owner: string }   // present iff status === "recording"
+canonicalAttachmentId?: string                  // published in the guarded commit transition
+step?: { generation: string }                   // rotated on every relay claim (§8.2)
+```
 
-- `status === "recording"` ⇒ `capture.sourceId` and `capture.owner` both present.
-- Non-recording statuses retain `capture.sourceId` (it identifies audio that may still be swept) and
-  must not be treated as authorising writes.
+`outboxRxSchema` goes to **version 2**.
+
+**The migration cannot be the identity function.** Revision 6 said v1 documents "pass through unchanged",
+which silently breaks every existing recording: `audioReady` now projects from `canonicalAttachmentId`
+(§3.1.3), and a legacy row has none — so **existing, perfectly good audio would report as not ready**,
+and the playground would render it as dropped bytes.
+
+So the rule is explicit:
+
+- **A row with no `canonicalAttachmentId` falls back to `AUDIO_ATTACHMENT_ID`.** Legacy audio stays
+  readable and stays `audioReady`. `getAudio()` resolves the pointer when present, the constant when not.
+- Migration may alternatively populate the pointer from the legacy stub; the fallback is required either
+  way, because a row can reach v2 without ever having been touched by this code.
+
+**And the `capture` invariant must distinguish legacy rows from post-recording ones**, which revision 6
+contradicted itself on — saying v1 rows arrive with `capture` absent, then that non-recording rows retain
+`capture.sourceId`:
+
+- `status === "recording"` ⇒ `capture.sourceId` **and** `capture.owner` present.
+- A row that has **been** through `recording` retains `capture.sourceId` (it identifies chunks that may
+  still need sweeping) and its `owner` no longer authorises anything.
+- A **legacy** row has no `capture` at all, and that is legal. It has no chunks to sweep.
 
 A merely-optional `capture` would let a `recording` document pass the trust boundary while being
 unfenceable and unrecoverable.
-
-Everything else still needs no migration, and the checks hold:
-
-- `capturedAt` — meaning changes, shape does not.
-- `durationMs: 0` — already legal.
-- error marker — `lastError` already exists.
-- `audioReady` / `audioBytes` — in `DERIVED_OUTBOX_ITEM_KEYS`, projected and never stored.
-
-**One correction to revision 3's reasoning.** It said `status` "has no enum". That is true of the **RxDB
-storage schema**, which stores a bounded string — so the new value needs no storage migration. It is
-**false at the zod trust boundary**, where `status: z.enum(OUTBOX_STATUSES)`. The practical consequence
-is a mixed-version concern rather than a migration one: an older tab running older code will _reject_ a
-`recording` document it reads. A version bump does not teach an old reader a new value, so this is noted
-as a deployment property, not solved here.
 
 ## 8. Startup discovery, hand-off, and relay coordination
 
@@ -676,8 +729,18 @@ recoverable_, and the relay derives the next step from **persisted outputs** rat
 (`relay.ts:139`). A successor relay and a restored predecessor can therefore both conclude they are
 working the same logical step, whatever the status says.
 
-So: selecting an item rotates `step.generation`; every mutation of that step — success **and** failure —
-compares it inside a guarded modify and rejects on mismatch. A restored predecessor writing a stale
+**The claim itself must be atomic, not just the mutations it protects.** "Selecting rotates the
+generation" is under-specified: a relay frozen _after_ `nextPending()` returns but _before_ it rotates
+can resume later, perform its delayed rotation, and steal the item back from a successor that has already
+advanced it — or claim one that has since parked or finished. Selection is a plain query today, and the
+relay patches separately afterwards.
+
+So a claim is a **guarded `incrementalModify` that compares the generation and status observed at
+selection, re-derives eligibility and the next step from the current revision, and only then rotates**.
+A mismatch means _"claim lost"_ — the item is skipped, not failed, because nothing went wrong with it.
+
+Thereafter every mutation of that step — success **and** failure —
+compares the generation inside a guarded modify and rejects on mismatch. A restored predecessor writing a stale
 transcript, or a stale failure handler writing `failed`/`dead` over a completed step, both throw instead
 of applying. The external idempotency key continues to protect the vendor write; the generation protects
 local state, which is what the key never covered.
@@ -710,14 +773,23 @@ where that is so, the discriminating version is described.
 - **Recovery finds the chunks AFTER rotating the owner.** Rotate, then recover, and assert the audio is
   merged rather than swept. **This is the test that would have caught revision 5's data-loss bug**, in
   which rotation orphaned every chunk the recording depended on.
-- **A stale CANONICAL write cannot make an item look ready.** Land a `putAttachment("audio")` after
-  takeover and assert `audioReady` stays false and recovery still merges and verifies — the fixed
-  attachment id makes this race real, and revision 5 tested only the chunk version.
+- **A stale canonical write cannot overwrite a PUBLISHED one.** Both orderings, because revision 6
+  tested only the easy one: (a) the stale write lands _before_ commit, and (b) the stale write is
+  **in flight across** the commit — begun before, conflicting, retried against the committed revision,
+  landing after. In (b) assert the pointer still names the verified attachment and `getAudio()` returns
+  the verified bytes. A fixed-id canonical fails (b) while passing (a).
+- **A legacy row with no pointer is still `audioReady` and still playable.** The migration
+  compatibility rule; without it every pre-existing recording reports as dropped bytes.
 - **A late chunk landing between inventory and sweep is deleted; one landing after the sweep is
   collected by startup discovery.** The ordering §3.1.2 relies on, asserted rather than assumed.
 - **A restored context revalidates before any write.** Drive the actual lifecycle seam, **deliver
   `dataavailable` while revalidation is still pending**, and assert no attachment, canonical or status
   mutation occurs — not merely that the recorder eventually stops.
+- **A relay frozen between selection and claim cannot steal the item back.** Freeze after
+  `nextPending()` returns but before the claim, let a successor claim and advance, then resume and
+  attempt the delayed claim. It must lose, and lose as "claim lost" rather than as a step failure.
+- **A user pause is not reported as a stall**, while a page suspension of the same duration is. The pair
+  — either alone passes an implementation that confuses the two.
 - **A frozen relay cannot regress an item.** Model release mid-step: A selects and freezes, B advances
   to `awaiting-review`, A resumes and writes. Assert the item does not regress. The two-live-tab lock
   test does **not** cover this and is not a substitute. Assert the **failure** path too — a stale handler
