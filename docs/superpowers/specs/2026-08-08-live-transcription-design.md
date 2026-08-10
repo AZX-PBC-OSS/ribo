@@ -1,17 +1,24 @@
 # Live transcription — utterance-level preview during recording
 
-**Status:** Design, revision 2. Not yet planned or implemented.
-**Date:** 2026-08-08
+**Status:** Design, revision 3. **Piece 2 of 2 — BLOCKED on piece 1.** Not yet planned.
+**Date:** 2026-08-08, split 2026-08-10
 
-> **Revision 2** after a review that found revision 1 not implementable. The material changes:
-> a **single-recorder lock with a lease** (the database is `multiInstance: true`, so "any item in
-> `recording` at startup was abandoned" was wrong — a second tab would have recovered a live
-> recording out from under the first); **the relay pauses during recording** instead of live taking
-> priority in the worker (one batch request owns the serializer for its whole duration, so "priority"
-> would have meant minutes of delay, not seconds); **explicit streaming state for the rolling VAD**
-> (the existing helpers do _not_ work unchanged on a tail buffer); a **crash-interruption state
-> table** for the merge; **`recording` counted as pending work** by `summarizeWork`; and an honest
-> acknowledgement that the status union growing **is** a public API change.
+> **Revision 3 splits this design in two.** Revisions 1 and 2 were each reviewed and each found not
+> implementable; across both rounds **every critical finding landed in durability and ownership, none
+> in the live preview itself**. So that half is now its own document —
+> [`2026-08-10-durable-capture-design.md`](2026-08-10-durable-capture-design.md) — which ships on its
+> own merits (a crash mid-recording stops losing the audio) and is a **hard prerequisite** for this
+> one.
+>
+> **Moved out of this document into piece 1:** incremental chunk persistence, the `recording` status,
+> the lock document and fencing token, the crash-interruption state table, decode-verified recovery,
+> the metadata lifecycle, schema v2, and the `workSafety` / `hasAudio` contract changes.
+>
+> **What stays here, and what changed in this revision:** the `AudioWorklet` tap, the `LiveTranscriber`
+> seam, rolling VAD, and the preview field. Two things were corrected by review round two and are now
+> **unresolved open problems** rather than settled design — see §Unresolved. The heartbeat that
+> revision 2 put inside `preview` has moved to piece 1's lock document, where it belongs: ownership is
+> a lifecycle concern, not preview content.
 
 ## The goal
 
@@ -131,136 +138,61 @@ A region closes — and is transcribed and emitted — only when trailing silenc
 a region still open at the tail is _not_ emitted, it waits for more audio. If the tail passes 30 s
 with no pause, `cutLongRegions` force-closes at the quietest point and the state seeds as above.
 
-## Data model
+## Data model — mostly in piece 1
 
-### New `recording` status
+The `recording` status, the recording-metadata lifecycle, `finalizeRecording`, schema v2, and the
+`workSafety` / `hasAudio` contract changes are all specified in
+[piece 1](2026-08-10-durable-capture-design.md). This document adds exactly one field.
 
-```
-recording ─► queued ─► transcribing ─► extracting ─► awaiting-review ─► writing ─► done
-```
+### `preview: { segments: string[] }`
 
-Three separate registrations, each of which fails differently if missed:
+An append-only array of utterance texts — no timings, no per-segment engine, no confidence. Index keys
+stay stable for incremental rendering; the joined form is `segments.join(" ")`. Timings are excluded
+because `transcript.ts` warns that _"a shape nobody consumes is a shape nobody keeps honest"_, and
+rendering a growing list needs no offsets.
 
-- **NOT in `ACTIVE_OUTBOX_STATUSES`** — that list drives `nextPending()`, and an item still recording
-  has no canonical attachment. The relay would try to transcribe nothing.
-- **NOT in `FINISHED_OUTBOX_STATUSES`** — it is not terminal.
-- **Counted as PENDING by `summarizeWork`.** Revision 1 missed this and it is the worst of the three.
-  `summarizeWork` counts active statuses plus `awaiting-review`; everything else but `done`/`dead`
-  falls through uncounted, so a lone in-progress recording would make `workSafety` return **`safe`**
-  while the only copy of that audio is still accumulating locally. That module's contract is _never
-  overstate safety_. `recording` must be classified explicitly, independent of relay activity.
-
-`status` is indexed at `maxLength: 16`; `recording` fits.
-
-### Recording metadata lifecycle must change
-
-The item now exists before capture ends, and the current contracts cannot express that:
-
-- `capturedAt` means "when capture finished" and `durationMs` is the final audio duration; the
-  recorder does not mint the id or metadata until `stop()`.
-- **`OutboxPatch` deliberately excludes `recording`**, so neither stop nor recovery can write a final
-  `durationMs` at all — revision 1 promised exactly that and it is not writable.
-
-The change:
-
-- **`capturedAt` becomes capture START.** More natural for an item that exists during capture, and
-  the recorder can supply it at `start()`.
-- **`durationMs` is `0` while recording** and written at commit.
-- **A narrow `finalizeRecording(id, { durationMs })`** rather than widening `OutboxPatch`. The
-  exclusion exists for good reason; a dedicated method keeps it intact for everything else and is
-  legal only on the `recording → queued` transition.
-- On recovery `durationMs` comes from the **decoded audio**, not the wall clock, which died with the
-  app.
-
-### `preview: { segments: string[]; leaseAt: string }`
-
-`segments` is an append-only array of utterance texts — no timings, no per-segment engine, no
-confidence. Index keys are stable for incremental rendering; the joined form is
-`segments.join(" ")`. Timings are excluded because `transcript.ts` warns that _"a shape nobody
-consumes is a shape nobody keeps honest"_ and rendering a growing list needs no offsets.
-
-`leaseAt` is the heartbeat described below.
+**No lease or owner token lives here.** Revision 2 put the heartbeat in `preview` and that was wrong
+twice: shallow patches let a heartbeat carrying a stale nested object erase a sibling field, and it made
+"no preview when live is unavailable" internally false. Ownership lives on piece 1's lock document.
 
 `Transcript` itself is untouched: segments live on the preview, so `isSpanGrounded` still validates
 spans against exactly the text the model saw.
 
 ### Provisional, not authoritative
 
-After `stop()` the whole recording is re-transcribed by the existing batch path and the result
-replaces the preview — roughly 2× inference, and the text visibly rewrites. Chosen so the batch path
-stays the single source of truth and `Transcript` semantics do not change.
+After `stop()` the whole recording is re-transcribed by the existing batch path and the result replaces
+the preview — roughly 2x inference, and the text visibly rewrites. Chosen so the batch path stays the
+single source of truth and `Transcript` semantics do not change.
 
-**Backpressure falls out of this**, but needs defining rather than assuming. Under load we drop
-**closed utterances awaiting transcription** — never buffered PCM, because removing PCM would let VAD
-join speech across the hole into one false utterance. Nothing is lost either way; the full pass is
+**Backpressure falls out of this**, but needs defining rather than assuming. Under load, drop **closed
+utterances awaiting transcription** — never buffered PCM, because removing PCM would let VAD join
+speech across the hole into one false utterance. Nothing is lost either way; the full pass is
 authoritative.
 
 ### The handoff, and the late-reply race
 
 `preview` is deleted in the same modification that writes `transcript`. A single RxDB modification is
-one committed revision, so no subscriber observes half of it.
-
-Two things revision 1 got wrong or omitted:
+one committed revision, so no subscriber observes half of it. Two requirements, both confirmed sound in
+review:
 
 - **Use `incrementalModify` + `delete`, not `patch`.** `Outbox.patch` is an `incrementalPatch`, and
-  setting an optional property to `undefined` does not delete the persisted key. Existing code
-  already uses `incrementalModify` + `delete` where key absence matters.
-- **A stale live reply can restore `preview` after the transcript is written.** Every live request
-  carries a **session generation**; replies from a closed session are discarded, and the preview
-  append modifier additionally **rejects when `status !== "recording"` or `transcript` exists**.
-  Without both, a late worker reply recreates the field and both are populated at once.
+  setting an optional property to `undefined` does not delete the persisted key.
+- **A stale live reply must not restore `preview` after the transcript is written.** Every live request
+  carries a **session generation**; replies from a closed session are discarded, and the append modifier
+  additionally **rejects when `status !== "recording"` or `transcript` exists**. Both are required.
 
-A "neither populated" window is **legitimate** before the first utterance closes, and the tests must
-not forbid it.
+A "neither populated" window is **legitimate** before the first utterance closes; tests must not forbid
+it.
 
-## Single-recorder lock
+## Ownership, persistence and recovery — all piece 1
 
-**The database runs `multiInstance: true`.** Revision 1's rule — any item in `recording` at startup
-was abandoned — would let a second tab recover a _live_ recording, merge its partial chunks, and
-queue it while the first tab kept appending.
+The single-recorder lock document, the fencing token checked on every write, claimed recovery, the
+commit-order interruption table, and decode-verified per-container recovery are specified in
+[piece 1](2026-08-10-durable-capture-design.md) §3–§4. This document depends on all of it and restates
+none of it.
 
-- **Only one tab may record.** A tab acquires the lock by creating the `recording` item; a second tab
-  attempting to start finds a live item and **refuses with a clear reason** rather than racing.
-- **The lock is a lease.** The recording tab refreshes `preview.leaseAt` on a fixed interval. An item
-  whose lease is older than a documented staleness threshold (a small multiple of the interval) is
-  abandoned and recoverable; a fresh lease means another tab owns it.
-- **Recovery is conflict-safe** — it runs inside an `incrementalModify` that re-checks staleness, so
-  two tabs racing to recover cannot both win.
-
-## Commit and crash-interruption states
-
-RxDB cannot span the canonical-attachment write, the status change, and chunk deletion in one
-transaction. The order is load-bearing and every interruption point needs a defined answer.
-
-**Order: (1) write canonical attachment → (2) status `recording → queued` → (3) delete chunks.**
-
-| Interrupted after | On-disk state                         | Recovery                                                |
-| ----------------- | ------------------------------------- | ------------------------------------------------------- |
-| — (before 1)      | `recording`, chunks only              | Merge chunks → write canonical → (2) → (3)              |
-| 1                 | `recording`, canonical **and** chunks | Canonical already exists: **skip the merge**, go to (2) |
-| 2                 | `queued`, canonical and chunks        | Harmless; run (3) idempotently on next open             |
-| 3                 | `queued`, canonical only              | Nothing to do                                           |
-
-So recovery's first question is always **"does the canonical attachment exist?"**, not "are there
-chunks?". `queued` before canonical would recreate the exact relay race `recording` exists to
-prevent; deleting chunks before the canonical commit could lose the recording. Both orderings are
-forbidden.
-
-**A truncated tail may not decode.** Concatenated `audio/webm;codecs=opus` chunks form a valid file
-because chunk 0 carries the header, but a crash can leave a partial final cluster. Recovery attempts
-the merge and, on decode failure, retries with the last chunk dropped.
-
-### `stop()` must await outstanding chunk writes
-
-`dataavailable` is currently synchronous bookkeeping into an in-memory array, and `MediaRecorder`'s
-`stop` event guarantees the final handler _fired_ — not that an async IndexedDB write it started has
-committed. The session therefore keeps a **persistence chain** of chunk writes that `stop()` awaits
-before merging. Without it the merge can silently omit the last chunk, or race a slow earlier one.
-
-**Chunk-write failure is the one failure here that loses audio, so its settlement is concrete:** stop
-capture immediately, attempt to write the in-memory Blob as the canonical attachment, and if that
-also fails leave the item in `recording` with an error marker so it stays recoverable. Never delete
-it, and never report success.
+The one thing piece 2 adds: a live session's generation must be tied to the recording session's owner
+token, so a tab that loses ownership mid-recording stops feeding PCM as well as stopping capture.
 
 ## Failure handling
 
@@ -311,6 +243,51 @@ Also: the crash-interruption table exercised at each row against a reopened data
 ordering and decodability in real Chromium (`decodeAudioData` is the only honest check); a legitimate
 "neither populated" window before the first utterance is permitted; and a manual run where text
 appears while speaking.
+
+## Unresolved — must be settled before this piece is planned
+
+Review round two showed two of revision 2's answers do not work. Neither is fixed here, and both are
+**blocking for piece 2** (not for piece 1).
+
+### U1. Worker exclusion: pausing the relay is not sufficient
+
+Revision 2 replaced "live takes priority in `serialize()`" with "the relay pauses while any item is in
+`recording`". That is still wrong, for a reason revision 2 missed: **a recording can start after the
+relay has already begun a batch transcription.** The relay runs a step to completion, and one on-device
+request holds the inference serializer across every one of its chunks. Checking for `recording` before
+the _next_ relay iteration cannot preempt work already in flight, so live can still wait minutes — the
+exact revision-1 failure.
+
+Candidate directions, none chosen:
+
+- **Coordinate admission at one point.** Recorder acquisition and relay admission share the lock, so a
+  recording cannot start while a batch step is running, or vice versa. Simple and bounded; means the
+  auditor may have to wait to start recording, which is likely unacceptable.
+- **A cancellation boundary between Whisper chunks.** The batch request checks for cancellation between
+  chunks and yields, resuming later. Genuine preemption without a full scheduler, but it makes batch
+  transcription interruptible and re-entrant, which is new behaviour with its own failure modes.
+- **A second worker for live.** Full isolation, at the cost of a second copy of the model in memory —
+  likely fatal on a phone at ~314 MB fp32.
+
+The cancellation boundary looks most promising, and it is a change to the ondevice package's inference
+loop rather than to relay semantics. It needs its own design.
+
+### U2. `VadStreamState` is under-specified
+
+`inSpeech` and `openRegionStart` preserve hysteresis but do not represent everything that must survive
+a feed boundary:
+
+- a below-`leave` silence run that has not yet reached `minSilence`;
+- a preceding region waiting to learn whether that silence gets filled (the pipeline fills short
+  silences **before** dropping short speech, so the fill decision is retrospective);
+- padding already consumed on the previous side of a boundary;
+- **the VAD model's own overlap context** — stable probabilities come from overlapping 10-second
+  inference windows averaged together, and binarizer state alone does not preserve that;
+- the committed cursor's exact relationship to padded-and-transcribed audio.
+
+The "short silence spanning two feeds" test cannot pass without more retained state than the current
+contract names. Getting this wrong loses or duplicates speech at boundaries, silently — so the state
+contract needs to be derived properly, not extended piecemeal until tests pass.
 
 ## Open questions
 
