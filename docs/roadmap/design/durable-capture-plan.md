@@ -1,6 +1,8 @@
 # Durable Capture Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Executing this:** one task at a time, in order, each ending with its own test cycle and its own
+> review. Steps use checkbox (`- [ ]`) syntax so progress is trackable. Every task's final step runs a
+> mutation and reports what it saw — a test nobody has watched fail is not a gate.
 
 **Goal:** Audio becomes durable _during_ capture, so a crash partway through a recording no longer loses the whole thing.
 
@@ -8,7 +10,7 @@
 
 **Tech Stack:** TypeScript 6.0.3 (ESM-only), RxDB 17.4.0 (Dexie storage, attachments plugin), zod 4, Vitest 4 (`unit` = node, `browser` = real Chromium via Playwright), React 19.
 
-**Spec:** [`docs/superpowers/specs/2026-08-10-durable-capture-design.md`](../specs/2026-08-10-durable-capture-design.md) — revision 8. Read it before Task 1. Where this plan and the spec disagree, the spec wins and the plan is wrong.
+**Design:** [`durable-capture-design.md`](durable-capture-design.md) — revision 8. Read it before Task 1. Where this plan and the design disagree, the design wins and the plan is wrong.
 
 ## Global Constraints
 

@@ -6,7 +6,7 @@
 > **Revision 3 splits this design in two.** Revisions 1 and 2 were each reviewed and each found not
 > implementable; across both rounds **every critical finding landed in durability and ownership, none
 > in the live preview itself**. So that half is now its own document —
-> [`2026-08-10-durable-capture-design.md`](2026-08-10-durable-capture-design.md) — which ships on its
+> [`durable-capture-design.md`](durable-capture-design.md) — which ships on its
 > own merits (a crash mid-recording stops losing the audio) and is a **hard prerequisite** for this
 > one.
 >
@@ -142,7 +142,7 @@ with no pause, `cutLongRegions` force-closes at the quietest point and the state
 
 The `recording` status, the recording-metadata lifecycle, `finalizeRecording`, schema v2, and the
 `workSafety` / `hasAudio` contract changes are all specified in
-[piece 1](2026-08-10-durable-capture-design.md). This document adds exactly one field.
+[piece 1](durable-capture-design.md). This document adds exactly one field.
 
 ### `preview: { segments: string[] }`
 
@@ -188,7 +188,7 @@ it.
 
 The single-recorder lock document, the fencing token checked on every write, claimed recovery, the
 commit-order interruption table, and decode-verified per-container recovery are specified in
-[piece 1](2026-08-10-durable-capture-design.md) §3–§4. This document depends on all of it and restates
+[piece 1](durable-capture-design.md) §3–§4. This document depends on all of it and restates
 none of it.
 
 The one thing piece 2 adds: a live session's generation must be tied to the recording session's owner
