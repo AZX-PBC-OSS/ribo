@@ -410,3 +410,14 @@ fails; and `useRecorder({ enqueue: false })` still working with no durability.
   fatal for a crash-recovery feature. Worth a scoped spike (possibly via
   `createWritable({ keepExistingData: true })`, which has different locking semantics), not a fold-in-now
   decision.
+- **Taking over from a suspended tab** is possible later via `navigator.locks.request(name, { steal:
+true })`, which releases the held lock (the previous holder's promise rejects with `AbortError`) and
+  preempts the queue. Deliberately not adopted now, for two reasons. The spec's own caveat is exactly the
+  hazard §3.1 removes — _"any code running in tabs that assume they hold the lock will continue to
+  execute"_ — so stealing **buys back the fencing token** on that path, though a cheaper one, since it
+  need only cover the window between the steal and the victim noticing. And a suspended tab is often
+  still legitimately recording (§1.2: on Android, capture continues while emission stalls), so an
+  automatic steal would truncate a live recording. If this is built, it should be a **user-initiated**
+  takeover — "another tab is recording: switch to it, or take over and end it" — not an app decision.
+  Note the case is partly self-limiting: when the OS reclaims a backgrounded tab the context is destroyed
+  and the lock frees on its own.
