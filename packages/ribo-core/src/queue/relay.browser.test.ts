@@ -601,6 +601,135 @@ test("resumes at the write step when extraction and review already succeeded", a
 });
 
 // ---------------------------------------------------------------------------
+// Empty and near-empty transcripts — the guard that stops silence advancing
+// to extraction
+// ---------------------------------------------------------------------------
+//
+// `text: ""` is a legal `Transcript` (`transcript.ts` says so deliberately —
+// silence transcribes to nothing, which is a real result). Without a guard, the
+// relay persists it and advances to extraction regardless, so a transcription
+// that produced almost nothing — a VAD that missed the speech, a model that
+// failed quietly — becomes an extraction over an empty string, and then a
+// mostly-empty audit that nobody flagged. The guard in `#transcribe` parks the
+// item at `awaiting-review` instead, persisting the transcript either way.
+
+test("an empty transcript parks for review rather than advancing to extraction", async () => {
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = buildRelay(outbox, { transcriber: new FakeTranscriber({ text: "" }) });
+  const item = await outbox.enqueue({ recording, audio: audio() });
+
+  await drainToReview(harness.relay);
+
+  const parked = await outbox.get(item.id);
+  // Parked at the review gate, not advanced through extraction — the extractor
+  // never ran, which is the whole point: feeding an empty string to extraction
+  // produces a mostly-empty audit that nobody flagged.
+  expect(parked?.status).toBe("awaiting-review");
+  expect(harness.extractCalls).toHaveLength(0);
+  expect(parked?.extracted).toBeUndefined();
+  // The transcript is persisted: whatever was heard (nothing, here) is evidence
+  // and must not be thrown away — the item parks WITH its transcript.
+  expect(parked?.transcript).toEqual({
+    recordingId: "rec-1",
+    text: "",
+    engine: "fake",
+  });
+});
+
+test("a near-empty transcript for a long recording parks for review", async () => {
+  // "um" (2 chars) for a 4-minute recording is 0.008 chars/s — well below the
+  // 0.5 threshold. The same 2 chars for a 4-second recording would be 0.5, at
+  // the threshold, and would advance (covered by the next test). The ratio is
+  // what makes a near-empty transcript alarming for a long recording and fine
+  // for a short one.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = buildRelay(outbox, { transcriber: new FakeTranscriber({ text: "um" }) });
+  const item = await outbox.enqueue({
+    recording: { ...recording, durationMs: 240_000 },
+    audio: audio(),
+  });
+
+  await drainToReview(harness.relay);
+
+  const parked = await outbox.get(item.id);
+  expect(parked?.status).toBe("awaiting-review");
+  expect(harness.extractCalls).toHaveLength(0);
+  // The near-empty transcript is still persisted — it is evidence of what the
+  // model heard, even if what it heard was almost nothing.
+  expect(parked?.transcript?.text).toBe("um");
+});
+
+test("a short but plausible transcript still advances to extraction", async () => {
+  // "the attic" (9 chars) for a 4-second recording is 2.25 chars/s — above the
+  // 0.5 threshold, so the guard does not fire. Extraction runs normally and the
+  // item parks at the review gate the usual way.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = buildRelay(outbox, { transcriber: new FakeTranscriber({ text: "the attic" }) });
+  const item = await outbox.enqueue({
+    recording: { ...recording, durationMs: 4_000 },
+    audio: audio(),
+  });
+
+  await drainToReview(harness.relay);
+
+  const parked = await outbox.get(item.id);
+  // Extraction ran: the item has extracted data and went through the normal
+  // review gate, not the guard's park.
+  expect(parked?.status).toBe("awaiting-review");
+  expect(harness.extractCalls).toHaveLength(1);
+  expect(harness.extractCalls[0]?.transcript).toBe("the attic");
+  expect(parked?.transcript?.text).toBe("the attic");
+  expect(parked?.extracted).toEqual({ atticInsulation: "the attic" });
+});
+
+test("with dropAudioAfterTranscription, a parked empty transcript retains the audio", async () => {
+  // A human investigating a suspiciously empty transcript needs to listen to
+  // the recording. Dropping the bytes when the guard parks would make that
+  // impossible, so `dropAudioAfterTranscription` is deliberately not applied
+  // on the parking branch.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = buildRelay(outbox, {
+    transcriber: new FakeTranscriber({ text: "" }),
+    dropAudioAfterTranscription: true,
+  });
+  const item = await outbox.enqueue({ recording, audio: audio() });
+
+  await harness.relay.syncNow();
+
+  const parked = await outbox.get(item.id);
+  expect(parked?.status).toBe("awaiting-review");
+  expect(await outbox.getAudio(item.id)).toBeDefined();
+});
+
+test("an empty transcript does not block the recordings behind it", async () => {
+  // The guard parks at `awaiting-review`, which is not active, so the drain
+  // moves past it — same as a normal extraction park. A recording behind the
+  // empty one still transcribes and extracts.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = buildRelay(outbox, {
+    transcriber: new FakeTranscriber({
+      responses: { empty: "", real: "the attic is R-19" },
+    }),
+  });
+  await outbox.enqueue({ recording: { ...recording, id: "empty" }, audio: audio() });
+  await outbox.enqueue({ recording: { ...recording, id: "real" }, audio: audio() });
+
+  await drainToReview(harness.relay);
+
+  const items = await outbox.list();
+  expect(items.map((entry) => [entry.recording.id, entry.status])).toEqual([
+    ["empty", "awaiting-review"],
+    ["real", "awaiting-review"],
+  ]);
+  // The first item parked at the guard (no extraction), the second advanced
+  // through extraction normally.
+  const empty = items.find((entry) => entry.recording.id === "empty");
+  const real = items.find((entry) => entry.recording.id === "real");
+  expect(empty?.extracted).toBeUndefined();
+  expect(real?.extracted).toEqual({ atticInsulation: "the attic is R-19" });
+});
+
+// ---------------------------------------------------------------------------
 // Idempotency
 // ---------------------------------------------------------------------------
 
