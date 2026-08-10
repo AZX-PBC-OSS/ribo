@@ -1,6 +1,6 @@
 # Durable capture — audio survives a crash mid-recording
 
-**Status:** Design, revision 5. Piece 1 of 2. Not yet planned or implemented.
+**Status:** Design, revision 6. Piece 1 of 2. Not yet planned or implemented.
 **Date:** 2026-08-10
 
 > **Why this document exists.** Split out of `2026-08-08-live-transcription-design.md` after two review
@@ -196,80 +196,102 @@ The conclusion does not depend on which browser does which thing today. **"Lock 
 an invariant this design cannot verify, that differs between engines, and that has demonstrably
 changed.** It is not a safe foundation, and revision 3 built on it.
 
-### 3.1.1 What returns: one owner token, rotated on takeover
+### 3.1.1 Two identities, not one
+
+Revision 5 had a single `owner` doing two jobs, and the two jobs have **opposite** requirements. It must
+rotate on takeover, or the fence is inert; and it must **never** rotate, or the chunks it names become
+unfindable. Revision 5 rotated it and then read chunks by it — so recovery found zero chunks and swept
+the real audio as orphans. **The design deleted the recording it exists to save.**
+
+Separating them resolves it cleanly:
 
 ```
-capture: { owner: string }    // persisted, top-level on the outbox item. No leaseAt.
+capture: {
+  sourceId: string   // IMMUTABLE. Minted once when the row is created. Names the chunks. Never rotates.
+  owner:    string   // ROTATES on every takeover. Authorises document writes. Names nothing.
+}
 ```
 
-Every **document** mutation of a recording item — the status transitions, `capture` itself — happens
-inside a guarded `incrementalModify` that compares `capture.owner` **and** `status === "recording"`, and
-rejects on either mismatch. Comparison and mutation are one write against one document, so RxDB's
-retry-against-latest works in our favour: a stale writer's modifier re-runs, sees a different owner, and
-throws instead of applying.
+- **`sourceId` is the audio's identity.** Chunk attachments are named from it, so every chunk of a given
+  recording carries one stable prefix regardless of how many times ownership changes. Recovery reads by
+  `sourceId` and therefore always finds the crash-surviving chunks.
+- **`owner` is the write authorisation.** Recovery rotates it as its first operation, under
+  `ribo-capture`, atomically while confirming `status === "recording"`. A restored predecessor then
+  fails every guarded document write.
 
-**Owner equality alone is insufficient**, which revision 4 missed: after the row transitions to `queued`
-the original owner is still recorded, so a stale writer would pass an owner-only check. The status must
-be part of the same comparison.
+**Why delaying rotation is not an alternative.** Keeping the old owner so chunks stay findable would let
+a restored writer keep appending under the live prefix, contaminating the audio recovery is about to
+merge. Rotation must be immediate; the immutable `sourceId` is what makes that safe.
 
-**Recovery MUST rotate the token, as its first operation.** This is what revision 4 omitted, and without
-it the entire fence is inert — a restored recorder still holding the original owner passes revalidation
-and every subsequent write. So, authorised by holding `ribo-capture`: mint a fresh owner and atomically
-install it while confirming the item is still `recording`. Every later recovery write uses the new owner.
+Every **document** mutation of a recording item compares **both** `capture.owner` and
+`status === "recording"`, and rejects on either mismatch. Comparison and mutation are one write against
+one document, so RxDB's retry-against-latest works in our favour: a stale writer's modifier re-runs,
+sees a different owner, and throws. **Owner equality alone is insufficient** — after the row reaches
+`queued` the original owner is still recorded, so a stale writer would pass an owner-only check.
 
-With rotation in place the token is sufficient against both races:
+With rotation plus a stable `sourceId`, the token is sufficient against both races:
 
-- An old IndexedDB transaction that commits _first_ is folded into the revision that takeover then
-  retries against.
+- An old IndexedDB transaction committing _first_ is folded into the revision takeover then retries
+  against.
 - If takeover commits first, the stale transaction conflicts and cannot overwrite the newer revision.
-- Revalidate-then-taken-over-again is still safe, because authorisation is re-checked atomically on
-  every write rather than once.
+- Revalidate-then-taken-over-again is safe, because authorisation is re-checked atomically on every
+  write rather than once.
 
-**This is much less than revision 2 carried.** No heartbeat, no `leaseAt`, no staleness threshold, no
-recovery-lease renewal — Web Locks still answer _"is anyone recording?"_ and _"did that tab die?"_ far
-better than a wall clock. The token answers only what locks cannot: _"is this write still authorised?"_
-Liveness detection and write authorisation are different problems, and revision 3's mistake was assuming
-one primitive settled both.
+Still much less than revision 2 carried: no heartbeat, no `leaseAt`, no staleness threshold, no lease
+renewal. Web Locks answer _"is anyone recording?"_ and _"did that tab die?"_; the token answers only
+_"is this write still authorised?"_
 
 ### 3.1.2 Attachment writes cannot be fenced — so make stale ones inert
 
-Revision 4 said every chunk write goes through a guarded `incrementalModify`. **That is not buildable
-with RxDB's public API**, and it is the third appearance of the same trap:
+Attachment mutations cannot test ownership atomically, and this is a property of RxDB, not an oversight:
 
 - `putAttachment()` submits its **own** modifier to the incremental write queue. That modifier sees the
-  whole document and _could_ compare `capture.owner`, but there is no way for us to inject the
-  comparison.
+  whole document and _could_ compare a field, but there is no way to inject the comparison.
 - Public `RxDocument.incrementalModify()` runs through `modifierFromPublicToInternal`, which **strips
-  `_attachments` before the public modifier and restores the old value afterwards**. A public modifier
-  therefore cannot mutate attachments at all, let alone atomically with a field comparison.
+  `_attachments` before the public modifier and restores the old value afterwards**, so a public
+  modifier cannot mutate attachments at all.
 
-The same applies to chunk deletion and canonical replacement, not only insertion. There is no public
-primitive that does what revision 4 assumed.
-
-**So stop trying to prevent the stale write, and make it harmless instead.** Chunk attachment names are
-scoped by the owner that wrote them:
+The same applies to deletion and replacement, not only insertion. **So stop trying to prevent stale
+attachment writes and make them inert.**
 
 ```
-audio-<owner>-000123-04            // chunk 123, slice 4, written by session <owner>
+audio-<sourceId>-000123-04         // chunk 123, slice 4, of THIS recording
 ```
 
-A stale writer that wakes and lands a chunk writes it under **its own** owner prefix. Recovery and
-commit read only chunks matching the **current** `capture.owner`, so a stale write is invisible rather
-than corrupting: it can never be spliced into another session's audio, and it cannot overwrite a live
-chunk because the names cannot collide. Orphaned prefixes are deleted during recovery.
+Chunks are named from the immutable `sourceId`, so a restored predecessor writing a chunk writes it into
+the same logical recording rather than a rival one — and because chunk and slice indices are assigned
+from the recorder's own monotonic sequence, it cannot overwrite a chunk another session already wrote.
+Recovery reads every chunk under the recording's `sourceId`, so nothing is lost and nothing is orphaned.
 
-This narrows the guarded-`incrementalModify` requirement to **document mutations only** — status
-transitions and `capture` — which `incrementalModify` genuinely can do atomically. The two mechanisms
-now match what the storage layer actually supports:
+**A late chunk arriving after commit is the residual case**, and it is handled by ordering rather than
+by fencing: recovery and commit take their chunk inventory **before** writing canonical, and the sweep
+deletes every attachment under that `sourceId` **after** the status transition. A chunk landing between
+those points is deleted by the sweep; one landing after the sweep is orphaned on an item that is no
+longer `recording`, and is collected by startup discovery (§8), which already scans for exactly that.
 
-| Mutation                      | Mechanism                                            |
-| ----------------------------- | ---------------------------------------------------- |
-| status, `capture`             | guarded `incrementalModify`, owner + status compared |
-| chunk / canonical attachments | owner-scoped naming; stale writes inert and swept    |
+### 3.1.3 Canonical authority is a document field, not attachment existence
 
-**On resume, a restored context must re-validate before writing anything** — the item exists, is still
-`recording`, and still carries its owner. Failing that means takeover: stop capture and surface it. §3.3
-defines how that check is guaranteed to run first.
+Revision 5 claimed owner-scoped naming made **canonical** writes harmless too, but defined a scoped name
+only for chunks. Canonical remains the fixed `AUDIO_ATTACHMENT_ID`, because `getAudio()` and the
+`audioReady` projection both read exactly that id. So a pre-takeover `putAttachment("audio")` can
+conflict, retry against the new revision, and **land after takeover** — and §4's recovery trusts
+canonical existence and skips both merge and decode-verification.
+
+Renaming canonical per-owner is the wrong fix: it would fork the one attachment every consumer reads.
+
+Instead, **canonical existence stops being the authority.** A persisted, guarded field records it:
+
+```
+audioCommitted: boolean     // set ONLY in the guarded recording → queued transition
+```
+
+- `audioReady` projects from `audioCommitted`, not from raw attachment presence.
+- §4's recovery asks **"is `audioCommitted` set?"**, not "does the attachment exist?".
+- A stale canonical write therefore lands as inert bytes on an item nobody treats as committed, and is
+  overwritten by the real commit.
+
+This restores the property §4's table depends on — that reaching step 2 is what makes canonical
+authoritative — and puts it in the one place RxDB can guard atomically.
 
 ### 3.3 The restored-context protocol
 
@@ -285,6 +307,15 @@ mechanism.
   error fallback. `Recorder` currently installs `dataavailable` straight onto the `MediaRecorder`, so
   this is a real change, and it is what makes ordering a property of our code rather than of the
   browser's event scheduling.
+
+  **Ingestion and persistence must be separate stages, or the failure path deadlocks.** A single queue
+  cannot work: a chunk operation that detects a write failure must finalise, but the final
+  `dataavailable` may already be queued _behind_ it — so awaiting finalisation waits on an operation
+  that waits on it, and not awaiting it drops the last bytes. So `dataavailable` **ingests**
+  synchronously into an ordered buffer and returns; a separate persistence loop drains that buffer.
+  Finalisation closes ingestion first, then drains what remains, then commits. Nothing awaits anything
+  behind it.
+
 - **The first post-suspension operation awaits revalidation.** Anything queued behind it waits; on
   failure, capture stops and the operation is discarded rather than written.
 - **The per-write fence stays regardless**, because takeover can happen _after_ a successful
@@ -552,6 +583,15 @@ Revision 3 claimed no migration was needed. **Restoring the owner token (§3.1.1
 field back**, so `outboxRxSchema` goes to **version 2** with a migration strategy. The strategy is
 mechanical: no v1 document can have been recording, so v1 documents pass through with `capture` absent.
 
+**The schema must state the invariant, not merely make the field optional:**
+
+- `status === "recording"` ⇒ `capture.sourceId` and `capture.owner` both present.
+- Non-recording statuses retain `capture.sourceId` (it identifies audio that may still be swept) and
+  must not be treated as authorising writes.
+
+A merely-optional `capture` would let a `recording` document pass the trust boundary while being
+unfenceable and unrecoverable.
+
 Everything else still needs no migration, and the checks hold:
 
 - `capturedAt` — meaning changes, shape does not.
@@ -623,10 +663,24 @@ The concrete failure, which is corruption rather than waste:
 success with `failed` or `dead`. If review or writing had already happened, it is worse still. Relay
 step mutations are unconditional patches today, so nothing stops any of this.
 
-So relay work needs **the same class of protection as capture**: a persisted claim taken when an item is
-selected, and re-checked by every mutation of that item's step. Either claim-on-select (transition the
-status as part of selecting) or a persisted relay generation compared on each write — but not deferred,
-and not a lock alone.
+So relay work needs **the same class of protection as capture**, and the mechanism is decided rather
+than offered: **a persisted relay generation**.
+
+```
+step: { generation: string }    // rotated on every claim; compared by every step mutation
+```
+
+**Claim-on-select alone does not work**, which is why this is not a choice between two options. Merely
+transitioning the status while selecting leaves the item in a status that is deliberately _active and
+recoverable_, and the relay derives the next step from **persisted outputs** rather than from status
+(`relay.ts:139`). A successor relay and a restored predecessor can therefore both conclude they are
+working the same logical step, whatever the status says.
+
+So: selecting an item rotates `step.generation`; every mutation of that step — success **and** failure —
+compares it inside a guarded modify and rejects on mismatch. A restored predecessor writing a stale
+transcript, or a stale failure handler writing `failed`/`dead` over a completed step, both throw instead
+of applying. The external idempotency key continues to protect the vendor write; the generation protects
+local state, which is what the key never covered.
 
 `ribo-relay` is still worth holding: it prevents routine contention between two live tabs, exactly as
 `ribo-capture` does. It is the acquisition mechanism, not the authorisation one — the same division as
@@ -653,14 +707,24 @@ where that is so, the discriminating version is described.
   with no status change.
 - **Recovery rotates the owner.** Without this the fence is inert and every other fence test passes
   anyway, because they set the owner by hand. **This is the test that would have caught revision 4.**
-- **A stale chunk write is inert, not corrupting.** Write a chunk under a superseded owner prefix and
-  assert commit and recovery both ignore it, and that it is swept.
+- **Recovery finds the chunks AFTER rotating the owner.** Rotate, then recover, and assert the audio is
+  merged rather than swept. **This is the test that would have caught revision 5's data-loss bug**, in
+  which rotation orphaned every chunk the recording depended on.
+- **A stale CANONICAL write cannot make an item look ready.** Land a `putAttachment("audio")` after
+  takeover and assert `audioReady` stays false and recovery still merges and verifies — the fixed
+  attachment id makes this race real, and revision 5 tested only the chunk version.
+- **A late chunk landing between inventory and sweep is deleted; one landing after the sweep is
+  collected by startup discovery.** The ordering §3.1.2 relies on, asserted rather than assumed.
 - **A restored context revalidates before any write.** Drive the actual lifecycle seam, **deliver
   `dataavailable` while revalidation is still pending**, and assert no attachment, canonical or status
   mutation occurs — not merely that the recorder eventually stops.
 - **A frozen relay cannot regress an item.** Model release mid-step: A selects and freezes, B advances
   to `awaiting-review`, A resumes and writes. Assert the item does not regress. The two-live-tab lock
-  test does **not** cover this and is not a substitute.
+  test does **not** cover this and is not a substitute. Assert the **failure** path too — a stale handler
+  writing `failed`/`dead` over a completed step must also be rejected.
+- **The failure path does not deadlock.** Fail a chunk write with a final `dataavailable` already
+  queued, and assert finalisation completes **and** includes the last bytes. A single-queue
+  implementation hangs here.
 - **`workSafety` surfaces a stall observable only after resume**, exercised **through `useWorkSafety`
   and the session detector** — not by calling `workSafety(…, "stalled")` directly, which only tests the
   classifier. Assert the latch holds and then clears.
