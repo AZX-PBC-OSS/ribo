@@ -651,6 +651,6 @@ test("discarding is terminal and drops the audio", async () => {
 
   const persisted = await outbox.get(item.id);
   expect(persisted?.status).toBe("discarded");
-  expect(persisted?.hasAudio).toBe(false);
+  expect(persisted?.audioReady).toBe(false);
   await outbox.close();
 });

@@ -204,7 +204,7 @@ export class Outbox {
       };
       const doc = await this.#collection.insert(insert);
       // Projected from the inserted document, so the returned item carries the
-      // same `hasAudio` / `audioBytes` a subscriber sees for it.
+      // same `audioReady` / `audioBytes` a subscriber sees for it.
       return this.#toItem(doc);
     });
   }
@@ -367,7 +367,7 @@ export class Outbox {
     // silently vanished, which would look reviewable and be unrecoverable with
     // nothing to say why.
     await this.dropAudio(id);
-    // Re-read rather than projecting `updated`: `hasAudio` and `audioBytes` are
+    // Re-read rather than projecting `updated`: `audioReady` and `audioBytes` are
     // facts about the attachment store, and that handle was projected before the
     // drop. A discard removes the attachment, never the row, so it is still there.
     const settled = await this.#collection.findOne(id).exec();
@@ -563,7 +563,12 @@ export class Outbox {
   /** The captured audio, or `undefined` once it has been dropped. */
   async getAudio(id: string): Promise<Blob | undefined> {
     const doc = await this.#collection.findOne(id).exec();
-    const attachment = doc?.getAttachment(AUDIO_ATTACHMENT_ID);
+    // Resolves the attachment the pointer names, not a fixed constant — so a
+    // future canonical id that differs from the legacy `AUDIO_ATTACHMENT_ID` is
+    // read correctly. If the pointer is absent (a recording row that has not
+    // committed yet), there is no canonical audio to return.
+    const pointer = doc?.canonicalAttachmentId;
+    const attachment = pointer ? doc?.getAttachment(pointer) : undefined;
     return attachment ? await attachment.getData() : undefined;
   }
 
@@ -583,7 +588,11 @@ export class Outbox {
    */
   async dropAudio(id: string): Promise<void> {
     const doc = await this.#collection.findOne(id).exec();
-    await doc?.getAttachment(AUDIO_ATTACHMENT_ID)?.remove();
+    // Drops the attachment the pointer names, leaving the pointer itself — it
+    // still records WHICH attachment was authoritative, which is why
+    // `audioReady` reads attachment presence rather than pointer presence.
+    const pointer = doc?.canonicalAttachmentId;
+    if (pointer) await doc?.getAttachment(pointer)?.remove();
   }
 
   /** Delete an item and its attachment. */
@@ -648,11 +657,27 @@ export class Outbox {
     // be read off the document separately. `getAttachment` reads the in-memory
     // stub on `doc._data`; it does not fetch the bytes, so this stays as cheap
     // as the projection it replaced.
-    const attachment = doc.getAttachment(AUDIO_ATTACHMENT_ID);
+    //
+    // `audioReady` reads the attachment the `canonicalAttachmentId` POINTER
+    // names, not the pointer itself: the pointer survives `dropAudio` (it
+    // records WHICH attachment was authoritative), so reading presence off the
+    // pointer would report deleted audio as playable.
+    const canonical = doc.canonicalAttachmentId
+      ? doc.getAttachment(doc.canonicalAttachmentId)
+      : null;
+    // While recording there is no canonical yet, but the chunks ARE durable — so a
+    // UI can show capture progressing instead of reporting nothing, and cannot
+    // mistake "not yet" for "the bytes were dropped".
+    const chunkBytes = doc.capture
+      ? doc
+          .allAttachments()
+          .filter((a) => a.id.startsWith(chunkPrefix(doc.capture!.sourceId)))
+          .reduce((total, a) => total + a.length, 0)
+      : 0;
     return outboxItemSchema.parse({
       ...doc.toJSON(),
-      hasAudio: attachment !== null,
-      audioBytes: attachment?.length ?? 0,
+      audioReady: canonical !== null,
+      audioBytes: canonical?.length ?? chunkBytes,
     });
   }
 
@@ -715,3 +740,13 @@ function mangoQuery({ status, limit }: OutboxQuery): MangoQuery<OutboxDocument> 
     ...(limit === undefined ? {} : { limit }),
   };
 }
+
+/**
+ * The attachment-id prefix for a capture session's chunked audio.
+ *
+ * A local helper, not the full naming module — Task 5 will export `chunkPrefix`
+ * alongside `chunkName`, `canonicalName` and the rest from a dedicated module.
+ * It lives here for now because the projection's `audioBytes` sum needs to
+ * identify chunk attachments by id prefix, and that is the only consumer.
+ */
+const chunkPrefix = (sourceId: string): string => `audio-${sourceId}-`;

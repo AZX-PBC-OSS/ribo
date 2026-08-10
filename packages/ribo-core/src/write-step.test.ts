@@ -92,7 +92,7 @@ const itemAt = (id: string, ctx: unknown): OutboxItem =>
       mimeType: "audio/webm;codecs=opus",
       ctx,
     },
-    hasAudio: false,
+    audioReady: false,
     audioBytes: 0,
   });
 
