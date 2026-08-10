@@ -241,3 +241,135 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
   expect(enumValues).toBeLessThan(1_000);
   expect(deepest).toBeLessThan(10);
 });
+
+/**
+ * Walk a captured JSON Schema and return one entry per provenance-envelope leaf:
+ * its dotted path mapped to the `description` string that reached the schema (or
+ * `""` if none). A leaf is recognised structurally — an object whose `properties`
+ * carry `value` + `confidence` + `sourceSpan` — so this never needs a hardcoded
+ * group or field list and stays correct as the field set grows.
+ */
+function collectLeafDescriptions(schema: Record<string, unknown>): Map<string, string> {
+  const out = new Map<string, string>();
+  const walk = (node: unknown, path: string): void => {
+    if (node === null || typeof node !== "object") return;
+    const obj = node as Record<string, unknown>;
+    const props = obj.properties as Record<string, unknown> | undefined;
+    // A provenance envelope leaf carries exactly value + confidence + sourceSpan.
+    if (props && props.value && props.confidence && props.sourceSpan) {
+      const val = props.value as Record<string, unknown>;
+      const branch = (val.anyOf as Record<string, unknown>[] | undefined)?.[0] ?? val;
+      const desc = (branch as Record<string, unknown> | undefined)?.description;
+      out.set(path, typeof desc === "string" ? desc : "");
+      return;
+    }
+    if (props) {
+      for (const [key, child] of Object.entries(props)) {
+        walk(child, path ? `${path}.${key}` : key);
+      }
+    }
+  };
+  walk(schema, "");
+  return out;
+}
+
+/**
+ * The 13 health-test leaves all read their description from the shared
+ * `HealthTestState` enum const, so they are generated here rather than typed 13
+ * times — a typo in one name would fail the set comparison below regardless.
+ */
+const healthTestLeaves = [
+  "healthAmbientCarbonMonoxide",
+  "healthNaturalConditionSpillage",
+  "healthWorstCaseDepressurization",
+  "healthWorstCaseSpillage",
+  "healthUndilutedFlueCo",
+  "healthDraftPressure",
+  "healthGasLeak",
+  "healthVenting",
+  "healthMoldMoisture",
+  "healthRadon",
+  "healthAsbestos",
+  "healthLead",
+  "healthElectrical",
+].map((f) => `health.${f}`);
+
+// The deliberate split: 31 leaves carry a model-facing description sourced from
+// the JSDoc and the four file-header hazards; 20 do not, because their enum
+// members are self-explanatory and a description would be noise. Both halves are
+// pinned — adding noise to all 51 is called out in the task as worse than adding
+// signal to 31, so a description on a skipped leaf fails this test just as a
+// missing one on a described leaf does.
+const expectedDescribed = new Set([
+  "basedata.conditionedArea",
+  "basedata.floorsAboveGrade",
+  "basedata.blowerDoorReading",
+  "hvac.hvacSystemEquipmentType",
+  "hvac.hvacHeatingSystemManufacturer",
+  "hvac.hvacHeatingSystemModelYear",
+  "hvac.hvacHeatingCapacity",
+  "hvac.hvacCoolingCapacity",
+  "hvac.hvacDuctLeakage",
+  "hvac.hvacDuctLeakageValue",
+  "attic.atticInsulationDepth",
+  "attic.atticInsulationType",
+  "attic.atticInsulation",
+  "wall.wallsInsulated",
+  "wall.wallCavityInsulation",
+  "dhw.dhwType2",
+  "dhw.dhwTankSize",
+  "dhw.dhwManufacturer",
+  ...healthTestLeaves,
+]);
+
+test("leaf descriptions reach the emitted JSON Schema, carrying the hazard prohibitions", async () => {
+  // `schema.ts` attaches descriptions with `.describe()` on the INNER type —
+  // before `.nullable().optional()`, not after. `enveloped()` strips the
+  // `.optional()`/`.nullable()` wrappers before wrapping each leaf in the
+  // provenance envelope, so a description placed on the outer wrapper would be
+  // silently lost and never reach the model. This test is what proves the
+  // placement survives the derivation AND `z.toJSONSchema(..., "draft-2020-12")`:
+  // it reads descriptions out of the captured request, not out of the zod object.
+  const schema = await captureJsonSchema();
+  const descs = collectLeafDescriptions(schema);
+
+  // Every one of the 51 leaves must be accounted for — the walk found them all.
+  expect(descs.size).toBe(51);
+
+  const described = new Set([...descs.entries()].filter(([, d]) => d.length > 0).map(([p]) => p));
+  expect(described).toEqual(expectedDescribed);
+
+  // The complement: 20 leaves deliberately carry NO description. Asserting this
+  // half is what catches "someone added noise to all 51" — the failure mode the
+  // task names as worse than missing signal.
+  const undescribed = new Set(
+    [...descs.entries()].filter(([, d]) => d.length === 0).map(([p]) => p),
+  );
+  expect(undescribed.size).toBe(20);
+  for (const path of undescribed) {
+    expect(expectedDescribed.has(path)).toBe(false);
+  }
+
+  // The descriptions must carry the hazard prohibitions, not be vacuous labels.
+  // Each sample checks a different named hazard from the file header, so a
+  // description that lost its prohibition text fails here even if the leaf is
+  // still in the described set.
+  const want = (path: string, substr: string): void => {
+    const text = descs.get(path);
+    expect(text, `${path} should carry a description`).toBeTruthy();
+    expect(text, `${path} description should mention "${substr}"`).toContain(substr);
+  };
+  // Hazard: CFM50 vs ACH50 vs CFM25 (the task's headline example).
+  want("basedata.blowerDoorReading", "Never ACH50");
+  want("hvac.hvacDuctLeakageValue", "not a blower-door CFM50");
+  // Hazard 1: fuel is a separate axis from equipment — never a fused token.
+  want("hvac.hvacSystemEquipmentType", "fused");
+  // Hazard 2: R-value and depth band are independent — never convert between them.
+  want("attic.atticInsulationDepth", "never converted from an R-value");
+  want("attic.atticInsulation", "never converted into a depth band");
+  // Hazard 3: "Not Tested" is explicitly skipped; a test never mentioned is null.
+  want("health.healthAmbientCarbonMonoxide", "Not Tested");
+  want("health.healthAmbientCarbonMonoxide", "null");
+  // Hazard 4: efficiency has no field — do not force it into capacity.
+  want("hvac.hvacHeatingCapacity", "not efficiency");
+});

@@ -41,7 +41,8 @@
             "value": {
               "anyOf": [
                 {
-                  "type": "number"
+                  "type": "number",
+                  "description": "Heated and cooled floor area in square feet — not the lot size and not the building footprint."
                 },
                 {
                   "type": "null"
@@ -71,7 +72,8 @@
             "value": {
               "anyOf": [
                 {
-                  "type": "number"
+                  "type": "number",
+                  "description": "Number of stories of living area above grade; do not count the basement or the attic."
                 },
                 {
                   "type": "null"
@@ -170,7 +172,8 @@
             "value": {
               "anyOf": [
                 {
-                  "type": "number"
+                  "type": "number",
+                  "description": "Blower-door result in CFM at 50 pascals. Never ACH50, and never CFM25 — those are different measurements with their own fields."
                 },
                 {
                   "type": "null"
@@ -265,7 +268,8 @@
                     "Open Loop Ground Source Heat Pump (shared ducts)",
                     "Shallow Loop Ground Source Heat Pump (shared ducts)",
                     "Furnace / Central AC (shared ducts)"
-                  ]
+                  ],
+                  "description": "Heating and cooling equipment in one field; fuel is a separate field, so decompose \"oil boiler\" into \"Boiler\" here and \"Fuel Oil\" in hvacHeatingEnergySource — never a fused token."
                 },
                 {
                   "type": "null"
@@ -407,7 +411,8 @@
                     "Utica",
                     "York",
                     "Other"
-                  ]
+                  ],
+                  "description": "Manufacturer from this closed list. Use \"Other\" when the auditor named a make that is not on it, and \"Unknown\" only when they did not state one."
                 },
                 {
                   "type": "null"
@@ -467,7 +472,8 @@
             "value": {
               "anyOf": [
                 {
-                  "type": "number"
+                  "type": "number",
+                  "description": "The heating unit's model year — never the home's year built, which is a separate field."
                 },
                 {
                   "type": "null"
@@ -497,7 +503,8 @@
             "value": {
               "anyOf": [
                 {
-                  "type": "number"
+                  "type": "number",
+                  "description": "Rated heating output in BTU per hour, not efficiency — a spoken \"ninety-two percent furnace\" has no field here; only a stated BTU number goes in."
                 },
                 {
                   "type": "null"
@@ -527,7 +534,8 @@
             "value": {
               "anyOf": [
                 {
-                  "type": "number"
+                  "type": "number",
+                  "description": "Rated cooling output in BTU per hour."
                 },
                 {
                   "type": "null"
@@ -594,7 +602,8 @@
                     "6% - Well sealed",
                     "3% - Very tight",
                     "Measured (CFM25)"
-                  ]
+                  ],
+                  "description": "Qualitative duct tightness, or \"Measured (CFM25)\" when a duct-blaster number was read — that number goes in hvacDuctLeakageValue, not here."
                 },
                 {
                   "type": "null"
@@ -624,7 +633,8 @@
             "value": {
               "anyOf": [
                 {
-                  "type": "number"
+                  "type": "number",
+                  "description": "Duct leakage in CFM at 25 pascals from a duct blaster — not a blower-door CFM50, and only meaningful when hvacDuctLeakage is \"Measured (CFM25)\"."
                 },
                 {
                   "type": "null"
@@ -716,7 +726,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["0", "1-3", "4-6", "7-9", "10-12", "13-15", "16+", "Don't Know"]
+                  "enum": ["0", "1-3", "4-6", "7-9", "10-12", "13-15", "16+", "Don't Know"],
+                  "description": "Depth band in inches, set from a stated depth or thickness and never converted from an R-value — a stated R-value goes in atticInsulation instead, and this stays null."
                 },
                 {
                   "type": "null"
@@ -752,7 +763,8 @@
                     "Cellulose",
                     "Spray Foam",
                     "Don't Know"
-                  ]
+                  ],
+                  "description": "Insulation material — there is no \"None\" member; an uninsulated attic is atticInsulationDepth: \"0\", not a material here."
                 },
                 {
                   "type": "null"
@@ -782,7 +794,8 @@
             "value": {
               "anyOf": [
                 {
-                  "type": "number"
+                  "type": "number",
+                  "description": "Total installed R-value as a number (\"R-38\" → 38) — never converted into a depth band, which is a separate field."
                 },
                 {
                   "type": "null"
@@ -888,7 +901,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Well", "Poorly", "Yes", "No"]
+                  "enum": ["Well", "Poorly", "Yes", "No"],
+                  "description": "Four states, not boolean: \"Well\" means insulated and done properly, \"Poorly\" means some but thin, and \"Yes\" means there is insulation of unknown quality — they are not interchangeable."
                 },
                 {
                   "type": "null"
@@ -959,7 +973,8 @@
             "value": {
               "anyOf": [
                 {
-                  "type": "number"
+                  "type": "number",
+                  "description": "Cavity insulation R-value as a number; the material is a separate field."
                 },
                 {
                   "type": "null"
@@ -1152,7 +1167,8 @@
                     "Tankless Water Heater",
                     "Heat Pump",
                     "Sidearm Tank"
-                  ]
+                  ],
+                  "description": "Water heater type — an indirect tank off the boiler is \"Sidearm Tank\", and fuel is a separate field, so \"gas water heater\" decomposes into a type here and \"Natural Gas\" in dhwFuel2."
                 },
                 {
                   "type": "null"
@@ -1289,7 +1305,8 @@
             "value": {
               "anyOf": [
                 {
-                  "type": "number"
+                  "type": "number",
+                  "description": "Nominal tank capacity in gallons; a tankless water heater has no tank, so leave it null."
                 },
                 {
                   "type": "null"
@@ -1340,7 +1357,8 @@
                     "Takaji",
                     "Triangle Tube",
                     "Other"
-                  ]
+                  ],
+                  "description": "Manufacturer from this closed list. Use \"Other\" when the auditor named a make that is not on it, and \"Unknown\" only when they did not state one."
                 },
                 {
                   "type": "null"
@@ -1385,7 +1403,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
@@ -1416,7 +1435,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
@@ -1447,7 +1467,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
@@ -1478,7 +1499,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
@@ -1509,7 +1531,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
@@ -1540,7 +1563,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
@@ -1571,7 +1595,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
@@ -1602,7 +1627,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
@@ -1633,7 +1659,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
@@ -1664,7 +1691,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
@@ -1695,7 +1723,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
@@ -1726,7 +1755,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
@@ -1757,7 +1787,8 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["Passed", "Failed", "Warning", "Not Tested"]
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
+                  "description": "A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
                   "type": "null"
