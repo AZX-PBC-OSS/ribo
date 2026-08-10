@@ -306,8 +306,10 @@ both jobs. `audioReady` projects from `canonicalAttachmentId != null`.
 consumer reads. That was wrong** — `Outbox.getAudio()` already abstracts the lookup, so resolving a
 pointer instead of a constant is a change in one place.
 
-**Legacy rows keep working** (§7): a row with no `canonicalAttachmentId` falls back to
-`AUDIO_ATTACHMENT_ID`, so audio recorded before this change stays readable and stays `audioReady`.
+**There is no fallback path**, because there are no existing users (§7). `canonicalAttachmentId` is
+simply present on every committed row and absent on every uncommitted one, so `getAudio()` resolves a
+pointer and nothing else. A dual-read path would be a second code path to test and to keep honest, for a
+population that does not exist.
 
 ### 3.3 The restored-context protocol
 
@@ -621,11 +623,11 @@ canonical attachment afterwards.
 Both keys are in `DERIVED_OUTBOX_ITEM_KEYS` — projected, never stored — so this is a public API rename with
 **no storage migration**. It is a breaking consumer change and the changeset must say so.
 
-## 7. Schema migration: v2, and a legacy compatibility rule
+## 7. Schema changes
 
-Revision 6 titled this "for `capture` alone" while the design also introduced two more persisted fields.
-**Three fields are added, and all three must appear in both the zod document schema and the RxDB schema**,
-which are deliberately pinned against each other field-for-field:
+Three persisted fields are added, and **all three must appear in both the zod document schema and the
+RxDB schema** — the two descriptions are deliberately pinned against each other field-for-field, and a
+field in one but not the other is exactly the drift that pinning exists to catch:
 
 ```
 capture: { sourceId: string; owner: string }   // present iff status === "recording"
@@ -633,28 +635,20 @@ canonicalAttachmentId?: string                  // published in the guarded comm
 step?: { generation: string }                   // rotated on every relay claim (§8.2)
 ```
 
-`outboxRxSchema` goes to **version 2**.
+`outboxRxSchema` goes to **version 2** with a migration strategy, because RxDB requires one for every
+version.
 
-**The migration cannot be the identity function.** Revision 6 said v1 documents "pass through unchanged",
-which silently breaks every existing recording: `audioReady` now projects from `canonicalAttachmentId`
-(§3.1.3), and a legacy row has none — so **existing, perfectly good audio would report as not ready**,
-and the playground would render it as dropped bytes.
+**The strategy is trivial and needs no compatibility logic: there are no users yet**, so no v1 database
+exists that anyone depends on. An earlier revision specified a fallback from a missing
+`canonicalAttachmentId` to `AUDIO_ATTACHMENT_ID` so that legacy audio would keep reporting `audioReady`.
+That was solving for a population that does not exist, and it bought a permanent second read path in
+`getAudio()`. Deleted.
 
-So the rule is explicit:
-
-- **A row with no `canonicalAttachmentId` falls back to `AUDIO_ATTACHMENT_ID`.** Legacy audio stays
-  readable and stays `audioReady`. `getAudio()` resolves the pointer when present, the constant when not.
-- Migration may alternatively populate the pointer from the legacy stub; the fallback is required either
-  way, because a row can reach v2 without ever having been touched by this code.
-
-**And the `capture` invariant must distinguish legacy rows from post-recording ones**, which revision 6
-contradicted itself on — saying v1 rows arrive with `capture` absent, then that non-recording rows retain
-`capture.sourceId`:
+**The `capture` invariant, which the schema states rather than merely allowing:**
 
 - `status === "recording"` ⇒ `capture.sourceId` **and** `capture.owner` present.
-- A row that has **been** through `recording` retains `capture.sourceId` (it identifies chunks that may
-  still need sweeping) and its `owner` no longer authorises anything.
-- A **legacy** row has no `capture` at all, and that is legal. It has no chunks to sweep.
+- A row that has been through `recording` retains `capture.sourceId` — it identifies chunks that may
+  still need sweeping — and its `owner` no longer authorises anything.
 
 A merely-optional `capture` would let a `recording` document pass the trust boundary while being
 unfenceable and unrecoverable.
@@ -778,8 +772,6 @@ where that is so, the discriminating version is described.
   **in flight across** the commit — begun before, conflicting, retried against the committed revision,
   landing after. In (b) assert the pointer still names the verified attachment and `getAudio()` returns
   the verified bytes. A fixed-id canonical fails (b) while passing (a).
-- **A legacy row with no pointer is still `audioReady` and still playable.** The migration
-  compatibility rule; without it every pre-existing recording reports as dropped bytes.
 - **A late chunk landing between inventory and sweep is deleted; one landing after the sweep is
   collected by startup discovery.** The ordering §3.1.2 relies on, asserted rather than assumed.
 - **A restored context revalidates before any write.** Drive the actual lifecycle seam, **deliver
