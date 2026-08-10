@@ -181,6 +181,26 @@ test("transcribe omits the prompt when no hints are configured", async () => {
   expect(message.type === "transcribe" && message.request.prompt).toBeUndefined();
 });
 
+test("a worker that dies SILENTLY fails the attempt instead of hanging forever", async () => {
+  // The failure this guards is the worst one available: an out-of-memory kill does not
+  // fire `error`, so without a timeout the promise stays pending, and because the relay
+  // drains serially with no timeout of its own, every capture behind it is stranded for
+  // the rest of the day — no `failed`, no backoff, nothing surfaced.
+  //
+  // The fake worker accepts the message and never replies, which is exactly what that
+  // looks like from the main thread.
+  const silent = new FakeWorker(() => []);
+  const transcriber = new OnDeviceTranscriber({
+    wasmPaths: WASM_PATHS,
+    workerTimeoutMs: 50,
+    createWorker: () => silent as unknown as Worker,
+  });
+
+  await expect(
+    transcriber.transcribe(recording, wavBlob([constant(0.1, 16_000)], 16_000)),
+  ).rejects.toThrow(/did not reply/i);
+});
+
 test("transcribe rejects (attempt failure) when the worker reports an error", async () => {
   const transcriber = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,

@@ -87,12 +87,18 @@ run_stage "pkg:gates" pnpm check:pkg
 # Requires the Chromium binary: `pnpm exec playwright install chromium`. The npm
 # package alone is not enough, and the failure is a launch error, not a missing
 # module.
+# The scorer's own mutation tests. A standalone node script with its own harness and
+# exit code — not a vitest file — which is exactly how 1,175 lines of build-perfect /
+# mutate-one-leaf / assert-red assertions came to match no glob and run nowhere. They are
+# the most rigorous tests in the repo and they were dead weight until this line existed.
+run_stage "score:mutations" node spikes/extraction-snuggpro/score.test.mjs
+
 run_stage "test" pnpm test
 
 printf '\n----------------------------------------\n'
 
 if [ -z "$failed" ]; then
-  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, pkg:gates, test\n'
+  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, pkg:gates, score:mutations, test\n'
   exit 0
 fi
 

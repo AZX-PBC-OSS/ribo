@@ -94,6 +94,16 @@ export const FALLBACK_DOWNLOAD_BYTES = 314_000_000;
  */
 export const VAD_MODEL_ID = "onnx-community/pyannote-segmentation-3.0";
 
+/**
+ * Default worker-reply budget: 10 minutes.
+ *
+ * Sized from the measured worst case rather than guessed — RTF ~0.16 means a 30-minute
+ * recording is ~5 minutes of inference, and a cold fp32 load adds to that. A tighter
+ * default would fail real work on a slow phone; the purpose here is to bound the
+ * unbounded, not to be precise.
+ */
+export const DEFAULT_WORKER_TIMEOUT_MS = 600_000;
+
 /** fp32 weights for {@link VAD_MODEL_ID} — 1.9% of the ASR download it rides alongside. */
 export const VAD_DOWNLOAD_BYTES = 6_000_000;
 
@@ -148,6 +158,21 @@ export interface OnDeviceTranscriberOptions {
    * {@link TranscribeHints}). Omitted means unbiased decoding.
    */
   readonly hints?: TranscribeHints;
+  /**
+   * How long to wait for a worker reply before treating the request as failed.
+   *
+   * Defaults to {@link DEFAULT_WORKER_TIMEOUT_MS}. It exists because a worker can die
+   * WITHOUT firing `error` — which is the shape an out-of-memory kill takes, and the most
+   * likely failure on a long recording (peak RSS was measured at ~3.5 GB for base.en fp32
+   * on ≤30 s clips, on a laptop). Unbounded, that silence strands the relay's serial
+   * drain forever and every capture behind it with it.
+   *
+   * Generous by default: this budget covers a cold model load AND inference over a
+   * multi-minute recording, so it must not fire on a slow device merely doing its job.
+   * A wrong-but-large timeout still converts a bricked queue into a retryable failure;
+   * a wrong-but-small one invents failures that were about to succeed.
+   */
+  readonly workerTimeoutMs?: number;
   /** Override the {@link estimateDownloadBytes} figure the consent screen shows. */
   readonly downloadBytes?: number;
   /**
