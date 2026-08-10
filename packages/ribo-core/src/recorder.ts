@@ -20,6 +20,13 @@ import { baseRecordingSchema, type Recording } from "./recording.js";
  * the same stream, so pausing cannot release the tracks, and the recording indicator stays lit
  * until {@link Recorder.stop}. See the note on `pause` for why that is surfaced, not hidden.
  *
+ * **3. A mid-capture failure is surfaced, not banked.** `MediaRecorder` can raise `error` at any
+ * point while running. When it does, the recorder moves to `failed` and emits immediately — so a
+ * UI stops showing a live capture and a contractor stops dictating into a dead recorder. The
+ * failure is also exposed on {@link RecorderState}.error, so a host can render *why* rather than
+ * just that something stopped. `stop()` still rejects with the same error and still tears down;
+ * the existing behaviour is right, it was just too late.
+ *
  * `ribo-core` is headless: `navigator.mediaDevices`, `MediaRecorder` and `AudioContext` are fair
  * game, `document`/`window` are not (AGENTS.md §4). Nothing here needs an element, so nothing here
  * takes one.
@@ -107,14 +114,25 @@ export const negotiateMimeType = (
 };
 
 /**
- * Idle → recording ⇄ paused → stopping → idle.
+ * Idle → recording ⇄ paused → stopping → idle, with `failed` as the honest
+ * phase for a capture that died mid-stream.
+ *
+ * `MediaRecorder` can raise `error` at any point while running. When it does,
+ * the recorder moves to `failed` — not back to `idle`, because the microphone
+ * is still open and `stop()` has not torn down yet, and not stuck at
+ * `recording`, because that would lie to a UI that keeps showing a live
+ * capture. `failed` is a **new member of this union**, not an alias of
+ * `stopping`: a consumer that switches on `phase` must account for it or its
+ * default branch fires. The recorder transitions `failed → stopping → idle`
+ * through `stop()`, which still rejects with the failure and still tears down —
+ * the existing behaviour is right, it was just too late.
  *
  * `paused` keeps the microphone **open**: `MediaRecorder.resume()` requires the
  * same stream, so pause cannot stop the tracks, and the browser's recording
  * indicator stays lit. That is consumer-visible and documented rather than
  * discovered — see the note on {@link Recorder.pause}.
  */
-export type RecorderPhase = "idle" | "recording" | "paused" | "stopping";
+export type RecorderPhase = "idle" | "recording" | "paused" | "stopping" | "failed";
 
 /**
  * What a capture UI needs to paint, and nothing more.
@@ -124,13 +142,21 @@ export type RecorderPhase = "idle" | "recording" | "paused" | "stopping";
  */
 export interface RecorderState {
   readonly phase: RecorderPhase;
-  /** Milliseconds since `start()`. Zero whenever idle; frozen while paused. */
+  /** Milliseconds since `start()`. Zero whenever idle; frozen while paused or failed. */
   readonly elapsedMs: number;
   /**
    * Normalized input level in `[0, 1]` — RMS of the most recent analyser frame.
-   * Zero whenever idle or paused.
+   * Zero whenever idle, paused, or failed.
    */
   readonly level: number;
+  /**
+   * The capture failure that ended this recording, if any. Set the moment
+   * `MediaRecorder` raises `error` mid-capture — not held back until `stop()` —
+   * so a host can render *why* the capture died instead of just watching the
+   * phase change to `failed`. Cleared on teardown, so a fresh `start()` begins
+   * with no inherited failure.
+   */
+  readonly error: RecorderError | undefined;
 }
 
 /** Drops a {@link Recorder.subscribe} listener. Safe to call more than once. */
@@ -261,7 +287,8 @@ export class Recorder<C = EmptyContext> {
    */
   get elapsedMs(): number {
     if (this.#session === undefined) return 0;
-    if (this.#phase === "paused") return Math.round(this.#accumulatedMs);
+    if (this.#phase === "paused" || this.#phase === "failed")
+      return Math.round(this.#accumulatedMs);
     return Math.round(this.#accumulatedMs + (performance.now() - this.#resumedAt));
   }
 
@@ -271,7 +298,12 @@ export class Recorder<C = EmptyContext> {
   }
 
   get state(): RecorderState {
-    return { phase: this.#phase, elapsedMs: this.elapsedMs, level: this.#level };
+    return {
+      phase: this.#phase,
+      elapsedMs: this.elapsedMs,
+      level: this.#level,
+      error: this.#failure,
+    };
   }
 
   /**
@@ -389,11 +421,15 @@ export class Recorder<C = EmptyContext> {
    * always what was requested — that is the whole point of reading it back.
    *
    * @throws {RecorderError} `not-recording` if nothing is in flight, `capture-failed` if the
-   * browser raised an error mid-capture.
+   * browser raised an error mid-capture (the recorder is `failed` by then, and `stop()` rethrows
+   * the same failure that the observable state already carries).
    */
   async stop(): Promise<Capture<C>> {
     const session = this.#session;
-    if (session === undefined || (this.#phase !== "recording" && this.#phase !== "paused")) {
+    if (
+      session === undefined ||
+      (this.#phase !== "recording" && this.#phase !== "paused" && this.#phase !== "failed")
+    ) {
       throw new RecorderError(
         "not-recording",
         "This Recorder is not capturing. Call start() before stop().",
@@ -443,9 +479,22 @@ export class Recorder<C = EmptyContext> {
       if (event.data.size > 0) chunks.push(event.data);
     });
     recorder.addEventListener("error", (event) => {
+      // Bank the elapsed segment so elapsedMs freezes here, not at the next
+      // tick. pause() already banked it, so only top up from a recording phase.
+      if (this.#phase === "recording") {
+        this.#accumulatedMs += performance.now() - this.#resumedAt;
+      }
       this.#failure = new RecorderError("capture-failed", "Recording failed mid-capture.", {
         cause: event,
       });
+      // Surface the failure the moment it happens: move to a phase that is
+      // honestly not "recording", zero the level (the analyser is still tapping
+      // a live stream), and push so subscribers see it. Without this the UI
+      // keeps showing a live capture while the contractor dictates into a dead
+      // recorder for fifteen minutes — the failure only surfaces at stop().
+      this.#level = 0;
+      this.#phase = "failed";
+      this.#emit();
     });
     recorder.start();
 
@@ -462,7 +511,7 @@ export class Recorder<C = EmptyContext> {
 
   /** One sample of the input level, then a push to every listener. */
   #tick(): void {
-    if (this.#phase === "paused") return;
+    if (this.#phase === "paused" || this.#phase === "failed") return;
     const session = this.#session;
     if (session?.analyser === undefined || session.samples === undefined) return;
     session.analyser.getByteTimeDomainData(session.samples);
@@ -478,6 +527,7 @@ export class Recorder<C = EmptyContext> {
     this.#level = 0;
     this.#accumulatedMs = 0;
     this.#resumedAt = 0;
+    this.#failure = undefined;
     this.#phase = "idle";
     this.#emit();
   }

@@ -60,6 +60,13 @@ export interface UseRecorderResult {
  * render, because it is a wiring bug the developer must fix rather than a runtime
  * condition the UI should display.
  *
+ * A mid-capture failure (the recorder's `MediaRecorder` raises `error` while
+ * running) surfaces through `error` the moment it happens, not at `stop()`: the
+ * recorder transitions to `failed` and pushes the failure on its observable
+ * state, and this hook reads it back through `useSubscribed`. `stop()` still
+ * rethrows the same failure — see below — but the UI no longer has to wait for
+ * it.
+ *
  * {@link UseRecorderResult.stop} is asymmetric with {@link UseRecorderResult.start}
  * on purpose: `start()` swallows its failure into `error` state and always resolves,
  * because a host typically fires it from a click handler with no return value to
@@ -160,7 +167,14 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
     level: state.level,
     scaledLevel: scaleLevel(state.level),
     busy,
-    error,
+    // Prefer the recorder's observable error: it is set the moment a mid-capture
+    // failure happens, not held back until stop() throws. The hook's own `error`
+    // state covers failures from start()/stop()/pause()/resume() that the recorder
+    // does not carry on its observable (e.g. a not-recording thrown by stop() on
+    // an idle recorder). After stop() rejects, teardown clears the recorder's
+    // error, so `state.error` is undefined and the hook's `error` takes over —
+    // keeping the failure visible until the next start() clears both.
+    error: state.error ?? error,
     start,
     stop,
     pause,
