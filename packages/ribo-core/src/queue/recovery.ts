@@ -31,7 +31,14 @@ export interface RecoveryOptions {
 export async function recoverInterrupted(options: RecoveryOptions): Promise<string[]> {
   const { outbox, decode } = options;
 
-  // If a live session holds the lock, do nothing — the row is not abandoned.
+  // A FAST PATH, not the safety check. `holdLock` below already refuses when the lock is
+  // held — it requests with `ifAvailable`, so a live session makes it return `undefined`
+  // and this function resolves `[]` either way. Verified by mutation: deleting this line
+  // changes no test. It stays only to skip a pointless `outbox.list` on the common path
+  // where someone is recording.
+  //
+  // Do not read it as the thing that stops recovery stealing a live recording. That is
+  // `holdLock`, and removing THAT would be silent.
   if (!(await isLockFree(CAPTURE_LOCK))) return [];
 
   const recording = await outbox.list({ status: ["recording"] });
