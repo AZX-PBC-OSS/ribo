@@ -100,16 +100,22 @@ export interface RunStore {
   saveRun(run: RunRecord): Promise<void>;
 
   // R
-  readCurrent(backend: BackendId): Promise<RunRecord | null>;
-  readHistory(backend: BackendId): Promise<HistoryEntry[]>;
-  listBackends(): Promise<BackendId[]>;
+  readCurrent(backendLabel: string): Promise<RunRecord | null>;
+  readHistory(backendLabel: string): Promise<HistoryEntry[]>;
+  listBackends(): Promise<string[]>;
 
   // D
-  deleteHistoryEntry(backend: BackendId, capturedAt: string): Promise<void>;
-  deleteRun(backend: BackendId): Promise<void>;
-  pruneHistory(backend: BackendId, opts: { keep: number }): Promise<void>;
+  deleteHistoryEntry(backendLabel: string, capturedAt: string): Promise<void>;
+  deleteRun(backendLabel: string): Promise<void>;
+  pruneHistory(backendLabel: string, opts: { keep: number }): Promise<void>;
 }
 ```
+
+Keyed by **`backendLabel`, a string, not a three-member enum.** For a CLI backend the label is the
+backend id, but for `openai` it is the **model id** (`gpt-4o-2024-08-06`), because a different model
+under the same backend is not the same measurement — which is exactly why the existing baselines
+already split on it. An enum would collapse every OpenAI model into one artifact. The richer
+`backend` **identity** (`openai:<model>`) is still recorded inside every record.
 
 The three delete operations are deliberately distinct, because "remove a run" is three different
 intents:
