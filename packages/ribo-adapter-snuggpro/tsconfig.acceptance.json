@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@azx/tsconfig/browser-library.json",
+  "compilerOptions": {
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.acceptance.tsbuildinfo",
+
+    // These files run in Node (node:fs, node:path, node:child_process). The shared
+    // base ships no `types` on purpose — @types/node is ambient, so enabling it
+    // globally would let shipped browser code reference Node globals and still
+    // typecheck. Scoped here, to the Node-run developer harness only, exactly as
+    // playground/tsconfig.node.json scopes it to vite.config.ts.
+    "types": ["node"]
+  },
+  // An EXPLICIT file list, not `["acceptance"]`. `gate.manual.ts` is deliberately
+  // absent: it imports the spike's untyped `.mjs` modules (score.mjs,
+  // ground-truth.mjs), which have no declarations and which we must never edit.
+  // Listing files individually keeps that exclusion visible instead of hiding it
+  // in an `exclude` block — and it is the constraint that keeps buildRunRecord a
+  // pure function over plain data rather than an importer of the scorer.
+  "include": [
+    "acceptance/cli-chat.ts",
+    "acceptance/run-record.ts",
+    "acceptance/build-run-record.ts",
+    "acceptance/run-store.ts",
+    "acceptance/*.test.ts"
+  ]
+}
