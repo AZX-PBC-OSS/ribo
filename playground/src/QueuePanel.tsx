@@ -187,10 +187,17 @@ function QueueRow({ outbox, item }: { outbox: Outbox; item: OutboxItem }) {
         <span style={statusBadge(item.status)}>{item.status}</span>
         {survivedReload && <span style={survivedBadge}>survived reload ✓</span>}
         {recovered && <span style={survivedBadge}>recovered from interruption ✓</span>}
-        <span style={muted}>
-          queued {formatClock(item.enqueuedAt)} · {formatElapsed(item.recording.durationMs)} long ·
-          attempt{item.attempts === 1 ? "" : "s"} {item.attempts}
-        </span>
+        {/* A live row is not queued, and its duration is not yet known: `durationMs`
+            is written by the decode-verify at commit, so the shared line would read
+            "queued <start time> · 0:00.0 long" for a recording that is minutes in. */}
+        {item.status === "recording" ? (
+          <span style={muted}>started {formatClock(item.enqueuedAt)} · still recording</span>
+        ) : (
+          <span style={muted}>
+            queued {formatClock(item.enqueuedAt)} · {formatElapsed(item.recording.durationMs)} long
+            · attempt{item.attempts === 1 ? "" : "s"} {item.attempts}
+          </span>
+        )}
       </div>
 
       <div style={{ margin: "0.5rem 0" }}>
