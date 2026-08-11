@@ -334,7 +334,11 @@ async function captureOneRecording(target: Page): Promise<void> {
   await expect.poll(() => target.getByText("phase: recording").isVisible()).toBe(true);
   await target.waitForTimeout(CAPTURE_MS);
   await target.getByRole("button", { name: /Stop and queue/ }).click();
-  await target.locator('[data-testid="queue-item"]').first().waitFor({ timeout: 15_000 });
+  // NOT "a queue row exists" — durable capture inserts that row at `start()`, so
+  // it is already on screen and this wait would return instantly, mid-recording.
+  // The `<audio>` element is the honest signal: `ItemAudio` renders it only once
+  // the canonical attachment is committed, which is exactly when capture is done.
+  await target.locator('[data-testid="queue-item"] audio').first().waitFor({ timeout: 15_000 });
 }
 
 /**

@@ -138,7 +138,11 @@ test("a recording drains through extraction and its fields show with provenance"
   await expect.poll(() => page.getByText("phase: recording").isVisible()).toBe(true);
   await page.waitForTimeout(CAPTURE_MS);
   await page.getByRole("button", { name: /Stop and queue/ }).click();
-  await page.locator('[data-testid="queue-item"]').first().waitFor({ timeout: 15_000 });
+  // NOT "a queue row exists" — durable capture inserts that row at `start()`, so
+  // it is already on screen and this wait would return instantly, mid-recording.
+  // The `<audio>` element is the honest signal: `ItemAudio` renders it only once
+  // the canonical attachment is committed, which is exactly when capture is done.
+  await page.locator('[data-testid="queue-item"] audio').first().waitFor({ timeout: 15_000 });
 
   // ---- drain #1: FakeTranscriber → shared extract step → parked for review ----
   await page.getByRole("button", { name: /sync now/ }).click();

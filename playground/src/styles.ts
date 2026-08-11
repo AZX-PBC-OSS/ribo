@@ -79,6 +79,10 @@ export function recordButton(recording: boolean): CSSProperties {
 }
 
 const STATUS_COLORS: Record<string, string> = {
+  // Not the fallback grey, which reads as inert for the one status that is
+  // actively changing, and not red, which is two shades from `dead` on this
+  // page. Orange says "live, and this tab matters" without claiming a fault.
+  recording: "#bc4c00",
   queued: "#0969da",
   transcribing: "#8250df",
   extracting: "#8250df",

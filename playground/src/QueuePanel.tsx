@@ -15,8 +15,10 @@ import { button, errorBox, monospace, muted, panel, statusBadge, survivedBadge }
  * `useOutboxItems()` wraps `outbox.items$` — the RxDB collection query as an
  * observable — as React state: it pushes a fresh array on every write, including
  * writes from another tab. Subscribing to it — rather than re-running `list()` on
- * a timer — is what makes a row appear the instant capture ends, and is the only
- * version of this panel that would still be correct with two tabs open.
+ * a timer — is what makes a row appear the instant capture *begins* (durable
+ * capture inserts it at `start()`, not at `stop()`) and its byte count climb
+ * while dictation is still going, and is the only version of this panel that
+ * would still be correct with two tabs open.
  *
  * `outbox` stays a plain prop here (unlike `RecordPanel`/`ConnectivityPanel`):
  * this panel still needs the raw instance for `outbox.clear()` and to build the
@@ -57,6 +59,12 @@ export function QueuePanel({ outbox }: { outbox: Outbox }) {
   // progress does not re-trigger this effect into a second concurrent drain.
   const hasDrainable = items.some((i) => i.status === "queued" || i.status === "failed");
 
+  // Durable capture puts a live row in this list, and `clear()` would delete it
+  // out from under the capture session that is still writing chunks into it —
+  // `finalize()` would then fail on a row that no longer exists, losing a
+  // recording through a button whose whole purpose is tidying up finished ones.
+  const capturing = items.some((i) => i.status === "recording");
+
   // The ONLY place connectivity is allowed to drive work, and only opt-in. Off by
   // default (see the toggle copy) so the reload demo is untouched: a `queued` item
   // must survive a reload, which an auto-drain on mount would empty out. When on,
@@ -90,7 +98,13 @@ export function QueuePanel({ outbox }: { outbox: Outbox }) {
         <button type="button" style={button} onClick={syncNow} disabled={syncing}>
           {syncing ? "syncing…" : "sync now (stub transcriber)"}
         </button>
-        <button type="button" style={button} onClick={clear} disabled={items.length === 0}>
+        <button
+          type="button"
+          style={button}
+          onClick={clear}
+          disabled={items.length === 0 || capturing}
+          title={capturing ? "A recording is in progress — stop it first." : undefined}
+        >
           clear queue
         </button>
       </div>
@@ -157,12 +171,22 @@ function QueueRow({ outbox, item }: { outbox: Outbox; item: OutboxItem }) {
   // person reading it.
   const survivedReload = item.enqueuedAt < PAGE_LOADED_AT;
 
+  // A recovered row would otherwise get NO badge, which is backwards: it is the
+  // strongest survival case on the page. Startup recovery enqueues it during
+  // this page load, so `enqueuedAt` is recent — but it carries the interrupted
+  // recording's own metadata, so `capturedAt` predates the load. Audio captured
+  // before this page existed, in a row created after it, is recovery and nothing
+  // else: an ordinary capture cannot produce that pair, because its row is
+  // written at `start()`, before a single byte is recorded.
+  const recovered = !survivedReload && item.recording.capturedAt < PAGE_LOADED_AT;
+
   return (
     <li data-testid="queue-item" style={{ borderTop: "1px solid #eaeef2", padding: "0.75rem 0" }}>
       <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
         <strong style={monospace}>#{item.seq}</strong>
         <span style={statusBadge(item.status)}>{item.status}</span>
         {survivedReload && <span style={survivedBadge}>survived reload ✓</span>}
+        {recovered && <span style={survivedBadge}>recovered from interruption ✓</span>}
         <span style={muted}>
           queued {formatClock(item.enqueuedAt)} · {formatElapsed(item.recording.durationMs)} long ·
           attempt{item.attempts === 1 ? "" : "s"} {item.attempts}

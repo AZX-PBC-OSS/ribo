@@ -109,7 +109,13 @@ test("boots with the network cut, and the queue still has playable audio", async
   await page.getByRole("button", { name: /Stop and queue/ }).click();
 
   const items = page.locator('[data-testid="queue-item"]');
-  await items.first().waitFor({ timeout: 15_000 });
+  // NOT `items.first()` — durable capture inserts the row at `start()`, so it is
+  // already on screen and that wait would return instantly, mid-recording. This
+  // test then reloads, which would interrupt the capture, and startup recovery
+  // would turn one dictation into two rows: the recovered successor and the dead
+  // original. The `<audio>` element appears only once the canonical attachment is
+  // committed, which is exactly when capture is done.
+  await page.locator('[data-testid="queue-item"] audio').first().waitFor({ timeout: 15_000 });
   expect(await items.count()).toBe(1);
   const capturedId = await idOfFirstItem(page);
 

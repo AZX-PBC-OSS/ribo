@@ -3,6 +3,7 @@ import { RiboProvider } from "@azx/ribo-ui-react";
 import { SNUGGPRO_ADAPTER_NAME as ADAPTER } from "@azx/ribo-adapter-snuggpro";
 import type { Outbox } from "@azx/ribo-core";
 
+import { getCaptureCoordinator } from "./capture-coordinator-handle.js";
 import { ConnectivityPanel } from "./ConnectivityPanel.js";
 import { getConnectivity } from "./connectivity-store.js";
 import { EvictionNotice } from "./EvictionNotice.js";
@@ -11,6 +12,7 @@ import { getOutbox } from "./outbox-handle.js";
 import { QueuePanel } from "./QueuePanel.js";
 import { getRecorder } from "./recorder-handle.js";
 import { RecordPanel } from "./RecordPanel.js";
+import { RecoveryNotice } from "./RecoveryNotice.js";
 import { ReviewPanel } from "./ReviewPanel.js";
 import { StoragePanel } from "./StoragePanel.js";
 import { errorBox, monospace, muted, page } from "./styles.js";
@@ -30,11 +32,19 @@ import { WorkSafetyPanel } from "./WorkSafetyPanel.js";
  * `ribo-adapter-snuggpro` now ships a real `ToolAdapter`, so the footer shows its
  * adapter name. `ribo-core` is the entire rest of this page.
  *
- * `RiboProvider`'s `value` carries the three host-owned singletons — `recorder`
- * and `connectivity` are available immediately (their handles construct lazily
- * but synchronously), `outbox` only once `useOutbox()` below resolves its
- * promise. Every panel below the outbox-ready gate resolves what it needs
- * through the provider now, rather than being handed an `Outbox` prop by hand.
+ * `RiboProvider`'s `value` carries the four host-owned singletons — `recorder`,
+ * `connectivity` and `captureCoordinator` are available immediately (their
+ * handles construct lazily but synchronously), `outbox` only once `useOutbox()`
+ * below resolves its promise. Every panel below the outbox-ready gate resolves
+ * what it needs through the provider now, rather than being handed an `Outbox`
+ * prop by hand.
+ *
+ * `captureCoordinator` is the durable-capture half of that set, and is what
+ * turns capture health from an unread observable into the sentence
+ * `WorkSafetyPanel` prints. Its sibling, the `captureSession` factory on the
+ * recorder (`recorder-handle.ts`), is what makes the audio durable in the first
+ * place. Both are optional in the API and this app opts into both, because an
+ * SDK feature no host turns on is a feature nobody has watched work.
  */
 
 const COMPOSED_NAMES = ["@azx/ribo-ui-react", ADAPTER];
@@ -56,6 +66,7 @@ export function App() {
         recorder: getRecorder(),
         outbox: outbox.kind === "ready" ? outbox.outbox : undefined,
         connectivity: getConnectivity(),
+        captureCoordinator: getCaptureCoordinator(),
       }}
     >
       <main style={page}>
@@ -69,6 +80,12 @@ export function App() {
           this user's recordings, that is the first thing they need to know, not
           something to find after scrolling past a storage readout. */}
         {outbox.kind === "ready" && <EvictionNotice outbox={outbox.outbox} />}
+
+        {/* Beside the eviction notice, and for the mirror-image reason: if a
+          recording this user thought they had lost came back, that is the first
+          thing they need to know. It renders nothing on the ordinary load where
+          there was nothing to recover. */}
+        <RecoveryNotice />
 
         <UpdatePanel />
         <StoragePanel />

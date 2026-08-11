@@ -167,3 +167,44 @@ behaviour: the app says what happened rather than quietly reconstructing it.
 - **MP4 chunk recovery is unverified** and cannot be tested in this harness.
 - **Multi-tab relay claiming** is a real pre-existing problem — `nextPending()` takes no claim, so two
   tabs drain the same item. Revision 8 adopted it; revision 9 hands it back. It deserves its own design.
+
+## 8. Manual verification
+
+Every automated test in this feature builds its own recorder and hands it a `captureSession`
+factory, so all of them pass whether or not any host supplies one — which is how the playground came
+to be shipping the in-memory path for a while with a green suite. `playground/src/durable-capture.browser.test.ts`
+now guards the wiring, but the two claims below are still not reachable from a test harness, and
+somebody has to watch them.
+
+```
+pnpm --filter playground dev
+```
+
+**A. Audio survives an interruption.**
+
+1. Start recording. Within a second, a row appears in **2 · Outbox** badged `RECORDING`, and its byte
+   count climbs while you keep talking. That row appearing at all is the feature: nothing was written
+   during capture before this.
+2. Talk for at least 15 seconds, so several timeslices have flushed.
+3. **Kill the tab** — close it, or Force Quit the browser. Do not press stop.
+4. Reopen the playground. A banner reports the recovery, and the queue holds two rows: a `QUEUED`
+   one badged **recovered from interruption ✓**, and the original at `DEAD` reading `recovered as …`.
+   That dead row is the receipt, not a second failure.
+5. **Play the recovered audio.** This is the assertion — a row in a table only proves the document
+   persisted. Expect everything up to a second or two before the kill; the unflushed tail is gone by
+   design.
+
+**B. A stall is reported.** This is the one the 30-second threshold is a guess about, and it needs a
+real phone rather than a desktop tab.
+
+1. Load the playground on an Android phone, start recording, lock the screen.
+2. Wait past 30 seconds, unlock.
+3. **Is my work safe?** should read the `capture-stalled` sentence, not `recording`.
+
+If it reports the stall while audio was in fact still flushing, the threshold is too tight. If the
+whole locked period passed with `recording` showing, the watchdog did not survive the freeze —
+expected on a frozen tab, and the reason §5's comment states that limit rather than claiming
+detection.
+
+**Still unverified after both.** MP4 chunk recovery: the harness is Chromium, so a passing suite
+proves WebM only. Step A on an iPhone is what would settle it.
