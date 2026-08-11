@@ -1,6 +1,7 @@
 import { addRxPlugin, createRxDatabase } from "rxdb";
 import type { RxCollection, RxDatabase, RxJsonSchema } from "rxdb";
 import { RxDBAttachmentsPlugin } from "rxdb/plugins/attachments";
+import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 import { firstValueFrom } from "rxjs";
 import { afterEach, expect, test, vi } from "vitest";
@@ -9,10 +10,11 @@ import type { Recording } from "../recording.js";
 import type { PersistedReviewOutcome } from "../review.js";
 import type { Transcript } from "../transcript.js";
 import { openOutbox, type Outbox } from "./outbox.js";
-import { removeOutboxDatabase } from "./database.js";
+import { OUTBOX_MIGRATION_STRATEGIES, removeOutboxDatabase } from "./database.js";
 import { chunkName } from "./chunk-names.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
+  AUDIO_ATTACHMENT_ID,
   FINISHED_OUTBOX_STATUSES,
   OUTBOX_COLLECTION_NAME,
   OUTBOX_STATUSES,
@@ -1126,6 +1128,47 @@ test("the first items$ emission carrying a new item already has its audio", asyn
 });
 
 // ---------------------------------------------------------------------------
+/**
+ * Attachment ids on an item, read from storage after the Outbox is closed.
+ *
+ * Necessary because the projection deliberately hides this: `audioBytes` returns the
+ * canonical length and only sums chunks while `status === "recording"`, so **leftover
+ * chunks on a committed row are invisible to every public reading**. That is a real
+ * observability gap — an un-swept recording is a silent quota leak nothing can report —
+ * and it is why the sweep cannot be asserted through the API it belongs to.
+ *
+ * Closing first, rather than opening a second live handle: RxDB does not support two
+ * databases of one name in a single context, which the v0-migration seeding above works
+ * around the same way.
+ */
+async function attachmentIdsAfterClose(outbox: Outbox, name: string, id: string) {
+  await outbox.close();
+  addRxPlugin(RxDBAttachmentsPlugin);
+  addRxPlugin(RxDBMigrationSchemaPlugin);
+  const database: RxDatabase<{ outbox: RxCollection<OutboxDocument> }> = await createRxDatabase({
+    name,
+    storage: getRxStorageDexie(),
+    multiInstance: true,
+    eventReduce: true,
+    cleanupPolicy: {},
+  });
+  await database.addCollections({
+    [OUTBOX_COLLECTION_NAME]: {
+      schema: outboxRxSchema,
+      migrationStrategies: OUTBOX_MIGRATION_STRATEGIES,
+    },
+  });
+  try {
+    const doc = await database.collections.outbox.findOne(id).exec();
+    return doc!
+      .allAttachments()
+      .map((a) => a.id)
+      .sort();
+  } finally {
+    await database.close();
+  }
+}
+
 // Durable capture — beginRecording, appendChunk, mergeChunks, commitRecording.
 //
 // These methods implement the chunk-by-chunk persistence path from the durable
@@ -1164,7 +1207,8 @@ test("appendChunk writes a chunk attachment and audioBytes reflects it", async (
 });
 
 test("commitRecording writes canonical audio, transitions to queued, and sweeps chunks", async () => {
-  const outbox = await open(uniqueName());
+  const name = uniqueName();
+  const outbox = await open(name);
   const item = await outbox.beginRecording({
     recording: { ...recording, durationMs: 0 },
     sourceId: "s1",
@@ -1176,9 +1220,17 @@ test("commitRecording writes canonical audio, transitions to queued, and sweeps 
   expect(committed.audioReady).toBe(true);
   expect(committed.audioBytes).toBe(audioBytes.byteLength);
   expect(committed.recording.durationMs).toBe(4200);
-  // Chunks are gone — only the canonical attachment remains.
   const audio = await outbox.getAudio(item.id);
   expect(new Uint8Array(await audio!.arrayBuffer())).toEqual(audioBytes);
+
+  // The chunks are ACTUALLY gone — and proving it needs a trick, because the projection
+  // hides them. `audioBytes` returns the canonical length and only falls through to
+  // summing chunks when NO canonical exists, so once one is written a full set of
+  // leftover chunks is invisible. Verified by mutation: removing the sweep left every
+  // other assertion in this test green.
+  //
+  // Read from storage, because no public reading can see it — see the helper's note.
+  expect(await attachmentIdsAfterClose(outbox, name, item.id)).toEqual([AUDIO_ATTACHMENT_ID]);
 });
 
 test("mergeChunks concatenates chunk attachments in name order", async () => {
@@ -1189,8 +1241,19 @@ test("mergeChunks concatenates chunk attachments in name order", async () => {
   });
   const partA = new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" });
   const partB = new Blob([new Uint8Array([4, 5, 6])], { type: "audio/webm" });
+  const partC = new Blob([new Uint8Array([7, 8, 9])], { type: "audio/webm" });
+
+  // Inserted OUT of index order, and deliberately so. Appending 0,1,2 proves nothing:
+  // `allAttachments()` returns them in insertion order, so the merge would produce the
+  // right bytes with no sort at all — verified by mutation, removing the sort left the
+  // in-order version of this test green. Audio assembled in the wrong order is
+  // unrecoverable and silent, so the ordering has to be the thing under test.
+  await outbox.appendChunk(item.id, chunkName("s1", 2, 0), partC);
   await outbox.appendChunk(item.id, chunkName("s1", 0, 0), partA);
   await outbox.appendChunk(item.id, chunkName("s1", 1, 0), partB);
+
   const merged = await outbox.mergeChunks(item.id);
-  expect(new Uint8Array(await merged.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6]));
+  expect(new Uint8Array(await merged.arrayBuffer())).toEqual(
+    new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+  );
 });

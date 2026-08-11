@@ -40,6 +40,13 @@ function fakeOutbox(): Pick<
       } satisfies OutboxItem;
     },
     async appendChunk(_id: string, name: string, _blob: Blob) {
+      // A REAL macrotask, not a resolved promise. With a synchronous fake the whole
+      // pipeline settles inside one microtask drain, so a single-queue implementation
+      // never has an in-flight write for `finalize()` to wait behind — the deadlock this
+      // split exists to prevent cannot manifest, and the test passes either way.
+      // Verified: with an instant fake, collapsing ingestion and persistence into one
+      // queue left this suite green.
+      await new Promise((resolve) => setTimeout(resolve, 5));
       chunkNames.push(name);
     },
     async mergeChunks(_id: string) {
@@ -84,7 +91,10 @@ test("ingestion is synchronous and persistence is a separate stage", async () =>
   });
   session.ingest(blobOf(10));
   session.ingest(blobOf(10));
-  const done = session.finalize(); // must not hang
+  // `finalize()` is called with writes still in flight — the exact moment a single queue
+  // deadlocks, because finalization would be queued behind operations that are waiting on
+  // finalization. Resolving at all is the assertion; vitest's own timeout is what fails.
+  const done = session.finalize();
   await expect(done).resolves.toMatchObject({ durationMs: expect.any(Number) });
 });
 
