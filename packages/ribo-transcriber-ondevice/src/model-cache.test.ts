@@ -23,7 +23,8 @@ function fakeCacheStorage(urlsByBucket: Record<string, string[]> = {}): CacheSto
 }
 
 const MODEL = "Xenova/whisper-tiny.en";
-const weightUrl = `https://huggingface.co/${MODEL}/resolve/main/onnx/encoder_model_quantized.onnx`;
+const encoderUrl = `https://huggingface.co/${MODEL}/resolve/main/onnx/encoder_model_quantized.onnx`;
+const decoderUrl = `https://huggingface.co/${MODEL}/resolve/main/onnx/decoder_model_merged_quantized.onnx`;
 const configUrl = `https://huggingface.co/${MODEL}/resolve/main/config.json`;
 
 test("false when there is no CacheStorage at all (node, walled-off storage)", async () => {
@@ -39,14 +40,31 @@ test("false when only metadata is cached — weights are what make it usable", a
   await expect(isModelCached(MODEL, caches)).resolves.toBe(false);
 });
 
-test("true once an .onnx weight for the model is present", async () => {
-  const caches = fakeCacheStorage({ [TRANSFORMERS_CACHE_NAME]: [configUrl, weightUrl] });
+test("false when only the encoder is cached — a half-download is NOT ready", async () => {
+  // This is the exact hazard: a fetch dropped after the encoder landed but before the decoder.
+  // Reporting `ready` here would send `firstCapable` to this engine and fail offline.
+  const caches = fakeCacheStorage({ [TRANSFORMERS_CACHE_NAME]: [configUrl, encoderUrl] });
+  await expect(isModelCached(MODEL, caches)).resolves.toBe(false);
+});
+
+test("false when only the decoder is cached — same hazard, other half", async () => {
+  const caches = fakeCacheStorage({ [TRANSFORMERS_CACHE_NAME]: [configUrl, decoderUrl] });
+  await expect(isModelCached(MODEL, caches)).resolves.toBe(false);
+});
+
+test("true once both encoder and decoder .onnx weights for the model are present", async () => {
+  const caches = fakeCacheStorage({
+    [TRANSFORMERS_CACHE_NAME]: [configUrl, encoderUrl, decoderUrl],
+  });
   await expect(isModelCached(MODEL, caches)).resolves.toBe(true);
 });
 
 test("does not confuse a different model's weights for this one", async () => {
-  const other = "https://huggingface.co/Xenova/whisper-small.en/resolve/main/onnx/model.onnx";
-  const caches = fakeCacheStorage({ [TRANSFORMERS_CACHE_NAME]: [other] });
+  const other =
+    "https://huggingface.co/Xenova/whisper-small.en/resolve/main/onnx/encoder_model.onnx";
+  const otherDecoder =
+    "https://huggingface.co/Xenova/whisper-small.en/resolve/main/onnx/decoder_model_merged.onnx";
+  const caches = fakeCacheStorage({ [TRANSFORMERS_CACHE_NAME]: [other, otherDecoder] });
   await expect(isModelCached(MODEL, caches)).resolves.toBe(false);
 });
 
@@ -54,6 +72,6 @@ test("the flip: not cached, then cached, across the same probe", async () => {
   const urls: string[] = [];
   const caches = fakeCacheStorage({ [TRANSFORMERS_CACHE_NAME]: urls });
   await expect(isModelCached(MODEL, caches)).resolves.toBe(false);
-  urls.push(configUrl, weightUrl); // what a real prime writes
+  urls.push(configUrl, encoderUrl, decoderUrl); // what a real prime writes
   await expect(isModelCached(MODEL, caches)).resolves.toBe(true);
 });

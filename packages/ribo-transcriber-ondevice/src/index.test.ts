@@ -26,8 +26,10 @@ function fakeCacheStorage(urls: string[] = []): CacheStorage {
   } as unknown as CacheStorage;
 }
 
-const weightUrl = (model: string) =>
+const encoderUrl = (model: string) =>
   `https://huggingface.co/${model}/resolve/main/onnx/encoder_model_quantized.onnx`;
+const decoderUrl = (model: string) =>
+  `https://huggingface.co/${model}/resolve/main/onnx/decoder_model_merged_quantized.onnx`;
 
 /** Scriptable Web Worker double: replies to a `prime` postMessage with a canned message sequence. */
 class FakeWorker {
@@ -100,7 +102,7 @@ test("capability is ready once the model's weights are cached", async () => {
   const model = "Xenova/whisper-base.en";
   const transcriber = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,
-    cacheStorage: fakeCacheStorage([weightUrl(model)]),
+    cacheStorage: fakeCacheStorage([encoderUrl(model), decoderUrl(model)]),
   });
   await expect(transcriber.capability()).resolves.toEqual({ status: "ready" });
 });

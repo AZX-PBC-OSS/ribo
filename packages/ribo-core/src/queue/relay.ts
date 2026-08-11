@@ -223,6 +223,35 @@ async function withTimeout<T>(work: Promise<T>, ms: number, step: string): Promi
   }
 }
 
+/**
+ * Below this many characters per second of recording, a transcript is treated as
+ * implausibly short and the item is parked for a human rather than advancing to
+ * extraction.
+ *
+ * 0.5 chars/s is roughly 6 words per minute — far below any natural dictation
+ * tempo (normal speech is ~150 WPM, ~12 chars/s). A 4-second clip needs only 2
+ * characters to clear it (a 3-word transcript is ~15), while a 4-minute recording
+ * needs ~120 (about 24 words) before it is believed. This is a deliberately
+ * conservative starting point, to be tuned against real field recordings rather
+ * than a measured value.
+ */
+const MIN_TRANSCRIPT_CHARS_PER_SECOND = 0.5;
+
+/**
+ * Whether a transcript is empty or implausibly short for the recording it came
+ * from — the signature of a VAD that missed the speech or a model that failed
+ * quietly. Duration is on `item.recording.durationMs`; a ratio (characters per
+ * second) is the right shape because a 3-word transcript is fine for a 4-second
+ * recording and alarming for a 4-minute one.
+ *
+ * A zero-duration recording transcribing to nothing is NOT implausible: the
+ * schema permits `durationMs: 0`, and an empty recording has no speech to miss.
+ */
+function isTranscriptImplausible(transcript: Transcript, durationMs: number): boolean {
+  if (durationMs <= 0) return false;
+  return (transcript.text.trim().length * 1000) / durationMs < MIN_TRANSCRIPT_CHARS_PER_SECOND;
+}
+
 export function createRelay(options: RelayOptions): Relay {
   return new QueueRelay(options);
 }
@@ -370,6 +399,33 @@ class QueueRelay implements Relay {
         "transcribe",
       ),
     );
+    if (isTranscriptImplausible(transcript, item.recording.durationMs)) {
+      // Park for a human rather than advance to extraction. An empty or
+      // near-empty transcript for a real-length recording is the signature of a
+      // VAD that missed the speech or a model that failed quietly, and feeding
+      // an empty string to extraction produces a mostly-empty audit that nobody
+      // flagged. `awaiting-review` is the right park: it already means "a human
+      // must look," and it is not terminal, because the recording is not
+      // necessarily lost — the audio is still on the device, and a human who
+      // listens and finds the speech was there can let the item proceed.
+      //
+      // The transcript is persisted in this same patch: whatever was heard is
+      // evidence and must not be thrown away — the item parks WITH its
+      // transcript.
+      //
+      // This does not resume into a loop. `awaiting-review` is absent from
+      // `ACTIVE_OUTBOX_STATUSES`, so the relay never picks the item up on its
+      // own — the only way forward is `Outbox.submitReview`, a human decision.
+      // When that happens, `nextStep` sees the persisted transcript and returns
+      // `"extract"` (never `"transcribe"` again), so the item moves forward to
+      // extraction rather than re-transcribing and re-triggering this guard.
+      //
+      // `dropAudioAfterTranscription` is deliberately NOT applied here: a human
+      // investigating a suspiciously empty transcript needs to listen to the
+      // recording, and dropping the bytes would make that impossible.
+      await this.#patch(item.id, { transcript, status: "awaiting-review", attempts: 0 });
+      return;
+    }
     // Persisted BEFORE the status moves on, so a crash between the two lands on
     // "transcript present, status stale" — which `nextStep` reads correctly —
     // rather than "status advanced, transcript lost".

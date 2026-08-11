@@ -6,6 +6,7 @@ import {
   Recorder,
   RecorderError,
   type RecorderPhase,
+  type RecorderState,
 } from "./recorder.js";
 
 // Browser mode, not jsdom, and the filename says so: `*.browser.test.ts` is the
@@ -35,7 +36,11 @@ const startTracked = async (recorder: Recorder<unknown>): Promise<void> => {
 afterEach(async () => {
   while (started.length > 0) {
     const recorder = started.pop();
-    if (recorder?.phase === "recording") await recorder.stop().catch(() => undefined);
+    // `failed` needs cleanup too: the microphone is still open, and stop()
+    // accepts it as a valid phase to tear down from.
+    if (recorder && (recorder.phase === "recording" || recorder.phase === "failed")) {
+      await recorder.stop().catch(() => undefined);
+    }
   }
 });
 
@@ -155,7 +160,7 @@ describe("Recorder observation", () => {
     // Subscribers get the current state immediately, so a UI can paint before
     // the first tick.
     expect(states).toHaveLength(1);
-    expect(states[0]).toEqual({ phase: "idle", elapsedMs: 0, level: 0 });
+    expect(states[0]).toEqual({ phase: "idle", elapsedMs: 0, level: 0, error: undefined });
 
     await startTracked(recorder);
     await sleep(700);
@@ -169,7 +174,7 @@ describe("Recorder observation", () => {
     // The fake device is a real generated signal, so a level pinned at zero
     // means the analyser is not wired to the stream.
     expect(Math.max(...ticks.map((tick) => tick.level))).toBeGreaterThan(0);
-    expect(states.at(-1)).toEqual({ phase: "idle", elapsedMs: 0, level: 0 });
+    expect(states.at(-1)).toEqual({ phase: "idle", elapsedMs: 0, level: 0, error: undefined });
   });
 
   test("stops delivering to an unsubscribed listener", async () => {
@@ -401,5 +406,167 @@ describe("Recorder pause and resume", () => {
       expect.objectContaining({ code: "already-recording" }),
     );
     await recorder.stop();
+  });
+});
+
+describe("Recorder mid-capture failure", () => {
+  // A `createRecorder` that wraps the real `MediaRecorder` and dispatches a
+  // synthetic `error` event on it after a delay. `dispatchEvent` fires the
+  // event on the target's listeners without triggering the browser's internal
+  // error handling, so the recorder keeps running normally — which is exactly
+  // the shape we need: the error handler fires, but `stop()` can still call
+  // `recorder.stop()` and flush chunks. The real failure mode this stands in
+  // for (device disconnect, track ending, quota exhaustion) may or may not
+  // leave the recorder `inactive` on its own; our `stop()` handles both.
+  const recorderThatErrorsAfter =
+    (
+      ms: number,
+      errorName = "NotReadableError",
+      errorMessage = "The track ended prematurely.",
+    ): ((stream: MediaStream, options: MediaRecorderOptions) => MediaRecorder) =>
+    (stream, options) => {
+      const recorder = new MediaRecorder(stream, options);
+      setTimeout(() => {
+        recorder.dispatchEvent(
+          new ErrorEvent("error", { error: new DOMException(errorMessage, errorName) }),
+        );
+      }, ms);
+      return recorder;
+    };
+
+  test("surfaces the failure on the observable state the moment it happens", async () => {
+    const recorder = new Recorder({
+      tickMs: 50,
+      createRecorder: recorderThatErrorsAfter(150),
+    });
+    const states: RecorderState[] = [];
+    const unsubscribe = recorder.subscribe((state) => states.push({ ...state }));
+
+    await startTracked(recorder);
+    // Wait long enough for the error to fire and the state to settle.
+    await sleep(400);
+
+    // The phase is honestly not "recording" — a UI that switches on it sees
+    // `failed`, not a lie.
+    expect(recorder.phase).toBe("failed");
+    expect(recorder.state.error).toBeInstanceOf(RecorderError);
+    expect(recorder.state.error?.code).toBe("capture-failed");
+
+    // A subscriber saw the transition: the `failed` phase was emitted with the
+    // error, not held back until stop().
+    const failedStates = states.filter((s) => s.phase === "failed");
+    expect(failedStates.length).toBeGreaterThanOrEqual(1);
+    expect(failedStates[0]!.error).toBeInstanceOf(RecorderError);
+    expect(failedStates[0]!.error?.code).toBe("capture-failed");
+
+    await recorder.stop().catch(() => undefined);
+    unsubscribe();
+  });
+
+  test("stop() rejects with the same error and tears down to idle", async () => {
+    const recorder = new Recorder({
+      createRecorder: recorderThatErrorsAfter(100),
+    });
+    await startTracked(recorder);
+    await sleep(250);
+
+    expect(recorder.phase).toBe("failed");
+    const failure = recorder.state.error;
+    expect(failure).toBeInstanceOf(RecorderError);
+
+    // The same failure object — not a new one minted at stop time.
+    await expect(recorder.stop()).rejects.toBe(failure);
+
+    // Teardown ran: the recorder is idle, the mic is released, the error is
+    // cleared so a fresh start() begins clean.
+    expect(recorder.phase).toBe("idle");
+    expect(recorder.state.error).toBeUndefined();
+  });
+
+  test("remains reusable after a mid-capture failure", async () => {
+    const recorder = new Recorder({
+      createRecorder: recorderThatErrorsAfter(100),
+    });
+    await startTracked(recorder);
+    await sleep(250);
+    await recorder.stop().catch(() => undefined);
+    expect(recorder.phase).toBe("idle");
+
+    // Second capture with a real recorder — no fake error.
+    const second = new Recorder();
+    await startTracked(second);
+    await sleep(200);
+    const { audio } = await second.stop();
+    expect(audio.size).toBeGreaterThan(0);
+    expect(second.phase).toBe("idle");
+  });
+
+  test("freezes elapsedMs at the moment of failure", async () => {
+    const recorder = new Recorder({
+      tickMs: 50,
+      createRecorder: recorderThatErrorsAfter(200),
+    });
+    await startTracked(recorder);
+    await sleep(300); // error fires at ~200ms
+
+    const elapsedAtFailure = recorder.elapsedMs;
+    expect(elapsedAtFailure).toBeGreaterThan(100);
+
+    await sleep(200);
+    // elapsedMs is frozen — it does not keep advancing after the failure.
+    expect(recorder.elapsedMs).toBe(elapsedAtFailure);
+
+    await recorder.stop().catch(() => undefined);
+  });
+
+  test("level reads zero after the failure", async () => {
+    // The fake audio device reads ~0 RMS for roughly the first second before
+    // ramping up (measured — see the `#tick does not resample the analyser
+    // while paused` test for the same caveat). Firing the error at 150ms would
+    // leave the level at zero whether or not the error handler zeroes it and
+    // the tick guard fires — confirmed by mutation: removing both `this.#level
+    // = 0` and the `failed` tick guard left this test green. Firing at 1200ms
+    // means the signal is already non-zero, so without the zeroing and the
+    // guard the tick would push the live level back up after the failure.
+    const recorder = new Recorder({
+      tickMs: 50,
+      createRecorder: recorderThatErrorsAfter(1200),
+    });
+    await startTracked(recorder);
+    // Wait for the signal to ramp up and confirm the level is genuinely
+    // non-zero before the error fires.
+    await sleep(1100);
+    expect(recorder.level).toBeGreaterThan(0);
+
+    // Error fires at ~1200ms; wait for it to land and for a few ticks to
+    // have had a chance to overwrite the level if the guard were missing.
+    await sleep(300);
+
+    // The analyser is still tapping a live stream (the mic has not been
+    // released yet), but the error handler zeroed the level and the tick guard
+    // keeps it there.
+    expect(recorder.level).toBe(0);
+    expect(recorder.state.level).toBe(0);
+
+    await recorder.stop().catch(() => undefined);
+  });
+
+  test("start and pause refuse on a failed recorder", async () => {
+    const recorder = new Recorder({
+      createRecorder: recorderThatErrorsAfter(100),
+    });
+    await startTracked(recorder);
+    await sleep(250);
+
+    expect(recorder.phase).toBe("failed");
+
+    // start() refuses — the recorder is not idle, stop() must tear down first.
+    await expect(recorder.start()).rejects.toMatchObject({ code: "already-recording" });
+    // pause() refuses — there is nothing recording to pause.
+    expect(() => recorder.pause()).toThrow(
+      expect.objectContaining({ name: "RecorderError", code: "not-recording" }),
+    );
+
+    await recorder.stop().catch(() => undefined);
   });
 });

@@ -91,6 +91,13 @@ run_stage "pkg:gates" pnpm check:pkg
 # exit code — not a vitest file — which is exactly how 1,175 lines of build-perfect /
 # mutate-one-leaf / assert-red assertions came to match no glob and run nowhere. They are
 # the most rigorous tests in the repo and they were dead weight until this line existed.
+# Vendor drift: are the field descriptions we send to the extraction model still the
+# ones Snugg Pro publishes? Fetches the live spec and REPORTS a mismatch — it never
+# regenerates, because a vendor rewording silently changing the model's prompt is
+# exactly what a reviewable diff is for. Skips with a warning (exit 0) when the spec is
+# unreachable: a build that fails on someone else's downtime teaches people to ignore it.
+run_stage "snugg:drift" pnpm snugg:check
+
 run_stage "score:mutations" node spikes/extraction-snuggpro/score.test.mjs
 
 run_stage "test" pnpm test
@@ -98,7 +105,7 @@ run_stage "test" pnpm test
 printf '\n----------------------------------------\n'
 
 if [ -z "$failed" ]; then
-  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, pkg:gates, score:mutations, test\n'
+  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, pkg:gates, snugg:drift, score:mutations, test\n'
   exit 0
 fi
 

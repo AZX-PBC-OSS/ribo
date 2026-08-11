@@ -14,11 +14,19 @@ export const TRANSFORMERS_CACHE_NAME = "transformers-cache";
 /**
  * Is `modelId` cached and usable offline, judged from the Cache API alone?
  *
- * "Usable" is stricter than "present": we require at least one **`.onnx` weight** entry for the
- * model, not merely its `config.json`. A half-populated cache (config fetched, weights not) would
- * otherwise report `ready` and then fail on first inference. The check is a substring match on the
- * model id plus an `.onnx` marker in the key URL — deliberately tolerant of revision, host and file
- * layout, which vary across model repos.
+ * "Usable" is stricter than "present": Whisper is an **encoder-decoder** model, and the two are
+ * separate ONNX files (`encoder_model*.onnx` and `decoder_model*.onnx`, confirmed against the
+ * `Xenova/whisper-base.en` repo — both the merged and split decoder variants contain "decoder" in
+ * the filename). A cache with only one of the pair — a download dropped mid-way, exactly the
+ * basement-connectivity case this product exists for — must NOT report `ready`, or `firstCapable`
+ * selects this engine and transcription fails on a fetch while offline.
+ *
+ * The check requires at least one cached `.onnx` URL containing `"encoder"` and at least one
+ * containing `"decoder"` for the model id. This is derived from the cached filenames rather than
+ * hardcoded against a specific dtype or variant: `encoder_model.onnx` (fp32),
+ * `encoder_model_quantized.onnx` (int8), `decoder_model_merged.onnx` (fp32),
+ * `decoder_model_quantized.onnx` (int8) — all satisfy it, so a legitimately complete cache is
+ * never turned away regardless of which weights were primed.
  *
  * Returns `false` (never throws) when there is no `CacheStorage` — node, or a browser that walled
  * off storage — so callers can treat "cannot tell" as "not cached", which is the safe direction.
@@ -35,5 +43,16 @@ export async function isModelCached(
   const cache = await cacheStorage.open(TRANSFORMERS_CACHE_NAME);
   const keys = await cache.keys();
   const marker = `${modelId}/`;
-  return keys.some((request) => request.url.includes(marker) && request.url.includes(".onnx"));
+  const onnxUrls = keys
+    .map((request) => request.url)
+    .filter((url) => url.includes(marker) && url.includes(".onnx"));
+  // Substring match on "encoder"/"decoder" rather than an explicit file list: the exact filenames
+  // vary by dtype (fp32 / quantized / bnb4 / int8…), by variant (merged vs split decoder), and by
+  // repo (`Xenova` vs `onnx-community`). But every Whisper ONNX weight names its role in the
+  // filename, so requiring both roles catches the half-download without false-negative-ing a
+  // complete cache primed under any dtype.
+  return (
+    onnxUrls.some((url) => url.includes("encoder")) &&
+    onnxUrls.some((url) => url.includes("decoder"))
+  );
 }

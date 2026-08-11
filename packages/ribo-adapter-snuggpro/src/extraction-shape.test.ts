@@ -241,3 +241,54 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
   expect(enumValues).toBeLessThan(1_000);
   expect(deepest).toBeLessThan(10);
 });
+
+/**
+ * Walk the emitted JSON Schema and return every leaf's description, keyed by dotted path.
+ *
+ * Reads the SCHEMA, not the zod object: the description only matters if it survives
+ * `enveloped()` and `z.toJSONSchema` and lands in the bytes the model receives. An
+ * assertion against `.description` on the zod side would pass for a description that
+ * never reaches the request — which is exactly the bug this guards, since a `.describe()`
+ * on the `.nullable().optional()` wrapper used to be discarded on the way through.
+ */
+function collectLeafDescriptions(schema: Record<string, unknown>): Map<string, string> {
+  const found = new Map<string, string>();
+  const groups = schema.properties as Record<string, { properties: Record<string, unknown> }>;
+  for (const [group, groupSchema] of Object.entries(groups)) {
+    for (const [leaf, leafSchema] of Object.entries(groupSchema.properties)) {
+      const value = (
+        leafSchema as { properties: { value: { anyOf?: { description?: string }[] } } }
+      ).properties.value;
+      found.set(`${group}.${leaf}`, value.anyOf?.[0]?.description ?? "");
+    }
+  }
+  return found;
+}
+
+test("every leaf reaches the model with the vendor's description and our prohibition", async () => {
+  const descs = collectLeafDescriptions(await captureJsonSchema());
+
+  // All 51, not a subset. An earlier version described 31 from our own JSDoc and left 20
+  // deliberately bare; with the vendor supplying authoritative text for every leaf,
+  // "leave it bare" stopped being the better answer.
+  expect(descs.size).toBe(51);
+  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(51);
+
+  // The VENDOR half is really there. Without this, a generated module that failed to
+  // import — or regenerated to an empty map — would still leave our own notes in place on
+  // 31 leaves and pass a bare "is it described?" check.
+  const blower = descs.get("basedata.blowerDoorReading") ?? "";
+  expect(blower).toContain("cubic feet per minute");
+  expect(blower).toContain("50 Pascals");
+
+  // OUR half survives being composed around. Each of these is a named hazard from the
+  // file header, and a description that lost its prohibition is worse than a missing one:
+  // it looks informative while omitting the thing the model gets wrong.
+  expect(descs.get("hvac.hvacSystemEquipmentType") ?? "").toContain("never a fused token");
+  expect(blower).toContain("Never ACH50");
+
+  // Order matters: definition first, then prohibition. The vendor sentence orients the
+  // model before ours constrains it, and a composition that reversed them would read as
+  // a correction rather than a rule.
+  expect(blower.indexOf("cubic feet per minute")).toBeLessThan(blower.indexOf("Never ACH50"));
+});
