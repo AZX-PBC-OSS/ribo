@@ -308,10 +308,6 @@ importers:
         version: 4.1.10(@types/node@24.13.3)(@vitest/browser-playwright@4.1.10)(vite@8.1.5(@types/node@24.13.3)(terser@5.49.0)(yaml@2.9.0))
 
   packages/ribo-ui-react:
-    dependencies:
-      rxjs:
-        specifier: 'catalog:'
-        version: 7.8.2
     devDependencies:
       '@arethetypeswrong/core':
         specifier: 'catalog:'
@@ -346,6 +342,9 @@ importers:
       rxdb:
         specifier: 'catalog:'
         version: 17.4.0(react@19.2.8)(rxjs@7.8.2)(vue@3.5.40(typescript@6.0.3))
+      rxjs:
+        specifier: 'catalog:'
+        version: 7.8.2
       tsdown:
         specifier: 'catalog:'
         version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.23)(typescript@6.0.3)
