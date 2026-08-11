@@ -136,7 +136,7 @@ Replace the whole of `packages/ribo-adapter-snuggpro/tsconfig.json` with:
 }
 ```
 
-- [ ] **Step 4: Point the typecheck script at build mode**
+- [ ] **Step 4: Point the typecheck script at build mode, and declare `@types/node`**
 
 In `packages/ribo-adapter-snuggpro/package.json`, change the `typecheck` script:
 
@@ -145,6 +145,32 @@ In `packages/ribo-adapter-snuggpro/package.json`, change the `typecheck` script:
 ```
 
 `tsc --noEmit` against a solution config with `files: []` checks **nothing and exits 0** — a green typecheck that verified zero files. `-b` follows the references; `--force` skips the incremental cache. Same reasoning as AGENTS §5.3.
+
+In the same file, add `@types/node` to `devDependencies`, in alphabetical position (after `@azx/tsconfig`, before `ajv`):
+
+```jsonc
+"@types/node": "catalog:",
+```
+
+`tsconfig.acceptance.json` sets `"types": ["node"]`, which fails with `TS2688: Cannot find type definition file for 'node'` unless the package itself declares it. The catalog already pins it at `24.13.3` (held back deliberately — AGENTS §5.4), so this uses the existing entry and adds no new one. Then run `pnpm install`.
+
+Verified: this does **not** leak Node globals into `src/`. `tsconfig.src.json` sets no `types`, but a `process.cwd()` added to `src/context.ts` still fails with `TS2591: Cannot find name 'process'`. The seal AGENTS §5.3 describes holds.
+
+- [ ] **Step 4b: Point tsdown at the source project**
+
+In `packages/ribo-adapter-snuggpro/tsdown.config.ts`, add one line to the config object:
+
+```ts
+tsconfig: "tsconfig.src.json",
+```
+
+**This is required, not optional.** tsdown's dts plugin reads `tsconfig.json`, and the `references` field added in Step 3 makes it fail outright:
+
+```
+Unable to load src/index.ts; You have "references" in your tsconfig file
+```
+
+so `pnpm build:packages` — and therefore `./check.sh` — cannot pass without it. Verified by removing the line and watching the build fail, then restoring it and watching it succeed.
 
 - [ ] **Step 5: Verify it now checks acceptance files, by breaking one on purpose**
 
@@ -165,7 +191,7 @@ Expected: PASS, no output.
 - [ ] **Step 7: Confirm the whole gate is still green**
 
 Run: `./check.sh`
-Expected: PASS. Every stage. In particular `build:packages` must still emit `dist/index.js` — the tsdown build reads `tsdown.config.ts`, not the tsconfig references, so this should be unaffected, but confirm rather than assume.
+Expected: PASS, every stage — including `build:packages`, which Step 4b is what makes possible.
 
 - [ ] **Step 8: Commit**
 
@@ -173,7 +199,9 @@ Expected: PASS. Every stage. In particular `build:packages` must still emit `dis
 git add packages/ribo-adapter-snuggpro/tsconfig.json \
         packages/ribo-adapter-snuggpro/tsconfig.src.json \
         packages/ribo-adapter-snuggpro/tsconfig.acceptance.json \
-        packages/ribo-adapter-snuggpro/package.json
+        packages/ribo-adapter-snuggpro/tsdown.config.ts \
+        packages/ribo-adapter-snuggpro/package.json \
+        pnpm-lock.yaml
 git commit -m "Typecheck the snuggpro acceptance harness, which src-only include never reached"
 ```
 

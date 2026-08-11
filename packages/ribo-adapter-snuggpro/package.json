@@ -36,9 +36,9 @@
   "devDependencies": {
     "@arethetypeswrong/core": "catalog:",
     "@azx/build-config": "workspace:*",
-    "@types/node": "catalog:",
     "@azx/ribo-extractor-openai": "workspace:*",
     "@azx/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
     "ajv": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
