@@ -208,6 +208,107 @@ export class Outbox {
     });
   }
 
+  /**
+   * Begin a durable recording: insert a `recording` row with `capture: { sourceId }`
+   * and no committed audio. Chunk attachments are written by {@link appendChunk};
+   * {@link commitRecording} finalises the row into `queued`.
+   */
+  async beginRecording({
+    recording,
+    sourceId,
+  }: {
+    recording: Recording;
+    sourceId: string;
+  }): Promise<OutboxItem> {
+    return this.#serialized(async () => {
+      const document = outboxDocumentSchema.parse({
+        id: this.#createId(),
+        seq: (await this.#highestSeq()) + 1,
+        status: "recording",
+        idempotencyKey: this.#createIdempotencyKey(),
+        attempts: 0,
+        nextAttemptAt: this.#nowIso(),
+        enqueuedAt: this.#nowIso(),
+        recording: baseRecordingSchema.parse(recording),
+        capture: { sourceId },
+      } satisfies OutboxDocument);
+      const doc = await this.#collection.insert(document);
+      return this.#toItem(doc);
+    });
+  }
+
+  /**
+   * Write one chunk attachment. The `name` is a `chunkName(sourceId, …)` string;
+   * the caller is responsible for naming and ordering.
+   */
+  async appendChunk(id: string, name: string, blob: Blob): Promise<void> {
+    const doc = await this.#collection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no item ${id}`);
+    await doc.putAttachment({
+      id: name,
+      type: blob.type || "application/octet-stream",
+      data: blob,
+    });
+  }
+
+  /**
+   * Read all chunk attachments for `id`'s `capture.sourceId`, in name order, and
+   * concatenate them into one `Blob`. Used at commit and at recovery.
+   */
+  async mergeChunks(id: string): Promise<Blob> {
+    const doc = await this.#collection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no item ${id}`);
+    const sourceId = doc.capture?.sourceId;
+    if (!sourceId) throw new Error(`outbox: item ${id} has no capture.sourceId`);
+    const chunks = doc
+      .allAttachments()
+      .filter((a) => isChunkOf(a.id, sourceId))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const parts: Blob[] = [];
+    for (const chunk of chunks) {
+      parts.push(await chunk.getData());
+    }
+    return new Blob(parts, { type: doc.recording.mimeType });
+  }
+
+  /**
+   * Commit a durable recording: write the canonical `AUDIO_ATTACHMENT_ID`
+   * attachment, transition `recording → queued` with the decoded `durationMs`,
+   * and delete the chunk attachments. The caller has already merge-verified the
+   * audio; this method writes what it is given.
+   */
+  async commitRecording(id: string, audio: Blob, durationMs: number): Promise<OutboxItem> {
+    const doc = await this.#collection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no item ${id}`);
+    // 1. Write the canonical audio.
+    await doc.putAttachment({
+      id: AUDIO_ATTACHMENT_ID,
+      type: audio.type || "application/octet-stream",
+      data: audio,
+    });
+    // 2. Transition recording → queued and set durationMs from the decoded audio.
+    await doc.incrementalModify((data) => {
+      if (data.status !== "recording")
+        throw new Error(`outbox: ${id} is ${data.status}, not recording — commit refused`);
+      return {
+        ...data,
+        status: "queued" as const,
+        recording: { ...data.recording, durationMs },
+      };
+    });
+    // 3. Sweep the chunk attachments — the canonical audio is the only audio now.
+    const sourceId = doc.capture?.sourceId;
+    if (sourceId) {
+      for (const attachment of doc.allAttachments()) {
+        if (isChunkOf(attachment.id, sourceId)) await attachment.remove();
+      }
+    }
+    // Re-read for the projection — the attachment stubs changed.
+    const settled = await this.#collection.findOne(id).exec();
+    if (!settled) throw new Error(`outbox: item ${id} vanished during commit`);
+    return this.#toItem(settled);
+  }
+
   /** One item by id, or `undefined` if it is not there. */
   async get(id: string): Promise<OutboxItem | undefined> {
     const doc = await this.#collection.findOne(id).exec();

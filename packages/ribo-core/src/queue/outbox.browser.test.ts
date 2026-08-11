@@ -10,6 +10,7 @@ import type { PersistedReviewOutcome } from "../review.js";
 import type { Transcript } from "../transcript.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 import { removeOutboxDatabase } from "./database.js";
+import { chunkName } from "./chunk-names.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
   FINISHED_OUTBOX_STATUSES,
@@ -1122,4 +1123,74 @@ test("the first items$ emission carrying a new item already has its audio", asyn
   } finally {
     subscription?.unsubscribe();
   }
+});
+
+// ---------------------------------------------------------------------------
+// Durable capture — beginRecording, appendChunk, mergeChunks, commitRecording.
+//
+// These methods implement the chunk-by-chunk persistence path from the durable
+// capture design (revision 9). `beginRecording` finally makes a `recording` row
+// with chunks constructible through the public API, closing the untested gap
+// noted in Task 1's `audioReady`/`audioBytes` projection: before it existed, no
+// public method could build a row that carries chunk attachments, so the state
+// "audioReady: false, audioBytes: non-zero" was unreachable from any test.
+// ---------------------------------------------------------------------------
+
+test("beginRecording creates a recording row with capture.sourceId and no committed audio", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.beginRecording({
+    recording: { ...recording, durationMs: 0 },
+    sourceId: "s1",
+  });
+  expect(item.status).toBe("recording");
+  expect(item.capture).toEqual({ sourceId: "s1" });
+  expect(item.audioReady).toBe(false);
+  expect(item.audioBytes).toBe(0);
+});
+
+test("appendChunk writes a chunk attachment and audioBytes reflects it", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.beginRecording({
+    recording: { ...recording, durationMs: 0 },
+    sourceId: "s1",
+  });
+  await outbox.appendChunk(item.id, chunkName("s1", 0, 0), audioBlob());
+  const after = await outbox.get(item.id);
+  // THE untested gap from Task 1: a recording row carrying chunks reports
+  // audioReady: false (no canonical yet) but non-zero audioBytes (chunks ARE
+  // durable). Before beginRecording, no public API could build this state.
+  expect(after!.audioReady).toBe(false);
+  expect(after!.audioBytes).toBe(audioBytes.byteLength);
+});
+
+test("commitRecording writes canonical audio, transitions to queued, and sweeps chunks", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.beginRecording({
+    recording: { ...recording, durationMs: 0 },
+    sourceId: "s1",
+  });
+  await outbox.appendChunk(item.id, chunkName("s1", 0, 0), audioBlob());
+  const merged = await outbox.mergeChunks(item.id);
+  const committed = await outbox.commitRecording(item.id, merged, 4200);
+  expect(committed.status).toBe("queued");
+  expect(committed.audioReady).toBe(true);
+  expect(committed.audioBytes).toBe(audioBytes.byteLength);
+  expect(committed.recording.durationMs).toBe(4200);
+  // Chunks are gone — only the canonical attachment remains.
+  const audio = await outbox.getAudio(item.id);
+  expect(new Uint8Array(await audio!.arrayBuffer())).toEqual(audioBytes);
+});
+
+test("mergeChunks concatenates chunk attachments in name order", async () => {
+  const outbox = await open(uniqueName());
+  const item = await outbox.beginRecording({
+    recording: { ...recording, durationMs: 0 },
+    sourceId: "s1",
+  });
+  const partA = new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" });
+  const partB = new Blob([new Uint8Array([4, 5, 6])], { type: "audio/webm" });
+  await outbox.appendChunk(item.id, chunkName("s1", 0, 0), partA);
+  await outbox.appendChunk(item.id, chunkName("s1", 1, 0), partB);
+  const merged = await outbox.mergeChunks(item.id);
+  expect(new Uint8Array(await merged.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6]));
 });
