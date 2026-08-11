@@ -272,6 +272,32 @@ export class Outbox {
   }
 
   /**
+   * Merge chunk attachments excluding the last one, for recovery's
+   * drop-and-retry. Returns `null` if there is only one chunk (nothing to drop).
+   *
+   * A truncated tail is the one case where dropping bytes can turn an undecodable
+   * merge into a decodable one — the final chunk may be a half-written container
+   * that the decoder chokes on. Recovery tries the full merge first; only on
+   * failure does it reach for this method.
+   */
+  async mergeChunksExcludingLast(id: string): Promise<Blob | null> {
+    const doc = await this.#collection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no item ${id}`);
+    const sourceId = doc.capture?.sourceId;
+    if (!sourceId) throw new Error(`outbox: item ${id} has no capture.sourceId`);
+    const chunks = doc
+      .allAttachments()
+      .filter((a) => isChunkOf(a.id, sourceId))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    if (chunks.length <= 1) return null;
+    const parts: Blob[] = [];
+    for (let i = 0; i < chunks.length - 1; i++) {
+      parts.push(await chunks[i]!.getData());
+    }
+    return new Blob(parts, { type: doc.recording.mimeType });
+  }
+
+  /**
    * Commit a durable recording: write the canonical `AUDIO_ATTACHMENT_ID`
    * attachment, transition `recording → queued` with the decoded `durationMs`,
    * and delete the chunk attachments. The caller has already merge-verified the

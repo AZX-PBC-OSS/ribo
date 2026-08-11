@@ -70,3 +70,6 @@ export type { HeldLock } from "./capture-lock.js";
 
 export { decodeAudioDuration, openCaptureSession } from "./capture-session.js";
 export type { CaptureHealth, CaptureSession, CaptureSessionOptions } from "./capture-session.js";
+
+export { recoverInterrupted } from "./recovery.js";
+export type { RecoveryOptions } from "./recovery.js";

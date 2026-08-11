@@ -64,6 +64,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "outboxItemSchema",
     "outboxRxSchema",
     "recordingSchema",
+    "recoverInterrupted",
     "removeOutboxDatabase",
     "resolveReview",
     "reviewOutcomeSchema",
