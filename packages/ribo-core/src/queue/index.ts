@@ -56,3 +56,14 @@ export {
   outboxRxSchema,
 } from "./schema.js";
 export type { OutboxDocument, OutboxItem, OutboxPatch, OutboxStatus } from "./schema.js";
+
+export {
+  chunkName,
+  chunkPrefix,
+  isChunkOf,
+  MAX_CHUNK_INDEX,
+  MAX_SLICE_INDEX,
+  sliceOversized,
+} from "./chunk-names.js";
+export { CAPTURE_LOCK, holdLock, isLockFree } from "./capture-lock.js";
+export type { HeldLock } from "./capture-lock.js";

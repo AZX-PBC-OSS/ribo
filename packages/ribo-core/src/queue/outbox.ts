@@ -6,6 +6,7 @@ import type { Recording } from "../recording.js";
 import { baseRecordingSchema } from "../recording.js";
 import type { PersistedReviewOutcome } from "../review.js";
 import { reviewOutcomeSchema } from "../review.js";
+import { isChunkOf } from "./chunk-names.js";
 import { openOutboxDatabase, type OutboxCollection, type OutboxDatabase } from "./database.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
@@ -720,22 +721,11 @@ function mangoQuery({ status, limit }: OutboxQuery): MangoQuery<OutboxDocument> 
   };
 }
 
-/**
- * The attachment-id prefix for a capture session's chunked audio.
- *
- * A local helper, not the full naming module — Task 5 will export `chunkPrefix`
- * alongside `chunkName`, `canonicalName` and the rest from a dedicated module.
- * It lives here for now because the projection's `audioBytes` sum needs to
- * identify chunk attachments by id prefix, and that is the only consumer.
- */
-const chunkPrefix = (sourceId: string): string => `audio-${sourceId}-`;
-
 /** Total durable bytes of one capture's chunk attachments. Reads stub lengths, never bytes. */
 function sumChunkBytes(doc: RxDocument<OutboxDocument>, sourceId: string): number {
-  const prefix = chunkPrefix(sourceId);
   let total = 0;
   for (const attachment of doc.allAttachments()) {
-    if (attachment.id.startsWith(prefix)) total += attachment.length;
+    if (isChunkOf(attachment.id, sourceId)) total += attachment.length;
   }
   return total;
 }
