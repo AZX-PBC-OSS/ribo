@@ -12,7 +12,6 @@ import { openOutbox, type Outbox } from "./outbox.js";
 import { removeOutboxDatabase } from "./database.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
-  AUDIO_ATTACHMENT_ID,
   FINISHED_OUTBOX_STATUSES,
   OUTBOX_COLLECTION_NAME,
   OUTBOX_STATUSES,
@@ -250,9 +249,7 @@ test("step outputs written before a close are readable after a reopen", async ()
 // ---------------------------------------------------------------------------
 
 /** The outbox's RxDB schema exactly as it was before this task's version bump. */
-const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<
-  Omit<OutboxDocument, "reviewOutcome" | "capture" | "canonicalAttachmentId" | "step">
-> = {
+const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<Omit<OutboxDocument, "reviewOutcome" | "capture">> = {
   version: 0,
   primaryKey: "id",
   type: "object",
@@ -285,10 +282,7 @@ const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<
 };
 
 /** The v0 document shape: everything the current schema has, minus `reviewOutcome`. */
-function v0Document(): Omit<
-  OutboxDocument,
-  "reviewOutcome" | "capture" | "canonicalAttachmentId" | "step"
-> {
+function v0Document(): Omit<OutboxDocument, "reviewOutcome" | "capture"> {
   return {
     id: "a",
     seq: 0,
@@ -314,13 +308,11 @@ function v0Document(): Omit<
  */
 async function seedVersionZeroOutbox(
   name: string,
-  document: Omit<OutboxDocument, "reviewOutcome" | "capture" | "canonicalAttachmentId" | "step">,
+  document: Omit<OutboxDocument, "reviewOutcome" | "capture">,
 ): Promise<void> {
   addRxPlugin(RxDBAttachmentsPlugin);
   const database: RxDatabase<{
-    outbox: RxCollection<
-      Omit<OutboxDocument, "reviewOutcome" | "capture" | "canonicalAttachmentId" | "step">
-    >;
+    outbox: RxCollection<Omit<OutboxDocument, "reviewOutcome" | "capture">>;
   }> = await createRxDatabase({
     name,
     storage: getRxStorageDexie(),
@@ -345,11 +337,6 @@ test("an outbox stored at schema version 0 opens and migrates to version 2", asy
   expect(items).toHaveLength(1);
   expect(items[0]?.reviewOutcome).toBeUndefined();
   expect(items[0]?.status).toBe("queued");
-  // The pointer must name the LEGACY attachment, not merely be non-empty: zod
-  // accepts any string, so a migration writing "wrong-id" would satisfy the
-  // invariant while pointing at nothing. Asserting the exact id is what makes
-  // this test prove what the migration claims.
-  expect(items[0]?.canonicalAttachmentId).toBe(AUDIO_ATTACHMENT_ID);
 });
 
 // ---------------------------------------------------------------------------
@@ -438,23 +425,14 @@ test("audio can be dropped once it is no longer needed, leaving the item intact"
 // `toJSON()` strips `_attachments`. A UI cannot legitimately report a dropped
 // recording without them, and that is a real state the moment
 // `dropAudioAfterTranscription` is on or iOS evicts the origin.
-//
-// `audioReady` reads the attachment the `canonicalAttachmentId` POINTER names,
-// not the pointer itself: the pointer survives `dropAudio` (it records WHICH
-// attachment was authoritative), so reading presence off the pointer would
-// report deleted audio as playable.
 // ---------------------------------------------------------------------------
 
-test("audioReady tracks the POINTED attachment, not the pointer", async () => {
+test("audioReady tracks the attachment, not a pointer", async () => {
   const outbox = await open(uniqueName());
   const item = await outbox.enqueue({ recording, audio: audioBlob() });
   expect(item.audioReady).toBe(true);
   await outbox.dropAudio(item.id);
   const after = await outbox.get(item.id);
-  // dropAudio removes the attachment and leaves the pointer — the pointer records
-  // WHICH attachment was authoritative and is still true after deletion. Reading
-  // audioReady off pointer presence would report deleted audio as playable.
-  expect(after!.canonicalAttachmentId).toBeDefined();
   expect(after!.audioReady).toBe(false);
   expect(after!.audioBytes).toBe(0);
 });
@@ -977,11 +955,11 @@ test("a dead item with extracted data but no transcript refuses to be reopened",
 // everything else is a status the relay still owns, where reopening would only
 // race it.
 // `recording` is excluded alongside `dead` for a different reason: this fixture
-// builds its row with `enqueue`, which by construction produces COMMITTED audio,
-// and a `recording` row must carry no canonical pointer. The state is simply
-// unconstructible here. It gets covered once `beginRecording` exists and can
-// build one honestly — until then, asserting on a row this test cannot legally
-// create would prove nothing.
+// builds its row with `enqueue`, which by construction produces a `queued` row
+// with committed audio and no `capture`. A `recording` row must carry `capture`,
+// which this test cannot legally construct here. It gets covered once
+// `beginRecording` exists and can build one honestly — until then, asserting on
+// a row this test cannot legally create would prove nothing.
 test.each(OUTBOX_STATUSES.filter((status) => status !== "dead" && status !== "recording"))(
   "a %s item cannot be reopened for review",
   async (status) => {

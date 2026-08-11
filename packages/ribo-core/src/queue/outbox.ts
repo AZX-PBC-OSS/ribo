@@ -184,10 +184,8 @@ export class Outbox {
         nextAttemptAt: this.#nowIso(),
         enqueuedAt: this.#nowIso(),
         recording: baseRecordingSchema.parse(recording),
-        // The non-durable enqueue path has no `capture` (audio is committed in one
-        // write, not chunked), but it still mints the canonical attachment pointer
-        // the schema invariant requires of every committed row.
-        canonicalAttachmentId: AUDIO_ATTACHMENT_ID,
+        // The non-durable enqueue path has no `capture` — audio is committed in
+        // one write, not chunked.
       } satisfies OutboxDocument);
 
       const insert: OutboxInsert = {
@@ -563,12 +561,7 @@ export class Outbox {
   /** The captured audio, or `undefined` once it has been dropped. */
   async getAudio(id: string): Promise<Blob | undefined> {
     const doc = await this.#collection.findOne(id).exec();
-    // Resolves the attachment the pointer names, not a fixed constant — so a
-    // future canonical id that differs from the legacy `AUDIO_ATTACHMENT_ID` is
-    // read correctly. If the pointer is absent (a recording row that has not
-    // committed yet), there is no canonical audio to return.
-    const pointer = doc?.canonicalAttachmentId;
-    const attachment = pointer ? doc?.getAttachment(pointer) : undefined;
+    const attachment = doc?.getAttachment(AUDIO_ATTACHMENT_ID);
     return attachment ? await attachment.getData() : undefined;
   }
 
@@ -588,11 +581,7 @@ export class Outbox {
    */
   async dropAudio(id: string): Promise<void> {
     const doc = await this.#collection.findOne(id).exec();
-    // Drops the attachment the pointer names, leaving the pointer itself — it
-    // still records WHICH attachment was authoritative, which is why
-    // `audioReady` reads attachment presence rather than pointer presence.
-    const pointer = doc?.canonicalAttachmentId;
-    if (pointer) await doc?.getAttachment(pointer)?.remove();
+    await doc?.getAttachment(AUDIO_ATTACHMENT_ID)?.remove();
   }
 
   /** Delete an item and its attachment. */
@@ -657,31 +646,10 @@ export class Outbox {
     // be read off the document separately. `getAttachment` reads the in-memory
     // stub on `doc._data`, so it does not fetch bytes — a property lookup, not I/O.
     //
-    // `audioReady` reads the attachment the `canonicalAttachmentId` POINTER
-    // names, not the pointer itself: the pointer survives `dropAudio` (it
-    // records WHICH attachment was authoritative), so reading presence off the
-    // pointer would report deleted audio as playable.
-    const canonical = doc.canonicalAttachmentId
-      ? doc.getAttachment(doc.canonicalAttachmentId)
-      : null;
-    // While recording there is no canonical yet, but the chunks ARE durable — so a
-    // UI can show capture progressing instead of reporting nothing, and cannot
-    // mistake "not yet" for "the bytes were dropped".
-    //
-    // Gated on the STATUS, not on `capture`: `capture.sourceId` is deliberately
-    // retained after commit (it identifies chunks that may still need sweeping),
-    // so keying off its presence would make a committed row whose canonical audio
-    // was dropped report `audioReady: false` with non-zero `audioBytes` — which
-    // contradicts the documented dropped state and would let a UI offer playback
-    // for bytes it cannot assemble. It also scans attachments on every projection
-    // of every durable row, for a number the canonical length then wins anyway.
-    // NOT YET TESTED, and that is a known gap rather than an oversight: proving this
-    // needs a `recording` row carrying chunk attachments, and no public API can build
-    // one until `beginRecording` lands (plan Task 6). Two assertions are owed then —
-    // a mid-recording row reporting `audioReady: false` with non-zero `audioBytes`,
-    // and a committed row with leftover chunks reporting canonical bytes only, `0`
-    // once dropped. Reaching past `Outbox` to fake those states was tried and is not
-    // worth the fixture; through the real constructor they are three lines each.
+    // `audioReady` reads the `AUDIO_ATTACHMENT_ID` attachment directly: with the
+    // canonical pointer deleted in revision 9, there is only one canonical audio
+    // attachment, and its id is the constant.
+    const canonical = doc.getAttachment(AUDIO_ATTACHMENT_ID);
     const audioBytes =
       canonical?.length ??
       (doc.status === "recording" && doc.capture ? sumChunkBytes(doc, doc.capture.sourceId) : 0);

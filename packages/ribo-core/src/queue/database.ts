@@ -4,12 +4,7 @@ import { RxDBAttachmentsPlugin } from "rxdb/plugins/attachments";
 import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 
-import {
-  AUDIO_ATTACHMENT_ID,
-  OUTBOX_COLLECTION_NAME,
-  outboxRxSchema,
-  type OutboxDocument,
-} from "./schema.js";
+import { OUTBOX_COLLECTION_NAME, outboxRxSchema, type OutboxDocument } from "./schema.js";
 
 /**
  * The RxDB collection holding the outbox documents.
@@ -33,24 +28,16 @@ export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
  * before a non-trivial one needs it. Nothing is published and there are no
  * users, so no deployed data is at risk here.
  *
- * v1 → v2 added `capture`, `canonicalAttachmentId` and `step` — all optional,
- * so the strategy is identity for the same reason.
+ * v1 → v2 added `capture` (optional) — identity, since an absent optional field
+ * needs no transformation. Revision 9 removed `canonicalAttachmentId` and
+ * `step`, so the strategy no longer populates anything.
  *
  * Exported (rather than inlined into `addCollections`) so a test can exercise
  * the strategy function directly, independent of a real migration run.
  */
 export const OUTBOX_MIGRATION_STRATEGIES = {
   1: (doc: OutboxDocument) => doc,
-  /**
-   * Populate `canonicalAttachmentId`, which v2 requires of every committed row.
-   *
-   * NOT back-compatibility logic — there are no users to be compatible with. A
-   * migration simply has to emit documents the CURRENT schema accepts, and an
-   * identity function here produces v1 rows that fail their own invariant on the
-   * next read. No pre-v2 row can be `recording` (the status did not exist), so
-   * every migrated row is committed and the constant is always the right answer.
-   */
-  2: (doc: OutboxDocument) => ({ ...doc, canonicalAttachmentId: AUDIO_ATTACHMENT_ID }),
+  2: (doc: OutboxDocument) => doc,
 };
 
 /**

@@ -43,14 +43,12 @@ test("the RxDB required list is exactly zod's non-optional fields", () => {
   expect(required).toEqual(zodKeys.filter((key) => !optionalKeys.includes(key)));
 });
 
-test("the optional fields are the step outputs, the error message, and the durable-capture fields", () => {
+test("the optional fields are the step outputs, the error message, and capture", () => {
   expect(optionalKeys).toEqual([
-    "canonicalAttachmentId",
     "capture",
     "extracted",
     "lastError",
     "reviewOutcome",
-    "step",
     "transcript",
     "writeResult",
   ]);
@@ -176,7 +174,6 @@ test("a document carries an optional review outcome", () => {
     attempts: 0,
     nextAttemptAt: new Date(0).toISOString(),
     enqueuedAt: new Date(0).toISOString(),
-    canonicalAttachmentId: "audio",
     recording: {
       id: "r",
       capturedAt: new Date(0).toISOString(),
@@ -215,7 +212,6 @@ function validDocument() {
       mimeType: "audio/webm",
       ctx: {},
     },
-    canonicalAttachmentId: "audio",
   };
 }
 
@@ -238,33 +234,27 @@ test("recording is a status, and it is in exactly one category", () => {
   expect(RECORDING_OUTBOX_STATUSES).toEqual(["recording"]);
 });
 
-test("a recording document must carry capture, and must not claim committed audio", () => {
+test("a recording document must carry capture", () => {
   const base = validDocument();
   expect(() =>
-    // `canonicalAttachmentId: undefined` too, or this passes against an
-    // implementation that never checks for `capture` at all — the OTHER invariant
-    // (a recording row must not claim committed audio) would fire on the
-    // fixture's inherited pointer and the assertion could not tell the two apart.
-    outboxDocumentSchema.parse({
-      ...base,
-      status: "recording",
-      capture: undefined,
-      canonicalAttachmentId: undefined,
-    }),
+    outboxDocumentSchema.parse({ ...base, status: "recording", capture: undefined }),
   ).toThrow();
+});
+
+test("capture carries only sourceId — owner is gone", () => {
+  const base = validDocument();
+  const doc = outboxDocumentSchema.parse({
+    ...base,
+    status: "recording",
+    capture: { sourceId: "s1" },
+  });
+  expect(doc.capture).toEqual({ sourceId: "s1" });
+  // An owner field is now unrecognized — strictObject rejects it.
   expect(() =>
     outboxDocumentSchema.parse({
       ...base,
       status: "recording",
       capture: { sourceId: "s1", owner: "o1" },
-      canonicalAttachmentId: "audio-canonical-o1",
     }),
-  ).toThrow();
-});
-
-test("a committed row must name its canonical attachment", () => {
-  // Including the non-durable enqueue() path, which has no capture at all.
-  expect(() =>
-    outboxDocumentSchema.parse({ ...validDocument(), canonicalAttachmentId: undefined }),
   ).toThrow();
 });
