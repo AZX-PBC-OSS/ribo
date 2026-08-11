@@ -141,7 +141,16 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
     setBusy(true);
     try {
       const capture = await recorder.stop();
-      const item = outbox === undefined ? undefined : await outbox.enqueue(capture);
+      // A durable capture is ALREADY a queued row — `capture.itemId` names it. Enqueuing
+      // again produced a second row and a second relay run for one dictation, and it
+      // masked a worse bug: the durable row was being deleted during teardown, so the
+      // duplicate quietly stood in for it.
+      const item =
+        capture.itemId !== undefined
+          ? await outbox?.get(capture.itemId)
+          : outbox === undefined
+            ? undefined
+            : await outbox.enqueue(capture);
       return { capture, item };
     } catch (cause) {
       const failure = asRecorderError(cause);

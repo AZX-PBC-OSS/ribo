@@ -588,6 +588,61 @@ describe("Recorder mid-capture failure", () => {
 });
 
 describe("Recorder durable capture", () => {
+  test("a successful durable stop leaves its committed row ON DISK", async () => {
+    // The test this suite was missing, and its absence hid two critical bugs at once.
+    //
+    // `stop()` finalized — committing the row to `queued` — and then its `finally` ran
+    // `#teardown`, which called `abort()` unconditionally, which REMOVED that same row.
+    // `stop()` returned successfully while deleting its own output, and with
+    // `enqueue: false` the recording disappeared entirely. Every existing test here
+    // covered lock contention or a failed start; none performed a successful durable
+    // round trip and then looked for the row.
+    //
+    // It also pins the identity: `stop()` used to mint a SECOND id and `capturedAt` for
+    // the returned capture, so callers were handed metadata describing a different
+    // recording than the one on disk.
+    const outbox = await openOutbox({
+      name: `t-${crypto.randomUUID()}`,
+      storage: getRxStorageMemory(),
+    });
+    const recorder = new Recorder({
+      captureSession: ({
+        recording,
+        sourceId,
+        mimeType,
+      }: {
+        recording: Recording;
+        sourceId: string;
+        mimeType: string;
+      }): Promise<CaptureSession> =>
+        openCaptureSession({ outbox, recording, sourceId, mimeType, decode: async () => 1234 }),
+    });
+
+    await recorder.start();
+    expect(recorder.phase).toBe("recording");
+    // A real timeslice must elapse or there is no chunk to commit.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const capture = await recorder.stop();
+
+    // Let any fire-and-forget teardown work land before looking. `abort()` is async and
+    // unawaited, so reading immediately would see the row still present even while it was
+    // being deleted — the assertion would pass against the very bug it exists to catch.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // The row survives teardown.
+    expect(capture.itemId).toBeDefined();
+    const item = await outbox.get(capture.itemId!);
+    expect(item).toBeDefined();
+    expect(item!.status).toBe("queued");
+    expect(item!.audioReady).toBe(true);
+
+    // And the capture describes THAT row, not a second identity.
+    expect(capture.recording.id).toBe(item!.recording.id);
+    expect(capture.recording.capturedAt).toBe(item!.recording.capturedAt);
+
+    await outbox.close();
+  });
+
   test("start refuses when another tab holds the lock, WITHOUT prompting for the microphone", async () => {
     // Refusing before the microphone matters: the recording indicator must not
     // light on the way to throwing.

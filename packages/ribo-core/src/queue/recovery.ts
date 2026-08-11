@@ -49,19 +49,23 @@ export async function recoverInterrupted(options: RecoveryOptions): Promise<stri
   // between it and here. `holdLock` returns `undefined` if the lock was taken in
   // that window, and in that case the live session owns the rows, so we resolve
   // empty rather than recovering under it.
-  return new Promise<string[]>((resolve) => {
-    void holdLock(CAPTURE_LOCK, async () => {
-      const recoveredIds: string[] = [];
-      for (const item of recording) {
-        const id = await recoverOne(outbox, item.id, decode);
-        if (id) recoveredIds.push(id);
-      }
-      options.onRecovered?.(recoveredIds);
-      resolve(recoveredIds);
-    }).then((held) => {
-      if (held === undefined) resolve([]);
-    });
+  // Await the callback's OWN promise rather than resolving an outer one from inside it.
+  // The earlier shape resolved only on the success path, so a throw anywhere in
+  // `recoverOne`, `patch` or `onRecovered` released the lock and left this promise pending
+  // forever — the caller hung with no error, which at startup means the app never finishes
+  // starting.
+  const held = await holdLock(CAPTURE_LOCK, async () => {
+    const recoveredIds: string[] = [];
+    for (const item of recording) {
+      const id = await recoverOne(outbox, item.id, decode);
+      if (id) recoveredIds.push(id);
+    }
+    options.onRecovered?.(recoveredIds);
+    return recoveredIds;
   });
+  // Taken between the advisory check and here: the live session owns those rows.
+  if (held === undefined) return [];
+  return await held.ready;
 }
 
 /**

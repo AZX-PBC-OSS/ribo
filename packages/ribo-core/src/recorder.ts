@@ -170,6 +170,17 @@ export type Unsubscribe = () => void;
 export interface Capture<C = EmptyContext> {
   readonly recording: Omit<Recording, "ctx"> & { ctx: C };
   readonly audio: Blob;
+  /**
+   * The outbox item this capture is ALREADY committed to, when durable capture ran.
+   *
+   * Present means the audio is on disk and the row is `queued` — a caller must NOT
+   * enqueue it again. Absent means the legacy in-memory path produced this, and the
+   * caller still owns persisting it.
+   *
+   * Without this, `useRecorder` cannot tell the two apart and enqueues unconditionally,
+   * turning one dictation into two rows and two relay runs.
+   */
+  readonly itemId?: string;
 }
 
 /** The honest shape of "this host has no context to attach" — an empty object, not `undefined`. */
@@ -223,6 +234,13 @@ interface Session {
   readonly ticker: ReturnType<typeof setInterval>;
   /** Set when recording durably — `dataavailable` is routed to `ingest` instead of `chunks`. */
   captureSession?: CaptureSession;
+  /**
+   * Whether `finalize()` succeeded, so `#teardown` knows not to abort.
+   *
+   * `abort()` removes the recording row, which is right for every path that did NOT
+   * commit and catastrophic for the one that did.
+   */
+  finalized?: boolean;
 }
 
 /**
@@ -558,14 +576,19 @@ export class Recorder<C = EmptyContext> {
       if (session.captureSession) {
         // Durable path: finalize merges, decode-verifies, and commits.
         const result = await session.captureSession.finalize();
-        const recording = baseRecordingSchema.parse({
-          id: this.#createId(),
-          capturedAt: new Date().toISOString(),
-          durationMs: result.durationMs,
-          mimeType,
-          ctx: this.#ctx,
-        });
-        return { recording: { ...recording, ctx: this.#ctx }, audio: result.audio };
+        // Mark BEFORE returning, so the `finally` below does not abort a session that
+        // succeeded — `abort()` removes the row, which would delete the recording this
+        // call just committed.
+        session.finalized = true;
+        // The metadata of the row that was actually committed, NOT a fresh one. Minting a
+        // second id and `capturedAt` here made the returned capture describe a different
+        // recording than the one on disk: `sourceId` derives from the first id, callers
+        // saw the second, and nothing tied them together.
+        return {
+          recording: { ...result.item.recording, ctx: this.#ctx } as Capture<C>["recording"],
+          audio: result.audio,
+          itemId: result.item.id,
+        };
       }
 
       // Non-durable path: assemble from in-memory chunks, as today.
@@ -652,9 +675,11 @@ export class Recorder<C = EmptyContext> {
   }
 
   #teardown(session: Session): void {
-    // If a capture session exists and finalize() was not called (failure path),
-    // abort it to remove the recording row.
-    session.captureSession?.abort();
+    // Abort ONLY a session that did not finalize. This ran unconditionally, so a
+    // successful durable stop committed its row and then immediately deleted it —
+    // `stop()` returned normally while its own output was being removed, and with
+    // `enqueue: false` the recording vanished entirely.
+    if (!session.finalized) session.captureSession?.abort();
     // Release the capture lock — resolves the never-resolving promise that
     // holdLock's callback is still holding.
     this.#releaseLock?.();
