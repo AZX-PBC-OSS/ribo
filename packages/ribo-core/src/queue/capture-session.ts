@@ -96,6 +96,9 @@ class CaptureSessionImpl implements CaptureSession {
   #lastEmission: number;
   /** Whether `resumed()` has reset the baseline since the last emission. */
   #baselineReset = false;
+  /** Re-checks for a stall while no `dataavailable` is arriving. Cleared on close. */
+  readonly #watchdog: ReturnType<typeof setInterval>;
+
   /** Whether the health has latched to `stalled`. */
   #stalled = false;
 
@@ -116,6 +119,19 @@ class CaptureSessionImpl implements CaptureSession {
     this.#decode = decode;
     this.#health$ = health$;
     this.#lastEmission = now();
+    // Re-check the gap on a timer, because the check in `ingest` only runs when a blob
+    // ARRIVES — so a stall in progress was invisible: emission stopping is exactly the
+    // condition that prevents the code which notices emission stopping from running.
+    // A visible tab whose recorder had quietly died reported `flushing` indefinitely.
+    //
+    // Honest limit: a frozen or heavily throttled tab suppresses this timer too, so a
+    // pocketed phone is still detected late — on resume, via `ingest`'s own check. That
+    // is acceptable in a way the visible case is not, because a frozen tab has no
+    // observer: nothing is reading `workSafety` while the screen is off.
+    this.#watchdog = setInterval(() => {
+      if (this.#closed) return;
+      if (this.#now() - this.#lastEmission > STALL_AFTER_MS) this.#latchStalled();
+    }, STALL_AFTER_MS);
   }
 
   get itemId(): string {
@@ -161,6 +177,7 @@ class CaptureSessionImpl implements CaptureSession {
 
   async finalize(): Promise<{ audio: Blob; durationMs: number; item: OutboxItem }> {
     this.#closed = true;
+    clearInterval(this.#watchdog);
     // Await the drain of everything ingested before finalize was called.
     await this.#drained;
     const audio = await this.#outbox.mergeChunks(this.#itemId);
@@ -172,6 +189,7 @@ class CaptureSessionImpl implements CaptureSession {
 
   abort(): void {
     this.#closed = true;
+    clearInterval(this.#watchdog);
     this.#health$.complete();
     // Fire-and-forget: if the removal fails, startup recovery collects the row.
     void this.#outbox.remove(this.#itemId).catch(() => undefined);
@@ -197,10 +215,27 @@ class CaptureSessionImpl implements CaptureSession {
       while (this.#buffer.length > 0) {
         const blob = this.#buffer.shift()!;
         const slices = sliceOversized(blob, this.#mimeType, MAX_CHUNK_BYTES);
-        for (const slice of slices) {
-          const sliceIndex = 0;
-          const name = chunkName(this.#sourceId, this.#chunkIndex, sliceIndex);
-          this.#chunkIndex += 1;
+        // ONE chunk index per `dataavailable`, with the slice index distinguishing the
+        // pieces it was cut into. Incrementing the chunk index per slice instead made a
+        // sliced event look like several separate events — the slice field stayed `00`
+        // forever and the naming scheme the design specifies was never produced. Ordering
+        // survived either way, which is why nothing caught it.
+        const chunkIndex = this.#chunkIndex;
+        this.#chunkIndex += 1;
+        for (const [sliceIndex, slice] of slices.entries()) {
+          let name: string;
+          try {
+            name = chunkName(this.#sourceId, chunkIndex, sliceIndex);
+          } catch (cause) {
+            // An index overflow threw from OUTSIDE the write's catch, so it neither
+            // latched health nor stopped capture: `ingest` discards this drain with
+            // `void`, so it surfaced only at finalize, by which point teardown had run.
+            // Treat it as what it is — capture can no longer name its output safely.
+            this.#latchStalled();
+            this.#closed = true;
+            void cause;
+            return;
+          }
           try {
             await this.#outbox.appendChunk(this.#itemId, name, slice);
           } catch {

@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { firstValueFrom } from "rxjs";
 
 import { openCaptureSession } from "./capture-session.js";
@@ -146,4 +146,63 @@ test("a user pause is not a stall", async () => {
   session.resumed(); // user-initiated Recorder.resume()
   session.ingest(blobOf(10));
   expect(await firstValueFrom(session.health$)).toBe("flushing");
+});
+
+test("an ONGOING stall is reported without waiting for the next event", async () => {
+  // The gap check in `ingest` only runs when a blob arrives, so a stall in progress was
+  // invisible: a visible tab whose recorder had quietly died reported `flushing`
+  // indefinitely, and `workSafety` said `protected` while nothing was reaching disk.
+  // Emission stopping is precisely what prevents the code that notices emission stopping
+  // from running, so the check cannot live only on that path.
+  vi.useFakeTimers();
+  try {
+    let clock = 0;
+    const session = await openCaptureSession({
+      outbox: fakeOutbox() as unknown as Outbox,
+      recording,
+      sourceId: "s1",
+      mimeType: "audio/webm",
+      now: () => clock,
+      decode: async () => 4200,
+    });
+    session.ingest(blobOf(10));
+    expect(await firstValueFrom(session.health$)).toBe("flushing");
+
+    // Time passes and NOTHING arrives — the pocketed-phone case.
+    clock = 60_000;
+    await vi.advanceTimersByTimeAsync(31_000);
+
+    // Reported now, not retroactively once some later blob shows up.
+    expect(await firstValueFrom(session.health$)).toBe("stalled");
+    session.abort();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("an oversized blob is ONE chunk in several slices, not several chunks", async () => {
+  // `sliceIndex` was hardcoded to 0 while the chunk index advanced per slice, so a sliced
+  // event looked like several separate events and the `-NN` slice field stayed `00`
+  // forever. Ordering survived either way, which is why nothing caught it — but the
+  // naming no longer described what it names.
+  const outbox = fakeOutbox();
+  const session = await openCaptureSession({
+    outbox: outbox as unknown as Outbox,
+    recording,
+    sourceId: "s1",
+    mimeType: "audio/webm",
+    now: () => 0,
+    decode: async () => 4200,
+  });
+  // Comfortably past MAX_CHUNK_BYTES so it must be cut into more than one slice.
+  session.ingest(blobOf(12 * 1024 * 1024));
+  await session.finalize();
+
+  expect(outbox.chunkNames.length).toBeGreaterThan(1);
+  // One chunk index across every slice, and the slice index actually counting.
+  const parsed = outbox.chunkNames.map((n) => n.split("-").slice(-2));
+  expect(new Set(parsed.map(([chunk]) => chunk)).size).toBe(1);
+  expect(parsed.map(([, slice]) => slice)).toEqual(
+    parsed.map((_, i) => String(i).padStart(2, "0")),
+  );
 });
