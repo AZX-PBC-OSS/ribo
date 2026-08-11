@@ -10,7 +10,7 @@ import {
   outboxItemSchema,
   outboxRxSchema,
 } from "./schema.js";
-import type { OutboxStatus } from "./schema.js";
+import type { OutboxPatch, OutboxStatus } from "./schema.js";
 
 // One document, described twice: once in zod (the read/write trust boundary) and
 // once in RxDB's JSON schema (which carries the primary key, indexes and
@@ -257,4 +257,41 @@ test("capture carries only sourceId — owner is gone", () => {
       capture: { sourceId: "s1", owner: "o1" },
     }),
   ).toThrow();
+});
+
+/**
+ * The unpatchable fields, asserted at the TYPE level because nothing else can.
+ *
+ * `OutboxPatch` is derived by `Omit`, so a field dropping out of that list is invisible to
+ * every runtime test — the schema still parses, the tests still pass, and a caller quietly
+ * gains the ability to rewrite something that was never meant to change. Verified: removing
+ * `capture` from the omit list breaks neither `pnpm typecheck` nor any test in this file.
+ *
+ * `capture.sourceId` is the one that would hurt. It names a recording's chunk attachments,
+ * so a patched `sourceId` orphans every chunk already on disk — the same class of data loss
+ * that an earlier revision of the durable-capture design shipped and had to withdraw. The
+ * others are here for the reason their own doc comment gives: decided once, and re-deciding
+ * any of them breaks ordering, provenance or idempotency.
+ *
+ * Each `@ts-expect-error` IS the assertion. If the field becomes patchable the directive
+ * goes unused, and an unused directive is a typecheck error — so this fails loudly in the
+ * one place a runtime test cannot reach.
+ */
+test("the fields decided once stay decided — none of them is patchable", () => {
+  // @ts-expect-error `capture` names the chunk attachments; patching sourceId orphans them.
+  const capture: OutboxPatch = { capture: { sourceId: "s1" } };
+  // @ts-expect-error `id` is the primary key.
+  const id: OutboxPatch = { id: "other" };
+  // @ts-expect-error `seq` is the queue's ordering key.
+  const seq: OutboxPatch = { seq: 99 };
+  // @ts-expect-error `idempotencyKey` must survive every retry unchanged.
+  const key: OutboxPatch = { idempotencyKey: "regenerated" };
+  // @ts-expect-error `recording` is capture provenance, not queue state.
+  const recording: OutboxPatch = { recording: undefined };
+  // @ts-expect-error `enqueuedAt` is when it entered the queue, once.
+  const enqueuedAt: OutboxPatch = { enqueuedAt: "2026-01-01T00:00:00.000Z" };
+
+  // The values are irrelevant — the directives above are the test. Referencing them keeps
+  // the linter from removing what looks like dead code and taking the assertions with it.
+  expect([capture, id, seq, key, recording, enqueuedAt]).toHaveLength(6);
 });
