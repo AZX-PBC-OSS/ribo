@@ -1,10 +1,11 @@
 import type { Capture, Outbox, OutboxItem, RecorderPhase, RecorderState } from "@azx/ribo-core";
 import { RecorderError } from "@azx/ribo-core";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 // `AnyRecorder` is this package's own alias for a recorder whose host context type
 // the provider cannot know — it is defined in ./context.js, NOT in @azx/ribo-core.
 import type { AnyRecorder } from "./context.js";
+import type { CaptureCoordinator } from "./capture-coordinator.js";
 import { useOptionalRiboInstance, useRiboInstance } from "./use-ribo-instance.js";
 import { useSubscribed } from "./use-subscribed.js";
 
@@ -19,6 +20,8 @@ export interface UseRecorderOptions {
    * and `stop()` resolves `item: undefined`.
    */
   readonly enqueue?: boolean;
+  /** Override or supply the capture coordinator for health reporting. */
+  readonly captureCoordinator?: CaptureCoordinator;
 }
 
 export interface StopResult {
@@ -94,6 +97,10 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
     );
   }
   const outbox = enqueue ? maybeOutbox : undefined;
+  const captureCoordinator = useOptionalRiboInstance(
+    "captureCoordinator",
+    options.captureCoordinator,
+  );
 
   // `subscribe` must stay referentially stable across renders — see
   // useSubscribed's doc comment. `Recorder.state` allocates a fresh object on
@@ -108,18 +115,26 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
   const state = useSubscribed(subscribe, () => recorder.state);
   const [error, setError] = useState<RecorderError | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const unregisterRef = useRef<(() => void) | undefined>(undefined);
 
   const start = useCallback(async () => {
     setError(undefined);
     setBusy(true);
     try {
       await recorder.start();
+      if (captureCoordinator && recorder.captureSession) {
+        const unregister = captureCoordinator.register(recorder.captureSession);
+        unregisterRef.current = unregister;
+      }
     } catch (cause) {
       setError(asRecorderError(cause));
+      // Clear any stale registration from a previous start.
+      unregisterRef.current?.();
+      unregisterRef.current = undefined;
     } finally {
       setBusy(false);
     }
-  }, [recorder]);
+  }, [recorder, captureCoordinator]);
 
   const stop = useCallback(async (): Promise<StopResult> => {
     setError(undefined);
@@ -133,6 +148,9 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
       setError(failure);
       throw failure;
     } finally {
+      // Unregister the capture session — the recording is over, one way or another.
+      unregisterRef.current?.();
+      unregisterRef.current = undefined;
       setBusy(false);
     }
   }, [outbox, recorder]);

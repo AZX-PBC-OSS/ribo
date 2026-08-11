@@ -1,10 +1,12 @@
-import type { WorkOnDevice, WorkSafety } from "@azx/ribo-core";
+import type { CaptureHealth, WorkOnDevice, WorkSafety } from "@azx/ribo-core";
 import { summarizeWork, workSafety } from "@azx/ribo-core";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useConnectivity } from "./use-connectivity.js";
+import { useOptionalRiboInstance } from "./use-ribo-instance.js";
 import { useOutboxItems } from "./use-outbox-items.js";
 import { useStoragePersistence } from "./use-storage-persistence.js";
+import { useSubscribed } from "./use-subscribed.js";
 
 export interface UseWorkSafetyResult {
   /**
@@ -51,6 +53,21 @@ export function useWorkSafety(): UseWorkSafetyResult {
   const { items, loading, error } = useOutboxItems();
   const { persistence } = useStoragePersistence();
   const connectivity = useConnectivity();
+  const captureCoordinator = useOptionalRiboInstance("captureCoordinator", undefined);
+
+  // Subscribe to the coordinator's health$ — undefined when there is no
+  // coordinator, which means capture health is not consulted (today's behaviour).
+  const captureHealth = useSubscribed(
+    useCallback(
+      (listener: (h: CaptureHealth | undefined) => void) => {
+        if (!captureCoordinator) return () => undefined;
+        const sub = captureCoordinator.health$.subscribe(listener);
+        return () => sub.unsubscribe();
+      },
+      [captureCoordinator],
+    ),
+    () => undefined,
+  );
 
   // Withheld rather than defaulted whenever the inputs are not trustworthy. See
   // the note on `safety` above: an unreadable outbox looks exactly like an empty
@@ -59,8 +76,11 @@ export function useWorkSafety(): UseWorkSafetyResult {
 
   const work = useMemo(() => (usable ? summarizeWork(items) : undefined), [items, usable]);
   const safety = useMemo(
-    () => (work === undefined ? undefined : workSafety(work, persistence, connectivity.status)),
-    [connectivity.status, persistence, work],
+    () =>
+      work === undefined
+        ? undefined
+        : workSafety(work, persistence, connectivity.status, captureHealth),
+    [connectivity.status, persistence, work, captureHealth],
   );
 
   return { safety, work, loading, error };

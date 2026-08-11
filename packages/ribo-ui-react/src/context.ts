@@ -1,6 +1,8 @@
 import type { Connectivity, Outbox, Recorder } from "@azx/ribo-core";
 import { createContext } from "react";
 
+import type { CaptureCoordinator } from "./capture-coordinator.js";
+
 /**
  * @file The one context this package defines.
  *
@@ -35,6 +37,7 @@ export interface RiboInstances {
   readonly recorder?: AnyRecorder;
   readonly outbox?: Outbox;
   readonly connectivity?: Connectivity;
+  readonly captureCoordinator?: CaptureCoordinator;
 }
 
 /** Empty rather than `undefined`, so "no provider" and "empty provider" fail identically. */

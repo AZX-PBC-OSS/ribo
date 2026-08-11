@@ -29,6 +29,9 @@
     "typecheck": "tsc --noEmit",
     "build": "tsdown"
   },
+  "dependencies": {
+    "rxjs": "catalog:"
+  },
   "peerDependencies": {
     "react": "^18.3 || ^19",
     "react-dom": "^18.3 || ^19",
@@ -46,6 +49,7 @@
     "publint": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "rxjs": "catalog:",
     "rxdb": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

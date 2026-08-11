@@ -8,6 +8,8 @@
 
 export { RiboProvider } from "./RiboProvider.js";
 export type { AnyRecorder, RiboInstances } from "./context.js";
+export { createCaptureCoordinator } from "./capture-coordinator.js";
+export type { CaptureCoordinator } from "./capture-coordinator.js";
 export { useConnectivity } from "./use-connectivity.js";
 export { useOutboxItems } from "./use-outbox-items.js";
 export type { UseOutboxItemsResult } from "./use-outbox-items.js";

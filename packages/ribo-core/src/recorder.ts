@@ -1,4 +1,6 @@
 import { baseRecordingSchema, type Recording } from "./recording.js";
+import { CAPTURE_LOCK, holdLock } from "./queue/capture-lock.js";
+import type { CaptureSession } from "./queue/capture-session.js";
 
 /**
  * @file Microphone capture: `MediaRecorder` in, a {@link Recording} plus its audio `Blob` out.
@@ -73,6 +75,8 @@ export type RecorderErrorCode =
   | "already-recording"
   /** `stop()` with nothing in flight. */
   | "not-recording"
+  /** Another tab holds the capture lock — recording is exclusive across tabs. */
+  | "capture-busy"
   /** Anything else the browser threw while setting up or running the capture. */
   | "capture-failed";
 
@@ -193,6 +197,19 @@ export interface RecorderOptions<C = EmptyContext> {
   readonly getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
   /** Seam for the recorder itself, for the same reason. */
   readonly createRecorder?: (stream: MediaStream, options: MediaRecorderOptions) => MediaRecorder;
+  /**
+   * Durable-capture session factory. When provided, `start()` opens a capture session (inserting a
+   * `recording` row) and starts `MediaRecorder` with a timeslice; each `dataavailable` is written as
+   * a chunk attachment. `stop()` finalises: merges, decode-verifies, and commits. When absent, the
+   * recorder works as before — non-durable, one blob at `stop()`.
+   */
+  readonly captureSession?: (opts: {
+    recording: Omit<Recording, "ctx"> & { ctx: C };
+    sourceId: string;
+    mimeType: string;
+  }) => Promise<CaptureSession>;
+  /** Timeslice for `MediaRecorder.start()` in durable mode. Defaults to 5000 ms. */
+  readonly timesliceMs?: number;
 }
 
 /** Everything that exists only for the duration of one capture. */
@@ -204,6 +221,8 @@ interface Session {
   readonly analyser: AnalyserNode | undefined;
   readonly samples: Uint8Array<ArrayBuffer> | undefined;
   readonly ticker: ReturnType<typeof setInterval>;
+  /** Set when recording durably — `dataavailable` is routed to `ingest` instead of `chunks`. */
+  captureSession?: CaptureSession;
 }
 
 /**
@@ -250,6 +269,14 @@ export class Recorder<C = EmptyContext> {
   readonly #createId: () => string;
   readonly #getUserMedia: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
   readonly #createRecorder: (stream: MediaStream, options: MediaRecorderOptions) => MediaRecorder;
+  readonly #captureSessionFactory:
+    | ((opts: {
+        recording: Recording;
+        sourceId: string;
+        mimeType: string;
+      }) => Promise<CaptureSession>)
+    | undefined;
+  readonly #timesliceMs: number;
 
   readonly #listeners = new Set<(state: RecorderState) => void>();
   #phase: RecorderPhase = "idle";
@@ -260,6 +287,8 @@ export class Recorder<C = EmptyContext> {
   #accumulatedMs = 0;
   /** `performance.now()` when the current run-segment began (start, or resume). */
   #resumedAt = 0;
+  /** Resolves the never-resolving promise that holds the capture lock. */
+  #releaseLock: (() => void) | undefined;
 
   constructor(options: RecorderOptions<C> = {}) {
     this.#ctx = options.ctx ?? ({} as C);
@@ -272,6 +301,17 @@ export class Recorder<C = EmptyContext> {
     this.#createRecorder =
       options.createRecorder ??
       ((stream, recorderOptions) => new MediaRecorder(stream, recorderOptions));
+    // Erase C → unknown in the stored factory so Recorder<C> stays covariant
+    // in C (C appears only in output positions). The cast is safe: a function
+    // accepting Recording (ctx: unknown) can accept Omit<Recording,"ctx"> & { ctx: C }.
+    this.#captureSessionFactory = options.captureSession as
+      | ((opts: {
+          recording: Recording;
+          sourceId: string;
+          mimeType: string;
+        }) => Promise<CaptureSession>)
+      | undefined;
+    this.#timesliceMs = options.timesliceMs ?? 5000;
   }
 
   get phase(): RecorderPhase {
@@ -306,6 +346,12 @@ export class Recorder<C = EmptyContext> {
     };
   }
 
+  /** The active capture session, if recording durably. Exposed so a host can
+   * register it with a coordinator for health reporting. */
+  get captureSession(): CaptureSession | undefined {
+    return this.#session?.captureSession;
+  }
+
   /**
    * Observes {@link RecorderState}.
    *
@@ -325,11 +371,12 @@ export class Recorder<C = EmptyContext> {
   /**
    * Opens the microphone and starts recording.
    *
-   * @throws {RecorderError} `already-recording`, `permission-denied`, `no-input-device`,
-   * `unsupported-mime-type` or `capture-failed`. On every failure the stream is released and the
-   * recorder is left idle, so a retry starts from a clean state.
+   * @returns The outbox item id when recording durably, or `undefined` in non-durable mode.
+   * @throws {RecorderError} `already-recording`, `capture-busy`, `permission-denied`,
+   * `no-input-device`, `unsupported-mime-type` or `capture-failed`. On every failure the stream is
+   * released, the lock is freed, and the recorder is left idle, so a retry starts from a clean state.
    */
-  async start(): Promise<void> {
+  async start(): Promise<string | undefined> {
     if (this.#phase !== "idle") {
       throw new RecorderError(
         "already-recording",
@@ -337,25 +384,79 @@ export class Recorder<C = EmptyContext> {
       );
     }
 
-    // Negotiate before touching the microphone: an unsupported-container failure should not light
-    // the recording indicator on the way to throwing.
-    const mimeType = negotiateMimeType(this.#mimeTypes);
-    const stream = await this.#openMicrophone();
+    // Acquire the capture lock BEFORE the microphone: a second tab must be told
+    // "capture is busy" before it lights the recording indicator. The lock is
+    // always taken — two tabs recording at once is wrong regardless of durability.
+    let releaseLock!: () => void;
+    const lockHeld = await holdLock(
+      CAPTURE_LOCK,
+      () =>
+        new Promise<void>((resolve) => {
+          releaseLock = resolve;
+        }),
+    );
+    if (lockHeld === undefined) {
+      throw new RecorderError("capture-busy", "Another tab is recording. Close it and try again.");
+    }
+    this.#releaseLock = releaseLock;
 
     try {
-      this.#session = this.#beginSession(stream, mimeType);
-    } catch (error) {
-      releaseStream(stream);
-      throw new RecorderError("capture-failed", "The MediaRecorder could not be started.", {
-        cause: error,
-      });
-    }
+      // Negotiate before touching the microphone: an unsupported-container failure should not
+      // light the recording indicator on the way to throwing.
+      const mimeType = negotiateMimeType(this.#mimeTypes);
+      const stream = await this.#openMicrophone();
 
-    this.#failure = undefined;
-    this.#accumulatedMs = 0;
-    this.#resumedAt = performance.now();
-    this.#phase = "recording";
-    this.#emit();
+      try {
+        this.#session = this.#beginSession(stream, mimeType);
+      } catch (error) {
+        releaseStream(stream);
+        throw new RecorderError("capture-failed", "The MediaRecorder could not be started.", {
+          cause: error,
+        });
+      }
+
+      this.#failure = undefined;
+      this.#accumulatedMs = 0;
+      this.#resumedAt = performance.now();
+      this.#phase = "recording";
+      this.#emit();
+
+      if (this.#captureSessionFactory) {
+        const recording = baseRecordingSchema.parse({
+          id: this.#createId(),
+          capturedAt: new Date().toISOString(),
+          durationMs: 0,
+          mimeType: this.#session.recorder.mimeType,
+          ctx: this.#ctx,
+        });
+        const captureSession = await this.#captureSessionFactory({
+          recording,
+          sourceId: recording.id,
+          mimeType: this.#session.recorder.mimeType,
+        });
+        this.#session.captureSession = captureSession;
+        this.#session.recorder.start(this.#timesliceMs);
+        return captureSession.itemId;
+      }
+
+      this.#session.recorder.start();
+      return undefined;
+    } catch (error) {
+      // Unwind: if a session was created, teardown aborts the capture session
+      // (removing any recording row) and releases the lock. If not, release the
+      // lock directly.
+      if (this.#session) {
+        this.#teardown(this.#session);
+      } else {
+        this.#releaseLock?.();
+        this.#releaseLock = undefined;
+      }
+      throw error instanceof RecorderError
+        ? error
+        : new RecorderError("capture-failed", "The capture could not be started.", {
+            cause: error,
+          });
+    }
   }
 
   /**
@@ -409,6 +510,9 @@ export class Recorder<C = EmptyContext> {
       );
     }
     session.recorder.resume();
+    // Tell the capture session this was a user-initiated resume, not a page
+    // restore — so the emission gap is not detected as a stall.
+    session.captureSession?.resumed();
     this.#resumedAt = performance.now();
     this.#phase = "recording";
     this.#emit();
@@ -419,6 +523,10 @@ export class Recorder<C = EmptyContext> {
    *
    * The returned `recording.mimeType` is what the live `MediaRecorder` reported, which is not
    * always what was requested — that is the whole point of reading it back.
+   *
+   * In durable mode, `stop()` finalises the capture session: the session merges its chunks,
+   * decode-verifies the audio, commits the row to `queued`, and returns the result. The returned
+   * `Capture` carries the final `durationMs` from the decode-verify step.
    *
    * @throws {RecorderError} `not-recording` if nothing is in flight, `capture-failed` if the
    * browser raised an error mid-capture (the recorder is `failed` by then, and `stop()` rethrows
@@ -446,6 +554,21 @@ export class Recorder<C = EmptyContext> {
     try {
       await stopRecorder(session.recorder);
       if (this.#failure !== undefined) throw this.#failure;
+
+      if (session.captureSession) {
+        // Durable path: finalize merges, decode-verifies, and commits.
+        const result = await session.captureSession.finalize();
+        const recording = baseRecordingSchema.parse({
+          id: this.#createId(),
+          capturedAt: new Date().toISOString(),
+          durationMs: result.durationMs,
+          mimeType,
+          ctx: this.#ctx,
+        });
+        return { recording: { ...recording, ctx: this.#ctx }, audio: result.audio };
+      }
+
+      // Non-durable path: assemble from in-memory chunks, as today.
       const audio = new Blob(session.chunks, { type: mimeType });
       const recording = baseRecordingSchema.parse({
         id: this.#createId(),
@@ -454,7 +577,6 @@ export class Recorder<C = EmptyContext> {
         mimeType,
         ctx: this.#ctx,
       });
-
       return { recording: { ...recording, ctx: this.#ctx }, audio };
     } finally {
       this.#teardown(session);
@@ -476,7 +598,16 @@ export class Recorder<C = EmptyContext> {
     const chunks: Blob[] = [];
 
     recorder.addEventListener("dataavailable", (event) => {
-      if (event.data.size > 0) chunks.push(event.data);
+      if (event.data.size > 0) {
+        // Routed to the capture session when recording durably (set after
+        // #beginSession returns, so the handler checks at event time), or to
+        // the in-memory chunks array when not.
+        if (this.#session?.captureSession) {
+          this.#session.captureSession.ingest(event.data);
+        } else {
+          chunks.push(event.data);
+        }
+      }
     });
     recorder.addEventListener("error", (event) => {
       // Bank the elapsed segment so elapsedMs freezes here, not at the next
@@ -496,7 +627,8 @@ export class Recorder<C = EmptyContext> {
       this.#phase = "failed";
       this.#emit();
     });
-    recorder.start();
+    // NOTE: recorder.start() is NOT called here — it is called from start()
+    // after the capture session is wired, with or without a timeslice.
 
     const meter = createLevelMeter(stream);
     const session: Session = {
@@ -520,6 +652,13 @@ export class Recorder<C = EmptyContext> {
   }
 
   #teardown(session: Session): void {
+    // If a capture session exists and finalize() was not called (failure path),
+    // abort it to remove the recording row.
+    session.captureSession?.abort();
+    // Release the capture lock — resolves the never-resolving promise that
+    // holdLock's callback is still holding.
+    this.#releaseLock?.();
+    this.#releaseLock = undefined;
     clearInterval(session.ticker);
     releaseStream(session.stream);
     void session.audioContext?.close().catch(() => undefined);

@@ -256,3 +256,45 @@ describe("workSafety — load-bearing rules", () => {
     });
   });
 });
+
+describe("workSafety — capture health", () => {
+  test("healthy recording is protected, with a reason that names the unflushed tail", () => {
+    // NOT at-risk. A warning that fires on every single recording is noise that
+    // teaches the user to ignore the one time it matters.
+    const result = workSafety(
+      { pending: 1, dead: 0, synced: 0, awaitingReview: 0 },
+      "granted",
+      "online",
+      "flushing",
+    );
+    expect(result).toMatchObject({ level: "protected", reason: "recording" });
+  });
+
+  test("a stalled capture is at-risk", () => {
+    const result = workSafety(
+      { pending: 1, dead: 0, synced: 0, awaitingReview: 0 },
+      "granted",
+      "online",
+      "stalled",
+    );
+    expect(result).toMatchObject({ level: "at-risk", reason: "capture-stalled" });
+  });
+
+  test("the existing precedence is unchanged — a dead item still outranks a stall", () => {
+    // action-required > at-risk > protected > safe, and `dead` is checked BEFORE
+    // capture health. The new reason slots INTO that order; it does not redefine it.
+    const result = workSafety(
+      { pending: 1, dead: 1, synced: 0, awaitingReview: 0 },
+      "denied",
+      "online",
+      "stalled",
+    );
+    expect(result).toMatchObject({ level: "action-required", reason: "failed-permanently" });
+  });
+
+  test("omitting capture health behaves exactly as today", () => {
+    expect(
+      workSafety({ pending: 1, dead: 0, synced: 0, awaitingReview: 0 }, "granted", "online"),
+    ).toMatchObject({ level: "protected", reason: "awaiting-sync" });
+  });
+});

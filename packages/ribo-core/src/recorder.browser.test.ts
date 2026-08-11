@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 import { baseRecordingSchema } from "./recording.js";
 import {
   DEFAULT_MIME_TYPE_PREFERENCES,
@@ -8,6 +9,15 @@ import {
   type RecorderPhase,
   type RecorderState,
 } from "./recorder.js";
+import {
+  CAPTURE_LOCK,
+  holdLock,
+  isLockFree,
+  openCaptureSession,
+  openOutbox,
+} from "./queue/index.js";
+import type { CaptureSession } from "./queue/index.js";
+import type { Recording } from "./recording.js";
 
 // Browser mode, not jsdom, and the filename says so: `*.browser.test.ts` is the
 // discovery contract in vitest.config.ts. Renaming this file to `*.test.ts`
@@ -42,6 +52,12 @@ afterEach(async () => {
       await recorder.stop().catch(() => undefined);
     }
   }
+  // The capture lock is released asynchronously (promise resolution → browser
+  // lock release), and a failed start() releases it from the catch block without
+  // going through stop()/teardown. One `await` in the test is not always enough
+  // for the browser to actually release it — a macrotask boundary guarantees
+  // the microtask queue has drained and the lock is free for the next test.
+  await new Promise((resolve) => setTimeout(resolve, 0));
 });
 
 /** Wait without fake timers — real `MediaRecorder` needs real time to pass. */
@@ -568,5 +584,103 @@ describe("Recorder mid-capture failure", () => {
     );
 
     await recorder.stop().catch(() => undefined);
+  });
+});
+
+describe("Recorder durable capture", () => {
+  test("start refuses when another tab holds the lock, WITHOUT prompting for the microphone", async () => {
+    // Refusing before the microphone matters: the recording indicator must not
+    // light on the way to throwing.
+    const getUserMedia = vi.fn();
+    let releaseLock!: () => void;
+    const held = await holdLock(
+      CAPTURE_LOCK,
+      () =>
+        new Promise<void>((resolve) => {
+          releaseLock = resolve;
+        }),
+    );
+    expect(held).toBeDefined();
+
+    const outbox = await openOutbox({
+      name: `t-${crypto.randomUUID()}`,
+      storage: getRxStorageMemory(),
+    });
+    const factory = ({
+      recording,
+      sourceId,
+      mimeType,
+    }: {
+      recording: Recording;
+      sourceId: string;
+      mimeType: string;
+    }): Promise<CaptureSession> => openCaptureSession({ outbox, recording, sourceId, mimeType });
+    const recorder = new Recorder({
+      getUserMedia,
+      captureSession: factory,
+    });
+
+    try {
+      await expect(recorder.start()).rejects.toThrow(/another tab|busy/i);
+      expect(getUserMedia).not.toHaveBeenCalled();
+    } finally {
+      // Release the lock even if the assertion fails, so later tests are not poisoned.
+      releaseLock();
+      await held!.released;
+      await outbox.close();
+    }
+  });
+
+  test("a failure after the row is created unwinds it and releases the lock", async () => {
+    // The factory creates the recording row (via openCaptureSession), then
+    // recorder.start(timeslice) throws — the catch in start() must teardown,
+    // which aborts the session (removing the row) and releases the lock.
+    const outbox = await openOutbox({
+      name: `t-${crypto.randomUUID()}`,
+      storage: getRxStorageMemory(),
+    });
+    const factory = ({
+      recording,
+      sourceId,
+      mimeType,
+    }: {
+      recording: Recording;
+      sourceId: string;
+      mimeType: string;
+    }): Promise<CaptureSession> => openCaptureSession({ outbox, recording, sourceId, mimeType });
+    const recorder = new Recorder({
+      captureSession: factory,
+      createRecorder: (stream: MediaStream, options: MediaRecorderOptions) => {
+        const r = new MediaRecorder(stream, options);
+        // Fail at recorder.start(timeslice) — AFTER the factory has created the row.
+        r.start = () => {
+          throw new DOMException("boom", "InvalidStateError");
+        };
+        return r;
+      },
+    });
+
+    await expect(recorder.start()).rejects.toThrow();
+    await vi.waitFor(async () => {
+      expect(await isLockFree(CAPTURE_LOCK)).toBe(true);
+    });
+    await vi.waitFor(async () => {
+      const rows = await outbox.list({ status: ["recording"] });
+      expect(rows).toHaveLength(0);
+    });
+    await outbox.close();
+  });
+
+  test("enqueue-free recording still takes the lock and still gets no durability", async () => {
+    const recorder = new Recorder({});
+    started.push(recorder);
+    const id = await recorder.start();
+    expect(id).toBeUndefined();
+    // Two tabs recording at once is wrong either way — the lock is held
+    // regardless of whether durable capture is configured.
+    expect(await isLockFree(CAPTURE_LOCK)).toBe(false);
+    await recorder.stop();
+    // stop() releases the lock.
+    expect(await isLockFree(CAPTURE_LOCK)).toBe(true);
   });
 });
