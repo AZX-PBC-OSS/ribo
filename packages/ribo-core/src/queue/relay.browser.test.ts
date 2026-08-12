@@ -150,6 +150,7 @@ function buildRelay(
     maxAttempts?: number;
     random?: () => number;
     dropAudioAfterTranscription?: boolean;
+    locks?: LockManager;
   } = {},
 ): Harness {
   const transcriber: Transcriber =
@@ -188,6 +189,7 @@ function buildRelay(
     capMs: 60_000,
     maxAttempts: overrides.maxAttempts,
     dropAudioAfterTranscription: overrides.dropAudioAfterTranscription,
+    locks: overrides.locks,
   });
 
   return { outbox, relay, transcriber, extractCalls, writeCalls };
@@ -1431,4 +1433,158 @@ test("a step that never settles fails the attempt instead of stalling the queue"
   expect(behind?.status).not.toBe("queued");
 
   await outbox.close();
+});
+
+// ---------------------------------------------------------------------------
+// Two tabs, one queue
+// ---------------------------------------------------------------------------
+
+test("two relays over one outbox run each step ONCE, not twice", async () => {
+  // `nextPending()` selects on status alone, and `ACTIVE_OUTBOX_STATUSES` deliberately includes the
+  // in-flight statuses so a step interrupted by a dead tab resumes rather than stranding. The
+  // consequence, before the per-item claim, was not a narrow race: a second tab selected work the
+  // first was actively performing, in the steady state, and both ran it. Two transcriptions, two
+  // extractions, and — past the review gate — two writes into someone's audit.
+  const outbox = await openTestOutbox(uniqueName());
+
+  // Both relays share these, so the assertion is about total work done across tabs rather than about
+  // either tab's own bookkeeping.
+  const extractCalls: string[] = [];
+  let inFlight = 0;
+  let maxConcurrent = 0;
+
+  // Wraps `FakeTranscriber` rather than hand-rolling a Transcript: `transcriptSchema` is a
+  // `z.strictObject`, so an extra key fails validation, the step errors, and the drain stops with
+  // nothing extracted — which looks exactly like the locking working. It cost one debugging round.
+  const inner = new FakeTranscriber({ text: "the attic is R-19" });
+  const slowTranscriber: Transcriber = {
+    engine: inner.engine,
+    capability: async () => ({ status: "ready" }) as const,
+    // Slow on purpose: with an instant transcriber the first relay finishes before the second even
+    // selects, and the test would pass against no locking at all.
+    transcribe: async (recording, audio) => {
+      inFlight += 1;
+      maxConcurrent = Math.max(maxConcurrent, inFlight);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        return await inner.transcribe(recording, audio);
+      } finally {
+        inFlight -= 1;
+      }
+    },
+  };
+
+  const extract: ExtractStep = async ({ transcript }) => {
+    extractCalls.push(transcript.text);
+    return { atticInsulation: transcript.text };
+  };
+
+  const a = buildRelay(outbox, { transcriber: slowTranscriber, extract });
+  const b = buildRelay(outbox, { transcriber: slowTranscriber, extract });
+
+  await outbox.enqueue({
+    recording: {
+      id: "rec-claim",
+      capturedAt: new Date(clock.now()).toISOString(),
+      durationMs: 1000,
+      mimeType: "audio/webm",
+      ctx: {},
+    },
+    audio: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" }),
+  });
+
+  // Both tabs drain at once, which is exactly what two open tabs on the stably-online edge do.
+  await Promise.all([a.relay.syncNow(), b.relay.syncNow()]);
+
+  // The load-bearing assertion. Extraction is the cheapest observable "this step ran" — the write is
+  // behind the review gate, and transcription alone would not prove the *pipeline* only advanced once.
+  expect(extractCalls).toHaveLength(1);
+  // And nothing ever overlapped: a claim that merely deduplicated afterwards would still have burned
+  // two Whisper passes on one phone.
+  expect(maxConcurrent).toBe(1);
+});
+
+test("a relay that acquires the lock AFTER another finished does not re-run the step", async () => {
+  // The lock stops two tabs working at once. It does NOT stop the second tab acting on the copy it
+  // read *before* it got in — and that copy still says `queued` while the row has moved on. Without
+  // re-reading inside the lock, the handoff moment re-runs a step that already happened, which is the
+  // same duplicate write the lock exists to prevent, narrowed to a smaller window.
+  //
+  // Verified by mutation: deleting the re-read leaves the concurrent test above GREEN, because there
+  // the loser never gets in at all. This is the case that catches it.
+  const outbox = await openTestOutbox(uniqueName());
+  const extractCalls: string[] = [];
+  const extract: ExtractStep = async ({ transcript }) => {
+    extractCalls.push(transcript.text);
+    return { atticInsulation: transcript.text };
+  };
+
+  // Holds the second relay at the door until the first is completely finished, then lets it in. A
+  // real `ifAvailable` lock produces this same ordering whenever the winner releases between the
+  // loser's select and its request; the fake makes it deterministic instead of a timing accident.
+  let openGate!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    openGate = resolve;
+  });
+  // Signals that the second relay has SELECTED its item and is now at the door. Without this the test
+  // races its own setup: `nextPending()` is an IndexedDB query, one macrotask does not reliably cover
+  // it, and if the first relay finishes before the second selects, the second selects nothing and the
+  // test passes without ever holding a stale copy — which is the thing it exists to test.
+  let reachedLock!: () => void;
+  const atLock = new Promise<void>((resolve) => {
+    reachedLock = resolve;
+  });
+  const gatedLocks = {
+    request: async (_name: string, _options: unknown, callback: (lock: unknown) => unknown) => {
+      reachedLock();
+      await gate;
+      return await callback({ name: _name, mode: "exclusive" });
+    },
+  } as unknown as LockManager;
+
+  const first = buildRelay(outbox, { extract });
+  const second = buildRelay(outbox, { extract, locks: gatedLocks });
+
+  await outbox.enqueue({
+    recording: {
+      id: "rec-handoff",
+      capturedAt: new Date(clock.now()).toISOString(),
+      durationMs: 1000,
+      mimeType: "audio/webm",
+      ctx: {},
+    },
+    audio: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" }),
+  });
+
+  // The second relay selects the item, then blocks at the lock holding a `queued` copy.
+  const [seeded] = await outbox.list({});
+  const id = seeded!.id;
+
+  const blocked = second.relay.syncNow();
+  await atLock;
+
+  // The first relay takes it all the way to `awaiting-review`.
+  await first.relay.syncNow();
+  expect(extractCalls).toHaveLength(1);
+
+  const parked = await outbox.get(id);
+  expect(parked?.status).toBe("awaiting-review");
+
+  // Now let the loser in. Its `item` still says `queued`; storage says otherwise.
+  openGate();
+  await blocked;
+
+  // **The item is still parked for review.** This, not the extract count, is what the re-read
+  // protects. Acting on the stale copy makes the loser re-transcribe (a wasted Whisper pass on a
+  // phone), and its next drain iteration then reads the REAL item — already extracted — computes
+  // `write`, and hits `TerminalQueueError: reached the write step with no review outcome`. That kills
+  // a finished recording: `awaiting-review` becomes `dead`, and the human who was about to review it
+  // never sees it.
+  //
+  // Measured, not reasoned: with the re-read deleted this assertion reads `dead`. `extractCalls` does
+  // NOT move, because the drain's second iteration re-reads through `nextPending()` on its own — which
+  // is why the obvious assertion here passes against the bug.
+  const after = await outbox.get(id);
+  expect(after?.status).toBe("awaiting-review");
+  expect(extractCalls).toHaveLength(1);
 });

@@ -1,5 +1,5 @@
 /**
- * @file Cross-tab exclusion for capture, on the Web Locks API.
+ * @file Cross-tab exclusion on the Web Locks API — for capture, and for relay items.
  *
  * Baseline Widely Available since 2024-09-14, comfortably inside this project's
  * browser floor.
@@ -11,6 +11,23 @@
  * question stops mattering.
  */
 export const CAPTURE_LOCK = "ribo-capture";
+
+/**
+ * The lock a relay holds while working one outbox item.
+ *
+ * Per item, not one global relay lock: two tabs draining *different* items concurrently is fine and
+ * desirable, and a single lock would serialise the whole queue behind whichever tab happened to start.
+ *
+ * **Web Locks rather than a lease field, and the reason is crash resume.** `ACTIVE_OUTBOX_STATUSES`
+ * deliberately includes the in-flight statuses (`transcribing`, `extracting`, `writing`) so that a step
+ * interrupted by a dead tab is picked up again rather than stranded. A lease would have to express
+ * that with an expiry — which means a tuned timeout, and a wrong guess either strands work or lets two
+ * tabs run the same step. A Web Lock is released by the browser when its holding context dies, so
+ * "the tab that owned this is gone" and "the lock is free" are the same event, with no clock involved.
+ */
+export function relayItemLock(id: string): string {
+  return `ribo-relay-item:${id}`;
+}
 
 export interface HeldLock<T> {
   /** Resolves when `run` finishes — NOT when the lock is released. */

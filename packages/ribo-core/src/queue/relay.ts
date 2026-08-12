@@ -7,7 +7,9 @@ import {
   TerminalQueueError,
   type BackoffOptions,
 } from "./backoff.js";
+import { holdLock, relayItemLock } from "./capture-lock.js";
 import type { Outbox } from "./outbox.js";
+import { isActiveStatus } from "./schema.js";
 import type { OutboxItem, OutboxPatch } from "./schema.js";
 import type { ConnectivityState, ConnectivityStatus, Unsubscribe } from "../connectivity.js";
 
@@ -74,6 +76,11 @@ export interface RelayOptions extends BackoffOptions {
   transcriber: Transcriber;
   extract: ExtractStep;
   write: WriteStep;
+  /**
+   * Injectable Web Locks manager. Defaults to `navigator.locks`. Present so a test can drive
+   * contention deterministically rather than depending on real cross-context timing.
+   */
+  locks?: LockManager;
   /** Injectable clock in epoch milliseconds. Defaults to `Date.now`. */
   now?: () => number;
   /**
@@ -356,8 +363,35 @@ class QueueRelay implements Relay {
       const item = await this.#options.outbox.nextPending();
       if (!item) return;
       if (Date.parse(item.nextAttemptAt) > this.#now()) return;
-      const progressed = await this.#processStep(item);
-      if (!progressed) return;
+
+      // **Claim the item before touching it.** `nextPending()` selects on status alone, and
+      // `ACTIVE_OUTBOX_STATUSES` includes the in-flight ones — so without this, a second tab does not
+      // merely *race* for the head item, it selects work another tab is actively performing, in the
+      // steady state. Two tabs then transcribe the same recording, extract it twice, and write it to
+      // the external tool twice. Duplicate rows in someone's audit is the only failure in this queue
+      // that escapes the device.
+      const held = await holdLock(
+        relayItemLock(item.id),
+        async () => {
+          // Re-read INSIDE the lock, because the item that was selected is not necessarily the item
+          // we now own. Whoever held this lock immediately before us may have advanced it to `done`,
+          // parked it behind a fresh backoff, or moved it to `awaiting-review`. Acting on the copy
+          // read outside the lock would re-run a step that has already happened — the exact
+          // duplicate-write the lock exists to prevent, merely narrowed to the handoff moment.
+          const fresh = await this.#options.outbox.get(item.id);
+          if (!fresh) return false;
+          if (!isActiveStatus(fresh.status)) return false;
+          if (Date.parse(fresh.nextAttemptAt) > this.#now()) return false;
+          return await this.#processStep(fresh);
+        },
+        this.#options.locks ?? navigator.locks,
+      );
+
+      // `ifAvailable`, so this is "another tab owns that item", not "the lock timed out". Stopping the
+      // whole drain rather than skipping ahead keeps capture order — doc 09's requirement — and for
+      // one auditor with one device the throughput this gives up is not real.
+      if (held === undefined) return;
+      if (!(await held.ready)) return;
     }
   }
 
