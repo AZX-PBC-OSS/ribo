@@ -1,0 +1,967 @@
+/* Extraction accuracy report — see docs/roadmap/design/accuracy-report-visual-design.md.
+   Inlined into the generated docs/deep-dives/accuracy.md by generate-accuracy-page.mjs.
+
+   Leak rules, all deliberate:
+     1. Every rule starts with `.ar`. No bare element selectors.
+     2. Selectors that fight VitePress include the element name: `.vp-doc table` is 0-1-1,
+        `.ar table.ar-grid` is 0-2-1 and wins regardless of stylesheet order.
+     3. No `!important` anywhere. If a rule needs it, the selector is wrong.
+     4. Every custom property is `--ar-` prefixed, defined only on :root / html.dark.
+     5. No @font-face, no url(), no @import. Type is inherited from the theme. */
+
+:root {
+  --ar-bg: var(--vp-c-bg);
+  --ar-text: var(--vp-c-text-1);
+  --ar-text-2: var(--vp-c-text-2);
+  --ar-rule: var(--vp-c-divider);
+  --ar-brand: var(--vp-c-brand-1);
+
+  --ar-fault-fill: var(--vp-c-red-soft);
+  --ar-fault-ink: var(--vp-c-red-1);
+  --ar-fault-edge: var(--vp-c-red-2);
+  --ar-short-fill: var(--vp-c-yellow-soft);
+  --ar-short-ink: var(--vp-c-yellow-1);
+  --ar-short-edge: var(--vp-c-yellow-2);
+
+  --ar-ink: #3c4148;
+  --ar-ink-soft: #6a7076;
+
+  --ar-grid-line: color-mix(in srgb, var(--vp-c-divider) 60%, transparent);
+  --ar-zero: color-mix(in srgb, var(--vp-c-text-3) 55%, transparent);
+
+  --ar-cell: 20px;
+  --ar-label: 17rem;
+}
+html.dark {
+  --ar-ink: #c3c8ce;
+  --ar-ink-soft: #8b9198;
+}
+
+.ar {
+  max-width: 100%;
+  color: var(--ar-text);
+  font-variant-numeric: tabular-nums;
+}
+.ar * {
+  min-width: 0;
+}
+.ar .ar-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.ar .ar-h {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 2.75rem 0 0.25rem;
+  letter-spacing: 0.01em;
+}
+.ar .ar-sub {
+  font-size: 0.8125rem;
+  color: var(--ar-text-2);
+  margin: 0.25rem 0 1rem;
+  max-width: 62ch;
+  text-wrap: pretty;
+}
+.ar .ar-n {
+  color: var(--ar-text-2);
+  font-size: 0.8125rem;
+}
+.ar .ar-dfn {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--ar-text);
+}
+.ar a {
+  color: var(--ar-brand);
+  text-decoration: none;
+}
+.ar a:hover {
+  text-decoration: underline;
+}
+.ar a:focus-visible,
+.ar button:focus-visible,
+.ar .ar-filter-in:focus-visible + .ar-filter-opt {
+  outline: 2px solid var(--ar-brand);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ---- 1 intro ------------------------------------------------------------ */
+.ar .ar-intro {
+  border-top: 2px solid var(--ar-text);
+  padding-top: 0.875rem;
+}
+.ar .ar-kicker {
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ar-text-2);
+  margin: 0;
+}
+.ar .ar-title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0.25rem 0 0;
+  max-width: 34ch;
+}
+.ar .ar-lede {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  margin: 0.75rem 0 0;
+  max-width: 62ch;
+  text-wrap: pretty;
+}
+
+/* ---- 2 worked example --------------------------------------------------- */
+.ar .ar-eg-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 1px;
+  background: var(--ar-rule);
+  border: 1px solid var(--ar-rule);
+}
+.ar .ar-eg {
+  background: var(--ar-bg);
+  padding: 0.75rem 0.875rem;
+  display: grid;
+  gap: 0.3125rem;
+}
+.ar .ar-eg p {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+.ar .ar-eg-lbl {
+  display: inline-block;
+  min-width: 8.5rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ar-text-2);
+}
+.ar .ar-eg-said q {
+  color: var(--ar-text);
+}
+.ar .ar-eg-field {
+  font-weight: 600;
+  margin-right: 0.375rem;
+}
+.ar .ar-eg-note {
+  color: var(--ar-text-2);
+  font-style: italic;
+}
+.ar .ar-eg-verdict {
+  border-top: 1px dotted var(--ar-rule);
+  padding-top: 0.375rem;
+  color: var(--ar-text-2);
+}
+.ar .ar-eg-verdict b {
+  color: var(--ar-text);
+}
+.ar .ar-eg-swatch {
+  display: inline-block;
+  vertical-align: -0.2em;
+  margin-right: 0.375rem;
+  border: 1px solid var(--ar-grid-line);
+}
+
+/* ---- 3 finding --------------------------------------------------------- */
+.ar .ar-claims {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: 1.25rem;
+}
+.ar .ar-claim {
+  padding-left: 0.875rem;
+  border-left: 3px solid var(--ar-rule);
+}
+.ar .ar-claim-fault {
+  border-left-color: var(--ar-fault-ink);
+}
+.ar .ar-claim-short {
+  border-left-color: var(--ar-short-ink);
+}
+.ar .ar-claim-n {
+  font-size: 2.75rem;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+.ar .ar-claim-t {
+  font-size: 1rem;
+  line-height: 1.35;
+  margin: 0.25rem 0 0;
+  max-width: 30ch;
+  text-wrap: pretty;
+}
+.ar .ar-claim-d {
+  font-size: 0.8125rem;
+  color: var(--ar-text-2);
+  margin: 0.4375rem 0 0;
+  max-width: 44ch;
+  text-wrap: pretty;
+}
+.ar .ar-caveat {
+  margin: 1.25rem 0 0;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--ar-rule);
+  font-size: 0.8125rem;
+  color: var(--ar-text-2);
+  max-width: 64ch;
+  text-wrap: pretty;
+}
+.ar .ar-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.125rem 0.75rem;
+  margin: 1.25rem 0 0;
+  font-size: 0.75rem;
+}
+.ar .ar-meta dt {
+  color: var(--ar-text-2);
+}
+.ar .ar-meta dd {
+  margin: 0;
+}
+
+/* ---- 4 rates ----------------------------------------------------------- */
+.ar .ar-rates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1px;
+  background: var(--ar-rule);
+  border: 1px solid var(--ar-rule);
+}
+.ar .ar-card {
+  background: var(--ar-bg);
+  padding: 0.875rem 1rem 1rem;
+}
+.ar .ar-card .ar-k {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ar-text-2);
+  margin: 0;
+}
+.ar .ar-v {
+  font-size: 2.25rem;
+  line-height: 1.05;
+  font-weight: 500;
+  margin: 0.25rem 0 0;
+  letter-spacing: -0.02em;
+}
+.ar .ar-v .ar-u {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--ar-text-2);
+  margin-left: 0.0625rem;
+}
+.ar .ar-d {
+  font-size: 0.75rem;
+  color: var(--ar-text-2);
+  margin: 0.1875rem 0 0;
+}
+.ar .ar-def {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--ar-text-2);
+  margin: 0.5rem 0 0;
+  text-wrap: pretty;
+}
+
+/* history line — the v1 sparkline is gone below n=3 */
+.ar .ar-hist {
+  font-size: 0.6875rem;
+  color: var(--ar-text-2);
+  margin: 0.75rem 0 0;
+  padding-top: 0.4375rem;
+  border-top: 1px solid var(--ar-rule);
+}
+.ar .ar-hist-none {
+  font-style: italic;
+}
+.ar .ar-spark {
+  display: block;
+  overflow: visible;
+  color: var(--ar-text-2);
+  margin: 0.5rem 0 0.1875rem;
+}
+.ar .ar-spark-base {
+  stroke: var(--ar-rule);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+.ar .ar-spark-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.ar .ar-spark-dot {
+  fill: currentColor;
+}
+.ar .ar-spark-dot-past {
+  fill: var(--ar-rule);
+}
+
+/* ---- 5 gates ----------------------------------------------------------- */
+.ar .ar-gate-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: 1px;
+  background: var(--ar-rule);
+  border: 1px solid var(--ar-rule);
+}
+.ar .ar-gate {
+  background: var(--ar-bg);
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  column-gap: 0.625rem;
+  padding: 0.4375rem 0.625rem 0.4375rem 0.875rem;
+  font-size: 0.8125rem;
+}
+.ar .ar-gate-n {
+  font-family: var(--vp-font-family-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+}
+.ar .ar-gate-p {
+  grid-column: 1;
+  font-size: 0.75rem;
+  color: var(--ar-text-2);
+  text-wrap: pretty;
+}
+.ar .ar-gate-c {
+  grid-row: 1;
+  font-weight: 600;
+}
+.ar .ar-gate-s {
+  grid-row: 1;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ar .ar-gate.is-clear {
+  box-shadow: inset 0.1875rem 0 0 var(--ar-rule);
+}
+.ar .ar-gate.is-clear .ar-gate-c {
+  color: var(--ar-zero);
+  font-weight: 400;
+}
+.ar .ar-gate.is-clear .ar-gate-s {
+  color: var(--ar-text-2);
+}
+.ar .ar-gate.is-tripped {
+  background: var(--ar-fault-fill);
+  box-shadow: inset 0.1875rem 0 0 var(--ar-fault-ink);
+}
+.ar .ar-gate.is-tripped .ar-gate-c,
+.ar .ar-gate.is-tripped .ar-gate-s {
+  color: var(--ar-fault-ink);
+  font-weight: 700;
+}
+.ar .ar-shape {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-width: 26rem;
+}
+.ar .ar-shape li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3125rem 0;
+  border-bottom: 1px solid var(--ar-rule);
+  font-size: 0.8125rem;
+}
+.ar .ar-shape-c {
+  font-weight: 600;
+}
+.ar .ar-shape .ar-is-zero {
+  color: var(--ar-zero);
+  font-weight: 400;
+}
+.ar .ar-shape .ar-na .ar-shape-c {
+  color: var(--ar-text-2);
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* ---- 6 legend ---------------------------------------------------------- */
+.ar .ar-legend-list {
+  margin: 0;
+}
+.ar .ar-legend-row {
+  display: grid;
+  grid-template-columns: var(--ar-cell) 1fr;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--ar-rule);
+}
+.ar .ar-legend-row dt {
+  padding-top: 0.1875rem;
+}
+.ar .ar-legend-row dd {
+  margin: 0;
+  font-size: 0.8125rem;
+  display: grid;
+  gap: 0.1875rem;
+}
+.ar .ar-legend-row dt .ar-c {
+  display: block;
+  border: 1px solid var(--ar-grid-line);
+}
+.ar .ar-legend-note {
+  color: var(--ar-text-2);
+  max-width: 58ch;
+  text-wrap: pretty;
+}
+.ar .ar-legend-v {
+  font-family: var(--vp-font-family-mono, ui-monospace, monospace);
+  font-size: 0.625rem;
+  color: var(--ar-text-2);
+}
+
+/* ---- 7 filter (CSS only) ----------------------------------------------- */
+.ar .ar-filter {
+  border: 0;
+  padding: 0;
+  margin: 0 0 0.625rem;
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+.ar .ar-filter-opt {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.625rem;
+  cursor: pointer;
+  border: 1px solid var(--ar-rule);
+  border-radius: 2px;
+  color: var(--ar-text-2);
+}
+.ar .ar-filter-opt:hover {
+  color: var(--ar-text);
+  border-color: var(--ar-text-2);
+}
+.ar .ar-filter-in:checked + .ar-filter-opt {
+  color: var(--ar-brand);
+  border-color: var(--ar-brand);
+  box-shadow: inset 0 -2px 0 var(--ar-brand);
+}
+.ar:has(#ar-view-flag:checked) table.ar-grid tr.ar-row:not(.ar-row-flag) {
+  display: none;
+}
+.ar:has(#ar-view-flag:checked) table.ar-grid tbody.ar-group:not(:has(.ar-row-flag)) {
+  display: none;
+}
+
+/* ---- 7 grid ------------------------------------------------------------ */
+.ar .ar-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  max-width: 100%;
+  border: 1px solid var(--ar-rule);
+}
+.ar .ar-scroll:focus-visible {
+  outline: 2px solid var(--ar-brand);
+  outline-offset: -2px;
+}
+.ar table.ar-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0;
+  width: auto;
+  min-width: 100%;
+  display: table;
+  font-size: 0.6875rem;
+  background: var(--ar-bg);
+}
+.ar table.ar-grid caption {
+  caption-side: top;
+}
+.ar table.ar-grid th,
+.ar table.ar-grid td {
+  border: 0;
+  padding: 0;
+  font-weight: 400;
+}
+/* Kill VitePress's zebra striping on the ROW, not the cell. Putting
+   `background: none` on `td` here was a real bug: that selector is (0,2,1) and
+   outranked every cell-state rule below at (0,2,0), so `.ar-fault` and
+   `.ar-short` lost their fill and texture and rendered as hollow outlines —
+   while the same classes on a legend <span>, which no table selector touches,
+   looked correct. A reset that silently outranks the states it sits above is
+   worse than no reset. Striping is a `tr` background anyway, which a
+   transparent `td` would never have hidden. */
+.ar table.ar-grid tr {
+  background: none;
+}
+
+.ar table.ar-grid .ar-corner,
+.ar table.ar-grid .ar-rh {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--ar-bg);
+  width: var(--ar-label);
+  min-width: var(--ar-label);
+  max-width: var(--ar-label);
+  text-align: left;
+  padding: 0.25rem 0.625rem;
+  border-right: 1px solid var(--ar-rule);
+  border-bottom: 1px solid var(--ar-grid-line);
+}
+.ar table.ar-grid .ar-rh-en {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--ar-text);
+  line-height: 1.25;
+}
+.ar table.ar-grid .ar-rh-id {
+  display: block;
+  font-size: 0.625rem;
+  color: var(--ar-text-2);
+  background: none;
+  padding: 0;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ar table.ar-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--ar-bg);
+  border-bottom: 1px solid var(--ar-rule);
+  height: 2.25rem;
+  vertical-align: bottom;
+  color: var(--ar-text-2);
+}
+.ar table.ar-grid .ar-corner {
+  z-index: 4;
+  vertical-align: bottom;
+}
+.ar table.ar-grid .ar-ch {
+  width: var(--ar-cell);
+  min-width: var(--ar-cell);
+  text-align: center;
+}
+.ar table.ar-grid .ar-ch span {
+  display: block;
+  padding-bottom: 0.25rem;
+}
+.ar table.ar-grid .ar-ch-hot span {
+  color: var(--ar-text);
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 var(--ar-short-ink);
+}
+.ar table.ar-grid .ar-mh {
+  width: 3rem;
+  text-align: right;
+  padding: 0 0.375rem 0.25rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+}
+.ar table.ar-grid .ar-gh {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--ar-bg);
+  text-align: left;
+  padding: 0.875rem 0.625rem 0.1875rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ar-text-2);
+  border-bottom: 1px solid var(--ar-rule);
+}
+
+.ar table.ar-grid td.ar-c,
+.ar .ar-c {
+  width: var(--ar-cell);
+  height: var(--ar-cell);
+  box-sizing: border-box;
+  position: relative;
+  padding: 0;
+  border-right: 1px solid var(--ar-grid-line);
+  border-bottom: 1px solid var(--ar-grid-line);
+}
+.ar .ar-c a {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.ar .ar-c a:focus-visible {
+  outline: 2px solid var(--ar-brand);
+  outline-offset: 1px;
+}
+.ar .ar-absent {
+  background: none;
+}
+.ar .ar-captured::before {
+  content: "";
+  position: absolute;
+  inset: 30%;
+  background: var(--ar-ink);
+}
+.ar .ar-excused::before {
+  content: "";
+  position: absolute;
+  inset: 18%;
+  border: 1.5px dotted var(--ar-ink-soft);
+  border-radius: 50%;
+}
+/* shortfall — full fill + 45deg stripes.
+   background-color is set SEPARATELY, never as a third comma-separated layer of
+   the `background` shorthand: a colour is not a layer, so `background: <img>,
+   <img>, <color>` is invalid and the browser drops the WHOLE declaration —
+   losing the fill and the texture, leaving only the box-shadow. That failure is
+   silent and looks like a design choice. Same applies to .ar-fault below. */
+.ar .ar-short {
+  background-color: var(--ar-short-fill);
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--ar-short-ink) 0 1px,
+    transparent 1px 3px
+  );
+  box-shadow: inset 0 0 0 1px var(--ar-short-edge);
+}
+/* fault — full fill + drawn cross + perimeter */
+.ar .ar-fault {
+  background-color: var(--ar-fault-fill);
+  background-image:
+    linear-gradient(
+      to bottom right,
+      transparent calc(50% - 0.8px),
+      var(--ar-fault-ink) calc(50% - 0.8px) calc(50% + 0.8px),
+      transparent calc(50% + 0.8px)
+    ),
+    linear-gradient(
+      to bottom left,
+      transparent calc(50% - 0.8px),
+      var(--ar-fault-ink) calc(50% - 0.8px) calc(50% + 0.8px),
+      transparent calc(50% + 0.8px)
+    );
+  box-shadow: inset 0 0 0 1px var(--ar-fault-edge);
+}
+/* JS-selected cell — a ring, not a colour change */
+.ar .ar-c.is-sel::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border: 2px solid var(--ar-brand);
+  pointer-events: none;
+}
+
+.ar table.ar-grid .ar-m {
+  text-align: right;
+  padding: 0 0.375rem;
+  color: var(--ar-ink-soft);
+  border-bottom: 1px solid var(--ar-grid-line);
+  white-space: nowrap;
+}
+.ar table.ar-grid .ar-m-hot {
+  color: var(--ar-text);
+  font-weight: 600;
+}
+.ar table.ar-grid .ar-m-none {
+  color: var(--ar-zero);
+}
+.ar table.ar-grid tfoot .ar-m,
+.ar table.ar-grid tfoot .ar-foot {
+  border-top: 1px solid var(--ar-rule);
+  border-bottom: 0;
+  padding-top: 0.3125rem;
+}
+.ar table.ar-grid tfoot .ar-foot {
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ar-text-2);
+}
+
+/* ---- 7 inspector ------------------------------------------------------- */
+.ar .ar-inspect {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background: var(--ar-bg);
+  border: 1px solid var(--ar-rule);
+  border-top-width: 3px;
+  border-top-color: var(--ar-brand);
+  margin-top: -1px;
+}
+.ar .ar-inspect[hidden] {
+  display: none;
+}
+.ar .ar-inspect-head {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.4375rem 0.75rem;
+  border-bottom: 1px solid var(--ar-rule);
+}
+/* Flex, matching the <summary> this content is cloned FROM. The clone carries
+   `.ar-p-t { margin-left: auto }`, which does nothing outside a flex container — so in a
+   plain block the field name and the transcript slug rendered flush against each other
+   ("Type of home03-quick-exterior-short"). Cloned markup inherits none of its source's
+   layout; the destination has to provide the same one. */
+.ar .ar-inspect-t {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.ar .ar-inspect-t .ar-p-v {
+  font-weight: 700;
+}
+.ar .ar-inspect-x {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--ar-rule);
+  border-radius: 2px;
+  color: var(--ar-text-2);
+  font-size: 0.6875rem;
+  padding: 0.125rem 0.5rem;
+  cursor: pointer;
+}
+.ar .ar-inspect-x:hover {
+  color: var(--ar-text);
+  border-color: var(--ar-text-2);
+}
+.ar .ar-inspect-body .ar-p-body {
+  border-top: 0;
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+.ar .ar-inspect-hint {
+  margin-top: 0.5rem;
+}
+
+/* ---- 8 problems -------------------------------------------------------- */
+.ar .ar-bh {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 1.75rem 0 0.5rem;
+}
+.ar .ar-bh-fault {
+  color: var(--ar-fault-ink);
+}
+.ar .ar-bh-short {
+  color: var(--ar-short-ink);
+}
+.ar .ar-bh-exc {
+  color: var(--ar-text-2);
+}
+.ar details.ar-p {
+  border: 1px solid var(--ar-rule);
+  border-left-width: 3px;
+  margin: 0 0 1px;
+  background: var(--ar-bg);
+}
+.ar details.ar-p-fault {
+  border-left-color: var(--ar-fault-ink);
+}
+.ar details.ar-p-short {
+  border-left-color: var(--ar-short-ink);
+}
+.ar details.ar-p-exc {
+  border-left-color: var(--ar-ink-soft);
+  border-left-style: dotted;
+}
+.ar details.ar-p > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.4375rem 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+.ar details.ar-p > summary::-webkit-details-marker {
+  display: none;
+}
+.ar details.ar-p > summary::before {
+  content: "+";
+  color: var(--ar-text-2);
+  width: 0.75rem;
+}
+.ar details.ar-p[open] > summary::before {
+  content: "\2212";
+}
+.ar details.ar-p > summary:hover {
+  background: color-mix(in srgb, var(--ar-text) 4%, transparent);
+}
+.ar details.ar-p > summary:focus-visible {
+  outline: 2px solid var(--ar-brand);
+  outline-offset: -2px;
+}
+.ar details.ar-p.is-cited {
+  box-shadow: inset 0 0 0 2px var(--ar-brand);
+}
+.ar .ar-p-v {
+  font-family: var(--vp-font-family-mono, ui-monospace, monospace);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.ar .ar-p-fault .ar-p-v {
+  color: var(--ar-fault-ink);
+}
+.ar .ar-p-short .ar-p-v {
+  color: var(--ar-short-ink);
+}
+.ar .ar-p-exc .ar-p-v {
+  color: var(--ar-text-2);
+}
+.ar .ar-p-leaf {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.ar .ar-p-t {
+  font-size: 0.6875rem;
+  color: var(--ar-text-2);
+  margin-left: auto;
+  font-family: var(--vp-font-family-mono, ui-monospace, monospace);
+}
+.ar .ar-p-body {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr;
+  gap: 0.1875rem 0.75rem;
+  margin: 0;
+  padding: 0.3125rem 0.75rem 0.75rem 1.5rem;
+  font-size: 0.8125rem;
+  border-top: 1px solid var(--ar-rule);
+}
+.ar .ar-p-body dt {
+  color: var(--ar-text-2);
+  font-size: 0.75rem;
+  padding-top: 0.0625rem;
+}
+.ar .ar-p-body dd {
+  margin: 0;
+  text-wrap: pretty;
+}
+.ar .ar-p-body dd code {
+  font-size: 0.75rem;
+}
+.ar .ar-p-body .ar-p-null {
+  color: var(--ar-text-2);
+  font-style: italic;
+}
+.ar .ar-p-body q {
+  color: var(--ar-text-2);
+}
+
+/* ---- 9 method ---------------------------------------------------------- */
+.ar .ar-method-list {
+  display: grid;
+  grid-template-columns: 14rem 1fr;
+  gap: 0.4375rem 0.75rem;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+.ar .ar-method-list dt {
+  color: var(--ar-text-2);
+  text-wrap: pretty;
+}
+.ar .ar-method-list dd {
+  margin: 0;
+  max-width: 64ch;
+  text-wrap: pretty;
+}
+
+/* ---- narrow ------------------------------------------------------------ */
+@media (max-width: 560px) {
+  .ar {
+    --ar-label: 11rem;
+    --ar-cell: 18px;
+  }
+  .ar .ar-title {
+    font-size: 1.375rem;
+  }
+  .ar table.ar-grid .ar-rh-id {
+    display: none;
+  }
+  .ar .ar-eg-lbl {
+    display: block;
+    min-width: 0;
+  }
+  .ar .ar-p-body,
+  .ar .ar-method-list,
+  .ar .ar-meta {
+    grid-template-columns: 1fr;
+  }
+  .ar .ar-p-body dt {
+    margin-top: 0.375rem;
+  }
+  .ar .ar-inspect {
+    position: static;
+  }
+}
+
+/* ---- reduced motion ---------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .ar * {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ---- print ------------------------------------------------------------- */
+@media print {
+  .ar .ar-scroll {
+    overflow: visible;
+    border-color: #000;
+  }
+  .ar .ar-filter,
+  .ar .ar-inspect,
+  .ar .ar-inspect-hint {
+    display: none;
+  }
+  .ar details.ar-p {
+    break-inside: avoid;
+  }
+  .ar details.ar-p > summary::before {
+    content: "";
+  }
+  .ar .ar-c {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .ar .ar-short,
+  .ar .ar-fault {
+    box-shadow: none;
+    outline: 1px solid #000;
+    outline-offset: -1px;
+  }
+  .ar table.ar-grid .ar-rh-id {
+    display: block;
+  }
+}

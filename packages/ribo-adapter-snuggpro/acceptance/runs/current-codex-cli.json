@@ -1,0 +1,6012 @@
+{
+  "capturedAt": "2026-08-12T00:20:50.931Z",
+  "schemaFingerprint": "sha256:41b3080e9c7e7166593985985f13df83f99fabc00dc4f8a47b2892ed1bbaed7d",
+  "backend": "codex-cli",
+  "backendLabel": "codex-cli",
+  "model": "codex-cli",
+  "passed": true,
+  "hallRate": 0.007537688442211055,
+  "missRate": 0.007692307692307693,
+  "hazards": {
+    "fuelDropped": 0,
+    "fuelInvented": 0,
+    "hallucinatedPass": 0,
+    "rvalueConversion": 0,
+    "enumWrongMember": 0,
+    "enumInvalid": 0,
+    "spanFabricated": 0,
+    "spanMissing": 0
+  },
+  "shapeConformance": {
+    "applicable": true,
+    "firstTry": 14,
+    "retried": 0,
+    "never": 0
+  },
+  "totals": {
+    "gtNull": 398,
+    "gtNonNull": 134,
+    "correctNull": 523,
+    "hallucinationHard": 3,
+    "hallucinationSoft": 0,
+    "unscorable": 0,
+    "miss": 1,
+    "missExcused": 4,
+    "bothNonNull": 171,
+    "correct": 126,
+    "wrong": 2,
+    "rvalueConversion": 0,
+    "enumGtMember": 94,
+    "enumCorrect": 94,
+    "enumWrongMember": 0,
+    "enumInvalid": 0,
+    "enumMiss": 1,
+    "enumSanctioned": 1,
+    "vocabApi": 136,
+    "vocabSlug": 0,
+    "bandGt": 7,
+    "bandCorrect": 7,
+    "bandBoundary": 0,
+    "bandWrong": 0,
+    "bandMiss": 0,
+    "spanChecked": 174,
+    "spanVerbatim": 174,
+    "spanNearMiss": 0,
+    "spanFabricated": 0,
+    "spanMissing": 0,
+    "hGtNull": 128,
+    "hCorrectNull": 128,
+    "hHallucinatedPass": 0,
+    "hHallucinatedProblem": 0,
+    "hSilentNotTested": 0,
+    "hGtState": 54,
+    "hCorrectState": 42,
+    "hWrongState": 0,
+    "hMiss": 12,
+    "hMissExcused": 0,
+    "hCleanDropped": 0,
+    "hGtPassed": 13,
+    "hGtPassedCorrect": 13
+  },
+  "leafPaths": [
+    "basedata.yearBuilt",
+    "basedata.conditionedArea",
+    "basedata.floorsAboveGrade",
+    "basedata.numberOfBedrooms",
+    "basedata.typeOfHome",
+    "basedata.blowerDoorReading",
+    "basedata.blowerDoorTestPerformed",
+    "hvac.hvacSystemEquipmentType",
+    "hvac.hvacUpgradeAction",
+    "hvac.hvacHeatingEnergySource",
+    "hvac.hvacHeatingSystemManufacturer",
+    "hvac.hvacHeatingSystemModel",
+    "hvac.hvacHeatingSystemModelYear",
+    "hvac.hvacHeatingCapacity",
+    "hvac.hvacCoolingCapacity",
+    "hvac.hvacDuctLocation",
+    "hvac.hvacDuctLeakage",
+    "hvac.hvacDuctLeakageValue",
+    "hvac.hvacDuctInsulation",
+    "attic.atticInsulationDepth",
+    "attic.atticInsulationType",
+    "attic.atticInsulation",
+    "attic.atticHasKneeWall",
+    "attic.atticRoofType",
+    "wall.wallsInsulated",
+    "wall.wallExteriorWallSiding",
+    "wall.wallCavityInsulation",
+    "wall.wallCavityInsulationType",
+    "window.windowType",
+    "window.windowFrame",
+    "window.windowEnergyStar",
+    "dhw.dhwType2",
+    "dhw.dhwFuel2",
+    "dhw.dhwAge",
+    "dhw.dhwLocation",
+    "dhw.dhwTankSize",
+    "dhw.dhwManufacturer",
+    "health.healthRoofCondition",
+    "health.healthAmbientCarbonMonoxide",
+    "health.healthNaturalConditionSpillage",
+    "health.healthWorstCaseDepressurization",
+    "health.healthWorstCaseSpillage",
+    "health.healthUndilutedFlueCo",
+    "health.healthDraftPressure",
+    "health.healthGasLeak",
+    "health.healthVenting",
+    "health.healthMoldMoisture",
+    "health.healthRadon",
+    "health.healthAsbestos",
+    "health.healthLead",
+    "health.healthElectrical"
+  ],
+  "transcripts": [
+    {
+      "slug": "01-attic-r-value-shell",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "02-oil-boiler-basement",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "03-quick-exterior-short",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "04-fuel-stated-separately",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "05-full-walkthrough",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "06-homeowner-crosstalk",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "07-combustion-safety",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "08-no-fuel-silent-drop",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "09-chatter-and-scheduling",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "10-crawlspace-loose-units",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "11-ambiguous-attic",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "12-wrong-field-old-unit",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "13-enum-paraphrase",
+      "status": "scored",
+      "problem": null
+    },
+    {
+      "slug": "14-rapid-recap",
+      "status": "scored",
+      "problem": null
+    }
+  ],
+  "grid": {
+    "basedata.yearBuilt": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "basedata.conditionedArea": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "basedata.floorsAboveGrade": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "basedata.numberOfBedrooms": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "basedata.typeOfHome": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "hallucination",
+        "expected": null,
+        "got": "Single Family Detached",
+        "sourceSpan": "It's a single story ranch",
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "basedata.blowerDoorReading": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "basedata.blowerDoorTestPerformed": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "hallucination",
+        "expected": null,
+        "got": "Tested",
+        "sourceSpan": "Blower door came in at twenty-nine hundred CFM50",
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "hvac.hvacSystemEquipmentType": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "sanctioned",
+        "expected": null,
+        "got": "Furnace / Central AC (shared ducts)",
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": "SCHEMA FINDING, same pattern as the worked example: hvacSystemEquipmentType conflates the furnace's identity with an unrelated fact (whether it shares ducts with a central AC unit). The auditor says 'a gas furnace' and never mentions cooling/AC at all, so neither the standalone-ducts member nor the shared-ducts-with-AC member is more supportable. `member` is 'Furnace with standalone ducts' only because it is FIRST in schema.ts's enum-list order (index 2 of 17 vs. index 16) -- the mechanical tie-break, not a preferred reading. SEPARATELY (see notes._general and RECONCILIATION.md finding 5): this leaf also carries the OLD-BOILER exclusion -- the auditor narrates a second, real, disconnected HVAC unit in the same breath ('the OLD boiler... an old Burnham... probably from the eighties, eighty thousand BTU') and explicitly instructs 'Do not log the old boiler.' Because the old unit is decommissioned (not a second CURRENT system, unlike transcript 08), this resolves cleanly: the furnace occupies the one hvac slot and none of the boiler's attributes (Boiler/Fuel Oil/Burnham/80000 BTU/1980s) appear on any leaf. Not recorded as `retracted` (rule 5) -- the auditor never asserted the boiler AS the current system before withdrawing it; it is a distinct real unit explicitly excluded, not a self-correction about the same entity."
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "hvac.hvacUpgradeAction": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "miss-excused",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": "Two things are contested. First, ATTRIBUTION: this is the auditor's own sentence, not a bracketed second-speaker line, but it reports a plan the HOMEOWNER already set in motion ('the homeowner's got a quote') rather than the auditor's own explicit recommendation (schema.ts's own example is 'we should get rid of it') -- genuinely between 'the auditor is recommending this' and 'the auditor is just relaying an existing plan', so a model that leaves this leaf null given that attribution doubt is a defensible caution (acceptableMiss). Second, FIT: none of the four members say 'replace with a DIFFERENT equipment family' -- swapping a furnace for a heat pump is a bigger change than 'a newer model' of the same thing usually implies -- but it remains the closest real member: 'Remove a system permanently' does not fit, because a replacement (the heat pump) IS planned, not a bare removal; 'Install a new non-existing system' implies adding where nothing existed. Not noFittingMember, since a real member is defensibly close, not absent."
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "hvac.hvacHeatingSystemManufacturer": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "hvac.hvacHeatingSystemModel": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "miss-excused",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": "The auditor states a genuine partial reading ('model G-something') rather than declining outright -- a real, if incomplete, fragment, analogous to a stated R-value being a real independent value even when a depth is also unmeasured. Asserted verbatim rather than declared_absent, since something concrete WAS read off the plate ('G-...'), unlike the model year (below), where nothing at all was legible. It is explicitly incomplete ('I couldn't get the full model number off the corner it was jammed into'), so a model that leaves this null instead of inventing digits is a defensible caution, not a penalized miss."
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "hvac.hvacHeatingCapacity": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "hvac.hvacCoolingCapacity": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "hvac.hvacDuctLocation": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "wrong",
+        "expected": "the crawlspace, unconditioned crawl, dirt floor down there",
+        "got": "Unconditioned crawlspace",
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": "expected \"the crawlspace, unconditioned crawl, dirt floor down there\", got \"Unconditioned crawlspace\""
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "wrong",
+        "expected": "the basement, which is unconditioned down there",
+        "got": "Unconditioned basement",
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": "expected \"the basement, which is unconditioned down there\", got \"Unconditioned basement\""
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "hvac.hvacDuctLeakage": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "hvac.hvacDuctLeakageValue": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "hvac.hvacDuctInsulation": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "attic.atticInsulationDepth": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "attic.atticInsulationType": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "attic.atticInsulation": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "miss-excused",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": "Tests the boundary of rule 7's 'if the auditor gives both a depth and an R-value, both are asserted independently' instruction against rule 3's derivation caution. Here the auditor states R-38 confidently and specifically, but explicitly self-labels it as a CONVERSION from the measured depth, not an independent observation ('the R-value's just the conversion... the depth is what I actually measured'), volunteered only because the homeowner asked. Rule 7 is written for exactly this both-depth-and-an-R-value shape and instructs asserting both without converting between them, so this is recorded as a real value (38) -- but unlike the worked example's committed 'R-13, final answer,' this number's own speaker frames it as secondary/derived, so a model that leaves it null is a defensible, mild miss rather than a real omission."
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "attic.atticHasKneeWall": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "attic.atticRoofType": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "wall.wallsInsulated": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "wall.wallExteriorWallSiding": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "wall.wallCavityInsulation": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "wall.wallCavityInsulationType": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "window.windowType": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "window.windowFrame": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "window.windowEnergyStar": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "dhw.dhwType2": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "dhw.dhwFuel2": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "dhw.dhwAge": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "hallucination",
+        "expected": null,
+        "got": "0-5",
+        "sourceSpan": "Yeah, two years",
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "dhw.dhwLocation": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "miss-excused",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": "Requires two inferential steps the auditor never states outright in this sentence: (1) that 'the closet' here is the same 'mechanical closet off the kitchen' named earlier for the furnace, and (2) that a mechanical closet counts as 'within heated area' rather than an unconditioned utility space. Per THE ONE RULE, something WAS said about location, so omission alone is not the intended default -- but the mapping is genuinely contested: a model answering 'Don't Know' is a defensible caution, and a model leaving the leaf null entirely (declining the cross-paragraph inference) is likewise a defensible, non-penalized miss."
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "miss",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "dhw.dhwTankSize": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "dhw.dhwManufacturer": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthRoofCondition": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthAmbientCarbonMonoxide": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthNaturalConditionSpillage": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "health-miss",
+        "expected": "Not Tested",
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthWorstCaseDepressurization": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "health-miss",
+        "expected": "Not Tested",
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthWorstCaseSpillage": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "health-miss",
+        "expected": "Not Tested",
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthUndilutedFlueCo": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "health-miss",
+        "expected": "Not Tested",
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthDraftPressure": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "health-miss",
+        "expected": "Not Tested",
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthGasLeak": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "health-miss",
+        "expected": "Not Tested",
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthVenting": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "health-miss",
+        "expected": "Not Tested",
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthMoldMoisture": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "health-miss",
+        "expected": "Not Tested",
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthRadon": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "health-miss",
+        "expected": "Not Tested",
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthAsbestos": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "health-miss",
+        "expected": "Not Tested",
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthLead": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "health-miss",
+        "expected": "Not Tested",
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    },
+    "health.healthElectrical": {
+      "01-attic-r-value-shell": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "02-oil-boiler-basement": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "03-quick-exterior-short": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "04-fuel-stated-separately": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "05-full-walkthrough": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "06-homeowner-crosstalk": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "07-combustion-safety": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "08-no-fuel-silent-drop": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "09-chatter-and-scheduling": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "10-crawlspace-loose-units": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "11-ambiguous-attic": {
+        "verdict": "health-miss",
+        "expected": "Not Tested",
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "12-wrong-field-old-unit": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "13-enum-paraphrase": {
+        "verdict": "correct-null",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      },
+      "14-rapid-recap": {
+        "verdict": "correct",
+        "expected": null,
+        "got": null,
+        "sourceSpan": null,
+        "spanIssue": null,
+        "detail": null
+      }
+    }
+  }
+}

@@ -55,7 +55,7 @@ Under `packages/ribo-adapter-snuggpro/acceptance/runs/` (data only), all committ
 
 | File                      | Write mode  | Approx. size | Contents                                                                                                                                     |
 | ------------------------- | ----------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `current-<backend>.json`  | overwritten | 40–60 KB     | one run in full: aggregates, hazard counts, shape conformance, and a dense verdict grid of 51 leaves × 14 transcripts, with per-cell detail  |
+| `current-<backend>.json`  | overwritten | ~150 KB      | one run in full: aggregates, hazard counts, shape conformance, and a dense verdict grid of 51 leaves × 14 transcripts, with per-cell detail  |
 | `history-<backend>.jsonl` | appended    | ~400 B/run   | one line per run: `capturedAt`, `schemaFingerprint`, `backend`, `model`, `hallRate`, `missRate`, hazard counts, shape conformance, pass/fail |
 
 `baseline*.json` is **unchanged**. `acceptance/results/` stays gitignored — raw extractor output
@@ -72,7 +72,7 @@ comparable).
 `scoreTranscript()` returns _sparse_ problem lists (`hallucinations`, `misses`, `wrong`,
 `badSpans`, `axis`, `health`, `conformance`), all keyed by leaf path. A consumer could infer
 "absent from every list ⇒ fine", but could not distinguish `correct` from `correctNull` without
-reading the corpus ground truth. Densifying to all 714 cells costs ~40 KB and makes the artifact
+reading the corpus ground truth. Densifying to all 714 cells costs ~150 KB in total (measured, not estimated) and makes the artifact
 **self-contained**: the docs build reads one file and needs nothing from `spikes/`.
 
 ### Why append-only history, and its one wrinkle

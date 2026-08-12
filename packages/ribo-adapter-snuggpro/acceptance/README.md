@@ -167,6 +167,44 @@ adapter's built extractor). Comparing across schemas — or across tools that we
 never running this adapter at all — was never a real signal; the fingerprint AND
 the backend identity make that structural instead of accidental.
 
+## Every run writes a committed run record
+
+Alongside the console report, each run writes two files under `acceptance/runs/`,
+both committed to git:
+
+| File                            | Write mode  | Contents                                                                                                                     |
+| ------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `current-<backend-label>.json`  | overwritten | the full run: aggregates, hazard counts, shape conformance, and a dense verdict grid of every schema leaf × every transcript |
+| `history-<backend-label>.jsonl` | appended    | one summary line per run — the trend                                                                                         |
+
+`current` is ~150 KB and is **overwritten** every run, so it stays one file forever;
+older grids are recoverable from `git log`. `history` gains ~400 bytes per run.
+These are what the docs site's accuracy page renders. There is no publish step and
+no flag: the gate always writes them, and `git diff` is the review gate.
+
+**The record is written BEFORE the assertions run**, so a failing run still publishes
+its grid — that is the run you most want to inspect. It carries `"passed": false`, and
+the page shows it as failed. The persist block in `gate.manual.ts` is fenced with a
+`DO NOT MOVE` banner for that reason: the property holds only while it stays above the
+first `expect(...)`.
+
+That means a run against a deliberately-broken extractor (see "Watching it fail"
+above) WILL leave a bad point in the append-only history if committed. Remove it by
+identity rather than hand-editing the file:
+
+```ts
+import { openRunStore } from "./run-store.js";
+await openRunStore().deleteHistoryEntry("codex-cli", "<capturedAt>");
+```
+
+`pruneHistory(label, { keep })` trims the trend; `deleteRun(label)` removes both files
+and retires a backend entirely. All three are unit-tested in `run-store.test.ts`, which
+runs in `./check.sh` — the store is key-free and hermetic even though the gate is not.
+
+**`acceptance/results/` is different and stays gitignored.** That is the raw
+per-transcript extractor output, a debugging aid; the run record is the derived,
+committed thing.
+
 The miss guard exists so a degenerate all-`null` output (which scores a perfect 0%
 hallucination and is useless) cannot pass.
 

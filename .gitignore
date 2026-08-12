@@ -13,6 +13,10 @@ coverage/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 docs/reference/
+# Same rule: `docs:accuracy` regenerates this whole page from the committed run records in
+# packages/ribo-adapter-snuggpro/acceptance/runs/. Those artifacts ARE committed; this
+# rendering of them is not, so it can never drift from them.
+docs/deep-dives/accuracy.md
 
 # Vitest browser mode's failure artifacts — attachments and screenshots taken
 # when a browser test fails. Regenerated on the next run; never reviewed as source.

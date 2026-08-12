@@ -44,6 +44,13 @@ export default tseslint.config(
     },
   },
 
+  // Browser globals for the accuracy report's plain-JS inspector script. Served
+  // as a static file from docs/public/, loaded by the generated accuracy page.
+  {
+    files: ["docs/public/**/*.js"],
+    languageOptions: { globals: { ...globals.browser } },
+  },
+
   // Browser globals for UI and the playground.
   {
     files: ["packages/ribo-ui-react/**/*.{ts,tsx}", "playground/**/*.{ts,tsx}"],
