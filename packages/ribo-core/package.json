@@ -13,6 +13,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./worklet": {
+      "@azx/source": "./src/pcm-worklet.ts",
+      "types": "./dist/worklet.d.ts",
+      "default": "./dist/worklet.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -21,6 +26,10 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./worklet": {
+        "types": "./dist/worklet.d.ts",
+        "default": "./dist/worklet.js"
       },
       "./package.json": "./package.json"
     }

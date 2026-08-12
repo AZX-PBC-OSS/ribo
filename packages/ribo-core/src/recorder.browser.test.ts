@@ -8,6 +8,8 @@ import {
   RecorderError,
   type RecorderPhase,
   type RecorderState,
+  type SampleTapOptions,
+  type SampleTapTeardown,
 } from "./recorder.js";
 import {
   CAPTURE_LOCK,
@@ -737,5 +739,161 @@ describe("Recorder durable capture", () => {
     await recorder.stop();
     // stop() releases the lock.
     expect(await isLockFree(CAPTURE_LOCK)).toBe(true);
+  });
+});
+
+// The worklet source as a string — the production worklet ships as a separate
+// build entry (`./worklet` subpath), loaded by `new URL("./worklet.js",
+// import.meta.url)`. In the test environment that URL does not resolve (the
+// source is `pcm-worklet.ts`, not `worklet.js`), so the `createSampleTap` seam
+// injects a Blob-URL worklet that runs the same processor in real Chromium.
+// This is the test-only shape the spike used (Q3); the production packaging is
+// the separate build entry (Q4).
+const WORKLET_SOURCE = `
+const FRAME_SIZE = 512;
+class PcmFrameProcessor extends AudioWorkletProcessor {
+  #buffer = new Float32Array(FRAME_SIZE);
+  #offset = 0;
+  process(inputs) {
+    const input = inputs[0] && inputs[0][0];
+    if (!input) return true;
+    let i = 0;
+    while (i < input.length) {
+      const remaining = FRAME_SIZE - this.#offset;
+      const toCopy = Math.min(remaining, input.length - i);
+      this.#buffer.set(input.subarray(i, i + toCopy), this.#offset);
+      this.#offset += toCopy;
+      i += toCopy;
+      if (this.#offset === FRAME_SIZE) {
+        this.port.postMessage(this.#buffer.slice());
+        this.#offset = 0;
+      }
+    }
+    return true;
+  }
+}
+registerProcessor("pcm-frame-processor", PcmFrameProcessor);
+`;
+
+/**
+ * Builds a `createSampleTap` that loads the worklet from a Blob URL. Each
+ * AudioContext created is pushed into `contexts` so the test can assert on its
+ * `.state` after teardown.
+ */
+const createBlobSampleTap =
+  (contexts: AudioContext[]) =>
+  async ({ stream, onSamples }: SampleTapOptions): Promise<SampleTapTeardown> => {
+    const audioContext = new AudioContext({ sampleRate: 16000 });
+    contexts.push(audioContext);
+    const blob = new Blob([WORKLET_SOURCE], { type: "application/javascript" });
+    const url = URL.createObjectURL(blob);
+    try {
+      await audioContext.audioWorklet.addModule(url);
+    } catch (error) {
+      void audioContext.close().catch(() => undefined);
+      URL.revokeObjectURL(url);
+      throw error;
+    }
+    URL.revokeObjectURL(url);
+    const node = new AudioWorkletNode(audioContext, "pcm-frame-processor");
+    node.port.onmessage = (event) => onSamples(event.data as Float32Array);
+    audioContext.createMediaStreamSource(stream).connect(node);
+    return () => {
+      node.port.close();
+      node.disconnect();
+      void audioContext.close().catch(() => undefined);
+    };
+  };
+
+describe("Recorder live sample tap", () => {
+  test("frames arrive at exactly 512 samples regardless of render quantum", async () => {
+    const frames: Float32Array[] = [];
+    const contexts: AudioContext[] = [];
+    const recorder = new Recorder({
+      onSamples: (frame) => frames.push(frame),
+      createSampleTap: createBlobSampleTap(contexts),
+    });
+
+    await startTracked(recorder);
+    // Wait for several frames — the assertion is on EVERY frame, not just the
+    // first. A bug that emits 128-sample frames (passing the render quantum
+    // through unregrouped) would pass a "first frame is 512" check and fail here.
+    await vi.waitFor(() => expect(frames.length).toBeGreaterThanOrEqual(3));
+    await recorder.stop();
+
+    expect(frames.length).toBeGreaterThan(0);
+    for (const frame of frames) {
+      expect(frame).toBeInstanceOf(Float32Array);
+      expect(frame.length).toBe(512);
+    }
+  });
+
+  test("the worklet is torn down on stop() — no live worklet on a dead stream", async () => {
+    const contexts: AudioContext[] = [];
+    const frames: Float32Array[] = [];
+    const recorder = new Recorder({
+      onSamples: (frame) => frames.push(frame),
+      createSampleTap: createBlobSampleTap(contexts),
+    });
+
+    await startTracked(recorder);
+    // Wait for at least one frame so the worklet has loaded and is running.
+    await vi.waitFor(() => expect(frames.length).toBeGreaterThan(0));
+    await recorder.stop();
+
+    // The worklet's AudioContext is closed — a worklet left on a dead stream is
+    // a leak the existing teardown tests do not cover.
+    expect(contexts[0]?.state).toBe("closed");
+  });
+
+  test("the worklet is torn down on abort() — a failed start after the session is created", async () => {
+    // The second half of the teardown assertion: `stop()` is covered above, but
+    // `abort()` (the `#teardown` path through `start()`'s catch block) is the one
+    // that gets missed. A test that only checks `stop()` passes against a bug
+    // that forgets to tear down the worklet in the abort path.
+    const contexts: AudioContext[] = [];
+    const recorder = new Recorder({
+      onSamples: () => undefined,
+      createSampleTap: createBlobSampleTap(contexts),
+      createRecorder: (stream, options) => {
+        const r = new MediaRecorder(stream, options);
+        // Fail at recorder.start() — AFTER #beginSession has created the session
+        // and started the worklet setup, but BEFORE start() returns.
+        r.start = () => {
+          throw new DOMException("boom", "InvalidStateError");
+        };
+        return r;
+      },
+    });
+
+    await expect(recorder.start()).rejects.toThrow();
+    expect(contexts[0]).toBeDefined();
+    // The worklet setup was in flight when #teardown ran
+    // (teardownSampleTap was still undefined). The .then() in #beginSession
+    // sees this.#session !== session and calls the teardown itself —
+    // asynchronously. Poll until the AudioContext is closed.
+    await vi.waitFor(() => expect(contexts[0]?.state).toBe("closed"));
+  });
+
+  test("a worklet failure does not stop capture — the audio still reaches disk", async () => {
+    // If addModule rejects or the worklet throws, recording continues and the
+    // audio still reaches disk. There is simply no onSamples delivery.
+    const failingTap = async (): Promise<SampleTapTeardown> => {
+      throw new Error("addModule failed: worklet unavailable");
+    };
+
+    const recorder = new Recorder({
+      onSamples: () => undefined,
+      createSampleTap: failingTap,
+    });
+
+    await startTracked(recorder);
+    // Give the rejected promise's .catch() a chance to land.
+    await sleep(200);
+    const { audio } = await recorder.stop();
+
+    // Recording continued despite the worklet failure — audio was produced.
+    expect(audio.size).toBeGreaterThan(0);
+    expect(recorder.phase).toBe("idle");
   });
 });

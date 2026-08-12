@@ -81,6 +81,8 @@ export type {
   RecorderOptions,
   RecorderPhase,
   RecorderState,
+  SampleTapOptions,
+  SampleTapTeardown,
   Unsubscribe,
 } from "./recorder.js";
 
