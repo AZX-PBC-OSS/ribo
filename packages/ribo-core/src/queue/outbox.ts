@@ -381,6 +381,12 @@ export class Outbox {
    * traffic, not an error anyone can act on: the recording may have been
    * committed and transcribed while the reply was in flight.
    *
+   * **Silent to the caller, not in storage.** RxDB 17.4.0 has no no-op detection in the
+   * incremental-write path: the modifier returns the document unchanged, but the write still goes
+   * through, committing a content-identical revision and emitting a change event to every `watch()`
+   * subscriber. At the real rate — a handful of in-flight replies as a recording closes — that costs
+   * nothing, which is why it is left alone. It would matter if anything ever called this in a loop.
+   *
    * The refusal checks live **inside** the `incrementalModify` modifier, not
    * against a copy read beforehand. RxDB re-runs the modifier against the
    * *current* revision on write conflict, so a check made against a stale read

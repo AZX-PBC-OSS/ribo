@@ -467,13 +467,13 @@ class QueueRelay implements Relay {
       });
       return;
     }
-    // Persisted BEFORE the status moves on, so a crash between the two lands on
-    // "transcript present, status stale" — which `nextStep` reads correctly —
-    // rather than "status advanced, transcript lost".
+    // Transcript and status land in ONE revision, so there is no crash window between
+    // them. (This comment used to explain the ordering of two separate writes; they were
+    // combined into a single patch some time ago, and are now a single `incrementalModify`.)
     //
-    // Routed through `writeTranscript` rather than `patch` so that `preview`
-    // is deleted in the same committed revision — a subscriber never sees the
-    // provisional text beside the final transcript.
+    // Routed through `writeTranscript` rather than `patch` so that `preview` is deleted in
+    // that same revision — a subscriber never sees the provisional text beside the final
+    // transcript, in either order.
     await this.#options.outbox.writeTranscript(item.id, transcript, {
       status: "extracting",
       attempts: 0,

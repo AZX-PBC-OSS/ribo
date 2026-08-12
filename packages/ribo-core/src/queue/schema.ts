@@ -185,7 +185,16 @@ export const outboxDocumentSchema = z
     lastError: z.string().optional(),
     /** Capture metadata. The audio bytes live in the attachment, not here. */
     recording: baseRecordingSchema,
-    /** Step output — present once transcription has succeeded. */
+    /**
+     * Step output — present once transcription has succeeded.
+     *
+     * **Write it with {@link Outbox.writeTranscript}, never with `patch`.** `transcript` is still
+     * reachable through {@link OutboxPatch} — it has to be, because the relay's retry and review
+     * paths patch other fields on the same rows — so nothing stops a future caller setting it
+     * directly. Doing so would leave `preview` behind on a committed row, where nothing removes it
+     * again: `patch` is an `incrementalPatch` and cannot delete a key at all. That is a convention
+     * here, not a fence, and this sentence is the only thing holding it.
+     */
     transcript: transcriptSchema.optional(),
     /** Step output — present once extraction has succeeded. */
     extracted: z.record(z.string(), z.unknown()).optional(),
