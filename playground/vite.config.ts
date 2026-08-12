@@ -211,6 +211,21 @@ export default defineConfig({
     // Pre-bundle transformers so a dev session does not re-optimize mid-run when
     // the worker first pulls it in (the same reason the package's manual Vitest
     // config includes it). Both the client and the worker resolve it.
+    //
+    // THIS is why `@huggingface/transformers` is a devDependency of `playground`
+    // despite no source file here importing it. The specifier below is resolved
+    // from the playground's own node_modules, not from
+    // @azx/ribo-transcriber-ondevice's, and under pnpm's isolated layout the
+    // playground cannot see its dependency's dependencies. Without the
+    // declaration Vite logs "Failed to resolve dependency" and pre-bundling
+    // silently no-ops — the app still runs, because module resolution falls back
+    // to the importing package, so the only symptom is the mid-run re-optimize
+    // this `include` exists to prevent. Exactly the `workbox-window` case; see
+    // that entry in pnpm-workspace.yaml.
+    //
+    // The declaration carries no second copy: it is `catalog:`, so it resolves to
+    // the same pin the transcriber uses. Two ONNX runtimes over one model cache
+    // would be a real mismatch, not a duplication annoyance.
     include: ["@huggingface/transformers"],
   },
 });

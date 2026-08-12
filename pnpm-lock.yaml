@@ -399,6 +399,9 @@ importers:
       '@azx/tsconfig':
         specifier: workspace:*
         version: link:../packages/tsconfig
+      '@huggingface/transformers':
+        specifier: 'catalog:'
+        version: 4.2.0
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
