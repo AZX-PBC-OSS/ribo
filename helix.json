@@ -1,0 +1,5 @@
+{
+  "slug": "ribo-docs",
+  "dir": "docs/.vitepress/dist",
+  "portalUrl": "https://portal.azx.helix.azxlabs.io"
+}

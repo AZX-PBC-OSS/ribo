@@ -27,6 +27,7 @@
     "docs:accuracy": "node scripts/generate-accuracy-page.mjs",
     "docs:dev": "pnpm run docs:api && pnpm run docs:accuracy && vitepress dev docs",
     "docs:build": "pnpm run docs:api && pnpm run docs:accuracy && vitepress build docs",
+    "docs:deploy": "pnpm run docs:build && helix deploy",
     "target:refresh": "node scripts/refresh-target.mjs",
     "snugg:refresh": "node scripts/snugg-descriptions.mjs --refresh",
     "snugg:check": "node scripts/snugg-descriptions.mjs --check"
