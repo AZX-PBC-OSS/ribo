@@ -721,14 +721,23 @@ html.dark {
   padding: 0.4375rem 0.75rem;
   border-bottom: 1px solid var(--ar-rule);
 }
+/* Flex, matching the <summary> this content is cloned FROM. The clone carries
+   `.ar-p-t { margin-left: auto }`, which does nothing outside a flex container — so in a
+   plain block the field name and the transcript slug rendered flush against each other
+   ("Type of home03-quick-exterior-short"). Cloned markup inherits none of its source's
+   layout; the destination has to provide the same one. */
 .ar .ar-inspect-t {
   margin: 0;
   font-size: 0.8125rem;
   font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
 }
 .ar .ar-inspect-t .ar-p-v {
   font-weight: 700;
-  margin-right: 0.5rem;
 }
 .ar .ar-inspect-x {
   margin-left: auto;
