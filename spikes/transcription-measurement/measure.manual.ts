@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 
 import {
   decodeTo16kMono,
+  modelSupportsHints,
   OnDeviceTranscriber,
 } from "../../packages/ribo-transcriber-ondevice/src/index.js";
 
@@ -60,7 +61,11 @@ function makeTranscriber(hinted: boolean): OnDeviceTranscriber {
     modelId: __MODEL_ID__,
     device: "wasm", // headless-feasible + deterministic; WebGPU is not reachable in this environment.
     dtype: "fp32", // q4/q8 do not load on the pinned ORT build (Task 2); fp32 is proven.
-    ...(hinted ? { hints: { vocabulary: VOCABULARY } } : {}),
+    // `hinted` is a REQUEST, not a guarantee. Models without a trained prior-context token cannot be
+    // primed and now throw if handed hints (see `config.ts`), so for those the hinted and unhinted
+    // passes are the same run. Recorded that way rather than skipped, so the output shape is stable
+    // and a reader comparing a Moonshine column against a Whisper one sees matching rows.
+    ...(hinted && modelSupportsHints(__MODEL_ID__) ? { hints: { vocabulary: VOCABULARY } } : {}),
     wasmPaths: __ORT_WASM_BASE__,
     createWorker: () =>
       new Worker(

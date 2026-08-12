@@ -33,20 +33,21 @@
   "devDependencies": {
     "@changesets/cli": "catalog:",
     "@eslint/js": "10.0.1",
+    "@huggingface/transformers": "catalog:",
+    "@vitest/browser": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
     "browserslist": "catalog:",
     "eslint": "10.7.0",
     "globals": "17.7.0",
-    "prettier": "3.9.6",
-    "typescript": "6.0.3",
-    "typescript-eslint": "8.65.0",
-    "vitest": "4.1.10",
-    "@vitest/browser": "catalog:",
-    "@vitest/browser-playwright": "catalog:",
     "playwright": "catalog:",
-    "vite": "catalog:",
-    "vitepress": "catalog:",
+    "prettier": "3.9.6",
     "typedoc": "catalog:",
     "typedoc-plugin-markdown": "catalog:",
-    "typedoc-vitepress-theme": "catalog:"
+    "typedoc-vitepress-theme": "catalog:",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.65.0",
+    "vite": "catalog:",
+    "vitepress": "catalog:",
+    "vitest": "4.1.10"
   }
 }

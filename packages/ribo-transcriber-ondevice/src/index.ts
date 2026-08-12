@@ -42,6 +42,7 @@ export {
   DEFAULT_MODEL_ID,
   DEFAULT_WORKER_TIMEOUT_MS,
   MODEL_DOWNLOAD_BYTES,
+  modelSupportsHints,
   VAD_MODEL_ID,
   VAD_DOWNLOAD_BYTES,
   estimateDownloadBytes,
