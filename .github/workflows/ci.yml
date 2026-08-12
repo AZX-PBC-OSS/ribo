@@ -43,6 +43,12 @@ jobs:
 
       - run: ./check.sh
 
+      # VitePress fails the build on a dead internal link (`ignoreDeadLinks` is unset) —
+      # nothing was running that check until now. Also covers TypeDoc and the generated
+      # accuracy page, since `docs:build` chains all three. A CI step rather than a
+      # `./check.sh` stage so docs stay out of the local loop, as with pack-and-consume.
+      - run: pnpm docs:build
+
       # `changeset status` is CI-only: it needs a git remote and a base ref to diff
       # against, so it does not belong in a local ./check.sh run. Scoped to pull
       # requests because on a push to `main` the base ref IS the current ref, so
