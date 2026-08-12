@@ -26,7 +26,17 @@ export function RecordPanel() {
   // subscription mechanism is added (design §Delivery). `preview` is absent
   // before the first utterance closes and after the batch transcript lands.
   const { items: recordingItems } = useOutboxItems({ status: "recording" });
-  const recordingItem = recordingItems[0];
+  // **The LAST row, not the first.** `useOutboxItems` sorts by `seq` ascending — that ordering is the
+  // queue's capture-order guarantee and is not optional — so `[0]` is the OLDEST `recording` row.
+  // Durable capture leaves one behind for every interrupted capture until startup recovery sweeps
+  // it, so on any device that has ever lost a recording, `[0]` is an orphan with no preview and the
+  // live text lands on a row nobody is watching. Only one capture can be live at a time (the capture
+  // lock enforces it), so the highest `seq` is always the current one.
+  //
+  // Found by hand: the console showed segments arriving and being appended while the panel stayed
+  // empty. A fresh browser profile has no orphans, so `[0]` happens to be right — which is why every
+  // automated run of this passed.
+  const recordingItem = recordingItems.at(-1);
   const previewSegments = recordingItem?.preview?.segments;
 
   const recording = phase === "recording";

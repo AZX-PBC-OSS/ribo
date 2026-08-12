@@ -22,7 +22,7 @@
  * 3. While in speech, accumulate frames into a buffer capped at 30 s.
  * 4. When a region opens, prepend a FIFO of the preceding 80 ms of frames, so the consonant
  *    before the frame that *detected* speech is not clipped off.
- * 5. Close and emit the utterance after 400 ms of trailing silence.
+ * 5. Close and emit the utterance after {@link VAD_MIN_SILENCE_MS} of trailing silence.
  * 6. On the 30 s cap, emit and carry the overflow into the next buffer.
  *
  * Every constant above is adopted from `transformers.js-examples/moonshine-web` deliberately
@@ -49,11 +49,42 @@ export const VAD_ENTER_THRESHOLD = 0.3;
 /** Probability below which a frame LEAVES speech. Lower than the enter threshold — that gap is the hysteresis. */
 export const VAD_EXIT_THRESHOLD = 0.1;
 
-/** Pre-speech FIFO: keep this many ms of frames before the detection point. */
-export const VAD_PRE_SPEECH_PAD_MS = 80;
+/**
+ * Pre-speech FIFO: keep this many ms of frames before the detection point.
+ *
+ * **200 ms, matching our own batch pipeline, not the reference's 80.** `segmentation.ts` uses
+ * `padMs: 200` and was tuned against this domain's audio; `moonshine-web` uses 80 and was built for
+ * voice commands, where the utterance is the whole input and a clipped consonant costs a retry rather
+ * than a wrong reading. Six constants were adopted from that reference wholesale, and this is the
+ * second one to prove wrong for continuous dictation.
+ *
+ * The symptom is the same as the silence threshold's: less lead-in means the model starts nearer the
+ * first phoneme with less to disambiguate against. Measured against a real dictation, "see what it
+ * captures" came back as "Head captures" — a missing onset, not a missing word.
+ */
+export const VAD_PRE_SPEECH_PAD_MS = 200;
 
-/** Trailing silence that closes an utterance. */
-export const VAD_MIN_SILENCE_MS = 400;
+/**
+ * Trailing silence that closes an utterance.
+ *
+ * **800 ms, not the reference implementation's 400.** `moonshine-web` is built for voice *commands*,
+ * where a short burst is the whole input and closing fast is the point. This is continuous dictation,
+ * and at 400 ms every breath inside a sentence closed an utterance — so the model saw fragments
+ * starting mid-clause, with nothing to disambiguate against, and guessed. Measured against a real
+ * dictation: "see what it captures" came back as "Head captures", "sentence detection" as "sentence
+ * section", "not capturing individual words" as "not capturing in the room". The batch pass, which
+ * sees the whole recording, got all three right.
+ *
+ * The design predicted exactly this and named 500–700 ms as the conversational range; Task 2 adopted
+ * the reference's value anyway, which is how it got measured rather than assumed. 800 ms sits just
+ * past that range because a dictating auditor pauses to look at something, not to yield a turn.
+ *
+ * **The cost is latency, and it is the whole of the cost.** Text now appears ~0.8 s after you stop
+ * speaking rather than ~0.4 s. Longer utterances also carry more context into each call, so quality
+ * improves twice over — but a threshold long enough to catch a whole paragraph would make the preview
+ * useless as feedback, which is the other end of this trade.
+ */
+export const VAD_MIN_SILENCE_MS = 800;
 
 /** Buffer cap — emit and carry overflow past this. */
 export const VAD_MAX_SPEECH_SECONDS = 30;
@@ -65,10 +96,6 @@ export const VAD_MIN_SPEECH_MS = 250;
 const FRAME_DURATION_MS = (VAD_FRAME_SIZE / VAD_SAMPLE_RATE) * 1000;
 
 /** Pre-speech FIFO depth in frames — `ceil` so we pad at least 80 ms. */
-const PRE_SPEECH_PAD_FRAMES = Math.ceil(VAD_PRE_SPEECH_PAD_MS / FRAME_DURATION_MS);
-
-/** Trailing silence to close, in frames — `ceil` so we wait at least 400 ms. */
-const MIN_SILENCE_FRAMES = Math.ceil(VAD_MIN_SILENCE_MS / FRAME_DURATION_MS);
 
 /** Minimum speech frames for a region to survive the noise filter — `ceil` so at least 250 ms. */
 const MIN_SPEECH_FRAMES = Math.ceil(VAD_MIN_SPEECH_MS / FRAME_DURATION_MS);
@@ -156,7 +183,7 @@ export class StreamingVad {
   #speechFrames: Float32Array[] = [];
   // Running FIFO of recent non-speech frames, prepended when a region opens.
   #preSpeechFifo: Float32Array[] = [];
-  // Consecutive silence frames while in speech — reaches MIN_SILENCE_FRAMES to close.
+  // Consecutive silence frames while in speech — reaches `#minSilenceFrames` to close.
   #silenceFrameCount = 0;
   // Speech frames (probability ≥ exit) in the current region — drives the 250 ms noise filter.
   // Distinct from `speechFrames.length`, which includes FIFO padding and trailing silence.
@@ -165,9 +192,28 @@ export class StreamingVad {
   // Serializes feed calls so the recurrent state is never raced.
   #chain: Promise<readonly Utterance[]> = Promise.resolve([]);
 
-  constructor(detector: ProbabilityDetector) {
+  readonly #minSilenceFrames: number;
+  readonly #preSpeechPadFrames: number;
+
+  /**
+   * `minSilenceMs` is injectable so a **test can pin its own threshold**. The tests build literal
+   * probability sequences whose silence runs have to cross the close boundary; pinned to the
+   * production constant, they broke the first time it was tuned — three tests failing while still
+   * describing correct behaviour, which is noise between a reader and a real regression. The
+   * threshold is a product decision that will be tuned again; the frame loop's behaviour is not.
+   */
+  constructor(
+    detector: ProbabilityDetector,
+    options: { minSilenceMs?: number; preSpeechPadMs?: number } = {},
+  ) {
     this.#detector = detector;
     this.#state = new Float32Array(detector.initialState);
+    this.#minSilenceFrames = Math.ceil(
+      (options.minSilenceMs ?? VAD_MIN_SILENCE_MS) / FRAME_DURATION_MS,
+    );
+    this.#preSpeechPadFrames = Math.ceil(
+      (options.preSpeechPadMs ?? VAD_PRE_SPEECH_PAD_MS) / FRAME_DURATION_MS,
+    );
   }
 
   /**
@@ -210,7 +256,7 @@ export class StreamingVad {
       } else {
         // Not speech: maintain the FIFO for the next region's pre-speech padding.
         this.#preSpeechFifo.push(frame);
-        if (this.#preSpeechFifo.length > PRE_SPEECH_PAD_FRAMES) this.#preSpeechFifo.shift();
+        if (this.#preSpeechFifo.length > this.#preSpeechPadFrames) this.#preSpeechFifo.shift();
       }
       return utterances;
     }
@@ -230,7 +276,7 @@ export class StreamingVad {
 
     if (probability < VAD_EXIT_THRESHOLD) {
       this.#silenceFrameCount++;
-      if (this.#silenceFrameCount >= MIN_SILENCE_FRAMES) {
+      if (this.#silenceFrameCount >= this.#minSilenceFrames) {
         // Close: emit if the speech was long enough, discard as noise if not.
         if (this.#speechFrameCount >= MIN_SPEECH_FRAMES) {
           utterances.push({ samples: concatenateFrames(this.#speechFrames) });

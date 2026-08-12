@@ -17,7 +17,13 @@ import {
  * implementation, and each is built to rule that out explicitly: the state-carrying (the bug is
  * silent — speech still broadly detects on clean audio), the pre-speech FIFO (without it the
  * first transcribed frame is the detection frame and the consonant is gone), and the
- * silence-close threshold (a silence shorter than 400 ms must not split an utterance).
+ * silence-close threshold (a silence shorter than the threshold must not split an utterance).
+ *
+ * **These tests pin `minSilenceMs: 400` rather than using the production default.** Their frame
+ * sequences are literal, with silence runs sized to sit either side of the close boundary, so they
+ * are coupled to whatever threshold they run against. The production value is a product decision
+ * that gets tuned against real dictation — it moved from 400 to 800 the first time anyone listened
+ * to the output — and a tuning change should not turn three passing behaviour tests red.
  */
 
 /** One frame's worth of samples, each set to `index` so the utterance's origin is inspectable. */
@@ -99,7 +105,7 @@ function makeStateAccumulatingDetector(): ProbabilityDetector & {
 describe("StreamingVad — Test A: the returned state is carried into the next frame", () => {
   test("an utterance is emitted — speech is detected only when state is carried", async () => {
     const detector = makeStateAccumulatingDetector();
-    const vad = new StreamingVad(detector);
+    const vad = new StreamingVad(detector, { minSilenceMs: 400, preSpeechPadMs: 80 });
 
     // 5 silence + 16 speech + 13 silence (13 × 32 ms = 416 ms > 400 ms, closes the utterance).
     const frames = Array.from({ length: 34 }, (_, i) => makeFrame(i));
@@ -118,7 +124,7 @@ describe("StreamingVad — Test A: the returned state is carried into the next f
 
   test("the state fed to call N+1 is the one returned by call N (direct check)", async () => {
     const detector = makeStateAccumulatingDetector();
-    const vad = new StreamingVad(detector);
+    const vad = new StreamingVad(detector, { minSilenceMs: 400, preSpeechPadMs: 80 });
 
     const frames = Array.from({ length: 10 }, (_, i) => makeFrame(i));
     await feedAll(vad, frames);
@@ -200,7 +206,7 @@ describe("StreamingVad — Test B: a region opening includes the pre-speech FIFO
       0, // silence → close (13 frames = 416 ms)
     ];
     const detector = makeFixedPatternDetector(probabilities);
-    const vad = new StreamingVad(detector);
+    const vad = new StreamingVad(detector, { minSilenceMs: 400, preSpeechPadMs: 80 });
 
     const frames = Array.from({ length: probabilities.length }, (_, i) => makeFrame(i));
     const utterances = await feedAll(vad, frames);
@@ -280,7 +286,7 @@ describe("StreamingVad — Test C: a silence shorter than 400 ms does not split"
       0, // long silence (15 frames = 480 ms > 400 ms → close)
     ];
     const detector = makeFixedPatternDetector(probabilities);
-    const vad = new StreamingVad(detector);
+    const vad = new StreamingVad(detector, { minSilenceMs: 400, preSpeechPadMs: 80 });
 
     const frames = Array.from({ length: probabilities.length }, (_, i) => makeFrame(i));
     const utterances = await feedAll(vad, frames);

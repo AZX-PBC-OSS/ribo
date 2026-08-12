@@ -1,6 +1,8 @@
 import { openCaptureSession, Recorder } from "@azx/ribo-core";
 import type { SampleTapOptions, SampleTapTeardown } from "@azx/ribo-core";
 
+import workletUrl from "./pcm-worklet.ts?worker&url";
+
 import { closeLiveSession, feedFrame, openLiveForCapture } from "./live-handle.js";
 import { getOutbox } from "./outbox-handle.js";
 
@@ -37,7 +39,17 @@ const createSampleTap = async ({
 }: SampleTapOptions): Promise<SampleTapTeardown> => {
   const audioContext = new AudioContext({ sampleRate: LIVE_SAMPLE_RATE });
   try {
-    await audioContext.audioWorklet.addModule(new URL("./pcm-worklet.ts", import.meta.url).href);
+    // `?worker&url`, NOT `new URL("./pcm-worklet.ts", import.meta.url)`.
+    //
+    // Vite special-cases `new Worker(new URL(…))` and compiles the target; a bare `new URL` to a
+    // `.ts` file is not that pattern, so nothing was emitted and the href pointed at a file the build
+    // never produced. `addModule` rejected, the recorder's fire-and-forget `.catch` swallowed it, and
+    // the result was a perfect recording whose preview never appeared with no error anywhere —
+    // confirmed by instrumenting: the live session opened, then received exactly zero frames.
+    //
+    // `?worker&url` compiles the module and hands back the built asset's URL, which is the documented
+    // way to load a worklet under Vite.
+    await audioContext.audioWorklet.addModule(workletUrl);
   } catch (error) {
     void audioContext.close().catch(() => undefined);
     throw error;

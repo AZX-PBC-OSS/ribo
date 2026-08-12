@@ -22,8 +22,11 @@
  * top-level `registerProcessor` below and it exports nothing, so under a blanket
  * `sideEffects: false` a bundler would be free to drop a host's bare
  * `import "@azx/ribo-core/worklet"` entirely — the same class of scar the playground's
- * `whisper.worker.ts` header documents for the worker entry. `sideEffects` is therefore narrowed to
- * this file rather than left `false`. URL-loading, the default path, was never at risk: emitted
+ * `whisper.worker.ts` header documents for the worker entry. `sideEffects` therefore lists BOTH this source file and its built
+ * output rather than being `false` — the dist path alone is not enough, because a workspace consumer
+ * resolves through the `@azx/source` condition to `src/worklet.ts` and a dist-only glob does not
+ * cover it. Listing one and not the other emitted a 0-byte worklet: the import was dropped, so
+ * `registerProcessor` never ran, and the tap failed with no frames and no error. URL-loading, the default path, was never at risk: emitted
  * assets are not tree-shaken.
  */
 export {};

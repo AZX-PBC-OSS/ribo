@@ -4,7 +4,8 @@
   "license": "MIT",
   "type": "module",
   "sideEffects": [
-    "./dist/worklet.js"
+    "./dist/worklet.js",
+    "./src/worklet.ts"
   ],
   "files": [
     "dist"
