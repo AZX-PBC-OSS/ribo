@@ -457,13 +457,27 @@ class QueueRelay implements Relay {
       // `dropAudioAfterTranscription` is deliberately NOT applied here: a human
       // investigating a suspiciously empty transcript needs to listen to the
       // recording, and dropping the bytes would make that impossible.
-      await this.#patch(item.id, { transcript, status: "awaiting-review", attempts: 0 });
+      //
+      // Routed through `writeTranscript` rather than `patch` so that `preview`
+      // is deleted in the same committed revision — a subscriber never sees the
+      // provisional text beside the final transcript.
+      await this.#options.outbox.writeTranscript(item.id, transcript, {
+        status: "awaiting-review",
+        attempts: 0,
+      });
       return;
     }
     // Persisted BEFORE the status moves on, so a crash between the two lands on
     // "transcript present, status stale" — which `nextStep` reads correctly —
     // rather than "status advanced, transcript lost".
-    await this.#patch(item.id, { transcript, status: "extracting", attempts: 0 });
+    //
+    // Routed through `writeTranscript` rather than `patch` so that `preview`
+    // is deleted in the same committed revision — a subscriber never sees the
+    // provisional text beside the final transcript.
+    await this.#options.outbox.writeTranscript(item.id, transcript, {
+      status: "extracting",
+      attempts: 0,
+    });
     if (this.#options.dropAudioAfterTranscription) {
       await this.#options.outbox.dropAudio(item.id);
     }

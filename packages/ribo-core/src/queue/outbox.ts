@@ -6,8 +6,10 @@ import type { Recording } from "../recording.js";
 import { baseRecordingSchema } from "../recording.js";
 import type { PersistedReviewOutcome } from "../review.js";
 import { reviewOutcomeSchema } from "../review.js";
+import type { Transcript } from "../transcript.js";
 import { isChunkOf } from "./chunk-names.js";
 import { openOutboxDatabase, type OutboxCollection, type OutboxDatabase } from "./database.js";
+import { appendSegment, handoffTranscript } from "./preview.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
   AUDIO_ATTACHMENT_ID,
@@ -368,6 +370,72 @@ export class Outbox {
     if (!doc) throw new Error(`outbox: no item with id "${id}"`);
     outboxItemSchema.parse({ ...this.#toItem(doc), ...patch });
     const updated = await doc.incrementalPatch(patch);
+    return this.#toItem(updated);
+  }
+
+  /**
+   * Append one closed utterance to the live-transcription preview.
+   *
+   * Refuses silently — returns `undefined`, does not throw — when `status !==
+   * "recording"` or `transcript` already exists. A late live reply is expected
+   * traffic, not an error anyone can act on: the recording may have been
+   * committed and transcribed while the reply was in flight.
+   *
+   * The refusal checks live **inside** the `incrementalModify` modifier, not
+   * against a copy read beforehand. RxDB re-runs the modifier against the
+   * *current* revision on write conflict, so a check made against a stale read
+   * can be wrong by the time the write lands — the recording may have been
+   * committed between the read and the retry.
+   *
+   * See {@link writeTranscript} for the other half of the contract: the
+   * modification that writes `transcript` deletes `preview` in the same
+   * revision, so the two never coexist after recording ends.
+   */
+  async appendPreviewSegment(id: string, text: string): Promise<OutboxItem | undefined> {
+    const doc = await this.#collection.findOne(id).exec();
+    if (!doc) return undefined;
+    let appended = false;
+    const updated = await doc.incrementalModify((data) => {
+      const [next, didAppend] = appendSegment(data, text);
+      appended = didAppend;
+      return next;
+    });
+    return appended ? this.#toItem(updated) : undefined;
+  }
+
+  /**
+   * Write the batch transcript and delete the preview in one storage
+   * modification.
+   *
+   * `patch` cannot do this: it is an `incrementalPatch`, and assigning
+   * `undefined` to an optional property does not delete the persisted key. This
+   * method uses `incrementalModify` with `delete`, so the `preview` key is gone
+   * from the stored document in the same committed revision that writes
+   * `transcript`.
+   *
+   * One revision, not two, because both orderings of two writes publish a state
+   * a subscriber can see: transcript-then-delete shows final text beside stale
+   * provisional text; delete-then-transcript shows a row with neither, which
+   * looks like a failed transcription.
+   *
+   * The `patch` argument carries the status change and any other fields the
+   * relay needs alongside the transcript — the same fields that were previously
+   * spread into `patch(id, { transcript, status, attempts })`. `transcript`
+   * itself is handled by this method and is omitted from the patch type so a
+   * caller cannot accidentally pass two different copies.
+   */
+  async writeTranscript(
+    id: string,
+    transcript: Transcript,
+    patch: Omit<OutboxPatch, "transcript">,
+  ): Promise<OutboxItem> {
+    const doc = await this.#collection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no item with id "${id}"`);
+    const updated = await doc.incrementalModify((data) => {
+      const merged = handoffTranscript(data, transcript, patch);
+      outboxDocumentSchema.parse(persistedFieldsOf(merged));
+      return merged;
+    });
     return this.#toItem(updated);
   }
 

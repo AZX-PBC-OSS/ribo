@@ -252,7 +252,9 @@ test("step outputs written before a close are readable after a reopen", async ()
 // ---------------------------------------------------------------------------
 
 /** The outbox's RxDB schema exactly as it was before this task's version bump. */
-const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<Omit<OutboxDocument, "reviewOutcome" | "capture">> = {
+const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<
+  Omit<OutboxDocument, "reviewOutcome" | "capture" | "preview">
+> = {
   version: 0,
   primaryKey: "id",
   type: "object",
