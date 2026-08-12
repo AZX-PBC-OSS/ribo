@@ -334,7 +334,9 @@ ${rows}
 
 function grid(run, problemIndex) {
   const slugs = run.transcripts.map((t) => t.slug);
-  const short = (s) => s.replace(/^(\d+)-.*/, "T$1");
+  // Just the ordinal. A 20px column cannot hold "T01" at this size without colliding with
+  // its neighbour; the full slug lives in `abbr` and in every problems entry.
+  const short = (s) => s.replace(/^(\d+)-.*/, "$1");
 
   const head = `      <tr>
         <th class="ar-corner" scope="col">Leaf</th>

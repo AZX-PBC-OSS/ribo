@@ -139,16 +139,22 @@ html.dark {
 }
 
 /* 2 rate row */
+/* Flex, not grid. An auto-fit grid wraps 3 cards into a 2-column row and leaves a FOURTH
+   empty cell, through which the container's rule-coloured background shows as a grey
+   rectangle that reads as a broken tile. Flex creates no phantom cell, and each card
+   carries its own border rather than relying on gap-showing-through. */
 .ar .ar-rates {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 1px;
-  background: var(--ar-rule);
+  background: none;
   border: 1px solid var(--ar-rule);
 }
 .ar .ar-card {
   background: var(--ar-bg);
   padding: 0.875rem 1rem 1rem;
+  flex: 1 1 13rem;
+  outline: 1px solid var(--ar-rule);
 }
 .ar .ar-card .ar-k {
   font-size: 0.75rem;
@@ -354,8 +360,17 @@ html.dark {
 .ar table.ar-grid td {
   border: 0;
   padding: 0;
-  background: none;
   font-weight: 400;
+}
+/* Kill VitePress's zebra striping on the ROW, not the cell. Putting `background: none`
+   on `td` here was a real bug: that selector is (0,2,1) and outranked every cell-state
+   rule below at (0,2,0), so `.ar-fault` and `.ar-shortfall` lost their fill and texture
+   and rendered as hollow outlines — while the same classes on a legend <span>, which no
+   table selector touches, looked correct. A reset that silently outranks the states it
+   sits above is worse than no reset. Striping is a `tr` background anyway, which a
+   transparent `td` would never have hidden. */
+.ar table.ar-grid tr {
+  background: none;
 }
 
 .ar table.ar-grid .ar-corner,
@@ -466,17 +481,26 @@ html.dark {
   border-radius: 50%;
 }
 
-/* shortfall — full fill + 45deg stripes */
+/* shortfall — full fill + 45deg stripes.
+   background-color is set SEPARATELY, never as a third comma-separated layer of the
+   `background` shorthand: a colour is not a layer, so `background: <img>, <img>, <color>`
+   is invalid and the browser drops the WHOLE declaration — losing the fill and the
+   texture, leaving only the box-shadow. That failure is silent and looks like a design
+   choice. Same applies to .ar-fault below. */
 .ar .ar-shortfall {
-  background:
-    repeating-linear-gradient(45deg, var(--ar-short-ink) 0 1px, transparent 1px 3px),
-    var(--ar-short-fill);
+  background-color: var(--ar-short-fill);
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--ar-short-ink) 0 1px,
+    transparent 1px 3px
+  );
   box-shadow: inset 0 0 0 1px var(--ar-short-edge);
 }
 
 /* fault — full fill + drawn cross + perimeter */
 .ar .ar-fault {
-  background:
+  background-color: var(--ar-fault-fill);
+  background-image:
     linear-gradient(
       to bottom right,
       transparent calc(50% - 0.8px),
@@ -488,8 +512,7 @@ html.dark {
       transparent calc(50% - 0.8px),
       var(--ar-fault-ink) calc(50% - 0.8px) calc(50% + 0.8px),
       transparent calc(50% + 0.8px)
-    ),
-    var(--ar-fault-fill);
+    );
   box-shadow: inset 0 0 0 1px var(--ar-fault-edge);
 }
 
