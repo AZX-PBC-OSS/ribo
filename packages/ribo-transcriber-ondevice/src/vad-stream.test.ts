@@ -87,8 +87,8 @@ function makeStateAccumulatingDetector(): ProbabilityDetector & {
       // Speech phase: probability depends on whether state was carried.
       // With carried state: state[0] = previous call's (idx), so prob = idx * 0.15 — ramps up.
       // With zero state (the bug): state[0] = 0, so prob = 0.15 — never crosses 0.3.
-      const carried = state[0] > 0;
-      const probability = carried ? Math.min(0.95, state[0] * 0.15) : 0.15;
+      const carried = (state[0] ?? 0) > 0;
+      const probability = carried ? Math.min(0.95, (state[0] ?? 0) * 0.15) : 0.15;
       const newState = new Float32Array(128);
       newState[0] = idx + 1;
       return { probability, state: newState };
@@ -141,9 +141,7 @@ describe("StreamingVad — Test A: the returned state is carried into the next f
  * 13 (enough to close). State is threaded but does not affect probabilities — this test is about
  * the FIFO, not the state-carrying.
  */
-function makeFixedPatternDetector(
-  probabilities: readonly number[],
-): ProbabilityDetector {
+function makeFixedPatternDetector(probabilities: readonly number[]): ProbabilityDetector {
   let callIdx = 0;
   return {
     initialState: new Float32Array(128),
@@ -166,9 +164,40 @@ describe("StreamingVad — Test B: a region opening includes the pre-speech FIFO
     // the FIFO). The FIFO keeps the last ~3 frames (ceil(80/32) = 3), so the utterance should
     // start with frames 2, 3, 4 — BEFORE frame 5.
     const probabilities = [
-      0, 0, 0, 0, 0, // silence → FIFO
-      0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, // speech
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // silence → close (13 frames = 416 ms)
+      0,
+      0,
+      0,
+      0,
+      0, // silence → FIFO
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5, // speech
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0, // silence → close (13 frames = 416 ms)
     ];
     const detector = makeFixedPatternDetector(probabilities);
     const vad = new StreamingVad(detector);
@@ -203,11 +232,52 @@ describe("StreamingVad — Test C: a silence shorter than 400 ms does not split"
     // Speech, then a 5-frame silence (160 ms < 400 ms — must not close), then speech again,
     // then a 15-frame silence (480 ms > 400 ms — closes).
     const probabilities = [
-      0, 0, 0, 0, 0, // silence → FIFO
-      0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, // speech (frames 5–15, 11 frames)
-      0, 0, 0, 0, 0, // short silence (frames 16–20, 5 frames = 160 ms < 400 ms)
-      0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, // speech resumes (frames 21–30, 10 frames)
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // long silence (15 frames = 480 ms > 400 ms → close)
+      0,
+      0,
+      0,
+      0,
+      0, // silence → FIFO
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5, // speech (frames 5–15, 11 frames)
+      0,
+      0,
+      0,
+      0,
+      0, // short silence (frames 16–20, 5 frames = 160 ms < 400 ms)
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5, // speech resumes (frames 21–30, 10 frames)
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0, // long silence (15 frames = 480 ms > 400 ms → close)
     ];
     const detector = makeFixedPatternDetector(probabilities);
     const vad = new StreamingVad(detector);
