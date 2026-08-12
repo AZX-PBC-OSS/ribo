@@ -72,7 +72,9 @@ class FakeWorker {
   readonly posted: { message: MainToWorkerMessage; transfer: Transferable[] }[] = [];
   readonly #listeners = new Map<string, Set<(event: unknown) => void>>();
   constructor(
-    private readonly reply: (message: Extract<MainToWorkerMessage, { requestId: string }>) => WorkerToMainMessage[],
+    private readonly reply: (
+      message: Extract<MainToWorkerMessage, { requestId: string }>,
+    ) => WorkerToMainMessage[],
   ) {}
   addEventListener(type: string, fn: (event: unknown) => void): void {
     const set = this.#listeners.get(type) ?? new Set();

@@ -47,7 +47,9 @@ class FakeWorker {
 
   constructor(
     /** Given a batch command (prime/transcribe), produce the worker→main messages to emit. */
-    private readonly reply: (command: Extract<MainToWorkerMessage, { requestId: string }>) => WorkerToMainMessage[],
+    private readonly reply: (
+      command: Extract<MainToWorkerMessage, { requestId: string }>,
+    ) => WorkerToMainMessage[],
   ) {}
 
   addEventListener(type: string, fn: (event: unknown) => void): void {
