@@ -33,6 +33,7 @@
     "react": "^18.3 || ^19",
     "react-dom": "^18.3 || ^19",
     "@azx/ribo-core": "workspace:^",
+    "rxjs": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -46,6 +47,7 @@
     "publint": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "rxjs": "catalog:",
     "rxdb": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

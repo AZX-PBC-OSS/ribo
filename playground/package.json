@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@azx/tsconfig": "workspace:*",
+    "@huggingface/transformers": "catalog:",
     "@types/node": "catalog:",
     "ajv": "catalog:",
     "@types/react": "catalog:",

@@ -112,8 +112,6 @@ const item: OutboxItem = outboxItemSchema.parse({
   id: "item-1",
   seq: 0,
   status: "writing",
-  // Every committed row names its canonical audio attachment.
-  canonicalAttachmentId: "audio",
   idempotencyKey: "idem-item-1",
   attempts: 0,
   nextAttemptAt: "2026-07-23T14:00:00.000Z",

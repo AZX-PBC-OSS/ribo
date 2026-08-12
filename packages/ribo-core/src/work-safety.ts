@@ -1,5 +1,6 @@
 import type { ConnectivityStatus } from "./connectivity.js";
 import { ACTIVE_OUTBOX_STATUSES, RECORDING_OUTBOX_STATUSES } from "./queue/schema.js";
+import type { CaptureHealth } from "./queue/capture-session.js";
 import type { OutboxItem } from "./queue/schema.js";
 
 /**
@@ -125,7 +126,7 @@ export type WorkSafety =
   /** On-device work, storage persistent: survives reload/crash/eviction, not a lost device. */
   | {
       readonly level: "protected";
-      readonly reason: "awaiting-sync";
+      readonly reason: "awaiting-sync" | "recording";
       readonly pending: number;
       /** Why it is waiting — `offline`/`probing` (waiting to reconnect) vs `online` (syncing now). */
       readonly connectivity: ConnectivityStatus;
@@ -133,10 +134,10 @@ export type WorkSafety =
   /** On-device work with no persistence grant: routine eviction can take it. */
   | {
       readonly level: "at-risk";
-      readonly reason: "not-persisted";
+      readonly reason: "not-persisted" | "capture-stalled";
       readonly pending: number;
       /** The non-grant in force, so a UI can say *why* — refused, unsupported, or still checking. */
-      readonly persistence: Exclude<StoragePersistence, "granted">;
+      readonly persistence?: Exclude<StoragePersistence, "granted">;
     }
   /** A permanently-failed item; needs a human. */
   | {
@@ -197,6 +198,7 @@ export const workSafety = (
   work: WorkOnDevice,
   persistence: StoragePersistence,
   connectivity: ConnectivityStatus,
+  captureHealth?: CaptureHealth,
 ): WorkSafety => {
   // A permanently-failed item is the most severe, most actionable answer: it
   // will never resolve on its own, so a human is told before anything else.
@@ -204,10 +206,23 @@ export const workSafety = (
     return { level: "action-required", reason: "failed-permanently", dead: work.dead };
   }
 
+  // A stalled capture is at-risk regardless of persistence: persistence has
+  // actually fallen behind — a failed chunk write or no dataavailable past a
+  // threshold — and the recording in memory is not reaching disk.
+  if (captureHealth === "stalled") {
+    return { level: "at-risk", reason: "capture-stalled", pending: work.pending };
+  }
+
   // No unsynced work left on the device — the only truly-safe state. Persistence
   // is moot here: there is nothing on the device for eviction to take.
   if (work.pending === 0) {
     return { level: "safe", reason: work.synced > 0 ? "all-synced" : "nothing-captured" };
+  }
+
+  // Healthy recording is protected — the unflushed tail is the expected state of
+  // a live recording, not a warning.
+  if (captureHealth === "flushing") {
+    return { level: "protected", reason: "recording", pending: work.pending, connectivity };
   }
 
   // On-device work is only ever `protected`, never `safe` — and only when the

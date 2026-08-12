@@ -342,6 +342,9 @@ importers:
       rxdb:
         specifier: 'catalog:'
         version: 17.4.0(react@19.2.8)(rxjs@7.8.2)(vue@3.5.40(typescript@6.0.3))
+      rxjs:
+        specifier: 'catalog:'
+        version: 7.8.2
       tsdown:
         specifier: 'catalog:'
         version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.23)(typescript@6.0.3)
@@ -396,6 +399,9 @@ importers:
       '@azx/tsconfig':
         specifier: workspace:*
         version: link:../packages/tsconfig
+      '@huggingface/transformers':
+        specifier: 'catalog:'
+        version: 4.2.0
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3

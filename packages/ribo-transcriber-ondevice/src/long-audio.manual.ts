@@ -81,7 +81,6 @@ test("the VAD path transcribes a 54 s clip in full, with hints and without leaki
   const elapsed = performance.now() - started;
   transcriber.dispose();
 
-  // eslint-disable-next-line no-console
   console.log(
     [
       "",

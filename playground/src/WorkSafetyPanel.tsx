@@ -80,6 +80,8 @@ function sentence(verdict: WorkSafety): string {
       return "Nothing captured yet — there is nothing on this device that could be lost.";
     case "all-synced":
       return "All captured work has left this device. It is safe.";
+    case "recording":
+      return "Recording — audio is being saved as you dictate. Each chunk reaches disk as it is captured.";
     case "awaiting-sync": {
       const count = plural(verdict.pending, "recording");
       // Persisted and on the device: safe from reload/crash/eviction, phrased by
@@ -92,6 +94,10 @@ function sentence(verdict: WorkSafety): string {
           ? "as soon as the connection is confirmed"
           : "when you are back online";
       return `Saved and persistent — ${count} waiting to upload; they will send ${when}.`;
+    }
+    case "capture-stalled": {
+      const count = plural(verdict.pending, "recording");
+      return `At risk: ${count} has a stalled capture — audio in memory is not reaching disk.`;
     }
     case "not-persisted": {
       const count = plural(verdict.pending, "recording");
@@ -107,7 +113,10 @@ function sentence(verdict: WorkSafety): string {
 }
 
 /** Why the grant is not in force, so the at-risk sentence can say which. */
-function persistencePhrase(persistence: Exclude<StoragePersistence, "granted">): string {
+function persistencePhrase(
+  persistence: Exclude<StoragePersistence, "granted"> | undefined,
+): string {
+  if (persistence === undefined) return "the grant is unknown";
   switch (persistence) {
     case "denied":
       return "the browser declined the request";

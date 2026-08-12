@@ -38,8 +38,17 @@ catalog:
   # runs in the Vite dev/preview server (Node), never in the browser bundle, so
   # it is a devDependency of `playground` ONLY.
   ajv: "8.20.0"
-  # On-device Whisper runtime, a `dependencies` entry of
-  # @azx/ribo-transcriber-ondevice ONLY (Phase 3). Deliberately kept out of
+  # On-device Whisper runtime. A `dependencies` entry of
+  # @azx/ribo-transcriber-ondevice — the only package that imports it — and a
+  # devDependency of `playground`, which does NOT import it and declares it purely
+  # so Vite can resolve it: `optimizeDeps.include` names it, and that specifier
+  # resolves from the playground's own node_modules, which under pnpm's isolated
+  # layout cannot see the transcriber's. See the note beside that entry, and the
+  # identical `workbox-window` case below. Both must stay on this one catalog pin:
+  # a second ONNX runtime reading a model cache written by the first is a real
+  # mismatch, not duplication.
+  #
+  # Deliberately kept out of
   # @azx/ribo-core: transformers pulls `onnxruntime-node` and `sharp` as hard
   # dependencies with postinstall build scripts, and no ribo-core consumer that
   # never transcribes on-device should inherit them. Pinned EXACT to the version

@@ -10,7 +10,7 @@ import {
   outboxItemSchema,
   outboxRxSchema,
 } from "./schema.js";
-import type { OutboxStatus } from "./schema.js";
+import type { OutboxPatch, OutboxStatus } from "./schema.js";
 
 // One document, described twice: once in zod (the read/write trust boundary) and
 // once in RxDB's JSON schema (which carries the primary key, indexes and
@@ -43,14 +43,12 @@ test("the RxDB required list is exactly zod's non-optional fields", () => {
   expect(required).toEqual(zodKeys.filter((key) => !optionalKeys.includes(key)));
 });
 
-test("the optional fields are the step outputs, the error message, and the durable-capture fields", () => {
+test("the optional fields are the step outputs, the error message, and capture", () => {
   expect(optionalKeys).toEqual([
-    "canonicalAttachmentId",
     "capture",
     "extracted",
     "lastError",
     "reviewOutcome",
-    "step",
     "transcript",
     "writeResult",
   ]);
@@ -176,7 +174,6 @@ test("a document carries an optional review outcome", () => {
     attempts: 0,
     nextAttemptAt: new Date(0).toISOString(),
     enqueuedAt: new Date(0).toISOString(),
-    canonicalAttachmentId: "audio",
     recording: {
       id: "r",
       capturedAt: new Date(0).toISOString(),
@@ -215,7 +212,6 @@ function validDocument() {
       mimeType: "audio/webm",
       ctx: {},
     },
-    canonicalAttachmentId: "audio",
   };
 }
 
@@ -238,33 +234,64 @@ test("recording is a status, and it is in exactly one category", () => {
   expect(RECORDING_OUTBOX_STATUSES).toEqual(["recording"]);
 });
 
-test("a recording document must carry capture, and must not claim committed audio", () => {
+test("a recording document must carry capture", () => {
   const base = validDocument();
   expect(() =>
-    // `canonicalAttachmentId: undefined` too, or this passes against an
-    // implementation that never checks for `capture` at all — the OTHER invariant
-    // (a recording row must not claim committed audio) would fire on the
-    // fixture's inherited pointer and the assertion could not tell the two apart.
-    outboxDocumentSchema.parse({
-      ...base,
-      status: "recording",
-      capture: undefined,
-      canonicalAttachmentId: undefined,
-    }),
+    outboxDocumentSchema.parse({ ...base, status: "recording", capture: undefined }),
   ).toThrow();
+});
+
+test("capture carries only sourceId — owner is gone", () => {
+  const base = validDocument();
+  const doc = outboxDocumentSchema.parse({
+    ...base,
+    status: "recording",
+    capture: { sourceId: "s1" },
+  });
+  expect(doc.capture).toEqual({ sourceId: "s1" });
+  // An owner field is now unrecognized — strictObject rejects it.
   expect(() =>
     outboxDocumentSchema.parse({
       ...base,
       status: "recording",
       capture: { sourceId: "s1", owner: "o1" },
-      canonicalAttachmentId: "audio-canonical-o1",
     }),
   ).toThrow();
 });
 
-test("a committed row must name its canonical attachment", () => {
-  // Including the non-durable enqueue() path, which has no capture at all.
-  expect(() =>
-    outboxDocumentSchema.parse({ ...validDocument(), canonicalAttachmentId: undefined }),
-  ).toThrow();
+/**
+ * The unpatchable fields, asserted at the TYPE level because nothing else can.
+ *
+ * `OutboxPatch` is derived by `Omit`, so a field dropping out of that list is invisible to
+ * every runtime test — the schema still parses, the tests still pass, and a caller quietly
+ * gains the ability to rewrite something that was never meant to change. Verified: removing
+ * `capture` from the omit list breaks neither `pnpm typecheck` nor any test in this file.
+ *
+ * `capture.sourceId` is the one that would hurt. It names a recording's chunk attachments,
+ * so a patched `sourceId` orphans every chunk already on disk — the same class of data loss
+ * that an earlier revision of the durable-capture design shipped and had to withdraw. The
+ * others are here for the reason their own doc comment gives: decided once, and re-deciding
+ * any of them breaks ordering, provenance or idempotency.
+ *
+ * Each `@ts-expect-error` IS the assertion. If the field becomes patchable the directive
+ * goes unused, and an unused directive is a typecheck error — so this fails loudly in the
+ * one place a runtime test cannot reach.
+ */
+test("the fields decided once stay decided — none of them is patchable", () => {
+  // @ts-expect-error `capture` names the chunk attachments; patching sourceId orphans them.
+  const capture: OutboxPatch = { capture: { sourceId: "s1" } };
+  // @ts-expect-error `id` is the primary key.
+  const id: OutboxPatch = { id: "other" };
+  // @ts-expect-error `seq` is the queue's ordering key.
+  const seq: OutboxPatch = { seq: 99 };
+  // @ts-expect-error `idempotencyKey` must survive every retry unchanged.
+  const key: OutboxPatch = { idempotencyKey: "regenerated" };
+  // @ts-expect-error `recording` is capture provenance, not queue state.
+  const recording: OutboxPatch = { recording: undefined };
+  // @ts-expect-error `enqueuedAt` is when it entered the queue, once.
+  const enqueuedAt: OutboxPatch = { enqueuedAt: "2026-01-01T00:00:00.000Z" };
+
+  // The values are irrelevant — the directives above are the test. Referencing them keeps
+  // the linter from removing what looks like dead code and taking the assertions with it.
+  expect([capture, id, seq, key, recording, enqueuedAt]).toHaveLength(6);
 });

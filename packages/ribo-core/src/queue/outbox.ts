@@ -6,6 +6,7 @@ import type { Recording } from "../recording.js";
 import { baseRecordingSchema } from "../recording.js";
 import type { PersistedReviewOutcome } from "../review.js";
 import { reviewOutcomeSchema } from "../review.js";
+import { isChunkOf } from "./chunk-names.js";
 import { openOutboxDatabase, type OutboxCollection, type OutboxDatabase } from "./database.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
@@ -184,10 +185,8 @@ export class Outbox {
         nextAttemptAt: this.#nowIso(),
         enqueuedAt: this.#nowIso(),
         recording: baseRecordingSchema.parse(recording),
-        // The non-durable enqueue path has no `capture` (audio is committed in one
-        // write, not chunked), but it still mints the canonical attachment pointer
-        // the schema invariant requires of every committed row.
-        canonicalAttachmentId: AUDIO_ATTACHMENT_ID,
+        // The non-durable enqueue path has no `capture` — audio is committed in
+        // one write, not chunked.
       } satisfies OutboxDocument);
 
       const insert: OutboxInsert = {
@@ -207,6 +206,133 @@ export class Outbox {
       // same `audioReady` / `audioBytes` a subscriber sees for it.
       return this.#toItem(doc);
     });
+  }
+
+  /**
+   * Begin a durable recording: insert a `recording` row with `capture: { sourceId }`
+   * and no committed audio. Chunk attachments are written by {@link appendChunk};
+   * {@link commitRecording} finalises the row into `queued`.
+   */
+  async beginRecording({
+    recording,
+    sourceId,
+  }: {
+    recording: Recording;
+    sourceId: string;
+  }): Promise<OutboxItem> {
+    return this.#serialized(async () => {
+      const document = outboxDocumentSchema.parse({
+        id: this.#createId(),
+        seq: (await this.#highestSeq()) + 1,
+        status: "recording",
+        idempotencyKey: this.#createIdempotencyKey(),
+        attempts: 0,
+        nextAttemptAt: this.#nowIso(),
+        enqueuedAt: this.#nowIso(),
+        recording: baseRecordingSchema.parse(recording),
+        capture: { sourceId },
+      } satisfies OutboxDocument);
+      const doc = await this.#collection.insert(document);
+      return this.#toItem(doc);
+    });
+  }
+
+  /**
+   * Write one chunk attachment. The `name` is a `chunkName(sourceId, …)` string;
+   * the caller is responsible for naming and ordering.
+   */
+  async appendChunk(id: string, name: string, blob: Blob): Promise<void> {
+    const doc = await this.#collection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no item ${id}`);
+    await doc.putAttachment({
+      id: name,
+      type: blob.type || "application/octet-stream",
+      data: blob,
+    });
+  }
+
+  /**
+   * Read all chunk attachments for `id`'s `capture.sourceId`, in name order, and
+   * concatenate them into one `Blob`. Used at commit and at recovery.
+   */
+  async mergeChunks(id: string): Promise<Blob> {
+    const doc = await this.#collection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no item ${id}`);
+    const sourceId = doc.capture?.sourceId;
+    if (!sourceId) throw new Error(`outbox: item ${id} has no capture.sourceId`);
+    const chunks = doc
+      .allAttachments()
+      .filter((a) => isChunkOf(a.id, sourceId))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const parts: Blob[] = [];
+    for (const chunk of chunks) {
+      parts.push(await chunk.getData());
+    }
+    return new Blob(parts, { type: doc.recording.mimeType });
+  }
+
+  /**
+   * Merge chunk attachments excluding the last one, for recovery's
+   * drop-and-retry. Returns `null` if there is only one chunk (nothing to drop).
+   *
+   * A truncated tail is the one case where dropping bytes can turn an undecodable
+   * merge into a decodable one — the final chunk may be a half-written container
+   * that the decoder chokes on. Recovery tries the full merge first; only on
+   * failure does it reach for this method.
+   */
+  async mergeChunksExcludingLast(id: string): Promise<Blob | null> {
+    const doc = await this.#collection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no item ${id}`);
+    const sourceId = doc.capture?.sourceId;
+    if (!sourceId) throw new Error(`outbox: item ${id} has no capture.sourceId`);
+    const chunks = doc
+      .allAttachments()
+      .filter((a) => isChunkOf(a.id, sourceId))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    if (chunks.length <= 1) return null;
+    const parts: Blob[] = [];
+    for (let i = 0; i < chunks.length - 1; i++) {
+      parts.push(await chunks[i]!.getData());
+    }
+    return new Blob(parts, { type: doc.recording.mimeType });
+  }
+
+  /**
+   * Commit a durable recording: write the canonical `AUDIO_ATTACHMENT_ID`
+   * attachment, transition `recording → queued` with the decoded `durationMs`,
+   * and delete the chunk attachments. The caller has already merge-verified the
+   * audio; this method writes what it is given.
+   */
+  async commitRecording(id: string, audio: Blob, durationMs: number): Promise<OutboxItem> {
+    const doc = await this.#collection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no item ${id}`);
+    // 1. Write the canonical audio.
+    await doc.putAttachment({
+      id: AUDIO_ATTACHMENT_ID,
+      type: audio.type || "application/octet-stream",
+      data: audio,
+    });
+    // 2. Transition recording → queued and set durationMs from the decoded audio.
+    await doc.incrementalModify((data) => {
+      if (data.status !== "recording")
+        throw new Error(`outbox: ${id} is ${data.status}, not recording — commit refused`);
+      return {
+        ...data,
+        status: "queued" as const,
+        recording: { ...data.recording, durationMs },
+      };
+    });
+    // 3. Sweep the chunk attachments — the canonical audio is the only audio now.
+    const sourceId = doc.capture?.sourceId;
+    if (sourceId) {
+      for (const attachment of doc.allAttachments()) {
+        if (isChunkOf(attachment.id, sourceId)) await attachment.remove();
+      }
+    }
+    // Re-read for the projection — the attachment stubs changed.
+    const settled = await this.#collection.findOne(id).exec();
+    if (!settled) throw new Error(`outbox: item ${id} vanished during commit`);
+    return this.#toItem(settled);
   }
 
   /** One item by id, or `undefined` if it is not there. */
@@ -563,12 +689,7 @@ export class Outbox {
   /** The captured audio, or `undefined` once it has been dropped. */
   async getAudio(id: string): Promise<Blob | undefined> {
     const doc = await this.#collection.findOne(id).exec();
-    // Resolves the attachment the pointer names, not a fixed constant — so a
-    // future canonical id that differs from the legacy `AUDIO_ATTACHMENT_ID` is
-    // read correctly. If the pointer is absent (a recording row that has not
-    // committed yet), there is no canonical audio to return.
-    const pointer = doc?.canonicalAttachmentId;
-    const attachment = pointer ? doc?.getAttachment(pointer) : undefined;
+    const attachment = doc?.getAttachment(AUDIO_ATTACHMENT_ID);
     return attachment ? await attachment.getData() : undefined;
   }
 
@@ -588,11 +709,7 @@ export class Outbox {
    */
   async dropAudio(id: string): Promise<void> {
     const doc = await this.#collection.findOne(id).exec();
-    // Drops the attachment the pointer names, leaving the pointer itself — it
-    // still records WHICH attachment was authoritative, which is why
-    // `audioReady` reads attachment presence rather than pointer presence.
-    const pointer = doc?.canonicalAttachmentId;
-    if (pointer) await doc?.getAttachment(pointer)?.remove();
+    await doc?.getAttachment(AUDIO_ATTACHMENT_ID)?.remove();
   }
 
   /** Delete an item and its attachment. */
@@ -657,31 +774,10 @@ export class Outbox {
     // be read off the document separately. `getAttachment` reads the in-memory
     // stub on `doc._data`, so it does not fetch bytes — a property lookup, not I/O.
     //
-    // `audioReady` reads the attachment the `canonicalAttachmentId` POINTER
-    // names, not the pointer itself: the pointer survives `dropAudio` (it
-    // records WHICH attachment was authoritative), so reading presence off the
-    // pointer would report deleted audio as playable.
-    const canonical = doc.canonicalAttachmentId
-      ? doc.getAttachment(doc.canonicalAttachmentId)
-      : null;
-    // While recording there is no canonical yet, but the chunks ARE durable — so a
-    // UI can show capture progressing instead of reporting nothing, and cannot
-    // mistake "not yet" for "the bytes were dropped".
-    //
-    // Gated on the STATUS, not on `capture`: `capture.sourceId` is deliberately
-    // retained after commit (it identifies chunks that may still need sweeping),
-    // so keying off its presence would make a committed row whose canonical audio
-    // was dropped report `audioReady: false` with non-zero `audioBytes` — which
-    // contradicts the documented dropped state and would let a UI offer playback
-    // for bytes it cannot assemble. It also scans attachments on every projection
-    // of every durable row, for a number the canonical length then wins anyway.
-    // NOT YET TESTED, and that is a known gap rather than an oversight: proving this
-    // needs a `recording` row carrying chunk attachments, and no public API can build
-    // one until `beginRecording` lands (plan Task 6). Two assertions are owed then —
-    // a mid-recording row reporting `audioReady: false` with non-zero `audioBytes`,
-    // and a committed row with leftover chunks reporting canonical bytes only, `0`
-    // once dropped. Reaching past `Outbox` to fake those states was tried and is not
-    // worth the fixture; through the real constructor they are three lines each.
+    // `audioReady` reads the `AUDIO_ATTACHMENT_ID` attachment directly: with the
+    // canonical pointer deleted in revision 9, there is only one canonical audio
+    // attachment, and its id is the constant.
+    const canonical = doc.getAttachment(AUDIO_ATTACHMENT_ID);
     const audioBytes =
       canonical?.length ??
       (doc.status === "recording" && doc.capture ? sumChunkBytes(doc, doc.capture.sourceId) : 0);
@@ -752,22 +848,11 @@ function mangoQuery({ status, limit }: OutboxQuery): MangoQuery<OutboxDocument> 
   };
 }
 
-/**
- * The attachment-id prefix for a capture session's chunked audio.
- *
- * A local helper, not the full naming module — Task 5 will export `chunkPrefix`
- * alongside `chunkName`, `canonicalName` and the rest from a dedicated module.
- * It lives here for now because the projection's `audioBytes` sum needs to
- * identify chunk attachments by id prefix, and that is the only consumer.
- */
-const chunkPrefix = (sourceId: string): string => `audio-${sourceId}-`;
-
 /** Total durable bytes of one capture's chunk attachments. Reads stub lengths, never bytes. */
 function sumChunkBytes(doc: RxDocument<OutboxDocument>, sourceId: string): number {
-  const prefix = chunkPrefix(sourceId);
   let total = 0;
   for (const attachment of doc.allAttachments()) {
-    if (attachment.id.startsWith(prefix)) total += attachment.length;
+    if (isChunkOf(attachment.id, sourceId)) total += attachment.length;
   }
   return total;
 }

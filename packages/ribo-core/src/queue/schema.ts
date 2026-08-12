@@ -104,10 +104,9 @@ export const FINISHED_OUTBOX_STATUSES = [
 
 /**
  * In-flight capture. Its own category because it is neither: the relay must not
- * act on it (there is no committed audio yet — see `canonicalAttachmentId`), and
- * it is plainly not finished. The status-partition test fails for any status that
- * belongs to no named bucket, and naming this one is how that invariant is kept
- * rather than weakened.
+ * act on it (there is no committed audio yet), and it is plainly not finished.
+ * The status-partition test fails for any status that belongs to no named bucket,
+ * and naming this one is how that invariant is kept rather than weakened.
  */
 export const RECORDING_OUTBOX_STATUSES = ["recording"] as const;
 
@@ -189,38 +188,16 @@ export const outboxDocumentSchema = z
      */
     reviewOutcome: reviewOutcomeSchema.optional(),
     /**
-     * Capture identity, present while (and after) this row was recorded through the
-     * durable path. TWO fields because they have opposite requirements: `sourceId`
-     * names the chunk attachments and must NEVER change or recovery cannot find
-     * them; `owner` authorises writes and MUST rotate on takeover or a restored tab
-     * keeps writing. Conflating them made recovery delete the audio it was
-     * recovering (design §3.1.1).
+     * Capture identity, present on a row recorded through the durable path. `sourceId`
+     * names the chunk attachments and must NEVER change — recovery finds every chunk of
+     * a recording through it. Revision 8's `owner` is deleted: nothing takes over, so
+     * nothing needs authorising.
      */
-    capture: z.object({ sourceId: z.string().min(1), owner: z.string().min(1) }).optional(),
-    /**
-     * WHICH attachment is the authoritative audio. Published only in the guarded
-     * `recording → queued` transition, so a stale writer's bytes can land under
-     * their own name and never become authoritative. Survives `dropAudio` — it is
-     * still the answer to "which one WAS the real audio", which is why `audioReady`
-     * is a separate, presence-based fact.
-     */
-    canonicalAttachmentId: z.string().min(1).optional(),
-    /** Relay claim token, rotated on every claim and compared by every step write. */
-    step: z.object({ generation: z.string().min(1) }).optional(),
+    capture: z.strictObject({ sourceId: z.string().min(1) }).optional(),
   })
   .superRefine((doc, ctx) => {
-    if (doc.status === "recording") {
-      if (!doc.capture)
-        ctx.addIssue({ code: "custom", message: "a recording row must carry capture" });
-      if (doc.canonicalAttachmentId)
-        ctx.addIssue({ code: "custom", message: "a recording row has committed nothing yet" });
-    } else if (!doc.canonicalAttachmentId) {
-      // Every non-recording row was created as playable — including via the
-      // non-durable enqueue() path, which has no capture but still mints a pointer.
-      ctx.addIssue({
-        code: "custom",
-        message: "a committed row must name its canonical attachment",
-      });
+    if (doc.status === "recording" && !doc.capture) {
+      ctx.addIssue({ code: "custom", message: "a recording row must carry capture" });
     }
   });
 
@@ -271,7 +248,7 @@ export const DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "audioReady"] as const;
  * tell that anything happened.
  */
 export const outboxItemSchema = outboxDocumentSchema.extend({
-  /** Whether the attachment named by `canonicalAttachmentId` exists **right now**. */
+  /** Whether the `AUDIO_ATTACHMENT_ID` attachment exists **right now**. */
   audioReady: z.boolean(),
   /** Durable bytes on disk for this item: the canonical attachment, or the
    * accumulated chunks while still recording. `0` when there are neither. */
@@ -293,28 +270,12 @@ export type OutboxItem = z.infer<typeof outboxItemSchema>;
  * absent: they are decided once and re-deciding any of them would break
  * ordering, provenance or idempotency.
  *
- * **`capture`, `canonicalAttachmentId` and `step` are absent for a stronger
- * reason: they are AUTHORITY, and a patchable authority is no authority at all.**
- * Each is changed by exactly one narrow guarded operation — takeover rotates
- * `capture.owner`, the commit transition publishes `canonicalAttachmentId`, a
- * relay claim rotates `step.generation` — and each of those comparisons is what
- * makes a stale writer's work land inert instead of corrupting. Leaving them in
- * this type would let any caller replace `capture.sourceId` and make a
- * recording's chunks undiscoverable, or publish a pointer at unverified bytes,
- * through the ordinary public API and without holding anything.
+ * `capture` is absent because `sourceId` names the chunk attachments and must
+ * NEVER change — it is set once by `beginRecording` and not patchable through
+ * the ordinary public API.
  */
 export type OutboxPatch = Partial<
-  Omit<
-    OutboxDocument,
-    | "id"
-    | "seq"
-    | "enqueuedAt"
-    | "recording"
-    | "idempotencyKey"
-    | "capture"
-    | "canonicalAttachmentId"
-    | "step"
-  >
+  Omit<OutboxDocument, "id" | "seq" | "enqueuedAt" | "recording" | "idempotencyKey" | "capture">
 >;
 
 /**
@@ -352,8 +313,6 @@ export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
     writeResult: { type: "object" },
     reviewOutcome: { type: "object" },
     capture: { type: "object" },
-    canonicalAttachmentId: { type: "string", maxLength: 128 },
-    step: { type: "object" },
   },
   required: [
     "id",
