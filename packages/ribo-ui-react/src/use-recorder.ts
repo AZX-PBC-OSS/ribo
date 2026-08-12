@@ -1,4 +1,11 @@
-import type { Capture, Outbox, OutboxItem, RecorderPhase, RecorderState } from "@azx/ribo-core";
+import type {
+  Capture,
+  LiveTranscriber,
+  Outbox,
+  OutboxItem,
+  RecorderPhase,
+  RecorderState,
+} from "@azx/ribo-core";
 import { RecorderError } from "@azx/ribo-core";
 import { useCallback, useRef, useState } from "react";
 
@@ -22,6 +29,13 @@ export interface UseRecorderOptions {
   readonly enqueue?: boolean;
   /** Override or supply the capture coordinator for health reporting. */
   readonly captureCoordinator?: CaptureCoordinator;
+  /**
+   * Override the live transcriber from {@link RiboProvider}. When supplied and
+   * ready, recording opens a live session whose segments appear on the outbox
+   * row's `preview` field. The session lifecycle is driven by
+   * `recorder.start()`/`stop()` through the host's capture-session wiring.
+   */
+  readonly liveTranscriber?: LiveTranscriber;
 }
 
 export interface StopResult {
@@ -40,6 +54,14 @@ export interface UseRecorderResult {
   /** An async `start`/`stop` is in flight. */
   readonly busy: boolean;
   readonly error: RecorderError | undefined;
+  /**
+   * The live transcriber, if one was supplied to {@link RiboProvider} or this
+   * hook. `undefined` when live is not configured. The session lifecycle is
+   * driven by `start()`/`stop()` through the host's capture-session wiring, not
+   * by this hook directly — the hook exposes it so a UI can indicate whether
+   * live preview is available.
+   */
+  readonly liveTranscriber: LiveTranscriber | undefined;
   readonly start: () => Promise<void>;
   readonly stop: () => Promise<StopResult>;
   readonly pause: () => void;
@@ -101,6 +123,7 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
     "captureCoordinator",
     options.captureCoordinator,
   );
+  const liveTranscriber = useOptionalRiboInstance("liveTranscriber", options.liveTranscriber);
 
   // `subscribe` must stay referentially stable across renders — see
   // useSubscribed's doc comment. `Recorder.state` allocates a fresh object on
@@ -202,6 +225,7 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
     // error, so `state.error` is undefined and the hook's `error` takes over —
     // keeping the failure visible until the next start() clears both.
     error: state.error ?? error,
+    liveTranscriber,
     start,
     stop,
     pause,

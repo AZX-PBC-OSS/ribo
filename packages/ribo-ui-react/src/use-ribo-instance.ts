@@ -8,6 +8,7 @@ const HOW_TO_SUPPLY: Record<keyof RiboInstances, string> = {
   outbox: "await openOutbox() from @azx/ribo-core",
   connectivity: "createConnectivity({ … }) from @azx/ribo-core",
   captureCoordinator: "createCaptureCoordinator() from @azx/ribo-ui-react",
+  liveTranscriber: "new OnDeviceLiveTranscriber(…) from @azx/ribo-transcriber-ondevice",
 };
 
 /**

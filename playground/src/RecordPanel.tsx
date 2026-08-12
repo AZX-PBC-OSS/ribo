@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useRecorder } from "@azx/ribo-ui-react";
+import { useOutboxItems, useRecorder } from "@azx/ribo-ui-react";
 
 import { formatElapsed } from "./format.js";
 import { button, errorBox, monospace, muted, panel, recordButton } from "./styles.js";
@@ -21,6 +21,13 @@ const METER_HEIGHT = 14;
 export function RecordPanel() {
   const { phase, elapsedMs, level, scaledLevel, busy, error, toggle, pause, resume } =
     useRecorder();
+  // The recording row is already in the outbox (durable capture inserts it at
+  // `start()`), so `useOutboxItems` delivers its `preview` reactively — no new
+  // subscription mechanism is added (design §Delivery). `preview` is absent
+  // before the first utterance closes and after the batch transcript lands.
+  const { items: recordingItems } = useOutboxItems({ status: "recording" });
+  const recordingItem = recordingItems[0];
+  const previewSegments = recordingItem?.preview?.segments;
 
   const recording = phase === "recording";
   const paused = phase === "paused";
@@ -64,6 +71,13 @@ export function RecordPanel() {
       </div>
 
       <LevelMeter level={level} scaledLevel={scaledLevel} active={recording} />
+
+      {recording && previewSegments && previewSegments.length > 0 && (
+        <div data-testid="live-preview" style={{ marginTop: "0.75rem" }}>
+          <div style={muted}>live preview (provisional — replaced by the final transcript):</div>
+          <p style={{ ...monospace, margin: "0.25rem 0 0" }}>{previewSegments.join(" ")}</p>
+        </div>
+      )}
 
       {error !== undefined && <p style={errorBox}>{error.message}</p>}
     </section>

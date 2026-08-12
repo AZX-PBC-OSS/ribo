@@ -360,6 +360,14 @@ class QueueRelay implements Relay {
    */
   async #drain(): Promise<void> {
     for (;;) {
+      // Live needs the worker: do not admit new items while anything is recording.
+      // An in-flight item (already claimed by a previous iteration) runs to
+      // completion — this check is before the next `nextPending()` claim, not
+      // after `#processStep`, so the current item is never interrupted. Recording
+      // never waits (the recorder has no worker); the preview does.
+      const [recording] = await this.#options.outbox.list({ status: ["recording"], limit: 1 });
+      if (recording) return;
+
       const item = await this.#options.outbox.nextPending();
       if (!item) return;
       if (Date.parse(item.nextAttemptAt) > this.#now()) return;
