@@ -1,9 +1,25 @@
 # Live transcription — utterance-level preview during recording
 
-**Status:** Design, revision 5. **Piece 2 of 2.** Not yet planned.
+**Status:** Design, revision 6. **Piece 2 of 2. Unblocked, ready to plan.**
 **Date:** 2026-08-08, split 2026-08-10, revised 2026-08-11
 
-> **Revision 5 makes this feature actually live.** Revision 4 resolved both blockers and then had to
+> **Revision 6 is a subtraction.** Two things changed underneath this document and both made it
+> smaller.
+>
+> - **Piece 1 has merged.** Revision 5 said piece 2 could not be planned until durable capture landed.
+>   It has: capture session, capture lock, recovery and capture health are all on `main`. This design
+>   is now plannable.
+> - **The batch path moved to Moonshine too**, so live and batch share one model. Revision 5's longest
+>   section existed to manage a live/batch model split — two downloads, two residencies, a preview
+>   worse than its own transcript on domain jargon. **None of that exists now.** The section is
+>   deleted rather than revised, which is the third time in this feature that the fix has been
+>   removing something rather than repairing it.
+>
+> One fact arrives in exchange, and it is not a small one: **peak RSS roughly doubled** on the swap to
+> Moonshine — 3494 MB → 6644 MB, on a _smaller_ model, unexplained. That matters far more for a
+> feature that runs _during_ recording than for one that runs after it. See §Memory.
+
+> **Revision 5 made this feature actually live.** Revision 4 resolved both blockers and then had to
 > report that the result was a preview lagging **9–15 seconds** behind the speaker — technically
 > useful, but not what anyone means by live. Measurement and research since have cut that to
 > **roughly 0.7 s**, and the change is not a tuning exercise: it is two component swaps, neither of
@@ -105,9 +121,9 @@ still the measurement that should precede shipping, not follow it.
 reactively, so **no new subscription mechanism is added** and the `segments$` observable in the seam
 below stays internal to core.
 
-`OutboxItem` is a public type and adding `preview` widens it. `OutboxStatus` already carries
-`recording` on `main`, but the mechanism behind that status (capture session, capture lock, recovery,
-capture health) is **open on PR #9, not merged**. Piece 2 cannot be planned until that lands.
+`OutboxItem` is a public type and adding `preview` widens it. `OutboxStatus` and the mechanism behind
+it — capture session, capture lock, recovery, capture health — are all on `main` as of piece 1's
+merge, so this design builds on shipped code rather than on a pending branch.
 
 ## Architecture
 
@@ -185,27 +201,50 @@ at independently.
 VAD and ASR calls chain through a single promise. This is the same constraint the batch path already
 lives under, and it is why §Worker contention matters even with a fast model.
 
-### Which model runs where — and the tension this creates
+### One model, both paths
 
-The live path uses **Moonshine**; the batch path stays on **Whisper**. That is not a free choice and
-the cost belongs in this document rather than in a retrospective:
+Live and batch both run **Moonshine**, because the default on-device model changed while this design
+was being written. Revision 5 planned a split — Moonshine for live, Whisper for batch — and spent its
+longest section on the resulting tension: two downloads, two residencies, a load-on-record question
+with no measurement behind it, and a preview systematically worse than its own final transcript on
+exactly the domain terms an auditor checks first.
 
-- **Jargon priming does not survive the move.** `OnDeviceTranscriber` biases Whisper toward R-value,
-  CFM50, ACH50 and the rest by injecting a prefix into `decoder_input_ids` and slicing it back off.
-  Moonshine has no documented equivalent, and its own docs do not mention vocabulary biasing at all.
-  The preview will therefore be worse on exactly the domain terms an auditor most wants to check on
-  the spot. **The batch transcript, which is authoritative, keeps its priming** — so this degrades the
-  preview, not the record.
-- **Two models are two downloads and two residencies.** moonshine-base is 247 MB fp32 (97 MB q4);
-  whisper-base.en is 291 MB fp32. They are never needed _simultaneously_ — the relay does not admit
-  work while recording — so the live model can be disposed at `stop()`. Whether load-on-record is
-  acceptable depends on the warm-cache load time, which is **unmeasured**; the spike only recorded
-  cold downloads (31–84 s).
+**All of that is gone.** There is one model, already resident because batch uses it, and the preview
+and the transcript now differ only in how much audio each saw.
 
-The alternative — Moonshine for both paths — deletes the second model and the tension with it, at the
-cost of jargon priming on the authoritative transcript and a full re-measurement of accuracy. **That
-is a real option and this document does not choose it**, because choosing it on unmeasured WER would
-be exactly the kind of decision the spike exists to prevent. See §Open questions.
+Two consequences worth stating rather than leaving implied:
+
+- **Neither path has jargon priming.** Whisper's `decoder_input_ids` trick needs a trained
+  prior-context token and Moonshine has none — `all_special_tokens` is empty, and a prefix is
+  transcribed instead of the audio. So `OnDeviceTranscriber` now refuses hints rather than ignoring
+  them. This is a real accuracy cost on the _record_, not just the preview, and it is accounted for
+  where it belongs: `docs/implementation/14`, once that document is updated to describe the model this
+  package actually ships.
+- **`liveCapability()` is weaker than revision 5 claimed.** It called the split from `capability()`
+  "load-bearing" because the two paths reported on different weights. They no longer do. It still
+  earns its place — live additionally needs Silero, and "ASR cached but VAD missing" is a real state —
+  but the justification is now the VAD, not the model.
+
+### Memory
+
+**The swap to Moonshine roughly doubled peak RSS: 3494 MB → 6644 MB**, measured across the 14-transcript
+corpus on desktop Chromium. That is a _smaller_ model by weights (247 MB fp32 against Whisper's 291 MB),
+so the likeliest cause is that Moonshine processes the full unpadded waveform where Whisper processes a
+fixed 30-second mel window — longer sequences, larger attention buffers. **That explanation is a
+hypothesis and has not been tested.**
+
+It lands harder here than it did on the batch path. Batch transcription runs after `stop()`, with the
+recorder torn down; live inference runs _concurrently with an open microphone, an `AudioWorklet`, and
+`MediaRecorder` writing chunks to disk_. The peak is the sum, on the device least able to absorb it.
+
+Two things follow, neither of which this document can settle:
+
+- **Measure per-utterance peak on a phone before planning depth.** Live feeds 2–8 second buffers, not
+  54-second ones, so the figure that matters may be far below the corpus peak — or may not be.
+- **If it is a wall, moonshine-tiny is the lever** (109 MB fp32 against base's 247 MB) and it is
+  plausible _specifically_ for live: its quality collapsed on the full 54-second fixture but was
+  comparable to base at 2–8 seconds, which is the only length live produces. That would reintroduce a
+  two-model split — but for a measured reason, which is the opposite of the situation revision 5 was in.
 
 ### Why not Moonshine v2
 
@@ -335,13 +374,17 @@ and a manual run where text appears while speaking.
 
 ## Open questions
 
-- **WER, Moonshine against Whisper, on our corpus.** The spike measured latency and eyeballed quality;
-  it did not measure accuracy. This is the question that decides whether Moonshine is live-only or
-  replaces Whisper outright, and it should be answered before planning.
-- **Can Moonshine be primed at all?** If some equivalent of the decoder-prefix trick exists, the
-  preview keeps its domain vocabulary and the live/batch split gets much less costly.
-- **Warm-cache load time for a second model**, which decides whether load-on-record is viable or the
-  live model must stay resident.
+- **Per-utterance peak memory on a real phone.** The one that could stop this feature. See §Memory.
+- **Extraction hazard rates on Moonshine transcripts.** WER is measured (7.5 % → 9.2 % mean, +1.7 pp);
+  what it does to extracted fields is not, because `score-partb.mjs` reads a clean-text baseline the
+  corpus v2 reconciliation replaced with per-transcript files. The harness needs repairing before that
+  question can be asked at all.
+
+Two questions revision 5 listed here are now **answered**, and by measurement rather than argument:
+Moonshine against Whisper on our corpus (+1.7 pp mean WER, 2× faster, and _better_ than Whisper
+unhinted on the jargon-dense transcript — 6.3 % against 22.4 %), and whether Moonshine can be primed
+(no; it transcribes the prefix instead of the audio).
+
 - **q8/q4 decoders.** The reference implementation runs Moonshine with a q8 decoder on WASM and q4 on
   WebGPU. `docs/implementation/14` records that q4/q8 do not load on our pinned ORT build — that
   finding was made against Whisper and may not generalise. If it does not, moonshine-base is ~97 MB.
