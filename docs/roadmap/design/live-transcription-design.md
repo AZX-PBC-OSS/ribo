@@ -1,97 +1,74 @@
 # Live transcription — utterance-level preview during recording
 
-**Status:** Design, revision 4. **Piece 2 of 2.** Not yet planned.
+**Status:** Design, revision 5. **Piece 2 of 2.** Not yet planned.
 **Date:** 2026-08-08, split 2026-08-10, revised 2026-08-11
 
-> **Revision 4 unblocks this document.** Revision 3 ended with two problems marked _"must be settled
-> before this piece is planned"_, and both are settled here — neither by adding a mechanism. Each was
-> the wrong mechanism, and naming the right one made the problem disappear.
+> **Revision 5 makes this feature actually live.** Revision 4 resolved both blockers and then had to
+> report that the result was a preview lagging **9–15 seconds** behind the speaker — technically
+> useful, but not what anyone means by live. Measurement and research since have cut that to
+> **roughly 0.7 s**, and the change is not a tuning exercise: it is two component swaps, neither of
+> which was on the table when this document was written.
 >
-> - **U1 (worker exclusion) was mis-framed.** It asked how live and batch share the Whisper worker
->   "without making recording wait". **Recording never waits.** `Recorder` has no worker: it is
->   `getUserMedia` + `MediaRecorder` + `AnalyserNode`, all browser-native. Whisper cannot block it.
->   Only the _preview_ can wait, and a late preview is the degradation this design already blesses.
->   See §Worker contention.
-> - **U2 (`VadStreamState`) was the wrong shape.** Carrying binarizer hysteresis across feeds cannot
->   work, because the _probabilities themselves_ are not final near the tail — VAD averages
->   overlapping inference windows. Recomputing from a committed cursor needs **no carried state at
->   all**. See §Rolling VAD.
+> - **The VAD, which was ~90 % of the latency.** pyannote-segmentation-3.0 is a 10-second-window
+>   model whose probabilities are averaged across overlapping windows, so a frame's value is not
+>   final until 5–10 s of later audio exists. **Silero VAD is frame-synchronous** — 512 samples
+>   (32 ms) at a time, carrying its own recurrent state tensor. Settle latency goes from 5–10 s to
+>   one frame.
+> - **The ASR.** Whisper pads every input to 30 s before the encoder runs, so a 2-second utterance
+>   costs what a 29-second one does — [measured](../../../spikes/live-model-comparison/README.md):
+>   **1.26× across a 14.5× range of audio.** Moonshine's feature extractor passes audio through
+>   unpadded; at live utterance lengths it is **4–16× faster**.
 >
-> **Revision 4 also rebases this document onto durable capture revision 9.** Revision 3 depended on
-> piece 1's lock document, fencing token, lease expiry, owner token and interruption state table.
-> Revision 9 **deleted all of them** — every one of those words now appears in that document only in
-> its table of deletions. The dependency shrinks rather than needing replacement: with nothing taking
-> over, a live session needs no fence.
+> **Revision 4's answer to U2 is withdrawn, not corrected.** It proposed recomputing the VAD pipeline
+> from a committed cursor on every feed — a sound workaround for a model that cannot stream, and
+> unnecessary against one that can. Silero hands back its own state; there is nothing to reconstruct.
+> The whole §Rolling VAD section is gone.
 >
-> **And it states a latency budget for the first time.** "Live" here means roughly **9–15 s behind the
-> spoken word on desktop**, and that is a derived floor, not a target to optimise toward later. See
-> §What "live" actually costs. If that number is unacceptable, this feature needs rethinking rather
-> than tuning — which is exactly why it belongs at the top of a design rather than in a retrospective.
+> **U1's resolution stands unchanged** (§Worker contention): recording never waits, because `Recorder`
+> has no worker at all.
+>
+> **One revision-4-era claim is retracted.** The spike observed Moonshine transcribing a 54-second
+> clip in a single call and suggested that might make the batch chunk-planning layer unnecessary.
+> Moonshine's own reference implementation caps input at 30 s (`MAX_BUFFER_DURATION = 30`) and the v2
+> paper recommends external segmentation. One clip working is not a licence to delete that layer.
 
 ## The goal
 
-An auditor dictating a walkthrough sees their words appear shortly after they speak and pause, while
-standing in the room — so a misheard reading can be corrected on the spot rather than discovered at
-review.
+An auditor dictating a walkthrough sees their words appear as they speak and pause, while standing in
+the room — so a misheard reading can be corrected on the spot rather than discovered at review.
 
 Today transcription begins only after the recording is finished: `record → stop() → enqueue → relay →
 transcriber.transcribe(recording, audio)`. Nothing is visible until the whole recording is processed.
 
-**Read §What "live" actually costs before anything else.** The goal above is achievable; "as they
-speak" is not, and the difference is large enough to change whether this is worth building.
-
 ## What this is not
 
-- **Not word-level streaming.** Whisper is an encoder–decoder over a fixed 30-second mel spectrogram;
-  the encoder is bidirectional, so there is no incremental state to advance. Every "live Whisper"
-  system re-runs the model, and because input is padded to 30 s regardless, a 3-second buffer costs
-  the same encoder pass as a 30-second one. There is no cheap short call. Utterance-level fits the
-  model's shape and the measured RTF 0.158 (`docs/implementation/14`); word-level does not.
+- **Not word-level streaming.** Utterance-level: text appears when you pause, not as each word lands.
+  Moonshine v2 has a genuinely incremental encoder that could go further, but it is not reachable —
+  see §Why not Moonshine v2.
 - **Not live extraction.** Deliberately deferred. Every extraction call emits all 51 leaves because
   the anti-hallucination rule makes every key required and nullable, so a five-second utterance costs
   roughly what a five-minute recording does (~1,200 output tokens; **estimated** 12–20 s — extraction
   latency has never been measured). R3's per-group routing is a hard prerequisite, and even then the
   contradiction policy ("the attic is R-38 — sorry, R-49") is undecided and there is no local model
   for offline use.
-- **Not diarization.** The VAD model can do it; we are not asking.
+- **Not diarization.** Silero does not offer it and we are not asking.
 - **Not authoritative.** The batch pass after `stop()` replaces the preview entirely. See §Provisional.
 
 ## What "live" actually costs
 
-Three latencies compose, and none of them is an implementation detail that better code removes.
+| component         | revision 4 |  revision 5 | basis                    |
+| ----------------- | ---------: | ----------: | ------------------------ |
+| VAD settle        |     5–10 s | **~0.03 s** | Silero frame size, 32 ms |
+| Utterance close   |  0.5–0.7 s |   **0.4 s** | reference implementation |
+| ASR per utterance |     ~2.0 s | **~0.25 s** | measured, spike          |
+| **total**         |    ~9–15 s |  **~0.7 s** |                          |
 
-**1. VAD settle: 5–10 s.** `speechTimeline` runs pyannote over **fixed 10-second windows advancing
-50%**, and averages the overlapping frames — a frame's probability is provisional until every window
-covering it has run. With window `W = 10 s` and advance `a = 5 s`, a frame at time `s` is covered by
-windows starting in `(s − W, s]`; the last of them starts at `⌊s/a⌋·a` and completes once audio
-reaches `⌊s/a⌋·a + W`. So:
+The ASR figure is our own measurement (moonshine-base, 4-second utterance, WASM, fp32, desktop). The
+other two are the component's stated frame size and the reference implementation's constant.
 
-```
-settle(s) ∈ (s + 5 s,  s + 10 s]
-```
-
-This is a property of the model's 10-second training duration, not of our code. A **larger** advance
-lowers the lag (toward `s + W − a`) at the cost of less averaging; a smaller advance raises it toward
-the full `s + 10 s` while buying more. Ten seconds is the floor set by `W` regardless.
-
-**2. Utterance close.** A region is emitted only once trailing silence exceeds `minSilence`. **The
-batch default of 100 ms is wrong for live** and this is easy to miss: batch does not care about
-utterance granularity because `mergeRegions` immediately merges everything up to 30 s, so 100 ms only
-protects against splitting inside a word. Live emits what the binarizer produces, so at 100 ms it
-would emit fragments at inter-word gaps. Live needs its own `minSilenceMs` — **500–700 ms** is the
-usual conversational-boundary range — and it needs measuring, not assuming.
-
-**3. Whisper inference: ~3–4 s per utterance on desktop.** Every utterance is padded to the full 30 s
-window, so cost is per-call and nearly independent of utterance length. Derived from RTF 0.158 over a
-54 s clip (2–3 chunks, ~3–4 s each), measured **on a development machine**. A phone is plausibly 2–4×
-that and **has never been measured** — the single most important unmeasured number in this design.
-
-**Total: ~9–15 s on desktop.** Longer on the target device.
-
-That still supports the goal — the auditor is in the room for far longer than fifteen seconds — but
-it is not "words appearing as you speak", and any UI built on this must not imply that it is. A
-preview that lags a sentence or two behind reads as _thinking_; one that claims to be live and lags
-reads as _broken_.
+**This is a desktop number and the target is a phone.** It is no longer the difference between
+"useful" and "not useful" — 0.7 s has room to be several times worse and still feel live — but it is
+still the measurement that should precede shipping, not follow it.
 
 ## Delivery: consumers already have a stream
 
@@ -100,11 +77,9 @@ reads as _broken_.
 reactively, so **no new subscription mechanism is added** and the `segments$` observable in the seam
 below stays internal to core.
 
-**This is not the same as "no API change", which revision 1 wrongly claimed.** `OutboxItem` is a
-public type and adding `preview` widens it. `OutboxStatus` already carries `recording` on `main`, so
-this document no longer adds it — but the mechanism behind that status (capture session, capture
-lock, recovery, capture health) is **open on PR #9, not merged**. Piece 2 cannot be planned against
-it until that lands.
+`OutboxItem` is a public type and adding `preview` widens it. `OutboxStatus` already carries
+`recording` on `main`, but the mechanism behind that status (capture session, capture lock, recovery,
+capture health) is **open on PR #9, not merged**. Piece 2 cannot be planned until that lands.
 
 ## Architecture
 
@@ -113,12 +88,14 @@ mic ─► MediaStream ─┬─► MediaRecorder ──► chunks ──► aud
                     │                                        │ (at stop) merge
                     │                                        ▼
                     │                                 AUDIO_ATTACHMENT_ID
-                    └─► AudioWorklet ─► PCM ────► LiveSession.feed()
+                    └─► AudioWorklet ─► 512-sample frames ─► LiveSession.feed()
                                                        │
-                                        [worker: VAD from cursor + Whisper]
-                                                       │ utterance settles
+                                     [worker: Silero per frame, state carried]
+                                                       │ 400 ms of silence closes it
                                                        ▼
-                                          segments$ ──► item.preview.segments[]
+                                              Moonshine ──► segments$
+                                                                │
+                                                    item.preview.segments[]
                                                                 │
                                                       Outbox.watch() ──► useOutboxItems ──► UI
 
@@ -128,7 +105,7 @@ stop() ─► queued ─► relay ─► transcriber.transcribe(blob) ─► tra
 Live is orchestrated by `ribo-core` against a seam engines implement — the same direction as
 `Transcriber`. Letting the engine write to the outbox itself was rejected: it inverts the dependency
 and breaks the substitutability `firstCapable` relies on. A separate `ribo-live` package was rejected
-because the worker and VAD model live in the ondevice package.
+because the worker and the models live in the ondevice package.
 
 ### The live seam is NOT composed through `firstCapable`
 
@@ -140,67 +117,74 @@ Instead the live orchestrator takes an **optional `LiveTranscriber` directly**. 
 or its `liveCapability()` is not `ready`, there is simply no preview and recording proceeds
 untouched — which is exactly the governing rule below, so this costs nothing.
 
-`liveCapability()` is **separate from `capability()`** and this is load-bearing: the on-device
-transcriber deliberately reports batch `ready` when only the ASR weights are cached, because long
-audio falls back to a fixed-window march without VAD. Live has no such fallback — VAD is the
-mechanism — so "batch ready, live unavailable" is a real state the existing probe cannot express.
+`liveCapability()` is **separate from `capability()`** and this is load-bearing: it must report on a
+different model and a different VAD from the batch path, so "batch ready, live unavailable" is a real
+state — and after this revision it is the _common_ state, since the two paths no longer share weights.
 
 ### Components
 
 **`Recorder` (`ribo-core`, extended).** Gains an optional `onSamples` tap; one `getUserMedia` stream
 feeds both `MediaRecorder` — still producing the durable chunks piece 1 persists — and an
-`AudioWorklet` emitting 16 kHz PCM. Without the callback, behaviour is identical to today.
+`AudioWorklet` emitting **512-sample frames**. Without the callback, behaviour is identical to today.
+
+512 is not arbitrary: it is Silero's frame size, and the reference `AudioWorkletProcessor` exists
+purely to regroup the browser's 128-sample render quanta into it.
 
 **`LiveTranscriber` / `LiveSession` (`ribo-core`, new seam).** `openSession(recording)` returns a
-handle with `feed(pcm)`, `segments$`, and `close()`, plus `liveCapability()` on the transcriber.
+handle with `feed(frame)`, `segments$`, and `close()`, plus `liveCapability()` on the transcriber.
 
 **`ribo-transcriber-ondevice` (extended).** Implements it by adding a live conversation to the worker
 protocol alongside `prime` and `transcribe`.
 
-### Rolling VAD: recompute from a cursor, carry no state
+### The frame loop
 
-**Revision 3 proposed a `VadStreamState` carrying `inSpeech` and `openRegionStart` across feeds, and
-flagged it as under-specified. It is worse than under-specified — it is the wrong mechanism**, and
-extending it would have produced a contract that passes tests while still losing speech.
+Per 512-sample frame, in the worker:
 
-Carried hysteresis assumes the per-frame probabilities are settled and only the _binarizer_ needs
-continuity. They are not. `speechTimeline` averages overlapping inference windows, so a frame near the
-tail has been seen by **one** window and its value will change when the next window arrives. No amount
-of binarizer state fixes an input that is still moving. Revision 3's own list of things that must
-survive a boundary — a not-yet-`minSilence` silence run, a preceding region awaiting a retrospective
-fill decision, consumed padding, the model's overlap context, the cursor's relation to padded audio —
-is a list of five symptoms of that one cause.
+1. Run Silero, passing the previous `state` tensor and keeping the one it returns. **This is the
+   entire streaming-state problem, solved by the model rather than by us.**
+2. Hysteresis on the returned probability: enter speech above **0.3**, leave below **0.1**.
+3. While in speech, append to a buffer capped at **30 s**.
+4. Keep a small FIFO of pre-speech frames (**80 ms**) and prepend it when a region opens, so a
+   consonant onset is not clipped by the frame that detected it.
+5. After **400 ms** of silence, dispatch the buffer to Moonshine, emit the text, reset.
+6. On buffer overflow at 30 s, dispatch and carry the overflow into the next buffer.
 
-**So live does not stream the pipeline. It re-runs it.**
+Every constant above is the reference implementation's, adopted rather than re-derived — with one
+exception worth noting: our batch pipeline's min-speech filter is **250 ms** and so is theirs, arrived
+at independently.
 
-The session keeps a single piece of state: **`committedSamples`**, the offset past which every
-utterance has already been emitted. On each feed:
+**Serialise inference.** transformers.js does not support simultaneous inference in one worker, so
+VAD and ASR calls chain through a single promise. This is the same constraint the batch path already
+lives under, and it is why §Worker contention matters even with a fast model.
 
-1. Run VAD over `[committedSamples − lookback, now]`, where `lookback` covers the settle window
-   (≥ `W` = 10 s) so the recomputed region begins from settled probabilities.
-2. Run the **existing whole-buffer pipeline** over that span, unchanged: `binarizeSpeech` →
-   `fillShortSilences` → `dropShortSpeech` → `padRegions` → `cutLongRegions`. Live skips
-   `mergeRegions` alone, which exists to build 30-second batch chunks and would destroy utterance
-   granularity. `cutLongRegions` is kept — it is what bounds the tail, below.
-3. Emit only regions that are **entirely settled** — ending before `now − W` — and that closed with
-   trailing silence ≥ live's `minSilence`. Advance `committedSamples` to the end of the last emitted
-   region.
-4. A region still open at the settled boundary is not emitted; it waits for more audio.
+### Which model runs where — and the tension this creates
 
-This is idempotent: re-feeding the same tail emits nothing new, because `committedSamples` did not
-move. Every one of revision 3's five boundary hazards is gone — not handled, absent — because no
-decision is ever carried across a boundary. The functions in `segmentation.ts` are reused verbatim
-rather than gaining a streaming variant.
+The live path uses **Moonshine**; the batch path stays on **Whisper**. That is not a free choice and
+the cost belongs in this document rather than in a retrospective:
 
-**Bounding the recomputation.** If nobody pauses, the uncommitted tail grows without limit and each
-feed re-runs VAD over all of it. `cutLongRegions` already force-closes any region exceeding 30 s at
-its quietest interior frame, so the cursor advances at least every 30 s and the tail stays bounded at
-roughly `30 s + lookback` — about six to eight VAD windows, which is cheap beside one Whisper pass.
+- **Jargon priming does not survive the move.** `OnDeviceTranscriber` biases Whisper toward R-value,
+  CFM50, ACH50 and the rest by injecting a prefix into `decoder_input_ids` and slicing it back off.
+  Moonshine has no documented equivalent, and its own docs do not mention vocabulary biasing at all.
+  The preview will therefore be worse on exactly the domain terms an auditor most wants to check on
+  the spot. **The batch transcript, which is authoritative, keeps its priming** — so this degrades the
+  preview, not the record.
+- **Two models are two downloads and two residencies.** moonshine-base is 247 MB fp32 (97 MB q4);
+  whisper-base.en is 291 MB fp32. They are never needed _simultaneously_ — the relay does not admit
+  work while recording — so the live model can be disposed at `stop()`. Whether load-on-record is
+  acceptable depends on the warm-cache load time, which is **unmeasured**; the spike only recorded
+  cold downloads (31–84 s).
 
-**The cost is redundant VAD passes.** A frame is re-examined on every feed until it commits. That is
-deliberate: VAD is a 6 MB model over 10-second windows, Whisper is 314 MB padded to 30 s, and trading
-the cheap one to delete an entire class of silent correctness bug is the right direction. It should
-still be measured on a phone before this ships.
+The alternative — Moonshine for both paths — deletes the second model and the tension with it, at the
+cost of jargon priming on the authoritative transcript and a full re-measurement of accuracy. **That
+is a real option and this document does not choose it**, because choosing it on unmeasured WER would
+be exactly the kind of decision the spike exists to prevent. See §Open questions.
+
+### Why not Moonshine v2
+
+Moonshine v2 is an "ergodic streaming encoder" with genuinely incremental encoding — the thing that
+would take this from utterance-level to word-level. Our pinned `@huggingface/transformers@4.2.0`
+registry contains `moonshine` only; there is no `moonshine_streaming`. Reaching it means a runtime
+upgrade, and this design deliberately does not depend on one.
 
 ## Data model
 
@@ -225,12 +209,14 @@ spans against exactly the text the model saw.
 ### Provisional, not authoritative
 
 After `stop()` the whole recording is re-transcribed by the existing batch path and the result replaces
-the preview — roughly 2× inference, and the text visibly rewrites. Chosen so the batch path stays the
-single source of truth and `Transcript` semantics do not change.
+the preview. Chosen so the batch path stays the single source of truth and `Transcript` semantics do
+not change.
 
-**The rewrite is user-visible and must be designed for, not hidden.** Batch merges utterances into
-30-second chunks with different boundaries and more context, so the final text will differ from the
-preview in wording, not only in layout.
+**The rewrite is user-visible and must be designed for, not hidden** — and revision 5 makes it more
+visible, not less: the preview now comes from a _different model_ with _no jargon priming_, so the
+final text will differ in wording and, specifically, on domain terms. A UI that presents the preview
+as provisional is doing honest work; one that presents it as the transcript will look like it changed
+its mind.
 
 ### The handoff, and the late-reply race
 
@@ -244,9 +230,9 @@ review:
   carries a **session id**; replies from a closed session are discarded, and the append modifier
   additionally **rejects when `status !== "recording"` or `transcript` exists**. Both are required.
 
-A "neither populated" window is **legitimate** before the first utterance settles — and given the
-latency budget it lasts on the order of ten seconds, so it is the normal opening state rather than an
-edge case. Tests must not forbid it and UI must not treat it as an error.
+A "neither populated" window is legitimate before the first utterance closes. At ~0.7 s it is now
+brief enough to read as normal latency rather than as a broken screen — but tests must still permit it
+and UI must not treat it as an error.
 
 ## Ownership: nothing to add
 
@@ -268,6 +254,7 @@ reply, which costs nothing.
 | ----------------------------------------------------- | -------------------------------------------------------------------- |
 | No `LiveTranscriber`, or `liveCapability()` not ready | No preview. Recording and chunk persistence proceed normally.        |
 | `AudioWorklet` unavailable                            | No preview. Everything else unaffected.                              |
+| Silero or Moonshine fails to load                     | No preview. Recording continues; the batch path is unaffected.       |
 | Live transcription throws                             | Preview stops for that session. Recording continues; error surfaced. |
 | Worker busy with a batch item                         | Preview starts late. Utterances buffer; see below.                   |
 | Transcription falls behind, unbounded                 | Drop closed utterances awaiting transcription, never buffered PCM.   |
@@ -288,50 +275,49 @@ The only thing that can wait is the preview. So:
 
 - **The relay stops admitting new items while anything is `recording`.** Revision 2's rule, still
   correct — it was never wrong, only insufficient alone.
-- **An in-flight batch item runs to completion.** Live queues behind it. Worst case is one item:
-  ~47 s for a five-minute recording at RTF 0.158, and only when a drain happened to be running.
+- **An in-flight batch item runs to completion.** Live queues behind it.
 - **Recording starts instantly, always.**
 
 **Buffer the closed utterances during that wait; do not drop them.** The general backpressure rule
-below drops closed utterances under load, which is right for _sustained_ overload — but this delay is
-bounded by a single item, and 47 s of 16 kHz mono PCM is about 3 MB. Buffering lets the preview catch
-up in a burst instead of silently missing the opening minute of the walkthrough, which is the part an
-auditor is most likely to be watching. Dropping remains the rule when the backlog is unbounded.
+drops closed utterances under load, which is right for _sustained_ overload — but this delay is
+bounded by a single item, and a minute of 16 kHz mono PCM is a few megabytes. Buffering lets the
+preview catch up in a burst instead of silently missing the opening of the walkthrough.
 
 Never drop buffered **PCM** in either regime: removing PCM would let VAD join speech across the hole
 into one false utterance.
 
 ## Testing
 
-Five that **must be able to fail**, each easy to write so it does not:
+Four that **must be able to fail**, each easy to write so it does not:
 
-- **Re-feeding the same uncommitted tail emits nothing twice.** The idempotence the cursor buys is the
-  whole correctness argument for recomputation; a test that only feeds forward never exercises it.
-- **A region still open at the settled boundary is not emitted**, and _is_ emitted once later audio
-  closes it. Both halves — the first alone passes against code that never emits.
-- **A silence shorter than live's `minSilence` spanning two feeds does not split an utterance.** This
-  is the test revision 3 could not pass without more carried state; under recomputation it should pass
-  with none, which is the claim worth checking.
+- **Silero's returned state is carried into the next frame.** Pass the initial zero state every time
+  and speech detection still broadly works on clean audio, which is exactly why this needs an explicit
+  test: the bug is silent and shows up as clipped onsets in noise. Assert the state tensor fed to call
+  N+1 is the one returned by call N.
+- **A region opening includes the pre-speech FIFO.** Without it the frame that _detected_ speech is the
+  first frame transcribed, and the consonant before it is gone. Red if the padding is dropped.
 - **A stale live reply after the transcript is written does not restore `preview`.** The naive "never
   both populated" test passes without this and misses the race entirely.
 - **`workSafety` must not report `safe` with a recording in progress.** Owned by piece 1 (PR #9);
   restated because live must not regress it.
 
-Also: a legitimate "neither populated" window before the first utterance is permitted; a forced 30-second
-cut advances the cursor and does not duplicate the audio either side of it; and a manual run where text
-appears while speaking, timed against §What "live" actually costs rather than against "instantly".
-
-**One measurement gates planning:** per-utterance Whisper latency on a real phone. The budget above is
-derived from a desktop figure, and if the device number is 4× rather than 2×, the total lands near
-half a minute and the feature does not deliver its goal. That is a spike, not a task.
+Also: a legitimate "neither populated" window before the first utterance is permitted; a 30-second
+overflow dispatch carries its remainder into the next buffer rather than dropping or duplicating it;
+and a manual run where text appears while speaking.
 
 ## Open questions
 
-- **Live's `minSilenceMs`** needs measuring against real dictation. The batch default of 100 ms is
-  certainly wrong; 500–700 ms is the starting range, not an answer.
-- **Whether the 5–10 s VAD settle can be traded away.** A tail-anchored window — run VAD over the last
-  10 s ending at _now_, rather than on the global grid — would give an immediate unaveraged probability
-  and remove most of that lag, at the cost of noisier boundaries near the tail. It is the obvious
-  optimisation if the field lag proves unacceptable, and it is deliberately not taken now: it trades a
-  correctness margin for latency, and that trade should be made against a measurement.
+- **WER, Moonshine against Whisper, on our corpus.** The spike measured latency and eyeballed quality;
+  it did not measure accuracy. This is the question that decides whether Moonshine is live-only or
+  replaces Whisper outright, and it should be answered before planning.
+- **Can Moonshine be primed at all?** If some equivalent of the decoder-prefix trick exists, the
+  preview keeps its domain vocabulary and the live/batch split gets much less costly.
+- **Warm-cache load time for a second model**, which decides whether load-on-record is viable or the
+  live model must stay resident.
+- **q8/q4 decoders.** The reference implementation runs Moonshine with a q8 decoder on WASM and q4 on
+  WebGPU. `docs/implementation/14` records that q4/q8 do not load on our pinned ORT build — that
+  finding was made against Whisper and may not generalise. If it does not, moonshine-base is ~97 MB.
+- **WebGPU.** Every figure in the spike is WASM, because the headless harness cannot reach WebGPU. The
+  reference implementation prefers it with a WASM fallback, so real-device numbers may be materially
+  better than anything measured here.
 - Whether utterance boundaries ever need exposing, which would add timings to `preview`.
