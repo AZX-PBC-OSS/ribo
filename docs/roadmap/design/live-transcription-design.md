@@ -3,17 +3,17 @@
 **Status:** Design, revision 4. **Piece 2 of 2.** Not yet planned.
 **Date:** 2026-08-08, split 2026-08-10, revised 2026-08-11
 
-> **Revision 4 unblocks this document.** Revision 3 ended with two problems marked *"must be settled
-> before this piece is planned"*, and both are settled here — neither by adding a mechanism. Each was
+> **Revision 4 unblocks this document.** Revision 3 ended with two problems marked _"must be settled
+> before this piece is planned"_, and both are settled here — neither by adding a mechanism. Each was
 > the wrong mechanism, and naming the right one made the problem disappear.
 >
 > - **U1 (worker exclusion) was mis-framed.** It asked how live and batch share the Whisper worker
 >   "without making recording wait". **Recording never waits.** `Recorder` has no worker: it is
 >   `getUserMedia` + `MediaRecorder` + `AnalyserNode`, all browser-native. Whisper cannot block it.
->   Only the *preview* can wait, and a late preview is the degradation this design already blesses.
+>   Only the _preview_ can wait, and a late preview is the degradation this design already blesses.
 >   See §Worker contention.
 > - **U2 (`VadStreamState`) was the wrong shape.** Carrying binarizer hysteresis across feeds cannot
->   work, because the *probabilities themselves* are not final near the tail — VAD averages
+>   work, because the _probabilities themselves_ are not final near the tail — VAD averages
 >   overlapping inference windows. Recomputing from a committed cursor needs **no carried state at
 >   all**. See §Rolling VAD.
 >
@@ -90,8 +90,8 @@ that and **has never been measured** — the single most important unmeasured nu
 
 That still supports the goal — the auditor is in the room for far longer than fifteen seconds — but
 it is not "words appearing as you speak", and any UI built on this must not imply that it is. A
-preview that lags a sentence or two behind reads as *thinking*; one that claims to be live and lags
-reads as *broken*.
+preview that lags a sentence or two behind reads as _thinking_; one that claims to be live and lags
+reads as _broken_.
 
 ## Delivery: consumers already have a stream
 
@@ -163,7 +163,7 @@ protocol alongside `prime` and `transcribe`.
 flagged it as under-specified. It is worse than under-specified — it is the wrong mechanism**, and
 extending it would have produced a contract that passes tests while still losing speech.
 
-Carried hysteresis assumes the per-frame probabilities are settled and only the *binarizer* needs
+Carried hysteresis assumes the per-frame probabilities are settled and only the _binarizer_ needs
 continuity. They are not. `speechTimeline` averages overlapping inference windows, so a frame near the
 tail has been seen by **one** window and its value will change when the next window arrives. No amount
 of binarizer state fixes an input that is still moving. Revision 3's own list of things that must
@@ -250,8 +250,8 @@ edge case. Tests must not forbid it and UI must not treat it as an error.
 
 ## Ownership: nothing to add
 
-Revision 3 said the one thing piece 2 adds is *"a live session's generation must be tied to the
-recording session's owner token"*. **There is no owner token.** Piece 1 revision 9 replaced ownership
+Revision 3 said the one thing piece 2 adds is _"a live session's generation must be tied to the
+recording session's owner token"_. **There is no owner token.** Piece 1 revision 9 replaced ownership
 with plain Web Locks exclusion and made recovery write a new row, so nothing ever takes over a
 recording and nothing needs authorising.
 
@@ -264,15 +264,15 @@ reply, which costs nothing.
 
 **Live must never degrade recording.** A preview is a nicety; the audio is the product.
 
-| Failure                                              | Behaviour                                                            |
-| ---------------------------------------------------- | -------------------------------------------------------------------- |
+| Failure                                               | Behaviour                                                            |
+| ----------------------------------------------------- | -------------------------------------------------------------------- |
 | No `LiveTranscriber`, or `liveCapability()` not ready | No preview. Recording and chunk persistence proceed normally.        |
-| `AudioWorklet` unavailable                           | No preview. Everything else unaffected.                              |
-| Live transcription throws                            | Preview stops for that session. Recording continues; error surfaced. |
-| Worker busy with a batch item                        | Preview starts late. Utterances buffer; see below.                   |
-| Transcription falls behind, unbounded                | Drop closed utterances awaiting transcription, never buffered PCM.   |
-| Second tab tries to record                           | Refused by the capture lock (piece 1).                               |
-| Crash mid-recording                                  | Piece 1 recovers the audio into a new row. Preview is simply lost.   |
+| `AudioWorklet` unavailable                            | No preview. Everything else unaffected.                              |
+| Live transcription throws                             | Preview stops for that session. Recording continues; error surfaced. |
+| Worker busy with a batch item                         | Preview starts late. Utterances buffer; see below.                   |
+| Transcription falls behind, unbounded                 | Drop closed utterances awaiting transcription, never buffered PCM.   |
+| Second tab tries to record                            | Refused by the capture lock (piece 1).                               |
+| Crash mid-recording                                   | Piece 1 recovers the audio into a new row. Preview is simply lost.   |
 
 ### Worker contention: recording never waits, the preview does
 
@@ -293,7 +293,7 @@ The only thing that can wait is the preview. So:
 - **Recording starts instantly, always.**
 
 **Buffer the closed utterances during that wait; do not drop them.** The general backpressure rule
-below drops closed utterances under load, which is right for *sustained* overload — but this delay is
+below drops closed utterances under load, which is right for _sustained_ overload — but this delay is
 bounded by a single item, and 47 s of 16 kHz mono PCM is about 3 MB. Buffering lets the preview catch
 up in a burst instead of silently missing the opening minute of the walkthrough, which is the part an
 auditor is most likely to be watching. Dropping remains the rule when the backlog is unbounded.
@@ -307,7 +307,7 @@ Five that **must be able to fail**, each easy to write so it does not:
 
 - **Re-feeding the same uncommitted tail emits nothing twice.** The idempotence the cursor buys is the
   whole correctness argument for recomputation; a test that only feeds forward never exercises it.
-- **A region still open at the settled boundary is not emitted**, and *is* emitted once later audio
+- **A region still open at the settled boundary is not emitted**, and _is_ emitted once later audio
   closes it. Both halves — the first alone passes against code that never emits.
 - **A silence shorter than live's `minSilence` spanning two feeds does not split an utterance.** This
   is the test revision 3 could not pass without more carried state; under recomputation it should pass
@@ -330,7 +330,7 @@ half a minute and the feature does not deliver its goal. That is a spike, not a 
 - **Live's `minSilenceMs`** needs measuring against real dictation. The batch default of 100 ms is
   certainly wrong; 500–700 ms is the starting range, not an answer.
 - **Whether the 5–10 s VAD settle can be traded away.** A tail-anchored window — run VAD over the last
-  10 s ending at *now*, rather than on the global grid — would give an immediate unaveraged probability
+  10 s ending at _now_, rather than on the global grid — would give an immediate unaveraged probability
   and remove most of that lag, at the cost of noisier boundaries near the tail. It is the obvious
   optimisation if the field lag proves unacceptable, and it is deliberately not taken now: it trades a
   correctness margin for latency, and that trade should be made against a measurement.
