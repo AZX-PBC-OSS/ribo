@@ -4,10 +4,9 @@
 > review. Steps use checkbox (`- [ ]`) syntax so progress is trackable. Every task's final step runs a
 > mutation and reports what it saw — a test nobody has watched fail is not a gate.
 
-> **Status of this document.** Task decomposition, interfaces, gates and the must-fail tests are
-> complete and are the load-bearing part. **Per-step code blocks are NOT yet written** for Tasks 2–6;
-> the durable-capture plan carries them and this one should reach the same fidelity before a fresh
-> implementer is handed Task 2. Task 1 is complete as written because it gates everything after it.
+> **Status of this document.** Decomposition, interfaces, gates and the must-fail tests are complete,
+> and they are the whole of what a plan here carries: no implementation code, by standing preference.
+> An implementer writes the code from the intent and the tests.
 
 **Goal:** An auditor sees their words appear about a second after they pause, while still in the room,
 so a misheard reading is corrected on the spot rather than discovered at review.
@@ -72,27 +71,7 @@ before Task 1. Where this plan and the design disagree, the design wins and the 
 
 ---
 
-## Task 1: Measure per-utterance peak memory on a real device — **GATE**
-
-**This task can stop the plan**, and nothing after it should start until it reports.
-
-The Moonshine swap roughly doubled peak RSS (3494 → 6644 MB across the corpus, desktop). Live
-inference runs _concurrently with an open microphone, an `AudioWorklet`, and `MediaRecorder` writing
-to disk_, so the peak is the sum on the device least able to absorb it. The corpus figure is for
-54-second inputs; live feeds 2–8 seconds, so the real number may be far lower — or may not be.
-
-- [ ] Build a page that primes Moonshine, opens a mic, and transcribes fixed 2 s / 4 s / 8 s buffers in
-      a loop while `MediaRecorder` runs, reporting `performance.memory` and surviving 5 minutes.
-- [ ] Run it on a real Android phone and a real iPhone, not a desktop and not an emulator.
-- [ ] Record peak, steady state, and whether the tab is ever killed.
-- [ ] **Decide and write it down:** proceed on moonshine-base; switch live to moonshine-tiny (109 MB
-      fp32, comparable quality at 2–8 s, collapses on long audio — so live-only); or stop.
-
-**Done when** the number exists and the decision is recorded in the design's §Memory.
-
----
-
-## Task 2: `preview` on the schema, and the handoff
+## Task 1: `preview` on the schema, and the handoff
 
 **Files:** `queue/schema.ts`, `queue/preview.ts` (new), `queue/outbox.ts`, `queue/schema.test.ts`
 
@@ -117,7 +96,7 @@ Three requirements, each of which has already been got wrong once in this codeba
 
 ---
 
-## Task 3: Silero streaming VAD in the worker
+## Task 2: Silero streaming VAD in the worker
 
 **Files:** `ondevice/vad-stream.ts` (new), `ondevice/config.ts`, `ondevice/vad-stream.test.ts`
 
@@ -141,25 +120,28 @@ fine when nothing is waiting.
 
 ---
 
-## Task 4: The live seam, and the worker conversation
+## Task 3: The live seam, and the worker conversation
 
 **Files:** `core/src/live.ts` (new), `ondevice/src/live.ts` (new), `ondevice/protocol.ts`,
 `ondevice/worker.ts`, `core/src/index.ts`
 
 **Consumes:** Task 3's frame loop. **Produces:**
 
-```ts
-export interface LiveSession {
-  feed(frame: Float32Array): void; // synchronous; never awaits inference
-  close(): void;
-  readonly segments$: Observable<string>;
-  readonly sessionId: string;
-}
-export interface LiveTranscriber {
-  liveCapability(): Promise<TranscriberCapability>;
-  openSession(recording: Recording): Promise<LiveSession>;
-}
-```
+`LiveSession` — returned by `openSession`:
+
+| member      | signature                       | note                                             |
+| ----------- | ------------------------------- | ------------------------------------------------ |
+| `feed`      | `(frame: Float32Array) => void` | synchronous; must return before inference        |
+| `close`     | `() => void`                    |                                                  |
+| `segments$` | `Observable<string>` (readonly) | one emission per closed utterance                |
+| `sessionId` | `string` (readonly)             | stamps replies so a closed session's are dropped |
+
+`LiveTranscriber` — the seam an engine implements:
+
+| member           | signature                                        |
+| ---------------- | ------------------------------------------------ |
+| `liveCapability` | `() => Promise<TranscriberCapability>`           |
+| `openSession`    | `(recording: Recording) => Promise<LiveSession>` |
 
 `liveCapability()` is separate from `capability()` because live additionally needs Silero — "ASR
 cached, VAD missing" is a real state. Revision 6 notes the justification is now the VAD, not the model,
@@ -176,7 +158,7 @@ model blocks the audio thread); a closed session's late reply is discarded by `s
 
 ---
 
-## Task 5: The `AudioWorklet` tap
+## Task 4: The `AudioWorklet` tap
 
 **Files:** `core/src/pcm-worklet.ts` (new), `core/src/recorder.ts`, `recorder.browser.test.ts`
 
@@ -190,7 +172,7 @@ existing teardown test will not notice); a worklet failure does not stop capture
 
 ---
 
-## Task 6: React and playground wiring — **turn it on**
+## Task 5: React and playground wiring — **turn it on**
 
 **Files:** `ui-react/src/use-recorder.ts`, `playground/src/live-handle.ts` (new), `App.tsx`,
 `RecordPanel.tsx`, `playground/src/live.browser.test.ts` (new)
@@ -212,8 +194,11 @@ test red, and nothing else in the repo notices.
 
 ## Self-review notes
 
-- **Task 1 is a gate, not a formality.** If peak memory is a wall, Tasks 2–6 are wasted and the design
-  says moonshine-tiny is the lever.
+- **Peak memory is a known risk, not a gate.** The Moonshine swap roughly doubled peak RSS
+  (3494 → 6644 MB, desktop, 54-second inputs), and live runs inference alongside an open microphone
+  and `MediaRecorder`. The design's §Memory records it and names moonshine-tiny as the lever. This
+  plan proceeds without measuring it first — a deliberate call, so that a wall shows up as rework
+  rather than as a stalled plan.
 - **Not in scope:** live extraction (deferred; needs R3 routing), word-level streaming (needs Moonshine
   v2, absent from the pinned runtime), and removing the batch VAD layer (retracted in revision 5 —
   Moonshine's own reference caps input at 30 s).
