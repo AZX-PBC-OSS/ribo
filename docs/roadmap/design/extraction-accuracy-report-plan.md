@@ -1182,7 +1182,7 @@ import { HistoryEntrySchema, RunRecordSchema } from "./run-record.js";
  * CRUD over the committed extraction-accuracy run artifacts.
  *
  * Two files per backend, in `acceptance/runs/`:
- *   - `current-<label>.json`  — one run in full, OVERWRITTEN each time (~40-60 KB)
+ *   - `current-<label>.json`  — one run in full, OVERWRITTEN each time (~150 KB)
  *   - `history-<label>.jsonl` — one appended summary line per run (~400 B)
  *
  * `openRunStore({ dir })` takes an injectable directory, mirroring
