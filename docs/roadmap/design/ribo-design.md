@@ -51,7 +51,7 @@ A small pnpm monorepo (mirrors Helix's own layout):
 
 ```
 Helix  (hosts field-app: own subdomain · SSO · /_api/* gateway)
-  └── field-app                     ← THE DEPLOYABLE (azx deploy)
+  └── field-app                     ← THE DEPLOYABLE (helix deploy)
         imports:
           @azx/ribo-core           (record · queue · transcribe · extract · orchestrate)
           @azx/ribo-ui             (CaptureControl · StatusIndicator · ReviewCard)
@@ -121,7 +121,7 @@ The field app holds **no secrets and picks no vendor** — keys are injected ser
 - **Approvals:** two elevated, one-time manifest changes (both secret-bound origins are high-risk).
 - **Per-call flow:** the app calls same-origin `/_api/fetch/https://api.snugg.pro/…`; the edge authorizes and mints a 30 s attested instruction; egress resolves the secret and injects the header. **The edge never reads the key; the browser never holds it.**
 - **Constraints:** HTTPS-only for secret-backed calls; request headers safelisted (`cookie`/`authorization` dropped); redirects not followed; **10 MB per hop** → chunk audio on the managed-STT path.
-- **Deploy:** `azx deploy --promote`.
+- **Deploy:** `helix deploy` (preview), then `helix promote <n>`.
 
 Full mechanism and setup steps: [06](../../implementation/06-field-app-helix.md).
 

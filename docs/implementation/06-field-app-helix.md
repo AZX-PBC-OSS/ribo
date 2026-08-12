@@ -5,7 +5,7 @@ The deployable. A small static frontend that imports the SDK, mounts the UI, and
 ## What it is
 
 ```
-field-app  (React + Vite static bundle, azx deploy)
+field-app  (React + Vite static bundle, helix deploy)
   imports @azx/ribo-core, @azx/ribo-ui-react, @azx/ribo-adapter-snuggpro,
           @azx/ribo-transcriber-ondevice, @azx/ribo-extractor-openai
   wires RiboProvider around its own UI, built on ribo-ui-react's headless hooks
@@ -33,7 +33,7 @@ The app calls same-origin `/_api/fetch/https://api.snugg.pro/…`; the edge auth
 
 ## Deploy & auth
 
-- `azx deploy --promote` ships the bundle to the field app's Helix subdomain.
+- `helix deploy` uploads the bundle to the field app's Helix subdomain as a **preview** version; `helix promote <n>` flips it live. Install the CLI with `npm i -g @azx-pbc/helix-cli` (Node 24+).
 - SSO/session provided by Helix; `GET /_api/me` for the signed-in auditor.
 
 ## Platform asks (Helix team)
