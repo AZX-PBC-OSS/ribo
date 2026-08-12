@@ -102,22 +102,31 @@ next to their plain-English bucket, never as the only name for a thing.
 The v1 partition was right; only the labels change. The plain name is what the reader sees;
 the verdict ID is what the engineer greps.
 
-| Plain name (shown)  | Verdict IDs (also shown, smaller)                                                                                         | Count | Ink                               |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------- |
-| **Nothing to find** | `correct-null`                                                                                                            | 523   | none — cell is page background    |
-| **Found it**        | `correct`                                                                                                                 | 168   | solid neutral square, 40% of cell |
-| **Not counted**     | `miss-excused`, `sanctioned`, `unscorable`                                                                                | 5     | hollow dotted ring                |
-| **Missed it**       | `miss`, `health-miss`, `health-clean-dropped`                                                                             | 13    | **yellow**, 45° stripes           |
-| **Made it up**      | `hallucination`, `hallucination-soft`, `wrong`, `health-wrong`, `health-hallucinated-pass`, `health-hallucinated-problem` | 5     | **red**, full fill + drawn ✕      |
+| Plain name (shown)    | Verdict IDs (also shown, smaller)                                                                                         | Count | Ink                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------- |
+| **Nothing to find**   | `correct-null`                                                                                                            | 523   | none — cell is page background    |
+| **Found it**          | `correct`                                                                                                                 | 168   | solid neutral square, 40% of cell |
+| **Not counted**       | `miss-excused`, `sanctioned`, `unscorable`                                                                                | 5     | hollow dotted ring                |
+| **Missed it**         | `miss`, `health-miss`, `health-clean-dropped`                                                                             | 13    | **yellow**, 45° stripes           |
+| **Wrong or invented** | `hallucination`, `hallucination-soft`, `wrong`, `health-wrong`, `health-hallucinated-pass`, `health-hallucinated-problem` | 5     | **red**, full fill + drawn ✕      |
 
 523 + 168 + 5 + 13 + 5 = **714** ✓ — needing attention: **23**
 
-"Made it up" covers both fabrication (3, ground truth was null) and contradiction (2, the
+"Wrong or invented" covers both fabrication (3, ground truth was null) and contradiction (2, the
 transcript said something else). Justification unchanged from v1 and reinforced by the new
 brief: to the auditor whose report this becomes, a number nobody said and a number someone
 said differently are the same harm. The distinction is one word inside each problem entry
 (`hallucination` vs `wrong`), which is where a distinction that doesn't change the response
 belongs.
+
+**The label was "Made it up" through v2 as drafted, and "Hallucinations" was considered and
+rejected.** Rejected because the page separately reports a **hallucination rate of 3/398**,
+using the scorer's narrow definition — ground truth null, model filled it in. Naming a
+5-slot bucket "Hallucinations" would put two different numbers behind one word within a
+screen of each other, which is exactly the kind of internal contradiction that makes a
+reader stop trusting every other figure on the page. "Wrong or invented" names both
+sub-cases, collides with nothing, and leaves the `hallucination` verdict ID visible
+underneath for anyone scanning for the industry term.
 
 `correct` vs `correct-null` — encoding unchanged (ink vs no ink), and the plain names now
 carry it too: "Found it" versus "Nothing to find". A degenerate all-null extractor still
@@ -138,7 +147,7 @@ Tokens, mappings and contrast unchanged from v1 §5. Restated with measured figu
 | `--ar-text-2`     | `var(--vp-c-text-2)`      | headers, denominators, notes                    |
 | `--ar-rule`       | `var(--vp-c-divider)`     | section rules, card borders                     |
 | `--ar-brand`      | `var(--vp-c-brand-1)`     | links, focus rings, filter control state        |
-| `--ar-fault-fill` | `var(--vp-c-red-soft)`    | "made it up" cell fill, TRIPPED chip            |
+| `--ar-fault-fill` | `var(--vp-c-red-soft)`    | "wrong or invented" cell fill, TRIPPED chip     |
 | `--ar-fault-ink`  | `var(--vp-c-red-1)`       | ✕ strokes, TRIPPED word, bucket heading         |
 | `--ar-fault-edge` | `var(--vp-c-red-2)`       | cell perimeter                                  |
 | `--ar-short-fill` | `var(--vp-c-yellow-soft)` | "missed it" cell fill                           |
@@ -179,13 +188,13 @@ Derived, one definition each because their source already flips:
 
 Unchanged from v1. Three channels per bucket; any one suffices.
 
-| Bucket          | Fill extent | Texture (CSS-drawn, no font glyphs) | Border              | Words                                                         |
-| --------------- | ----------- | ----------------------------------- | ------------------- | ------------------------------------------------------------- |
-| Nothing to find | 0%          | —                                   | grid hairline       | blank + stated convention; `—` in row margin if the whole row |
-| Found it        | 40% square  | flat                                | none                | `correct` in sr-text                                          |
-| Not counted     | 0%, hollow  | 1.5px dotted ring                   | dotted              | verdict ID in sr-text                                         |
-| Missed it       | 100%        | 45° stripes, 3px pitch              | 1px solid           | verdict ID + entry in Problems                                |
-| Made it up      | 100%        | drawn ✕, two 1.5px diagonals        | 1px solid perimeter | verdict ID + entry in Problems                                |
+| Bucket            | Fill extent | Texture (CSS-drawn, no font glyphs) | Border              | Words                                                         |
+| ----------------- | ----------- | ----------------------------------- | ------------------- | ------------------------------------------------------------- |
+| Nothing to find   | 0%          | —                                   | grid hairline       | blank + stated convention; `—` in row margin if the whole row |
+| Found it          | 40% square  | flat                                | none                | `correct` in sr-text                                          |
+| Not counted       | 0%, hollow  | 1.5px dotted ring                   | dotted              | verdict ID in sr-text                                         |
+| Missed it         | 100%        | 45° stripes, 3px pitch              | 1px solid           | verdict ID + entry in Problems                                |
+| Wrong or invented | 100%        | drawn ✕, two 1.5px diagonals        | 1px solid perimeter | verdict ID + entry in Problems                                |
 
 Drawn with `linear-gradient` and `border`, never text characters: no font dependency, no
 tofu, correct at 18–20px, and survives a print driver dropping background colours because
@@ -273,8 +282,8 @@ them.
         </p>
         <p class="ar-eg-verdict">
           <span class="ar-c ar-fault ar-eg-swatch" aria-hidden="true"></span>
-          <b>Made it up.</b> A plausible number that nobody said. This is the outcome that matters
-          most, and it happened 5 times.
+          <b>Wrong or invented.</b> A plausible number that nobody said. This is the outcome that
+          matters most, and it happened 5 times.
         </p>
       </li>
     </ol>
@@ -525,7 +534,7 @@ As v1 §6.4, with plain names leading and verdict IDs demoted:
     <div class="ar-legend-row">
       <dt><span class="ar-c ar-fault" aria-hidden="true"></span></dt>
       <dd>
-        <b>Made it up</b> <span class="ar-n">5 slots</span>
+        <b>Wrong or invented</b> <span class="ar-n">5 slots</span>
         <span class="ar-legend-note"
           >Something on the form that the recording doesn&rsquo;t support &mdash; invented, or
           different from what was said.</span
@@ -613,7 +622,9 @@ real values; counts, verdicts and totals are real.
           <td class="ar-c ar-absent"></td>
           <td class="ar-c ar-captured"><span class="ar-sr">found it</span></td>
           <td class="ar-c ar-fault">
-            <a href="#p-04" data-ar-p="p-04"><span class="ar-sr">made it up &mdash; wrong</span></a>
+            <a href="#p-04" data-ar-p="p-04"
+              ><span class="ar-sr">wrong or invented &mdash; wrong</span></a
+            >
           </td>
           <td class="ar-c ar-captured"><span class="ar-sr">found it</span></td>
           <td class="ar-c ar-absent"></td>
@@ -777,13 +788,13 @@ real values; counts, verdicts and totals are real.
 non-`correct-null` cell (this class is what the CSS filter keys on), 14 `<td>`, then `found`
 and `flags`:
 
-| Verdict                                       | Cell                                                                                                                           |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `correct-null`                                | `<td class="ar-c ar-absent"></td>`                                                                                             |
-| `correct`                                     | `<td class="ar-c ar-captured"><span class="ar-sr">found it</span></td>`                                                        |
-| `miss-excused`, `sanctioned`, `unscorable`    | `<td class="ar-c ar-excused"><a href="#p-NN" data-ar-p="p-NN"><span class="ar-sr">not counted &mdash; VERDICT</span></a></td>` |
-| `miss`, `health-miss`, `health-clean-dropped` | `<td class="ar-c ar-short"><a href="#p-NN" data-ar-p="p-NN"><span class="ar-sr">missed it &mdash; VERDICT</span></a></td>`     |
-| the six made-up verdicts                      | `<td class="ar-c ar-fault"><a href="#p-NN" data-ar-p="p-NN"><span class="ar-sr">made it up &mdash; VERDICT</span></a></td>`    |
+| Verdict                                       | Cell                                                                                                                               |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `correct-null`                                | `<td class="ar-c ar-absent"></td>`                                                                                                 |
+| `correct`                                     | `<td class="ar-c ar-captured"><span class="ar-sr">found it</span></td>`                                                            |
+| `miss-excused`, `sanctioned`, `unscorable`    | `<td class="ar-c ar-excused"><a href="#p-NN" data-ar-p="p-NN"><span class="ar-sr">not counted &mdash; VERDICT</span></a></td>`     |
+| `miss`, `health-miss`, `health-clean-dropped` | `<td class="ar-c ar-short"><a href="#p-NN" data-ar-p="p-NN"><span class="ar-sr">missed it &mdash; VERDICT</span></a></td>`         |
+| the six made-up verdicts                      | `<td class="ar-c ar-fault"><a href="#p-NN" data-ar-p="p-NN"><span class="ar-sr">wrong or invented &mdash; VERDICT</span></a></td>` |
 
 `found` = count of `correct` in the row, or `&mdash;` + `.ar-m-none` when zero.
 `flags` = count of the other three buckets, `&middot;` when zero, `.ar-m-hot` when ≥1.
@@ -795,7 +806,7 @@ non-trivial slot.
 
 ### 5.7 Problems — 23 entries
 
-Structure unchanged from v1 §6.6 with plain-English titles added. Order: made it up (5) →
+Structure unchanged from v1 §6.6 with plain-English titles added. Order: wrong or invented (5) →
 missed it (13) → not counted (5). Each `<details id="p-NN">` contains an `.ar-p-body` — which
 is exactly what the inspector clones, so there is one copy of every string in the DOM.
 
@@ -807,7 +818,7 @@ is exactly what the inspector clones, so there is one copy of every string in th
     with the transcript wording. Nothing is summarised away.
   </p>
 
-  <h3 class="ar-bh ar-bh-fault">Made it up &mdash; 5</h3>
+  <h3 class="ar-bh ar-bh-fault">Wrong or invented &mdash; 5</h3>
 
   <details class="ar-p ar-p-fault" id="p-01">
     <summary>

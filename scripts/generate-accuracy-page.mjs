@@ -64,7 +64,12 @@ const BUCKET_LABEL = {
   captured: "Found it",
   excused: "Not counted",
   short: "Missed it",
-  fault: "Made it up",
+  // NOT "Hallucinations". This bucket is 3 hallucinations PLUS 2 `wrong` — cases where the
+  // auditor did state a value and the model wrote a different one, which is not a
+  // hallucination. The page separately reports a "hallucination rate" of 3/398 using the
+  // scorer's narrow definition, so naming the 5-slot bucket "Hallucinations" would put two
+  // different numbers behind one word within a screen of each other.
+  fault: "Wrong or invented",
 };
 const BUCKET_VERDICTS = BUCKET_ORDER.reduce((acc, b) => {
   acc[b] = Object.keys(BUCKET).filter((v) => BUCKET[v] === b);
@@ -77,7 +82,7 @@ const BUCKET_SR = {
   captured: "found it",
   excused: "not counted",
   short: "missed it",
-  fault: "made it up",
+  fault: "wrong or invented",
 };
 
 const GATE_NAMES = [
@@ -298,7 +303,7 @@ function intro(run) {
 }
 
 /**
- * Three real slots, one per outcome, read from the run record. The "made it up" row has a
+ * Three real slots, one per outcome, read from the run record. The "wrong or invented" row has a
  * real source span and extracted value; the "found it" and "missed it" rows use the field
  * name and transcript slug (the run record does not store quotes or values for correct or
  * miss cells). Nothing is invented.
@@ -430,8 +435,9 @@ ${said}      <p class="ar-eg-wrote">
       </p>
       <p class="ar-eg-verdict">
         <span class="ar-c ar-fault ar-eg-swatch" aria-hidden="true"></span>
-        <b>Made it up.</b> Something on the form that the recording doesn&rsquo;t support. This is
-        the outcome that matters most, and it happened ${nFault} times.
+        <b>Wrong or invented.</b> Something on the form that the recording doesn&rsquo;t support
+        &mdash; either invented outright, or different from what was actually said. This is the
+        outcome that matters most, and it happened ${nFault} times.
       </p>
     </li>`;
 }
