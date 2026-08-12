@@ -75,8 +75,12 @@ before Task 1. Where this plan and the design disagree, the design wins and the 
 
 **Files:** `queue/schema.ts`, `queue/preview.ts` (new), `queue/outbox.ts`, `queue/schema.test.ts`
 
-**Produces:** `preview?: { segments: string[] }` on `OutboxItem`; `Outbox.appendPreviewSegment(id,
-text, sessionId)`; transcript-write deletes `preview` in the same modification.
+**Produces:** `preview?: { segments: string[] }` on `OutboxItem`; `Outbox.appendPreviewSegment(id, text)`;
+transcript-write deletes `preview` in the same modification.
+
+**No `sessionId` parameter**, deliberately — an earlier draft of this line had one. The outbox stores
+no session token and so cannot validate one; discarding replies from a closed session is the session's
+own job (Task 3). The outbox's half of that guard is the status/transcript refusal below.
 
 Three requirements, each of which has already been got wrong once in this codebase:
 
