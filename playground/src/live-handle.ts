@@ -35,7 +35,7 @@ import { getOutbox } from "./outbox-handle.js";
 const WASM_PATHS = "/ort/";
 
 interface HotData {
-  transcriber?: OnDeviceLiveTranscriber;
+  transcriber?: LiveTranscriber;
 }
 
 const hotData = import.meta.hot?.data as HotData | undefined;
@@ -59,7 +59,7 @@ export function getLiveTranscriber(): LiveTranscriber {
     createWorker: () =>
       new Worker(new URL("./whisper.worker.ts", import.meta.url), { type: "module" }),
   });
-  if (hotData) hotData.transcriber = transcriber as OnDeviceLiveTranscriber;
+  if (hotData) hotData.transcriber = transcriber;
   return transcriber;
 }
 
@@ -72,6 +72,23 @@ export function getLiveTranscriber(): LiveTranscriber {
  */
 export function setLiveTranscriber(t: LiveTranscriber | undefined): void {
   transcriber = t;
+}
+
+/**
+ * Download the streaming VAD, so a live preview can ever start.
+ *
+ * **The feature cannot turn on without this.** `liveCapability()` requires both the ASR and Silero
+ * cached; the only code that fetches Silero runs inside the live worker's session open, which is
+ * behind that gate. Priming the ASR alone leaves the gate reporting `needs-download` forever and the
+ * preview silently absent — recording perfect, no error anywhere. `whisper-store.ts` calls this from
+ * the same button that primes the ASR.
+ *
+ * Tolerant of a transcriber without `prime` because tests inject a fake through
+ * {@link setLiveTranscriber}, and a fake needs no models. A real one always has it.
+ */
+export async function primeLiveModels(): Promise<void> {
+  const t = getLiveTranscriber() as Partial<OnDeviceLiveTranscriber>;
+  if (typeof t.prime === "function") await t.prime();
 }
 
 /** The currently open live session, or `undefined` when none is open. */

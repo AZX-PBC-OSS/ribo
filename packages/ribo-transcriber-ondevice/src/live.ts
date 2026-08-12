@@ -217,6 +217,32 @@ export class OnDeviceLiveTranscriber implements LiveTranscriber {
     };
   }
 
+  /**
+   * Download and cache the streaming VAD, so {@link liveCapability} can reach `ready`.
+   *
+   * **Without this the feature cannot turn on, in any host.** `liveCapability()` requires the VAD
+   * cached; the only code that fetches it runs inside `openLiveSession` in the worker; and a caller
+   * that respects the capability gate never gets there. The gate required the thing that only the
+   * gated path produced. Nothing caught it because the gate reports `needs-download` truthfully and
+   * every caller correctly declines to proceed — the failure is a silent no-preview, forever.
+   *
+   * Implemented by opening a session and closing it immediately, rather than by adding a second
+   * loading path: the worker's `liveOpen` already constructs the detector, and a parallel "just
+   * download it" route would be a second thing to keep correct. The ASR is NOT primed here — it is
+   * the batch model, and a host that transcribes at all has already downloaded it. Priming the ASR
+   * is `OnDeviceTranscriber.prime`, which reports progress; this is 2.14 MB and does not.
+   */
+  async prime(): Promise<void> {
+    const session = await this.openSession({
+      id: "live-prime",
+      capturedAt: new Date(0).toISOString(),
+      durationMs: 0,
+      mimeType: "audio/webm",
+      ctx: {},
+    });
+    session.close();
+  }
+
   async openSession(_recording: Recording): Promise<LiveSession> {
     const worker = this.#ensureWorker();
     const sessionId = crypto.randomUUID();
