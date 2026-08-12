@@ -745,7 +745,7 @@ describe("Recorder durable capture", () => {
 // The worklet source as a string — the production worklet ships as a separate
 // build entry (`./worklet` subpath), loaded by `new URL("./worklet.js",
 // import.meta.url)`. In the test environment that URL does not resolve (the
-// source is `pcm-worklet.ts`, not `worklet.js`), so the `createSampleTap` seam
+// source is `worklet.ts`, not `worklet.js`), so the `createSampleTap` seam
 // injects a Blob-URL worklet that runs the same processor in real Chromium.
 // This is the test-only shape the spike used (Q3); the production packaging is
 // the separate build entry (Q4).

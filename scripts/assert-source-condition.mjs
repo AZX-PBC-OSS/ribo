@@ -108,12 +108,20 @@ const TARGETS = publishedPackages.map((name) => ({
   sourceSuffix: "/src/index.ts",
   distSuffix: "/dist/index.js",
 }));
-// The one published subpath, kept as an explicit extra target (its suffixes
-// differ from the root exports, so it cannot be derived generically).
+// The published subpaths, kept as explicit extra targets (their suffixes differ
+// from the root exports, so they cannot be derived generically). Add a line here
+// for every new subpath: this gate is the only thing that checks a subpath's
+// `@azx/source` target is right, and it fails open — an unlisted subpath with a
+// wrong source condition passes silently.
 TARGETS.push({
   specifier: "@azx/ribo-transcriber-ondevice/worker",
   sourceSuffix: "/src/worker.ts",
   distSuffix: "/dist/worker.js",
+});
+TARGETS.push({
+  specifier: "@azx/ribo-core/worklet",
+  sourceSuffix: "/src/worklet.ts",
+  distSuffix: "/dist/worklet.js",
 });
 
 // Every package is a dependency of `playground`, so its node_modules is the only

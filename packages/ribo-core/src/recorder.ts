@@ -710,7 +710,15 @@ export class Recorder<C = EmptyContext> {
     // `this.#session !== session` (cleared by `#teardown`) and calls the
     // teardown itself — no leak.
     if (this.#onSamples) {
-      this.#createSampleTap({ stream, onSamples: this.#onSamples })
+      // `Promise.resolve().then(...)` rather than calling the factory bare. The type says it returns
+      // a promise, but nothing enforces that on an injected one — and a SYNCHRONOUS throw from it
+      // would escape `#beginSession` into `start()`, which reports a misleading
+      // "The MediaRecorder could not be started." AND leaks the ticker forever, because
+      // `this.#session` was never assigned so `#teardown` never runs for this session. A capture that
+      // fails to start because a preview seam threw is the exact inversion of "live must never
+      // degrade recording".
+      Promise.resolve()
+        .then(async () => await this.#createSampleTap({ stream, onSamples: this.#onSamples! }))
         .then((teardown) => {
           if (this.#session === session) {
             session.teardownSampleTap = teardown;
@@ -750,7 +758,16 @@ export class Recorder<C = EmptyContext> {
     // completed (`teardownSampleTap` still `undefined`), the `.then()` in
     // `#beginSession` will call the teardown itself once it fires, because
     // `this.#session` is already `undefined` by then.
-    session.teardownSampleTap?.();
+    // Guarded, and `releaseStream` is what it protects. A host-supplied teardown that throws
+    // synchronously would otherwise skip the line below and leave the microphone open with the
+    // browser's recording indicator lit — the privacy failure this file's header singles out, caused
+    // by an optional preview feature. The default teardown cannot throw synchronously; an injected
+    // one can.
+    try {
+      session.teardownSampleTap?.();
+    } catch {
+      /* a failed tap teardown must not cost us the microphone */
+    }
     releaseStream(session.stream);
     void session.audioContext?.close().catch(() => undefined);
     this.#session = undefined;
@@ -836,7 +853,7 @@ const rootMeanSquare = (samples: Uint8Array): number => {
  */
 const LIVE_SAMPLE_RATE = 16000;
 
-/** Matches the name in `pcm-worklet.ts`'s `registerProcessor` call. */
+/** Matches the name in `worklet.ts`'s `registerProcessor` call. */
 const PCM_PROCESSOR_NAME = "pcm-frame-processor";
 
 /**
@@ -848,8 +865,18 @@ const PCM_PROCESSOR_NAME = "pcm-frame-processor";
  * `@azx/build-config`). A consumer's bundler statically analyses the
  * `new URL(..., import.meta.url)` pattern and emits `worklet.js` as a separate
  * asset, exactly as `@azx/ribo-transcriber-ondevice`'s `./worker` entry already
- * does. The `@azx/source` export condition on the `./worklet` subpath points at
- * `src/pcm-worklet.ts` so workspace consumers resolve to source in dev.
+ * does.
+ *
+ * **In-workspace, this default does not load, and the source file is named for that reason.** A
+ * relative `new URL` involves no module resolution at all, so the `@azx/source` condition on the
+ * `./worklet` subpath does not redirect it: under `@azx/source` this module is served from `src/`, and
+ * the URL resolves to `src/worklet.js` — a file that does not exist, because the source is TypeScript.
+ * The failure is swallowed below, so recording is unaffected and the preview is simply silent. Keeping
+ * the source basename `worklet.ts` matches the `./worker` precedent (`src/worker.ts` ↔
+ * `dist/worker.js`) and leaves a bundler's `.js`→`.ts` probing its only chance of working; that
+ * probing is unproven here, and nothing in this repo has ever exercised it — the playground injects
+ * `createWorker` for the same reason. **A workspace host that wants live frames must inject
+ * `createSampleTap`.**
  *
  * The worklet is a **tap**, not a sink: the `AudioWorkletNode` is not connected
  * to `audioContext.destination` — it produces no audible output. A
@@ -868,8 +895,30 @@ const defaultCreateSampleTap = async ({
     void audioContext.close().catch(() => undefined);
     throw error;
   }
-  const node = new AudioWorkletNode(audioContext, PCM_PROCESSOR_NAME);
-  node.port.onmessage = (event) => onSamples(event.data as Float32Array);
+  let node: AudioWorkletNode;
+  try {
+    // Inside a `try` because this throws when the processor name does not match the one the module
+    // registered — a drift this file cannot type-check, since the name lives in a string on both
+    // sides. Outside the `try`, that drift leaked an open `AudioContext` per start.
+    node = new AudioWorkletNode(audioContext, PCM_PROCESSOR_NAME);
+  } catch (error) {
+    void audioContext.close().catch(() => undefined);
+    throw error;
+  }
+  // The context can start suspended when a browser refuses audio without a gesture. The level meter
+  // in this same file resumes for exactly that reason; without the parity the tap is silently dead
+  // while everything reports healthy.
+  void audioContext.resume().catch(() => undefined);
+  node.port.onmessage = (event) => {
+    // Guarded because this runs on the main thread at ~31 Hz. An `onSamples` that throws would
+    // otherwise emit an uncaught error per frame — it cannot stop capture (`dataavailable` is a
+    // separate dispatch) but it can drown the console and the main thread the recorder shares.
+    try {
+      onSamples(event.data as Float32Array);
+    } catch {
+      /* the caller's callback is the caller's problem; capture is not */
+    }
+  };
   audioContext.createMediaStreamSource(stream).connect(node);
   return () => {
     node.port.close();

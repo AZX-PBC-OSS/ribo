@@ -14,5 +14,5 @@ export default defineConfig({
   // `experimental.resolveNewUrlToAsset` so the `new URL(...)` reference passes
   // through the build verbatim and the consumer's bundler emits the file as an
   // asset (AGENTS.md §5.2, doc 10 §4).
-  entry: { index: "src/index.ts", worklet: "src/pcm-worklet.ts" },
+  entry: { index: "src/index.ts", worklet: "src/worklet.ts" },
 });

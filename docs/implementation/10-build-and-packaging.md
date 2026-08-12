@@ -99,7 +99,7 @@ Wired in three places: `customConditions: ["@azx/source"]` in the base tsconfig,
 **Not every subpath needs a `@azx/source` branch, and getting the order wrong is asymmetrically
 dangerous.** `@azx/ribo-transcriber-ondevice`'s `./worker` has one (`./src/worker.ts` exists, so dev
 resolves into source like `.` does — this is what lets the playground exercise the worker without
-building the package first). Today it is the only subpath beyond `.` across all five packages, and
+building the package first). Today it is one of two subpaths beyond `.` across all five packages — `@azx/ribo-core/worklet` is the other, an `AudioWorklet` module loaded by URL rather than imported — and
 every one of them carries a source branch — there is currently no live example of a subpath
 _without_ one. (`@azx/ribo-ui`'s planned `./styles.css` would have been that example, mapping
 straight to `./dist/styles.css` with no source branch because there was no source stylesheet to

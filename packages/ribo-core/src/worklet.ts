@@ -17,6 +17,14 @@
  * `AudioWorkletGlobalScope` but absent from TypeScript's DOM lib, so they are
  * declared below. `export {}` makes this a module so the declarations stay
  * file-scoped rather than polluting the project's global namespace.
+ *
+ * **This entry is side-effect-only, and `package.json` says so.** Its whole behaviour is the
+ * top-level `registerProcessor` below and it exports nothing, so under a blanket
+ * `sideEffects: false` a bundler would be free to drop a host's bare
+ * `import "@azx/ribo-core/worklet"` entirely — the same class of scar the playground's
+ * `whisper.worker.ts` header documents for the worker entry. `sideEffects` is therefore narrowed to
+ * this file rather than left `false`. URL-loading, the default path, was never at risk: emitted
+ * assets are not tree-shaken.
  */
 export {};
 
