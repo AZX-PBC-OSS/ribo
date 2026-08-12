@@ -195,6 +195,9 @@ importers:
       '@azx/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
       ajv:
         specifier: 'catalog:'
         version: 8.20.0

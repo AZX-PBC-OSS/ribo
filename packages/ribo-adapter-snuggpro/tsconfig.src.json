@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@azx/tsconfig/browser-library.json",
+  "compilerOptions": {
+    // Required so the solution config can reference this project.
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.src.tsbuildinfo"
+  },
+  // Published, browser-targeted library code. Deliberately no `"types": ["node"]`
+  // — nothing under src/ may reach for Node built-ins, because everything here
+  // compiles into dist/.
+  "include": ["src"]
+}

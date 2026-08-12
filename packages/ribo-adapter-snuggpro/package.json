@@ -26,7 +26,7 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b --force",
     "build": "tsdown"
   },
   "dependencies": {
@@ -38,6 +38,7 @@
     "@azx/build-config": "workspace:*",
     "@azx/ribo-extractor-openai": "workspace:*",
     "@azx/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
     "ajv": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",

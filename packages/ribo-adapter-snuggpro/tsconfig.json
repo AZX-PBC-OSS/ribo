@@ -1,1 +1,8 @@
-{ "extends": "@azx/tsconfig/browser-library.json", "include": ["src"] }
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Solution-style config: no files of its own. `src/` is published browser code
+  // and `acceptance/` is a Node-run developer harness; they need different
+  // `types`, so they cannot share one project. `tsc -b` checks both.
+  "files": [],
+  "references": [{ "path": "./tsconfig.src.json" }, { "path": "./tsconfig.acceptance.json" }]
+}

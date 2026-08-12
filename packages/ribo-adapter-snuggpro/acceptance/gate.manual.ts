@@ -14,15 +14,30 @@ import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
 // `node:child_process` import has no business anywhere in its graph).
 import type { CliShapeResult } from "./cli-chat.js";
 import { cliChat } from "./cli-chat.js";
+// Densify + persist. Both are pure of `spikes/` and are unit-tested in CI
+// (build-run-record.test.ts, run-store.test.ts) — this file only wires them up.
+import { buildRunRecord } from "./build-run-record.js";
+import { openRunStore } from "./run-store.js";
 
 import { normalizeFields, snuggProAdapter } from "../src/index.js";
 // The spike's scorer, imported (read-only) so the gate grades exactly as the spike
 // does — never edited, never re-run as a CLI. `main()` only runs on direct invoke.
-import { aggregate, scoreTranscript } from "../../../spikes/extraction-snuggpro/score.mjs";
+import {
+  GENERIC_LEAF_PATHS,
+  HEALTH_TEST_PATHS,
+  aggregate,
+  scoreTranscript,
+} from "../../../spikes/extraction-snuggpro/score.mjs";
 // The corpus's own format/vocabulary check — reused, not re-derived. `readGroundTruth`
 // is `isNewFormat` + `validateGroundTruth` composed exactly the way the corpus's own
-// tooling (validate-ground-truth.mjs) uses them.
-import { readGroundTruth } from "../../../spikes/extraction-snuggpro/ground-truth.mjs";
+// tooling (validate-ground-truth.mjs) uses them. `resolveGroundTruth` is the corpus's
+// own leaf resolver (explicit leaf, then disclaimer default, then "unmentioned"), used
+// below to record which leaves ground truth ASSERTS — the one thing that separates a
+// `correct` grid cell from a `correct-null` one.
+import {
+  readGroundTruth,
+  resolveGroundTruth,
+} from "../../../spikes/extraction-snuggpro/ground-truth.mjs";
 
 /**
  * THE EXTRACTION-QUALITY ACCEPTANCE GATE (Phase 4 Task 3) — MANUAL, opt-in, NEVER in
@@ -257,8 +272,20 @@ describe.skipIf(skipSuite)("single-shot extraction — spike-corpus acceptance g
         .sort();
 
       const reports = [];
+      // Which leaves ground truth actually ASSERTS, per transcript. This is the only thing
+      // that separates a `correct` grid cell from a `correct-null` one — without it a
+      // degenerate all-null extraction would paint the whole grid green, flattering exactly
+      // the failure the miss guard below exists to catch. Uses the corpus's OWN resolver, so
+      // it agrees with the scorer by construction rather than by re-deriving the rules here.
+      const assertedLeaves: Record<string, string[]> = {};
       for (const slug of slugs) {
         const gt = JSON.parse(readFileSync(join(GT_DIR, `${slug}.json`), "utf8"));
+        const resolvedGt = resolveGroundTruth(gt) as {
+          leaves: Record<string, { status: string }>;
+        };
+        assertedLeaves[slug] = Object.entries(resolvedGt.leaves)
+          .filter(([, truth]) => truth.status === "asserted")
+          .map(([path]) => path);
         const transcript = readFileSync(join(TX_DIR, `${slug}.txt`), "utf8");
         let fields: unknown = null;
         let problem: string | null = null;
@@ -283,6 +310,65 @@ describe.skipIf(skipSuite)("single-shot extraction — spike-corpus acceptance g
       const enumAccuracy = pct(totals.enumCorrect, totals.enumGtMember);
 
       const fingerprint = currentSchemaFingerprint();
+
+      // ================= PERSIST THE RUN — BEFORE ASSERTING. DO NOT MOVE. =================
+      // A run that FAILS its hazard assertions is exactly the run whose grid someone wants
+      // to open: "hazard 2 tripped — which transcript, which field, what did it say?" If
+      // this block sat below the first `expect(...)`, that run would throw and publish
+      // nothing, and the artifact would only ever describe runs that were already fine.
+      //
+      // The property is guaranteed by straight-line ordering: this is a plain async
+      // function with no try/catch, so everything lexically above the first `expect` runs
+      // unconditionally. That ordering IS the proof — keep this block above the assertions
+      // and it holds; move it below and it is silently lost. (Not verified by execution:
+      // proving it empirically costs a second full inference run over the corpus.)
+      const hazards = {
+        fuelDropped,
+        fuelInvented,
+        hallucinatedPass: totals.hHallucinatedPass ?? 0,
+        rvalueConversion: totals.rvalueConversion ?? 0,
+        enumWrongMember: totals.enumWrongMember ?? 0,
+        enumInvalid: totals.enumInvalid ?? 0,
+        spanFabricated: totals.spanFabricated ?? 0,
+        spanMissing: totals.spanMissing ?? 0,
+      };
+      // Deliberately the BASELINE-INDEPENDENT checks only (coverage, the four hazards, span
+      // verbatim-ness, shape conformance). The two rate-vs-baseline assertions are skipped
+      // entirely when the baseline is stale or missing, so folding them in would make
+      // `passed` mean different things on different runs.
+      const passed =
+        scored === slugs.length &&
+        Object.values(hazards).every((count) => count === 0) &&
+        shapeResults.every((r) => r.conforming);
+
+      await openRunStore().saveRun(
+        buildRunRecord({
+          capturedAt: new Date().toISOString(),
+          schemaFingerprint: fingerprint,
+          backend: backendIdentity,
+          backendLabel,
+          model: backendLabel,
+          passed,
+          hallRate,
+          missRate,
+          totals,
+          hazards,
+          shapeConformance: {
+            applicable: backendId !== "openai",
+            firstTry: shapeResults.filter((r) => r.conforming && r.attempts === 1).length,
+            retried: shapeResults.filter((r) => r.conforming && r.attempts > 1).length,
+            never: shapeResults.filter((r) => !r.conforming).length,
+          },
+          leafPaths: [...GENERIC_LEAF_PATHS, ...HEALTH_TEST_PATHS],
+          reports,
+          assertedLeaves,
+        }),
+      );
+      console.log(
+        `[acceptance] run record written to acceptance/runs/current-${backendLabel}.json`,
+      );
+      // =============================== END PERSIST BLOCK ===============================
+
       const baseline = loadBaseline();
       // Narrowed to non-null exactly when it is trustworthy — the schema AND THE BACKEND it was
       // captured against are the schema and backend this run just used (see "BASELINE FRESHNESS"
