@@ -1314,7 +1314,7 @@ export function openRunStore(opts: { dir?: string } = {}): RunStore {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm vitest run packages/ribo-adapter-snuggpro/acceptance/run-store.test.ts`
-Expected: PASS, 13 tests.
+Expected: PASS, 14 tests.
 
 - [ ] **Step 5: Confirm the new tests actually run in the shared gate**
 
