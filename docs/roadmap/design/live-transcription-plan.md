@@ -57,11 +57,18 @@ before Task 1. Where this plan and the design disagree, the design wins and the 
 | `packages/ribo-core/src/pcm-worklet.ts`                | `AudioWorklet` regrouping render quanta into 512  |
 | `playground/src/live-handle.ts`                        | host-owned `LiveTranscriber` singleton            |
 
-**Modified:** `queue/schema.ts` (`preview`), `queue/outbox.ts` (handoff), `recorder.ts` (`onSamples`),
-`ondevice/worker.ts` + `protocol.ts` (live conversation), `ondevice/config.ts` (`VAD_MODEL_ID` →
-Silero, `liveCapability`), `queue/relay.ts` (do not admit while `recording`), `playground/src/App.tsx`
+**Modified:**
 
-- `RecordPanel.tsx`.
+| File                                        | Change                                        |
+| ------------------------------------------- | --------------------------------------------- |
+| `queue/schema.ts`                           | `preview` field, and its `OutboxPatch` `Omit` |
+| `queue/outbox.ts`                           | append-segment and the transcript handoff     |
+| `queue/relay.ts`                            | do not admit new items while anything records |
+| `core/src/recorder.ts`                      | optional `onSamples` tap                      |
+| `ondevice/worker.ts`, `protocol.ts`         | the live conversation                         |
+| `ondevice/config.ts`                        | Silero id, `liveCapability()`                 |
+| `ui-react/src/use-recorder.ts`              | open and close the live session               |
+| `playground/src/App.tsx`, `RecordPanel.tsx` | render the preview                            |
 
 ---
 
