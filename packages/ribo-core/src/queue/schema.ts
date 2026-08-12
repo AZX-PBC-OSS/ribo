@@ -88,6 +88,16 @@ export const ACTIVE_OUTBOX_STATUSES = [
 ] as const satisfies readonly OutboxStatus[];
 
 /**
+ * Whether the relay would act on this status.
+ *
+ * Exported so a caller re-reading an item can ask the same question `nextPending()` asked, rather
+ * than re-listing the statuses and drifting from them.
+ */
+export function isActiveStatus(status: OutboxStatus): boolean {
+  return (ACTIVE_OUTBOX_STATUSES as readonly OutboxStatus[]).includes(status);
+}
+
+/**
  * Statuses the relay will not act on again unattended. `dead` has a human-driven
  * way out (`Outbox.reopenForReview`); `done` and `discarded` have none.
  *
