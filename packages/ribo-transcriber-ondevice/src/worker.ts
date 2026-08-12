@@ -112,7 +112,9 @@ interface AsrPipeline {
     };
     generate(inputs: Record<string, unknown>): Promise<unknown>;
   };
-  processor(audio: Float32Array): Promise<{ input_features: unknown }>;
+  // Whisper's feature extractor returns `input_features` (a mel spectrogram); Moonshine's returns
+  // `input_values` (the waveform, unpadded). Both are the single positional input to `generate`.
+  processor(audio: Float32Array): Promise<{ input_features?: unknown; input_values?: unknown }>;
 }
 
 /**
@@ -447,9 +449,37 @@ async function transcribeChunk(
   samples: Float32Array,
   prefix: readonly number[],
 ): Promise<string> {
-  const { input_features } = await pipeline.processor(samples);
+  const features = await pipeline.processor(samples);
+  // `?? null` rather than `||`: an empty tensor is still the model's input, and coercing it away here
+  // would send `undefined` to `generate` and surface as an opaque ORT error.
+  const waveformInput =
+    features.input_features === undefined && features.input_values !== undefined;
+  const inputs = features.input_features ?? features.input_values ?? null;
+  if (inputs === null) {
+    throw new Error(
+      "ondevice: the processor returned neither `input_features` nor `input_values`. This model's " +
+        "feature extractor is not one this worker knows how to drive.",
+    );
+  }
   const output = await pipeline.model.generate({
-    inputs: input_features,
+    inputs,
+    // **Moonshine needs an explicit generation bound and Whisper must not get one.**
+    //
+    // Moonshine's `generation_config.json` carries no `max_length`, so an unbounded `generate` falls
+    // back to the library default and truncates every chunk a few words in. The whole 54 s fixture
+    // came back as four sentence fragments — a green suite and a broken transcript, because every
+    // gated test drives a FakeWorker.
+    //
+    // 6 tokens per second of audio is the model's own heuristic, from its paper ("greedy decoding,
+    // with a heuristic limit of 6 output tokens per second of audio to avoid repeated output
+    // sequences") and applied identically by transformers.js's own `_call_moonshine`. We reach past
+    // that pipeline to inject a decoder prefix, so we inherit its responsibilities too.
+    //
+    // Whisper is excluded deliberately: its config bounds generation already, and 6 tokens/s would
+    // truncate IT. `input_values` is the discriminator — Whisper's extractor emits `input_features`.
+    ...(waveformInput
+      ? { max_new_tokens: Math.max(1, Math.floor(samples.length / WHISPER_SAMPLE_RATE) * 6) }
+      : {}),
     ...(prefix.length > 0 ? { decoder_input_ids: [...prefix] } : {}),
   });
 

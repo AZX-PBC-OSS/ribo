@@ -137,6 +137,10 @@ test("transcribe decodes on the main thread, transfers samples, and stamps the e
   let worker: FakeWorker | undefined;
   const transcriber = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,
+    // Pinned to Whisper on purpose: this test drives the decoder-prefix priming path, and the
+    // default model is Moonshine, which cannot be primed and now REFUSES hints at construction.
+    // Leaving this on the default would have turned a priming test into a constructor-throw test.
+    modelId: "Xenova/whisper-base.en",
     hints: { vocabulary: ["R-value", "CFM50"], prompt: "energy audit" },
     createWorker: () =>
       (worker = new FakeWorker(

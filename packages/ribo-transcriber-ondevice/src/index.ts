@@ -18,6 +18,7 @@ import type { Recording, Transcript, Transcriber, TranscriberCapability } from "
 import {
   buildHintPrompt,
   DEFAULT_MODEL_ID,
+  modelSupportsHints,
   DEFAULT_WORKER_TIMEOUT_MS,
   defaultCreateWorker,
   estimateDownloadBytes,
@@ -101,6 +102,19 @@ export class OnDeviceTranscriber implements Transcriber {
     this.#device = options.device;
     this.#dtype = options.dtype;
     this.#revision = options.revision;
+    // Refuse at construction, not at transcribe time. Applying a prefix to a model without a
+    // trained prior-context token does not degrade the transcript, it REPLACES it — Moonshine echoes
+    // the jargon and stops (`moonshine-priming.manual.ts`). Ignoring the hints silently would be no
+    // better: a caller who asked for domain biasing and got none should hear about it, not discover
+    // it in a review queue full of misheard ACH50 readings.
+    if (options.hints && !modelSupportsHints(this.#modelId)) {
+      throw new Error(
+        `ondevice: hints were supplied but "${this.#modelId}" cannot be primed. Domain-jargon ` +
+          `priming works by injecting a decoder prefix, which needs a trained prior-context token ` +
+          `(Whisper's <|startofprev|>); models without one transcribe the prefix instead of the ` +
+          `audio. Either use a whisper-* model, or drop \`hints\`.`,
+      );
+    }
     this.#hints = options.hints;
     this.#downloadBytes = options.downloadBytes ?? estimateDownloadBytes(this.#modelId);
     // `?? undefined` so an explicit override still wins but the default is read lazily at probe time.
