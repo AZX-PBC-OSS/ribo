@@ -34,7 +34,7 @@ import { messageOf } from "./format.js";
  * biasing vocabulary yet, so the list is inline here, mirroring
  * `transcribe.manual.ts`.
  */
-const DOMAIN_VOCABULARY = [
+export const DOMAIN_VOCABULARY = [
   "R-value",
   "CFM25",
   "CFM50",
@@ -134,7 +134,12 @@ export function getTranscriber(): OnDeviceTranscriber {
     wasmPaths: WASM_PATHS,
     dtype: "fp32",
     downloadBytes: WHISPER_MODEL_BYTES,
-    hints: { vocabulary: DOMAIN_VOCABULARY },
+    // No `hints`. The default model is Moonshine now, and it cannot be primed — passing hints
+    // THROWS at construction rather than silently doing nothing, because a prefix replaces the
+    // transcript instead of biasing it. `DOMAIN_VOCABULARY` below is kept: it is still the right
+    // list, it is what a whisper-* configuration would pass, and deleting it would lose the one
+    // record of which terms this domain actually needs biasing toward — so it is exported rather
+    // than left as dead weight lint would (correctly) reject.
     createWorker: () =>
       new Worker(new URL("./whisper.worker.ts", import.meta.url), { type: "module" }),
   });

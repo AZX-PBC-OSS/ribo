@@ -2,7 +2,12 @@ import { expect, test, vi } from "vitest";
 
 import type { Transcriber } from "@azx/ribo-core";
 
-import { buildHintPrompt, ONDEVICE_WHISPER_ENGINE, OnDeviceTranscriber } from "./index.js";
+import {
+  buildHintPrompt,
+  DEFAULT_MODEL_ID,
+  ONDEVICE_WHISPER_ENGINE,
+  OnDeviceTranscriber,
+} from "./index.js";
 import { TRANSFORMERS_CACHE_NAME } from "./model-cache.js";
 import type { MainToWorkerMessage, WorkerToMainMessage } from "./protocol.js";
 
@@ -94,12 +99,12 @@ test("capability is needs-download when the model is not cached, carrying byte e
   expect(capability.status).toBe("needs-download");
   if (capability.status === "needs-download") {
     expect(capability.downloadBytes).toBeGreaterThan(0);
-    expect(capability.detail).toBe("Xenova/whisper-base.en");
+    expect(capability.detail).toBe(DEFAULT_MODEL_ID);
   }
 });
 
 test("capability is ready once the model's weights are cached", async () => {
-  const model = "Xenova/whisper-base.en";
+  const model = DEFAULT_MODEL_ID;
   const transcriber = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,
     cacheStorage: fakeCacheStorage([encoderUrl(model), decoderUrl(model)]),

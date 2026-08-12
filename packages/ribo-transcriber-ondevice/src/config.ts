@@ -20,9 +20,30 @@ import type { OnnxDtype } from "./protocol.js";
  * vocabulary is supplied once at construction (the adapter's domain vocabulary is the natural source,
  * doc 03) and applied to every transcription this instance runs.
  *
- * This is the decisive reason Whisper was chosen over Moonshine/Parakeet: those expose no biasing
- * hook. See {@link ../worker.ts} for how the assembled text becomes a `decoder_input_ids` prefix
- * (transformers.js 4.2.0's `prompt_ids` field is inert — a live Task 3 finding).
+ * **Hints are Whisper-only, and that is now a constraint rather than a reason.** This comment used to
+ * read "the decisive reason Whisper was chosen over Moonshine/Parakeet: those expose no biasing
+ * hook." The default model is now Moonshine, chosen on latency (see
+ * `docs/roadmap/design/live-transcription-design.md`), and priming does not come with it.
+ *
+ * Not for want of a mechanism — `MoonshineForConditionalGeneration` declares `decoder_input_ids` in
+ * its `forward_params`, so the prefix is reachable. It does not *work*, and it fails destructively.
+ * Measured (`moonshine-priming.manual.ts`): given a jargon prefix, Moonshine echoes the prefix, emits
+ * a comma, and stops. The audio is never transcribed at all.
+ *
+ *   baseline  "We are starting the walk-thru at the front of the house, the blower door test…"
+ *   primed    "R-value, CFM50, ACH50, blower door, backdrafting, zorbulator,"
+ *
+ * The cause is visible in the tokenizer: Moonshine reports `special_tokens: []`. Whisper's priming
+ * works because `<|startofprev|>` is a *trained* control token marking a region the decoder learned
+ * to condition on without emitting. With no such token there is no such region, so a prefix is simply
+ * text to continue.
+ *
+ * Hence {@link modelSupportsHints} and the hard failure it drives: silently ignoring hints would let
+ * a caller believe they are primed when they are not, and silently applying them would return that
+ * comma as somebody's transcript.
+ *
+ * See {@link ../worker.ts} for how the assembled text becomes a `decoder_input_ids` prefix on the
+ * models that do support it (transformers.js 4.2.0's `prompt_ids` field is inert — a Task 3 finding).
  */
 export interface TranscribeHints {
   /** Domain jargon to bias decoding toward, e.g. `["R-value", "CFM50", "AFUE", "backdrafting"]`. */
@@ -54,11 +75,37 @@ export function buildHintPrompt(hints: TranscribeHints | undefined): string | un
 }
 
 /**
- * Default model. `whisper-base.en` per the Phase 3 plan; overridable via
- * {@link OnDeviceTranscriberOptions.modelId} so `tiny.en` / `small.en` can be selected without a
- * code change (plan Task 2, doc 01 §Recommendation's device-driven size choice).
+ * Whether `modelId` can be primed with a decoder prefix — see {@link TranscribeHints}.
+ *
+ * **Deliberately name-based, not capability-probed.** The honest check is "does this tokenizer have a
+ * `<|startofprev|>`-equivalent control token", which needs the tokenizer — and the tokenizer needs a
+ * download. Refusing bad wiring has to happen at construction, before any network, or the error
+ * arrives after a 250 MB fetch and mid-recording. A prefix substring is a coarse test that fails in
+ * the safe direction: an unknown model is treated as unable to prime, so the worst case is hints
+ * being refused for a model that could have used them, never applied to one that cannot.
  */
-export const DEFAULT_MODEL_ID = "Xenova/whisper-base.en";
+export function modelSupportsHints(modelId: string): boolean {
+  return /whisper/i.test(modelId);
+}
+
+/**
+ * Default model.
+ *
+ * **Moonshine, not Whisper, since the live-transcription work.** Whisper pads every input to its 30 s
+ * receptive field before the encoder runs, so cost is set by the window rather than by the speech —
+ * measured at 1.26× across a 14.5× range of audio, i.e. a 2-second utterance costs what a 29-second
+ * one does. Moonshine's feature extractor passes audio through unpadded and is 4–16× faster at the
+ * lengths that matter. See `docs/roadmap/design/live-transcription-design.md`.
+ *
+ * **What this costs:** domain-jargon priming, which does not exist on Moonshine ({@link
+ * TranscribeHints}). `docs/implementation/14` measured hints at up to −18.1 pp WER on the
+ * jargon-dense combustion-safety transcript, so this is not a free swap and the replacement figures
+ * must be measured on the same corpus before it is treated as settled.
+ *
+ * Overridable via {@link OnDeviceTranscriberOptions.modelId}, and any `whisper-*` id restores the
+ * previous behaviour including hints.
+ */
+export const DEFAULT_MODEL_ID = "onnx-community/moonshine-base-ONNX";
 
 /**
  * One-time download totals per known model, **including the ~24 MB Chromium ONNX Runtime binary** —
@@ -78,6 +125,9 @@ export const MODEL_DOWNLOAD_BYTES: Readonly<Record<string, number>> = {
   "onnx-community/whisper-tiny.en": 175_000_000, // estimate (fp32)
   "onnx-community/whisper-base.en": 314_000_000, // MEASURED (fp32, Task 4)
   "onnx-community/whisper-small.en": 970_000_000, // estimate (fp32)
+  // Encoder + merged decoder, fp32, read from the Hub blob sizes.
+  "onnx-community/moonshine-base-ONNX": 247_000_000,
+  "onnx-community/moonshine-tiny-ONNX": 109_000_000,
 };
 
 /** Fallback total for an unrecognized model id — base.en-ish, so the bar is never absurdly wrong. */
