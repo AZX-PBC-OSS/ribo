@@ -49,11 +49,17 @@ export {
   VAD_MODEL_ID,
   VAD_DOWNLOAD_BYTES,
   estimateDownloadBytes,
+  STREAMING_VAD_MODEL_ID,
+  STREAMING_VAD_DOWNLOAD_BYTES,
 } from "./config.js";
 export type { OnDeviceTranscriberOptions, TranscribeHints } from "./config.js";
 export { decodeTo16kMono } from "./decode.js";
 export { TRANSFORMERS_CACHE_NAME, isModelCached } from "./model-cache.js";
 export type { PrimeConfig, PrimeProgress, TranscribeWorkerRequest } from "./protocol.js";
+
+// Live transcription: the streaming seam implementation.
+export { OnDeviceLiveTranscriber } from "./live.js";
+export type { OnDeviceLiveTranscriberOptions } from "./live.js";
 
 /**
  * `Transcriber.engine` this implementation stamps onto every {@link Transcript} it produces. Short

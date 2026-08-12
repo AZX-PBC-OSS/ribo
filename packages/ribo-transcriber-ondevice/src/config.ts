@@ -161,6 +161,9 @@ export const VAD_MODEL_ID = "onnx-community/pyannote-segmentation-3.0";
  */
 export const STREAMING_VAD_MODEL_ID = "onnx-community/silero-vad";
 
+/** fp32 weights for {@link STREAMING_VAD_MODEL_ID} — measured in the spike: 2.14 MB. */
+export const STREAMING_VAD_DOWNLOAD_BYTES = 2_200_000;
+
 /**
  * Default worker-reply budget: 10 minutes.
  *
