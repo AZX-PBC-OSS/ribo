@@ -105,7 +105,11 @@ function makeStateAccumulatingDetector(): ProbabilityDetector & {
 describe("StreamingVad — Test A: the returned state is carried into the next frame", () => {
   test("an utterance is emitted — speech is detected only when state is carried", async () => {
     const detector = makeStateAccumulatingDetector();
-    const vad = new StreamingVad(detector, { minSilenceMs: 400, preSpeechPadMs: 80 });
+    const vad = new StreamingVad(detector, {
+      minSilenceMs: 400,
+      preSpeechPadMs: 80,
+      minUtteranceSeconds: 0,
+    });
 
     // 5 silence + 16 speech + 13 silence (13 × 32 ms = 416 ms > 400 ms, closes the utterance).
     const frames = Array.from({ length: 34 }, (_, i) => makeFrame(i));
@@ -124,7 +128,11 @@ describe("StreamingVad — Test A: the returned state is carried into the next f
 
   test("the state fed to call N+1 is the one returned by call N (direct check)", async () => {
     const detector = makeStateAccumulatingDetector();
-    const vad = new StreamingVad(detector, { minSilenceMs: 400, preSpeechPadMs: 80 });
+    const vad = new StreamingVad(detector, {
+      minSilenceMs: 400,
+      preSpeechPadMs: 80,
+      minUtteranceSeconds: 0,
+    });
 
     const frames = Array.from({ length: 10 }, (_, i) => makeFrame(i));
     await feedAll(vad, frames);
@@ -206,7 +214,11 @@ describe("StreamingVad — Test B: a region opening includes the pre-speech FIFO
       0, // silence → close (13 frames = 416 ms)
     ];
     const detector = makeFixedPatternDetector(probabilities);
-    const vad = new StreamingVad(detector, { minSilenceMs: 400, preSpeechPadMs: 80 });
+    const vad = new StreamingVad(detector, {
+      minSilenceMs: 400,
+      preSpeechPadMs: 80,
+      minUtteranceSeconds: 0,
+    });
 
     const frames = Array.from({ length: probabilities.length }, (_, i) => makeFrame(i));
     const utterances = await feedAll(vad, frames);
@@ -286,7 +298,11 @@ describe("StreamingVad — Test C: a silence shorter than 400 ms does not split"
       0, // long silence (15 frames = 480 ms > 400 ms → close)
     ];
     const detector = makeFixedPatternDetector(probabilities);
-    const vad = new StreamingVad(detector, { minSilenceMs: 400, preSpeechPadMs: 80 });
+    const vad = new StreamingVad(detector, {
+      minSilenceMs: 400,
+      preSpeechPadMs: 80,
+      minUtteranceSeconds: 0,
+    });
 
     const frames = Array.from({ length: probabilities.length }, (_, i) => makeFrame(i));
     const utterances = await feedAll(vad, frames);
@@ -295,4 +311,50 @@ describe("StreamingVad — Test C: a silence shorter than 400 ms does not split"
     // frame 21. The utterance closes only after the 15-frame silence. One utterance, not two.
     expect(utterances.length).toBe(1);
   });
+});
+
+// ── Short utterances accumulate instead of emitting ──────────────────────────────────────────────
+//
+// The VAD finds speech boundaries; the ASR needs enough audio. Measured on a real dictation with
+// deliberate short pauses: utterances of 1.44–2.56 s came back as fragments or, twice, as EMPTY TEXT
+// that the worker then silently discarded — while a 8.96 s utterance in the same recording
+// transcribed cleanly. So a close below `minUtteranceSeconds` holds its buffer and the next region
+// appends to it.
+//
+// The trap this test avoids: asserting only "the short close emits nothing" passes against an
+// implementation that simply THROWS the short buffer away, which loses the speech instead of
+// deferring it — the exact bug being fixed, in a new place. The assertion that matters is that the
+// held audio appears in the eventual emission.
+
+test("a short utterance is held and merged into the next, not emitted and not lost", async () => {
+  // Two speech bursts of 10 frames (~0.32 s each) separated by a closing silence, then a long
+  // silence. Neither burst alone reaches the 1-second minimum used here; together they do.
+  const speech = 0.9;
+  const quiet = 0.0;
+  const pattern = [
+    ...Array<number>(10).fill(speech), // burst 1
+    ...Array<number>(13).fill(quiet), // closes (13 × 32 ms > 400 ms)
+    ...Array<number>(25).fill(speech), // burst 2 — together the buffer passes 1 s
+    ...Array<number>(13).fill(quiet), // closes again
+  ];
+  const vad = new StreamingVad(makeFixedPatternDetector(pattern), {
+    minSilenceMs: 400,
+    preSpeechPadMs: 80,
+    minUtteranceSeconds: 1,
+  });
+
+  const emitted: Float32Array[] = [];
+  for (let i = 0; i < pattern.length; i++) {
+    for (const u of await vad.feed(makeFrame(i))) emitted.push(u.samples);
+  }
+
+  // One emission, not two: the first close was held back.
+  expect(emitted).toHaveLength(1);
+
+  // **The held audio is in it.** Frame 0 belongs to the first burst; if the short close had
+  // discarded its buffer rather than deferring it, that speech would be gone and this fails.
+  const samples = Array.from(emitted[0]!);
+  expect(samples).toContain(0);
+  // And the second burst is there too — this is a merge, not a replacement.
+  expect(samples).toContain(23);
 });

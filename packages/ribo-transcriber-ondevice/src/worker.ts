@@ -635,10 +635,15 @@ function feedLiveFrame(
       if (utterances.length === 0) return;
       const pipeline = await getPipeline(session.config);
       for (const { samples } of utterances) {
+        // TEMPORARY diagnostic — remove before merge.
+        // eslint-disable-next-line no-console
+        console.log(`@@VAD@@ utterance ${(samples.length / 16000).toFixed(2)}s`);
         // No jargon prefix for live — Moonshine (the default model) cannot be primed
         // (`config.ts` / `moonshine-priming.manual.ts`), and live previews are
         // provisional anyway: the batch pass after `stop()` replaces them entirely.
         const text = await transcribeChunk(pipeline, samples, []);
+        // eslint-disable-next-line no-console
+        if (text.length === 0) console.log("@@VAD@@ DROPPED — model returned empty text");
         if (text.length > 0) post({ type: "liveSegment", sessionId, text });
       }
     } catch (error) {

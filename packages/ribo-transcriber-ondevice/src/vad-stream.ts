@@ -86,6 +86,25 @@ export const VAD_PRE_SPEECH_PAD_MS = 200;
  */
 export const VAD_MIN_SILENCE_MS = 800;
 
+/**
+ * Minimum audio in a closed utterance before it is worth transcribing.
+ *
+ * **The VAD finds speech boundaries; the ASR needs enough audio. Those are different questions, and
+ * conflating them is what made the preview useless.** Measured on a real dictation with deliberate
+ * short pauses: utterances of 1.44–2.56 s produced fragments or, twice, *empty text that was silently
+ * discarded* — while the one 8.96 s utterance in the same recording transcribed cleanly. Moonshine
+ * has no context to work with in a two-second fragment and guesses or gives up.
+ *
+ * So a close below this threshold does not emit. The buffer is kept and the next region appends to
+ * it, until a pause arrives with enough audio behind it. Long utterances still emit promptly — this
+ * only holds back the ones that would transcribe badly anyway.
+ *
+ * The cost is latency on sparse speech: someone speaking in short bursts waits until ~4 s has
+ * accumulated. That is strictly better than what it replaces, which was showing them fragments and
+ * dropping every other clause.
+ */
+export const VAD_MIN_UTTERANCE_SECONDS = 4;
+
 /** Buffer cap — emit and carry overflow past this. */
 export const VAD_MAX_SPEECH_SECONDS = 30;
 
@@ -194,6 +213,9 @@ export class StreamingVad {
 
   readonly #minSilenceFrames: number;
   readonly #preSpeechPadFrames: number;
+  readonly #minUtteranceFrames: number;
+  /** A close was held back for being too short — the next region appends rather than replaces. */
+  #holdingShort = false;
 
   /**
    * `minSilenceMs` is injectable so a **test can pin its own threshold**. The tests build literal
@@ -204,7 +226,7 @@ export class StreamingVad {
    */
   constructor(
     detector: ProbabilityDetector,
-    options: { minSilenceMs?: number; preSpeechPadMs?: number } = {},
+    options: { minSilenceMs?: number; preSpeechPadMs?: number; minUtteranceSeconds?: number } = {},
   ) {
     this.#detector = detector;
     this.#state = new Float32Array(detector.initialState);
@@ -213,6 +235,9 @@ export class StreamingVad {
     );
     this.#preSpeechPadFrames = Math.ceil(
       (options.preSpeechPadMs ?? VAD_PRE_SPEECH_PAD_MS) / FRAME_DURATION_MS,
+    );
+    this.#minUtteranceFrames = Math.ceil(
+      ((options.minUtteranceSeconds ?? VAD_MIN_UTTERANCE_SECONDS) * 1000) / FRAME_DURATION_MS,
     );
   }
 
@@ -248,7 +273,12 @@ export class StreamingVad {
         // A region opens: start the speech buffer with the pre-speech FIFO plus the detection
         // frame, so the consonant before the frame that *detected* speech is not clipped.
         this.#inSpeech = true;
-        this.#speechFrames = [...this.#preSpeechFifo, frame];
+        // Append when a previous close was held back for being too short — that buffer is still
+        // waiting for enough audio, and replacing it here would discard the speech it holds.
+        this.#speechFrames = this.#holdingShort
+          ? [...this.#speechFrames, ...this.#preSpeechFifo, frame]
+          : [...this.#preSpeechFifo, frame];
+        this.#holdingShort = false;
         this.#preSpeechFifo = [];
         this.#silenceFrameCount = 0;
         // The detection frame is speech (probability ≥ enter > exit); FIFO frames are not.
@@ -277,12 +307,20 @@ export class StreamingVad {
     if (probability < VAD_EXIT_THRESHOLD) {
       this.#silenceFrameCount++;
       if (this.#silenceFrameCount >= this.#minSilenceFrames) {
-        // Close: emit if the speech was long enough, discard as noise if not.
-        if (this.#speechFrameCount >= MIN_SPEECH_FRAMES) {
+        // Close — but only *emit* when there is enough audio to transcribe well. A buffer below
+        // `#minUtteranceFrames` is kept and the next region appends to it: measured on real speech,
+        // a 2-second utterance comes back as a fragment or as empty text that is then silently
+        // dropped, while the same recording's 9-second utterance transcribes cleanly.
+        const longEnough = this.#speechFrames.length >= this.#minUtteranceFrames;
+        if (this.#speechFrameCount >= MIN_SPEECH_FRAMES && longEnough) {
           utterances.push({ samples: concatenateFrames(this.#speechFrames) });
         }
         this.#inSpeech = false;
-        this.#speechFrames = [];
+        // Hold the buffer only when it was real speech that was merely short. Genuine noise (below
+        // the min-speech filter) is discarded as before — holding it would prepend a cough to
+        // somebody's next sentence.
+        this.#holdingShort = !longEnough && this.#speechFrameCount >= MIN_SPEECH_FRAMES;
+        if (!this.#holdingShort) this.#speechFrames = [];
         this.#silenceFrameCount = 0;
         this.#speechFrameCount = 0;
         this.#preSpeechFifo = [];
