@@ -53,7 +53,7 @@ before Task 1. Where this plan and the design disagree, the design wins and the 
 | `packages/ribo-core/src/queue/preview.ts`              | append a segment; delete on transcript handoff    |
 | `packages/ribo-transcriber-ondevice/src/vad-stream.ts` | Silero frame loop, state carried, utterance close |
 | `packages/ribo-transcriber-ondevice/src/live.ts`       | `LiveTranscriber` impl over the worker            |
-| `packages/ribo-core/src/pcm-worklet.ts`                | `AudioWorklet` regrouping render quanta into 512  |
+| `packages/ribo-core/src/worklet.ts`                    | `AudioWorklet` regrouping render quanta into 512  |
 | `playground/src/live-handle.ts`                        | host-owned `LiveTranscriber` singleton            |
 
 **Modified:**
@@ -164,7 +164,7 @@ model blocks the audio thread); a closed session's late reply is discarded by `s
 
 ## Task 4: The `AudioWorklet` tap
 
-**Files:** `core/src/pcm-worklet.ts` (new), `core/src/recorder.ts`, `recorder.browser.test.ts`
+**Files:** `core/src/worklet.ts` (new), `core/src/recorder.ts`, `recorder.browser.test.ts`
 
 `Recorder` gains optional `onSamples`. One `getUserMedia` stream feeds both `MediaRecorder` and the
 worklet; the worklet regroups the browser's 128-sample render quanta into 512-sample frames. Without

@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "license": "MIT",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/worklet.js"
+  ],
   "files": [
     "dist"
   ],
@@ -13,6 +15,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./worklet": {
+      "@azx/source": "./src/worklet.ts",
+      "types": "./dist/worklet.d.ts",
+      "default": "./dist/worklet.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -21,6 +28,10 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./worklet": {
+        "types": "./dist/worklet.d.ts",
+        "default": "./dist/worklet.js"
       },
       "./package.json": "./package.json"
     }
