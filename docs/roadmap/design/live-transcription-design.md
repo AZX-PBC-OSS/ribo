@@ -15,9 +15,9 @@
 >   (32 ms) at a time, carrying its own recurrent state tensor. Settle latency goes from 5–10 s to
 >   one frame.
 > - **The ASR.** Whisper pads every input to 30 s before the encoder runs, so a 2-second utterance
->   costs what a 29-second one does — [measured](../../../spikes/live-model-comparison/README.md):
->   **1.26× across a 14.5× range of audio.** Moonshine's feature extractor passes audio through
->   unpadded; at live utterance lengths it is **4–16× faster**.
+>   costs what a 29-second one does — **measured at 1.26× across a 14.5× range of audio.**
+>   Moonshine's feature extractor passes audio through unpadded; at live utterance lengths it is
+>   **4–16× faster**. The numbers are below; the throwaway harness that produced them was not kept.
 >
 > **Revision 4's answer to U2 is withdrawn, not corrected.** It proposed recomputing the VAD pipeline
 > from a committed cursor on every feed — a sound workaround for a model that cannot stream, and
@@ -65,6 +65,34 @@ transcriber.transcribe(recording, audio)`. Nothing is visible until the whole re
 
 The ASR figure is our own measurement (moonshine-base, 4-second utterance, WASM, fp32, desktop). The
 other two are the component's stated frame size and the reference implementation's constant.
+
+### The ASR measurement, in full
+
+Median of three runs per cell, one call each, WASM/fp32, desktop, hints off for all three (the
+priming trick is Whisper-shaped, so a fair comparison cannot use it):
+
+| utterance | whisper-base.en | moonshine-base | moonshine-tiny |
+| --------- | --------------: | -------------: | -------------: |
+| 2 s       |    **2 033 ms** |        **126** |         **55** |
+| 4 s       |           2 068 |            254 |            114 |
+| 8 s       |           2 148 |            525 |            251 |
+| 16 s      |           2 302 |          1 176 |            536 |
+| 29 s      |           2 560 |          2 572 |          1 243 |
+
+**Whisper: 1.26× while the audio grew 14.5×.** That flatness _is_ the padding — cost is set by the
+window, not the speech. Moonshine: 20–22×, tracking the audio as its pass-through feature extractor
+predicts.
+
+Two things this measurement does **not** establish, both load-bearing:
+
+- **Accuracy.** Quality was eyeballed, not scored. Enough to rank moonshine-tiny last — it mangles the
+  full 54 s fixture, reading "measured 449" for 400 CFM50 — and **not** enough to rank moonshine-base
+  against Whisper.
+- **Phone behaviour.** Desktop WASM only.
+
+Model sizes, encoder + merged decoder: whisper-base.en 291 MB fp32 / 142 MB q4; moonshine-base 247 /
+97.5; moonshine-tiny 109 / 55.4. Parakeet was eliminated without measuring — `parakeet-ctc-0.6b` is
+2 435 MB fp32 and 611 MB int8.
 
 **This is a desktop number and the target is a phone.** It is no longer the difference between
 "useful" and "not useful" — 0.7 s has room to be several times worse and still feel live — but it is
