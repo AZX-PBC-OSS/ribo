@@ -37,6 +37,9 @@ import type {
   WorkerToMainMessage,
 } from "./protocol.js";
 
+/** Messages that carry a `requestId` — the batch path's correlation key. */
+type RequestMessage = Extract<MainToWorkerMessage, { requestId: string }>;
+
 export {
   buildHintPrompt,
   DEFAULT_MODEL_ID,
@@ -235,7 +238,7 @@ export class OnDeviceTranscriber implements Transcriber {
    */
   #awaitReply(
     worker: Worker,
-    message: MainToWorkerMessage,
+    message: RequestMessage,
     done: "primed" | "transcribed",
     verb: string,
     onProgress?: PrimeProgressListener,
@@ -267,7 +270,9 @@ export class OnDeviceTranscriber implements Transcriber {
       };
       const onMessage = (event: MessageEvent<WorkerToMainMessage>): void => {
         const reply = event.data;
-        if (reply.requestId !== requestId) return;
+        // Live replies carry `sessionId`, not `requestId` — skip them so they do not
+        // crosstalk with a batch conversation on the same worker channel.
+        if (!("requestId" in reply) || reply.requestId !== requestId) return;
         if (reply.type === "progress") {
           onProgress?.(reply.progress);
           return;

@@ -36,7 +36,7 @@ const encoderUrl = (model: string) =>
 const decoderUrl = (model: string) =>
   `https://huggingface.co/${model}/resolve/main/onnx/decoder_model_merged_quantized.onnx`;
 
-/** Scriptable Web Worker double: replies to a `prime` postMessage with a canned message sequence. */
+/** Scriptable Web Worker double: replies to a `prime`/`transcribe` postMessage with a canned sequence. */
 class FakeWorker {
   readonly posted: MainToWorkerMessage[] = [];
   terminated = false;
@@ -46,8 +46,8 @@ class FakeWorker {
   };
 
   constructor(
-    /** Given the prime command, produce the worker→main messages to emit (in order). */
-    private readonly reply: (command: MainToWorkerMessage) => WorkerToMainMessage[],
+    /** Given a batch command (prime/transcribe), produce the worker→main messages to emit. */
+    private readonly reply: (command: Extract<MainToWorkerMessage, { requestId: string }>) => WorkerToMainMessage[],
   ) {}
 
   addEventListener(type: string, fn: (event: unknown) => void): void {
@@ -58,6 +58,8 @@ class FakeWorker {
   }
   postMessage(command: MainToWorkerMessage): void {
     this.posted.push(command);
+    // This double serves the batch path only; live messages carry `sessionId`, not `requestId`.
+    if (!("requestId" in command)) return;
     queueMicrotask(() => {
       for (const message of this.reply(command)) {
         this.#emit("message", { data: message });
