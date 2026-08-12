@@ -125,6 +125,12 @@ export interface OnDeviceLiveTranscriberOptions {
   readonly wasmPaths: string;
   /** Factory for the inference worker. See `OnDeviceTranscriberOptions.createWorker`. */
   readonly createWorker?: () => Worker;
+  /**
+   * How long to wait for the worker to report the session open. Defaults to
+   * {@link DEFAULT_LIVE_OPEN_TIMEOUT_MS}. Exists so a stalled model load fails as "no preview"
+   * rather than pending forever — see the comment in `openSession`.
+   */
+  readonly openTimeoutMs?: number;
   /** ASR model repo id. Defaults to {@link DEFAULT_MODEL_ID}. */
   readonly modelId?: string;
   /** ORT execution provider. Omitted lets transformers.js auto-select. */
@@ -145,6 +151,17 @@ export interface OnDeviceLiveTranscriberOptions {
  * from `OnDeviceTranscriber`'s — sharing one worker across live and batch is a host wiring
  * concern (Task 5), not a property of this class.
  */
+/**
+ * How long {@link OnDeviceLiveTranscriber.openSession} waits for the worker to report the session
+ * open, before giving up and leaving the caller with no preview.
+ *
+ * **Much shorter than the batch `DEFAULT_WORKER_TIMEOUT_MS` (600 s), and deliberately so.** That one
+ * bounds transcribing a long recording; this bounds loading a 2.14 MB VAD model, measured at ~2.4 s
+ * cold in the spike. A minute is generous for a slow uplink and still short enough that a stalled
+ * open fails while the auditor is on their first sentence rather than their last.
+ */
+export const DEFAULT_LIVE_OPEN_TIMEOUT_MS = 60_000;
+
 export class OnDeviceLiveTranscriber implements LiveTranscriber {
   readonly #modelId: string;
   readonly #wasmPaths: string;
@@ -153,6 +170,7 @@ export class OnDeviceLiveTranscriber implements LiveTranscriber {
   readonly #revision?: string;
   readonly #cacheStorage?: CacheStorage;
   readonly #createWorker: () => Worker;
+  readonly #timeoutMs: number;
 
   /** Constructed lazily on the first `openSession`, then reused. */
   #worker?: Worker;
@@ -165,6 +183,7 @@ export class OnDeviceLiveTranscriber implements LiveTranscriber {
     this.#revision = options.revision;
     this.#cacheStorage = options.cacheStorage;
     this.#createWorker = options.createWorker ?? defaultCreateWorker;
+    this.#timeoutMs = options.openTimeoutMs ?? DEFAULT_LIVE_OPEN_TIMEOUT_MS;
   }
 
   async liveCapability(): Promise<TranscriberCapability> {
@@ -202,19 +221,49 @@ export class OnDeviceLiveTranscriber implements LiveTranscriber {
     const worker = this.#ensureWorker();
     const sessionId = crypto.randomUUID();
 
+    // **A timeout and an `error` listener, for the same reason the batch path has both.**
+    // `#awaitReply` in `index.ts` carries a long comment about it: a worker killed for memory often
+    // dies WITHOUT firing `error`, so a promise waiting only on a reply waits forever. The live open
+    // has the identical shape — the worker constructs fine, then the VAD model load stalls (a
+    // service-worker misroute, a cache evicted between `liveCapability()` and here) and neither
+    // `liveOpened` nor `liveError` ever arrives.
+    //
+    // Unbounded, that pends forever holding a session the caller believes is coming. A host that
+    // AWAITS this on its record path would hang recording start — live degrading recording, the one
+    // outcome this feature is forbidden from producing. Rejecting instead lands the caller on "no
+    // preview for this recording", which the seam's own docs already name as the correct response.
     await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(
+          new Error(
+            `on-device live session did not open within ${String(this.#timeoutMs)} ms — the worker ` +
+              `may have been killed, or the VAD model load stalled`,
+          ),
+        );
+      }, this.#timeoutMs);
+      const cleanup = (): void => {
+        clearTimeout(timer);
+        worker.removeEventListener("message", onOpen);
+        worker.removeEventListener("error", onError);
+      };
+      const onError = (): void => {
+        cleanup();
+        reject(new Error("on-device live worker failed before the session opened"));
+      };
       const onOpen = (event: MessageEvent<WorkerToMainMessage>): void => {
         const reply = event.data;
         if (!("sessionId" in reply) || reply.sessionId !== sessionId) return;
         if (reply.type === "liveOpened") {
-          worker.removeEventListener("message", onOpen);
+          cleanup();
           resolve();
         } else if (reply.type === "liveError") {
-          worker.removeEventListener("message", onOpen);
+          cleanup();
           reject(new Error(reply.message));
         }
       };
       worker.addEventListener("message", onOpen);
+      worker.addEventListener("error", onError);
       worker.postMessage({ type: "liveOpen", sessionId, config: this.#pipelineConfig() });
     });
 

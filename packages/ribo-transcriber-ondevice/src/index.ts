@@ -58,7 +58,7 @@ export { TRANSFORMERS_CACHE_NAME, isModelCached } from "./model-cache.js";
 export type { PrimeConfig, PrimeProgress, TranscribeWorkerRequest } from "./protocol.js";
 
 // Live transcription: the streaming seam implementation.
-export { OnDeviceLiveTranscriber } from "./live.js";
+export { DEFAULT_LIVE_OPEN_TIMEOUT_MS, OnDeviceLiveTranscriber } from "./live.js";
 export type { OnDeviceLiveTranscriberOptions } from "./live.js";
 
 /**

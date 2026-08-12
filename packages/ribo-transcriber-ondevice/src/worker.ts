@@ -630,15 +630,30 @@ function feedLiveFrame(
   void serialize(async () => {
     const session = liveSessions.get(sessionId);
     if (!session) return;
-    const utterances = await session.vad.feed(frame);
-    if (utterances.length === 0) return;
-    const pipeline = await getPipeline(session.config);
-    for (const { samples } of utterances) {
-      // No jargon prefix for live — Moonshine (the default model) cannot be primed
-      // (`config.ts` / `moonshine-priming.manual.ts`), and live previews are
-      // provisional anyway: the batch pass after `stop()` replaces them entirely.
-      const text = await transcribeChunk(pipeline, samples, []);
-      if (text.length > 0) post({ type: "liveSegment", sessionId, text });
+    try {
+      const utterances = await session.vad.feed(frame);
+      if (utterances.length === 0) return;
+      const pipeline = await getPipeline(session.config);
+      for (const { samples } of utterances) {
+        // No jargon prefix for live — Moonshine (the default model) cannot be primed
+        // (`config.ts` / `moonshine-priming.manual.ts`), and live previews are
+        // provisional anyway: the batch pass after `stop()` replaces them entirely.
+        const text = await transcribeChunk(pipeline, samples, []);
+        if (text.length > 0) post({ type: "liveSegment", sessionId, text });
+      }
+    } catch (error) {
+      // **Surfaced, and the session ends here.** Without this the rejection was `void`-ed into an
+      // `unhandledrejection` nobody sees: a Moonshine OOM two minutes into a walkthrough stopped the
+      // preview with no console output and no host signal, and every later frame threw again. The
+      // auditor's only clue was that text quietly stopped appearing.
+      //
+      // The design's failure table asks for three things — preview stops, recording continues, error
+      // surfaced. Deleting the session delivers the first (later frames no-op on the map lookup, the
+      // same path `liveClose` uses), the main thread was never involved so the second holds by
+      // construction, and `liveError` is the third. It already existed and was posted only by
+      // `openLiveSession`; this is the other half it was designed for.
+      liveSessions.delete(sessionId);
+      post({ type: "liveError", sessionId, message: errorMessage(error) });
     }
   });
 }
