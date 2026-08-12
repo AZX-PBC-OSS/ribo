@@ -145,6 +145,23 @@ export const FALLBACK_DOWNLOAD_BYTES = 314_000_000;
 export const VAD_MODEL_ID = "onnx-community/pyannote-segmentation-3.0";
 
 /**
+ * The streaming voice-activity model for live transcription — a **second** VAD, separate from
+ * {@link VAD_MODEL_ID}'s batch path.
+ *
+ * `onnx-community/silero-vad` loads through the same `@huggingface/transformers` we already pin
+ * (via `AutoModel.from_pretrained` with `config: { model_type: "custom" }`, not raw
+ * `onnxruntime-web` — the spike confirmed this works under the same `wasmPaths` config the ASR
+ * path uses). It is frame-synchronous — 512 samples (32 ms) at a time, carrying its own recurrent
+ * state tensor — where pyannote's 10-second windows make a frame's value non-final until 5–10 s
+ * of later audio exists. That settle latency is why Silero, not pyannote, is the live VAD.
+ *
+ * Measured in the spike: 2.14 MB fp32 weights, 0.20 ms per frame inference. See
+ * `docs/roadmap/design/live-spike-findings.md` for the input/output contract and the
+ * state-carrying evidence.
+ */
+export const STREAMING_VAD_MODEL_ID = "onnx-community/silero-vad";
+
+/**
  * Default worker-reply budget: 10 minutes.
  *
  * Sized from the measured worst case rather than guessed — RTF ~0.16 means a 30-minute
