@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from "vitest";
 import { WHISPER_SAMPLE_RATE } from "./decode.js";
 import {
   WORKER_ENTRY_NAME,
+  clearLiveSessions,
   handleMessage,
   normalizeProgress,
   planChunks,
@@ -140,4 +141,28 @@ describe("serialize — one inference at a time", () => {
     await expect(failed).rejects.toThrow("boom");
     await expect(serialize(() => Promise.resolve("fine"))).resolves.toBe("fine");
   });
+});
+
+// `liveClose` and `liveFeed`-for-missing-session are safe to test in node: neither
+// loads a model. `liveOpen` dynamic-imports `@huggingface/transformers` via
+// `createSileroDetector` and is NOT tested here — that path is exercised by the
+// manual browser test and the `live.test.ts` FakeWorker tests.
+
+test("handleMessage for liveClose is a no-op that does not touch transformers", async () => {
+  clearLiveSessions();
+  const post = vi.fn();
+  await handleMessage({ type: "liveClose", sessionId: "no-such-session" }, post);
+  expect(post).not.toHaveBeenCalled();
+});
+
+test("handleMessage for liveFeed on a missing session is a silent no-op", async () => {
+  clearLiveSessions();
+  const post = vi.fn();
+  await handleMessage(
+    { type: "liveFeed", sessionId: "no-such-session", frame: new Float32Array(512) },
+    post,
+  );
+  // The feed queues through `serialize`, so let the microtask settle before checking.
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(post).not.toHaveBeenCalled();
 });

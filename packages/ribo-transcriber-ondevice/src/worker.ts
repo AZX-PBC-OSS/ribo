@@ -46,6 +46,7 @@ import {
   WHISPER_WINDOW_SECONDS,
 } from "./segmentation.js";
 import type { FrameGeometry, SampleRange } from "./segmentation.js";
+import { StreamingVad, createSileroDetector } from "./vad-stream.js";
 
 /** The subpath this module is published under — the stable name of the worker entry. */
 export const WORKER_ENTRY_NAME = "@azx/ribo-transcriber-ondevice/worker" as const;
@@ -558,6 +559,90 @@ async function transcribe(config: PrimeConfig, request: TranscribeWorkerRequest)
   });
 }
 
+// ── Live transcription (Task 3: the live seam) ───────────────────────────────
+//
+// The live conversation runs alongside `prime` and `transcribe` in this same worker.
+// Frames arrive at audio-callback rate (32 ms each); the worker runs Silero per frame,
+// and when an utterance closes, transcribes it with the same ASR pipeline the batch path
+// uses. VAD and ASR go through the `serialize` chain so they never interleave with a
+// batch `transcribe` call — transformers.js does not support simultaneous inference in
+// one worker, and this worker already serialises its batch passes.
+
+/**
+ * Worker-side state for one live session. Created on `liveOpen`, removed on
+ * `liveClose` (or when a `liveFeed` finds it missing — the close may have arrived
+ * while a feed was queued behind `serialize`).
+ */
+interface LiveWorkerSession {
+  /** The streaming VAD that turns frames into closed utterances. */
+  readonly vad: StreamingVad;
+  /** The pipeline config for ASR calls on closed utterances. */
+  readonly config: PrimeConfig;
+}
+
+/** Active live sessions, keyed by `sessionId`. */
+const liveSessions = new Map<string, LiveWorkerSession>();
+
+/** Clear all live sessions — test cleanup so one test's session does not leak into the next. */
+export function clearLiveSessions(): void {
+  liveSessions.clear();
+}
+
+/**
+ * Create the Silero detector and the {@link StreamingVad} for a new session.
+ * The detector dynamic-imports `@huggingface/transformers` inside
+ * {@link createSileroDetector} — the same deferred-load pattern as `getPipeline` —
+ * so this import does not pull `onnxruntime-node` into the node-side unit tests
+ * that import this module for routing alone.
+ */
+async function openLiveSession(
+  sessionId: string,
+  config: PrimeConfig,
+  post: (message: WorkerToMainMessage) => void,
+): Promise<void> {
+  try {
+    const detector = await createSileroDetector({
+      wasmPaths: config.wasmPaths,
+      ...(config.revision ? { revision: config.revision } : {}),
+    });
+    liveSessions.set(sessionId, { vad: new StreamingVad(detector), config });
+    post({ type: "liveOpened", sessionId });
+  } catch (error) {
+    post({ type: "liveError", sessionId, message: errorMessage(error) });
+  }
+}
+
+/**
+ * Feed one frame to a live session's VAD. When the VAD emits closed utterances,
+ * transcribe each with the ASR pipeline and post the text back. All of this goes
+ * through `serialize` so VAD + ASR never interleave with a batch `transcribe` —
+ * the single-inference-at-a-time constraint transformers.js imposes.
+ *
+ * If the session was closed while this feed was queued behind `serialize`, the
+ * map lookup returns `undefined` and the feed is a no-op — the late reply simply
+ * never happens.
+ */
+function feedLiveFrame(
+  sessionId: string,
+  frame: Float32Array,
+  post: (message: WorkerToMainMessage) => void,
+): void {
+  void serialize(async () => {
+    const session = liveSessions.get(sessionId);
+    if (!session) return;
+    const utterances = await session.vad.feed(frame);
+    if (utterances.length === 0) return;
+    const pipeline = await getPipeline(session.config);
+    for (const { samples } of utterances) {
+      // No jargon prefix for live — Moonshine (the default model) cannot be primed
+      // (`config.ts` / `moonshine-priming.manual.ts`), and live previews are
+      // provisional anyway: the batch pass after `stop()` replaces them entirely.
+      const text = await transcribeChunk(pipeline, samples, []);
+      if (text.length > 0) post({ type: "liveSegment", sessionId, text });
+    }
+  });
+}
+
 /**
  * Handle one main→worker message. Exported (rather than only wired to `onmessage`) so the routing is
  * unit-testable without a real `WorkerGlobalScope`. `post` is the worker's `postMessage`, injected.
@@ -584,6 +669,18 @@ export async function handleMessage(
     } catch (error) {
       post({ type: "error", requestId, message: errorMessage(error) });
     }
+    return;
+  }
+  if (message.type === "liveOpen") {
+    await openLiveSession(message.sessionId, message.config, post);
+    return;
+  }
+  if (message.type === "liveFeed") {
+    feedLiveFrame(message.sessionId, message.frame, post);
+    return;
+  }
+  if (message.type === "liveClose") {
+    liveSessions.delete(message.sessionId);
     return;
   }
 }
