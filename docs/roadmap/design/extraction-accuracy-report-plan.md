@@ -1573,485 +1573,113 @@ git commit -m "Write a committed run record on every acceptance-gate run, pass o
 
 ---
 
-### Task 6: The docs page
+### Task 6: The docs page — GENERATED, not a component
+
+**Superseded the original Task 6, which specified a VitePress data loader plus a Vue
+component and a custom theme.** A loader only supplies data; rendering it inside a VitePress
+markdown page requires `v-html` and a `<script setup>` block — i.e. Vue authoring, in a repo
+with zero `.vue` files and no custom theme. The report needs no client-side behaviour at all
+(`<details>` is the only interactivity), so the page is generated whole instead, exactly as
+`docs:api` already generates `docs/reference/` with TypeDoc. No framework, no
+`theme/index.ts`, no component registration, no client script.
+
+Visual design: [`accuracy-report-visual-design.md`](./accuracy-report-visual-design.md).
 
 **Files:**
 
-- Create: `docs/deep-dives/accuracy.data.ts`
-- Create: `docs/deep-dives/accuracy.md`
-- Create: `docs/.vitepress/theme/components/AccuracyReport.vue`
-- Create or Modify: `docs/.vitepress/theme/index.ts`
-- Modify: `docs/.vitepress/config.ts`
+- Create: `scripts/generate-accuracy-page.mjs`
+- Create: `scripts/accuracy-page.css`
+- Modify: `package.json` (add `docs:accuracy`, chain it into `docs:dev` and `docs:build`)
+- Modify: `.gitignore` (ignore the generated `docs/deep-dives/accuracy.md`)
+- Modify: `docs/.vitepress/config.ts` (Deep Dives sidebar entry)
+- Modify: `docs/deep-dives/snuggpro-data-model.md` (pre-existing dead link, see below)
 
 **Interfaces:**
 
-- Consumes: `openRunStore` (Task 4), `RunRecord` / `HistoryEntry` (Task 2).
-- Produces: the rendered page. Nothing consumes it.
+- Consumes: the committed artifacts in `packages/ribo-adapter-snuggpro/acceptance/runs/`.
+- Produces: `docs/deep-dives/accuracy.md`, gitignored and regenerated on every docs build.
 
-- [ ] **Step 1: Read the existing VitePress config before touching it**
+- [x] **Step 1: The generator**
 
-Run: `cat docs/.vitepress/config.ts` and `ls docs/.vitepress/theme 2>/dev/null`
+`scripts/generate-accuracy-page.mjs` reads every `current-<label>.json` plus its
+`history-<label>.jsonl`, and emits the page: run header, rate row, hazard gates, legend,
+coverage grid, problems, method.
 
-You need to know the existing sidebar structure and whether a custom theme already exists. Follow whatever pattern is there; the snippets below assume the default theme with no custom `theme/index.ts` yet. If one exists, extend it rather than replacing it.
+Three non-obvious things it must do:
 
-- [ ] **Step 2: Write the data loader**
+1. **Map the 14 verdicts onto 5 buckets** (`absent`, `captured`, `excused`, `shortfall`,
+   `fault`) per the visual design §2. The bucket carries the colour; the verdict carries the
+   word, and appears in every cell's screen-reader text and every problems entry.
+2. **Never emit a blank or whitespace-only line inside `<div class="ar">`.** markdown-it
+   ends an HTML block at the first blank line; everything after becomes indented code
+   blocks and the enclosing tags stop matching. It surfaces as a Vue
+   `Element is missing end tag` error naming a tag that is perfectly balanced, hundreds of
+   lines from the cause. Build optional rows as a filtered array, never as a template with
+   an empty conditional branch. `assertNoBlankLines` enforces this at the point of
+   violation.
+3. **Escape `{{`.** VitePress compiles markdown as a Vue SFC, so a double brace in
+   extraction output would be parsed as an interpolation. All model-produced text goes
+   through `safe()`.
 
-`docs/deep-dives/accuracy.data.ts`:
+It also fails loudly rather than rendering a partial page: `requireShape` checks every
+required key and asserts the grid is dense (`leafPaths.length × transcripts.length` cells).
 
-```ts
-import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+- [x] **Step 2: The stylesheet**
 
-import { defineLoader } from "vitepress";
+`scripts/accuracy-page.css`, inlined into the generated page as a `<style>` block. Every
+rule is prefixed `.ar`; selectors that fight VitePress include the element name so
+`.ar table.ar-grid` (0-2-1) beats `.vp-doc table` (0-1-1) regardless of load order. No
+`!important`, no `url()`, no `@font-face`. Tokens are `--ar-` prefixed on `:root`, redefined
+under `html.dark`.
 
-import { openRunStore } from "../../packages/ribo-adapter-snuggpro/acceptance/run-store.js";
-import type {
-  HistoryEntry,
-  RunRecord,
-} from "../../packages/ribo-adapter-snuggpro/acceptance/run-record.js";
+- [x] **Step 3: Wire into the docs scripts**
 
-/**
- * Build-time data for the extraction-accuracy page. Runs in Node and reads the
- * committed run artifacts through the acceptance harness's own store, so there
- * is exactly ONE definition of the record format and it is zod-parsed here as
- * everywhere else.
- *
- * Reaching into `packages/` from the docs build introduces no new coupling: the
- * generated Reference section already builds from `packages/*\/src/index.ts` via
- * TypeDoc.
- */
-
-const ACCEPTANCE = join(
-  fileURLToPath(new URL(".", import.meta.url)),
-  "..",
-  "..",
-  "packages",
-  "ribo-adapter-snuggpro",
-  "acceptance",
-);
-const RUNS_DIR = join(ACCEPTANCE, "runs");
-const FIXTURE_SCHEMA = join(
-  ACCEPTANCE,
-  "..",
-  "src",
-  "__fixtures__",
-  "snugg-fields-json-schema.json",
-);
-
-export interface BackendReport {
-  label: string;
-  current: RunRecord;
-  history: HistoryEntry[];
-  /** True when the run was measured against a schema that is no longer current. */
-  stale: boolean;
-}
-
-export interface AccuracyData {
-  backends: BackendReport[];
-  currentFingerprint: string;
-}
-
-declare const data: AccuracyData;
-export { data };
-
-export default defineLoader({
-  watch: ["../../packages/ribo-adapter-snuggpro/acceptance/runs/*"],
-  async load(): Promise<AccuracyData> {
-    const currentFingerprint = existsSync(FIXTURE_SCHEMA)
-      ? `sha256:${createHash("sha256").update(readFileSync(FIXTURE_SCHEMA, "utf8")).digest("hex")}`
-      : "";
-
-    const store = openRunStore({ dir: RUNS_DIR });
-    const backends: BackendReport[] = [];
-
-    // No runs published yet is a NORMAL state, not a build failure: the page says
-    // so rather than rendering an empty chart that implies zero hallucinations.
-    for (const label of await store.listBackends()) {
-      const current = await store.readCurrent(label);
-      if (current === null) continue;
-      backends.push({
-        label,
-        current,
-        history: await store.readHistory(label),
-        stale: current.schemaFingerprint !== currentFingerprint,
-      });
-    }
-
-    backends.sort((a, b) => a.label.localeCompare(b.label));
-    return { backends, currentFingerprint };
-  },
-});
+```jsonc
+"docs:accuracy": "node scripts/generate-accuracy-page.mjs",
+"docs:dev": "pnpm run docs:api && pnpm run docs:accuracy && vitepress dev docs",
+"docs:build": "pnpm run docs:api && pnpm run docs:accuracy && vitepress build docs",
 ```
 
-**If the build cannot resolve `../../packages/.../run-store.js`:** the imports above use the
-TypeScript `.js`-for-`.ts` convention the rest of this repo uses. Vite normally resolves that, but
-if it does not here, drop the extension (`.../run-store`) rather than reaching for an alias or a
-tsconfig path — the loader is the only file crossing this boundary, and a one-file exception is
-cheaper than new resolution config.
+and gitignore `docs/deep-dives/accuracy.md` alongside `docs/reference/`, for the same
+reason: it is generated from committed inputs and must never drift from them.
 
-- [ ] **Step 3: Write the page**
+- [x] **Step 4: Sidebar entry**
 
-`docs/deep-dives/accuracy.md`:
+`{ text: "Extraction: Measured", link: "/deep-dives/accuracy" }`, next to
+`Transcription: Measured` — the existing precedent for a measured-numbers deep dive.
 
-```markdown
----
-title: Extraction accuracy
----
+- [x] **Step 5: Fix the pre-existing dead link that blocks `docs:build`**
 
-# Extraction accuracy
+`docs/deep-dives/snuggpro-data-model.md` links to
+`/reference/ribo-adapter-snuggpro/src/type-aliases/SnuggFields`. That type no longer exists —
+R1.5 split it into `SnuggValues` and `Enveloped<V>`. The file has not been touched since the
+initial public release, so **`pnpm docs:build` has been broken since R1.5 landed**, unnoticed
+because `docs:build` is deliberately outside `./check.sh`. Repointed to `SnuggValues`.
 
-These are measured numbers, not targets. Every figure below comes from running the
-built default extractor (`singleShotExtractor`) over a 14-transcript corpus of
-synthetic home-energy-audit dictations, scoring each result against
-hand-annotated ground truth across all 51 schema leaves.
+Out of this task's scope in principle, but it hard-fails the build this task must make pass.
 
-The gate that produces them is manual and makes real inference calls, so it runs
-when someone runs it — the timestamps below say when.
+- [x] **Step 6: Verify — all four checks passed**
 
-**What "hallucination" means here:** ground truth says a field was never
-mentioned, and the extractor filled it in anyway. **"Miss"** is the reverse — the
-auditor said it and the extractor dropped it. Both matter, and a system that
-optimises one at the other's expense is not better: an extractor that returns
-nothing at all scores a perfect 0% hallucination rate and is useless.
+| Check                              | Result                                                                  |
+| ---------------------------------- | ----------------------------------------------------------------------- |
+| `pnpm docs:build`                  | passes; static output emitted                                           |
+| Bucket counts vs the run record    | exact: absent 523, captured 168, excused 5, shortfall 13, fault 5 = 714 |
+| Structure                          | 51 rows in 7 schema groups; 23 problems entries = the exception count   |
+| Empty state (`runs/` moved aside)  | build succeeds, page reads "No accuracy runs have been published yet"   |
+| Stale banner (fingerprint mutated) | banner renders; clears when restored                                    |
+| `./check.sh`                       | PASS                                                                    |
 
-<AccuracyReport />
-
-## How to read the grid
-
-Each row is one schema leaf; each column one transcript. Click a cell for the
-expected value, what the extractor produced, and the source span it cited.
-
-`correct` and `correct-null` are shown differently on purpose. A leaf nobody
-mentioned and the extractor correctly left empty is not the same evidence as a
-leaf that was stated and correctly captured.
-
-Span problems are tracked separately from content: a value can be right and its
-quote fabricated, and that is a real defect in a system whose review UI shows
-auditors the quote.
-```
-
-- [ ] **Step 4: Write the component**
-
-`docs/.vitepress/theme/components/AccuracyReport.vue`. Build it in this order, checking the page renders after each band:
-
-```vue
-<script setup lang="ts">
-import { computed, ref } from "vue";
-
-import { data } from "../../../deep-dives/accuracy.data.js";
-import type { Cell } from "../../../../packages/ribo-adapter-snuggpro/acceptance/run-record.js";
-
-const selected = ref(data.backends[0]?.label ?? "");
-const report = computed(() => data.backends.find((b) => b.label === selected.value));
-const openCell = ref<{ leaf: string; slug: string; cell: Cell } | null>(null);
-
-const VERDICT_CLASS: Record<string, string> = {
-  correct: "ok",
-  "correct-null": "ok-null",
-  sanctioned: "ok-null",
-  miss: "miss",
-  "miss-excused": "ok-null",
-  "health-miss": "miss",
-  "health-clean-dropped": "miss",
-  hallucination: "bad",
-  "hallucination-soft": "warn",
-  wrong: "bad",
-  unscorable: "warn",
-  "health-hallucinated-pass": "bad",
-  "health-hallucinated-problem": "bad",
-  "health-wrong": "bad",
-};
-
-const pct = (n: number) => `${(100 * n).toFixed(2)}%`;
-
-/** Two-series sparkline over the history, as inline SVG — no charting dependency. */
-function polyline(values: number[], width: number, height: number): string {
-  if (values.length === 0) return "";
-  const max = Math.max(...values, 0.0001);
-  const step = values.length === 1 ? 0 : width / (values.length - 1);
-  return values.map((v, i) => `${i * step},${height - (v / max) * height}`).join(" ");
-}
-
-function rowSummary(leaf: string): string {
-  const row = report.value?.current.grid[leaf] ?? {};
-  const cells = Object.values(row);
-  const good = cells.filter((c) => c.verdict === "correct" || c.verdict === "correct-null").length;
-  return `${good}/${cells.length}`;
-}
-</script>
-
-<template>
-  <p v-if="data.backends.length === 0">
-    <strong>No accuracy runs have been published yet.</strong> Run the manual acceptance gate to
-    produce one — see <code>packages/ribo-adapter-snuggpro/acceptance/README.md</code>.
-  </p>
-
-  <template v-else>
-    <p>
-      <label>Backend: </label>
-      <select v-model="selected">
-        <option v-for="b in data.backends" :key="b.label" :value="b.label">{{ b.label }}</option>
-      </select>
-    </p>
-
-    <template v-if="report">
-      <div v-if="report.stale" class="danger custom-block">
-        <p class="custom-block-title">These numbers are stale</p>
-        <p>
-          This run was measured against a different version of the Snugg Pro schema than the one in
-          the tree today. The field set and enum vocabulary shape what "normal" looks like, so the
-          rates below are not comparable to the current schema. Re-run the acceptance gate.
-        </p>
-      </div>
-
-      <h2>Latest run</h2>
-      <table>
-        <tbody>
-          <tr>
-            <td>Result</td>
-            <td>{{ report.current.passed ? "passed" : "FAILED" }}</td>
-          </tr>
-          <tr>
-            <td>Captured</td>
-            <td>{{ new Date(report.current.capturedAt).toUTCString() }}</td>
-          </tr>
-          <tr>
-            <td>Model</td>
-            <td>
-              <code>{{ report.current.model }}</code>
-            </td>
-          </tr>
-          <tr>
-            <td>Hallucination rate</td>
-            <td>{{ pct(report.current.hallRate) }}</td>
-          </tr>
-          <tr>
-            <td>Miss rate</td>
-            <td>{{ pct(report.current.missRate) }}</td>
-          </tr>
-          <tr v-for="(count, name) in report.current.hazards" :key="name">
-            <td>{{ name }}</td>
-            <td>{{ count === 0 ? "0 — clear" : `${count} — TRIPPED` }}</td>
-          </tr>
-          <tr v-if="report.current.shapeConformance.applicable">
-            <td>Shape conformance</td>
-            <td>
-              {{ report.current.shapeConformance.firstTry }} first-try /
-              {{ report.current.shapeConformance.retried }} retried /
-              {{ report.current.shapeConformance.never }} never
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <h2>Trend</h2>
-      <p v-if="report.history.length < 2">Only one run recorded — no trend yet.</p>
-      <svg
-        v-else
-        viewBox="0 0 600 120"
-        class="accuracy-trend"
-        role="img"
-        aria-label="Hallucination and miss rate over time"
-      >
-        <polyline
-          :points="
-            polyline(
-              report.history.map((h) => h.hallRate),
-              600,
-              110,
-            )
-          "
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        />
-        <polyline
-          :points="
-            polyline(
-              report.history.map((h) => h.missRate),
-              600,
-              110,
-            )
-          "
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-dasharray="5 4"
-        />
-      </svg>
-      <p v-if="report.history.length >= 2">
-        <small
-          >Solid: hallucination rate. Dashed: miss rate. {{ report.history.length }} runs.</small
-        >
-      </p>
-
-      <h2>Per-field detail</h2>
-      <div class="accuracy-grid-scroll">
-        <table class="accuracy-grid">
-          <thead>
-            <tr>
-              <th>Leaf</th>
-              <th>OK</th>
-              <th v-for="t in report.current.transcripts" :key="t.slug" :title="t.slug">
-                {{ t.slug.slice(0, 2) }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="leaf in report.current.leafPaths" :key="leaf">
-              <th class="leaf">{{ leaf }}</th>
-              <td>{{ rowSummary(leaf) }}</td>
-              <td
-                v-for="t in report.current.transcripts"
-                :key="t.slug"
-                :class="[
-                  'cell',
-                  VERDICT_CLASS[report.current.grid[leaf]?.[t.slug]?.verdict ?? ''] ?? '',
-                ]"
-                :title="report.current.grid[leaf]?.[t.slug]?.verdict"
-                @click="openCell = { leaf, slug: t.slug, cell: report.current.grid[leaf][t.slug] }"
-              ></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div v-if="openCell" class="tip custom-block">
-        <p class="custom-block-title">{{ openCell.leaf }} — {{ openCell.slug }}</p>
-        <ul>
-          <li>
-            Verdict: <strong>{{ openCell.cell.verdict }}</strong>
-          </li>
-          <li>
-            Expected: <code>{{ openCell.cell.expected ?? "null" }}</code>
-          </li>
-          <li>
-            Extracted: <code>{{ openCell.cell.got ?? "null" }}</code>
-          </li>
-          <li v-if="openCell.cell.sourceSpan">Span: "{{ openCell.cell.sourceSpan }}"</li>
-          <li v-if="openCell.cell.spanIssue">Span problem: {{ openCell.cell.spanIssue }}</li>
-          <li v-if="openCell.cell.detail">{{ openCell.cell.detail }}</li>
-        </ul>
-        <p><button @click="openCell = null">Close</button></p>
-      </div>
-    </template>
-  </template>
-</template>
-
-<style scoped>
-.accuracy-grid-scroll {
-  overflow-x: auto;
-}
-.accuracy-grid {
-  font-size: 0.8em;
-  border-collapse: collapse;
-}
-.accuracy-grid .leaf {
-  text-align: left;
-  white-space: nowrap;
-  font-weight: 400;
-}
-.accuracy-grid .cell {
-  width: 1.4em;
-  height: 1.4em;
-  cursor: pointer;
-  border: 1px solid var(--vp-c-divider);
-}
-/* Colour is never the only signal — every cell carries its verdict in `title`,
-   and the drill-down states it in words. */
-.accuracy-grid .ok {
-  background: var(--vp-c-green-3);
-}
-.accuracy-grid .ok-null {
-  background: var(--vp-c-green-soft);
-}
-.accuracy-grid .miss {
-  background: var(--vp-c-yellow-3);
-}
-.accuracy-grid .warn {
-  background: var(--vp-c-yellow-1);
-}
-.accuracy-grid .bad {
-  background: var(--vp-c-red-3);
-}
-.accuracy-trend {
-  width: 100%;
-  height: auto;
-}
-</style>
-```
-
-- [ ] **Step 5: Register the component**
-
-If `docs/.vitepress/theme/index.ts` does not exist, create it:
-
-```ts
-import DefaultTheme from "vitepress/theme";
-import type { Theme } from "vitepress";
-
-import AccuracyReport from "./components/AccuracyReport.vue";
-
-export default {
-  extends: DefaultTheme,
-  enhanceApp({ app }) {
-    app.component("AccuracyReport", AccuracyReport);
-  },
-} satisfies Theme;
-```
-
-If it already exists, add only the import and the `app.component(...)` line.
-
-- [ ] **Step 6: Add the page to the sidebar**
-
-In `docs/.vitepress/config.ts`, add an item to the Deep Dives sidebar group, matching the surrounding style exactly:
-
-```ts
-{ text: "Extraction accuracy", link: "/deep-dives/accuracy" },
-```
-
-- [ ] **Step 7: Verify it renders with real data**
-
-Run: `pnpm docs:dev`
-Open the Deep Dives → Extraction accuracy page.
-
-Expected: the backend selector shows `codex-cli`; the headline table shows the run from Task 5; the grid is 51 rows wide enough to scroll horizontally on a narrow window but not to push the page body sideways; clicking a cell opens the detail block.
-
-- [ ] **Step 8: Verify the empty state does not break the build**
-
-Temporarily move the artifacts aside:
+- [x] **Step 7: Commit**
 
 ```bash
-mv packages/ribo-adapter-snuggpro/acceptance/runs /tmp/runs-backup
-pnpm docs:build
+git add scripts/generate-accuracy-page.mjs scripts/accuracy-page.css \
+        package.json .gitignore docs/.vitepress/config.ts \
+        docs/deep-dives/snuggpro-data-model.md \
+        docs/roadmap/design/accuracy-report-visual-design.md
+git commit -m "Render extraction accuracy on the docs site, generated not componentised"
 ```
 
-Expected: the build SUCCEEDS and the page reads "No accuracy runs have been published yet."
-
-Restore: `mv /tmp/runs-backup packages/ribo-adapter-snuggpro/acceptance/runs`
-
-- [ ] **Step 9: Verify the stale banner**
-
-Temporarily edit `packages/ribo-adapter-snuggpro/acceptance/runs/current-codex-cli.json` and change one hex character of `schemaFingerprint`.
-
-Run: `pnpm docs:dev`
-Expected: the red "These numbers are stale" block appears above the headline table.
-
-Restore: `git checkout -- packages/ribo-adapter-snuggpro/acceptance/runs/`
-
-- [ ] **Step 10: Full static build and the code gate**
-
-Run: `pnpm docs:build && pnpm format && pnpm lint && ./check.sh`
-Expected: all PASS. `docs:build` emits static output; `check.sh` is unaffected (docs are not one of its stages).
-
-- [ ] **Step 11: Commit**
-
-```bash
-git add docs/deep-dives/accuracy.md docs/deep-dives/accuracy.data.ts \
-        docs/.vitepress/theme/ docs/.vitepress/config.ts
-git commit -m "Render extraction accuracy on the docs site: headline, trend, per-field grid"
-```
+---
 
 ---
 
@@ -2059,14 +1687,32 @@ git commit -m "Render extraction accuracy on the docs site: headline, trend, per
 
 Every item from the design doc's §9, verified rather than assumed:
 
-- [ ] `run-record.ts`, `build-run-record.ts`, `run-store.ts` and their three test files exist; all three test files appear under `|unit|` in `pnpm vitest run packages/ribo-adapter-snuggpro` output.
-- [ ] `pnpm --filter @azx/ribo-adapter-snuggpro typecheck` covers `acceptance/`, proven by Task 1 Step 5 having failed on a deliberate error.
-- [ ] A manual gate run writes `runs/current-<backend>.json` and appends `runs/history-<backend>.jsonl`.
-- [ ] The record is written when assertions FAIL, proven by Task 5 Step 7.
-- [ ] The grid is dense: `leafPaths.length × transcripts.length` cells, proven by Task 5 Step 6.
-- [ ] `pnpm docs:dev` renders the page from committed artifacts; `pnpm docs:build` emits it statically.
-- [ ] With `runs/` absent, `docs:build` succeeds and the page says so (Task 6 Step 8).
-- [ ] With a mutated fingerprint, the page shows the stale banner (Task 6 Step 9).
-- [ ] `./check.sh` is green.
-- [ ] No new dependency was added to `pnpm-workspace.yaml`.
-- [ ] `spikes/extraction-snuggpro/score.mjs` and `ground-truth.mjs` are untouched (`git diff --stat spikes/` is empty).
+- [x] `run-record.ts`, `build-run-record.ts`, `run-store.ts` and their three test files exist; all appear under `|unit|` in `pnpm vitest run packages/ribo-adapter-snuggpro/acceptance` (6 + 11 + 14, alongside `cli-chat.test.ts`'s 13 — 44 total).
+- [x] `pnpm --filter @azx/ribo-adapter-snuggpro typecheck` covers `acceptance/`, proven by Task 1 Step 5 having failed on a deliberate error and passing once removed.
+- [x] A manual gate run writes `runs/current-<backend>.json` and appends `runs/history-<backend>.jsonl` — first real run 2026-08-12, `codex-cli`, 7m53s.
+- [ ] **NOT verified by execution:** that the record is written when assertions FAIL. The deliberate-failure run was skipped by decision (it costs a second full inference pass over the corpus). The property rests on straight-line ordering — `saveRun` sits above the first `expect` in a `try`/`catch`-free async function — and the block carries a `DO NOT MOVE` banner saying so.
+- [x] The grid is dense: 714 cells = 51 leaves × 14 transcripts, and the verdict tally cross-checks against the scorer's independent aggregate counts.
+- [x] `pnpm docs:build` emits the page statically. (`docs:dev` shares the same `docs:accuracy` step.)
+- [x] With `runs/` absent, `docs:build` succeeds and the page reads "No accuracy runs have been published yet".
+- [x] With a mutated fingerprint, the page shows the stale banner, and clears it when restored.
+- [x] `./check.sh` is green.
+- [x] No new dependency was added to `pnpm-workspace.yaml`. (`@types/node` was added to one package's `devDependencies` from the existing catalog entry — no new catalog entry.)
+- [x] `spikes/extraction-snuggpro/score.mjs` and `ground-truth.mjs` are untouched.
+
+## Corrections made to this plan during execution
+
+Recorded because each was a real error in the plan as written, caught by executing it:
+
+1. **tsdown breaks on tsconfig `references`.** Task 1 originally asserted `build:packages`
+   "should be unaffected". It is not — tsdown's dts plugin reads `tsconfig.json` and fails
+   with `Unable to load src/index.ts; You have "references" in your tsconfig file`. Fixed by
+   Step 4b (`tsconfig: "tsconfig.src.json"`), verified by removing the line and watching the
+   build fail.
+2. **`@types/node` must be declared** for `types: ["node"]` to resolve. Verified it does not
+   leak Node globals into `src/`.
+3. **The store test file has 14 tests, not 13.** The plan's prose disagreed with the test
+   code the plan itself specified.
+4. **The artifact is ~150 KB, not 40–60 KB.** Measured, not estimated.
+5. **Task 6's Vue component was the wrong shape entirely** — see the rewritten Task 6.
+6. **A pre-existing dead link had `docs:build` broken since R1.5**, unnoticed because
+   `docs:build` is outside `./check.sh`.

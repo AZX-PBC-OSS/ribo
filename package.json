@@ -24,8 +24,9 @@
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",
     "docs:api": "typedoc --options docs/typedoc.json",
-    "docs:dev": "pnpm run docs:api && vitepress dev docs",
-    "docs:build": "pnpm run docs:api && vitepress build docs",
+    "docs:accuracy": "node scripts/generate-accuracy-page.mjs",
+    "docs:dev": "pnpm run docs:api && pnpm run docs:accuracy && vitepress dev docs",
+    "docs:build": "pnpm run docs:api && pnpm run docs:accuracy && vitepress build docs",
     "target:refresh": "node scripts/refresh-target.mjs",
     "snugg:refresh": "node scripts/snugg-descriptions.mjs --refresh",
     "snugg:check": "node scripts/snugg-descriptions.mjs --check"

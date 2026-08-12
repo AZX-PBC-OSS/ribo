@@ -6,5 +6,5 @@ bands.
 
 ::: info Content coming
 Repackaged from the internal data-model findings in the content pass. See
-[`SnuggFields`](/reference/ribo-adapter-snuggpro/src/type-aliases/SnuggFields).
+[`SnuggValues`](/reference/ribo-adapter-snuggpro/src/type-aliases/SnuggValues).
 :::

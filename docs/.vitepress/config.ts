@@ -86,6 +86,7 @@ export default defineConfig({
               text: "Transcription: Measured",
               link: "/deep-dives/transcription-measurement",
             },
+            { text: "Extraction: Measured", link: "/deep-dives/accuracy" },
             { text: "The Snugg Pro Data Model", link: "/deep-dives/snuggpro-data-model" },
           ],
         },
