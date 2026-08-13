@@ -204,8 +204,13 @@ export class StreamingVad {
   #preSpeechFifo: Float32Array[] = [];
   // Consecutive silence frames while in speech — reaches `#minSilenceFrames` to close.
   #silenceFrameCount = 0;
-  // Speech frames (probability ≥ exit) in the current region — drives the 250 ms noise filter.
-  // Distinct from `speechFrames.length`, which includes FIFO padding and trailing silence.
+  // Speech frames (probability ≥ exit) in the accumulated buffer — drives the 250 ms noise
+  // filter. Distinct from `speechFrames.length`, which includes FIFO padding and trailing
+  // silence. **Carries across a hold**: when a short close is held back for the next region to
+  // append to, this count is preserved rather than reset, so it always describes the same audio
+  // as `#speechFrames`. A per-region reset here is what let a brief noise blip after a held
+  // sentence discard the entire accumulated buffer — the blip's count of 1 failed the noise
+  // filter and emptied `#speechFrames`, losing speech that had already qualified as real.
   #speechFrameCount = 0;
 
   // Serializes feed calls so the recurrent state is never raced.
@@ -307,14 +312,17 @@ export class StreamingVad {
         this.#inSpeech = true;
         // Append when a previous close was held back for being too short — that buffer is still
         // waiting for enough audio, and replacing it here would discard the speech it holds.
-        this.#speechFrames = this.#holdingShort
+        const appendingToHeld = this.#holdingShort;
+        this.#speechFrames = appendingToHeld
           ? [...this.#speechFrames, ...this.#preSpeechFifo, frame]
           : [...this.#preSpeechFifo, frame];
         this.#holdingShort = false;
         this.#preSpeechFifo = [];
         this.#silenceFrameCount = 0;
         // The detection frame is speech (probability ≥ enter > exit); FIFO frames are not.
-        this.#speechFrameCount = 1;
+        // When appending to a held buffer, add to its count — `#speechFrameCount` must describe
+        // the same accumulated audio as `#speechFrames`, which carries across holds.
+        this.#speechFrameCount = appendingToHeld ? this.#speechFrameCount + 1 : 1;
       } else {
         // Not speech: maintain the FIFO for the next region's pre-speech padding.
         this.#preSpeechFifo.push(frame);
@@ -354,7 +362,10 @@ export class StreamingVad {
         this.#holdingShort = !longEnough && this.#speechFrameCount >= MIN_SPEECH_FRAMES;
         if (!this.#holdingShort) this.#speechFrames = [];
         this.#silenceFrameCount = 0;
-        this.#speechFrameCount = 0;
+        // Preserve the count across a hold: the next region appends to the buffer, and the count
+        // must describe the same audio. Reset only when the buffer was emitted or discarded —
+        // both are the `!#holdingShort` case above.
+        if (!this.#holdingShort) this.#speechFrameCount = 0;
         this.#preSpeechFifo = [];
       }
     } else {
@@ -376,8 +387,10 @@ export class StreamingVad {
    * the session ended — `MIN_SPEECH_FRAMES` exists because fragments that short transcribe badly or
    * come back empty, and that is equally true on a flush. When `#holdingShort` is true the buffer
    * already passed this filter (that is WHY it was held rather than discarded at the close), and
-   * `#speechFrameCount` was reset to 0 at that close — so the check below only guards the in-speech
-   * case (a region that never saw enough silence to close at all).
+   * `#inSpeech` is false at that point — so the `#inSpeech`-guarded check below only applies to the
+   * in-speech case (a region that never saw enough silence to close at all). The count is now
+   * preserved across a hold (it used to be reset to 0), but that does not change the flush path:
+   * the check is scoped by `#inSpeech`, not by the count being zero.
    *
    * **The minimum-utterance rule does NOT apply.** On flush there is no "next utterance" to merge
    * into, so a short buffer is transcribe-it-or-lose-it. Losing the auditor's last sentence is
