@@ -10,7 +10,7 @@ import { FakeTranscriber, createRelay } from "@azx/ribo-core";
 
 import { getOutbox } from "./outbox-handle.js";
 import { getRecorder } from "./recorder-handle.js";
-import { setLiveTranscriber } from "./live-handle.js";
+import { closeLiveSession, setLiveTranscriber } from "./live-handle.js";
 
 /**
  * @file Does this app actually produce live preview segments during recording?
@@ -50,17 +50,34 @@ async function until<T>(read: () => Promise<T | undefined>, label: string): Prom
   }
 }
 
+/** Extract `next` and `complete` from either subscribe form — function or observer object. */
+type SegmentObserver =
+  ((value: LiveSegment) => void) | { next?: (value: LiveSegment) => void; complete?: () => void };
+type ErrorObserver = ((value: string) => void) | { next?: (value: string) => void };
+
+function nextFn(observer: SegmentObserver): (value: LiveSegment) => void | undefined {
+  return typeof observer === "function" ? observer : (observer.next ?? (() => undefined));
+}
+function completeFn(observer: SegmentObserver): (() => void) | undefined {
+  return typeof observer === "function" ? undefined : observer.complete;
+}
+function errorNextFn(observer: ErrorObserver): (value: string) => void | undefined {
+  return typeof observer === "function" ? observer : (observer.next ?? (() => undefined));
+}
+
 /**
  * A fake live session that emits one segment after a short delay.
  *
  * `close()` sets a guard flag (matching `OnDeviceLiveSession`'s pattern) rather
  * than completing an observable — the guard, not completion, is what drops
- * late replies after close.
+ * late replies after close. `close()` also calls `complete` handlers, simulating
+ * the worker's `liveClosed` signal so the host's `complete` callback can tear
+ * down the subscription.
  *
  * The `segments$` is a minimal subscribable: `openLiveSession` calls
- * `.subscribe(next)` and `.unsubscribe()` on the return value, nothing more.
- * Cast through `unknown` because `Observable` is a class with many operators
- * we do not need, and `rxjs` is not a direct dependency of the playground.
+ * `.subscribe({ next, complete })` and `.unsubscribe()` on the return value,
+ * nothing more. Cast through `unknown` because `Observable` is a class with many
+ * operators we do not need, and `rxjs` is not a direct dependency of the playground.
  *
  * **The emission countdown starts on subscribe, not at creation.** A real
  * `LiveSession` produces segments in response to audio frames arriving through
@@ -77,6 +94,7 @@ async function until<T>(read: () => Promise<T | undefined>, label: string): Prom
  */
 function createFakeSession(text: string): LiveSession {
   const handlers: Array<(value: LiveSegment) => void> = [];
+  const completeHandlers: Array<() => void> = [];
   const errorHandlers: Array<(value: string) => void> = [];
   let closed = false;
   let armed = false;
@@ -92,19 +110,27 @@ function createFakeSession(text: string): LiveSession {
   return {
     sessionId: crypto.randomUUID(),
     segments$: {
-      subscribe: (next: (value: LiveSegment) => void) => {
+      subscribe: (observer: SegmentObserver) => {
+        const next = nextFn(observer);
+        const complete = completeFn(observer);
         handlers.push(next);
+        if (complete) completeHandlers.push(complete);
         armEmission();
         return {
           unsubscribe: () => {
             const i = handlers.indexOf(next);
             if (i >= 0) handlers.splice(i, 1);
+            if (complete) {
+              const j = completeHandlers.indexOf(complete);
+              if (j >= 0) completeHandlers.splice(j, 1);
+            }
           },
         };
       },
     } as unknown as LiveSession["segments$"],
     errors$: {
-      subscribe: (next: (value: string) => void) => {
+      subscribe: (observer: ErrorObserver) => {
+        const next = errorNextFn(observer);
         errorHandlers.push(next);
         return {
           unsubscribe: () => {
@@ -117,6 +143,7 @@ function createFakeSession(text: string): LiveSession {
     feed: () => undefined,
     close: () => {
       closed = true;
+      for (const handler of completeHandlers) handler();
     },
   };
 }
@@ -134,6 +161,7 @@ function createMultiSegmentSession(
   emissions: ReadonlyArray<{ kind: LiveSegmentKind; text: string; delay: number }>,
 ): LiveSession {
   const handlers: Array<(value: LiveSegment) => void> = [];
+  const completeHandlers: Array<() => void> = [];
   const errorHandlers: Array<(value: string) => void> = [];
   let closed = false;
   let armed = false;
@@ -151,19 +179,27 @@ function createMultiSegmentSession(
   return {
     sessionId: crypto.randomUUID(),
     segments$: {
-      subscribe: (next: (value: LiveSegment) => void) => {
+      subscribe: (observer: SegmentObserver) => {
+        const next = nextFn(observer);
+        const complete = completeFn(observer);
         handlers.push(next);
+        if (complete) completeHandlers.push(complete);
         armEmission();
         return {
           unsubscribe: () => {
             const i = handlers.indexOf(next);
             if (i >= 0) handlers.splice(i, 1);
+            if (complete) {
+              const j = completeHandlers.indexOf(complete);
+              if (j >= 0) completeHandlers.splice(j, 1);
+            }
           },
         };
       },
     } as unknown as LiveSession["segments$"],
     errors$: {
-      subscribe: (next: (value: string) => void) => {
+      subscribe: (observer: ErrorObserver) => {
+        const next = errorNextFn(observer);
         errorHandlers.push(next);
         return {
           unsubscribe: () => {
@@ -176,8 +212,90 @@ function createMultiSegmentSession(
     feed: () => undefined,
     close: () => {
       closed = true;
+      for (const handler of completeHandlers) handler();
     },
   };
+}
+
+/**
+ * A fake live session that emits a flush segment **after** `close()` — the
+ * exact scenario the bug fix targets.
+ *
+ * Unlike {@link createFakeSession}, the emission happens in `close()` (after a
+ * delay), not on subscribe. This mirrors the real worker's `liveClose` handler:
+ * when `close()` is called, the worker drains the final region, transcribes it,
+ * and posts it back as a commit — arriving after `close()` returned. The `complete`
+ * handlers fire after the flush, simulating the worker's `liveClosed` signal.
+ *
+ * The `completed` flag is exposed so a test can assert the Subject was completed
+ * (i.e. the `complete` callback fired and the host tore down its subscription).
+ */
+function createFlushSession(
+  flushText: string,
+): LiveSession & { completed: boolean; unsubscribed: boolean } {
+  const handlers: Array<(value: LiveSegment) => void> = [];
+  const completeHandlers: Array<() => void> = [];
+  const errorHandlers: Array<(value: string) => void> = [];
+  let closed = false;
+  let completed = false;
+  let unsubscribed = false;
+  let armed = false;
+  const armEmission = (): void => {
+    if (armed) return;
+    armed = true;
+  };
+  const session = {
+    sessionId: crypto.randomUUID(),
+    segments$: {
+      subscribe: (observer: SegmentObserver) => {
+        const next = nextFn(observer);
+        const complete = completeFn(observer);
+        handlers.push(next);
+        if (complete) completeHandlers.push(complete);
+        armEmission();
+        return {
+          unsubscribe: () => {
+            unsubscribed = true;
+            const i = handlers.indexOf(next);
+            if (i >= 0) handlers.splice(i, 1);
+            if (complete) {
+              const j = completeHandlers.indexOf(complete);
+              if (j >= 0) completeHandlers.splice(j, 1);
+            }
+          },
+        };
+      },
+    },
+    errors$: {
+      subscribe: (observer: ErrorObserver) => {
+        const next = errorNextFn(observer);
+        errorHandlers.push(next);
+        return {
+          unsubscribe: () => {
+            const i = errorHandlers.indexOf(next);
+            if (i >= 0) errorHandlers.splice(i, 1);
+          },
+        };
+      },
+    },
+    feed: () => undefined,
+    close: () => {
+      if (closed) return;
+      closed = true;
+      setTimeout(() => {
+        for (const handler of handlers) handler({ kind: "commit", text: flushText });
+        completed = true;
+        for (const handler of completeHandlers) handler();
+      }, SEGMENT_DELAY_MS);
+    },
+    get completed(): boolean {
+      return completed;
+    },
+    get unsubscribed(): boolean {
+      return unsubscribed;
+    },
+  };
+  return session as unknown as LiveSession & { completed: boolean; unsubscribed: boolean };
 }
 
 test("a preview segment appears during recording and is gone once the transcript lands", async () => {
@@ -296,6 +414,210 @@ test("a tail appears in preview.tail, a second tail replaces it, a commit moves 
   }, "the transcript to land");
   expect(settled.transcript).toBeDefined();
   expect(settled.preview).toBeUndefined();
+
+  await outbox.clear();
+  setLiveTranscriber(undefined);
+});
+
+// ── Flush-after-close tests ───────────────────────────────────────────────────
+//
+// The bug: `closeLiveSession()` used to unsubscribe from `segments$` BEFORE
+// calling `close()`. The worker's `liveClose` handler drains the final region,
+// transcribes it, and posts it as a commit AFTER `close()` returns — but by
+// then the subscriber was already gone, so the last ~10 seconds of preview was
+// silently lost on every recording. The fix: close first, stay subscribed, and
+// tear down when the worker posts `liveClosed` (which completes the `Subject`).
+
+test("a segment posted after close() still reaches the outbox — the flushed final region is not dropped", async () => {
+  // A fake session that emits a flush segment AFTER close() — the exact
+  // scenario the bug fix targets. The flush arrives after `closeLiveSession`
+  // → `session.close()`.
+  const fakeSession = createFlushSession("the final words");
+  const fakeLiveTranscriber: LiveTranscriber = {
+    liveCapability: async (): Promise<TranscriberCapability> => ({ status: "ready" }),
+    openSession: async () => fakeSession,
+  };
+  setLiveTranscriber(fakeLiveTranscriber);
+
+  const outbox = await getOutbox();
+  await outbox.clear();
+  const recorder = getRecorder();
+
+  await recorder.start();
+
+  // Wait for the session to be open and subscribed — the recorder's
+  // fire-and-forget `openLiveForCapture` chain runs async. The flush session
+  // emits nothing during recording, so wait for the recording row plus a
+  // small delay for the subscribe to complete.
+  await until(async () => {
+    const [item] = await outbox.list({ status: ["recording"] });
+    return item ? item : undefined;
+  }, "a recording row");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  // Call closeLiveSession directly — the row is still "recording", so
+  // commitPreview will accept the flush segment. In the real app,
+  // closeLiveSession is called by the sample tap teardown inside
+  // recorder.stop()'s finally block; calling it directly here isolates the
+  // fix from finalize()'s decode step (which fails on a short test recording).
+  closeLiveSession();
+
+  // The flush segment must land in `preview.committed`. Against the old code
+  // (unsubscribe-before-close) this wait times out — the segment was posted
+  // but nobody was subscribed to receive it.
+  const withFlush = await until(async () => {
+    const [item] = await outbox.list({ status: ["recording"] });
+    return item?.preview?.committed?.includes("the final words") ? item : undefined;
+  }, "the flushed final region to reach the outbox");
+  expect(withFlush.preview!.committed).toContain("the final words");
+
+  // The session completed and the subscription was torn down — the
+  // `liveClosed` signal fired, the host's `complete` callback unsubscribed.
+  expect(fakeSession.completed).toBe(true);
+  expect(fakeSession.unsubscribed).toBe(true);
+
+  // Clean up the recorder. finalize() may fail to decode a very short
+  // recording — that's fine, the test has already verified the flush.
+  try {
+    await recorder.stop();
+  } catch {
+    /* short recording, decode fails — the flush already landed */
+  }
+
+  await outbox.clear();
+  setLiveTranscriber(undefined);
+});
+
+test("the subscription is eventually torn down — no leak across successive record/stop cycles", async () => {
+  // Two record/stop cycles with flush sessions. After each cycle, the
+  // `complete` callback must fire (the worker posted `liveClosed`), which
+  // tears down the subscription. If the subscription leaked, the second
+  // cycle's `complete` would not fire (the first cycle's subscription is
+  // still holding a reference) — or more precisely, the host's `complete`
+  // callback would not clear `segmentSubscription` because it would not
+  // match `sub` from the first cycle.
+
+  const outbox = await getOutbox();
+  await outbox.clear();
+  const recorder = getRecorder();
+
+  // First cycle.
+  const session1 = createFlushSession("first flush");
+  setLiveTranscriber({
+    liveCapability: async (): Promise<TranscriberCapability> => ({ status: "ready" }),
+    openSession: async () => session1,
+  });
+
+  await recorder.start();
+  await until(async () => {
+    const [item] = await outbox.list({ status: ["recording"] });
+    return item ? item : undefined;
+  }, "a recording row (cycle 1)");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  closeLiveSession();
+
+  // Wait for the flush segment AND the completion signal.
+  await until(async () => {
+    const [item] = await outbox.list({ status: ["recording"] });
+    return item?.preview?.committed?.includes("first flush") ? item : undefined;
+  }, "the first flush to reach the outbox");
+  await until(async () => session1.completed, "the first session to complete");
+  expect(session1.completed).toBe(true);
+  expect(session1.unsubscribed).toBe(true);
+
+  try {
+    await recorder.stop();
+  } catch {
+    /* short recording, decode fails */
+  }
+  await outbox.clear();
+
+  // Second cycle — a fresh session. If the first cycle's subscription leaked,
+  // the host's `segmentSubscription` would still point at the old subscription,
+  // and the new `openLiveSession` would replace it — but the old `complete`
+  // callback already fired and cleared `segmentSubscription` (because it
+  // matched `sub`). So the second cycle's subscription is clean.
+  const session2 = createFlushSession("second flush");
+  setLiveTranscriber({
+    liveCapability: async (): Promise<TranscriberCapability> => ({ status: "ready" }),
+    openSession: async () => session2,
+  });
+
+  await recorder.start();
+  await until(async () => {
+    const [item] = await outbox.list({ status: ["recording"] });
+    return item ? item : undefined;
+  }, "a recording row (cycle 2)");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  closeLiveSession();
+
+  await until(async () => {
+    const [item] = await outbox.list({ status: ["recording"] });
+    return item?.preview?.committed?.includes("second flush") ? item : undefined;
+  }, "the second flush to reach the outbox");
+  await until(async () => session2.completed, "the second session to complete");
+  expect(session2.completed).toBe(true);
+  expect(session2.unsubscribed).toBe(true);
+
+  try {
+    await recorder.stop();
+  } catch {
+    /* short recording, decode fails */
+  }
+
+  await outbox.clear();
+  setLiveTranscriber(undefined);
+});
+
+test("closeLiveSession is idempotent and safe with no session open", async () => {
+  // Calling closeLiveSession with no session open must not throw.
+  // This is the "safe to call when no session is open" requirement.
+  closeLiveSession();
+  closeLiveSession();
+
+  // Also safe after a real cycle — calling close again is a no-op.
+  const fakeSession = createFlushSession("idempotent flush");
+  const fakeLiveTranscriber: LiveTranscriber = {
+    liveCapability: async (): Promise<TranscriberCapability> => ({ status: "ready" }),
+    openSession: async () => fakeSession,
+  };
+  setLiveTranscriber(fakeLiveTranscriber);
+
+  const outbox = await getOutbox();
+  await outbox.clear();
+  const recorder = getRecorder();
+
+  await recorder.start();
+  await until(async () => {
+    const [item] = await outbox.list({ status: ["recording"] });
+    return item ? item : undefined;
+  }, "a recording row");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  // Close the live session — the flush should still arrive.
+  closeLiveSession();
+
+  // Calling closeLiveSession again must be a no-op — currentSession is
+  // already undefined, so the second call returns early without tearing
+  // down the subscription (which is waiting for the flush).
+  closeLiveSession();
+
+  const withFlush = await until(async () => {
+    const [item] = await outbox.list({ status: ["recording"] });
+    return item?.preview?.committed?.includes("idempotent flush") ? item : undefined;
+  }, "the flush to reach the outbox after an extra closeLiveSession call");
+  expect(withFlush.preview!.committed).toContain("idempotent flush");
+
+  // And one more close for good measure.
+  closeLiveSession();
+
+  try {
+    await recorder.stop();
+  } catch {
+    /* short recording, decode fails */
+  }
 
   await outbox.clear();
   setLiveTranscriber(undefined);
