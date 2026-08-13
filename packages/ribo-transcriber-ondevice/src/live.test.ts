@@ -226,6 +226,85 @@ describe("Test C — a flush segment after close() reaches the subscriber", () =
   });
 });
 
+// ── Test C2: liveClosed completes the Subject after the flush ─────────────────
+//
+// The worker posts `liveClosed` after the drain from `liveClose` finishes — whether or not
+// a flush segment was produced. `OnDeviceLiveSession` completes the `Subject` on that
+// signal so the host's `complete` callback fires and it can tear down its subscription.
+// Without this signal, the host has no way to know the worker is done: it would have to
+// guess with a timer (a guess about inference time) or never unsubscribe (a leak).
+//
+// How this fails without `liveClosed` handling: the `complete` callback never fires, so
+// the test's `until` poll times out waiting for `completed` to become true.
+
+describe("Test C2 — liveClosed completes segments$ after the drain", () => {
+  test("a liveClosed reply completes the Subject — the host can tear down", async () => {
+    const worker = new FakeLiveWorker();
+    const session = await openSession(worker);
+
+    let completed = false;
+    session.segments$.subscribe({
+      next: () => undefined,
+      complete: () => {
+        completed = true;
+      },
+    });
+
+    session.close();
+
+    // The flush segment arrives, then liveClosed — completing the Subject.
+    worker.emit({
+      type: "liveSegment",
+      sessionId: session.sessionId,
+      kind: "commit",
+      text: "flushed last words",
+    });
+    worker.emit({ type: "liveClosed", sessionId: session.sessionId });
+
+    expect(completed).toBe(true);
+  });
+
+  test("liveClosed completes the Subject even when the drain produced no segment", async () => {
+    const worker = new FakeLiveWorker();
+    const session = await openSession(worker);
+
+    let completed = false;
+    session.segments$.subscribe({
+      next: () => undefined,
+      complete: () => {
+        completed = true;
+      },
+    });
+
+    session.close();
+    // No flush segment — the buffer was empty. liveClosed still fires.
+    worker.emit({ type: "liveClosed", sessionId: session.sessionId });
+
+    expect(completed).toBe(true);
+  });
+
+  test("after liveClosed, no further segments are delivered — the listener is removed", async () => {
+    const worker = new FakeLiveWorker();
+    const session = await openSession(worker);
+
+    const segments: LiveSegment[] = [];
+    session.segments$.subscribe((segment) => segments.push(segment));
+
+    session.close();
+    worker.emit({ type: "liveClosed", sessionId: session.sessionId });
+
+    // A late segment after liveClosed — the listener is gone, so this is a no-op.
+    worker.emit({
+      type: "liveSegment",
+      sessionId: session.sessionId,
+      kind: "commit",
+      text: "should not arrive",
+    });
+
+    expect(segments).toEqual([]);
+  });
+});
+
 // ── Test D: a mid-session worker error reaches the host ───────────────────────
 //
 // The `liveError` listener in `openSession`'s promise is removed by `cleanup()` as soon as

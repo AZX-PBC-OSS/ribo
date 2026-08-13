@@ -844,7 +844,14 @@ function transcribeAsCommit(
 /**
  * Handle `liveClose`: drain the region buffer, transcribe whatever remains, and
  * post it as a **commit** — so the last region is never lost. Then remove the
- * session.
+ * session and post `liveClosed` so the main thread knows the drain is finished
+ * and can tear down its subscription.
+ *
+ * `liveClosed` is posted in **every** exit path — empty drain, successful
+ * commit, transcription error, and VAD-drain error — so the host never waits
+ * for a signal that never comes. Without it the host has no way to know the
+ * worker is done: the Subject stays open forever and the subscription leaks, or
+ * the host guesses with a timer and either drops the flush or leaks.
  *
  * The drain goes through `RegionVad`'s internal chain, so it sees the buffer
  * state after all pending VAD feeds complete. The transcription goes through
@@ -867,6 +874,7 @@ function closeLiveSession(sessionId: string, post: (message: WorkerToMainMessage
     .then((samples) => {
       if (samples.length === 0) {
         liveSessions.delete(sessionId);
+        post({ type: "liveClosed", sessionId });
         return;
       }
       // Transcribe the drained region as a commit through `serialize` — chains
@@ -888,6 +896,7 @@ function closeLiveSession(sessionId: string, post: (message: WorkerToMainMessage
           post({ type: "liveError", sessionId, message: errorMessage(error) });
         } finally {
           liveSessions.delete(sessionId);
+          post({ type: "liveClosed", sessionId });
         }
       });
     })
@@ -897,6 +906,7 @@ function closeLiveSession(sessionId: string, post: (message: WorkerToMainMessage
       // after `stop()` recovers it.
       liveSessions.delete(sessionId);
       post({ type: "liveError", sessionId, message: errorMessage(error) });
+      post({ type: "liveClosed", sessionId });
     });
 }
 

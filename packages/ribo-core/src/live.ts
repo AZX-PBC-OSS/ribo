@@ -120,6 +120,14 @@ export interface LiveSession {
    * completed on close, because dropping that segment would lose the auditor's
    * last sentence. The `#closed` flag only prevents further `feed()` calls; it
    * does not gate segment delivery.
+   *
+   * **Completes when the worker is done.** After the drain from `close()`
+   * finishes — whether it produced a flush segment or not — the implementation
+   * completes this `Observable`. A host that subscribes with a `complete`
+   * callback can tear down its subscription at that point, knowing no more
+   * segments will arrive. This is the signal that prevents the host from having
+   * to choose between unsubscribing too early (dropping the flush) and never
+   * unsubscribing (leaking a subscription per recording).
    */
   readonly segments$: Observable<LiveSegment>;
 
@@ -162,8 +170,10 @@ export interface LiveSession {
    * as closed so further `feed()` calls are no-ops. The worker transcribes the
    * final drained region *after* `close()` and posts it back as a
    * `liveSegment` — that segment **must** reach the subscriber, so the message
-   * listener is not removed and the `Subject` is not completed here. See
-   * {@link segments$} for why the stream stays open.
+   * listener is not removed and the `Subject` is not completed here. The
+   * `Subject` is completed when the worker posts `liveClosed` (after the drain
+   * finishes), at which point the host's `complete` callback fires and it can
+   * tear down. See {@link segments$} for why the stream stays open after close.
    */
   close(): void;
 }

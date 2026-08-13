@@ -29,6 +29,11 @@
  * segment (the worker was mid-inference when `close()` arrived) is also forwarded, which
  * is correct: it is real speech that was recorded before close, and dropping it would
  * lose data — the exact bug the flush exists to fix.
+ *
+ * The worker posts `liveClosed` after the drain completes (whether or not a flush
+ * segment was produced). On that signal the `Subject` is completed and the listener
+ * removed — giving the host a reliable "done" signal so it can tear down its
+ * subscription without dropping the flush or leaking.
  */
 
 import { Subject } from "rxjs";
@@ -107,6 +112,21 @@ class OnDeviceLiveSession implements LiveSession {
         // and a per-utterance failure does not end the preview for the whole session. See the
         // `errors$` doc on `LiveSession` for the full reasoning.
         this.#errors.next(reply.message);
+      } else if (reply.type === "liveClosed") {
+        // The worker has finished the drain from `liveClose` — all segments have been
+        // posted (the flush commit, or nothing if the buffer was empty). Complete the
+        // Subject so the host's `complete` callback fires and it can tear down its
+        // subscription. This is the signal the host was missing: without it, the host
+        // had to choose between unsubscribing too early (dropping the flush segment —
+        // the bug) or never unsubscribing (leaking a subscription per recording).
+        //
+        // The listener is removed and both Subjects completed here — not in `close()` —
+        // because `close()` only asks the worker to drain; the drain is asynchronous and
+        // the flush segment arrives after it. Completing in `close()` would drop the
+        // flush by timing, not by decision. `liveClosed` is the earliest safe moment.
+        this.#subject.complete();
+        this.#errors.complete();
+        this.#worker.removeEventListener("message", this.#onMessage);
       }
     };
     worker.addEventListener("message", this.#onMessage);
@@ -130,7 +150,9 @@ class OnDeviceLiveSession implements LiveSession {
     // flush segment (posted by the worker's `liveClose` handler after transcribing the
     // last buffered speech) reaches the subscriber — removing it would drop the flush by
     // listener removal, not by decision. The Subject stays open so segments continue to
-    // flow until the worker finishes and the host is done with this session.
+    // flow until the worker finishes. The worker posts `liveClosed` after the drain
+    // completes, which is when the listener is removed and the Subject completed — see
+    // the `liveClosed` handler in `#onMessage`.
   }
 
   get segments$(): Observable<LiveSegment> {

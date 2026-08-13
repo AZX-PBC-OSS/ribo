@@ -201,4 +201,14 @@ export type WorkerToMainMessage =
       readonly kind: LiveSegmentKind;
       readonly text: string;
     }
-  | { readonly type: "liveError"; readonly sessionId: string; readonly message: string };
+  | { readonly type: "liveError"; readonly sessionId: string; readonly message: string }
+  /**
+   * The worker has finished all work for this session — the drain from `liveClose`
+   * completed (whether it produced a segment or not), and the session is deleted.
+   * `OnDeviceLiveSession` completes its `Subject` on this signal so the host can
+   * tear down its subscription knowing no more segments will arrive. Without it,
+   * the host has no way to distinguish "the flush is still in flight" from "the
+   * worker is done" — and tearing down too early (the bug) or too late (a leak)
+   * are the only options.
+   */
+  | { readonly type: "liveClosed"; readonly sessionId: string };
