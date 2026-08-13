@@ -29,10 +29,7 @@ function makeFrame(index: number): Float32Array {
 }
 
 /** Feed a sequence of frames sequentially, collecting every frame result. */
-async function feedAll(
-  vad: RegionVad,
-  frames: Float32Array[],
-): Promise<RegionFrameResult[]> {
+async function feedAll(vad: RegionVad, frames: Float32Array[]): Promise<RegionFrameResult[]> {
   const results: RegionFrameResult[] = [];
   for (const frame of frames) {
     const result = await vad.feed(frame);
@@ -222,10 +219,7 @@ test("a refresh does not advance the buffer — the region still holds audio fro
   const quiet = 0.0;
   // 10 speech frames, then 8 silence frames (8 × 32 ms = 256 ms > 200 ms refresh, < 400 ms commit).
   // The 8-frame silence crosses the 7-frame refresh threshold but not the 13-frame commit.
-  const pattern = [
-    ...Array<number>(10).fill(speech),
-    ...Array<number>(8).fill(quiet),
-  ];
+  const pattern = [...Array<number>(10).fill(speech), ...Array<number>(8).fill(quiet)];
 
   const vad = new RegionVad(makeFixedPatternDetector(pattern), {
     refreshSilenceMs: 200, // ceil(200/32) = 7 frames
@@ -265,10 +259,7 @@ test("a commit advances the buffer past exactly the committed audio — no gap, 
   // ceil(400/32) = 13: the commit fires when the silence count reaches 13, on frame 22
   // (silence starts at frame 10; 10 + 13 - 1 = 22). The committed audio is frames 0–22.
   // After the commit, the buffer is cleared. Frames 23–24 are fed into the new region.
-  const pattern = [
-    ...Array<number>(10).fill(speech),
-    ...Array<number>(15).fill(quiet),
-  ];
+  const pattern = [...Array<number>(10).fill(speech), ...Array<number>(15).fill(quiet)];
 
   const vad = new RegionVad(makeFixedPatternDetector(pattern), {
     refreshSilenceMs: 200,
