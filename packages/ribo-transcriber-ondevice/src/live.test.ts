@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import type { LiveSession, Recording } from "@azx/ribo-core";
+import type { LiveSegment, LiveSession, Recording } from "@azx/ribo-core";
 
 import { OnDeviceLiveTranscriber } from "./index.js";
 import { DEFAULT_MODEL_ID, STREAMING_VAD_MODEL_ID } from "./config.js";
@@ -152,9 +152,9 @@ describe("Test B — close() stops feeding but forwards segments from the worker
     const worker = new FakeLiveWorker();
     const session = await openSession(worker);
 
-    const segments: string[] = [];
+    const segments: LiveSegment[] = [];
     // IMPORTANT: keep the subscription active — the guard must not be "no subscribers".
-    session.segments$.subscribe((text) => segments.push(text));
+    session.segments$.subscribe((segment) => segments.push(segment));
 
     // Close the session. close() sets #closed = true (preventing further feed() calls) and
     // posts liveClose to the worker. The listener stays installed — no #closed guard.
@@ -170,7 +170,8 @@ describe("Test B — close() stops feeding but forwards segments from the worker
     });
 
     // The segment IS emitted — dropping it would lose the auditor's last sentence.
-    expect(segments).toEqual(["last words"]);
+    // Its kind survives the close: the host can still route it to the right write.
+    expect(segments).toEqual([{ kind: "tail", text: "last words" }]);
   });
 
   test("close() prevents further feed() calls from reaching the worker", async () => {
@@ -200,8 +201,8 @@ describe("Test C — a flush segment after close() reaches the subscriber", () =
     const worker = new FakeLiveWorker();
     const session = await openSession(worker);
 
-    const segments: string[] = [];
-    session.segments$.subscribe((text) => segments.push(text));
+    const segments: LiveSegment[] = [];
+    session.segments$.subscribe((segment) => segments.push(segment));
 
     // Feed a frame so the worker has buffered speech (simulated — the FakeLiveWorker
     // would emit a segment on the feed timer, but we are interested in the flush).
@@ -219,7 +220,9 @@ describe("Test C — a flush segment after close() reaches the subscriber", () =
     });
 
     // The flush segment reached the subscriber — it was not dropped by a close guard.
-    expect(segments).toContain("flushed last words");
+    // Its kind ("commit") survives: the host routes it to `commitPreview`, not
+    // `writePreviewTail`, even though it arrived after close().
+    expect(segments).toContainEqual({ kind: "commit", text: "flushed last words" });
   });
 });
 
@@ -259,21 +262,65 @@ describe("Test D — a mid-session worker error reaches the host", () => {
     const worker = new FakeLiveWorker();
     const session = await openSession(worker);
 
-    const segments: string[] = [];
-    session.segments$.subscribe((text) => segments.push(text));
+    const segments: LiveSegment[] = [];
+    session.segments$.subscribe((segment) => segments.push(segment));
 
     // A mid-session error arrives.
     worker.emit({ type: "liveError", sessionId: session.sessionId, message: "transient failure" });
 
-    // A segment arrives after the error — the preview must still work for later utterances.
+    // A segment arrives after the error — the preview must still work for later regions.
     worker.emit({
       type: "liveSegment",
       sessionId: session.sessionId,
       kind: "tail",
-      text: "next utterance",
+      text: "next region",
     });
 
-    expect(segments).toEqual(["next utterance"]);
+    expect(segments).toEqual([{ kind: "tail", text: "next region" }]);
+  });
+});
+
+// ── Test E: a tail and a commit are distinguishable by the subscriber ─────────
+//
+// The worker posts `liveSegment` messages tagged `kind: "tail"` (provisional text
+// for the current growing region) or `kind: "commit"` (permanent text for a
+// committed region). The seam must carry that tag through so a host can route
+// tails to `Outbox.writePreviewTail` and commits to `Outbox.commitPreview` —
+// the distinction Task 4 exists to expose.
+//
+// How this fails: if `OnDeviceLiveSession` drops `kind` (forwards only `text`,
+// or hardcodes one kind), the subscriber cannot tell a tail from a commit and
+// the assertion on `segments[0].kind` goes red.
+
+describe("Test E — a tail and a commit are distinguishable by the subscriber", () => {
+  test("the subscriber receives the kind and can route tails vs commits", async () => {
+    const worker = new FakeLiveWorker();
+    const session = await openSession(worker);
+
+    const segments: LiveSegment[] = [];
+    session.segments$.subscribe((segment) => segments.push(segment));
+
+    // A provisional tail arrives — the current region's text, still being revised.
+    worker.emit({
+      type: "liveSegment",
+      sessionId: session.sessionId,
+      kind: "tail",
+      text: "provisional words",
+    });
+    // A commit arrives — the region's text is now permanent.
+    worker.emit({
+      type: "liveSegment",
+      sessionId: session.sessionId,
+      kind: "commit",
+      text: "permanent words",
+    });
+
+    // Both segments arrived, in order, with their kinds intact. A host reading
+    // `segment.kind` can route the first to `writePreviewTail` and the second to
+    // `commitPreview` — which is the whole point of carrying the tag through.
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toEqual({ kind: "tail", text: "provisional words" });
+    expect(segments[1]).toEqual({ kind: "commit", text: "permanent words" });
   });
 });
 

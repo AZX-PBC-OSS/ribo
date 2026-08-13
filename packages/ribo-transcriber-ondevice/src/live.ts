@@ -35,6 +35,7 @@ import { Subject } from "rxjs";
 import type { Observable } from "rxjs";
 
 import type {
+  LiveSegment,
   LiveSession,
   LiveTranscriber,
   Recording,
@@ -74,7 +75,7 @@ async function isStreamingVadCached(cacheStorage: CacheStorage): Promise<boolean
  */
 class OnDeviceLiveSession implements LiveSession {
   readonly sessionId: string;
-  readonly #subject = new Subject<string>();
+  readonly #subject = new Subject<LiveSegment>();
   readonly #errors = new Subject<string>();
   #closed = false;
   readonly #worker: Worker;
@@ -90,14 +91,14 @@ class OnDeviceLiveSession implements LiveSession {
       if (!("sessionId" in reply) || reply.sessionId !== this.sessionId) return;
       if (reply.type === "liveSegment") {
         // No #closed guard here: a segment arriving after close() is the flush of the last
-        // buffered speech (or a feed that was mid-inference when close arrived) — both are
+        // buffered region (or a feed that was mid-inference when close arrived) — both are
         // real speech that must reach the subscriber. See the file header. The #closed flag
         // only prevents further feed() calls, not segment delivery.
         //
-        // The `kind` discriminator ("tail" | "commit") is not read here — Task 4
-        // carries it through the `LiveSession` seam to hosts. Until then, both
-        // kinds flow into `segments$` as plain text.
-        this.#subject.next(reply.text);
+        // The `kind` discriminator ("tail" | "commit") is carried through to the host so
+        // it can route tails to `Outbox.writePreviewTail` and commits to
+        // `Outbox.commitPreview` — the distinction the seam exists to expose.
+        this.#subject.next({ kind: reply.kind, text: reply.text });
       } else if (reply.type === "liveError") {
         // A mid-session error from the worker. The `liveError` listener in `openSession`'s
         // promise is removed by `cleanup()` as soon as `liveOpened` arrives, so without this
@@ -132,7 +133,7 @@ class OnDeviceLiveSession implements LiveSession {
     // flow until the worker finishes and the host is done with this session.
   }
 
-  get segments$(): Observable<string> {
+  get segments$(): Observable<LiveSegment> {
     return this.#subject.asObservable();
   }
 
