@@ -614,3 +614,68 @@ describe("Test 5 — liveClose before liveOpen completes still closes the sessio
     clearLiveSessions();
   });
 });
+
+// ── Test 6: an empty transcription on a commit is recorded, not dropped ───────
+//
+// On a commit the region buffer has already advanced, so an empty ASR result
+// means that audio's text is gone from the preview with no trace. The fix posts
+// the empty commit segment so the host knows a commit happened, rather than the
+// commit vanishing silently. The tail path still guards on `text.length > 0`
+// (an empty tail just means "no speech yet" and posting it would clear the
+// previous tail).
+
+describe("Test 6 — an empty commit is posted, not silently dropped", () => {
+  test("a commit with empty text produces a liveSegment with kind=commit and text=''", async () => {
+    clearLiveSessions();
+    const sessionId = "test-empty-commit";
+    const { posts, post } = makePost();
+
+    injectLiveSession(sessionId, {
+      vad: makeFakeRegionVad([
+        {
+          refresh: false,
+          commit: true,
+          committedSamples: new Float32Array(512),
+          transcriptionSamples: new Float32Array(512),
+        },
+      ]),
+      transcribe: () => Promise.resolve(""),
+      refreshInFlight: false,
+    });
+
+    await handleMessage({ type: "liveFeed", sessionId, frame: new Float32Array(512) }, post);
+    await settle();
+
+    const segments = posts.filter((m) => m.type === "liveSegment");
+    expect(segments).toHaveLength(1);
+    const seg = segments[0]!;
+    expect(seg.type).toBe("liveSegment");
+    if (seg.type === "liveSegment") {
+      expect(seg.kind).toBe("commit");
+      expect(seg.text).toBe("");
+    }
+
+    clearLiveSessions();
+  });
+
+  test("an empty tail is still dropped — only commits are always posted", async () => {
+    clearLiveSessions();
+    const sessionId = "test-empty-tail";
+    const { posts, post } = makePost();
+
+    injectLiveSession(sessionId, {
+      vad: makeFakeRegionVad([REFRESH]),
+      transcribe: () => Promise.resolve(""),
+      refreshInFlight: false,
+    });
+
+    await handleMessage({ type: "liveFeed", sessionId, frame: new Float32Array(512) }, post);
+    await settle();
+
+    // No segment posted — empty tails are dropped (posting would clear the
+    // previous tail, which is wrong when the region simply has no speech yet).
+    expect(posts.filter((m) => m.type === "liveSegment")).toHaveLength(0);
+
+    clearLiveSessions();
+  });
+});

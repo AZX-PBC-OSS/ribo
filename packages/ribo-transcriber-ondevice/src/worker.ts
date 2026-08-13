@@ -863,6 +863,17 @@ function transcribeAsTail(
  * Transcribe committed samples and post the result as **committed** text.
  * Goes through `serialize` for the same reason as {@link transcribeAsTail}.
  * A commit is never skipped by load shedding — committed text is permanent.
+ *
+ * An empty commit is posted, not silently dropped. On a commit the region buffer
+ * has already advanced, so an empty ASR result means that audio's text is gone
+ * from the preview with no trace — the exact silent-loss failure mode this feature
+ * produced four separate times. The preview is provisional and the batch pass after
+ * `stop()` recovers the text, but nothing else records that the commit happened.
+ * Posting the empty segment gives the host a signal: it knows a region was
+ * committed, can render a placeholder, and is not left guessing whether a segment
+ * was lost or simply never produced. (The tail path keeps the `text.length > 0`
+ * guard: an empty tail just means "no speech yet", and posting it would clear the
+ * previous tail.)
  */
 function transcribeAsCommit(
   sessionId: string,
@@ -877,7 +888,7 @@ function transcribeAsCommit(
       console.log(
         `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s rms=${rootMeanSquare(samples).toFixed(5)} peak=${samples.reduce((m, v) => Math.max(m, Math.abs(v)), 0).toFixed(4)} -> ${JSON.stringify(text)}`,
       );
-      if (text.length > 0) post({ type: "liveSegment", sessionId, kind: "commit", text });
+      post({ type: "liveSegment", sessionId, kind: "commit", text });
     } catch (error) {
       // Per-region: skip this commit's text, surface the error, keep the session
       // alive. The audio is durable — the batch pass after `stop()` recovers it.
@@ -944,7 +955,9 @@ function closeLiveSession(sessionId: string, post: (message: WorkerToMainMessage
           console.log(
             `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s rms=${rootMeanSquare(samples).toFixed(5)} peak=${samples.reduce((m, v) => Math.max(m, Math.abs(v)), 0).toFixed(4)} -> ${JSON.stringify(text)}`,
           );
-          if (text.length > 0) post({ type: "liveSegment", sessionId, kind: "commit", text });
+          // Always post, even when empty — see transcribeAsCommit for why an
+          // empty commit is recorded rather than silently dropped.
+          post({ type: "liveSegment", sessionId, kind: "commit", text });
         } catch (error) {
           // Per-region: the final region's transcription failed. The audio is
           // durable — the batch pass after `stop()` recovers it. Surface the
