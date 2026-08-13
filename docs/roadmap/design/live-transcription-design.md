@@ -247,9 +247,12 @@ Per 512-sample frame, in the worker:
 4. **On a pause** — silence past the threshold — transcribe the whole region buffer and publish the
    result as the ephemeral tail.
 5. **Commit** when the region reaches its cap, or when a pause is long enough to be a natural
-   boundary: the current text becomes permanent, and the buffer advances to that pause. Because the
-   boundary is a position in the audio rather than a position in the text, the advance is exact and
-   needs no timestamps.
+   boundary **and** the region has reached a minimum duration: the current text becomes permanent,
+   and the buffer advances to that pause. Below the minimum, a qualifying pause triggers a refresh
+   instead and the region keeps growing — without this gate every phrase committed immediately and
+   the model saw only fragments, the very failure this revision exists to eliminate. The cap still
+   forces a commit regardless. Because the boundary is a position in the audio rather than a position
+   in the text, the advance is exact and needs no timestamps.
 6. On reaching the region cap without a pause, commit at the cap and carry the remainder forward.
 
 **Why the region runs long.** A region is transcribed whole, every time, so its length sets how much
@@ -480,6 +483,11 @@ unhinted on the jargon-dense transcript — 6.3 % against 22.4 %), and whether M
   bound: longer regions give the model more context, at the cost of a tail that churns for longer
   before it settles. 15 s and 30 s were both measured on the TTS fixture; neither has been measured on
   the stuttering, pause-heavy delivery that motivated revision 7.
+- **The minimum region length, unmeasured on real speech.** A pause may only commit once the region
+  has reached this duration; below it the pause refreshes and the region keeps growing. 15 s is a
+  placeholder — the same TTS fixture that measured the cap has not measured this, and the right value
+  depends on how short a region can be before the model's quality collapses, which is itself an open
+  question.
 - **The refresh cadence.** At a duty cycle of 0.093 the budget allows refreshing far more often than
   once per pause. Whether more frequent refreshing reads as _responsive_ or as _flickering_ is a UI
   question no measurement here answers.
