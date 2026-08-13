@@ -14,11 +14,11 @@ import {
  * are all exercised here.
  *
  * **These tests pin their own thresholds through constructor options** (`refreshSilenceMs`,
- * `commitSilenceMs`, `regionCapSeconds`) rather than using the production defaults. Their frame
- * sequences are literal, with silence runs sized to sit either side of the refresh or commit
- * boundary, so they are coupled to whatever thresholds they run against. The production values are
- * product decisions that will be tuned against real dictation, and a tuning change should not turn
- * passing behaviour tests red.
+ * `commitSilenceMs`, `regionCapSeconds`, `minRegionSeconds`) rather than using the production
+ * defaults. Their frame sequences are literal, with silence runs sized to sit either side of the
+ * refresh or commit boundary, so they are coupled to whatever thresholds they run against. The
+ * production values are product decisions that will be tuned against real dictation, and a tuning
+ * change should not turn passing behaviour tests red.
  */
 
 /** One frame's worth of samples, each set to `index` so the region's origin is inspectable. */
@@ -128,6 +128,7 @@ describe("RegionVad — Test A: the returned state is carried into the next fram
       refreshSilenceMs: 200, // ceil(200/32) = 7 frames
       commitSilenceMs: 400, // ceil(400/32) = 13 frames
       regionCapSeconds: 30,
+      minRegionSeconds: 0, // disable the minimum — this test is about state-carrying, not region length
     });
 
     // 5 silence + 16 speech + 10 silence (10 × 32 ms = 320 ms > 200 ms refresh, < 400 ms commit).
@@ -148,6 +149,7 @@ describe("RegionVad — Test A: the returned state is carried into the next fram
       refreshSilenceMs: 200,
       commitSilenceMs: 400,
       regionCapSeconds: 30,
+      minRegionSeconds: 0,
     });
 
     const frames = Array.from({ length: 10 }, (_, i) => makeFrame(i));
@@ -191,6 +193,7 @@ test("no audio is ever dropped — the region contains every frame including low
     refreshSilenceMs: 200,
     commitSilenceMs: 400,
     regionCapSeconds: 30,
+    minRegionSeconds: 0, // disable the minimum — this test is about audio retention, not region length
   });
 
   const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
@@ -225,6 +228,7 @@ test("a refresh does not advance the buffer — the region still holds audio fro
     refreshSilenceMs: 200, // ceil(200/32) = 7 frames
     commitSilenceMs: 400, // ceil(400/32) = 13 frames
     regionCapSeconds: 30,
+    minRegionSeconds: 0, // disable the minimum — this test is about refresh, not region length
   });
 
   const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
@@ -265,6 +269,7 @@ test("a commit advances the buffer past exactly the committed audio — no gap, 
     refreshSilenceMs: 200,
     commitSilenceMs: 400, // ceil(400/32) = 13 frames
     regionCapSeconds: 30,
+    minRegionSeconds: 0, // disable the minimum — this test is about the commit boundary, not region length
   });
 
   const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
@@ -316,6 +321,189 @@ test("the region cap forces a commit when no qualifying pause arrives", async ()
     refreshSilenceMs: 200,
     commitSilenceMs: 400,
     regionCapSeconds: capSeconds,
+    minRegionSeconds: 0, // disable the minimum — this test is about the cap, not region length
+  });
+
+  const frames = Array.from({ length: numFrames }, (_, i) => makeFrame(i));
+  let commitCount = 0;
+  let committedSamples: Float32Array | null = null;
+  for (const frame of frames) {
+    const result = await vad.feed(frame);
+    if (result.commit) {
+      commitCount++;
+      committedSamples = result.committedSamples;
+    }
+  }
+
+  // At least one commit was forced by the cap.
+  expect(commitCount).toBeGreaterThanOrEqual(1);
+  expect(committedSamples).not.toBeNull();
+
+  // The committed audio is exactly the cap size — floor(1 × 16000 / 512) = 31 frames.
+  const capFrames = Math.floor((capSeconds * 16_000) / VAD_FRAME_SIZE);
+  expect(committedSamples!.length).toBe(capFrames * VAD_FRAME_SIZE);
+
+  // The committed audio contains the first 31 frames (0–30). The remainder (frames 31–34)
+  // carries forward into the new region.
+  const committedArray = Array.from(committedSamples!);
+  expect(committedArray).toContain(0);
+  expect(committedArray).toContain(30);
+  expect(committedArray).not.toContain(31);
+
+  // The new region holds the carried-forward frames.
+  const newRegionSamples = Array.from(vad.samples);
+  expect(newRegionSamples).toContain(31);
+  expect(newRegionSamples).toContain(34);
+});
+
+// ── Test 5: a pause below the minimum region length refreshes but does NOT commit ──
+//
+// The fix this change exists for. Without the minimum-region-length gate, every phrase committed
+// immediately — a pause past the commit threshold was sufficient, regardless of how short the
+// region was. This test feeds a short burst of speech followed by a silence run past the commit
+// threshold, with the region still well below the minimum. The pause must trigger a refresh (the
+// tail is re-transcribed) but NOT a commit — the region keeps growing.
+
+test("a pause below the minimum region length refreshes but does NOT commit", async () => {
+  const speech = 0.9;
+  const quiet = 0.0;
+  // 10 speech + 15 silence = 25 frames (25 × 32 ms = 800 ms). The 15-frame silence crosses both
+  // the refresh threshold (7 frames) and the commit threshold (13 frames). But the region is only
+  // 25 frames, well below the 2-second minimum (ceil(2 × 16000 / 512) = 63 frames), so the commit
+  // must not fire.
+  const pattern = [...Array<number>(10).fill(speech), ...Array<number>(15).fill(quiet)];
+
+  const vad = new RegionVad(makeFixedPatternDetector(pattern), {
+    refreshSilenceMs: 200, // ceil(200/32) = 7 frames
+    commitSilenceMs: 400, // ceil(400/32) = 13 frames
+    regionCapSeconds: 30,
+    minRegionSeconds: 2, // ceil(2 × 16000 / 512) = 63 frames — region (25) is well below
+  });
+
+  const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
+  const results = await feedAll(vad, frames);
+
+  // A refresh fired — the 15-frame silence crossed the 7-frame refresh threshold.
+  const anyRefresh = results.some((r) => r.refresh);
+  expect(anyRefresh).toBe(true);
+
+  // No commit — the region was below the minimum, so the pause could not commit.
+  const anyCommit = results.some((r) => r.commit);
+  expect(anyCommit).toBe(false);
+
+  // The region still holds all 25 frames — the refresh did not advance the buffer, and no commit
+  // cleared it. The audio from before the pause is still in the region.
+  const samples = Array.from(vad.samples);
+  expect(samples).toContain(0); // first speech frame
+  expect(samples).toContain(9); // last speech frame
+  expect(samples).toContain(24); // last silence frame
+  expect(samples.length).toBe(pattern.length * VAD_FRAME_SIZE);
+});
+
+// ── Test 6: a pause past the minimum region length commits the whole accumulated region ──
+//
+// The test that proves regions actually accumulate across pauses. Two phrases separated by a
+// pause: the first phrase's pause reaches the commit threshold but the region is below the
+// minimum, so it refreshes but does NOT commit. The second phrase's pause reaches the commit
+// threshold with the region now past the minimum, so it commits — and the committed audio
+// includes the first phrase's audio, proving the region grew across the intervening pause.
+
+test("a pause past the minimum region length commits the whole accumulated region", async () => {
+  const speech = 0.9;
+  const quiet = 0.0;
+  // Two phrases separated by a pause, with a minimum that the first phrase alone cannot reach:
+  //
+  //   frames 0–9:    speech (first phrase, 10 frames ≥ 8-frame min-speech filter)
+  //   frames 10–24:  silence (15 frames > 13-frame commit threshold, but region is 25 < 32 min)
+  //   frames 25–34:  speech (second phrase)
+  //   frames 35–49:  silence (15 frames > 13-frame commit threshold, region is 48 ≥ 32 min → COMMIT)
+  //
+  // minRegionSeconds: 1 → ceil(1 × 16000 / 512) = 32 frames. The first phrase's commit threshold
+  // is reached at frame 22 (10 + 13 - 1), with the region at 23 frames — below 32, no commit.
+  // The second phrase's commit threshold is reached at frame 47 (35 + 13 - 1), with the region
+  // at 48 frames — past 32, commit fires. The committed audio is frames 0–47, which includes
+  // the first phrase's speech (frames 0–9).
+  const pattern = [
+    ...Array<number>(10).fill(speech),
+    ...Array<number>(15).fill(quiet),
+    ...Array<number>(10).fill(speech),
+    ...Array<number>(15).fill(quiet),
+  ];
+
+  const vad = new RegionVad(makeFixedPatternDetector(pattern), {
+    refreshSilenceMs: 200, // ceil(200/32) = 7 frames
+    commitSilenceMs: 400, // ceil(400/32) = 13 frames
+    regionCapSeconds: 30,
+    minRegionSeconds: 1, // ceil(1 × 16000 / 512) = 32 frames
+  });
+
+  const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
+  let committedSamples: Float32Array | null = null;
+  let commitFrame = -1;
+  let refreshCount = 0;
+  for (let i = 0; i < frames.length; i++) {
+    const result = await vad.feed(frames[i]!);
+    if (result.commit) {
+      committedSamples = result.committedSamples;
+      commitFrame = i;
+    }
+    if (result.refresh) {
+      refreshCount++;
+    }
+  }
+
+  // A commit fired on the second phrase's pause.
+  expect(committedSamples).not.toBeNull();
+  expect(commitFrame).toBe(47); // 35 + 13 - 1
+
+  // The committed audio includes the FIRST phrase's speech (frames 0–9) — the region accumulated
+  // across the intervening pause that did not commit. This is the assertion that fails without
+  // the minimum-region-length gate: without it, the first pause would have committed at frame 22,
+  // and the second commit's audio would start at frame 23, not frame 0.
+  const committedArray = Array.from(committedSamples!);
+  expect(committedArray).toContain(0); // first frame of the first phrase
+  expect(committedArray).toContain(9); // last frame of the first phrase
+  expect(committedArray).toContain(25); // first frame of the second phrase
+  expect(committedArray).toContain(47); // the commit frame
+  expect(committedArray).not.toContain(48);
+  expect(committedSamples!.length).toBe(48 * VAD_FRAME_SIZE);
+
+  // The first phrase's pause fired a refresh (at frame 16, the 7-frame refresh threshold) but no
+  // commit. The second phrase's pause also fired a refresh (at frame 41). Two refreshes total.
+  expect(refreshCount).toBe(2);
+
+  // After the commit, the buffer has advanced — the new region holds only the frames fed after
+  // the commit (frames 48–49).
+  const newRegionSamples = Array.from(vad.samples);
+  expect(newRegionSamples).toContain(48);
+  expect(newRegionSamples).toContain(49);
+  for (let i = 0; i <= commitFrame; i++) {
+    expect(newRegionSamples).not.toContain(i);
+  }
+  expect(newRegionSamples.length).toBe(2 * VAD_FRAME_SIZE);
+});
+
+// ── Test 7: the cap still forces a commit with no qualifying pause at all ──────────
+//
+// The minimum region length gates pause-driven commits only — the cap is a hard bound that forces
+// a commit regardless. This test sets a minimum so high that no pause-driven commit could ever
+// fire, feeds all-speech input (no pauses at all), and asserts the cap still commits.
+
+test("the cap still forces a commit with no qualifying pause at all", async () => {
+  const speech = 0.9;
+  // All speech, no silence — no pause-based commit. The minimum is set far above the cap so a
+  // pause-driven commit is impossible. The cap must still force a commit.
+  // 1-second cap = floor(16000 / 512) = 31 frames. 60-second minimum = ceil(60 × 16000 / 512) =
+  // 1875 frames — unreachably high. After 31 frames, the 32nd triggers the cap.
+  const capSeconds = 1;
+  const numFrames = 35;
+
+  const pattern = Array<number>(numFrames).fill(speech);
+  const vad = new RegionVad(makeFixedPatternDetector(pattern), {
+    refreshSilenceMs: 200,
+    commitSilenceMs: 400,
+    regionCapSeconds: capSeconds,
+    minRegionSeconds: 60, // far above the cap — a pause-driven commit can never fire
   });
 
   const frames = Array.from({ length: numFrames }, (_, i) => makeFrame(i));
