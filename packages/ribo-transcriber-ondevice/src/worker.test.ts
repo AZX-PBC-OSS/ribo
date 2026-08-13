@@ -475,6 +475,159 @@ describe("Test 3 — a commit is never skipped, even when one is in flight", () 
   });
 });
 
+// ── Test 5: the commit queue is bounded (coalescing) ─────────────────────────
+//
+// `serialize` is a single unbounded promise chain. Without coalescing, every
+// commit enqueues a separate closure and waits behind every earlier one — on a
+// slow device the backlog compounds. This test drives commits faster than they
+// drain (a `transcribe` that blocks on a deferred) and asserts the bound: at
+// most one in-flight commit transcription + one coalesced pending buffer. No
+// audio is lost — coalesced commits are merged and transcribed together.
+//
+// Removing the coalescing (always calling `transcribeAsCommit` per commit)
+// turns this test red: after releasing the deferred, the unbounded queue would
+// make one `transcribe` call per commit (5 total), not 2.
+
+describe("Test 5 — the commit queue is bounded: coalescing prevents backlog", () => {
+  test("commits arriving while one is in-flight coalesce into one pending buffer, not N queued calls", async () => {
+    clearLiveSessions();
+    const sessionId = "test-bounded-commit";
+    const { posts, post } = makePost();
+
+    const transcribeCalls: Float32Array[] = [];
+    const deferred1 = makeDeferred<string>();
+
+    // A commit result with 512-sample transcriptionSamples.
+    const COMMIT_512: RegionFrameResult = {
+      refresh: false,
+      commit: true,
+      committedSamples: new Float32Array(512),
+      transcriptionSamples: new Float32Array(512),
+    };
+
+    injectLiveSession(sessionId, {
+      vad: makeFakeRegionVad([COMMIT_512, COMMIT_512, COMMIT_512, COMMIT_512, COMMIT_512]),
+      transcribe: (samples) => {
+        transcribeCalls.push(samples);
+        if (transcribeCalls.length === 1) return deferred1.promise;
+        return Promise.resolve(`coalesced-${samples.length}`);
+      },
+      refreshInFlight: false,
+    });
+
+    // Feed 5 commits. The first starts transcribing (deferred1 pending).
+    // Commits 2–5 must coalesce into pendingCommitSamples, NOT enqueue
+    // separate serialize calls.
+    for (let i = 0; i < 5; i++) {
+      await handleMessage({ type: "liveFeed", sessionId, frame: new Float32Array(512) }, post);
+      await settle();
+    }
+
+    // The bound: only ONE transcribe call — the first commit. The other four
+    // coalesced into pendingCommitSamples instead of queuing four more
+    // serialize entries. With the old unbounded code, this assertion would
+    // still pass (serialize is sequential, so only the first transcribe has
+    // started) — but the next assertion after release is what distinguishes.
+    expect(transcribeCalls).toHaveLength(1);
+
+    // Release the first transcription. The coalesced drain fires: the four
+    // pending commits' samples (512 × 4 = 2048) are merged and transcribed
+    // in ONE additional call, not four separate calls.
+    deferred1.resolve("commit-1");
+    await settle();
+
+    // The bound holds: 2 transcribe calls total (1 in-flight + 1 coalesced),
+    // NOT 5 (one per commit). This is the assertion that turns red if the
+    // coalescing is removed.
+    expect(transcribeCalls).toHaveLength(2);
+
+    // No audio lost: the second call received all four coalesced commits'
+    // samples concatenated (512 × 4 = 2048).
+    expect(transcribeCalls[1]!.length).toBe(512 * 4);
+
+    // Two commit segments posted: the first commit, then the coalesced rest.
+    const commitPosts = posts.filter((m) => m.type === "liveSegment");
+    expect(commitPosts).toHaveLength(2);
+    for (const c of commitPosts) {
+      expect(c.type).toBe("liveSegment");
+      if (c.type === "liveSegment") expect(c.kind).toBe("commit");
+    }
+    if (commitPosts[0]!.type === "liveSegment") expect(commitPosts[0]!.text).toBe("commit-1");
+    if (commitPosts[1]!.type === "liveSegment") {
+      expect(commitPosts[1]!.text).toBe("coalesced-2048");
+    }
+
+    clearLiveSessions();
+  });
+
+  test("a third wave of commits arriving during the re-queued transcription also coalesces", async () => {
+    clearLiveSessions();
+    const sessionId = "test-bounded-commit-wave-3";
+    const { posts, post } = makePost();
+
+    const transcribeCalls: Float32Array[] = [];
+    const deferred1 = makeDeferred<string>();
+    const deferred2 = makeDeferred<string>();
+
+    const COMMIT_512: RegionFrameResult = {
+      refresh: false,
+      commit: true,
+      committedSamples: new Float32Array(512),
+      transcriptionSamples: new Float32Array(512),
+    };
+
+    injectLiveSession(sessionId, {
+      vad: makeFakeRegionVad(Array.from({ length: 8 }, () => COMMIT_512)),
+      transcribe: (samples) => {
+        transcribeCalls.push(samples);
+        if (transcribeCalls.length === 1) return deferred1.promise;
+        if (transcribeCalls.length === 2) return deferred2.promise;
+        return Promise.resolve(`wave3-${samples.length}`);
+      },
+      refreshInFlight: false,
+    });
+
+    // Wave 1: feed 3 commits. First starts transcribing (deferred1).
+    // Commits 2–3 coalesce.
+    for (let i = 0; i < 3; i++) {
+      await handleMessage({ type: "liveFeed", sessionId, frame: new Float32Array(512) }, post);
+      await settle();
+    }
+    expect(transcribeCalls).toHaveLength(1);
+
+    // Release wave 1 → re-queue with coalesced commits 2–3 (1024 samples).
+    // The re-queued transcription blocks on deferred2.
+    deferred1.resolve("commit-1");
+    await settle();
+    expect(transcribeCalls).toHaveLength(2);
+    expect(transcribeCalls[1]!.length).toBe(512 * 2);
+
+    // Wave 3: feed 3 more commits while the re-queued transcription is in-flight.
+    // These must coalesce into pendingCommitSamples again.
+    for (let i = 0; i < 3; i++) {
+      await handleMessage({ type: "liveFeed", sessionId, frame: new Float32Array(512) }, post);
+      await settle();
+    }
+    expect(transcribeCalls).toHaveLength(2);
+
+    // Release wave 2 → re-queue with coalesced wave-3 commits (1536 samples).
+    deferred2.resolve("coalesced-1024");
+    await settle();
+
+    // 3 transcribe calls total across 3 waves of coalescing — NOT 8.
+    expect(transcribeCalls).toHaveLength(3);
+    expect(transcribeCalls[2]!.length).toBe(512 * 3);
+
+    const commitPosts = posts.filter((m) => m.type === "liveSegment");
+    expect(commitPosts).toHaveLength(3);
+    if (commitPosts[2]!.type === "liveSegment") {
+      expect(commitPosts[2]!.text).toBe("wave3-1536");
+    }
+
+    clearLiveSessions();
+  });
+});
+
 // ── Test 4: a transcription failure leaves the session alive ─────────────────
 //
 // A per-region transcription failure (OOM, ORT error) must not kill the session —
