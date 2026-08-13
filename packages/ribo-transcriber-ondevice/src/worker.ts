@@ -614,6 +614,30 @@ interface LiveWorkerSession {
   readonly transcribe: (samples: Float32Array) => Promise<string>;
   /** Whether a refresh transcription is currently in flight — load shedding. */
   refreshInFlight: boolean;
+  /**
+   * True when a commit transcription is queued or in-flight. New commits that
+   * arrive while this is `true` are **coalesced** into {@link pendingCommitSamples}
+   * rather than enqueuing a separate `serialize` call — see {@link feedLiveFrame}'s
+   * commit branch for why this bounds the queue without losing audio.
+   */
+  commitInFlight?: boolean;
+  /**
+   * Samples from commits that arrived while {@link commitInFlight} was `true`.
+   * The in-flight (or queued) commit transcription drains this buffer before it
+   * starts and after it finishes, so coalesced commits are transcribed together
+   * with the audio that preceded them. Consecutive regions are contiguous audio,
+   * so concatenating and transcribing once is equivalent to transcribing each
+   * separately — no text is lost. `null`/`undefined` = no pending commit.
+   */
+  pendingCommitSamples?: Float32Array | null;
+}
+
+/** Concatenate two `Float32Array`s into a new buffer. Used to coalesce queued commit samples. */
+function concatSamples(a: Float32Array, b: Float32Array): Float32Array {
+  const out = new Float32Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
 }
 
 /** Active live sessions, keyed by `sessionId`. */
@@ -670,6 +694,8 @@ async function openLiveSession(
           return text;
         }),
       refreshInFlight: false,
+      commitInFlight: false,
+      pendingCommitSamples: null,
     });
     post({ type: "liveOpened", sessionId });
   } catch (error) {
@@ -750,7 +776,49 @@ function feedLiveFrame(
         // regardless of when it runs. When transcriptionSamples is null the
         // committed region had no speech (a cap-forced commit on noise), so there
         // is nothing to transcribe and the call is skipped.
-        void transcribeAsCommit(sessionId, result.transcriptionSamples, post);
+        //
+        // ## Bounding the commit queue (the fix for unbounded backlog)
+        //
+        // `serialize` is a single unbounded promise chain. Without coalescing,
+        // every commit enqueues a separate closure that captures its region's
+        // `Float32Array` and waits behind every earlier commit. On a slow device
+        // (5–10 s per region) with continuous dictation (a commit every 15–30 s),
+        // the backlog compounds and the newest commit waits for the sum of all
+        // earlier durations — a ~10 s preview lag observed in the field.
+        //
+        // **The bound:** at most ONE commit transcription is in-flight or queued
+        // at a time. When a commit arrives while `commitInFlight` is already
+        // `true`, its samples are merged into `pendingCommitSamples` instead of
+        // enqueuing a new `serialize` call. The in-flight transcription drains
+        // `pendingCommitSamples` before it starts (merging anything that arrived
+        // while it was queued) and re-queues itself after it finishes if more
+        // commits arrived while it was running.
+        //
+        // **What the user loses:** individual commit boundaries. Two regions that
+        // would have been separate commit segments become one larger segment whose
+        // text is the transcription of their concatenated audio. The text is all
+        // there — consecutive regions are contiguous audio, so transcribing them
+        // together is equivalent to transcribing each separately and joining. The
+        // user would know this is happening because commit segments arrive less
+        // frequently and contain more text per segment during sustained dictation
+        // on a slow device.
+        //
+        // **Why this beats the alternatives:**
+        //   - **Shedding commits like refreshes** would silently lose real text —
+        //     this feature has produced that exact bug four separate times.
+        //   - **Back-pressuring the producer** would block the VAD feed, which
+        //     could lose audio — the exact failure this revision exists to
+        //     eliminate.
+        //   - **A cap that surfaces `liveError` when exceeded** would make the loss
+        //     visible, but the text is still lost. Coalescing loses nothing.
+        if (session.commitInFlight) {
+          session.pendingCommitSamples = session.pendingCommitSamples
+            ? concatSamples(session.pendingCommitSamples, result.transcriptionSamples)
+            : result.transcriptionSamples;
+        } else {
+          session.commitInFlight = true;
+          void transcribeAsCommit(sessionId, result.transcriptionSamples, post);
+        }
       } else if (result.refresh) {
         if (session.refreshInFlight) {
           // Load shedding: skip this refresh. The region buffer is untouched —
@@ -818,15 +886,36 @@ function transcribeAsTail(
  * Transcribe committed samples and post the result as **committed** text.
  * Goes through `serialize` for the same reason as {@link transcribeAsTail}.
  * A commit is never skipped by load shedding — committed text is permanent.
+ *
+ * ## Coalescing drain (the bounded-queue mechanism)
+ *
+ * Before transcribing, this function drains `pendingCommitSamples` — commits
+ * that arrived while this call was queued behind `serialize`. Their samples are
+ * concatenated onto the initial samples (they are contiguous audio, so the
+ * order is initial → pending) and transcribed in one pass.
+ *
+ * After transcribing, if more commits arrived during the `await`, the function
+ * re-queues itself through `serialize` with those samples. This keeps each
+ * commit transcription as a separate `serialize` entry (refreshes and batch
+ * transcribes can interleave between them) while never letting the queue grow
+ * beyond one pending entry. `commitInFlight` stays `true` across the re-queue
+ * so new commits continue to coalesce rather than starting parallel calls.
  */
 function transcribeAsCommit(
   sessionId: string,
-  samples: Float32Array,
+  initialSamples: Float32Array,
   post: (message: WorkerToMainMessage) => void,
 ): void {
   void serialize(async () => {
     const session = liveSessions.get(sessionId);
     if (!session) return;
+    // Drain commits that coalesced while we were queued behind serialize.
+    // Order: initialSamples (the triggering commit) precedes pending (later commits).
+    let samples = initialSamples;
+    if (session.pendingCommitSamples) {
+      samples = concatSamples(samples, session.pendingCommitSamples);
+      session.pendingCommitSamples = null;
+    }
     try {
       const text = await session.transcribe(samples);
       console.log(
@@ -837,6 +926,19 @@ function transcribeAsCommit(
       // Per-region: skip this commit's text, surface the error, keep the session
       // alive. The audio is durable — the batch pass after `stop()` recovers it.
       post({ type: "liveError", sessionId, message: errorMessage(error) });
+    }
+    // If more commits arrived while we were transcribing, re-queue. This keeps
+    // the queue bounded at one pending entry while ensuring no commit is lost.
+    // commitInFlight stays true so new commits continue to coalesce into
+    // pendingCommitSamples rather than starting a parallel transcribeAsCommit.
+    const next = liveSessions.get(sessionId);
+    if (!next) return;
+    if (next.pendingCommitSamples) {
+      const more = next.pendingCommitSamples;
+      next.pendingCommitSamples = null;
+      void transcribeAsCommit(sessionId, more, post);
+    } else {
+      next.commitInFlight = false;
     }
   });
 }
