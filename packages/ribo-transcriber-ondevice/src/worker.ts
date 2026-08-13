@@ -450,6 +450,7 @@ async function transcribeChunk(
   pipeline: AsrPipeline,
   samples: Float32Array,
   prefix: readonly number[],
+  tokenBudgetOverride?: number,
 ): Promise<string> {
   const features = await pipeline.processor(samples);
   // `?? null` rather than `||`: an empty tensor is still the model's input, and coercing it away here
@@ -480,7 +481,11 @@ async function transcribeChunk(
     // Whisper is excluded deliberately: its config bounds generation already, and 6 tokens/s would
     // truncate IT. `input_values` is the discriminator — Whisper's extractor emits `input_features`.
     ...(waveformInput
-      ? { max_new_tokens: Math.max(1, Math.floor(samples.length / WHISPER_SAMPLE_RATE) * 6) }
+      ? {
+          max_new_tokens:
+            tokenBudgetOverride ??
+            Math.max(1, Math.floor(samples.length / WHISPER_SAMPLE_RATE) * 6),
+        }
       : {}),
     ...(prefix.length > 0 ? { decoder_input_ids: [...prefix] } : {}),
   });
@@ -653,7 +658,43 @@ async function openLiveSession(
       // (`config.ts` / `moonshine-priming.manual.ts`), and live previews are provisional
       // anyway: the batch pass after `stop()` replaces them entirely.
       transcribe: (samples) =>
-        getPipeline(config).then((pipeline) => transcribeChunk(pipeline, samples, [])),
+        getPipeline(config).then(async (pipeline) => {
+          const text = await transcribeChunk(pipeline, samples, []);
+          // TEMP DIAGNOSTIC — DROP BEFORE MERGE. Three hypotheses for empty live output
+          // (silence ratio, amplitude, sample rate) were falsified by measurement. This
+          // discriminates the two remaining families: if the same buffer produces text with
+          // a large token budget, the fault is in how we call the model; if it stays empty,
+          // the fault is in the audio we hand it.
+          if (text.length === 0) {
+            // Trim to the energy-bounded speech span and retry. Batch never hands the model
+            // clock-bounded audio: `planVadChunks` produces chunks that BEGIN and END at
+            // speech, keeping internal pauses but excluding dead air at the edges. Live
+            // regions run from the last commit to now, so whatever silence sits at the edges
+            // goes to the model too. If trimming recovers the text, that is the fix.
+            const win = 320; // 20 ms at 16 kHz
+            const thresh = 0.02;
+            let lo = -1;
+            let hi = -1;
+            for (let i = 0; i + win <= samples.length; i += win) {
+              let sum = 0;
+              for (let j = i; j < i + win; j++) sum += samples[j]! * samples[j]!;
+              if (Math.sqrt(sum / win) > thresh) {
+                if (lo < 0) lo = i;
+                hi = i + win;
+              }
+            }
+            if (lo >= 0 && hi > lo) {
+              const trimmed = samples.slice(lo, hi);
+              const retry = await transcribeChunk(pipeline, trimmed, []);
+              console.log(
+                `@@LIVE@@ worker: EMPTY ${(samples.length / 16000).toFixed(1)}s -> trimmed ${(trimmed.length / 16000).toFixed(1)}s (cut ${((samples.length - trimmed.length) / 16000).toFixed(1)}s) -> ${JSON.stringify(retry)}`,
+              );
+            } else {
+              console.log(`@@LIVE@@ worker: EMPTY and no speech energy found above ${thresh}`);
+            }
+          }
+          return text;
+        }),
       refreshInFlight: false,
     });
     post({ type: "liveOpened", sessionId });
