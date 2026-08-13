@@ -37,7 +37,7 @@ export function RecordPanel() {
   // empty. A fresh browser profile has no orphans, so `[0]` happens to be right — which is why every
   // automated run of this passed.
   const recordingItem = recordingItems.at(-1);
-  const previewSegments = recordingItem?.preview?.segments;
+  const previewCommitted = recordingItem?.preview?.committed;
 
   const recording = phase === "recording";
   const paused = phase === "paused";
@@ -82,10 +82,10 @@ export function RecordPanel() {
 
       <LevelMeter level={level} scaledLevel={scaledLevel} active={recording} />
 
-      {recording && previewSegments && previewSegments.length > 0 && (
+      {recording && previewCommitted && previewCommitted.length > 0 && (
         <div data-testid="live-preview" style={{ marginTop: "0.75rem" }}>
           <div style={muted}>live preview (provisional — replaced by the final transcript):</div>
-          <p style={{ ...monospace, margin: "0.25rem 0 0" }}>{previewSegments.join(" ")}</p>
+          <p style={{ ...monospace, margin: "0.25rem 0 0" }}>{previewCommitted.join(" ")}</p>
         </div>
       )}
 

@@ -214,18 +214,32 @@ export const outboxDocumentSchema = z
      */
     capture: z.strictObject({ sourceId: z.string().min(1) }).optional(),
     /**
-     * Live-transcription preview: an append-only array of utterance texts that
-     * accumulates while `status === "recording"`, replaced wholesale when the
-     * batch transcript lands. No timings, no per-segment engine, no confidence —
-     * index positions are stable so a UI can render incrementally, and the joined
-     * form is `segments.join(" ")`. See
+     * Live-transcription preview: settled text plus the provisional tail of the
+     * region still being transcribed, accumulated while `status === "recording"`
+     * and deleted wholesale when the batch transcript lands. No timings, no
+     * per-segment engine, no confidence — `transcript.ts`'s warning that _"a
+     * shape nobody consumes is a shape nobody keeps honest"_ applies as much to
+     * this shape as the old one. See
      * `docs/roadmap/design/live-transcription-design.md` §Data model.
      *
-     * **Not patchable** — see {@link OutboxPatch}. Appended one segment at a time
-     * through `Outbox.appendPreviewSegment`, and deleted in the same `incrementalModify`
-     * that writes `transcript` (never via `patch`, which cannot remove a key).
+     * - `committed` — append-only region texts, permanent once written and never
+     *   revised. Index keys stay stable for incremental rendering; the joined
+     *   form is `committed.join(" ")`, exactly as `segments` used to.
+     * - `tail` — the current region's provisional text. **Replaced wholesale on
+     *   every refresh, never appended to.** On commit, the tail's final value
+     *   moves onto `committed` and the tail is cleared in one modification.
+     *
+     * The two fields must render differently: `committed` is settled, `tail` is
+     * text the system is still rewriting.
+     *
+     * **Not patchable** — see {@link OutboxPatch}. Written through
+     * `Outbox.writePreviewTail` and `Outbox.commitPreview`, and deleted in the
+     * same `incrementalModify` that writes `transcript` (never via `patch`,
+     * which cannot remove a key).
      */
-    preview: z.strictObject({ segments: z.array(z.string()) }).optional(),
+    preview: z
+      .strictObject({ committed: z.array(z.string()), tail: z.string().optional() })
+      .optional(),
   })
   .superRefine((doc, ctx) => {
     if (doc.status === "recording" && !doc.capture) {
@@ -306,11 +320,11 @@ export type OutboxItem = z.infer<typeof outboxItemSchema>;
  * NEVER change — it is set once by `beginRecording` and not patchable through
  * the ordinary public API.
  *
- * `preview` is absent because it is append-only through
- * `Outbox.appendPreviewSegment` and deleted only in the same `incrementalModify`
- * that writes `transcript`. Allowing a patch to overwrite it would bypass the
- * stale-reply guard inside the append modifier and let a half-applied state
- * reach subscribers.
+ * `preview` is absent because it is written only through
+ * `Outbox.writePreviewTail` / `Outbox.commitPreview` and deleted only in the
+ * same `incrementalModify` that writes `transcript`. Allowing a patch to
+ * overwrite it would bypass the stale-reply guard inside those modifiers and
+ * let a half-applied state reach subscribers.
  */
 export type OutboxPatch = Partial<
   Omit<

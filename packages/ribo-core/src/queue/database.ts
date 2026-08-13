@@ -34,9 +34,10 @@ export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
  *
  * v2 → v3 added `preview` (optional) — identity, for the same reason: an absent
  * optional field needs no transformation. `preview` is written only by
- * `Outbox.appendPreviewSegment` and deleted only by `Outbox.writeTranscript`,
- * so pre-v3 documents simply have no preview, which is the correct state for a
- * recording that was captured before live transcription existed.
+ * `Outbox.writePreviewTail` / `Outbox.commitPreview` and deleted only by
+ * `Outbox.writeTranscript`, so pre-v3 documents simply have no preview, which is
+ * the correct state for a recording that was captured before live transcription
+ * existed.
  *
  * Exported (rather than inlined into `addCollections`) so a test can exercise
  * the strategy function directly, independent of a real migration run.

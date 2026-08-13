@@ -291,10 +291,11 @@ test("the fields decided once stay decided — none of them is patchable", () =>
   const recording: OutboxPatch = { recording: undefined };
   // @ts-expect-error `enqueuedAt` is when it entered the queue, once.
   const enqueuedAt: OutboxPatch = { enqueuedAt: "2026-01-01T00:00:00.000Z" };
-  // @ts-expect-error `preview` is append-only through `appendPreviewSegment` and
-  // deleted only in the same modification that writes `transcript`. A patch could
-  // bypass the stale-reply guard and let a half-applied state reach subscribers.
-  const preview: OutboxPatch = { preview: { segments: ["overwritten"] } };
+  // @ts-expect-error `preview` is written only through `writePreviewTail` /
+  // `commitPreview` and deleted only in the same modification that writes
+  // `transcript`. A patch could bypass the stale-reply guard and let a
+  // half-applied state reach subscribers.
+  const preview: OutboxPatch = { preview: { committed: ["overwritten"], tail: "x" } };
 
   // The values are irrelevant — the directives above are the test. Referencing them keeps
   // the linter from removing what looks like dead code and taking the assertions with it.

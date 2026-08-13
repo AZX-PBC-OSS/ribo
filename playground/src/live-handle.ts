@@ -104,7 +104,7 @@ let errorSubscription: { unsubscribe: () => void } | undefined;
  * Open a live session and connect its segments to the outbox row.
  *
  * Called by the `captureSession` factory after `beginRecording` inserts the
- * row — `itemId` is the row preview segments are appended to. Best-effort:
+ * row — `itemId` is the row the preview is committed to. Best-effort:
  * if the live transcriber is unavailable, not ready, or `openSession` throws,
  * recording continues with no preview. The `onSamples` callback on the
  * `Recorder` forwards to {@link feedFrame}, which is a no-op when no session
@@ -123,9 +123,9 @@ export async function openLiveSession(
     currentSession = session;
     segmentSubscription = session.segments$.subscribe((text) => {
       console.log(`@@LIVE@@ host: segment received ${JSON.stringify(text)} -> item ${itemId}`);
-      void outbox.appendPreviewSegment(itemId, text).then(
-        () => console.log("@@LIVE@@ host: appendPreviewSegment OK"),
-        (e: unknown) => console.log("@@LIVE@@ host: appendPreviewSegment FAILED", e),
+      void outbox.commitPreview(itemId, text).then(
+        () => console.log("@@LIVE@@ host: commitPreview OK"),
+        (e: unknown) => console.log("@@LIVE@@ host: commitPreview FAILED", e),
       );
     });
     // Surface live errors to the console so a mid-session failure is visible, not silent.

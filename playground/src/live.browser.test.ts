@@ -27,7 +27,7 @@ import { setLiveTranscriber } from "./live-handle.js";
  * ~250 MB of model weights that no test should download. The fake's session
  * emits one segment so the preview wiring can be verified end to end: capture
  * session factory → `openLiveForCapture` → `segments$` subscription →
- * `outbox.appendPreviewSegment`.
+ * `outbox.commitPreview`.
  */
 
 /** Long enough for `openLiveForCapture` to subscribe before the emission. */
@@ -115,14 +115,14 @@ test("a preview segment appears during recording and is gone once the transcript
   // Wait for the preview segment to appear on the recording row. This is the
   // whole claim: `openLiveForCapture` (fire-and-forget from the capture session
   // factory) opened a session, subscribed to `segments$`, and the fake emitted
-  // a segment that landed on `outbox.appendPreviewSegment`. Delete the
+  // a segment that landed on `outbox.commitPreview`. Delete the
   // `openLiveForCapture` call or the `onSamples` wiring and this wait times out.
   const withPreview = await until(async () => {
     const [item] = await outbox.list({ status: ["recording"] });
-    if (item?.preview?.segments?.length) return item;
+    if (item?.preview?.committed?.length) return item;
     return undefined;
   }, "a preview segment");
-  expect(withPreview.preview!.segments).toContain("the attic is R-19");
+  expect(withPreview.preview!.committed).toContain("the attic is R-19");
 
   await recorder.stop();
 
