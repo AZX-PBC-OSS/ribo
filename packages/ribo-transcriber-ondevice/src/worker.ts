@@ -642,6 +642,45 @@ function concatSamples(a: Float32Array, b: Float32Array): Float32Array {
   return out;
 }
 
+/**
+ * Transcribe `samples` through `transcribe`, splitting into model-window-sized chunks first so no
+ * single call receives more than the model's receptive field.
+ *
+ * Reuses the batch path's `planFallbackChunks` — the same fixed-window march `transcribe` uses when
+ * VAD is unavailable. The live path's `session.transcribe` calls `transcribeChunk` directly (one
+ * inference pass over at most 30 s), which is correct for a single region but not for a **coalesced**
+ * commit buffer: `pendingCommitSamples` grows by unbounded concatenation, so on a slow device with
+ * sustained dictation three backed-up 30 s regions become a single 90 s call that exceeds the model's
+ * input window. Moonshine's reference caps at 30 s (`MAX_BUFFER_DURATION = 30`); behaviour beyond
+ * that is untested, and this model is already known to return empty text under conditions not fully
+ * understood.
+ *
+ * **The cap** is `WHISPER_WINDOW_SECONDS` (30 s) × `WHISPER_SAMPLE_RATE` (16 000) = 480 000 samples,
+ * matching `planFallbackChunks`'s window. When the coalesced buffer reaches the cap,
+ * `planFallbackChunks` splits it into overlapping windows (10 s overlap) and each is transcribed
+ * separately; the texts are joined with a space.
+ *
+ * **What the user sees:** all the text, as a single commit segment, with some duplicated words at
+ * chunk boundaries from the 10 s overlap. The duplication is the safe direction — a repeated phrase
+ * is harmless, a deleted one is not — and the live preview is provisional: the batch pass after
+ * `stop()` produces the final transcript without duplication. No audio's text is dropped.
+ *
+ * Not applied to the tail or close paths: those transcribe a single region bounded by
+ * `VAD_REGION_CAP_SECONDS` (30 s), so they never exceed the window.
+ */
+async function transcribeBounded(
+  transcribe: (samples: Float32Array) => Promise<string>,
+  samples: Float32Array,
+): Promise<string> {
+  const chunks = planFallbackChunks(samples.length, WHISPER_SAMPLE_RATE);
+  const texts: string[] = [];
+  for (const { start, end } of chunks) {
+    const text = await transcribe(samples.subarray(start, end));
+    if (text.length > 0) texts.push(text);
+  }
+  return texts.join(" ").trim();
+}
+
 /** Active live sessions, keyed by `sessionId`. */
 const liveSessions = new Map<string, LiveWorkerSession>();
 
@@ -985,7 +1024,7 @@ function transcribeAsCommit(
       session.pendingCommitSamples = null;
     }
     try {
-      const text = await session.transcribe(samples);
+      const text = await transcribeBounded(session.transcribe, samples);
       console.log(
         `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s rms=${rootMeanSquare(samples).toFixed(5)} peak=${samples.reduce((m, v) => Math.max(m, Math.abs(v)), 0).toFixed(4)} -> ${JSON.stringify(text)}`,
       );
