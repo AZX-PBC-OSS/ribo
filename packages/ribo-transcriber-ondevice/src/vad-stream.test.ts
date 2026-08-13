@@ -358,3 +358,102 @@ test("a short utterance is held and merged into the next, not emitted and not lo
   // And the second burst is there too — this is a merge, not a replacement.
   expect(samples).toContain(23);
 });
+
+// ── Flush: speech right up to close is not lost ──────────────────────────────────────────────────
+//
+// The VAD normally emits only when trailing silence closes a region. When the session closes
+// mid-speech — the auditor pressing stop mid-sentence — the buffer is still open and would be
+// dropped without a flush. Measured on the 54-second test fixture: the live path produced 85 words
+// covering the first 30 seconds and lost the remaining 24, because the VAD emitted once (hitting
+// the 30 s cap) and never closed again — continuous dictation never gave it 800 ms of silence.
+//
+// These tests pin their own thresholds through the constructor options, following the pattern of
+// the tests above and the comment explaining why: the frame sequences are literal, with silence
+// runs sized against the pinned `minSilenceMs`, so coupling them to the production constant would
+// turn them red on a tuning change that has nothing to do with the flush.
+
+test("a flush emits speech that never saw a closing silence", async () => {
+  // All speech, no silence — the VAD enters speech on frame 0 and never closes.
+  const speech = 0.9;
+  const pattern = Array.from({ length: 50 }, () => speech);
+  const vad = new StreamingVad(makeFixedPatternDetector(pattern), {
+    minSilenceMs: 400,
+    preSpeechPadMs: 80,
+    minUtteranceSeconds: 0,
+  });
+
+  const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
+  const during = await feedAll(vad, frames);
+
+  // No silence → no close → nothing emitted during feeding. This is the bug condition: the
+  // buffer is open and would be dropped without the flush.
+  expect(during).toHaveLength(0);
+
+  // Flush — the buffered speech must come out as one utterance.
+  const flushed = await vad.flush();
+  expect(flushed).toHaveLength(1);
+
+  // The utterance contains the audio that was fed. Frame 0 is the detection frame (the FIFO
+  // is empty at the start), so it must be present — proving the buffer was kept, not discarded.
+  const samples = Array.from(flushed[0]!.samples);
+  expect(samples).toContain(0);
+  // And a later frame — proving the whole buffer was flushed, not just the first frame.
+  expect(samples).toContain(49);
+});
+
+test("a flush emits a buffer held back by the minimum-utterance rule", async () => {
+  // A short speech burst that closes below the 1-second minimum. The close holds the buffer
+  // (it was real speech, just too short) rather than discarding it — waiting for the next
+  // region to merge into. On flush there is no next region: the held buffer must be emitted
+  // rather than lost. This is transcribe-it-or-lose-it, and the task chose transcribe.
+  const speech = 0.9;
+  const quiet = 0.0;
+  const pattern = [
+    ...Array<number>(10).fill(speech), // short burst (~0.32 s)
+    ...Array<number>(13).fill(quiet), // closes (13 × 32 ms > 400 ms), but held (< 1 s)
+  ];
+  const vad = new StreamingVad(makeFixedPatternDetector(pattern), {
+    minSilenceMs: 400,
+    preSpeechPadMs: 80,
+    minUtteranceSeconds: 1,
+  });
+
+  const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
+  const during = await feedAll(vad, frames);
+
+  // The close was held back — nothing emitted during feeding.
+  expect(during).toHaveLength(0);
+
+  // Flush — the held buffer must come out. Without the flush it would be silently dropped
+  // when the session goes away.
+  const flushed = await vad.flush();
+  expect(flushed).toHaveLength(1);
+
+  // The held audio is in it. Frame 0 is in the first burst; if the held buffer had been
+  // discarded instead of flushed, that speech would be gone and this fails.
+  const samples = Array.from(flushed[0]!.samples);
+  expect(samples).toContain(0);
+});
+
+test("a flush does not emit noise — the min-speech filter still applies", async () => {
+  // 3 speech frames (~96 ms) with no closing silence — the VAD is still in speech, but the
+  // region never accumulated enough speech frames to clear the 250 ms min-speech noise filter
+  // (ceil(250 / 32) = 8 frames). A cough is not worth transcribing just because the session
+  // ended. The noise filter threshold (`VAD_MIN_SPEECH_MS`) is not injectable through the
+  // constructor — it is a product constant, not a tuning parameter — so this test uses the
+  // production value, which is fine because it is not the thing being tested for tunability.
+  const speech = 0.9;
+  const pattern = Array.from({ length: 3 }, () => speech);
+  const vad = new StreamingVad(makeFixedPatternDetector(pattern), {
+    minSilenceMs: 400,
+    preSpeechPadMs: 80,
+    minUtteranceSeconds: 0,
+  });
+
+  const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
+  await feedAll(vad, frames);
+
+  // Flush — the buffer is below the min-speech filter, so it is discarded, not emitted.
+  const flushed = await vad.flush();
+  expect(flushed).toHaveLength(0);
+});

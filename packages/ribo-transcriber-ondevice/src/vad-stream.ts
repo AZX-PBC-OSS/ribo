@@ -257,6 +257,38 @@ export class StreamingVad {
   }
 
   /**
+   * Flush any buffered speech as a single utterance — the close-time safety net.
+   *
+   * The VAD normally emits only when trailing silence closes a region. When the session closes
+   * mid-speech — the auditor pressing stop mid-sentence — the buffer is still open and would be
+   * **dropped** without this. Measured on the 54-second test fixture: the live path produced 85
+   * words covering the first 30 seconds and lost the remaining 24, because the VAD emitted once
+   * (hitting the 30 s cap) and never closed again — continuous dictation never gave it 800 ms of
+   * silence. Someone speaking right up to the moment they press stop loses their last sentence.
+   * See `docs/roadmap/design/live-transcription-design.md` for the measurement.
+   *
+   * Two buffers may hold audio, and **both must be emitted**:
+   *   - the in-speech buffer (`#speechFrames` while `#inSpeech` is true) — a region that never saw
+   *     a closing silence,
+   *   - the held-short buffer (`#speechFrames` while `#holdingShort` is true) — a close below the
+   *     minimum-utterance threshold kept it for the next region to merge into, but on flush there
+   *     is no next region.
+   * They are mutually exclusive: `#holdingShort` is cleared when a new region opens, and set only
+   * when a close leaves `#inSpeech` false. So there is at most one buffer to emit, as one utterance.
+   *
+   * Serializes through the same chain as `feed` so a flush cannot race an in-flight feed for the
+   * buffer state — a frame posted just before close may still be processing when `flush` is called.
+   */
+  flush(): Promise<readonly Utterance[]> {
+    const next = this.#chain.then(() => this.#flushBuffer());
+    this.#chain = next.then(
+      () => [],
+      () => [],
+    );
+    return next;
+  }
+
+  /**
    * The frame loop itself. Separated from {@link feed} so the serialization wrapper is testable
    * as a plain method — the tests call this directly against a fake detector.
    */
@@ -331,6 +363,53 @@ export class StreamingVad {
       this.#speechFrameCount++;
     }
 
+    return utterances;
+  }
+
+  /**
+   * The flush itself — synchronous because no detector call is needed, just buffer drainage.
+   * Separated from {@link flush} so the serialization wrapper mirrors `feed`'s shape.
+   *
+   * Two design decisions, both stated because each could reasonably have gone the other way:
+   *
+   * **The min-speech noise filter still applies.** A cough is not worth transcribing just because
+   * the session ended — `MIN_SPEECH_FRAMES` exists because fragments that short transcribe badly or
+   * come back empty, and that is equally true on a flush. When `#holdingShort` is true the buffer
+   * already passed this filter (that is WHY it was held rather than discarded at the close), and
+   * `#speechFrameCount` was reset to 0 at that close — so the check below only guards the in-speech
+   * case (a region that never saw enough silence to close at all).
+   *
+   * **The minimum-utterance rule does NOT apply.** On flush there is no "next utterance" to merge
+   * into, so a short buffer is transcribe-it-or-lose-it. Losing the auditor's last sentence is
+   * worse than a fragmentary transcription of it — the batch pass after `stop()` replaces the
+   * preview entirely, so a bad flush does no lasting harm, but a dropped one is gone until that
+   * batch pass completes (and the auditor reads the preview while recording, so the gap is visible
+   * too). The held-short buffer specifically was held BECAUSE it was real speech; flushing it as
+   * noise would discard exactly the audio the hold was designed to protect.
+   */
+  #flushBuffer(): readonly Utterance[] {
+    // Nothing buffered — never entered speech, or the last close already emitted and cleared.
+    if (this.#speechFrames.length === 0) return [];
+
+    // Noise filter: a region still in speech that never accumulated enough speech frames is a
+    // cough, not a sentence. Discard it — see the method header for why this applies on flush too.
+    if (this.#inSpeech && this.#speechFrameCount < MIN_SPEECH_FRAMES) {
+      this.#speechFrames = [];
+      this.#inSpeech = false;
+      this.#silenceFrameCount = 0;
+      this.#speechFrameCount = 0;
+      return [];
+    }
+
+    // Emit whatever is buffered — the in-speech buffer, the held-short buffer, or both (they are
+    // mutually exclusive, so this is at most one utterance). The minimum-utterance rule is
+    // deliberately NOT applied here: see the method header.
+    const utterances: Utterance[] = [{ samples: concatenateFrames(this.#speechFrames) }];
+    this.#speechFrames = [];
+    this.#inSpeech = false;
+    this.#silenceFrameCount = 0;
+    this.#speechFrameCount = 0;
+    this.#holdingShort = false;
     return utterances;
   }
 }
