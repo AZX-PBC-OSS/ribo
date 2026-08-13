@@ -1,211 +1,170 @@
-# Live Transcription Implementation Plan
+# Live transcription — implementation plan (revision 7)
 
-> **Executing this:** one task at a time, in order, each ending with its own test cycle and its own
-> review. Steps use checkbox (`- [ ]`) syntax so progress is trackable. Every task's final step runs a
-> mutation and reports what it saw — a test nobody has watched fail is not a gate.
+**Authority:** `live-transcription-design.md`, revision 7. Read §The frame loop, §Data model,
+§Failure handling and §Worker contention before starting any task.
 
-> **Status of this document.** Decomposition, interfaces, gates and the must-fail tests are complete,
-> and they are the whole of what a plan here carries: no implementation code, by standing preference.
-> An implementer writes the code from the intent and the tests.
+**Supersedes** the previous five-task plan, which is complete and merged on `feat/live-transcription`.
+That work built live transcription around VAD-detected utterances. Revision 7 replaces that model
+after field testing showed the VAD discards audio it does not classify as speech — on the worst
+measured emission, 28 % of the buffer was speech and the model received four words where the batch
+pass produced thirteen. This plan implements the replacement.
 
-**Goal:** An auditor sees their words appear about a second after they pause, while still in the room,
-so a misheard reading is corrected on the spot rather than discovered at review.
+## Goal
 
-**Architecture:** One `getUserMedia` stream feeds both `MediaRecorder` (durable chunks, piece 1,
-unchanged) and an `AudioWorklet` emitting 512-sample frames. In the worker, Silero VAD runs per frame
-carrying its own recurrent state tensor; 400 ms of trailing silence closes an utterance, which goes to
-Moonshine and lands on `item.preview.segments[]`. `Outbox.watch()` already delivers that to the UI, so
-no new subscription mechanism exists. At `stop()` the batch path re-transcribes the whole recording and
-replaces the preview.
+The live path transcribes **raw, contiguous, unfiltered audio**. The VAD decides only _when_ to
+transcribe and where a commit boundary falls. Nothing the microphone captures is discarded before
+transcription.
 
-**Tech Stack:** TypeScript 6.0.3 (ESM-only), RxDB 17.4.0, zod 4, Vitest 4 (`unit` = node, `browser` =
-real Chromium), React 19, `@huggingface/transformers` 4.2.0.
+## Global constraints
 
-**Design:** [`live-transcription-design.md`](live-transcription-design.md) — revision 6. Read it
-before Task 1. Where this plan and the design disagree, the design wins and the plan is wrong.
+Every task inherits these.
 
-## Global Constraints
+- ESM-only; `.js` extensions on relative TypeScript imports; `import type` for type-only imports
+  (lint-enforced).
+- `pnpm typecheck`, `pnpm lint`, `pnpm format:check` must pass. Run `./check.sh` before the final
+  commit of each task.
+- `./check.sh`'s test stage has one **known pre-existing failure**: `live.browser.test.ts` fails when
+  the `unit` and `browser` projects run together, from a test-isolation problem with the playground's
+  shared singletons. It is not yours. Do not fix it; do not let it block a commit.
+- Comments explain **why**, not what. Match the surrounding density. A comment that describes
+  behaviour the code no longer has is a defect — three separate bugs survived review in this feature
+  behind comments that had gone stale.
+- No new dependencies.
+- **Live must never affect recording.** A live failure degrades the preview and nothing else.
+- Commit in small pieces as you go. A run that leaves everything uncommitted produced nothing, and an
+  earlier task in this feature died with an empty worktree after hitting the model's output cap.
+- Each task adds a changeset.
+- The branch carries a commit marked `TEMP: @@LIVE@@ instrumentation — DROP BEFORE MERGE`. Leave it
+  alone. Do not build on its console logging and do not remove it.
 
-- **ESM only.** Relative imports carry a `.js` extension though the source is `.ts`.
-- **`import type`** for type-only imports — lint-enforced.
-- **Comments explain WHY, not what.** Match the surrounding density.
-- **`ribo-core` must not depend on any engine package.** The live seam is defined in core; the ondevice
-  package implements it. This is the same direction as `Transcriber`.
-- **Live must never degrade recording.** Every failure path ends with capture continuing. A preview is
-  a nicety; the audio is the product.
-- **No back-compat burden.** No users; breaking changes and schema changes are free.
-- **Every test must be able to fail.** Break the implementation, confirm _that_ test goes red, report
-  which mutations ran. Print whether the mutation applied before trusting a green result — a
-  non-matching edit produces output identical to a passing test.
-- **Gates:** `pnpm typecheck`, `pnpm lint`, `pnpm format:check` after every task; `./check.sh` before
-  the final commit.
-- **Do not re-derive the reference constants.** They are adopted from
-  `transformers.js-examples/moonshine-web` deliberately: 512-sample frames, enter 0.3 / exit 0.1,
-  400 ms min-silence, 80 ms pre-speech pad, 250 ms min-speech, 30 s buffer cap.
+## Task 1 — The region buffer replaces utterance segmentation
 
-## File Structure
+**Files:** `packages/ribo-transcriber-ondevice/src/vad-stream.ts` and its tests.
 
-**Created:**
+**Intent.** `StreamingVad` currently retains only frames it classifies as speech and emits closed
+utterances. Replace that with a component that appends **every** frame to a contiguous region buffer
+and uses Silero's probability solely for timing. It reports two things to its caller: that a **pause**
+has occurred, meaning the region should be re-transcribed, and that a **commit boundary** has been
+reached — a pause long enough to be a natural break, or the region cap — meaning the current text
+becomes permanent and the buffer advances past the committed audio.
 
-| File                                                   | Responsibility                                    |
-| ------------------------------------------------------ | ------------------------------------------------- |
-| `packages/ribo-core/src/live.ts`                       | `LiveTranscriber` / `LiveSession` seam types      |
-| `packages/ribo-core/src/queue/preview.ts`              | append a segment; delete on transcript handoff    |
-| `packages/ribo-transcriber-ondevice/src/vad-stream.ts` | Silero frame loop, state carried, utterance close |
-| `packages/ribo-transcriber-ondevice/src/live.ts`       | `LiveTranscriber` impl over the worker            |
-| `packages/ribo-core/src/worklet.ts`                    | `AudioWorklet` regrouping render quanta into 512  |
-| `playground/src/live-handle.ts`                        | host-owned `LiveTranscriber` singleton            |
+The hysteresis thresholds and the recurrent-state handling carry over unchanged; the streaming state
+is not the thing being replaced.
 
-**Modified:**
+**Delete:** the minimum-utterance hold, `flush()`'s role as a rescue for discarded audio, and the
+min-speech filter as an emission gate. The 250 ms filter survives only to suppress transcribing a
+region containing no speech at all, and it must never remove audio from a region.
 
-| File                                        | Change                                        |
-| ------------------------------------------- | --------------------------------------------- |
-| `queue/schema.ts`                           | `preview` field, and its `OutboxPatch` `Omit` |
-| `queue/outbox.ts`                           | append-segment and the transcript handoff     |
-| `queue/relay.ts`                            | do not admit new items while anything records |
-| `core/src/recorder.ts`                      | optional `onSamples` tap                      |
-| `ondevice/worker.ts`, `protocol.ts`         | the live conversation                         |
-| `ondevice/config.ts`                        | Silero id, `liveCapability()`                 |
-| `ui-react/src/use-recorder.ts`              | open and close the live session               |
-| `playground/src/App.tsx`, `RecordPanel.tsx` | render the preview                            |
+**Interfaces.** Decide the shape and state it in the task report, because Task 2 consumes it. It needs
+to expose, per fed frame, whether a refresh is due and whether a commit boundary was reached, plus
+access to the region's samples and a way to advance past committed audio. Keep the frame-feeding call
+synchronous-friendly in the same way it is today — it is driven from an audio callback.
 
----
+**Must-fail tests.**
 
-## Task 1: `preview` on the schema, and the handoff
+- **No audio is ever dropped.** Feed a probability pattern that dips below the exit threshold
+  repeatedly mid-region — the stuttering-delivery case — and assert the region's samples contain
+  every frame fed, including the low-probability ones. Reinstating speech-only retention must turn
+  this red. This is the test the whole revision exists for.
+- **A pause triggers a refresh without advancing the buffer.** After a refresh point, the region still
+  contains the audio from before it.
+- **A commit boundary advances the buffer** past exactly the committed audio, and the next region
+  begins where the previous one ended, with no gap and no overlap.
+- **The region cap forces a commit** when no qualifying pause arrives.
 
-**Files:** `queue/schema.ts`, `queue/preview.ts` (new), `queue/outbox.ts`, `queue/schema.test.ts`
+Existing tests pin their own thresholds through constructor options rather than the production
+constants; follow that pattern and read the comment explaining why.
 
-**Produces:** `preview?: { segments: string[] }` on `OutboxItem`; `Outbox.appendPreviewSegment(id, text)`;
-transcript-write deletes `preview` in the same modification.
+## Task 2 — The worker transcribes regions and distinguishes tail from commit
 
-**No `sessionId` parameter**, deliberately — an earlier draft of this line had one. The outbox stores
-no session token and so cannot validate one; discarding replies from a closed session is the session's
-own job (Task 3). The outbox's half of that guard is the status/transcript refusal below.
+**Files:** `packages/ribo-transcriber-ondevice/src/worker.ts`, `protocol.ts`, and their tests.
+**Depends on Task 1.**
 
-Three requirements, each of which has already been got wrong once in this codebase:
+**Intent.** On a refresh, transcribe the whole region buffer and post the text as a **provisional
+tail**. On a commit boundary, post the text as **committed** and advance the buffer. The worker
+protocol currently has a single `liveSegment` message that means "append this"; it must distinguish
+the two, because the host renders and stores them differently.
 
-- **`incrementalModify` + `delete`, not `patch`.** `Outbox.patch` is an `incrementalPatch`, and setting
-  an optional property to `undefined` does not delete the persisted key.
-- **The append modifier rejects when `status !== "recording"` or `transcript` exists.** A live reply
-  in flight when the transcript lands must not resurrect the preview.
-- **`preview` is not patchable** — add it to `OutboxPatch`'s `Omit` list and to the type-level guard in
-  `schema.test.ts`. Removing a field from that `Omit` currently breaks nothing without the guard.
+The existing error boundaries stay as they are: a VAD failure is session-fatal, a transcription
+failure skips that refresh, surfaces, and leaves the session alive. Do not re-litigate that split.
 
-**Must be able to fail:**
+**Load shedding.** If a refresh is requested while one is in flight, **skip it** — do not queue.
+Dropping a refresh costs an intermediate rendering of provisional text; the buffer is untouched and
+the next refresh sees everything. Never let backpressure touch the region buffer.
 
-- A stale live reply after the transcript is written does not restore `preview`. The naive "never both
-  populated" assertion passes without the guard and misses the race entirely.
-- Deleting `preview` and writing `transcript` is **one** revision — a subscriber never observes both or
-  neither. Assert on the emission count, not the final state.
+**Must-fail tests.**
 
----
+- A refresh posts a tail message, not a committed one; a commit posts a committed one.
+- A refresh requested during an in-flight refresh is skipped, and the following refresh still
+  transcribes the full region including the audio that arrived during the skip.
+- A transcription failure on one refresh leaves the session alive and a later refresh still produces
+  text.
 
-## Task 2: Silero streaming VAD in the worker
+## Task 3 — `preview` becomes committed plus tail
 
-**Files:** `ondevice/vad-stream.ts` (new), `ondevice/config.ts`, `ondevice/vad-stream.test.ts`
+**Files:** `packages/ribo-core/src/queue/schema.ts`, `preview.ts`, `outbox.ts`, and their tests.
+**Independent of Tasks 1 and 2 — may run in parallel.**
 
-Load `onnx-community/silero-vad` via `AutoModel.from_pretrained(..., { config: { model_type:
-"custom" } })` — it goes through the transformers.js we already pin, not raw ORT. Per 512-sample frame:
-run the model, **keep the `stateN` tensor it returns and feed it back**, apply 0.3/0.1 hysteresis,
-accumulate while in speech, close after 400 ms of silence, prepend the 80 ms pre-speech FIFO.
+**Intent.** Replace `preview: { segments: string[] }` with `preview: { committed: string[], tail?:
+string }`. `committed` is append-only and never revised. `tail` is replaced wholesale on every write
+and is never appended to. On commit, the tail's final value moves onto `committed` and the tail is
+cleared.
 
-`pyannote-segmentation-3.0` stays for the batch path — do not remove it. Its 10-second windows are
-fine when nothing is waiting.
+There are no users and no migration to write; the field does not outlive a recording, since it is
+deleted in the same modification that writes `transcript`.
 
-**Must be able to fail:**
+**Preserve** the existing guarantees around the field: writes are refused once the row leaves
+`recording` or once `transcript` exists, and the handoff deletes `preview` and writes `transcript` in
+a single modification so no subscriber observes half of it. Read the existing tests for both before
+changing anything — they encode races that were expensive to find.
 
-- **The returned state is carried into the next frame.** Feeding the initial zero state every time
-  still broadly detects speech on clean audio, which is exactly why this needs asserting explicitly:
-  the bug is silent and shows up as clipped onsets in noise. Assert the tensor fed to call N+1 is the
-  one returned by call N.
-- **A region opening includes the pre-speech FIFO.** Without it the frame that _detected_ speech is the
-  first transcribed and the consonant before it is gone.
-- **A silence shorter than 400 ms spanning two feeds does not split an utterance.**
+**Must-fail tests.**
 
----
+- A tail write replaces the previous tail rather than appending.
+- A commit appends to `committed` and clears the tail, in one modification.
+- Writes are still refused after the row leaves `recording`, and after `transcript` lands.
+- The handoff still deletes `preview` atomically with the `transcript` write.
 
-## Task 3: The live seam, and the worker conversation
+## Task 4 — The seam carries the distinction to hosts
 
-**Files:** `core/src/live.ts` (new), `ondevice/src/live.ts` (new), `ondevice/protocol.ts`,
-`ondevice/worker.ts`, `core/src/index.ts`
+**Files:** `packages/ribo-core/src/live.ts` (the `LiveSession` type),
+`packages/ribo-transcriber-ondevice/src/live.ts`, and their tests. **Depends on Task 2.**
 
-**Consumes:** Task 3's frame loop. **Produces:**
+**Intent.** `segments$` currently emits strings that mean "append this". Hosts now need to tell a
+provisional tail from a commit. Choose the shape — two observables, or one carrying a discriminated
+value — and justify the choice in a comment against how `use-recorder` and the playground consume it.
 
-`LiveSession` — returned by `openSession`:
+`errors$` stays as it is. The `#closed` behaviour stays as it is: segments arriving after `close()`
+must still reach the subscriber.
 
-| member      | signature                       | note                                             |
-| ----------- | ------------------------------- | ------------------------------------------------ |
-| `feed`      | `(frame: Float32Array) => void` | synchronous; must return before inference        |
-| `close`     | `() => void`                    |                                                  |
-| `segments$` | `Observable<string>` (readonly) | one emission per closed utterance                |
-| `sessionId` | `string` (readonly)             | stamps replies so a closed session's are dropped |
+**Must-fail tests.** A tail and a commit are distinguishable by the subscriber; a late arrival after
+`close()` still reaches it.
 
-`LiveTranscriber` — the seam an engine implements:
+## Task 5 — Rendering, and proving it is switched on
 
-| member           | signature                                        |
-| ---------------- | ------------------------------------------------ |
-| `liveCapability` | `() => Promise<TranscriberCapability>`           |
-| `openSession`    | `(recording: Recording) => Promise<LiveSession>` |
+**Files:** `packages/ribo-ui-react/src/use-recorder.ts`, `playground/src/live-handle.ts`,
+`playground/src/RecordPanel.tsx`, and their tests. **Depends on Tasks 3 and 4.**
 
-`liveCapability()` is separate from `capability()` because live additionally needs Silero — "ASR
-cached, VAD missing" is a real state. Revision 6 notes the justification is now the VAD, not the model,
-since both paths share weights.
+**Intent.** Route tails and commits to the right outbox writes, and render committed text and the
+provisional tail **visually distinctly**. Settled text and text that is still rewriting itself must
+not look identical — the design calls this out, and a reader who cannot tell them apart experiences
+churn as the system changing its mind.
 
-**Not composed through `firstCapable`** — it takes `Transcriber[]` and widening it would drag a live
-concern into every batch roster. The orchestrator takes an optional `LiveTranscriber` directly.
+**Must-fail test.** A browser test over the **playground's own module singletons**, not a hand-built
+provider, asserting that a tail appears during recording, that a commit moves it into committed text,
+and that `preview` is gone once `transcript` lands. Deleting the live wiring from the playground
+handle must turn this red. `playground/src/durable-capture.browser.test.ts` is the precedent — read it
+first and follow its shape.
 
-Serialise VAD and ASR through one promise chain: transformers.js does not support simultaneous
-inference in a worker.
+This task exists because durable capture shipped exported, tested and switched off, and the same hole
+hid four live bugs behind a green suite.
 
-**Must be able to fail:** `feed()` returns before inference completes (assert synchronously, or a slow
-model blocks the audio thread); a closed session's late reply is discarded by `sessionId`.
+## Non-goals for every task
 
----
-
-## Task 4: The `AudioWorklet` tap
-
-**Files:** `core/src/worklet.ts` (new), `core/src/recorder.ts`, `recorder.browser.test.ts`
-
-`Recorder` gains optional `onSamples`. One `getUserMedia` stream feeds both `MediaRecorder` and the
-worklet; the worklet regroups the browser's 128-sample render quanta into 512-sample frames. Without
-the callback, behaviour is identical to today.
-
-**Must be able to fail:** frames arrive at exactly 512 samples regardless of render quantum; the
-worklet is torn down on `stop()` **and** on `abort()` (a live worklet on a dead stream is a leak the
-existing teardown test will not notice); a worklet failure does not stop capture.
-
----
-
-## Task 5: React and playground wiring — **turn it on**
-
-**Files:** `ui-react/src/use-recorder.ts`, `playground/src/live-handle.ts` (new), `App.tsx`,
-`RecordPanel.tsx`, `playground/src/live.browser.test.ts` (new)
-
-Durable capture shipped exported, tested, and **off**, because every core test supplied its own
-factory and no host ever did. Do not repeat it: this task ends with the playground rendering live text
-and a browser test driving the playground's **own module singletons**.
-
-- [ ] `RecordPanel` renders `preview.segments` while recording.
-- [ ] The relay does not admit new items while anything is `recording`; an in-flight item finishes and
-      utterances **buffer** rather than drop for that bounded wait.
-- [ ] A browser test over the real handles asserts a segment appears during recording and that
-      `preview` is gone once `transcript` lands.
-
-**Must be able to fail:** deleting the live wiring from the playground handle turns the new browser
-test red, and nothing else in the repo notices.
-
----
-
-## Self-review notes
-
-- **Peak memory is a known risk, not a gate.** The Moonshine swap roughly doubled peak RSS
-  (3494 → 6644 MB, desktop, 54-second inputs), and live runs inference alongside an open microphone
-  and `MediaRecorder`. The design's §Memory records it and names moonshine-tiny as the lever. This
-  plan proceeds without measuring it first — a deliberate call, so that a wall shows up as rework
-  rather than as a stalled plan.
-- **Not in scope:** live extraction (deferred; needs R3 routing), word-level streaming (needs Moonshine
-  v2, absent from the pinned runtime), and removing the batch VAD layer (retracted in revision 5 —
-  Moonshine's own reference caps input at 30 s).
-- **Known-stale before this ships:** `docs/implementation/14` still documents Whisper-hinted figures,
-  and `score-partb.mjs` reads a clean-text baseline the corpus v2 reconciliation replaced. Neither
-  blocks this plan; both should be fixed before its numbers are quoted anywhere.
+- No live **extraction** — text only.
+- Do not make the preview authoritative; the batch pass still replaces it.
+- Do not change the batch path, the recorder, the worklet, or the capture lock.
+- Do not adopt `@moonshine-ai/moonshine-wasm`, and do not revisit LocalAgreement — see
+  `live-localagreement-spike.md`.
+- Do not tune the region cap or refresh cadence beyond what the design states. Both are listed as open
+  questions and want measurement on real speech, not a guess in an implementation task.
