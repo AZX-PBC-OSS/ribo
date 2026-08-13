@@ -43,11 +43,12 @@ test("the RxDB required list is exactly zod's non-optional fields", () => {
   expect(required).toEqual(zodKeys.filter((key) => !optionalKeys.includes(key)));
 });
 
-test("the optional fields are the step outputs, the error message, and capture", () => {
+test("the optional fields are the step outputs, the error message, capture, and preview", () => {
   expect(optionalKeys).toEqual([
     "capture",
     "extracted",
     "lastError",
+    "preview",
     "reviewOutcome",
     "transcript",
     "writeResult",
@@ -191,8 +192,8 @@ test("a document carries an optional review outcome", () => {
   expect(reviewed.reviewOutcome).toEqual({ status: "accepted", fields: { atticRValue: 19 } });
 });
 
-test("the RxDB schema is at version 2", () => {
-  expect(outboxRxSchema.version).toBe(2);
+test("the RxDB schema is at version 3", () => {
+  expect(outboxRxSchema.version).toBe(3);
 });
 
 /** A minimal document that parses, for the negative cases to mutate. */
@@ -290,8 +291,13 @@ test("the fields decided once stay decided — none of them is patchable", () =>
   const recording: OutboxPatch = { recording: undefined };
   // @ts-expect-error `enqueuedAt` is when it entered the queue, once.
   const enqueuedAt: OutboxPatch = { enqueuedAt: "2026-01-01T00:00:00.000Z" };
+  // @ts-expect-error `preview` is written only through `writePreviewTail` /
+  // `commitPreview` and deleted only in the same modification that writes
+  // `transcript`. A patch could bypass the stale-reply guard and let a
+  // half-applied state reach subscribers.
+  const preview: OutboxPatch = { preview: { committed: ["overwritten"], tail: "x" } };
 
   // The values are irrelevant — the directives above are the test. Referencing them keeps
   // the linter from removing what looks like dead code and taking the assertions with it.
-  expect([capture, id, seq, key, recording, enqueuedAt]).toHaveLength(6);
+  expect([capture, id, seq, key, recording, enqueuedAt, preview]).toHaveLength(7);
 });

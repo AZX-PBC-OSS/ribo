@@ -8,6 +8,7 @@ import { ConnectivityPanel } from "./ConnectivityPanel.js";
 import { getConnectivity } from "./connectivity-store.js";
 import { EvictionNotice } from "./EvictionNotice.js";
 import { messageOf } from "./format.js";
+import { getLiveTranscriber } from "./live-handle.js";
 import { getOutbox } from "./outbox-handle.js";
 import { QueuePanel } from "./QueuePanel.js";
 import { getRecorder } from "./recorder-handle.js";
@@ -67,6 +68,7 @@ export function App() {
         outbox: outbox.kind === "ready" ? outbox.outbox : undefined,
         connectivity: getConnectivity(),
         captureCoordinator: getCaptureCoordinator(),
+        liveTranscriber: getLiveTranscriber(),
       }}
     >
       <main style={page}>

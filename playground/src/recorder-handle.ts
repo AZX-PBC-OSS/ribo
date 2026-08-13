@@ -1,6 +1,82 @@
 import { openCaptureSession, Recorder } from "@azx/ribo-core";
+import type { SampleTapOptions, SampleTapTeardown } from "@azx/ribo-core";
 
+import workletUrl from "./pcm-worklet.ts?worker&url";
+
+import { closeLiveSession, feedFrame, openLiveForCapture } from "./live-handle.js";
 import { getOutbox } from "./outbox-handle.js";
+
+/**
+ * The sample rate the live path operates at — Silero VAD's frame rate. The
+ * `AudioContext` is constructed at this rate so the browser resamples the
+ * `MediaStream` to 16 kHz before the worklet sees it.
+ */
+const LIVE_SAMPLE_RATE = 16000;
+
+/** Matches the name in `@azx/ribo-core`'s `worklet.ts` `registerProcessor` call. */
+const PCM_PROCESSOR_NAME = "pcm-frame-processor";
+
+/**
+ * Playground-owned sample tap: loads the `AudioWorklet` from
+ * `./pcm-worklet.ts` (which re-exports `@azx/ribo-core/worklet`) and wires it
+ * to `onSamples`.
+ *
+ * This mirrors `whisper-store.ts`'s `createWorker` injection for the same
+ * reason (AGENTS.md §5.2): the default `createSampleTap` in `ribo-core`'s
+ * `Recorder` uses `new URL("./worklet.js", import.meta.url)`, which under the
+ * `@azx/source` condition resolves to `src/worklet.js` — a file that does not
+ * exist because the source is TypeScript. The failure is swallowed, so
+ * recording works and frames silently never arrive. Loading from a
+ * playground-owned `.ts` file lets Vite transform and serve it in dev mode and
+ * emit it as a separate asset in production.
+ *
+ * The teardown also closes the live session — a worklet left on a dead stream
+ * is a leak, and the live session must close when recording stops.
+ */
+const createSampleTap = async ({
+  stream,
+  onSamples,
+}: SampleTapOptions): Promise<SampleTapTeardown> => {
+  const audioContext = new AudioContext({ sampleRate: LIVE_SAMPLE_RATE });
+  try {
+    // `?worker&url`, NOT `new URL("./pcm-worklet.ts", import.meta.url)`.
+    //
+    // Vite special-cases `new Worker(new URL(…))` and compiles the target; a bare `new URL` to a
+    // `.ts` file is not that pattern, so nothing was emitted and the href pointed at a file the build
+    // never produced. `addModule` rejected, the recorder's fire-and-forget `.catch` swallowed it, and
+    // the result was a perfect recording whose preview never appeared with no error anywhere —
+    // confirmed by instrumenting: the live session opened, then received exactly zero frames.
+    //
+    // `?worker&url` compiles the module and hands back the built asset's URL, which is the documented
+    // way to load a worklet under Vite.
+    await audioContext.audioWorklet.addModule(workletUrl);
+  } catch (error) {
+    void audioContext.close().catch(() => undefined);
+    throw error;
+  }
+  let node: AudioWorkletNode;
+  try {
+    node = new AudioWorkletNode(audioContext, PCM_PROCESSOR_NAME);
+  } catch (error) {
+    void audioContext.close().catch(() => undefined);
+    throw error;
+  }
+  void audioContext.resume().catch(() => undefined);
+  node.port.onmessage = (event) => {
+    try {
+      onSamples(event.data as Float32Array);
+    } catch {
+      /* the caller's callback is the caller's problem; capture is not */
+    }
+  };
+  audioContext.createMediaStreamSource(stream).connect(node);
+  return () => {
+    node.port.close();
+    node.disconnect();
+    void audioContext.close().catch(() => undefined);
+    closeLiveSession();
+  };
+};
 
 /**
  * @file One {@link Recorder} per page load, shared by every component.
@@ -49,8 +125,21 @@ let handle: Recorder | undefined = hotData?.recorder;
  */
 export function getRecorder(): Recorder {
   handle ??= new Recorder({
-    captureSession: async ({ recording, sourceId, mimeType }) =>
-      await openCaptureSession({ outbox: await getOutbox(), recording, sourceId, mimeType }),
+    captureSession: async ({ recording, sourceId, mimeType }) => {
+      const session = await openCaptureSession({
+        outbox: await getOutbox(),
+        recording,
+        sourceId,
+        mimeType,
+      });
+      // Fire-and-forget: recording starts immediately, the live session opens
+      // async. Frames arriving before the session is open are silently dropped
+      // by `feedFrame` — live must never degrade recording.
+      void openLiveForCapture(recording, session.itemId);
+      return session;
+    },
+    onSamples: (frame) => feedFrame(frame),
+    createSampleTap,
   });
   if (hotData) hotData.recorder = handle;
   return handle;

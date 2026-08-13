@@ -71,7 +71,11 @@ function constant(value: number, frames: number): Float32Array {
 class FakeWorker {
   readonly posted: { message: MainToWorkerMessage; transfer: Transferable[] }[] = [];
   readonly #listeners = new Map<string, Set<(event: unknown) => void>>();
-  constructor(private readonly reply: (message: MainToWorkerMessage) => WorkerToMainMessage[]) {}
+  constructor(
+    private readonly reply: (
+      message: Extract<MainToWorkerMessage, { requestId: string }>,
+    ) => WorkerToMainMessage[],
+  ) {}
   addEventListener(type: string, fn: (event: unknown) => void): void {
     const set = this.#listeners.get(type) ?? new Set();
     set.add(fn);
@@ -82,6 +86,7 @@ class FakeWorker {
   }
   postMessage(message: MainToWorkerMessage, transfer: Transferable[] = []): void {
     this.posted.push({ message, transfer });
+    if (!("requestId" in message)) return;
     const replies = this.reply(message);
     queueMicrotask(() => {
       for (const reply of replies)
@@ -93,7 +98,7 @@ class FakeWorker {
 
 /** Reply script: canned transcript text for a transcribe, `primed` for a prime. */
 function transcribeReply(text: string) {
-  return (message: MainToWorkerMessage): WorkerToMainMessage[] =>
+  return (message: Extract<MainToWorkerMessage, { requestId: string }>): WorkerToMainMessage[] =>
     message.type === "transcribe"
       ? [{ type: "transcribed", requestId: message.requestId, text }]
       : [{ type: "primed", requestId: message.requestId }];

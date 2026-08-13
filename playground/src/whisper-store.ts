@@ -1,5 +1,7 @@
 import { OnDeviceTranscriber, type PrimeProgress } from "@azx/ribo-transcriber-ondevice";
 
+import { primeLiveModels } from "./live-handle.js";
+
 import { messageOf } from "./format.js";
 
 /**
@@ -208,7 +210,18 @@ export function primeModel(): void {
     .prime((event) => {
       accumulate(perFile, event);
     })
-    .then(() => {
+    .then(async () => {
+      // **The live preview needs a second, much smaller model, and nothing else fetches it.**
+      // `liveCapability()` requires both the ASR and Silero cached, and the only code that
+      // downloads Silero sits inside the live worker's session open — behind that same gate. So a
+      // host that primes only the ASR gets `needs-download` forever and a preview that never
+      // appears, with no error anywhere. Priming it here, on the button the user already presses to
+      // make transcription available offline, is what turns the feature on.
+      //
+      // Awaited inside the ASR prime's `then` so a failure lands in the shared `catch` below: 2.14 MB
+      // that fails is worth reporting, and reporting "ready" while live is silently unavailable is
+      // exactly the shape of the bug this fixes.
+      await primeLiveModels();
       setState({ phase: "ready", downloadBytes: state.downloadBytes, detail: state.detail });
     })
     .catch((cause: unknown) => {

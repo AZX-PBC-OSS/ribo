@@ -136,7 +136,8 @@ export interface TranscribeWorkerRequest {
   readonly prompt?: string;
 }
 
-/** Main → worker. `"prime"` (Task 2) downloads+caches; `"transcribe"` (Task 3) runs inference. */
+/** Main → worker. `"prime"` downloads+caches; `"transcribe"` runs batch inference;
+ * `"liveOpen"`/`"liveFeed"`/`"liveClose"` are the live conversation (Task 3 live seam). */
 export type MainToWorkerMessage =
   | {
       readonly type: "prime";
@@ -150,11 +151,54 @@ export type MainToWorkerMessage =
       /** Same pipeline config as prime — the worker holds no config of its own (Task 2). */
       readonly config: PrimeConfig;
       readonly request: TranscribeWorkerRequest;
+    }
+  | {
+      readonly type: "liveOpen";
+      /** Correlates the `liveOpened` reply and stamps all subsequent segment replies for this session. */
+      readonly sessionId: string;
+      readonly config: PrimeConfig;
+    }
+  | {
+      readonly type: "liveFeed";
+      readonly sessionId: string;
+      /** One 512-sample frame (16 kHz mono PCM). Transferred, not copied. */
+      readonly frame: Float32Array;
+    }
+  | {
+      readonly type: "liveClose";
+      readonly sessionId: string;
     };
+
+/**
+ * The live segment message — carries transcribed text for a region, tagged so the
+ * receiver knows whether to render it as provisional or permanent.
+ *
+ * A **discriminated `kind` on one message** rather than two distinct message types,
+ * because the receiver already filters on `reply.type === "liveSegment"` (in
+ * `live.ts`'s `OnDeviceLiveSession`), and the distinction is one field the host
+ * reads after that filter — not a separate dispatch arm that would duplicate the
+ * `sessionId` correlation and the `#closed`-independent forwarding logic. Task 4
+ * carries this `kind` through the `LiveSession` seam to hosts.
+ *
+ * - `"tail"` — provisional text for the current growing region. Replaces the
+ *   previous tail wholesale; never appended to. The host renders it as still
+ *   being revised.
+ * - `"commit"` — permanent text for a committed region. Appended to the
+ *   committed list; never revised. The host renders it as settled.
+ */
+export type LiveSegmentKind = "tail" | "commit";
 
 /** Worker → main. */
 export type WorkerToMainMessage =
   | { readonly type: "progress"; readonly requestId: string; readonly progress: PrimeProgress }
   | { readonly type: "primed"; readonly requestId: string }
   | { readonly type: "transcribed"; readonly requestId: string; readonly text: string }
-  | { readonly type: "error"; readonly requestId: string; readonly message: string };
+  | { readonly type: "error"; readonly requestId: string; readonly message: string }
+  | { readonly type: "liveOpened"; readonly sessionId: string }
+  | {
+      readonly type: "liveSegment";
+      readonly sessionId: string;
+      readonly kind: LiveSegmentKind;
+      readonly text: string;
+    }
+  | { readonly type: "liveError"; readonly sessionId: string; readonly message: string };

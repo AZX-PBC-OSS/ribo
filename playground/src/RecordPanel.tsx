@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useRecorder } from "@azx/ribo-ui-react";
+import { useOutboxItems, useRecorder } from "@azx/ribo-ui-react";
 
 import { formatElapsed } from "./format.js";
 import { button, errorBox, monospace, muted, panel, recordButton } from "./styles.js";
@@ -21,6 +21,24 @@ const METER_HEIGHT = 14;
 export function RecordPanel() {
   const { phase, elapsedMs, level, scaledLevel, busy, error, toggle, pause, resume } =
     useRecorder();
+  // The recording row is already in the outbox (durable capture inserts it at
+  // `start()`), so `useOutboxItems` delivers its `preview` reactively — no new
+  // subscription mechanism is added (design §Delivery). `preview` is absent
+  // before the first utterance closes and after the batch transcript lands.
+  const { items: recordingItems } = useOutboxItems({ status: "recording" });
+  // **The LAST row, not the first.** `useOutboxItems` sorts by `seq` ascending — that ordering is the
+  // queue's capture-order guarantee and is not optional — so `[0]` is the OLDEST `recording` row.
+  // Durable capture leaves one behind for every interrupted capture until startup recovery sweeps
+  // it, so on any device that has ever lost a recording, `[0]` is an orphan with no preview and the
+  // live text lands on a row nobody is watching. Only one capture can be live at a time (the capture
+  // lock enforces it), so the highest `seq` is always the current one.
+  //
+  // Found by hand: the console showed segments arriving and being appended while the panel stayed
+  // empty. A fresh browser profile has no orphans, so `[0]` happens to be right — which is why every
+  // automated run of this passed.
+  const recordingItem = recordingItems.at(-1);
+  const previewCommitted = recordingItem?.preview?.committed;
+  const previewTail = recordingItem?.preview?.tail;
 
   const recording = phase === "recording";
   const paused = phase === "paused";
@@ -64,6 +82,27 @@ export function RecordPanel() {
       </div>
 
       <LevelMeter level={level} scaledLevel={scaledLevel} active={recording} />
+
+      {recording && (previewCommitted?.length || previewTail) && (
+        <div data-testid="live-preview" style={{ marginTop: "0.75rem" }}>
+          <div style={muted}>live preview (provisional — replaced by the final transcript):</div>
+          {previewCommitted && previewCommitted.length > 0 && (
+            <p style={{ ...monospace, margin: "0.25rem 0 0" }}>{previewCommitted.join(" ")}</p>
+          )}
+          {/* The tail is provisional text the system is still rewriting — it will visibly
+              change under the reader as the region grows. Italic and muted so it does not
+              look identical to the settled committed text above; the design calls this out
+              as an honesty requirement, not a polish item. */}
+          {previewTail && (
+            <p
+              data-testid="live-preview-tail"
+              style={{ ...monospace, ...muted, fontStyle: "italic", margin: "0.15rem 0 0" }}
+            >
+              {previewTail}…
+            </p>
+          )}
+        </div>
+      )}
 
       {error !== undefined && <p style={errorBox}>{error.message}</p>}
     </section>

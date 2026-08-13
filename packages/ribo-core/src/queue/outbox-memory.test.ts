@@ -79,7 +79,7 @@ test("a nested review outcome with dotted paths round-trips storage with no migr
   // claim is about PERSISTENCE, so checking it against the zod schema alone would not
   // settle it — the RxDB collection carries its own JSON schema and its own `version`.
   // This drives the real thing: a nested outcome through `submitReview`, out to storage
-  // and back through `get`, on a collection at `version: 2` (bumped for the
+  // and back through `get`, on a collection at `version: 3` (bumped for the
   // durable-capture fields, not for this — the R1.5 claim is that nesting needed no
   // bump of its own, and it still does not).
   const storage = getRxStorageMemory();

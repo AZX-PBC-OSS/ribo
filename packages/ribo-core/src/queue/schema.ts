@@ -185,7 +185,16 @@ export const outboxDocumentSchema = z
     lastError: z.string().optional(),
     /** Capture metadata. The audio bytes live in the attachment, not here. */
     recording: baseRecordingSchema,
-    /** Step output — present once transcription has succeeded. */
+    /**
+     * Step output — present once transcription has succeeded.
+     *
+     * **Write it with {@link Outbox.writeTranscript}, never with `patch`.** `transcript` is still
+     * reachable through {@link OutboxPatch} — it has to be, because the relay's retry and review
+     * paths patch other fields on the same rows — so nothing stops a future caller setting it
+     * directly. Doing so would leave `preview` behind on a committed row, where nothing removes it
+     * again: `patch` is an `incrementalPatch` and cannot delete a key at all. That is a convention
+     * here, not a fence, and this sentence is the only thing holding it.
+     */
     transcript: transcriptSchema.optional(),
     /** Step output — present once extraction has succeeded. */
     extracted: z.record(z.string(), z.unknown()).optional(),
@@ -204,6 +213,33 @@ export const outboxDocumentSchema = z
      * nothing needs authorising.
      */
     capture: z.strictObject({ sourceId: z.string().min(1) }).optional(),
+    /**
+     * Live-transcription preview: settled text plus the provisional tail of the
+     * region still being transcribed, accumulated while `status === "recording"`
+     * and deleted wholesale when the batch transcript lands. No timings, no
+     * per-segment engine, no confidence — `transcript.ts`'s warning that _"a
+     * shape nobody consumes is a shape nobody keeps honest"_ applies as much to
+     * this shape as the old one. See
+     * `docs/roadmap/design/live-transcription-design.md` §Data model.
+     *
+     * - `committed` — append-only region texts, permanent once written and never
+     *   revised. Index keys stay stable for incremental rendering; the joined
+     *   form is `committed.join(" ")`, exactly as `segments` used to.
+     * - `tail` — the current region's provisional text. **Replaced wholesale on
+     *   every refresh, never appended to.** On commit, the tail's final value
+     *   moves onto `committed` and the tail is cleared in one modification.
+     *
+     * The two fields must render differently: `committed` is settled, `tail` is
+     * text the system is still rewriting.
+     *
+     * **Not patchable** — see {@link OutboxPatch}. Written through
+     * `Outbox.writePreviewTail` and `Outbox.commitPreview`, and deleted in the
+     * same `incrementalModify` that writes `transcript` (never via `patch`,
+     * which cannot remove a key).
+     */
+    preview: z
+      .strictObject({ committed: z.array(z.string()), tail: z.string().optional() })
+      .optional(),
   })
   .superRefine((doc, ctx) => {
     if (doc.status === "recording" && !doc.capture) {
@@ -283,9 +319,18 @@ export type OutboxItem = z.infer<typeof outboxItemSchema>;
  * `capture` is absent because `sourceId` names the chunk attachments and must
  * NEVER change — it is set once by `beginRecording` and not patchable through
  * the ordinary public API.
+ *
+ * `preview` is absent because it is written only through
+ * `Outbox.writePreviewTail` / `Outbox.commitPreview` and deleted only in the
+ * same `incrementalModify` that writes `transcript`. Allowing a patch to
+ * overwrite it would bypass the stale-reply guard inside those modifiers and
+ * let a half-applied state reach subscribers.
  */
 export type OutboxPatch = Partial<
-  Omit<OutboxDocument, "id" | "seq" | "enqueuedAt" | "recording" | "idempotencyKey" | "capture">
+  Omit<
+    OutboxDocument,
+    "id" | "seq" | "enqueuedAt" | "recording" | "idempotencyKey" | "capture" | "preview"
+  >
 >;
 
 /**
@@ -302,7 +347,7 @@ export type OutboxPatch = Partial<
  * claiming to persist something it does not.
  */
 export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
-  version: 2,
+  version: 3,
   primaryKey: "id",
   type: "object",
   properties: {
@@ -323,6 +368,7 @@ export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
     writeResult: { type: "object" },
     reviewOutcome: { type: "object" },
     capture: { type: "object" },
+    preview: { type: "object" },
   },
   required: [
     "id",
