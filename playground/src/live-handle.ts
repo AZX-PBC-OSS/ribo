@@ -163,30 +163,20 @@ export async function openLiveSession(
     // be a bug.
     const sub = session.segments$.subscribe({
       next: (segment: LiveSegment) => {
-        console.log(
-          `@@LIVE@@ host: segment received kind=${segment.kind} ${JSON.stringify(segment.text)} -> item ${itemId}`,
-        );
         // Route by kind: a tail is provisional text the system is still rewriting,
         // a commit is permanent text for a settled region. An exhaustiveness-checked
         // switch so a future third kind is a type error rather than silently dropped
         // text — the same reasoning as the seam's discriminated value (live.ts).
         switch (segment.kind) {
           case "tail":
-            void outbox.writePreviewTail(itemId, segment.text).then(
-              () => console.log("@@LIVE@@ host: writePreviewTail OK"),
-              (e: unknown) => console.log("@@LIVE@@ host: writePreviewTail FAILED", e),
-            );
+            void outbox.writePreviewTail(itemId, segment.text).catch(() => undefined);
             break;
           case "commit":
-            void outbox.commitPreview(itemId, segment.text).then(
-              () => console.log("@@LIVE@@ host: commitPreview OK"),
-              (e: unknown) => console.log("@@LIVE@@ host: commitPreview FAILED", e),
-            );
+            void outbox.commitPreview(itemId, segment.text).catch(() => undefined);
             break;
         }
       },
       complete: () => {
-        console.log("@@LIVE@@ host: segments$ completed — draining finished, tearing down");
         if (segmentSubscription === sub) {
           sub.unsubscribe();
           segmentSubscription = undefined;

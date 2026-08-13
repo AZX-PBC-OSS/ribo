@@ -965,9 +965,6 @@ function transcribeAsTail(
     if (!session) return;
     try {
       const text = await session.transcribe(samples);
-      console.log(
-        `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s rms=${rootMeanSquare(samples).toFixed(5)} peak=${samples.reduce((m, v) => Math.max(m, Math.abs(v)), 0).toFixed(4)} -> ${JSON.stringify(text)}`,
-      );
       if (text.length > 0) post({ type: "liveSegment", sessionId, kind: "tail", text });
     } catch (error) {
       // Per-region: skip this refresh, surface the error, keep the session alive.
@@ -1025,9 +1022,6 @@ function transcribeAsCommit(
     }
     try {
       const text = await transcribeBounded(session.transcribe, samples);
-      console.log(
-        `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s rms=${rootMeanSquare(samples).toFixed(5)} peak=${samples.reduce((m, v) => Math.max(m, Math.abs(v)), 0).toFixed(4)} -> ${JSON.stringify(text)}`,
-      );
       post({ type: "liveSegment", sessionId, kind: "commit", text });
     } catch (error) {
       // Per-region: skip this commit's text, surface the error, keep the session
@@ -1105,9 +1099,6 @@ function closeLiveSession(sessionId: string, post: (message: WorkerToMainMessage
         if (!s) return;
         try {
           const text = await s.transcribe(samples);
-          console.log(
-            `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s rms=${rootMeanSquare(samples).toFixed(5)} peak=${samples.reduce((m, v) => Math.max(m, Math.abs(v)), 0).toFixed(4)} -> ${JSON.stringify(text)}`,
-          );
           // Always post, even when empty — see transcribeAsCommit for why an
           // empty commit is recorded rather than silently dropped.
           post({ type: "liveSegment", sessionId, kind: "commit", text });
