@@ -619,9 +619,25 @@ interface LiveWorkerSession {
 /** Active live sessions, keyed by `sessionId`. */
 const liveSessions = new Map<string, LiveWorkerSession>();
 
-/** Clear all live sessions — test cleanup so one test's session does not leak into the next. */
+/**
+ * Session ids that received a `liveClose` before their `liveOpen` completed.
+ *
+ * `handleMessage` is async and does not await `openLiveSession` before processing the
+ * next message, so a `liveClose` can arrive while the Silero model is still loading.
+ * Without this set, the close finds nothing in `liveSessions`, returns, and the open
+ * later inserts a session that can never be closed — leaking a `RegionVad`, a Silero
+ * detector, and the main thread's message listener. This is not just a priming race:
+ * a user who stops recording immediately hits the same path.
+ *
+ * `openLiveSession` checks this set after inserting the session and, if the id is
+ * present, closes the session immediately so nothing leaks.
+ */
+const pendingCloses = new Set<string>();
+
+/** Clear all live sessions and pending closes — test cleanup. */
 export function clearLiveSessions(): void {
   liveSessions.clear();
+  pendingCloses.clear();
 }
 
 /**
@@ -635,6 +651,28 @@ export function clearLiveSessions(): void {
  */
 export function injectLiveSession(sessionId: string, session: LiveWorkerSession): void {
   liveSessions.set(sessionId, session);
+}
+
+/**
+ * If a `liveClose` arrived before this session's `liveOpen` completed, close the
+ * session now and post `liveClosed`. Called by `openLiveSession` after inserting
+ * the session. Exported so the pending-close race can be tested in node without
+ * dynamic-importing transformers.js (which `openLiveSession` does via
+ * `createSileroDetector`).
+ *
+ * The session was just created and has no buffered frames, so `closeLiveSession`'s
+ * drain returns empty samples and takes the fast cleanup path — delete + post
+ * `liveClosed`. `liveOpened` was already posted before this call, so the main thread
+ * has created its `OnDeviceLiveSession` and installed the message listener that will
+ * receive `liveClosed`.
+ */
+export function processPendingClose(
+  sessionId: string,
+  post: (message: WorkerToMainMessage) => void,
+): void {
+  if (pendingCloses.delete(sessionId)) {
+    closeLiveSession(sessionId, post);
+  }
 }
 
 /**
@@ -672,8 +710,15 @@ async function openLiveSession(
       refreshInFlight: false,
     });
     post({ type: "liveOpened", sessionId });
+    // A `liveClose` may have arrived while the Silero model was loading —
+    // `handleMessage` does not await this function before processing the next
+    // message. If so, close the session now so it does not leak.
+    processPendingClose(sessionId, post);
   } catch (error) {
     post({ type: "liveError", sessionId, message: errorMessage(error) });
+    // The session was never created, so there is nothing to close. Drop the
+    // pending close so it does not outlive the session it was meant for.
+    pendingCloses.delete(sessionId);
   }
 }
 
@@ -865,7 +910,18 @@ function transcribeAsCommit(
  */
 function closeLiveSession(sessionId: string, post: (message: WorkerToMainMessage) => void): void {
   const session = liveSessions.get(sessionId);
-  if (!session) return;
+  if (!session) {
+    // The open may still be in flight — `openLiveSession` is async (it loads the
+    // Silero model), and `handleMessage` does not await it before processing the
+    // next message, so a `liveClose` can arrive before the session is inserted.
+    // This is not just a priming race: a user who stops recording immediately
+    // hits the same path. Record the pending close so `openLiveSession` can
+    // close the session once it lands. `liveClosed` is posted at that point, not
+    // here — the main thread has no `OnDeviceLiveSession` listener until
+    // `liveOpened` arrives, so posting `liveClosed` now would be lost.
+    pendingCloses.add(sessionId);
+    return;
+  }
 
   // Drain through RegionVad's internal chain — waits for pending feeds, then
   // returns and clears the region buffer.

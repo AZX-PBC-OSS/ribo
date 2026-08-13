@@ -8,6 +8,7 @@ import {
   injectLiveSession,
   normalizeProgress,
   planChunks,
+  processPendingClose,
   serialize,
 } from "./worker.js";
 import type { RegionFrameResult } from "./vad-stream.js";
@@ -553,6 +554,62 @@ describe("Test 4 — a transcription failure leaves the session alive", () => {
     // Still only the one error from the VAD failure — no second error, no segment.
     expect(posts.filter((m) => m.type === "liveError")).toHaveLength(1);
     expect(posts.some((m) => m.type === "liveSegment")).toBe(false);
+
+    clearLiveSessions();
+  });
+});
+
+// ── Test 5: a liveClose before liveOpen completes still closes the session ────
+//
+// `handleMessage` is async and does not await `openLiveSession` (which loads the
+// Silero model) before processing the next message. So a `liveClose` can arrive
+// before the session is inserted into `liveSessions`. Without the pending-close
+// mechanism, the close finds nothing, returns, and the open later inserts a
+// session that can never be closed — leaking a RegionVad, a Silero detector, and
+// the main thread's listener. This is not just a priming race: a user who stops
+// recording immediately hits the same path.
+//
+// The test simulates the race: liveClose arrives (session missing → pending close
+// recorded), then the open "completes" (session injected), then `processPendingClose`
+// runs (as `openLiveSession` would call it after inserting). The session must be
+// closed and `liveClosed` posted.
+
+describe("Test 5 — liveClose before liveOpen completes still closes the session", () => {
+  test("a pending close is processed when the open completes — no leak, liveClosed posted", async () => {
+    clearLiveSessions();
+    const sessionId = "test-race-close-before-open";
+    const { posts, post } = makePost();
+
+    // liveClose arrives before liveOpen has completed — session not in liveSessions.
+    await handleMessage({ type: "liveClose", sessionId }, post);
+
+    // No liveClosed posted yet — the open hasn't completed, so there is no
+    // OnDeviceLiveSession listener to receive it.
+    expect(posts.filter((m) => m.type === "liveClosed")).toHaveLength(0);
+
+    // Simulate liveOpen completing — inject the session (as openLiveSession would
+    // after createSileroDetector resolves). The fake VAD has no frames, so drain
+    // returns empty samples.
+    injectLiveSession(sessionId, {
+      vad: makeFakeRegionVad([]),
+      transcribe: () => Promise.resolve("never reached"),
+      refreshInFlight: false,
+    });
+
+    // processPendingClose is what openLiveSession calls after inserting the
+    // session and posting liveOpened. It sees the pending close and closes the
+    // session immediately.
+    processPendingClose(sessionId, post);
+    await settle();
+
+    // liveClosed was posted — the main thread can tear down its listener.
+    expect(posts.filter((m) => m.type === "liveClosed")).toHaveLength(1);
+
+    // The session was removed — no leak. A feed is a no-op (map lookup misses).
+    await handleMessage({ type: "liveFeed", sessionId, frame: new Float32Array(512) }, post);
+    await settle();
+    expect(posts.filter((m) => m.type === "liveSegment")).toHaveLength(0);
+    expect(posts.filter((m) => m.type === "liveError")).toHaveLength(0);
 
     clearLiveSessions();
   });
