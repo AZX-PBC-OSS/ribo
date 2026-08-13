@@ -148,20 +148,6 @@ export interface RegionFrameResult {
 }
 
 /**
- * A closed utterance — the PCM samples ready for ASR. Includes the pre-speech FIFO and the
- * trailing silence that closed it; both are harmless to the decoder and trimming them would add
- * complexity for no gain.
- *
- * **Kept for backward compatibility.** {@link StreamingVad} wraps {@link RegionVad} and exposes
- * committed regions as `Utterance` objects so `worker.ts` (which Task 2 will update) continues
- * to compile. Task 2 consumes {@link RegionVad} directly.
- */
-export interface Utterance {
-  /** 16 kHz mono PCM for this utterance — the concatenated frame buffers. */
-  readonly samples: Float32Array;
-}
-
-/**
  * The probability source the frame loop drives. Injecting this keeps the model out of the frame
  * loop's unit tests: a fake detector returns deterministic probabilities, and the real Silero
  * detector (created by {@link createSileroDetector}) is exercised only by the manual test.
@@ -215,10 +201,9 @@ function concatenateFrames(frames: readonly Float32Array[]): Float32Array {
  * resolve instantly, so this is invisible there; against the real model it is the same
  * "one inference at a time" constraint the batch worker already lives under.
  *
- * `drain` returns and clears the current region — the close-time safety net used by the
- * backward-compat {@link StreamingVad} wrapper. In the new model this is not "rescuing discarded
- * audio" (nothing is discarded); it is simply returning the region that never saw a commit
- * boundary.
+ * `drain` returns and clears the current region — the close-time safety net. In the new
+ * model this is not "rescuing discarded audio" (nothing is discarded); it is simply
+ * returning the region that never saw a commit boundary.
  */
 export class RegionVad {
   readonly #detector: ProbabilityDetector;
@@ -302,10 +287,10 @@ export class RegionVad {
   }
 
   /**
-   * Return the current region's samples and reset the buffer. The close-time safety net — used
-   * by the backward-compat {@link StreamingVad} wrapper so `worker.ts` (which Task 2 will update)
-   * can flush whatever remains when the session closes. In the new model nothing is discarded, so
-   * this is simply "return the region that never saw a commit boundary."
+   * Return the current region's samples and reset the buffer. The close-time safety net —
+   * the worker's `liveClose` handler drains whatever remains when the session closes, so
+   * the last region is never lost. In the new model nothing is discarded, so this is simply
+   * "return the region that never saw a commit boundary."
    *
    * Serializes through the same chain as {@link feed} so a drain cannot race an in-flight feed
    * for the buffer state.
@@ -404,58 +389,6 @@ export class RegionVad {
     this.#silenceFrameCount = 0;
     this.#inSpeech = false;
     return samples;
-  }
-}
-
-// ── Backward-compat wrapper ──────────────────────────────────────────────────
-
-/**
- * The streaming VAD — turns a flow of 512-sample frames into closed utterances.
- *
- * **Revision 7: this is now a thin wrapper over {@link RegionVad}.** It exists so `worker.ts`
- * (which Task 2 will update to consume {@link RegionVad} directly) continues to compile
- * without changes. `feed` returns committed regions as `Utterance` objects; `flush` drains the
- * current region. The old segmentation machinery — pre-speech FIFO, minimum-utterance hold,
- * min-speech emission gate — is gone, replaced by the region buffer. The constructor options
- * (`minSilenceMs`, `preSpeechPadMs`, `minUtteranceSeconds`) are accepted for signature
- * compatibility; `minSilenceMs` maps to the commit threshold, the other two are ignored.
- */
-export class StreamingVad {
-  readonly #region: RegionVad;
-
-  constructor(
-    detector: ProbabilityDetector,
-    options: { minSilenceMs?: number; preSpeechPadMs?: number; minUtteranceSeconds?: number } = {},
-  ) {
-    this.#region = new RegionVad(detector, {
-      ...(options.minSilenceMs !== undefined ? { commitSilenceMs: options.minSilenceMs } : {}),
-    });
-  }
-
-  /**
-   * Process one frame. Returns any committed regions as utterances (zero or one per frame).
-   * Refreshes are not surfaced — the old interface has no concept of them; Task 2 replaces this
-   * wrapper with direct {@link RegionVad} usage.
-   */
-  feed(frame: Float32Array): Promise<readonly Utterance[]> {
-    return this.#region.feed(frame).then((result) => {
-      if (result.commit && result.committedSamples) {
-        return [{ samples: result.committedSamples }];
-      }
-      return [];
-    });
-  }
-
-  /**
-   * Flush any buffered region as a single utterance — the close-time safety net. Delegates to
-   * {@link RegionVad.drain}. In the new model nothing is discarded, so this simply returns the
-   * region that never saw a commit boundary.
-   */
-  flush(): Promise<readonly Utterance[]> {
-    return this.#region.drain().then((samples) => {
-      if (samples.length === 0) return [];
-      return [{ samples }];
-    });
   }
 }
 

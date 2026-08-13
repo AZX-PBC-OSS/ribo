@@ -169,6 +169,25 @@ export type MainToWorkerMessage =
       readonly sessionId: string;
     };
 
+/**
+ * The live segment message — carries transcribed text for a region, tagged so the
+ * receiver knows whether to render it as provisional or permanent.
+ *
+ * A **discriminated `kind` on one message** rather than two distinct message types,
+ * because the receiver already filters on `reply.type === "liveSegment"` (in
+ * `live.ts`'s `OnDeviceLiveSession`), and the distinction is one field the host
+ * reads after that filter — not a separate dispatch arm that would duplicate the
+ * `sessionId` correlation and the `#closed`-independent forwarding logic. Task 4
+ * carries this `kind` through the `LiveSession` seam to hosts.
+ *
+ * - `"tail"` — provisional text for the current growing region. Replaces the
+ *   previous tail wholesale; never appended to. The host renders it as still
+ *   being revised.
+ * - `"commit"` — permanent text for a committed region. Appended to the
+ *   committed list; never revised. The host renders it as settled.
+ */
+export type LiveSegmentKind = "tail" | "commit";
+
 /** Worker → main. */
 export type WorkerToMainMessage =
   | { readonly type: "progress"; readonly requestId: string; readonly progress: PrimeProgress }
@@ -176,5 +195,10 @@ export type WorkerToMainMessage =
   | { readonly type: "transcribed"; readonly requestId: string; readonly text: string }
   | { readonly type: "error"; readonly requestId: string; readonly message: string }
   | { readonly type: "liveOpened"; readonly sessionId: string }
-  | { readonly type: "liveSegment"; readonly sessionId: string; readonly text: string }
+  | {
+      readonly type: "liveSegment";
+      readonly sessionId: string;
+      readonly kind: LiveSegmentKind;
+      readonly text: string;
+    }
   | { readonly type: "liveError"; readonly sessionId: string; readonly message: string };
