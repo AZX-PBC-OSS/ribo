@@ -30,7 +30,7 @@ import { setLiveTranscriber } from "./live-handle.js";
  * `outbox.commitPreview`.
  */
 
-/** Long enough for `openLiveForCapture` to subscribe before the emission. */
+/** Delay from subscription to segment emission — mirrors real inference latency. */
 const SEGMENT_DELAY_MS = 200;
 
 /** Polls `read` until it returns a value, or fails the test on timeout. */
@@ -55,21 +55,40 @@ async function until<T>(read: () => Promise<T | undefined>, label: string): Prom
  * `.subscribe(next)` and `.unsubscribe()` on the return value, nothing more.
  * Cast through `unknown` because `Observable` is a class with many operators
  * we do not need, and `rxjs` is not a direct dependency of the playground.
+ *
+ * **The emission countdown starts on subscribe, not at creation.** A real
+ * `LiveSession` produces segments in response to audio frames arriving through
+ * `feed()` — which only happens after the host has opened the session and
+ * subscribed to `segments$`. Starting the `setTimeout` at `createFakeSession`
+ * time instead creates a race: `recorder.start()` (which triggers the
+ * fire-and-forget `openLiveForCapture` chain that eventually subscribes) can
+ * take longer than `SEGMENT_DELAY_MS` under concurrent load (e.g. when the
+ * `unit` Vitest project runs alongside the `browser` project). The timer fires
+ * before anyone subscribes, the segment is lost, and the test times out.
+ * Deferring the countdown to the first `.subscribe()` call mirrors the real
+ * session's lifecycle and eliminates the race regardless of how slow the setup
+ * path is.
  */
 function createFakeSession(text: string): LiveSession {
   const handlers: Array<(value: string) => void> = [];
   const errorHandlers: Array<(value: string) => void> = [];
   let closed = false;
-  setTimeout(() => {
-    if (!closed) {
-      for (const handler of handlers) handler(text);
-    }
-  }, SEGMENT_DELAY_MS);
+  let armed = false;
+  const armEmission = (): void => {
+    if (armed) return;
+    armed = true;
+    setTimeout(() => {
+      if (!closed) {
+        for (const handler of handlers) handler(text);
+      }
+    }, SEGMENT_DELAY_MS);
+  };
   return {
     sessionId: crypto.randomUUID(),
     segments$: {
       subscribe: (next: (value: string) => void) => {
         handlers.push(next);
+        armEmission();
         return {
           unsubscribe: () => {
             const i = handlers.indexOf(next);
