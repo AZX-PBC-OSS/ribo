@@ -8,7 +8,8 @@
  *
  * Two conversations flow over it. **Priming** (Phase 3 Task 2 — model download + cache, defined
  * here) and **transcription** (Task 3 — the `Float32Array` in, text out described on
- * {@link TranscribeWorkerRequest} in `worker.ts`). Only priming is wired up in Task 2.
+ * {@link TranscribeWorkerRequest} in `worker.ts`), plus the **live** conversation
+ * (`liveOpen` / `liveFeed` / `liveClose` — utterance-level preview during recording).
  */
 
 /**

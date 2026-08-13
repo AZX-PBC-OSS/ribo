@@ -1,0 +1,3312 @@
+diff --git a/packages/ribo-core/src/index.ts b/packages/ribo-core/src/index.ts
+index 891e634..ccbd9ee 100644
+--- a/packages/ribo-core/src/index.ts
++++ b/packages/ribo-core/src/index.ts
+@@ -37,20 +37,25 @@ export {
+   TRANSCRIBER_UNAVAILABLE_REASONS,
+   TranscriberUnavailableError,
+ } from "./transcriber.js";
+ export type {
+   Transcriber,
+   TranscriberCapability,
+   TranscriberUnavailableInit,
+   TranscriberUnavailableReason,
+ } from "./transcriber.js";
+ 
++// Live transcription: the streaming seam — utterance-level preview during
++// recording. Defined here, implemented by the on-device engine. Not composed
++// through `firstCapable`; held directly by the live orchestrator.
++export type { LiveSegment, LiveSegmentKind, LiveSession, LiveTranscriber } from "./live.js";
++
+ // Selection: try engines in preference order, first one ready wins. The only
+ // combinator, and deliberately the only one.
+ export { DEFAULT_CAPABILITY_TTL_MS, firstCapable } from "./first-capable.js";
+ export type {
+   CompositeTranscriber,
+   EngineCapability,
+   FirstCapableOptions,
+   TranscriberFallback,
+ } from "./first-capable.js";
+ 
+@@ -74,20 +79,22 @@ export {
+   Recorder,
+   RecorderError,
+ } from "./recorder.js";
+ export type {
+   Capture,
+   EmptyContext,
+   RecorderErrorCode,
+   RecorderOptions,
+   RecorderPhase,
+   RecorderState,
++  SampleTapOptions,
++  SampleTapTeardown,
+   Unsubscribe,
+ } from "./recorder.js";
+ 
+ // Connectivity: the three-state (`offline`/`probing`/`online`) model whose
+ // stably-online edge drives the relay, over a probe that fails fast on an
+ // online-but-useless endpoint. Headless — event source, `navigator.onLine`,
+ // probe and timers are all injected.
+ export {
+   createConnectivity,
+   DEFAULT_PROBE_TIMEOUT_MS,
+diff --git a/packages/ribo-core/src/live.ts b/packages/ribo-core/src/live.ts
+new file mode 100644
+index 0000000..c43902d
+--- /dev/null
++++ b/packages/ribo-core/src/live.ts
+@@ -0,0 +1,205 @@
++import type { Observable } from "rxjs";
++
++import type { Recording } from "./recording.js";
++import type { TranscriberCapability } from "./transcriber.js";
++
++/**
++ * @file The live-transcription seam — utterance-level preview during recording.
++ *
++ * Where {@link ./transcriber.ts Transcriber} is the batch seam (whole-recording
++ * transcription after `stop()`), this is the streaming seam: feed audio frames in
++ * while the microphone is open and get utterance text back as each pause closes.
++ *
++ * The seam is defined here in `ribo-core` and implemented by the on-device engine
++ * package — the same direction as `Transcriber`. `ribo-core` orchestrates; the
++ * engine implements. No engine package is imported here.
++ *
++ * ## Not composed through `firstCapable`
++ *
++ * `firstCapable` takes `Transcriber[]` and returns a composite exposing batch
++ * `transcribe` / `capabilities` / `invalidate`. A `LiveTranscriber` is not
++ * reachable through it: widening the composite would drag a live concern into
++ * every batch roster. Instead the live orchestrator holds an optional
++ * `LiveTranscriber` directly. If none is supplied, or `liveCapability()` is not
++ * `ready`, there is simply no preview and recording is unaffected — which is the
++ * governing failure rule ("live must never degrade recording").
++ *
++ * ## `liveCapability()` is separate from `capability()`
++ *
++ * The batch path's `capability()` reports on the ASR model alone. Live
++ * additionally needs the streaming VAD (Silero), so "ASR cached but VAD missing"
++ * is a real state the batch probe cannot express. The two probes are independent
++ * methods on independent interfaces.
++ */
++
++/**
++ * Whether a {@link LiveSegment} is provisional text for the current growing
++ * region or permanent text for a committed region. Mirrors the worker protocol's
++ * own `LiveSegmentKind` (`@azx/ribo-transcriber-ondevice`'s `protocol.ts`), kept
++ * in this package so hosts do not depend on the engine's private protocol.
++ *
++ * - `"tail"` — provisional text for the current growing region. Replaces the
++ *   previous tail wholesale; never appended to. The host renders it as still
++ *   being revised and stores it via `Outbox.writePreviewTail`.
++ * - `"commit"` — permanent text for a committed region. Appended to the
++ *   committed list; never revised. The host renders it as settled and stores it
++ *   via `Outbox.commitPreview`.
++ */
++export type LiveSegmentKind = "tail" | "commit";
++
++/**
++ * One emission on {@link LiveSession.segments$} — transcribed text for a region,
++ * tagged so the receiver knows whether to render it as provisional or permanent.
++ *
++ * ## Why one observable of a discriminated value, not two
++ *
++ * The alternative is two observables — `tails$` and `commits$` — and it is
++ * worse on every axis that matters for the actual consumers:
++ *
++ * 1. **A host that ignores the distinction still gets all the text, in order.**
++ *    `playground/src/live-handle.ts` subscribes today, and Task 5 will route
++ *    tails to `writePreviewTail` and commits to `commitPreview`. But a host that
++ *    does not care about the distinction — a test, a logger, a future consumer
++ *    — subscribes to one stream, reads `.text`, and ignores `.kind`. With two
++ *    observables the same host must subscribe to both, and RxJS gives no
++ *    ordering guarantee across two separate `Subject`s: the host either loses
++ *    half the text (subscribes to one) or gets it out of order (subscribes to
++ *    both). The silently-wrong outcome is the one this shape exists to prevent.
++ *
++ * 2. **The flush-after-close property stays on one stream.** The worker's
++ *    `liveClose` handler transcribes the final drained region *after* `close()`
++ *    and posts it back — that segment must reach the subscriber (see
++ *    {@link LiveSession.close}). Splitting into two `Subject`s duplicates the
++ *    "do not gate on `#closed`" logic for no benefit, and a late commit after
++ *    close would need to reach `commits$` while a late tail reaches `tails$` —
++ *    the same mechanism, twice.
++ *
++ * 3. **Task 5's routing is one `switch (segment.kind)` in one subscriber.** Two
++ *    observables make the routing implicit in which subscription you are in, but
++ *    not safer: a host that wires both to the same write still needs to
++ *    distinguish, now across two callbacks instead of one exhaustiveness-checked
++ *    switch.
++ *
++ * `errors$` stays a separate observable for a *different* reason — erroring the
++ * segment `Subject` would terminate it permanently — and that reasoning is about
++ * a different kind of channel, not about the tail/commit distinction.
++ */
++export type LiveSegment =
++  | { readonly kind: "tail"; readonly text: string }
++  | { readonly kind: "commit"; readonly text: string };
++
++/**
++ * A live transcription session — the handle returned by
++ * {@link LiveTranscriber.openSession}.
++ *
++ * Feed 512-sample audio frames in at audio-callback rate; transcribed region
++ * text comes out on `segments$` — tagged `tail` (provisional, still being
++ * revised) or `commit` (permanent, settled). The session is opened by the
++ * capture session and closed by it — if capture ends (stop, abort, failure, tab
++ * losing the capture lock), the session closes and further `feed()` calls are
++ * no-ops.
++ */
++export interface LiveSession {
++  /**
++   * Stamp that correlates worker replies to this session. Every `liveSegment`
++   * reply carries it; the message listener uses it to skip replies from other
++   * sessions sharing the same worker channel — not to drop late replies from
++   * this session after `close()` (see {@link segments$} and {@link close}).
++   */
++  readonly sessionId: string;
++
++  /**
++   * One emission per transcribed region — a {@link LiveSegment} carrying the
++   * text and whether it is a provisional tail or a permanent commit. Internal
++   * to core: the host app reads preview text through `Outbox.watch()`, not by
++   * subscribing here directly.
++   *
++   * **Stays open after `close()`** so the worker's final drain — transcribing
++   * the last region after `close()` was called — still reaches the subscriber.
++   * The listener is deliberately not removed and the `Subject` deliberately not
++   * completed on close, because dropping that segment would lose the auditor's
++   * last sentence. The `#closed` flag only prevents further `feed()` calls; it
++   * does not gate segment delivery.
++   *
++   * **Completes when the worker is done.** After the drain from `close()`
++   * finishes — whether it produced a flush segment or not — the implementation
++   * completes this `Observable`. A host that subscribes with a `complete`
++   * callback can tear down its subscription at that point, knowing no more
++   * segments will arrive. This is the signal that prevents the host from having
++   * to choose between unsubscribing too early (dropping the flush) and never
++   * unsubscribing (leaking a subscription per recording).
++   */
++  readonly segments$: Observable<LiveSegment>;
++
++  /**
++   * Live-transcription errors that occurred mid-session — one emission per
++   * surfaced failure, carrying the worker's error message.
++   *
++   * **Why a separate observable, not `segments$.error()`.** Erroring the segment
++   * `Subject` would terminate it permanently — no segment could ever flow again
++   * for that session. But the design's failure table
++   * (`docs/roadmap/design/live-transcription-design.md`, §Failure handling) calls
++   * for "preview stops, **recording continues**, error surfaced" on a live
++   * transcription throw, and a per-region failure (one bad `generate` call)
++   * says nothing about the next region. Killing the whole segment stream for a
++   * single failed region is the exact trade this change exists to correct. A
++   * separate channel lets per-region failures be surfaced without ending the
++   * preview, and lets session-fatal failures be surfaced without risking an
++   * unhandled rejection on `segments$` — which a subscriber like the playground's
++   * `live-handle.ts` does not catch, and which RxJS 7 rethrows asynchronously
++   * when a subscriber has no error handler. Recording is never affected either
++   * way: live is strictly best-effort and the capture pipeline never touches this
++   * observable.
++   */
++  readonly errors$: Observable<string>;
++
++  /**
++   * Push one 512-sample frame into the streaming VAD.
++   *
++   * **Synchronous — must return before the inference it triggers.** Called from
++   * an audio callback; if it awaited the model, the audio thread would stall and
++   * capture would degrade — which this whole feature exists to avoid. The
++   * implementation posts the frame to a worker and returns immediately; inference
++   * runs asynchronously and the resulting text arrives on `segments$` when it
++   * completes.
++   */
++  feed(frame: Float32Array): void;
++
++  /**
++   * Close the session. Posts a `liveClose` to the worker and marks this session
++   * as closed so further `feed()` calls are no-ops. The worker transcribes the
++   * final drained region *after* `close()` and posts it back as a
++   * `liveSegment` — that segment **must** reach the subscriber, so the message
++   * listener is not removed and the `Subject` is not completed here. The
++   * `Subject` is completed when the worker posts `liveClosed` (after the drain
++   * finishes), at which point the host's `complete` callback fires and it can
++   * tear down. See {@link segments$} for why the stream stays open after close.
++   */
++  close(): void;
++}
++
++/**
++ * The seam an engine implements for live (utterance-level) transcription.
++ *
++ * Implemented by `@azx/ribo-transcriber-ondevice`; held directly by the live
++ * orchestrator, never composed through `firstCapable`.
++ */
++export interface LiveTranscriber {
++  /**
++   * What this engine can do for live transcription right now.
++   *
++   * Separate from `Transcriber.capability()` because live additionally needs the
++   * streaming VAD (Silero): "ASR cached but VAD missing" is a real state the
++   * batch probe cannot express. Returns `ready` only when both the ASR model and
++   * the streaming VAD are cached and available.
++   */
++  liveCapability(): Promise<TranscriberCapability>;
++
++  /**
++   * Open a live session for a recording. Loads the streaming VAD model if it is
++   * not already warm, then returns a handle that accepts frames and emits
++   * utterance text. Rejects if the VAD model cannot be loaded — the caller should
++   * treat that as "no preview for this recording", not as a recording failure.
++   */
++  openSession(recording: Recording): Promise<LiveSession>;
++}
+diff --git a/packages/ribo-core/src/queue/database.ts b/packages/ribo-core/src/queue/database.ts
+index cb92ce0..21e0848 100644
+--- a/packages/ribo-core/src/queue/database.ts
++++ b/packages/ribo-core/src/queue/database.ts
+@@ -25,26 +25,34 @@ export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
+  * v0 → v1 added the optional `reviewOutcome` field (the review gate). An absent
+  * optional field needs no transformation, so the strategy is identity — but it
+  * is declared and exercised rather than skipped, so the migration path exists
+  * before a non-trivial one needs it. Nothing is published and there are no
+  * users, so no deployed data is at risk here.
+  *
+  * v1 → v2 added `capture` (optional) — identity, since an absent optional field
+  * needs no transformation. Revision 9 removed `canonicalAttachmentId` and
+  * `step`, so the strategy no longer populates anything.
+  *
++ * v2 → v3 added `preview` (optional) — identity, for the same reason: an absent
++ * optional field needs no transformation. `preview` is written only by
++ * `Outbox.writePreviewTail` / `Outbox.commitPreview` and deleted only by
++ * `Outbox.writeTranscript`, so pre-v3 documents simply have no preview, which is
++ * the correct state for a recording that was captured before live transcription
++ * existed.
++ *
+  * Exported (rather than inlined into `addCollections`) so a test can exercise
+  * the strategy function directly, independent of a real migration run.
+  */
+ export const OUTBOX_MIGRATION_STRATEGIES = {
+   1: (doc: OutboxDocument) => doc,
+   2: (doc: OutboxDocument) => doc,
++  3: (doc: OutboxDocument) => doc,
+ };
+ 
+ /**
+  * Default IndexedDB database name.
+  *
+  * Namespaced because the host app owns the origin and we are a library living in
+  * it — an unprefixed `outbox` would be a genuine collision risk.
+  */
+ export const DEFAULT_OUTBOX_DATABASE_NAME = "ribo-outbox";
+ 
+diff --git a/packages/ribo-core/src/queue/outbox-memory.test.ts b/packages/ribo-core/src/queue/outbox-memory.test.ts
+index c304780..158ae30 100644
+--- a/packages/ribo-core/src/queue/outbox-memory.test.ts
++++ b/packages/ribo-core/src/queue/outbox-memory.test.ts
+@@ -72,21 +72,21 @@ test("an injected non-Dexie (memory) RxStorage drives the same Outbox API", asyn
+ });
+ 
+ test("a nested review outcome with dotted paths round-trips storage with no migration", async () => {
+   // R1.5 design §4 asserts that moving review to nested values and dotted leaf paths
+   // needs NO outbox document version bump: `reviewOutcomeSchema.fields` is
+   // `z.record(z.string(), z.unknown())`, which accepts a nested object, and the
+   // touched-field lists are `z.array(z.string())`, which accept a dotted path. That
+   // claim is about PERSISTENCE, so checking it against the zod schema alone would not
+   // settle it — the RxDB collection carries its own JSON schema and its own `version`.
+   // This drives the real thing: a nested outcome through `submitReview`, out to storage
+-  // and back through `get`, on a collection at `version: 2` (bumped for the
++  // and back through `get`, on a collection at `version: 3` (bumped for the
+   // durable-capture fields, not for this — the R1.5 claim is that nesting needed no
+   // bump of its own, and it still does not).
+   const storage = getRxStorageMemory();
+   const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
+ 
+   const outbox = await openOutbox({ name, storage });
+   opened.push({ outbox, name, storage });
+ 
+   const enqueued = await outbox.enqueue({ recording, audio: audioBlob() });
+   await outbox.patch(enqueued.id, { status: "awaiting-review" });
+diff --git a/packages/ribo-core/src/queue/outbox.browser.test.ts b/packages/ribo-core/src/queue/outbox.browser.test.ts
+index b0d2099..5dfd3d9 100644
+--- a/packages/ribo-core/src/queue/outbox.browser.test.ts
++++ b/packages/ribo-core/src/queue/outbox.browser.test.ts
+@@ -217,49 +217,51 @@ test("step outputs written before a close are readable after a reopen", async ()
+     attempts: 2,
+     nextAttemptAt: "2026-07-23T10:05:00.000Z",
+     lastError: "network unreachable",
+     // Unchanged by the patch, and specifically NOT regenerated on reopen.
+     idempotencyKey: enqueued.idempotencyKey,
+     seq: enqueued.seq,
+   });
+ });
+ 
+ // ---------------------------------------------------------------------------
+-// The v0 → v2 schema migration.
++// The v0 → v3 schema migration.
+ //
+-// A reopen does not test this: `openOutbox` can only ever create a v2 store, so
+-// two opens against the same name both see version 2, nothing migrates, and the
++// A reopen does not test this: `openOutbox` can only ever create a v3 store, so
++// two opens against the same name both see version 3, nothing migrates, and the
+ // test would pass whether or not the migration plugin and strategy exist at all
+ // — the exact "passes while production is broken" shape this file's own header
+ // warns about for the durability test above.
+ //
+ // A genuine test needs a database whose *stored* version is 0. The task brief
+ // for this change suggested faking that by writing a raw row into the physical
+ // `rxdb-dexie-<name>--0--outbox` IndexedDB database, the same way `readRawStore`
+ // above reads one. That was tried and rejected: RxDB decides whether a
+ // collection needs migrating from a bookkeeping document in its own *internal*
+ // store (one per `<collection>-<version>`, holding that version's schema), not
+ // from the presence of rows in the versioned physical database. A hand-written
+ // `docs` row with no matching internal meta document is invisible to
+-// `mustMigrate()` — RxDB just creates a fresh v2 collection and never looks at
++// `mustMigrate()` — RxDB just creates a fresh v3 collection and never looks at
+ // the row, so the test would report a pass while testing nothing, which is a
+ // worse failure mode than the reopen it was meant to replace.
+ //
+ // So the v0 store here is seeded through RxDB's own public API instead: a real
+ // collection, created at `version: 0` with the schema this file *used* to have
+ // before this change, populates that internal bookkeeping for real. Opening a
+ // v2 database over the same name then runs the actual migration path, not an
+ // imitation of it.
+ // ---------------------------------------------------------------------------
+ 
+ /** The outbox's RxDB schema exactly as it was before this task's version bump. */
+-const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<Omit<OutboxDocument, "reviewOutcome" | "capture">> = {
++const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<
++  Omit<OutboxDocument, "reviewOutcome" | "capture" | "preview">
++> = {
+   version: 0,
+   primaryKey: "id",
+   type: "object",
+   properties: {
+     id: { type: "string", maxLength: 64 },
+     seq: { type: "number", minimum: 0, maximum: 1_000_000_000, multipleOf: 1 },
+     status: { type: "string", maxLength: 16 },
+     idempotencyKey: { type: "string", maxLength: 64 },
+     attempts: { type: "integer", minimum: 0 },
+     nextAttemptAt: { type: "string", maxLength: 32 },
+@@ -323,21 +325,21 @@ async function seedVersionZeroOutbox(
+     eventReduce: true,
+     cleanupPolicy: {},
+   });
+   await database.addCollections({
+     [OUTBOX_COLLECTION_NAME]: { schema: OUTBOX_RX_SCHEMA_V0 },
+   });
+   await database.collections.outbox.insert(document);
+   await database.close();
+ }
+ 
+-test("an outbox stored at schema version 0 opens and migrates to version 2", async () => {
++test("an outbox stored at schema version 0 opens and migrates to version 3", async () => {
+   const name = uniqueName();
+   await seedVersionZeroOutbox(name, v0Document());
+ 
+   const outbox = await open(name);
+   const items = await outbox.list({});
+ 
+   expect(items).toHaveLength(1);
+   expect(items[0]?.reviewOutcome).toBeUndefined();
+   expect(items[0]?.status).toBe("queued");
+ });
+diff --git a/packages/ribo-core/src/queue/outbox.ts b/packages/ribo-core/src/queue/outbox.ts
+index 71ccbd8..4b6ced5 100644
+--- a/packages/ribo-core/src/queue/outbox.ts
++++ b/packages/ribo-core/src/queue/outbox.ts
+@@ -1,20 +1,22 @@
+ import type { MangoQuery, RxAttachmentCreator, RxDocument, RxStorage } from "rxdb";
+ import type { Observable } from "rxjs";
+ import { map } from "rxjs";
+ 
+ import type { Recording } from "../recording.js";
+ import { baseRecordingSchema } from "../recording.js";
+ import type { PersistedReviewOutcome } from "../review.js";
+ import { reviewOutcomeSchema } from "../review.js";
++import type { Transcript } from "../transcript.js";
+ import { isChunkOf } from "./chunk-names.js";
+ import { openOutboxDatabase, type OutboxCollection, type OutboxDatabase } from "./database.js";
++import { commitRegion, handoffTranscript, writeTail } from "./preview.js";
+ import {
+   ACTIVE_OUTBOX_STATUSES,
+   AUDIO_ATTACHMENT_ID,
+   outboxDocumentSchema,
+   outboxItemSchema,
+   type OutboxDocument,
+   type OutboxItem,
+   type OutboxPatch,
+   type OutboxStatus,
+ } from "./schema.js";
+@@ -364,20 +366,120 @@ export class Outbox {
+    * reload, where the failure would look like data corruption.
+    */
+   async patch(id: string, patch: OutboxPatch): Promise<OutboxItem> {
+     const doc = await this.#collection.findOne(id).exec();
+     if (!doc) throw new Error(`outbox: no item with id "${id}"`);
+     outboxItemSchema.parse({ ...this.#toItem(doc), ...patch });
+     const updated = await doc.incrementalPatch(patch);
+     return this.#toItem(updated);
+   }
+ 
++  /**
++   * Write the current region's provisional tail — replacing whatever tail was
++   * there, never appending.
++   *
++   * Refuses silently — returns `undefined`, does not throw — when `status !==
++   * "recording"` or `transcript` already exists. A late live reply is expected
++   * traffic, not an error anyone can act on: the recording may have been
++   * committed and transcribed while the reply was in flight.
++   *
++   * **Silent to the caller, not in storage.** RxDB 17.4.0 has no no-op detection in the
++   * incremental-write path: the modifier returns the document unchanged, but the write still goes
++   * through, committing a content-identical revision and emitting a change event to every `watch()`
++   * subscriber. At the real rate — a handful of in-flight replies as a recording closes — that costs
++   * nothing, which is why it is left alone. It would matter if anything ever called this in a loop.
++   *
++   * The refusal checks live **inside** the `incrementalModify` modifier, not
++   * against a copy read beforehand. RxDB re-runs the modifier against the
++   * *current* revision on write conflict, so a check made against a stale read
++   * can be wrong by the time the write lands — the recording may have been
++   * committed between the read and the retry.
++   *
++   * See {@link commitPreview} for the other half of the preview: a commit moves
++   * the region's text onto `committed` and clears the tail. See
++   * {@link writeTranscript} for the handoff that deletes `preview` in the same
++   * revision that writes `transcript`.
++   */
++  async writePreviewTail(id: string, text: string): Promise<OutboxItem | undefined> {
++    const doc = await this.#collection.findOne(id).exec();
++    if (!doc) return undefined;
++    let wrote = false;
++    const updated = await doc.incrementalModify((data) => {
++      const [next, didWrite] = writeTail(data, text);
++      wrote = didWrite;
++      return next;
++    });
++    return wrote ? this.#toItem(updated) : undefined;
++  }
++
++  /**
++   * Commit the current region: append its text to `committed` and clear the tail
++   * in one storage modification.
++   *
++   * Refuses on the same conditions as {@link writePreviewTail} and for the same
++   * reason — a late commit after the transcript has landed must not restore
++   * `preview`.
++   *
++   * One modification, not two, because both orderings of two writes publish a
++   * state a subscriber can see: the text in both `committed` and `tail`, or in
++   * neither. The modifier returns a single preview object carrying the new
++   * `committed` entry and no `tail`, so the two changes are one committed
++   * revision.
++   */
++  async commitPreview(id: string, text: string): Promise<OutboxItem | undefined> {
++    const doc = await this.#collection.findOne(id).exec();
++    if (!doc) return undefined;
++    let committed = false;
++    const updated = await doc.incrementalModify((data) => {
++      const [next, didCommit] = commitRegion(data, text);
++      committed = didCommit;
++      return next;
++    });
++    return committed ? this.#toItem(updated) : undefined;
++  }
++
++  /**
++   * Write the batch transcript and delete the preview in one storage
++   * modification.
++   *
++   * `patch` cannot do this: it is an `incrementalPatch`, and assigning
++   * `undefined` to an optional property does not delete the persisted key. This
++   * method uses `incrementalModify` with `delete`, so the `preview` key is gone
++   * from the stored document in the same committed revision that writes
++   * `transcript`.
++   *
++   * One revision, not two, because both orderings of two writes publish a state
++   * a subscriber can see: transcript-then-delete shows final text beside stale
++   * provisional text; delete-then-transcript shows a row with neither, which
++   * looks like a failed transcription.
++   *
++   * The `patch` argument carries the status change and any other fields the
++   * relay needs alongside the transcript — the same fields that were previously
++   * spread into `patch(id, { transcript, status, attempts })`. `transcript`
++   * itself is handled by this method and is omitted from the patch type so a
++   * caller cannot accidentally pass two different copies.
++   */
++  async writeTranscript(
++    id: string,
++    transcript: Transcript,
++    patch: Omit<OutboxPatch, "transcript">,
++  ): Promise<OutboxItem> {
++    const doc = await this.#collection.findOne(id).exec();
++    if (!doc) throw new Error(`outbox: no item with id "${id}"`);
++    const updated = await doc.incrementalModify((data) => {
++      const merged = handoffTranscript(data, transcript, patch);
++      outboxDocumentSchema.parse(persistedFieldsOf(merged));
++      return merged;
++    });
++    return this.#toItem(updated);
++  }
++
+   /**
+    * Record what a human decided about a parked item, and move it forward.
+    *
+    * The only way out of `awaiting-review`, and it **only** works from
+    * `awaiting-review`. That guard is not defensive tidiness: `multiInstance: true`
+    * means a second tab holds its own `Outbox` over the same IndexedDB database, so
+    * without it a stale tab could submit a review for an item that has since reached
+    * `done` — patching a completed row back to `writing` and causing a second write —
+    * or discard one while a write is in flight.
+    *
+diff --git a/packages/ribo-core/src/queue/preview.test.ts b/packages/ribo-core/src/queue/preview.test.ts
+new file mode 100644
+index 0000000..90b9cca
+--- /dev/null
++++ b/packages/ribo-core/src/queue/preview.test.ts
+@@ -0,0 +1,277 @@
++import type { RxStorage } from "rxdb";
++import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
++import { afterEach, expect, test, vi } from "vitest";
++
++import type { Recording } from "../recording.js";
++import type { Transcript } from "../transcript.js";
++import { removeOutboxDatabase } from "./database.js";
++import { openOutbox, type Outbox } from "./outbox.js";
++
++// The preview field, its committed+tail shape, and its handoff. Tests 3 and 4
++// each have an obvious version that passes against the bug they guard, and are
++// driven through the real `Outbox` class over an in-memory RxStorage, so they
++// run in the node `unit` project without IndexedDB — the same seam
++// `outbox-memory.test.ts` uses.
++
++const opened: { outbox: Outbox; name: string; storage: RxStorage<unknown, unknown> }[] = [];
++
++afterEach(async () => {
++  for (const { outbox, name, storage } of opened.splice(0)) {
++    if (!outbox.closed) await outbox.close();
++    await removeOutboxDatabase(name, storage);
++  }
++});
++
++const recording: Recording = {
++  id: "rec-1",
++  capturedAt: "2026-07-23T10:00:00.000Z",
++  durationMs: 4200,
++  mimeType: "audio/webm;codecs=opus",
++  ctx: { jobId: "job-7" },
++};
++
++const transcript: Transcript = {
++  recordingId: recording.id,
++  text: "the full transcript that replaces the preview",
++  engine: "fake",
++};
++
++function freshOutbox(): Promise<Outbox> {
++  const storage = getRxStorageMemory();
++  const name = `ribo-outbox-preview-${crypto.randomUUID()}`;
++  return openOutbox({ name, storage }).then((outbox) => {
++    opened.push({ outbox, name, storage });
++    return outbox;
++  });
++}
++
++// ---------------------------------------------------------------------------
++// Test 1: a tail write REPLACES the previous tail, it does not append.
++//
++// The obvious version that passes against the bug: assert `tail` is a string
++// containing the second write's text. That holds whether the implementation
++// replaces or appends ("first second" contains "second"), so the assertion
++// must be exact — `tail === "second"` — which an appending implementation
++// (producing "first second" or ["first", "second"]) fails.
++// ---------------------------------------------------------------------------
++
++test("a tail write replaces the previous tail rather than appending to it", async () => {
++  const outbox = await freshOutbox();
++
++  const item = await outbox.beginRecording({ recording, sourceId: "s1" });
++
++  await outbox.writePreviewTail(item.id, "first");
++  const first = await outbox.get(item.id);
++  expect(first?.preview).toEqual({ committed: [], tail: "first" });
++
++  // A second tail write must overwrite, not accumulate.
++  await outbox.writePreviewTail(item.id, "second");
++  const second = await outbox.get(item.id);
++  expect(second?.preview).toEqual({ committed: [], tail: "second" });
++  expect(second?.preview?.tail).toBe("second");
++});
++
++// ---------------------------------------------------------------------------
++// Test 2: a commit appends to `committed` and clears the tail in ONE
++// modification — no subscriber ever sees the text in both places, or in neither.
++//
++// Asserting only on the final state passes against two separate writes, because
++// the end state is identical either way. The difference is only visible to a
++// subscriber mid-flight: append-then-clear shows the text in both `committed`
++// and `tail` at once; clear-then-append shows it in neither. So this test
++// subscribes before the commit, collects every emission, and asserts (1) only
++// one emission arrived after the initial and (2) no emission shows the text in
++// both places or in neither.
++// ---------------------------------------------------------------------------
++
++test("a commit appends to committed and clears the tail in one modification", async () => {
++  const outbox = await freshOutbox();
++
++  const item = await outbox.beginRecording({ recording, sourceId: "s1" });
++  // Seed a tail so the commit has something to clear — a commit with no prior
++  // tail would not exercise the "both" intermediate.
++  await outbox.writePreviewTail(item.id, "alpha");
++
++  // `alpha` is the text being committed. Track where it appears in each emission.
++  const emissions: { inCommitted: boolean; inTail: boolean }[] = [];
++  const subscription = outbox.watch().subscribe((items) => {
++    const row = items.find((i) => i.id === item.id);
++    if (row) {
++      emissions.push({
++        inCommitted: row.preview?.committed?.includes("alpha") ?? false,
++        inTail: row.preview?.tail === "alpha",
++      });
++    }
++  });
++
++  try {
++    // Wait for the initial emission: tail present, committed empty.
++    await vi.waitFor(() => {
++      expect(emissions.length).toBeGreaterThanOrEqual(1);
++      expect(emissions.at(-1)).toEqual({ inCommitted: false, inTail: true });
++    });
++
++    const initialCount = emissions.length;
++
++    // Commit — this must append to `committed` and clear `tail` in the SAME
++    // modification.
++    await outbox.commitPreview(item.id, "alpha");
++
++    // Wait for the final state: text in committed, tail gone.
++    await vi.waitFor(() => {
++      expect(emissions.at(-1)).toEqual({ inCommitted: true, inTail: false });
++    });
++
++    // One modification means one emission after the initial. Two separate writes
++    // would produce two — one carrying the text in both places (append-then-
++    // clear), or one with it in neither (clear-then-append).
++    expect(emissions.length - initialCount).toBe(1);
++
++    // No emission should show the text in both places at once — the
++    // append-then-clear split.
++    expect(emissions.every((e) => !(e.inCommitted && e.inTail))).toBe(true);
++
++    // No emission should show the text in neither place — the clear-then-append
++    // split. (The initial state has it in `tail`, so it is not "neither"; only
++    // a cleared-but-not-yet-appended intermediate is.)
++    expect(emissions.every((e) => e.inCommitted || e.inTail)).toBe(true);
++  } finally {
++    subscription.unsubscribe();
++  }
++
++  const settled = await outbox.get(item.id);
++  expect(settled?.preview).toEqual({ committed: ["alpha"] });
++});
++
++// ---------------------------------------------------------------------------
++// Test 3: writes are refused once the row leaves `recording` or once
++// `transcript` exists. A stale live reply must not restore `preview`.
++//
++// The naive assertion — "`preview` and `transcript` are never both populated" —
++// passes without the guard inside the write modifier, because `writeTranscript`
++// already deleted `preview` when it wrote `transcript`. The race is a stale
++// live reply arriving AFTER that deletion: without the guard, the write
++// succeeds and `preview` comes back. This test calls the preview writers on a
++// row whose transcript has already landed and asserts the preview did not come
++// back. It also covers the other clause of the guard — a reply after the row
++// leaves `recording` with NO transcript — by committing the recording to
++// `queued` first.
++// ---------------------------------------------------------------------------
++
++test("a stale live reply after the transcript is written does not restore preview", async () => {
++  const outbox = await freshOutbox();
++
++  const item = await outbox.beginRecording({ recording, sourceId: "s1" });
++  await outbox.writePreviewTail(item.id, "hello world");
++
++  // The batch transcript lands — preview is deleted in the same modification.
++  await outbox.writeTranscript(item.id, transcript, { status: "extracting", attempts: 0 });
++
++  const afterWrite = await outbox.get(item.id);
++  expect(afterWrite?.transcript).toBeDefined();
++  expect(afterWrite?.preview).toBeUndefined();
++
++  // A stale tail reply arrives after the transcript has landed. The write
++  // modifier must refuse — status is no longer "recording" and transcript
++  // already exists — so preview is NOT restored.
++  const tailResult = await outbox.writePreviewTail(item.id, "late tail");
++  expect(tailResult).toBeUndefined();
++
++  // A stale commit reply is refused for the same reason.
++  const commitResult = await outbox.commitPreview(item.id, "late commit");
++  expect(commitResult).toBeUndefined();
++
++  const afterLateReply = await outbox.get(item.id);
++  expect(afterLateReply?.preview).toBeUndefined();
++  expect(afterLateReply?.transcript).toBeDefined();
++});
++
++test("a live reply after the row leaves recording (but before any transcript) is refused", async () => {
++  const outbox = await freshOutbox();
++
++  const item = await outbox.beginRecording({ recording, sourceId: "s1" });
++  await outbox.writePreviewTail(item.id, "hello world");
++
++  // Commit the durable recording: recording → queued. There is no transcript
++  // yet, so this exercises the `status !== "recording"` clause of the guard on
++  // its own — distinct from the transcript-landed case above, where both
++  // clauses are true. `commitRecording` is not the handoff, so the preview
++  // seeded above is still on the row; the point is that a reply arriving NOW
++  // must not change it, not that it is gone (the batch handoff deletes it).
++  const audio = new Blob([new Uint8Array([0])], { type: "audio/webm" });
++  await outbox.commitRecording(item.id, audio, 100);
++  const committed = await outbox.get(item.id);
++  expect(committed?.status).toBe("queued");
++  expect(committed?.transcript).toBeUndefined();
++
++  // A live reply arriving after the row left `recording` must be refused, even
++  // though no transcript exists yet.
++  expect(await outbox.writePreviewTail(item.id, "late tail")).toBeUndefined();
++  expect(await outbox.commitPreview(item.id, "late commit")).toBeUndefined();
++
++  // The existing preview is untouched — the refusal left it as it was.
++  const afterReply = await outbox.get(item.id);
++  expect(afterReply?.preview).toEqual({ committed: [], tail: "hello world" });
++});
++
++// ---------------------------------------------------------------------------
++// Test 4: deleting preview and writing transcript is ONE revision.
++//
++// Asserting on the final state passes against two separate writes, because the
++// end state is identical either way. The difference is only visible to a
++// subscriber mid-flight: transcript-then-delete shows final text beside stale
++// provisional text; delete-then-transcript shows a row with neither, which
++// looks like a failed transcription. So this test subscribes before the write,
++// collects every emission, and asserts (1) no emission shows a half-applied
++// state and (2) only one emission arrived after the initial — two writes would
++// produce two.
++// ---------------------------------------------------------------------------
++
++test("deleting preview and writing transcript is one revision — no half-applied state", async () => {
++  const outbox = await freshOutbox();
++
++  const item = await outbox.beginRecording({ recording, sourceId: "s1" });
++  await outbox.writePreviewTail(item.id, "hello world");
++
++  // Collect every emission a subscriber sees for this item.
++  const emissions: { hasPreview: boolean; hasTranscript: boolean }[] = [];
++  const subscription = outbox.watch().subscribe((items) => {
++    const row = items.find((i) => i.id === item.id);
++    if (row) {
++      emissions.push({
++        hasPreview: row.preview !== undefined,
++        hasTranscript: row.transcript !== undefined,
++      });
++    }
++  });
++
++  try {
++    // Wait for the initial emission: preview present, no transcript.
++    await vi.waitFor(() => {
++      expect(emissions.length).toBeGreaterThanOrEqual(1);
++      expect(emissions.at(-1)).toEqual({ hasPreview: true, hasTranscript: false });
++    });
++
++    const initialCount = emissions.length;
++
++    // Write the transcript — this must delete preview in the SAME modification.
++    await outbox.writeTranscript(item.id, transcript, { status: "extracting", attempts: 0 });
++
++    // Wait for the final state: no preview, transcript present.
++    await vi.waitFor(() => {
++      expect(emissions.at(-1)).toEqual({ hasPreview: false, hasTranscript: true });
++    });
++
++    // One revision means one emission after the initial. Two separate writes
++    // would produce two — one carrying the transcript beside stale preview,
++    // one with the preview gone.
++    expect(emissions.length - initialCount).toBe(1);
++
++    // No emission should show a half-applied state: both preview and transcript
++    // populated at once. That is what a subscriber sees if the transcript write
++    // and the preview deletion land in separate revisions.
++    expect(emissions.every((e) => !(e.hasPreview && e.hasTranscript))).toBe(true);
++  } finally {
++    subscription.unsubscribe();
++  }
++});
+diff --git a/packages/ribo-core/src/queue/preview.ts b/packages/ribo-core/src/queue/preview.ts
+new file mode 100644
+index 0000000..6c6e687
+--- /dev/null
++++ b/packages/ribo-core/src/queue/preview.ts
+@@ -0,0 +1,88 @@
++import type { Transcript } from "../transcript.js";
++import type { OutboxDocument, OutboxPatch } from "./schema.js";
++
++/**
++ * Replace the current region's provisional tail, or refuse silently.
++ *
++ * Refuses when `status !== "recording"` or `transcript` already exists. A late
++ * live reply is expected traffic, not an error anyone can act on — the recording
++ * may have been committed and transcribed while the reply was in flight — so the
++ * refusal is silent rather than thrown.
++ *
++ * The tail is **replaced wholesale**, never appended to: a region is re-transcribed
++ * as it grows, so each refresh produces the region's full text and the previous
++ * provisional rendering must be discarded rather than accumulated.
++ *
++ * The checks are made against the document the modifier receives, not a copy
++ * read beforehand. RxDB re-runs the modifier against the *current* revision on
++ * write conflict, so a check made against a stale read can be wrong by the time
++ * the write lands: the recording may have been committed between the read and
++ * the retry. Moving the checks inside the modifier closes that window.
++ *
++ * Returns the (possibly unchanged) document and whether the tail was written,
++ * so the caller can return `undefined` on refusal without a second read.
++ */
++export function writeTail<T extends OutboxDocument>(data: T, text: string): readonly [T, boolean] {
++  if (data.status !== "recording" || data.transcript !== undefined) {
++    return [data, false] as const;
++  }
++  const committed = data.preview?.committed ?? [];
++  return [{ ...data, preview: { committed, tail: text } }, true] as const;
++}
++
++/**
++ * Commit the current region: append its text to `committed` and clear the tail,
++ * in one modification, or refuse silently.
++ *
++ * Refuses on the same conditions as {@link writeTail} — `status !== "recording"`
++ * or `transcript` already exists — and for the same reason.
++ *
++ * One modification, not two, because both orderings of two writes publish a
++ * state a subscriber can see: append-then-clear shows the text in both
++ * `committed` and `tail` at once; clear-then-append shows it in neither. A
++ * single modifier return is one committed revision, so no subscriber observes
++ * the text in both places or in neither.
++ *
++ * The committed text is the value the caller passes in — the region's final
++ * transcription — not a read of the current tail. A refresh that would have
++ * written the tail may have been shed as backpressure (Task 2's load shedding),
++ * so the commit must carry its own text rather than depend on a tail being
++ * present. In the normal flow the two match: the last refresh wrote the tail,
++ * and the commit finalises the same region.
++ */
++export function commitRegion<T extends OutboxDocument>(
++  data: T,
++  text: string,
++): readonly [T, boolean] {
++  if (data.status !== "recording" || data.transcript !== undefined) {
++    return [data, false] as const;
++  }
++  const committed = data.preview?.committed ?? [];
++  // No `tail` key on the returned preview — omitting it clears it. The whole
++  // preview object is rebuilt here, so there is no stale tail to `delete`.
++  return [{ ...data, preview: { committed: [...committed, text] } }, true] as const;
++}
++
++/**
++ * Write the batch transcript and delete the preview in one modification.
++ *
++ * `Outbox.patch` is an `incrementalPatch`, and assigning `undefined` to an
++ * optional property does not delete the persisted key — so a patch cannot
++ * remove `preview` at all. This function uses `delete` instead, so the key is
++ * gone from the stored document.
++ *
++ * One modification, not two, because both orderings of two writes publish a
++ * state a subscriber can see: transcript-then-delete shows final text beside
++ * stale provisional text; delete-then-transcript shows a row with neither,
++ * which looks like a failed transcription. A single `incrementalModify` is one
++ * committed revision, so no subscriber observes half of it.
++ */
++export function handoffTranscript<T extends OutboxDocument>(
++  data: T,
++  transcript: Transcript,
++  patch: Omit<OutboxPatch, "transcript">,
++): T {
++  const merged = { ...data, ...patch, transcript };
++  delete merged.preview;
++  return merged;
++}
+diff --git a/packages/ribo-core/src/queue/relay.ts b/packages/ribo-core/src/queue/relay.ts
+index cd3fa05..d1b4e5d 100644
+--- a/packages/ribo-core/src/queue/relay.ts
++++ b/packages/ribo-core/src/queue/relay.ts
+@@ -353,20 +353,28 @@ class QueueRelay implements Relay {
+    * Process items until the queue is empty, the head is not yet due, or an item
+    * fails.
+    *
+    * Stopping on failure is deliberate. The head item is the head for a reason —
+    * `09` asks for capture order to be preserved — so once it is parked behind a
+    * backoff window there is nothing behind it that may legitimately overtake it.
+    * Retrying it immediately in the same drain would defeat the backoff entirely.
+    */
+   async #drain(): Promise<void> {
+     for (;;) {
++      // Live needs the worker: do not admit new items while anything is recording.
++      // An in-flight item (already claimed by a previous iteration) runs to
++      // completion — this check is before the next `nextPending()` claim, not
++      // after `#processStep`, so the current item is never interrupted. Recording
++      // never waits (the recorder has no worker); the preview does.
++      const [recording] = await this.#options.outbox.list({ status: ["recording"], limit: 1 });
++      if (recording) return;
++
+       const item = await this.#options.outbox.nextPending();
+       if (!item) return;
+       if (Date.parse(item.nextAttemptAt) > this.#now()) return;
+ 
+       // **Claim the item before touching it.** `nextPending()` selects on status alone, and
+       // `ACTIVE_OUTBOX_STATUSES` includes the in-flight ones — so without this, a second tab does not
+       // merely *race* for the head item, it selects work another tab is actively performing, in the
+       // steady state. Two tabs then transcribe the same recording, extract it twice, and write it to
+       // the external tool twice. Duplicate rows in someone's audit is the only failure in this queue
+       // that escapes the device.
+@@ -450,27 +458,41 @@ class QueueRelay implements Relay {
+       // This does not resume into a loop. `awaiting-review` is absent from
+       // `ACTIVE_OUTBOX_STATUSES`, so the relay never picks the item up on its
+       // own — the only way forward is `Outbox.submitReview`, a human decision.
+       // When that happens, `nextStep` sees the persisted transcript and returns
+       // `"extract"` (never `"transcribe"` again), so the item moves forward to
+       // extraction rather than re-transcribing and re-triggering this guard.
+       //
+       // `dropAudioAfterTranscription` is deliberately NOT applied here: a human
+       // investigating a suspiciously empty transcript needs to listen to the
+       // recording, and dropping the bytes would make that impossible.
+-      await this.#patch(item.id, { transcript, status: "awaiting-review", attempts: 0 });
++      //
++      // Routed through `writeTranscript` rather than `patch` so that `preview`
++      // is deleted in the same committed revision — a subscriber never sees the
++      // provisional text beside the final transcript.
++      await this.#options.outbox.writeTranscript(item.id, transcript, {
++        status: "awaiting-review",
++        attempts: 0,
++      });
+       return;
+     }
+-    // Persisted BEFORE the status moves on, so a crash between the two lands on
+-    // "transcript present, status stale" — which `nextStep` reads correctly —
+-    // rather than "status advanced, transcript lost".
+-    await this.#patch(item.id, { transcript, status: "extracting", attempts: 0 });
++    // Transcript and status land in ONE revision, so there is no crash window between
++    // them. (This comment used to explain the ordering of two separate writes; they were
++    // combined into a single patch some time ago, and are now a single `incrementalModify`.)
++    //
++    // Routed through `writeTranscript` rather than `patch` so that `preview` is deleted in
++    // that same revision — a subscriber never sees the provisional text beside the final
++    // transcript, in either order.
++    await this.#options.outbox.writeTranscript(item.id, transcript, {
++      status: "extracting",
++      attempts: 0,
++    });
+     if (this.#options.dropAudioAfterTranscription) {
+       await this.#options.outbox.dropAudio(item.id);
+     }
+   }
+ 
+   async #extract(item: OutboxItem): Promise<void> {
+     const extracted = await withTimeout(
+       this.#options.extract({ item, transcript: item.transcript! }),
+       this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
+       "extract",
+diff --git a/packages/ribo-core/src/queue/schema.test.ts b/packages/ribo-core/src/queue/schema.test.ts
+index d8210bb..351ff50 100644
+--- a/packages/ribo-core/src/queue/schema.test.ts
++++ b/packages/ribo-core/src/queue/schema.test.ts
+@@ -36,25 +36,26 @@ const optionalKeys = Object.entries(outboxDocumentSchema.shape)
+ 
+ test("the RxDB schema describes exactly the fields the zod schema does", () => {
+   expect(Object.keys(outboxRxSchema.properties).sort()).toEqual(zodKeys);
+ });
+ 
+ test("the RxDB required list is exactly zod's non-optional fields", () => {
+   const required = [...(outboxRxSchema.required ?? [])].sort();
+   expect(required).toEqual(zodKeys.filter((key) => !optionalKeys.includes(key)));
+ });
+ 
+-test("the optional fields are the step outputs, the error message, and capture", () => {
++test("the optional fields are the step outputs, the error message, capture, and preview", () => {
+   expect(optionalKeys).toEqual([
+     "capture",
+     "extracted",
+     "lastError",
++    "preview",
+     "reviewOutcome",
+     "transcript",
+     "writeResult",
+   ]);
+ });
+ 
+ test("the primary key is a required field, as RxDB demands", () => {
+   expect(outboxRxSchema.primaryKey).toBe("id");
+   expect(outboxRxSchema.required).toContain("id");
+ });
+@@ -184,22 +185,22 @@ test("a document carries an optional review outcome", () => {
+   };
+   expect(outboxDocumentSchema.parse(base).reviewOutcome).toBeUndefined();
+ 
+   const reviewed = outboxDocumentSchema.parse({
+     ...base,
+     reviewOutcome: { status: "accepted", fields: { atticRValue: 19 } },
+   });
+   expect(reviewed.reviewOutcome).toEqual({ status: "accepted", fields: { atticRValue: 19 } });
+ });
+ 
+-test("the RxDB schema is at version 2", () => {
+-  expect(outboxRxSchema.version).toBe(2);
++test("the RxDB schema is at version 3", () => {
++  expect(outboxRxSchema.version).toBe(3);
+ });
+ 
+ /** A minimal document that parses, for the negative cases to mutate. */
+ function validDocument() {
+   return {
+     id: "a",
+     seq: 0,
+     status: "queued",
+     idempotencyKey: "k",
+     attempts: 0,
+@@ -283,15 +284,20 @@ test("the fields decided once stay decided — none of them is patchable", () =>
+   // @ts-expect-error `id` is the primary key.
+   const id: OutboxPatch = { id: "other" };
+   // @ts-expect-error `seq` is the queue's ordering key.
+   const seq: OutboxPatch = { seq: 99 };
+   // @ts-expect-error `idempotencyKey` must survive every retry unchanged.
+   const key: OutboxPatch = { idempotencyKey: "regenerated" };
+   // @ts-expect-error `recording` is capture provenance, not queue state.
+   const recording: OutboxPatch = { recording: undefined };
+   // @ts-expect-error `enqueuedAt` is when it entered the queue, once.
+   const enqueuedAt: OutboxPatch = { enqueuedAt: "2026-01-01T00:00:00.000Z" };
++  // @ts-expect-error `preview` is written only through `writePreviewTail` /
++  // `commitPreview` and deleted only in the same modification that writes
++  // `transcript`. A patch could bypass the stale-reply guard and let a
++  // half-applied state reach subscribers.
++  const preview: OutboxPatch = { preview: { committed: ["overwritten"], tail: "x" } };
+ 
+   // The values are irrelevant — the directives above are the test. Referencing them keeps
+   // the linter from removing what looks like dead code and taking the assertions with it.
+-  expect([capture, id, seq, key, recording, enqueuedAt]).toHaveLength(6);
++  expect([capture, id, seq, key, recording, enqueuedAt, preview]).toHaveLength(7);
+ });
+diff --git a/packages/ribo-core/src/queue/schema.ts b/packages/ribo-core/src/queue/schema.ts
+index 4059fac..d653240 100644
+--- a/packages/ribo-core/src/queue/schema.ts
++++ b/packages/ribo-core/src/queue/schema.ts
+@@ -178,39 +178,75 @@ export const outboxDocumentSchema = z
+      * rather than held in a timer so the backoff schedule survives a reload — on
+      * iOS the tab is the only execution context there is, and it dies often.
+      */
+     nextAttemptAt: z.iso.datetime(),
+     /** When the item entered the queue. */
+     enqueuedAt: z.iso.datetime(),
+     /** Message from the most recent failure, for the "needs attention" UI. */
+     lastError: z.string().optional(),
+     /** Capture metadata. The audio bytes live in the attachment, not here. */
+     recording: baseRecordingSchema,
+-    /** Step output — present once transcription has succeeded. */
++    /**
++     * Step output — present once transcription has succeeded.
++     *
++     * **Write it with {@link Outbox.writeTranscript}, never with `patch`.** `transcript` is still
++     * reachable through {@link OutboxPatch} — it has to be, because the relay's retry and review
++     * paths patch other fields on the same rows — so nothing stops a future caller setting it
++     * directly. Doing so would leave `preview` behind on a committed row, where nothing removes it
++     * again: `patch` is an `incrementalPatch` and cannot delete a key at all. That is a convention
++     * here, not a fence, and this sentence is the only thing holding it.
++     */
+     transcript: transcriptSchema.optional(),
+     /** Step output — present once extraction has succeeded. */
+     extracted: z.record(z.string(), z.unknown()).optional(),
+     /** Step output — whatever the tool adapter returned from the write. */
+     writeResult: z.record(z.string(), z.unknown()).optional(),
+     /**
+      * What the human decided. Present once review has been submitted; absent means
+      * this item has not been reviewed, which `relay.ts` treats as a hard error at
+      * write time rather than a default-accept.
+      */
+     reviewOutcome: reviewOutcomeSchema.optional(),
+     /**
+      * Capture identity, present on a row recorded through the durable path. `sourceId`
+      * names the chunk attachments and must NEVER change — recovery finds every chunk of
+      * a recording through it. Revision 8's `owner` is deleted: nothing takes over, so
+      * nothing needs authorising.
+      */
+     capture: z.strictObject({ sourceId: z.string().min(1) }).optional(),
++    /**
++     * Live-transcription preview: settled text plus the provisional tail of the
++     * region still being transcribed, accumulated while `status === "recording"`
++     * and deleted wholesale when the batch transcript lands. No timings, no
++     * per-segment engine, no confidence — `transcript.ts`'s warning that _"a
++     * shape nobody consumes is a shape nobody keeps honest"_ applies as much to
++     * this shape as the old one. See
++     * `docs/roadmap/design/live-transcription-design.md` §Data model.
++     *
++     * - `committed` — append-only region texts, permanent once written and never
++     *   revised. Index keys stay stable for incremental rendering; the joined
++     *   form is `committed.join(" ")`, exactly as `segments` used to.
++     * - `tail` — the current region's provisional text. **Replaced wholesale on
++     *   every refresh, never appended to.** On commit, the tail's final value
++     *   moves onto `committed` and the tail is cleared in one modification.
++     *
++     * The two fields must render differently: `committed` is settled, `tail` is
++     * text the system is still rewriting.
++     *
++     * **Not patchable** — see {@link OutboxPatch}. Written through
++     * `Outbox.writePreviewTail` and `Outbox.commitPreview`, and deleted in the
++     * same `incrementalModify` that writes `transcript` (never via `patch`,
++     * which cannot remove a key).
++     */
++    preview: z
++      .strictObject({ committed: z.array(z.string()), tail: z.string().optional() })
++      .optional(),
+   })
+   .superRefine((doc, ctx) => {
+     if (doc.status === "recording" && !doc.capture) {
+       ctx.addIssue({ code: "custom", message: "a recording row must carry capture" });
+     }
+   });
+ 
+ /** Inferred from {@link outboxDocumentSchema} — never hand-declared alongside it. */
+ export type OutboxDocument = z.infer<typeof outboxDocumentSchema>;
+ 
+@@ -276,60 +312,70 @@ export type OutboxItem = z.infer<typeof outboxItemSchema>;
+  * about the attachment store, and `putAttachment` / `dropAudio` are the only
+  * things entitled to change them.
+  *
+  * `id`, `seq`, `enqueuedAt`, `recording` and `idempotencyKey` are deliberately
+  * absent: they are decided once and re-deciding any of them would break
+  * ordering, provenance or idempotency.
+  *
+  * `capture` is absent because `sourceId` names the chunk attachments and must
+  * NEVER change — it is set once by `beginRecording` and not patchable through
+  * the ordinary public API.
++ *
++ * `preview` is absent because it is written only through
++ * `Outbox.writePreviewTail` / `Outbox.commitPreview` and deleted only in the
++ * same `incrementalModify` that writes `transcript`. Allowing a patch to
++ * overwrite it would bypass the stale-reply guard inside those modifiers and
++ * let a half-applied state reach subscribers.
+  */
+ export type OutboxPatch = Partial<
+-  Omit<OutboxDocument, "id" | "seq" | "enqueuedAt" | "recording" | "idempotencyKey" | "capture">
++  Omit<
++    OutboxDocument,
++    "id" | "seq" | "enqueuedAt" | "recording" | "idempotencyKey" | "capture" | "preview"
++  >
+ >;
+ 
+ /**
+  * The RxDB JSON schema.
+  *
+  * Hand-written rather than generated from the zod schema above, because RxDB
+  * needs metadata zod has no concept of — `primaryKey`, `indexes`, `attachments`,
+  * and the `maxLength`/`minimum`/`maximum`/`multipleOf` bounds it uses to build
+  * fixed-width index keys. `schema.test.ts` pins the two descriptions of the same
+  * document against each other so they cannot drift apart unnoticed.
+  *
+  * Typed against `OutboxDocument`, not `OutboxItem`: `audioReady` and `audioBytes`
+  * are projected, never stored, and a storage schema that mentioned them would be
+  * claiming to persist something it does not.
+  */
+ export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
+-  version: 2,
++  version: 3,
+   primaryKey: "id",
+   type: "object",
+   properties: {
+     id: { type: "string", maxLength: 64 },
+     // Indexed, so RxDB needs a bounded range and a step to encode it as a
+     // sortable string. A billion queued recordings on one device is not a
+     // scenario; ten digits of headroom is plenty.
+     seq: { type: "number", minimum: 0, maximum: 1_000_000_000, multipleOf: 1 },
+     status: { type: "string", maxLength: 16 },
+     idempotencyKey: { type: "string", maxLength: 64 },
+     attempts: { type: "integer", minimum: 0 },
+     nextAttemptAt: { type: "string", maxLength: 32 },
+     enqueuedAt: { type: "string", maxLength: 32 },
+     lastError: { type: "string" },
+     recording: { type: "object" },
+     transcript: { type: "object" },
+     extracted: { type: "object" },
+     writeResult: { type: "object" },
+     reviewOutcome: { type: "object" },
+     capture: { type: "object" },
++    preview: { type: "object" },
+   },
+   required: [
+     "id",
+     "seq",
+     "status",
+     "idempotencyKey",
+     "attempts",
+     "nextAttemptAt",
+     "enqueuedAt",
+     "recording",
+diff --git a/packages/ribo-core/src/recorder.browser.test.ts b/packages/ribo-core/src/recorder.browser.test.ts
+index 31a7dd8..d498c78 100644
+--- a/packages/ribo-core/src/recorder.browser.test.ts
++++ b/packages/ribo-core/src/recorder.browser.test.ts
+@@ -1,20 +1,22 @@
+ import { afterEach, describe, expect, test, vi } from "vitest";
+ import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
+ import { baseRecordingSchema } from "./recording.js";
+ import {
+   DEFAULT_MIME_TYPE_PREFERENCES,
+   negotiateMimeType,
+   Recorder,
+   RecorderError,
+   type RecorderPhase,
+   type RecorderState,
++  type SampleTapOptions,
++  type SampleTapTeardown,
+ } from "./recorder.js";
+ import {
+   CAPTURE_LOCK,
+   holdLock,
+   isLockFree,
+   openCaptureSession,
+   openOutbox,
+ } from "./queue/index.js";
+ import type { CaptureSession } from "./queue/index.js";
+ import type { Recording } from "./recording.js";
+@@ -732,10 +734,166 @@ describe("Recorder durable capture", () => {
+     const id = await recorder.start();
+     expect(id).toBeUndefined();
+     // Two tabs recording at once is wrong either way — the lock is held
+     // regardless of whether durable capture is configured.
+     expect(await isLockFree(CAPTURE_LOCK)).toBe(false);
+     await recorder.stop();
+     // stop() releases the lock.
+     expect(await isLockFree(CAPTURE_LOCK)).toBe(true);
+   });
+ });
++
++// The worklet source as a string — the production worklet ships as a separate
++// build entry (`./worklet` subpath), loaded by `new URL("./worklet.js",
++// import.meta.url)`. In the test environment that URL does not resolve (the
++// source is `worklet.ts`, not `worklet.js`), so the `createSampleTap` seam
++// injects a Blob-URL worklet that runs the same processor in real Chromium.
++// This is the test-only shape the spike used (Q3); the production packaging is
++// the separate build entry (Q4).
++const WORKLET_SOURCE = `
++const FRAME_SIZE = 512;
++class PcmFrameProcessor extends AudioWorkletProcessor {
++  #buffer = new Float32Array(FRAME_SIZE);
++  #offset = 0;
++  process(inputs) {
++    const input = inputs[0] && inputs[0][0];
++    if (!input) return true;
++    let i = 0;
++    while (i < input.length) {
++      const remaining = FRAME_SIZE - this.#offset;
++      const toCopy = Math.min(remaining, input.length - i);
++      this.#buffer.set(input.subarray(i, i + toCopy), this.#offset);
++      this.#offset += toCopy;
++      i += toCopy;
++      if (this.#offset === FRAME_SIZE) {
++        this.port.postMessage(this.#buffer.slice());
++        this.#offset = 0;
++      }
++    }
++    return true;
++  }
++}
++registerProcessor("pcm-frame-processor", PcmFrameProcessor);
++`;
++
++/**
++ * Builds a `createSampleTap` that loads the worklet from a Blob URL. Each
++ * AudioContext created is pushed into `contexts` so the test can assert on its
++ * `.state` after teardown.
++ */
++const createBlobSampleTap =
++  (contexts: AudioContext[]) =>
++  async ({ stream, onSamples }: SampleTapOptions): Promise<SampleTapTeardown> => {
++    const audioContext = new AudioContext({ sampleRate: 16000 });
++    contexts.push(audioContext);
++    const blob = new Blob([WORKLET_SOURCE], { type: "application/javascript" });
++    const url = URL.createObjectURL(blob);
++    try {
++      await audioContext.audioWorklet.addModule(url);
++    } catch (error) {
++      void audioContext.close().catch(() => undefined);
++      URL.revokeObjectURL(url);
++      throw error;
++    }
++    URL.revokeObjectURL(url);
++    const node = new AudioWorkletNode(audioContext, "pcm-frame-processor");
++    node.port.onmessage = (event) => onSamples(event.data as Float32Array);
++    audioContext.createMediaStreamSource(stream).connect(node);
++    return () => {
++      node.port.close();
++      node.disconnect();
++      void audioContext.close().catch(() => undefined);
++    };
++  };
++
++describe("Recorder live sample tap", () => {
++  test("frames arrive at exactly 512 samples regardless of render quantum", async () => {
++    const frames: Float32Array[] = [];
++    const contexts: AudioContext[] = [];
++    const recorder = new Recorder({
++      onSamples: (frame) => frames.push(frame),
++      createSampleTap: createBlobSampleTap(contexts),
++    });
++
++    await startTracked(recorder);
++    // Wait for several frames — the assertion is on EVERY frame, not just the
++    // first. A bug that emits 128-sample frames (passing the render quantum
++    // through unregrouped) would pass a "first frame is 512" check and fail here.
++    await vi.waitFor(() => expect(frames.length).toBeGreaterThanOrEqual(3));
++    await recorder.stop();
++
++    expect(frames.length).toBeGreaterThan(0);
++    for (const frame of frames) {
++      expect(frame).toBeInstanceOf(Float32Array);
++      expect(frame.length).toBe(512);
++    }
++  });
++
++  test("the worklet is torn down on stop() — no live worklet on a dead stream", async () => {
++    const contexts: AudioContext[] = [];
++    const frames: Float32Array[] = [];
++    const recorder = new Recorder({
++      onSamples: (frame) => frames.push(frame),
++      createSampleTap: createBlobSampleTap(contexts),
++    });
++
++    await startTracked(recorder);
++    // Wait for at least one frame so the worklet has loaded and is running.
++    await vi.waitFor(() => expect(frames.length).toBeGreaterThan(0));
++    await recorder.stop();
++
++    // The worklet's AudioContext is closed — a worklet left on a dead stream is
++    // a leak the existing teardown tests do not cover.
++    expect(contexts[0]?.state).toBe("closed");
++  });
++
++  test("the worklet is torn down on abort() — a failed start after the session is created", async () => {
++    // The second half of the teardown assertion: `stop()` is covered above, but
++    // `abort()` (the `#teardown` path through `start()`'s catch block) is the one
++    // that gets missed. A test that only checks `stop()` passes against a bug
++    // that forgets to tear down the worklet in the abort path.
++    const contexts: AudioContext[] = [];
++    const recorder = new Recorder({
++      onSamples: () => undefined,
++      createSampleTap: createBlobSampleTap(contexts),
++      createRecorder: (stream, options) => {
++        const r = new MediaRecorder(stream, options);
++        // Fail at recorder.start() — AFTER #beginSession has created the session
++        // and started the worklet setup, but BEFORE start() returns.
++        r.start = () => {
++          throw new DOMException("boom", "InvalidStateError");
++        };
++        return r;
++      },
++    });
++
++    await expect(recorder.start()).rejects.toThrow();
++    expect(contexts[0]).toBeDefined();
++    // The worklet setup was in flight when #teardown ran
++    // (teardownSampleTap was still undefined). The .then() in #beginSession
++    // sees this.#session !== session and calls the teardown itself —
++    // asynchronously. Poll until the AudioContext is closed.
++    await vi.waitFor(() => expect(contexts[0]?.state).toBe("closed"));
++  });
++
++  test("a worklet failure does not stop capture — the audio still reaches disk", async () => {
++    // If addModule rejects or the worklet throws, recording continues and the
++    // audio still reaches disk. There is simply no onSamples delivery.
++    const failingTap = async (): Promise<SampleTapTeardown> => {
++      throw new Error("addModule failed: worklet unavailable");
++    };
++
++    const recorder = new Recorder({
++      onSamples: () => undefined,
++      createSampleTap: failingTap,
++    });
++
++    await startTracked(recorder);
++    // Give the rejected promise's .catch() a chance to land.
++    await sleep(200);
++    const { audio } = await recorder.stop();
++
++    // Recording continued despite the worklet failure — audio was produced.
++    expect(audio.size).toBeGreaterThan(0);
++    expect(recorder.phase).toBe("idle");
++  });
++});
+diff --git a/packages/ribo-core/src/recorder.ts b/packages/ribo-core/src/recorder.ts
+index cb1d9fa..b3332d9 100644
+--- a/packages/ribo-core/src/recorder.ts
++++ b/packages/ribo-core/src/recorder.ts
+@@ -214,40 +214,77 @@ export interface RecorderOptions<C = EmptyContext> {
+    * a chunk attachment. `stop()` finalises: merges, decode-verifies, and commits. When absent, the
+    * recorder works as before — non-durable, one blob at `stop()`.
+    */
+   readonly captureSession?: (opts: {
+     recording: Omit<Recording, "ctx"> & { ctx: C };
+     sourceId: string;
+     mimeType: string;
+   }) => Promise<CaptureSession>;
+   /** Timeslice for `MediaRecorder.start()` in durable mode. Defaults to 5000 ms. */
+   readonly timesliceMs?: number;
++  /**
++   * Optional live-sample tap. When supplied, the same `getUserMedia` stream also feeds an
++   * `AudioWorklet` that emits **512-sample frames of 16 kHz mono PCM** — the frame size Silero VAD
++   * consumes. Without this callback, behaviour is byte-for-byte what it is today: the stream feeds
++   * only `MediaRecorder`, and no worklet is created.
++   *
++   * The tap is **best-effort**. If the worklet fails to load or throws, recording continues and the
++   * audio still reaches disk — a preview is a nicety, the audio is the product.
++   */
++  readonly onSamples?: (frame: Float32Array) => void;
++  /**
++   * Factory for the live sample tap. Defaults to an `AudioWorklet` loaded from this package's
++   * `./worklet` subpath (`new URL("./worklet.js", import.meta.url)`). Injectable so tests can
++   * supply a Blob-URL worklet and so a host can customise the audio graph. The returned teardown
++   * function is called by `stop()` and by every `#teardown` path.
++   *
++   * This is **not** a URL-injection option. The Vite library-mode worker bug (vitejs/vite#15618)
++   * that forced `createWorker` injection does not apply to `addModule(url)`, so there is no
++   * production need for a URL seam. The factory exists for testability, matching `getUserMedia`
++   * and `createRecorder`.
++   */
++  readonly createSampleTap?: (opts: SampleTapOptions) => Promise<SampleTapTeardown>;
++}
++
++/** Options passed to {@link RecorderOptions.createSampleTap}. */
++export interface SampleTapOptions {
++  readonly stream: MediaStream;
++  readonly onSamples: (frame: Float32Array) => void;
+ }
+ 
++/** Teardown function returned by {@link RecorderOptions.createSampleTap}. */
++export type SampleTapTeardown = () => void;
++
+ /** Everything that exists only for the duration of one capture. */
+ interface Session {
+   readonly stream: MediaStream;
+   readonly recorder: MediaRecorder;
+   readonly chunks: Blob[];
+   readonly audioContext: AudioContext | undefined;
+   readonly analyser: AnalyserNode | undefined;
+   readonly samples: Uint8Array<ArrayBuffer> | undefined;
+   readonly ticker: ReturnType<typeof setInterval>;
+   /** Set when recording durably — `dataavailable` is routed to `ingest` instead of `chunks`. */
+   captureSession?: CaptureSession;
+   /**
+    * Whether `finalize()` succeeded, so `#teardown` knows not to abort.
+    *
+    * `abort()` removes the recording row, which is right for every path that did NOT
+    * commit and catastrophic for the one that did.
+    */
+   finalized?: boolean;
++  /**
++   * Teardown for the live sample tap, set once the worklet has finished loading.
++   * `undefined` until then — the `.then()` in `#beginSession` stores it, or calls
++   * it immediately if the session was already torn down by the time it fires.
++   */
++  teardownSampleTap?: SampleTapTeardown;
+ }
+ 
+ /**
+  * Maps a `getUserMedia` rejection onto a {@link RecorderErrorCode}.
+  *
+  * The names come from the Media Capture spec; a browser that invents its own falls through to
+  * `capture-failed` rather than being mislabeled.
+  */
+ type GetUserMediaErrorCode = "permission-denied" | "no-input-device" | "capture-failed";
+ 
+@@ -288,20 +325,22 @@ export class Recorder<C = EmptyContext> {
+   readonly #getUserMedia: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
+   readonly #createRecorder: (stream: MediaStream, options: MediaRecorderOptions) => MediaRecorder;
+   readonly #captureSessionFactory:
+     | ((opts: {
+         recording: Recording;
+         sourceId: string;
+         mimeType: string;
+       }) => Promise<CaptureSession>)
+     | undefined;
+   readonly #timesliceMs: number;
++  readonly #onSamples: ((frame: Float32Array) => void) | undefined;
++  readonly #createSampleTap: (opts: SampleTapOptions) => Promise<SampleTapTeardown>;
+ 
+   readonly #listeners = new Set<(state: RecorderState) => void>();
+   #phase: RecorderPhase = "idle";
+   #level = 0;
+   #session: Session | undefined;
+   #failure: RecorderError | undefined;
+   /** Recorded duration banked by previous run-segments, excluding pauses. */
+   #accumulatedMs = 0;
+   /** `performance.now()` when the current run-segment began (start, or resume). */
+   #resumedAt = 0;
+@@ -323,20 +362,22 @@ export class Recorder<C = EmptyContext> {
+     // in C (C appears only in output positions). The cast is safe: a function
+     // accepting Recording (ctx: unknown) can accept Omit<Recording,"ctx"> & { ctx: C }.
+     this.#captureSessionFactory = options.captureSession as
+       | ((opts: {
+           recording: Recording;
+           sourceId: string;
+           mimeType: string;
+         }) => Promise<CaptureSession>)
+       | undefined;
+     this.#timesliceMs = options.timesliceMs ?? 5000;
++    this.#onSamples = options.onSamples;
++    this.#createSampleTap = options.createSampleTap ?? defaultCreateSampleTap;
+   }
+ 
+   get phase(): RecorderPhase {
+     return this.#phase;
+   }
+ 
+   /**
+    * Milliseconds of **recorded** audio; zero when idle.
+    *
+    * Sums banked segments with the live one, so a paused span is not counted. A
+@@ -654,20 +695,47 @@ export class Recorder<C = EmptyContext> {
+     // after the capture session is wired, with or without a timeslice.
+ 
+     const meter = createLevelMeter(stream);
+     const session: Session = {
+       stream,
+       recorder,
+       chunks,
+       ...meter,
+       ticker: setInterval(() => this.#tick(), this.#tickMs),
+     };
++
++    // Best-effort: a worklet failure must never stop capture. The setup is
++    // fire-and-forget — `start()` does not await it, so recording begins
++    // immediately regardless of how long `addModule` takes. If the session is
++    // torn down before the worklet finishes loading, the `.then()` sees
++    // `this.#session !== session` (cleared by `#teardown`) and calls the
++    // teardown itself — no leak.
++    if (this.#onSamples) {
++      // `Promise.resolve().then(...)` rather than calling the factory bare. The type says it returns
++      // a promise, but nothing enforces that on an injected one — and a SYNCHRONOUS throw from it
++      // would escape `#beginSession` into `start()`, which reports a misleading
++      // "The MediaRecorder could not be started." AND leaks the ticker forever, because
++      // `this.#session` was never assigned so `#teardown` never runs for this session. A capture that
++      // fails to start because a preview seam threw is the exact inversion of "live must never
++      // degrade recording".
++      Promise.resolve()
++        .then(async () => await this.#createSampleTap({ stream, onSamples: this.#onSamples! }))
++        .then((teardown) => {
++          if (this.#session === session) {
++            session.teardownSampleTap = teardown;
++          } else {
++            teardown();
++          }
++        })
++        .catch(() => undefined);
++    }
++
+     return session;
+   }
+ 
+   /** One sample of the input level, then a push to every listener. */
+   #tick(): void {
+     if (this.#phase === "paused" || this.#phase === "failed") return;
+     const session = this.#session;
+     if (session?.analyser === undefined || session.samples === undefined) return;
+     session.analyser.getByteTimeDomainData(session.samples);
+     this.#level = rootMeanSquare(session.samples);
+@@ -678,20 +746,35 @@ export class Recorder<C = EmptyContext> {
+     // Abort ONLY a session that did not finalize. This ran unconditionally, so a
+     // successful durable stop committed its row and then immediately deleted it —
+     // `stop()` returned normally while its own output was being removed, and with
+     // `enqueue: false` the recording vanished entirely.
+     if (!session.finalized) session.captureSession?.abort();
+     // Release the capture lock — resolves the never-resolving promise that
+     // holdLock's callback is still holding.
+     this.#releaseLock?.();
+     this.#releaseLock = undefined;
+     clearInterval(session.ticker);
++    // Tear down the live sample tap — a worklet left on a dead stream is a leak
++    // the existing teardown tests do not cover. When the setup has not yet
++    // completed (`teardownSampleTap` still `undefined`), the `.then()` in
++    // `#beginSession` will call the teardown itself once it fires, because
++    // `this.#session` is already `undefined` by then.
++    // Guarded, and `releaseStream` is what it protects. A host-supplied teardown that throws
++    // synchronously would otherwise skip the line below and leave the microphone open with the
++    // browser's recording indicator lit — the privacy failure this file's header singles out, caused
++    // by an optional preview feature. The default teardown cannot throw synchronously; an injected
++    // one can.
++    try {
++      session.teardownSampleTap?.();
++    } catch {
++      /* a failed tap teardown must not cost us the microphone */
++    }
+     releaseStream(session.stream);
+     void session.audioContext?.close().catch(() => undefined);
+     this.#session = undefined;
+     this.#level = 0;
+     this.#accumulatedMs = 0;
+     this.#resumedAt = 0;
+     this.#failure = undefined;
+     this.#phase = "idle";
+     this.#emit();
+   }
+@@ -753,10 +836,93 @@ const createLevelMeter = (
+  * rather than peak: a meter driven by peaks flickers on every transient and reads as broken.
+  */
+ const rootMeanSquare = (samples: Uint8Array): number => {
+   let sum = 0;
+   for (const sample of samples) {
+     const centered = (sample - 128) / 128;
+     sum += centered * centered;
+   }
+   return Math.min(1, Math.sqrt(sum / samples.length));
+ };
++
++/**
++ * The sample rate the live path operates at — Silero VAD's frame rate.
++ *
++ * The `AudioContext` is constructed at this rate so the browser resamples the
++ * `MediaStream` to 16 kHz before the worklet sees it. No resampling in the
++ * worklet.
++ */
++const LIVE_SAMPLE_RATE = 16000;
++
++/** Matches the name in `worklet.ts`'s `registerProcessor` call. */
++const PCM_PROCESSOR_NAME = "pcm-frame-processor";
++
++/**
++ * Default sample-tap factory: loads the `AudioWorklet` from this package's
++ * `./worklet` subpath and wires it to `onSamples`.
++ *
++ * `new URL("./worklet.js", import.meta.url)` passes through the build verbatim
++ * (tsdown deliberately omits `experimental.resolveNewUrlToAsset` — see
++ * `@azx/build-config`). A consumer's bundler statically analyses the
++ * `new URL(..., import.meta.url)` pattern and emits `worklet.js` as a separate
++ * asset, exactly as `@azx/ribo-transcriber-ondevice`'s `./worker` entry already
++ * does.
++ *
++ * **In-workspace, this default does not load, and the source file is named for that reason.** A
++ * relative `new URL` involves no module resolution at all, so the `@azx/source` condition on the
++ * `./worklet` subpath does not redirect it: under `@azx/source` this module is served from `src/`, and
++ * the URL resolves to `src/worklet.js` — a file that does not exist, because the source is TypeScript.
++ * The failure is swallowed below, so recording is unaffected and the preview is simply silent. Keeping
++ * the source basename `worklet.ts` matches the `./worker` precedent (`src/worker.ts` ↔
++ * `dist/worker.js`) and leaves a bundler's `.js`→`.ts` probing its only chance of working; that
++ * probing is unproven here, and nothing in this repo has ever exercised it — the playground injects
++ * `createWorker` for the same reason. **A workspace host that wants live frames must inject
++ * `createSampleTap`.**
++ *
++ * The worklet is a **tap**, not a sink: the `AudioWorkletNode` is not connected
++ * to `audioContext.destination` — it produces no audible output. A
++ * `MediaStreamSource` drives the node, so `process()` fires whether or not the
++ * node is connected to the destination (unlike an `OscillatorNode`, which has
++ * no external driver and would need a destination connection to run).
++ */
++const defaultCreateSampleTap = async ({
++  stream,
++  onSamples,
++}: SampleTapOptions): Promise<SampleTapTeardown> => {
++  const audioContext = new AudioContext({ sampleRate: LIVE_SAMPLE_RATE });
++  try {
++    await audioContext.audioWorklet.addModule(new URL("./worklet.js", import.meta.url).href);
++  } catch (error) {
++    void audioContext.close().catch(() => undefined);
++    throw error;
++  }
++  let node: AudioWorkletNode;
++  try {
++    // Inside a `try` because this throws when the processor name does not match the one the module
++    // registered — a drift this file cannot type-check, since the name lives in a string on both
++    // sides. Outside the `try`, that drift leaked an open `AudioContext` per start.
++    node = new AudioWorkletNode(audioContext, PCM_PROCESSOR_NAME);
++  } catch (error) {
++    void audioContext.close().catch(() => undefined);
++    throw error;
++  }
++  // The context can start suspended when a browser refuses audio without a gesture. The level meter
++  // in this same file resumes for exactly that reason; without the parity the tap is silently dead
++  // while everything reports healthy.
++  void audioContext.resume().catch(() => undefined);
++  node.port.onmessage = (event) => {
++    // Guarded because this runs on the main thread at ~31 Hz. An `onSamples` that throws would
++    // otherwise emit an uncaught error per frame — it cannot stop capture (`dataavailable` is a
++    // separate dispatch) but it can drown the console and the main thread the recorder shares.
++    try {
++      onSamples(event.data as Float32Array);
++    } catch {
++      /* the caller's callback is the caller's problem; capture is not */
++    }
++  };
++  audioContext.createMediaStreamSource(stream).connect(node);
++  return () => {
++    node.port.close();
++    node.disconnect();
++    void audioContext.close().catch(() => undefined);
++  };
++};
+diff --git a/packages/ribo-core/src/worklet.ts b/packages/ribo-core/src/worklet.ts
+new file mode 100644
+index 0000000..8dc04f4
+--- /dev/null
++++ b/packages/ribo-core/src/worklet.ts
+@@ -0,0 +1,85 @@
++/**
++ * @file The `AudioWorkletProcessor` for live sample tapping, published as the
++ * `./worklet` subpath of `@azx/ribo-core`.
++ *
++ * The browser hands an `AudioWorkletProcessor` audio in 128-sample render quanta
++ * — the Web Audio spec's fixed `AUDIO_WORKLET_QUANTUM_SIZE`, confirmed in
++ * Chromium. Silero VAD wants 512-sample frames at 16 kHz. This processor's sole
++ * job is to regroup four 128-sample quanta into each 512-sample frame and post
++ * it to the main thread. The spike (`docs/roadmap/design/live-spike-findings.md`
++ * Q3) confirmed this works in real Chromium with a real `MediaStream`.
++ *
++ * The `AudioContext` that loads this module is constructed at 16 kHz (see
++ * `recorder.ts`'s `defaultCreateSampleTap`), so the browser resamples the
++ * `MediaStream` to 16 kHz before the processor sees it — no resampling here.
++ *
++ * `AudioWorkletProcessor` and `registerProcessor` are global in the
++ * `AudioWorkletGlobalScope` but absent from TypeScript's DOM lib, so they are
++ * declared below. `export {}` makes this a module so the declarations stay
++ * file-scoped rather than polluting the project's global namespace.
++ *
++ * **This entry is side-effect-only, and `package.json` says so.** Its whole behaviour is the
++ * top-level `registerProcessor` below and it exports nothing, so under a blanket
++ * `sideEffects: false` a bundler would be free to drop a host's bare
++ * `import "@azx/ribo-core/worklet"` entirely — the same class of scar the playground's
++ * `whisper.worker.ts` header documents for the worker entry. `sideEffects` therefore lists BOTH this source file and its built
++ * output rather than being `false` — the dist path alone is not enough, because a workspace consumer
++ * resolves through the `@azx/source` condition to `src/worklet.ts` and a dist-only glob does not
++ * cover it. Listing one and not the other emitted a 0-byte worklet: the import was dropped, so
++ * `registerProcessor` never ran, and the tap failed with no frames and no error. URL-loading, the default path, was never at risk: emitted
++ * assets are not tree-shaken.
++ */
++export {};
++
++declare class AudioWorkletProcessor {
++  readonly port: MessagePort;
++  process(
++    inputs: Float32Array[][],
++    outputs: Float32Array[][],
++    parameters: Record<string, Float32Array>,
++  ): boolean;
++}
++
++declare function registerProcessor(
++  name: string,
++  processorCtor: new () => AudioWorkletProcessor,
++): void;
++
++/** Silero VAD's frame size — the reason this processor exists. */
++const FRAME_SIZE = 512;
++
++/**
++ * Regroups 128-sample render quanta into 512-sample frames of 16 kHz mono PCM.
++ *
++ * Each `process()` call delivers exactly 128 samples (the render quantum). Four
++ * calls fill one 512-sample frame, which is posted via `this.port.postMessage`.
++ * The buffer is copied (`slice`) because it is reused for the next frame — a
++ * view would alias and corrupt. At 512 float32 samples (2 KB) the copy is
++ * negligible at the ~32 ms frame cadence.
++ */
++class PcmFrameProcessor extends AudioWorkletProcessor {
++  readonly #buffer = new Float32Array(FRAME_SIZE);
++  #offset = 0;
++
++  override process(inputs: Float32Array[][]): boolean {
++    const input = inputs[0]?.[0];
++    if (input === undefined) return true;
++
++    let i = 0;
++    while (i < input.length) {
++      const remaining = FRAME_SIZE - this.#offset;
++      const toCopy = Math.min(remaining, input.length - i);
++      this.#buffer.set(input.subarray(i, i + toCopy), this.#offset);
++      this.#offset += toCopy;
++      i += toCopy;
++
++      if (this.#offset === FRAME_SIZE) {
++        this.port.postMessage(this.#buffer.slice());
++        this.#offset = 0;
++      }
++    }
++    return true;
++  }
++}
++
++registerProcessor("pcm-frame-processor", PcmFrameProcessor);
+diff --git a/packages/ribo-ui-react/src/context.ts b/packages/ribo-ui-react/src/context.ts
+index 4aa125b..50660b7 100644
+--- a/packages/ribo-ui-react/src/context.ts
++++ b/packages/ribo-ui-react/src/context.ts
+@@ -1,11 +1,11 @@
+-import type { Connectivity, Outbox, Recorder } from "@azx/ribo-core";
++import type { Connectivity, LiveTranscriber, Outbox, Recorder } from "@azx/ribo-core";
+ import { createContext } from "react";
+ 
+ import type { CaptureCoordinator } from "./capture-coordinator.js";
+ 
+ /**
+  * @file The one context this package defines.
+  *
+  * **The provider carries instances; it never constructs them.** Lifetime lives
+  * above React, with the host, and this is not a style preference — it is the
+  * playground's scar tissue. StrictMode's double mount opens a second RxDB
+@@ -31,14 +31,25 @@ export type AnyRecorder = Recorder<Record<string, unknown>>;
+  * The engine instances a host makes available to the hooks.
+  *
+  * Every field optional: a host using only capture must not be forced to open a
+  * database. Each hook resolves the one it needs and throws if it is absent.
+  */
+ export interface RiboInstances {
+   readonly recorder?: AnyRecorder;
+   readonly outbox?: Outbox;
+   readonly connectivity?: Connectivity;
+   readonly captureCoordinator?: CaptureCoordinator;
++  /**
++   * Optional live transcription engine. When supplied and ready, recording
++   * opens a {@link LiveSession} whose `segments$` carries tail/commit
++   * distinctions to the outbox row — tails via `writePreviewTail`
++   * (provisional, replaced wholesale), commits via `commitPreview`
++   * (permanent, appended). The host owns the instance — the provider never
++   * constructs one — and the session lifecycle is driven by
++   * `recorder.start()`/`stop()` through the host's capture-session wiring,
++   * not by the hooks directly.
++   */
++  readonly liveTranscriber?: LiveTranscriber;
+ }
+ 
+ /** Empty rather than `undefined`, so "no provider" and "empty provider" fail identically. */
+ export const RiboContext = createContext<RiboInstances>({});
+diff --git a/packages/ribo-ui-react/src/use-recorder.ts b/packages/ribo-ui-react/src/use-recorder.ts
+index fa369de..6495aa4 100644
+--- a/packages/ribo-ui-react/src/use-recorder.ts
++++ b/packages/ribo-ui-react/src/use-recorder.ts
+@@ -1,11 +1,18 @@
+-import type { Capture, Outbox, OutboxItem, RecorderPhase, RecorderState } from "@azx/ribo-core";
++import type {
++  Capture,
++  LiveTranscriber,
++  Outbox,
++  OutboxItem,
++  RecorderPhase,
++  RecorderState,
++} from "@azx/ribo-core";
+ import { RecorderError } from "@azx/ribo-core";
+ import { useCallback, useRef, useState } from "react";
+ 
+ // `AnyRecorder` is this package's own alias for a recorder whose host context type
+ // the provider cannot know — it is defined in ./context.js, NOT in @azx/ribo-core.
+ import type { AnyRecorder } from "./context.js";
+ import type { CaptureCoordinator } from "./capture-coordinator.js";
+ import { useOptionalRiboInstance, useRiboInstance } from "./use-ribo-instance.js";
+ import { useSubscribed } from "./use-subscribed.js";
+ 
+@@ -15,38 +22,53 @@ export interface UseRecorderOptions {
+   /**
+    * Hand the capture to the outbox on stop. Defaults to **`true`**.
+    *
+    * A recording that stops without reaching disk is lost, so the durable path is
+    * the default rather than an opt-in. With `enqueue: false` no outbox is needed
+    * and `stop()` resolves `item: undefined`.
+    */
+   readonly enqueue?: boolean;
+   /** Override or supply the capture coordinator for health reporting. */
+   readonly captureCoordinator?: CaptureCoordinator;
++  /**
++   * Override the live transcriber from {@link RiboProvider}. When supplied and
++   * ready, recording opens a live session whose segments appear on the outbox
++   * row's `preview` field. The session lifecycle is driven by
++   * `recorder.start()`/`stop()` through the host's capture-session wiring.
++   */
++  readonly liveTranscriber?: LiveTranscriber;
+ }
+ 
+ export interface StopResult {
+   readonly capture: Capture<Record<string, unknown>>;
+   /** The queued row, or `undefined` when `enqueue` was `false`. */
+   readonly item: OutboxItem | undefined;
+ }
+ 
+ export interface UseRecorderResult {
+   readonly phase: RecorderPhase;
+   readonly elapsedMs: number;
+   /** Raw RMS in `[0, 1]` — the honest value. */
+   readonly level: number;
+   /** {@link level} under a perceptual curve, for drawing a meter. */
+   readonly scaledLevel: number;
+   /** An async `start`/`stop` is in flight. */
+   readonly busy: boolean;
+   readonly error: RecorderError | undefined;
++  /**
++   * The live transcriber, if one was supplied to {@link RiboProvider} or this
++   * hook. `undefined` when live is not configured. The session lifecycle is
++   * driven by `start()`/`stop()` through the host's capture-session wiring, not
++   * by this hook directly — the hook exposes it so a UI can indicate whether
++   * live preview is available.
++   */
++  readonly liveTranscriber: LiveTranscriber | undefined;
+   readonly start: () => Promise<void>;
+   readonly stop: () => Promise<StopResult>;
+   readonly pause: () => void;
+   readonly resume: () => void;
+   /** Start when idle, stop when recording or paused. */
+   readonly toggle: () => Promise<void>;
+ }
+ 
+ /**
+  * Capture, as React state.
+@@ -94,20 +116,21 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
+   if (enqueue && maybeOutbox === undefined) {
+     throw new Error(
+       "ribo: useRecorder({ enqueue: true }) needs an outbox, so a stopped recording reaches disk. Pass one to <RiboProvider value={{ outbox }}>, or set enqueue: false to handle the capture yourself.",
+     );
+   }
+   const outbox = enqueue ? maybeOutbox : undefined;
+   const captureCoordinator = useOptionalRiboInstance(
+     "captureCoordinator",
+     options.captureCoordinator,
+   );
++  const liveTranscriber = useOptionalRiboInstance("liveTranscriber", options.liveTranscriber);
+ 
+   // `subscribe` must stay referentially stable across renders — see
+   // useSubscribed's doc comment. `Recorder.state` allocates a fresh object on
+   // every read, so an unmemoized arrow here would re-subscribe every render and
+   // never stop: the effect's `[subscribe]` dependency would change every commit,
+   // and the source's immediate delivery-on-subscribe would hand back an object
+   // that is never `Object.is`-equal to the last one.
+   const subscribe = useCallback(
+     (listener: (state: RecorderState) => void) => recorder.subscribe(listener),
+     [recorder],
+@@ -195,20 +218,21 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
+     scaledLevel: scaleLevel(state.level),
+     busy,
+     // Prefer the recorder's observable error: it is set the moment a mid-capture
+     // failure happens, not held back until stop() throws. The hook's own `error`
+     // state covers failures from start()/stop()/pause()/resume() that the recorder
+     // does not carry on its observable (e.g. a not-recording thrown by stop() on
+     // an idle recorder). After stop() rejects, teardown clears the recorder's
+     // error, so `state.error` is undefined and the hook's `error` takes over —
+     // keeping the failure visible until the next start() clears both.
+     error: state.error ?? error,
++    liveTranscriber,
+     start,
+     stop,
+     pause,
+     resume,
+     toggle,
+   };
+ }
+ 
+ /**
+  * Maps raw RMS onto something a bar can show.
+diff --git a/packages/ribo-ui-react/src/use-ribo-instance.ts b/packages/ribo-ui-react/src/use-ribo-instance.ts
+index 7d06e15..0184262 100644
+--- a/packages/ribo-ui-react/src/use-ribo-instance.ts
++++ b/packages/ribo-ui-react/src/use-ribo-instance.ts
+@@ -1,20 +1,21 @@
+ import { useContext } from "react";
+ 
+ import { RiboContext, type RiboInstances } from "./context.js";
+ 
+ /** What a host has to do to supply each instance, quoted back to them in the error. */
+ const HOW_TO_SUPPLY: Record<keyof RiboInstances, string> = {
+   recorder: "new Recorder() from @azx/ribo-core",
+   outbox: "await openOutbox() from @azx/ribo-core",
+   connectivity: "createConnectivity({ … }) from @azx/ribo-core",
+   captureCoordinator: "createCaptureCoordinator() from @azx/ribo-ui-react",
++  liveTranscriber: "new OnDeviceLiveTranscriber(…) from @azx/ribo-transcriber-ondevice",
+ };
+ 
+ /**
+  * Resolves one engine instance: an explicit `override` if given, else the
+  * provider's.
+  *
+  * Throws rather than returning `undefined`, and the message names the missing key
+  * and how to make one. The alternative is a `TypeError` on a property of
+  * `undefined`, several frames deep, in a component that did not cause the
+  * problem — a host integrating this package for the first time should be told
+diff --git a/playground/src/App.tsx b/playground/src/App.tsx
+index 421a890..8b20d5c 100644
+--- a/playground/src/App.tsx
++++ b/playground/src/App.tsx
+@@ -1,20 +1,21 @@
+ import { useEffect, useState } from "react";
+ import { RiboProvider } from "@azx/ribo-ui-react";
+ import { SNUGGPRO_ADAPTER_NAME as ADAPTER } from "@azx/ribo-adapter-snuggpro";
+ import type { Outbox } from "@azx/ribo-core";
+ 
+ import { getCaptureCoordinator } from "./capture-coordinator-handle.js";
+ import { ConnectivityPanel } from "./ConnectivityPanel.js";
+ import { getConnectivity } from "./connectivity-store.js";
+ import { EvictionNotice } from "./EvictionNotice.js";
+ import { messageOf } from "./format.js";
++import { getLiveTranscriber } from "./live-handle.js";
+ import { getOutbox } from "./outbox-handle.js";
+ import { QueuePanel } from "./QueuePanel.js";
+ import { getRecorder } from "./recorder-handle.js";
+ import { RecordPanel } from "./RecordPanel.js";
+ import { RecoveryNotice } from "./RecoveryNotice.js";
+ import { ReviewPanel } from "./ReviewPanel.js";
+ import { StoragePanel } from "./StoragePanel.js";
+ import { errorBox, monospace, muted, page } from "./styles.js";
+ import { TranscribePanel } from "./TranscribePanel.js";
+ import { TryItPanel } from "./TryItPanel.js";
+@@ -60,20 +61,21 @@ export function App() {
+     // before the outbox-ready gate — which no panel below does. Rendering the
+     // provider here — rather than merely importing it — is what makes this a
+     // *runtime* composition check rather than a type-only one; see the `@file`
+     // note above.
+     <RiboProvider
+       value={{
+         recorder: getRecorder(),
+         outbox: outbox.kind === "ready" ? outbox.outbox : undefined,
+         connectivity: getConnectivity(),
+         captureCoordinator: getCaptureCoordinator(),
++        liveTranscriber: getLiveTranscriber(),
+       }}
+     >
+       <main style={page}>
+         <h1 style={{ marginBottom: 0 }}>ribo playground</h1>
+         <p style={muted}>
+           Phase 3 — capture, queue, and transcribe on-device. Prime the Whisper model once, cut the
+           network, and recording and transcription still work.
+         </p>
+ 
+         {/* Above everything else, and outside the panels: if the browser dropped
+diff --git a/playground/src/RecordPanel.tsx b/playground/src/RecordPanel.tsx
+index 9d472e0..42fbcc3 100644
+--- a/playground/src/RecordPanel.tsx
++++ b/playground/src/RecordPanel.tsx
+@@ -1,12 +1,12 @@
+ import { useCallback } from "react";
+-import { useRecorder } from "@azx/ribo-ui-react";
++import { useOutboxItems, useRecorder } from "@azx/ribo-ui-react";
+ 
+ import { formatElapsed } from "./format.js";
+ import { button, errorBox, monospace, muted, panel, recordButton } from "./styles.js";
+ 
+ /**
+  * @file Start/stop/pause capture, with the two readouts that prove the microphone
+  * is live: elapsed time and input level.
+  *
+  * `useRecorder()` resolves the shared `Recorder` (and, for enqueueing a stopped
+  * capture, the shared `Outbox`) through `RiboProvider`, and pushes fresh state on
+@@ -14,20 +14,38 @@ import { button, errorBox, monospace, muted, panel, recordButton } from "./style
+  * here owns a `Recorder` of its own — see `recorder-handle.ts` for why that
+  * instance is a host-level singleton rather than component state.
+  */
+ 
+ /** Height of the level meter, in pixels. */
+ const METER_HEIGHT = 14;
+ 
+ export function RecordPanel() {
+   const { phase, elapsedMs, level, scaledLevel, busy, error, toggle, pause, resume } =
+     useRecorder();
++  // The recording row is already in the outbox (durable capture inserts it at
++  // `start()`), so `useOutboxItems` delivers its `preview` reactively — no new
++  // subscription mechanism is added (design §Delivery). `preview` is absent
++  // before the first utterance closes and after the batch transcript lands.
++  const { items: recordingItems } = useOutboxItems({ status: "recording" });
++  // **The LAST row, not the first.** `useOutboxItems` sorts by `seq` ascending — that ordering is the
++  // queue's capture-order guarantee and is not optional — so `[0]` is the OLDEST `recording` row.
++  // Durable capture leaves one behind for every interrupted capture until startup recovery sweeps
++  // it, so on any device that has ever lost a recording, `[0]` is an orphan with no preview and the
++  // live text lands on a row nobody is watching. Only one capture can be live at a time (the capture
++  // lock enforces it), so the highest `seq` is always the current one.
++  //
++  // Found by hand: the console showed segments arriving and being appended while the panel stayed
++  // empty. A fresh browser profile has no orphans, so `[0]` happens to be right — which is why every
++  // automated run of this passed.
++  const recordingItem = recordingItems.at(-1);
++  const previewCommitted = recordingItem?.preview?.committed;
++  const previewTail = recordingItem?.preview?.tail;
+ 
+   const recording = phase === "recording";
+   const paused = phase === "paused";
+ 
+   // `toggle()` is asymmetric: `start()` swallows its own failure into `error`
+   // state, but `stop()` — and so `toggle()` when it calls `stop()` — rethrows,
+   // because its resolved value carries the `Capture` a caller might need next.
+   // This button has no further use for that value, but it still must not let the
+   // rejection go unhandled, or a failed stop is a console error on top of the
+   // `error` state that already reports it.
+@@ -58,20 +76,41 @@ export function RecordPanel() {
+           {paused ? "▶ Resume" : "❙❙ Pause"}
+         </button>
+         <div>
+           <div style={{ ...monospace, fontSize: "1.6rem" }}>{formatElapsed(elapsedMs)}</div>
+           <div style={muted}>phase: {phase}</div>
+         </div>
+       </div>
+ 
+       <LevelMeter level={level} scaledLevel={scaledLevel} active={recording} />
+ 
++      {recording && (previewCommitted?.length || previewTail) && (
++        <div data-testid="live-preview" style={{ marginTop: "0.75rem" }}>
++          <div style={muted}>live preview (provisional — replaced by the final transcript):</div>
++          {previewCommitted && previewCommitted.length > 0 && (
++            <p style={{ ...monospace, margin: "0.25rem 0 0" }}>{previewCommitted.join(" ")}</p>
++          )}
++          {/* The tail is provisional text the system is still rewriting — it will visibly
++              change under the reader as the region grows. Italic and muted so it does not
++              look identical to the settled committed text above; the design calls this out
++              as an honesty requirement, not a polish item. */}
++          {previewTail && (
++            <p
++              data-testid="live-preview-tail"
++              style={{ ...monospace, ...muted, fontStyle: "italic", margin: "0.15rem 0 0" }}
++            >
++              {previewTail}…
++            </p>
++          )}
++        </div>
++      )}
++
+       {error !== undefined && <p style={errorBox}>{error.message}</p>}
+     </section>
+   );
+ }
+ 
+ /**
+  * The input level, as a bar.
+  *
+  * `level` is the honest RMS of the most recent analyser frame in `[0, 1]` — kept
+  * in the numeric readout below because that line exists to document the real
+diff --git a/playground/src/live-handle.ts b/playground/src/live-handle.ts
+new file mode 100644
+index 0000000..eca3f8a
+--- /dev/null
++++ b/playground/src/live-handle.ts
+@@ -0,0 +1,278 @@
++import type { LiveSegment, LiveSession, LiveTranscriber, Outbox, Recording } from "@azx/ribo-core";
++import { OnDeviceLiveTranscriber } from "@azx/ribo-transcriber-ondevice";
++
++import { getOutbox } from "./outbox-handle.js";
++
++/**
++ * @file Host-owned {@link LiveTranscriber} singleton and live-session lifecycle.
++ *
++ * Mirrors `whisper-store.ts`'s pattern: a module singleton, constructed on first
++ * use, shared by every component. The live transcriber is held beside the
++ * recorder/outbox/coordinator handles and wired through `RiboProvider` so the
++ * hook layer can report live availability.
++ *
++ * ## Why the playground manages the session, not the hook
++ *
++ * `useRecorder` calls `recorder.start()`, and the `captureSession` factory —
++ * which the recorder handle owns — is where the `Recording` metadata is
++ * available. The hook never sees the `Recording` object, so it cannot call
++ * `liveTranscriber.openSession(recording)` directly. Instead, the capture
++ * session factory calls {@link openLiveSession} after inserting the row, and
++ * the `createSampleTap` teardown calls {@link closeLiveSession} when recording
++ * stops. The hook's `start()`/`stop()` trigger both indirectly through
++ * `recorder.start()`/`recorder.stop()`, which is what "useRecorder opens and
++ * closes a live session" means in practice.
++ *
++ * ## Live must never degrade recording
++ *
++ * Every failure path in {@link openLiveSession} ends with recording continuing
++ * and no preview. The `onSamples` callback on the `Recorder` forwards to
++ * {@link feedFrame}, which is a no-op when no session is open — so frames are
++ * silently dropped if the session failed to open, and capture is unaffected.
++ */
++
++/** Same-origin ORT runtime base served by `serveOrtRuntime` in `vite.config.ts`. */
++const WASM_PATHS = "/ort/";
++
++interface HotData {
++  transcriber?: LiveTranscriber;
++}
++
++const hotData = import.meta.hot?.data as HotData | undefined;
++
++let transcriber: LiveTranscriber | undefined = hotData?.transcriber;
++
++/**
++ * The shared live transcriber, constructing on first call.
++ *
++ * One instance for the whole app: the worker it creates is reused across
++ * recordings. `createWorker` is injected for the same reason
++ * `whisper-store.ts` injects it — the Vite library-mode worker bug
++ * (vitejs/vite#15618). The live transcriber's worker is separate from the
++ * batch transcriber's; sharing one worker is a future optimisation, not a
++ * requirement.
++ */
++export function getLiveTranscriber(): LiveTranscriber {
++  transcriber ??= new OnDeviceLiveTranscriber({
++    wasmPaths: WASM_PATHS,
++    dtype: "fp32",
++    createWorker: () =>
++      new Worker(new URL("./whisper.worker.ts", import.meta.url), { type: "module" }),
++  });
++  if (hotData) hotData.transcriber = transcriber;
++  return transcriber;
++}
++
++/**
++ * Replace the live transcriber — test-only.
++ *
++ * The browser test injects a fake so a preview segment can appear without
++ * downloading the Moonshine + Silero models (~250 MB). The fake's
++ * `openSession` returns a session whose `segments$` emits on demand.
++ */
++export function setLiveTranscriber(t: LiveTranscriber | undefined): void {
++  transcriber = t;
++}
++
++/**
++ * Download the streaming VAD, so a live preview can ever start.
++ *
++ * **The feature cannot turn on without this.** `liveCapability()` requires both the ASR and Silero
++ * cached; the only code that fetches Silero runs inside the live worker's session open, which is
++ * behind that gate. Priming the ASR alone leaves the gate reporting `needs-download` forever and the
++ * preview silently absent — recording perfect, no error anywhere. `whisper-store.ts` calls this from
++ * the same button that primes the ASR.
++ *
++ * Tolerant of a transcriber without `prime` because tests inject a fake through
++ * {@link setLiveTranscriber}, and a fake needs no models. A real one always has it.
++ */
++export async function primeLiveModels(): Promise<void> {
++  const t = getLiveTranscriber() as Partial<OnDeviceLiveTranscriber>;
++  if (typeof t.prime === "function") await t.prime();
++}
++
++/** The currently open live session, or `undefined` when none is open. */
++let currentSession: LiveSession | undefined;
++
++/** Subscription to `currentSession.segments$`, torn down on close. Minimal — just `unsubscribe`. */
++let segmentSubscription: { unsubscribe: () => void } | undefined;
++
++/** Subscription to `currentSession.errors$`, torn down on close. */
++let errorSubscription: { unsubscribe: () => void } | undefined;
++
++/**
++ * Monotonic generation counter, incremented on every {@link openLiveSession}
++ * and {@link closeLiveSession} call. A pending `openLiveSession` that was
++ * superseded by a newer open or a close sees a stale generation and aborts —
++ * preventing a late open from installing a session whose lifecycle nobody
++ * manages.
++ *
++ * The race this guards: `openLiveForCapture` is fire-and-forget from the
++ * capture session factory, so `openLiveSession` runs asynchronously. If
++ * `recorder.stop()` (and thus `closeLiveSession`) arrives while
++ * `liveCapability()` or `openSession()` is still pending, the late open would
++ * set `currentSession` and `segmentSubscription` *after* close cleared them —
++ * a session opened after recording ended, whose subscription leaks forever
++ * because nobody will call `closeLiveSession` again. The generation check
++ * makes the late open close its own session and bail.
++ */
++let liveGeneration = 0;
++
++/**
++ * Open a live session and connect its segments to the outbox row.
++ *
++ * Called by the `captureSession` factory after `beginRecording` inserts the
++ * row — `itemId` is the row the preview is committed to. Best-effort:
++ * if the live transcriber is unavailable, not ready, or `openSession` throws,
++ * recording continues with no preview. The `onSamples` callback on the
++ * `Recorder` forwards to {@link feedFrame}, which is a no-op when no session
++ * is open.
++ */
++export async function openLiveSession(
++  recording: Recording,
++  itemId: string,
++  outbox: Outbox,
++): Promise<void> {
++  const myGeneration = ++liveGeneration;
++  const liveTranscriber = getLiveTranscriber();
++  try {
++    const capability = await liveTranscriber.liveCapability();
++    if (capability.status !== "ready") return;
++    const session = await liveTranscriber.openSession(recording);
++    // closeLiveSession (or a newer openLiveSession) may have been called while
++    // we were awaiting liveCapability/openSession. A session installed after
++    // its close is a leak: its subscription would never be torn down and its
++    // segments would be committed to a row that has already moved past
++    // recording. Close the orphan and bail.
++    if (myGeneration !== liveGeneration) {
++      session.close();
++      return;
++    }
++    currentSession = session;
++    // Subscribe with a `complete` callback so the subscription is torn down when
++    // the worker posts `liveClosed` (which completes the `Subject`). This is the
++    // fix for the silent-loss bug: the host used to unsubscribe *before* close,
++    // so the flushed final region — transcribed by the worker *after* close —
++    // arrived at a subscriber that was already gone. Now the host closes first
++    // and lets the `complete` callback tear down, so the flush segment is
++    // received before the subscription goes away.
++    //
++    // The `complete` callback only clears module-level state if `segmentSubscription`
++    // still points at this subscription — a newer `openLiveSession` may have replaced
++    // it by the time the old session's drain finishes, and clearing the new one would
++    // be a bug.
++    const sub = session.segments$.subscribe({
++      next: (segment: LiveSegment) => {
++        console.log(
++          `@@LIVE@@ host: segment received kind=${segment.kind} ${JSON.stringify(segment.text)} -> item ${itemId}`,
++        );
++        // Route by kind: a tail is provisional text the system is still rewriting,
++        // a commit is permanent text for a settled region. An exhaustiveness-checked
++        // switch so a future third kind is a type error rather than silently dropped
++        // text — the same reasoning as the seam's discriminated value (live.ts).
++        switch (segment.kind) {
++          case "tail":
++            void outbox.writePreviewTail(itemId, segment.text).then(
++              () => console.log("@@LIVE@@ host: writePreviewTail OK"),
++              (e: unknown) => console.log("@@LIVE@@ host: writePreviewTail FAILED", e),
++            );
++            break;
++          case "commit":
++            void outbox.commitPreview(itemId, segment.text).then(
++              () => console.log("@@LIVE@@ host: commitPreview OK"),
++              (e: unknown) => console.log("@@LIVE@@ host: commitPreview FAILED", e),
++            );
++            break;
++        }
++      },
++      complete: () => {
++        console.log("@@LIVE@@ host: segments$ completed — draining finished, tearing down");
++        if (segmentSubscription === sub) {
++          sub.unsubscribe();
++          segmentSubscription = undefined;
++          errorSubscription?.unsubscribe();
++          errorSubscription = undefined;
++        }
++      },
++    });
++    segmentSubscription = sub;
++    // Surface live errors to the console so a mid-session failure is visible, not silent.
++    // Live is best-effort: the error must never affect recording, and it does not — this
++    // subscription only logs. The batch pass after `stop()` recovers the full transcript.
++    errorSubscription = session.errors$.subscribe((message) => {
++      console.warn("[ribo live] preview error:", message);
++    });
++  } catch {
++    // Live must never degrade recording — a failed open is silently no-preview.
++  }
++}
++
++/**
++ * Close the current live session and clear all live state. Idempotent and safe
++ * to call when no session is open.
++ *
++ * **Closes the session before tearing down the subscription** — the opposite
++ * of the old order, which unsubscribed first and then closed. The worker's
++ * `liveClose` handler drains the final region, transcribes it, and posts it
++ * back as a commit *after* `close()` returns. The subscription must stay
++ * active to receive that segment; the `complete` callback installed in
++ * `openLiveSession` tears it down when the worker posts `liveClosed`
++ * (which completes the `Subject`).
++ *
++ * Unsubscribing before close was the bug: the last ~10 seconds of preview was
++ * lost on every recording because the flush segment arrived at a subscriber
++ * that was already gone. The batch transcript still covered it, so nothing
++ * reached the user as missing data — but it was the same silent-loss shape this
++ * feature has produced repeatedly, and the seam was built to prevent exactly
++ * this. A fixed delay would be a guess about inference time (which varies with
++ * region length); never unsubscribing would leak a subscription per recording.
++ * The `liveClosed` signal from the seam is the right answer: the worker knows
++ * when its own drain is finished better than the host does.
++ */
++export function closeLiveSession(): void {
++  // Supersede any pending openLiveSession — a late open after close is a leak.
++  liveGeneration++;
++  const session = currentSession;
++  currentSession = undefined;
++
++  if (!session) return; // idempotent — no session to close
++
++  // Close first — posts liveClose to the worker, which drains the final region
++  // and posts the flush segment. The subscription stays active to receive it.
++  session.close();
++
++  // Error subscription can be torn down immediately — errors after close are not
++  // actionable. The session is closing and the batch pass after stop() recovers.
++  errorSubscription?.unsubscribe();
++  errorSubscription = undefined;
++
++  // The segment subscription is torn down by its `complete` callback when the
++  // worker posts `liveClosed` (which completes the `Subject`). Do NOT unsubscribe
++  // here — that would drop the flush segment, which is the bug this fixes.
++}
++
++/**
++ * Feed one 512-sample frame to the current live session.
++ *
++ * Called by the `Recorder`'s `onSamples` callback. A no-op when no session is
++ * open — frames are silently dropped, and capture continues unaffected.
++ */
++export function feedFrame(frame: Float32Array): void {
++  currentSession?.feed(frame);
++}
++
++/**
++ * Open a live session for a capture session's recording.
++ *
++ * Wraps {@link openLiveSession} with the outbox resolved from the shared
++ * handle, so the `captureSession` factory in `recorder-handle.ts` can call it
++ * without awaiting `getOutbox()` separately.
++ */
++export async function openLiveForCapture(recording: Recording, itemId: string): Promise<void> {
++  try {
++    const outbox = await getOutbox();
++    await openLiveSession(recording, itemId, outbox);
++  } catch {
++    // Live must never degrade recording.
++  }
++}
+diff --git a/playground/src/live.browser.test.ts b/playground/src/live.browser.test.ts
+new file mode 100644
+index 0000000..bb97c52
+--- /dev/null
++++ b/playground/src/live.browser.test.ts
+@@ -0,0 +1,624 @@
++import { expect, test } from "vitest";
++import type {
++  LiveSegment,
++  LiveSegmentKind,
++  LiveSession,
++  LiveTranscriber,
++  TranscriberCapability,
++} from "@azx/ribo-core";
++import { FakeTranscriber, createRelay } from "@azx/ribo-core";
++
++import { getOutbox } from "./outbox-handle.js";
++import { getRecorder } from "./recorder-handle.js";
++import { closeLiveSession, setLiveTranscriber } from "./live-handle.js";
++
++/**
++ * @file Does this app actually produce live preview segments during recording?
++ *
++ * Every live-transcription test in `ribo-core` and `ribo-transcriber-ondevice`
++ * builds its own session and feeds it frames, which means all of them pass
++ * whether or not any host ever wires the `LiveTranscriber` into the recorder.
++ * This file deliberately imports the app's own module singletons rather than
++ * constructing anything. `getRecorder()` is the unit under test — not the
++ * `Recorder` class, which is already covered, but *this app's configuration of
++ * it*. Delete the live wiring from `recorder-handle.ts` (the `onSamples`
++ * callback, the `createSampleTap` injection, or the `openLiveForCapture` call
++ * in the `captureSession` factory) and the assertions below fail; nothing else
++ * in the repo would notice.
++ *
++ * It uses the real default outbox (`ribo-outbox`) for the same reason: naming a
++ * test-only database here would test a wiring the app does not have.
++ *
++ * The `LiveTranscriber` is faked — the real `OnDeviceLiveTranscriber` needs
++ * ~250 MB of model weights that no test should download. The fake's session
++ * emits one segment so the preview wiring can be verified end to end: capture
++ * session factory → `openLiveForCapture` → `segments$` subscription →
++ * `outbox.commitPreview`.
++ */
++
++/** Delay from subscription to segment emission — mirrors real inference latency. */
++const SEGMENT_DELAY_MS = 200;
++
++/** Polls `read` until it returns a value, or fails the test on timeout. */
++async function until<T>(read: () => Promise<T | undefined>, label: string): Promise<T> {
++  const deadline = Date.now() + 5000;
++  for (;;) {
++    const value = await read();
++    if (value !== undefined) return value;
++    if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
++    await new Promise((resolve) => setTimeout(resolve, 25));
++  }
++}
++
++/** Extract `next` and `complete` from either subscribe form — function or observer object. */
++type SegmentObserver =
++  ((value: LiveSegment) => void) | { next?: (value: LiveSegment) => void; complete?: () => void };
++type ErrorObserver = ((value: string) => void) | { next?: (value: string) => void };
++
++function nextFn(observer: SegmentObserver): (value: LiveSegment) => void | undefined {
++  return typeof observer === "function" ? observer : (observer.next ?? (() => undefined));
++}
++function completeFn(observer: SegmentObserver): (() => void) | undefined {
++  return typeof observer === "function" ? undefined : observer.complete;
++}
++function errorNextFn(observer: ErrorObserver): (value: string) => void | undefined {
++  return typeof observer === "function" ? observer : (observer.next ?? (() => undefined));
++}
++
++/**
++ * A fake live session that emits one segment after a short delay.
++ *
++ * `close()` sets a guard flag (matching `OnDeviceLiveSession`'s pattern) rather
++ * than completing an observable — the guard, not completion, is what drops
++ * late replies after close. `close()` also calls `complete` handlers, simulating
++ * the worker's `liveClosed` signal so the host's `complete` callback can tear
++ * down the subscription.
++ *
++ * The `segments$` is a minimal subscribable: `openLiveSession` calls
++ * `.subscribe({ next, complete })` and `.unsubscribe()` on the return value,
++ * nothing more. Cast through `unknown` because `Observable` is a class with many
++ * operators we do not need, and `rxjs` is not a direct dependency of the playground.
++ *
++ * **The emission countdown starts on subscribe, not at creation.** A real
++ * `LiveSession` produces segments in response to audio frames arriving through
++ * `feed()` — which only happens after the host has opened the session and
++ * subscribed to `segments$`. Starting the `setTimeout` at `createFakeSession`
++ * time instead creates a race: `recorder.start()` (which triggers the
++ * fire-and-forget `openLiveForCapture` chain that eventually subscribes) can
++ * take longer than `SEGMENT_DELAY_MS` under concurrent load (e.g. when the
++ * `unit` Vitest project runs alongside the `browser` project). The timer fires
++ * before anyone subscribes, the segment is lost, and the test times out.
++ * Deferring the countdown to the first `.subscribe()` call mirrors the real
++ * session's lifecycle and eliminates the race regardless of how slow the setup
++ * path is.
++ */
++function createFakeSession(text: string): LiveSession {
++  const handlers: Array<(value: LiveSegment) => void> = [];
++  const completeHandlers: Array<() => void> = [];
++  const errorHandlers: Array<(value: string) => void> = [];
++  let closed = false;
++  let armed = false;
++  const armEmission = (): void => {
++    if (armed) return;
++    armed = true;
++    setTimeout(() => {
++      if (!closed) {
++        for (const handler of handlers) handler({ kind: "commit", text });
++      }
++    }, SEGMENT_DELAY_MS);
++  };
++  return {
++    sessionId: crypto.randomUUID(),
++    segments$: {
++      subscribe: (observer: SegmentObserver) => {
++        const next = nextFn(observer);
++        const complete = completeFn(observer);
++        handlers.push(next);
++        if (complete) completeHandlers.push(complete);
++        armEmission();
++        return {
++          unsubscribe: () => {
++            const i = handlers.indexOf(next);
++            if (i >= 0) handlers.splice(i, 1);
++            if (complete) {
++              const j = completeHandlers.indexOf(complete);
++              if (j >= 0) completeHandlers.splice(j, 1);
++            }
++          },
++        };
++      },
++    } as unknown as LiveSession["segments$"],
++    errors$: {
++      subscribe: (observer: ErrorObserver) => {
++        const next = errorNextFn(observer);
++        errorHandlers.push(next);
++        return {
++          unsubscribe: () => {
++            const i = errorHandlers.indexOf(next);
++            if (i >= 0) errorHandlers.splice(i, 1);
++          },
++        };
++      },
++    } as unknown as LiveSession["errors$"],
++    feed: () => undefined,
++    close: () => {
++      closed = true;
++      for (const handler of completeHandlers) handler();
++    },
++  };
++}
++
++/**
++ * A fake live session that emits a sequence of segments on a schedule.
++ *
++ * Extends {@link createFakeSession} to test tail/commit routing: each emission
++ * carries its own `kind` and `delay` (from the first `subscribe()` call — see
++ * {@link createFakeSession} for why emission starts on subscribe, not at
++ * creation). The delays are staggered so a polling test can catch intermediate
++ * states (a tail before the commit clears it).
++ */
++function createMultiSegmentSession(
++  emissions: ReadonlyArray<{ kind: LiveSegmentKind; text: string; delay: number }>,
++): LiveSession {
++  const handlers: Array<(value: LiveSegment) => void> = [];
++  const completeHandlers: Array<() => void> = [];
++  const errorHandlers: Array<(value: string) => void> = [];
++  let closed = false;
++  let armed = false;
++  const armEmission = (): void => {
++    if (armed) return;
++    armed = true;
++    for (const { kind, text, delay } of emissions) {
++      setTimeout(() => {
++        if (!closed) {
++          for (const handler of handlers) handler({ kind, text });
++        }
++      }, delay);
++    }
++  };
++  return {
++    sessionId: crypto.randomUUID(),
++    segments$: {
++      subscribe: (observer: SegmentObserver) => {
++        const next = nextFn(observer);
++        const complete = completeFn(observer);
++        handlers.push(next);
++        if (complete) completeHandlers.push(complete);
++        armEmission();
++        return {
++          unsubscribe: () => {
++            const i = handlers.indexOf(next);
++            if (i >= 0) handlers.splice(i, 1);
++            if (complete) {
++              const j = completeHandlers.indexOf(complete);
++              if (j >= 0) completeHandlers.splice(j, 1);
++            }
++          },
++        };
++      },
++    } as unknown as LiveSession["segments$"],
++    errors$: {
++      subscribe: (observer: ErrorObserver) => {
++        const next = errorNextFn(observer);
++        errorHandlers.push(next);
++        return {
++          unsubscribe: () => {
++            const i = errorHandlers.indexOf(next);
++            if (i >= 0) errorHandlers.splice(i, 1);
++          },
++        };
++      },
++    } as unknown as LiveSession["errors$"],
++    feed: () => undefined,
++    close: () => {
++      closed = true;
++      for (const handler of completeHandlers) handler();
++    },
++  };
++}
++
++/**
++ * A fake live session that emits a flush segment **after** `close()` — the
++ * exact scenario the bug fix targets.
++ *
++ * Unlike {@link createFakeSession}, the emission happens in `close()` (after a
++ * delay), not on subscribe. This mirrors the real worker's `liveClose` handler:
++ * when `close()` is called, the worker drains the final region, transcribes it,
++ * and posts it back as a commit — arriving after `close()` returned. The `complete`
++ * handlers fire after the flush, simulating the worker's `liveClosed` signal.
++ *
++ * The `completed` flag is exposed so a test can assert the Subject was completed
++ * (i.e. the `complete` callback fired and the host tore down its subscription).
++ */
++function createFlushSession(
++  flushText: string,
++): LiveSession & { completed: boolean; unsubscribed: boolean } {
++  const handlers: Array<(value: LiveSegment) => void> = [];
++  const completeHandlers: Array<() => void> = [];
++  const errorHandlers: Array<(value: string) => void> = [];
++  let closed = false;
++  let completed = false;
++  let unsubscribed = false;
++  let armed = false;
++  const armEmission = (): void => {
++    if (armed) return;
++    armed = true;
++  };
++  const session = {
++    sessionId: crypto.randomUUID(),
++    segments$: {
++      subscribe: (observer: SegmentObserver) => {
++        const next = nextFn(observer);
++        const complete = completeFn(observer);
++        handlers.push(next);
++        if (complete) completeHandlers.push(complete);
++        armEmission();
++        return {
++          unsubscribe: () => {
++            unsubscribed = true;
++            const i = handlers.indexOf(next);
++            if (i >= 0) handlers.splice(i, 1);
++            if (complete) {
++              const j = completeHandlers.indexOf(complete);
++              if (j >= 0) completeHandlers.splice(j, 1);
++            }
++          },
++        };
++      },
++    },
++    errors$: {
++      subscribe: (observer: ErrorObserver) => {
++        const next = errorNextFn(observer);
++        errorHandlers.push(next);
++        return {
++          unsubscribe: () => {
++            const i = errorHandlers.indexOf(next);
++            if (i >= 0) errorHandlers.splice(i, 1);
++          },
++        };
++      },
++    },
++    feed: () => undefined,
++    close: () => {
++      if (closed) return;
++      closed = true;
++      setTimeout(() => {
++        for (const handler of handlers) handler({ kind: "commit", text: flushText });
++        completed = true;
++        for (const handler of completeHandlers) handler();
++      }, SEGMENT_DELAY_MS);
++    },
++    get completed(): boolean {
++      return completed;
++    },
++    get unsubscribed(): boolean {
++      return unsubscribed;
++    },
++  };
++  return session as unknown as LiveSession & { completed: boolean; unsubscribed: boolean };
++}
++
++test("a preview segment appears during recording and is gone once the transcript lands", async () => {
++  // Inject a fake live transcriber so the preview wiring can be verified
++  // without downloading the Moonshine + Silero models.
++  const fakeSession = createFakeSession("the attic is R-19");
++  const fakeLiveTranscriber: LiveTranscriber = {
++    liveCapability: async (): Promise<TranscriberCapability> => ({ status: "ready" }),
++    openSession: async () => fakeSession,
++  };
++  setLiveTranscriber(fakeLiveTranscriber);
++
++  const outbox = await getOutbox();
++  await outbox.clear();
++  const recorder = getRecorder();
++
++  await recorder.start();
++
++  // Wait for the preview segment to appear on the recording row. This is the
++  // whole claim: `openLiveForCapture` (fire-and-forget from the capture session
++  // factory) opened a session, subscribed to `segments$`, and the fake emitted
++  // a segment that landed on `outbox.commitPreview`. Delete the
++  // `openLiveForCapture` call or the `onSamples` wiring and this wait times out.
++  const withPreview = await until(async () => {
++    const [item] = await outbox.list({ status: ["recording"] });
++    if (item?.preview?.committed?.length) return item;
++    return undefined;
++  }, "a preview segment");
++  expect(withPreview.preview!.committed).toContain("the attic is R-19");
++
++  await recorder.stop();
++
++  // Run the relay to produce a transcript. The transcript handoff deletes
++  // `preview` in the same committed revision that writes `transcript`, so no
++  // subscriber ever sees both. A FakeTranscriber is sufficient — the test
++  // verifies the handoff, not the batch transcript's quality.
++  const relay = createRelay({
++    outbox,
++    transcriber: new FakeTranscriber(),
++    extract: () => Promise.resolve({}),
++    write: () => Promise.resolve(),
++  });
++  await relay.syncNow();
++
++  const settled = await until(async () => {
++    const [item] = await outbox.list({});
++    return item?.transcript ? item : undefined;
++  }, "the transcript to land");
++  expect(settled.transcript).toBeDefined();
++  expect(settled.preview).toBeUndefined();
++
++  await outbox.clear();
++  setLiveTranscriber(undefined);
++});
++
++test("a tail appears in preview.tail, a second tail replaces it, a commit moves to committed and clears the tail", async () => {
++  // Three emissions on a schedule: two tails then a commit. The 500 ms gap
++  // between the second tail and the commit gives the polling loop time to
++  // catch the tail before the commit clears it.
++  const fakeSession = createMultiSegmentSession([
++    { kind: "tail", text: "the attic", delay: SEGMENT_DELAY_MS },
++    { kind: "tail", text: "the attic is R-19", delay: SEGMENT_DELAY_MS * 2 },
++    { kind: "commit", text: "the attic is R-19", delay: SEGMENT_DELAY_MS * 5 },
++  ]);
++  const fakeLiveTranscriber: LiveTranscriber = {
++    liveCapability: async (): Promise<TranscriberCapability> => ({ status: "ready" }),
++    openSession: async () => fakeSession,
++  };
++  setLiveTranscriber(fakeLiveTranscriber);
++
++  const outbox = await getOutbox();
++  await outbox.clear();
++  const recorder = getRecorder();
++
++  await recorder.start();
++
++  // Wait for the second tail to replace the first. The tail is "the attic is
++  // R-19" (the second text), not "the attic" (the first) — writePreviewTail
++  // replaces wholesale, never appends. If tails were routed to commitPreview
++  // instead, preview.tail would never exist and this wait would time out.
++  const withTail = await until(async () => {
++    const [item] = await outbox.list({ status: ["recording"] });
++    return item?.preview?.tail === "the attic is R-19" ? item : undefined;
++  }, "the second tail to replace the first");
++  expect(withTail.preview!.tail).toBe("the attic is R-19");
++  // Tails went to preview.tail, not to committed — the first tail was
++  // replaced, not appended. If the routing sent tails to commitPreview,
++  // committed would contain "the attic" here.
++  expect(withTail.preview!.committed).toEqual([]);
++
++  // Wait for the commit to move text into committed and clear the tail.
++  // commitPreview appends to committed and clears tail in one modification,
++  // so no subscriber sees the text in both places or in neither.
++  const withCommit = await until(async () => {
++    const [item] = await outbox.list({ status: ["recording"] });
++    return item?.preview?.committed?.length ? item : undefined;
++  }, "the commit to move text into committed");
++  expect(withCommit.preview!.committed).toContain("the attic is R-19");
++  expect(withCommit.preview!.tail).toBeUndefined();
++
++  await recorder.stop();
++
++  // Run the relay to produce a transcript. The transcript handoff deletes
++  // preview in the same committed revision that writes transcript.
++  const relay = createRelay({
++    outbox,
++    transcriber: new FakeTranscriber(),
++    extract: () => Promise.resolve({}),
++    write: () => Promise.resolve(),
++  });
++  await relay.syncNow();
++
++  const settled = await until(async () => {
++    const [item] = await outbox.list({});
++    return item?.transcript ? item : undefined;
++  }, "the transcript to land");
++  expect(settled.transcript).toBeDefined();
++  expect(settled.preview).toBeUndefined();
++
++  await outbox.clear();
++  setLiveTranscriber(undefined);
++});
++
++// ── Flush-after-close tests ───────────────────────────────────────────────────
++//
++// The bug: `closeLiveSession()` used to unsubscribe from `segments$` BEFORE
++// calling `close()`. The worker's `liveClose` handler drains the final region,
++// transcribes it, and posts it as a commit AFTER `close()` returns — but by
++// then the subscriber was already gone, so the last ~10 seconds of preview was
++// silently lost on every recording. The fix: close first, stay subscribed, and
++// tear down when the worker posts `liveClosed` (which completes the `Subject`).
++
++test("a segment posted after close() still reaches the outbox — the flushed final region is not dropped", async () => {
++  // A fake session that emits a flush segment AFTER close() — the exact
++  // scenario the bug fix targets. The flush arrives after `closeLiveSession`
++  // → `session.close()`.
++  const fakeSession = createFlushSession("the final words");
++  const fakeLiveTranscriber: LiveTranscriber = {
++    liveCapability: async (): Promise<TranscriberCapability> => ({ status: "ready" }),
++    openSession: async () => fakeSession,
++  };
++  setLiveTranscriber(fakeLiveTranscriber);
++
++  const outbox = await getOutbox();
++  await outbox.clear();
++  const recorder = getRecorder();
++
++  await recorder.start();
++
++  // Wait for the session to be open and subscribed — the recorder's
++  // fire-and-forget `openLiveForCapture` chain runs async. The flush session
++  // emits nothing during recording, so wait for the recording row plus a
++  // small delay for the subscribe to complete.
++  await until(async () => {
++    const [item] = await outbox.list({ status: ["recording"] });
++    return item ? item : undefined;
++  }, "a recording row");
++  await new Promise((resolve) => setTimeout(resolve, 50));
++
++  // Call closeLiveSession directly — the row is still "recording", so
++  // commitPreview will accept the flush segment. In the real app,
++  // closeLiveSession is called by the sample tap teardown inside
++  // recorder.stop()'s finally block; calling it directly here isolates the
++  // fix from finalize()'s decode step (which fails on a short test recording).
++  closeLiveSession();
++
++  // The flush segment must land in `preview.committed`. Against the old code
++  // (unsubscribe-before-close) this wait times out — the segment was posted
++  // but nobody was subscribed to receive it.
++  const withFlush = await until(async () => {
++    const [item] = await outbox.list({ status: ["recording"] });
++    return item?.preview?.committed?.includes("the final words") ? item : undefined;
++  }, "the flushed final region to reach the outbox");
++  expect(withFlush.preview!.committed).toContain("the final words");
++
++  // The session completed and the subscription was torn down — the
++  // `liveClosed` signal fired, the host's `complete` callback unsubscribed.
++  expect(fakeSession.completed).toBe(true);
++  expect(fakeSession.unsubscribed).toBe(true);
++
++  // Clean up the recorder. finalize() may fail to decode a very short
++  // recording — that's fine, the test has already verified the flush.
++  try {
++    await recorder.stop();
++  } catch {
++    /* short recording, decode fails — the flush already landed */
++  }
++
++  await outbox.clear();
++  setLiveTranscriber(undefined);
++});
++
++test("the subscription is eventually torn down — no leak across successive record/stop cycles", async () => {
++  // Two record/stop cycles with flush sessions. After each cycle, the
++  // `complete` callback must fire (the worker posted `liveClosed`), which
++  // tears down the subscription. If the subscription leaked, the second
++  // cycle's `complete` would not fire (the first cycle's subscription is
++  // still holding a reference) — or more precisely, the host's `complete`
++  // callback would not clear `segmentSubscription` because it would not
++  // match `sub` from the first cycle.
++
++  const outbox = await getOutbox();
++  await outbox.clear();
++  const recorder = getRecorder();
++
++  // First cycle.
++  const session1 = createFlushSession("first flush");
++  setLiveTranscriber({
++    liveCapability: async (): Promise<TranscriberCapability> => ({ status: "ready" }),
++    openSession: async () => session1,
++  });
++
++  await recorder.start();
++  await until(async () => {
++    const [item] = await outbox.list({ status: ["recording"] });
++    return item ? item : undefined;
++  }, "a recording row (cycle 1)");
++  await new Promise((resolve) => setTimeout(resolve, 50));
++
++  closeLiveSession();
++
++  // Wait for the flush segment AND the completion signal.
++  await until(async () => {
++    const [item] = await outbox.list({ status: ["recording"] });
++    return item?.preview?.committed?.includes("first flush") ? item : undefined;
++  }, "the first flush to reach the outbox");
++  await until(async () => session1.completed, "the first session to complete");
++  expect(session1.completed).toBe(true);
++  expect(session1.unsubscribed).toBe(true);
++
++  try {
++    await recorder.stop();
++  } catch {
++    /* short recording, decode fails */
++  }
++  await outbox.clear();
++
++  // Second cycle — a fresh session. If the first cycle's subscription leaked,
++  // the host's `segmentSubscription` would still point at the old subscription,
++  // and the new `openLiveSession` would replace it — but the old `complete`
++  // callback already fired and cleared `segmentSubscription` (because it
++  // matched `sub`). So the second cycle's subscription is clean.
++  const session2 = createFlushSession("second flush");
++  setLiveTranscriber({
++    liveCapability: async (): Promise<TranscriberCapability> => ({ status: "ready" }),
++    openSession: async () => session2,
++  });
++
++  await recorder.start();
++  await until(async () => {
++    const [item] = await outbox.list({ status: ["recording"] });
++    return item ? item : undefined;
++  }, "a recording row (cycle 2)");
++  await new Promise((resolve) => setTimeout(resolve, 50));
++
++  closeLiveSession();
++
++  await until(async () => {
++    const [item] = await outbox.list({ status: ["recording"] });
++    return item?.preview?.committed?.includes("second flush") ? item : undefined;
++  }, "the second flush to reach the outbox");
++  await until(async () => session2.completed, "the second session to complete");
++  expect(session2.completed).toBe(true);
++  expect(session2.unsubscribed).toBe(true);
++
++  try {
++    await recorder.stop();
++  } catch {
++    /* short recording, decode fails */
++  }
++
++  await outbox.clear();
++  setLiveTranscriber(undefined);
++});
++
++test("closeLiveSession is idempotent and safe with no session open", async () => {
++  // Calling closeLiveSession with no session open must not throw.
++  // This is the "safe to call when no session is open" requirement.
++  closeLiveSession();
++  closeLiveSession();
++
++  // Also safe after a real cycle — calling close again is a no-op.
++  const fakeSession = createFlushSession("idempotent flush");
++  const fakeLiveTranscriber: LiveTranscriber = {
++    liveCapability: async (): Promise<TranscriberCapability> => ({ status: "ready" }),
++    openSession: async () => fakeSession,
++  };
++  setLiveTranscriber(fakeLiveTranscriber);
++
++  const outbox = await getOutbox();
++  await outbox.clear();
++  const recorder = getRecorder();
++
++  await recorder.start();
++  await until(async () => {
++    const [item] = await outbox.list({ status: ["recording"] });
++    return item ? item : undefined;
++  }, "a recording row");
++  await new Promise((resolve) => setTimeout(resolve, 50));
++
++  // Close the live session — the flush should still arrive.
++  closeLiveSession();
++
++  // Calling closeLiveSession again must be a no-op — currentSession is
++  // already undefined, so the second call returns early without tearing
++  // down the subscription (which is waiting for the flush).
++  closeLiveSession();
++
++  const withFlush = await until(async () => {
++    const [item] = await outbox.list({ status: ["recording"] });
++    return item?.preview?.committed?.includes("idempotent flush") ? item : undefined;
++  }, "the flush to reach the outbox after an extra closeLiveSession call");
++  expect(withFlush.preview!.committed).toContain("idempotent flush");
++
++  // And one more close for good measure.
++  closeLiveSession();
++
++  try {
++    await recorder.stop();
++  } catch {
++    /* short recording, decode fails */
++  }
++
++  await outbox.clear();
++  setLiveTranscriber(undefined);
++});
+diff --git a/playground/src/pcm-worklet.ts b/playground/src/pcm-worklet.ts
+new file mode 100644
+index 0000000..df503c4
+--- /dev/null
++++ b/playground/src/pcm-worklet.ts
+@@ -0,0 +1,25 @@
++import "@azx/ribo-core/worklet";
++
++/**
++ * @file The app-owned `AudioWorklet` entry for live sample tapping.
++ *
++ * Mirrors `whisper.worker.ts`: the consumer owns the worklet construction, in
++ * its own bundler context, so Vite can see and emit it as a separate asset.
++ * `live-handle.ts`'s `createSampleTap` loads it with
++ * `audioWorklet.addModule(new URL("./pcm-worklet.ts", import.meta.url).href)`.
++ *
++ * The worklet code itself lives in `@azx/ribo-core/src/worklet.ts` — this file
++ * just re-exports its side effect. Under the `@azx/source` condition, the
++ * import resolves to `src/worklet.ts`, which Vite transforms and serves in dev
++ * mode; in production, Vite bundles it into a separate `.js` asset. This is
++ * the same reason `whisper.worker.ts` imports `handleMessage` from
++ * `@azx/ribo-transcriber-ondevice/worker` rather than inlining the worker code.
++ *
++ * The default `createSampleTap` in `ribo-core`'s `Recorder` cannot load inside
++ * this workspace for the same reason the default `createWorker` cannot
++ * (AGENTS.md §5.2): under `@azx/source`, `new URL("./worklet.js",
++ * import.meta.url)` resolves to `src/worklet.js` — a file that does not exist
++ * because the source is TypeScript. The failure is swallowed, so recording
++ * works and frames silently never arrive. Injecting `createSampleTap` from
++ * here is the fix, exactly as `whisper-store.ts` injects `createWorker`.
++ */
+diff --git a/playground/src/recorder-handle.ts b/playground/src/recorder-handle.ts
+index 2afac0d..f426c00 100644
+--- a/playground/src/recorder-handle.ts
++++ b/playground/src/recorder-handle.ts
+@@ -1,14 +1,90 @@
+ import { openCaptureSession, Recorder } from "@azx/ribo-core";
++import type { SampleTapOptions, SampleTapTeardown } from "@azx/ribo-core";
+ 
++import workletUrl from "./pcm-worklet.ts?worker&url";
++
++import { closeLiveSession, feedFrame, openLiveForCapture } from "./live-handle.js";
+ import { getOutbox } from "./outbox-handle.js";
+ 
++/**
++ * The sample rate the live path operates at — Silero VAD's frame rate. The
++ * `AudioContext` is constructed at this rate so the browser resamples the
++ * `MediaStream` to 16 kHz before the worklet sees it.
++ */
++const LIVE_SAMPLE_RATE = 16000;
++
++/** Matches the name in `@azx/ribo-core`'s `worklet.ts` `registerProcessor` call. */
++const PCM_PROCESSOR_NAME = "pcm-frame-processor";
++
++/**
++ * Playground-owned sample tap: loads the `AudioWorklet` from
++ * `./pcm-worklet.ts` (which re-exports `@azx/ribo-core/worklet`) and wires it
++ * to `onSamples`.
++ *
++ * This mirrors `whisper-store.ts`'s `createWorker` injection for the same
++ * reason (AGENTS.md §5.2): the default `createSampleTap` in `ribo-core`'s
++ * `Recorder` uses `new URL("./worklet.js", import.meta.url)`, which under the
++ * `@azx/source` condition resolves to `src/worklet.js` — a file that does not
++ * exist because the source is TypeScript. The failure is swallowed, so
++ * recording works and frames silently never arrive. Loading from a
++ * playground-owned `.ts` file lets Vite transform and serve it in dev mode and
++ * emit it as a separate asset in production.
++ *
++ * The teardown also closes the live session — a worklet left on a dead stream
++ * is a leak, and the live session must close when recording stops.
++ */
++const createSampleTap = async ({
++  stream,
++  onSamples,
++}: SampleTapOptions): Promise<SampleTapTeardown> => {
++  const audioContext = new AudioContext({ sampleRate: LIVE_SAMPLE_RATE });
++  try {
++    // `?worker&url`, NOT `new URL("./pcm-worklet.ts", import.meta.url)`.
++    //
++    // Vite special-cases `new Worker(new URL(…))` and compiles the target; a bare `new URL` to a
++    // `.ts` file is not that pattern, so nothing was emitted and the href pointed at a file the build
++    // never produced. `addModule` rejected, the recorder's fire-and-forget `.catch` swallowed it, and
++    // the result was a perfect recording whose preview never appeared with no error anywhere —
++    // confirmed by instrumenting: the live session opened, then received exactly zero frames.
++    //
++    // `?worker&url` compiles the module and hands back the built asset's URL, which is the documented
++    // way to load a worklet under Vite.
++    await audioContext.audioWorklet.addModule(workletUrl);
++  } catch (error) {
++    void audioContext.close().catch(() => undefined);
++    throw error;
++  }
++  let node: AudioWorkletNode;
++  try {
++    node = new AudioWorkletNode(audioContext, PCM_PROCESSOR_NAME);
++  } catch (error) {
++    void audioContext.close().catch(() => undefined);
++    throw error;
++  }
++  void audioContext.resume().catch(() => undefined);
++  node.port.onmessage = (event) => {
++    try {
++      onSamples(event.data as Float32Array);
++    } catch {
++      /* the caller's callback is the caller's problem; capture is not */
++    }
++  };
++  audioContext.createMediaStreamSource(stream).connect(node);
++  return () => {
++    node.port.close();
++    node.disconnect();
++    void audioContext.close().catch(() => undefined);
++    closeLiveSession();
++  };
++};
++
+ /**
+  * @file One {@link Recorder} per page load, shared by every component.
+  *
+  * It is a module singleton for the same reason the outbox is
+  * (`outbox-handle.ts`) — StrictMode's double mount and Vite's module
+  * replacement both otherwise produce a second instance holding a second
+  * microphone stream — and for one reason the outbox does not have:
+  *
+  * **The update prompt needs to know whether a recording is in progress.**
+  * "In progress" is `recorder.phase !== "idle"`, and that state lives in the
+@@ -42,22 +118,35 @@ let handle: Recorder | undefined = hotData?.recorder;
+  * simply gone.
+  *
+  * The factory is `async` and is called at `start()`, which is what dissolves the
+  * apparent ordering problem: this handle is a *synchronous* singleton, but the
+  * outbox opens asynchronously. Nothing here has to await anything — `getOutbox()`
+  * hands back a promise the factory can await at the one moment an outbox is
+  * actually needed, long after it has resolved in practice.
+  */
+ export function getRecorder(): Recorder {
+   handle ??= new Recorder({
+-    captureSession: async ({ recording, sourceId, mimeType }) =>
+-      await openCaptureSession({ outbox: await getOutbox(), recording, sourceId, mimeType }),
++    captureSession: async ({ recording, sourceId, mimeType }) => {
++      const session = await openCaptureSession({
++        outbox: await getOutbox(),
++        recording,
++        sourceId,
++        mimeType,
++      });
++      // Fire-and-forget: recording starts immediately, the live session opens
++      // async. Frames arriving before the session is open are silently dropped
++      // by `feedFrame` — live must never degrade recording.
++      void openLiveForCapture(recording, session.itemId);
++      return session;
++    },
++    onSamples: (frame) => feedFrame(frame),
++    createSampleTap,
+   });
+   if (hotData) hotData.recorder = handle;
+   return handle;
+ }
+ 
+ /**
+  * Whether capture is underway right now.
+  *
+  * `stopping` counts, and now for a narrower reason than it used to. Durable
+  * capture means an interrupted recording is no longer *lost* — every flushed
+diff --git a/playground/src/whisper-store.ts b/playground/src/whisper-store.ts
+index 6d28df8..070c358 100644
+--- a/playground/src/whisper-store.ts
++++ b/playground/src/whisper-store.ts
+@@ -1,12 +1,14 @@
+ import { OnDeviceTranscriber, type PrimeProgress } from "@azx/ribo-transcriber-ondevice";
+ 
++import { primeLiveModels } from "./live-handle.js";
++
+ import { messageOf } from "./format.js";
+ 
+ /**
+  * @file On-device Whisper availability and priming — Phase 3, Task 5.
+  *
+  * The store that owns the one shared {@link OnDeviceTranscriber} (the model
+  * download control and the queue drain must use the SAME instance and its one
+  * warm worker) and reports, honestly, whether the model can transcribe right
+  * now: cached and `ready`, `needs-download` with its real size, or unavailable.
+  *
+@@ -201,21 +203,32 @@ export function primeModel(): void {
+   setState({
+     phase: "downloading",
+     downloadBytes: state.downloadBytes,
+     detail: state.detail,
+     progress: { loaded: 0, total: 0, fraction: 0 },
+   });
+   void getTranscriber()
+     .prime((event) => {
+       accumulate(perFile, event);
+     })
+-    .then(() => {
++    .then(async () => {
++      // **The live preview needs a second, much smaller model, and nothing else fetches it.**
++      // `liveCapability()` requires both the ASR and Silero cached, and the only code that
++      // downloads Silero sits inside the live worker's session open — behind that same gate. So a
++      // host that primes only the ASR gets `needs-download` forever and a preview that never
++      // appears, with no error anywhere. Priming it here, on the button the user already presses to
++      // make transcription available offline, is what turns the feature on.
++      //
++      // Awaited inside the ASR prime's `then` so a failure lands in the shared `catch` below: 2.14 MB
++      // that fails is worth reporting, and reporting "ready" while live is silently unavailable is
++      // exactly the shape of the bug this fixes.
++      await primeLiveModels();
+       setState({ phase: "ready", downloadBytes: state.downloadBytes, detail: state.detail });
+     })
+     .catch((cause: unknown) => {
+       setState({ phase: "error", downloadBytes: state.downloadBytes, message: messageOf(cause) });
+     })
+     .finally(() => {
+       priming = false;
+     });
+ }
+ 

@@ -57,8 +57,8 @@ export type LiveSegmentKind = "tail" | "commit";
  * worse on every axis that matters for the actual consumers:
  *
  * 1. **A host that ignores the distinction still gets all the text, in order.**
- *    `playground/src/live-handle.ts` subscribes today, and Task 5 will route
- *    tails to `writePreviewTail` and commits to `commitPreview`. But a host that
+ *    `playground/src/live-handle.ts` subscribes today, routing tails to
+ *    `writePreviewTail` and commits to `commitPreview`. But a host that
  *    does not care about the distinction — a test, a logger, a future consumer
  *    — subscribes to one stream, reads `.text`, and ignores `.kind`. With two
  *    observables the same host must subscribe to both, and RxJS gives no
