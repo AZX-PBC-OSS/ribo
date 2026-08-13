@@ -2,12 +2,7 @@ import { expect, test } from "vitest";
 
 import longWavUrl from "../testdata/energy-audit-long-48k-mono.wav?url";
 import { DEFAULT_MODEL_ID, decodeTo16kMono, OnDeviceTranscriber } from "./index.js";
-import {
-  VAD_FRAME_SIZE,
-  VAD_SAMPLE_RATE,
-  StreamingVad,
-  createSileroDetector,
-} from "./vad-stream.js";
+import { VAD_FRAME_SIZE, VAD_SAMPLE_RATE, RegionVad, createSileroDetector } from "./vad-stream.js";
 import type { ProbabilityDetector } from "./vad-stream.js";
 
 /**
@@ -113,28 +108,28 @@ async function driveVad(
   detector: ProbabilityDetector,
   samples: Float32Array,
 ): Promise<readonly PausePoint[]> {
-  const vad = new StreamingVad(detector);
+  const vad = new RegionVad(detector);
   const pauses: PausePoint[] = [];
   for (let i = 0; i + VAD_FRAME_SIZE <= samples.length; i += VAD_FRAME_SIZE) {
     const frame = samples.slice(i, i + VAD_FRAME_SIZE);
-    const closed = await vad.feed(frame);
-    for (const u of closed) {
+    const result = await vad.feed(frame);
+    if (result.commit && result.committedSamples) {
       pauses.push({
         endSample: i + VAD_FRAME_SIZE,
         endSeconds: (i + VAD_FRAME_SIZE) / VAD_SAMPLE_RATE,
-        utteranceSamples: u.samples,
-        utteranceSeconds: u.samples.length / VAD_SAMPLE_RATE,
+        utteranceSamples: result.committedSamples,
+        utteranceSeconds: result.committedSamples.length / VAD_SAMPLE_RATE,
       });
     }
   }
-  const flushed = await vad.flush();
+  const flushed = await vad.drain();
   const endSample = Math.floor(samples.length / VAD_FRAME_SIZE) * VAD_FRAME_SIZE;
-  for (const u of flushed) {
+  if (flushed.length > 0) {
     pauses.push({
       endSample,
       endSeconds: endSample / VAD_SAMPLE_RATE,
-      utteranceSamples: u.samples,
-      utteranceSeconds: u.samples.length / VAD_SAMPLE_RATE,
+      utteranceSamples: flushed,
+      utteranceSeconds: flushed.length / VAD_SAMPLE_RATE,
     });
   }
   return pauses;

@@ -1,11 +1,6 @@
 import { expect, test } from "vitest";
 
-import {
-  VAD_FRAME_SIZE,
-  VAD_SAMPLE_RATE,
-  StreamingVad,
-  createSileroDetector,
-} from "./vad-stream.js";
+import { VAD_FRAME_SIZE, VAD_SAMPLE_RATE, RegionVad, createSileroDetector } from "./vad-stream.js";
 
 /**
  * OPT-IN, NOT GATED. Runs only under `vitest.manual.config.ts` — never in `./check.sh`. It
@@ -47,15 +42,19 @@ function toFrames(audio: Float32Array): Float32Array[] {
 
 test("real Silero VAD: loads, detects speech on a tone burst, closes utterances", async () => {
   const detector = await createSileroDetector({ wasmPaths: __ORT_WASM_BASE__ });
-  const vad = new StreamingVad(detector);
+  const vad = new RegionVad(detector);
 
   const frames = toFrames(makeToneBurstAudio());
 
   const utterances: { readonly samples: Float32Array }[] = [];
   for (const frame of frames) {
-    const closed = await vad.feed(frame);
-    for (const u of closed) utterances.push(u);
+    const result = await vad.feed(frame);
+    if (result.commit && result.committedSamples) {
+      utterances.push({ samples: result.committedSamples });
+    }
   }
+  const flushed = await vad.drain();
+  if (flushed.length > 0) utterances.push({ samples: flushed });
 
   console.log(
     `[vad-stream.manual] frames=${frames.length} utterances=${utterances.length} ` +
