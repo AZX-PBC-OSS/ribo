@@ -211,6 +211,7 @@ const REFRESH: RegionFrameResult = {
   refresh: true,
   commit: false,
   committedSamples: null,
+  transcriptionSamples: null,
 };
 
 /** A "nothing happened" result — no refresh, no commit. */
@@ -218,6 +219,7 @@ const IDLE: RegionFrameResult = {
   refresh: false,
   commit: false,
   committedSamples: null,
+  transcriptionSamples: null,
 };
 
 /**
@@ -230,6 +232,7 @@ function makeFakeRegionVad(script: readonly RegionFrameResult[]): {
   feed: (frame: Float32Array) => Promise<RegionFrameResult>;
   drain: () => Promise<Float32Array>;
   readonly samples: Float32Array;
+  speechSpanSamples: () => Float32Array | null;
 } {
   let calls = 0;
   let frames: Float32Array[] = [];
@@ -248,6 +251,9 @@ function makeFakeRegionVad(script: readonly RegionFrameResult[]): {
     get samples() {
       return concatFrames(frames);
     },
+    // The fake VAD does not trim — routing tests do not exercise the trimming logic.
+    // Returns the full region so the worker's refresh path receives non-null samples.
+    speechSpanSamples: () => concatFrames(frames),
   };
 }
 
@@ -280,6 +286,7 @@ describe("Test 1 — refresh posts tail, commit posts commit", () => {
           refresh: false,
           commit: true,
           committedSamples: new Float32Array(512),
+          transcriptionSamples: new Float32Array(512),
         },
       ]),
       transcribe: (samples) => Promise.resolve(`text-${samples.length}`),
@@ -407,8 +414,8 @@ describe("Test 3 — a commit is never skipped, even when one is in flight", () 
 
     injectLiveSession(sessionId, {
       vad: makeFakeRegionVad([
-        { refresh: false, commit: true, committedSamples: new Float32Array(512) },
-        { refresh: false, commit: true, committedSamples: new Float32Array(512) },
+        { refresh: false, commit: true, committedSamples: new Float32Array(512), transcriptionSamples: new Float32Array(512) },
+        { refresh: false, commit: true, committedSamples: new Float32Array(512), transcriptionSamples: new Float32Array(512) },
       ]),
       transcribe: (samples) => {
         transcribeCalls.push(samples);
@@ -517,6 +524,7 @@ describe("Test 4 — a transcription failure leaves the session alive", () => {
         get samples() {
           return new Float32Array(0);
         },
+        speechSpanSamples: () => null,
       },
       transcribe: () => Promise.resolve("never reached"),
       refreshInFlight: false,
