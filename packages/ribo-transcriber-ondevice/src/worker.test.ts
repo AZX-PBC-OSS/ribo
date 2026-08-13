@@ -414,8 +414,18 @@ describe("Test 3 — a commit is never skipped, even when one is in flight", () 
 
     injectLiveSession(sessionId, {
       vad: makeFakeRegionVad([
-        { refresh: false, commit: true, committedSamples: new Float32Array(512), transcriptionSamples: new Float32Array(512) },
-        { refresh: false, commit: true, committedSamples: new Float32Array(512), transcriptionSamples: new Float32Array(512) },
+        {
+          refresh: false,
+          commit: true,
+          committedSamples: new Float32Array(512),
+          transcriptionSamples: new Float32Array(512),
+        },
+        {
+          refresh: false,
+          commit: true,
+          committedSamples: new Float32Array(512),
+          transcriptionSamples: new Float32Array(512),
+        },
       ]),
       transcribe: (samples) => {
         transcribeCalls.push(samples);
