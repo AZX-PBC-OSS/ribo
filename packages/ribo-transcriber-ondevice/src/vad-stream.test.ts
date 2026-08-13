@@ -537,3 +537,231 @@ test("the cap still forces a commit with no qualifying pause at all", async () =
   expect(newRegionSamples).toContain(31);
   expect(newRegionSamples).toContain(34);
 });
+
+// ── Test 8: leading and trailing non-speech are excluded from the transcription input ──
+//
+// The live path used to hand the model the whole clock-bounded region — including the silence
+// or room noise at its edges. The batch path never does this: planVadChunks cuts to speech
+// boundaries and pads by 200 ms. This test proves the live path now does the same: the
+// transcription input (transcriptionSamples) excludes leading and trailing non-speech, while
+// preserving the audio between the first and last speech frame in full — including the pauses
+// between phrases. The region buffer (committedSamples) is unchanged: it still holds every
+// frame.
+//
+// How this fails if the trim is removed: transcriptionSamples would equal committedSamples
+// (the whole region), and the assertions that frame 0 and frame 57 are absent would go red.
+//
+// How this fails if the trim also drops internal pauses: the internal pause frames (30–34)
+// would be missing from transcriptionSamples, and the length assertion would go red — the
+// output would be shorter by the duration of the pauses between speech segments.
+
+test("leading and trailing non-speech are excluded from the transcription input, internal pauses preserved", async () => {
+  const speech = 0.9;
+  const quiet = 0.0;
+  // 20 silence (leading) + 10 speech (phrase 1) + 5 silence (internal pause) + 10 speech
+  // (phrase 2) + 15 silence (trailing, > 13-frame commit threshold).
+  //
+  // With commitSilenceMs: 400 (13 frames) and minRegionSeconds: 0, the trailing silence
+  // triggers a commit at frame 57 (45 + 13 - 1). The committed region is frames 0–57.
+  //
+  // Speech span: firstSpeechFrame = 20, lastSpeechFrame = 44.
+  // With padMs: 200 (ceil(200/32) = 7 frames):
+  //   startFrame = max(0, 20 - 7) = 13
+  //   endFrame   = min(58, 44 + 1 + 7) = 52
+  //   transcriptionSamples = frames 13–51 (39 frames)
+  //
+  // The internal pause (frames 30–34) is inside [13, 51] → preserved.
+  // The leading silence (frames 0–12) is before 13 → excluded.
+  // The trailing silence (frames 52–57) is after 51 → excluded.
+  const pattern = [
+    ...Array<number>(20).fill(quiet),
+    ...Array<number>(10).fill(speech),
+    ...Array<number>(5).fill(quiet), // internal pause — MUST be preserved
+    ...Array<number>(10).fill(speech),
+    ...Array<number>(15).fill(quiet),
+  ];
+
+  const vad = new RegionVad(makeFixedPatternDetector(pattern), {
+    refreshSilenceMs: 200,
+    commitSilenceMs: 400, // ceil(400/32) = 13 frames
+    regionCapSeconds: 30,
+    minRegionSeconds: 0, // disable the minimum — this test is about trimming, not region length
+    padMs: 200, // ceil(200/32) = 7 frames — same as batch path's DEFAULTS.padMs
+  });
+
+  const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
+  let transcriptionSamples: Float32Array | null = null;
+  for (let i = 0; i < frames.length; i++) {
+    const result = await vad.feed(frames[i]!);
+    if (result.commit) {
+      transcriptionSamples = result.transcriptionSamples;
+    }
+  }
+
+  expect(transcriptionSamples).not.toBeNull();
+  const trimmed = Array.from(transcriptionSamples!);
+
+  // Internal pause frames are preserved — the KEY assertion. If the trim dropped internal
+  // pauses, frames 30–34 would be absent.
+  expect(trimmed).toContain(30); // first frame of the internal pause
+  expect(trimmed).toContain(32); // middle of the internal pause
+  expect(trimmed).toContain(34); // last frame of the internal pause
+
+  // Both speech segments are preserved.
+  expect(trimmed).toContain(20); // first frame of phrase 1
+  expect(trimmed).toContain(29); // last frame of phrase 1
+  expect(trimmed).toContain(35); // first frame of phrase 2
+  expect(trimmed).toContain(44); // last frame of phrase 2
+
+  // Leading non-speech is excluded (frames 0–12, before the padding window starts at 13).
+  expect(trimmed).not.toContain(0);
+  expect(trimmed).not.toContain(12);
+
+  // Trailing non-speech is excluded (frames 52–57, after the padding window ends at 51).
+  expect(trimmed).not.toContain(52);
+  expect(trimmed).not.toContain(57);
+
+  // The exact trimmed length: 39 frames (13–51 inclusive) × 512 samples.
+  expect(transcriptionSamples!.length).toBe(39 * VAD_FRAME_SIZE);
+});
+
+// ── Test 9: the region buffer is unchanged by trimming ────────────────────────
+//
+// The trim is about what we hand the model, not what we keep. The region buffer's own semantics
+// must not change: committedSamples still holds every frame contiguously, and a commit still
+// advances past exactly the audio that was committed. The next region begins where the last
+// ended — no gap, no overlap.
+//
+// How this fails if the trim leaks into the buffer: committedSamples would be shorter than the
+// full region, and the assertions that frame 0 and frame 57 are present would go red. The buffer
+// advance assertions (new region starts at 58) would also fail if the advance used the trimmed
+// length instead of the full region length.
+
+test("the region buffer is unchanged by trimming — commit advances past the whole region", async () => {
+  const speech = 0.9;
+  const quiet = 0.0;
+  // Same pattern as Test 8: 20 silence + 10 speech + 5 silence + 10 speech + 15 silence = 60 frames.
+  // Commit at frame 57. Committed region = frames 0–57 (58 frames).
+  const pattern = [
+    ...Array<number>(20).fill(quiet),
+    ...Array<number>(10).fill(speech),
+    ...Array<number>(5).fill(quiet),
+    ...Array<number>(10).fill(speech),
+    ...Array<number>(15).fill(quiet),
+  ];
+
+  const vad = new RegionVad(makeFixedPatternDetector(pattern), {
+    refreshSilenceMs: 200,
+    commitSilenceMs: 400,
+    regionCapSeconds: 30,
+    minRegionSeconds: 0,
+    padMs: 200,
+  });
+
+  const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
+  let committedSamples: Float32Array | null = null;
+  let transcriptionSamples: Float32Array | null = null;
+  let commitFrame = -1;
+  for (let i = 0; i < frames.length; i++) {
+    const result = await vad.feed(frames[i]!);
+    if (result.commit) {
+      committedSamples = result.committedSamples;
+      transcriptionSamples = result.transcriptionSamples;
+      commitFrame = i;
+    }
+  }
+
+  expect(committedSamples).not.toBeNull();
+  expect(transcriptionSamples).not.toBeNull();
+  expect(commitFrame).toBe(57);
+
+  // committedSamples holds the FULL region — every frame, including leading and trailing silence.
+  // This is the assertion that proves the buffer is unchanged by trimming.
+  const committedArray = Array.from(committedSamples!);
+  expect(committedArray).toContain(0); // leading silence
+  expect(committedArray).toContain(57); // trailing silence
+  expect(committedSamples!.length).toBe(58 * VAD_FRAME_SIZE);
+
+  // transcriptionSamples is the trimmed subset — strictly shorter than committedSamples.
+  const trimmedArray = Array.from(transcriptionSamples!);
+  expect(trimmedArray).not.toContain(0);
+  expect(trimmedArray).not.toContain(57);
+  expect(transcriptionSamples!.length).toBeLessThan(committedSamples!.length);
+
+  // The buffer advanced past the FULL region — the new region starts at frame 58, not at the
+  // trimmed span's end. No gap, no overlap.
+  const newRegionSamples = Array.from(vad.samples);
+  expect(newRegionSamples).toContain(58);
+  expect(newRegionSamples).toContain(59);
+  for (let i = 0; i <= commitFrame; i++) {
+    expect(newRegionSamples).not.toContain(i);
+  }
+  expect(newRegionSamples.length).toBe(2 * VAD_FRAME_SIZE);
+});
+
+// ── Test 10: a region containing no speech produces no transcription call at all ──
+//
+// A region with no speech must transcribe nothing rather than sending noise to the model.
+// transcriptionSamples is null when the region has no speech, so the worker skips the
+// transcription call entirely. The commit still happens (the buffer advances), but there is
+// nothing to transcribe.
+//
+// How this fails if the no-speech guard is removed: transcriptionSamples would be non-null
+// (the full region or a zero-length subarray), and the null assertion would go red.
+
+test("a region with no speech produces null transcriptionSamples — no transcription call", async () => {
+  const quiet = 0.0;
+  // All silence, no speech. The cap forces a commit (1-second cap = 31 frames; the 32nd frame
+  // triggers it). The committed region has no speech, so transcriptionSamples must be null.
+  const capSeconds = 1;
+  const numFrames = 35;
+  const pattern = Array<number>(numFrames).fill(quiet);
+
+  const vad = new RegionVad(makeFixedPatternDetector(pattern), {
+    refreshSilenceMs: 200,
+    commitSilenceMs: 400,
+    regionCapSeconds: capSeconds,
+    minRegionSeconds: 0,
+    padMs: 200,
+  });
+
+  const frames = Array.from({ length: numFrames }, (_, i) => makeFrame(i));
+  let commitResult: RegionFrameResult | null = null;
+  for (const frame of frames) {
+    const result = await vad.feed(frame);
+    if (result.commit) {
+      commitResult = result;
+    }
+  }
+
+  // The cap forced a commit — the buffer advanced.
+  expect(commitResult).not.toBeNull();
+  expect(commitResult!.commit).toBe(true);
+  expect(commitResult!.committedSamples).not.toBeNull();
+
+  // But there was no speech, so transcriptionSamples is null — no transcription call.
+  expect(commitResult!.transcriptionSamples).toBeNull();
+});
+
+test("drain on a no-speech region returns empty — no transcription call on close", async () => {
+  const quiet = 0.0;
+  // Feed silence frames (not enough to trigger the cap), then drain. The drained region has
+  // no speech, so drain returns an empty Float32Array — the worker skips transcription.
+  const pattern = Array<number>(10).fill(quiet);
+
+  const vad = new RegionVad(makeFixedPatternDetector(pattern), {
+    refreshSilenceMs: 200,
+    commitSilenceMs: 400,
+    regionCapSeconds: 30,
+    minRegionSeconds: 0,
+    padMs: 200,
+  });
+
+  const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
+  await feedAll(vad, frames);
+
+  const drained = await vad.drain();
+  // No speech → drain returns empty — the worker's `if (samples.length === 0)` guard skips
+  // the transcription call.
+  expect(drained.length).toBe(0);
+});
