@@ -149,9 +149,13 @@ export async function openLiveSession(
       return;
     }
     currentSession = session;
-    segmentSubscription = session.segments$.subscribe((text) => {
-      console.log(`@@LIVE@@ host: segment received ${JSON.stringify(text)} -> item ${itemId}`);
-      void outbox.commitPreview(itemId, text).then(
+    segmentSubscription = session.segments$.subscribe((segment) => {
+      console.log(
+        `@@LIVE@@ host: segment received kind=${segment.kind} ${JSON.stringify(segment.text)} -> item ${itemId}`,
+      );
+      // Task 5 routes tails to `writePreviewTail` and commits to `commitPreview`.
+      // Until then, every segment is committed so the preview still appears.
+      void outbox.commitPreview(itemId, segment.text).then(
         () => console.log("@@LIVE@@ host: commitPreview OK"),
         (e: unknown) => console.log("@@LIVE@@ host: commitPreview FAILED", e),
       );
