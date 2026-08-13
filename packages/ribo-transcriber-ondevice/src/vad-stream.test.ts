@@ -457,3 +457,86 @@ test("a flush does not emit noise — the min-speech filter still applies", asyn
   const flushed = await vad.flush();
   expect(flushed).toHaveLength(0);
 });
+
+// ── The noise filter's count must carry across a hold ───────────────────────────────────────────
+//
+// `#speechFrameCount` drives the 250 ms min-speech noise filter. It was reset per region, while
+// `#speechFrames` accumulated across holds — so the counter described only the *most recent*
+// region, not the whole buffer. When a held sentence (real speech, just short) was followed by a
+// brief noise blip, the blip opened a region that closed with a count of 1, failed the noise
+// filter, and **emptied the entire accumulated buffer**. No emission, no error — the user saw no
+// live text at all. This was reported from real use after the hold-and-accumulate change landed.
+//
+// The fix: `#speechFrameCount` accumulates across a hold, just like `#speechFrames`. Once a buffer
+// has qualified as real speech, a subsequent quiet region must not be able to disqualify it or
+// delete it. But a region that is *only* noise, with no held buffer behind it, is still discarded —
+// the filter must not be defeated wholesale.
+
+test("a held buffer survives a following noise-only region", async () => {
+  // A speech region long enough to be real (> 8 frames = 250 ms noise filter) but shorter than
+  // the 1-second minimum (so it is held) → silence that closes → a single-frame blip above the
+  // enter threshold → silence that closes the blip → more speech until the buffer is long enough
+  // to emit. The blip's region closes with a per-region count of 1 — below the noise filter —
+  // and with the bug that discards the entire held buffer. With the fix the count carries the
+  // held speech forward, the blip cannot disqualify it, and the eventual emission still contains
+  // the first region's audio.
+  const speech = 0.9;
+  const quiet = 0.0;
+  const pattern = [
+    ...Array<number>(3).fill(quiet), // silence → FIFO
+    ...Array<number>(8).fill(speech), // first region — real speech (8 frames > 250 ms), but < 1 s
+    ...Array<number>(7).fill(quiet), // closes (7 × 32 ms = 224 ms > 200 ms), held (< 32 frames)
+    ...Array<number>(1).fill(speech), // blip — opens onto the held buffer
+    ...Array<number>(7).fill(quiet), // closes the blip — with the bug, discards the held buffer
+    ...Array<number>(25).fill(speech), // more speech — pushes the accumulated buffer past 1 s
+    ...Array<number>(7).fill(quiet), // closes and emits
+  ];
+  const vad = new StreamingVad(makeFixedPatternDetector(pattern), {
+    minSilenceMs: 200,
+    preSpeechPadMs: 80,
+    minUtteranceSeconds: 1,
+  });
+
+  const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
+  const emitted = await feedAll(vad, frames);
+
+  // One emission, not zero: the held buffer survived the blip and accumulated into the eventual
+  // close. With the bug, the blip close discarded the held buffer and the third region started
+  // fresh — it may or may not emit on its own, but the first region's audio is gone either way.
+  expect(emitted).toHaveLength(1);
+
+  // **The first region's audio is in the emission.** Frame 3 is the first speech frame of the
+  // first region. With the bug, the blip close emptied `#speechFrames` and frame 3 was lost —
+  // this assertion is what goes red.
+  const samples = Array.from(emitted[0]!.samples);
+  expect(samples).toContain(3);
+});
+
+test("pure noise with no held buffer is still discarded", async () => {
+  // A single short blip (1 frame, ~32 ms) and nothing else — well below the 250 ms min-speech
+  // noise filter (ceil(250 / 32) = 8 frames). With no held buffer behind it, there is nothing
+  // to accumulate into, and the filter must still discard it. This is the guard against
+  // defeating the noise filter wholesale when making the count carry across holds.
+  const speech = 0.9;
+  const quiet = 0.0;
+  const pattern = [
+    ...Array<number>(1).fill(speech), // blip — 1 frame, far below the 8-frame noise filter
+    ...Array<number>(7).fill(quiet), // closes (7 × 32 ms > 200 ms)
+  ];
+  const vad = new StreamingVad(makeFixedPatternDetector(pattern), {
+    minSilenceMs: 200,
+    preSpeechPadMs: 80,
+    minUtteranceSeconds: 1,
+  });
+
+  const frames = Array.from({ length: pattern.length }, (_, i) => makeFrame(i));
+  const during = await feedAll(vad, frames);
+
+  // Nothing emitted during feeding — the blip is below the noise filter and there is no held
+  // buffer to accumulate into, so it is discarded at the close.
+  expect(during).toHaveLength(0);
+
+  // Flush — still nothing. The buffer was discarded, not held.
+  const flushed = await vad.flush();
+  expect(flushed).toHaveLength(0);
+});
