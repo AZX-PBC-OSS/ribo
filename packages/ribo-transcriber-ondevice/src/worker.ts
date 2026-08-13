@@ -603,6 +603,8 @@ interface LiveWorkerSession {
     feed(frame: Float32Array): Promise<RegionFrameResult>;
     drain(): Promise<Float32Array>;
     readonly samples: Float32Array;
+    /** Trimmed speech-span samples for the refresh path's transcription input. Null = no speech. */
+    speechSpanSamples(): Float32Array | null;
   };
   /**
    * Transcribe one region's samples. Bundles `getPipeline` + `transcribeChunk`
@@ -769,11 +771,14 @@ function feedLiveFrame(
   session.vad
     .feed(frame)
     .then((result) => {
-      if (result.commit && result.committedSamples) {
-        // Commit: always transcribe, never skip. The committed samples are a
-        // snapshot taken at the commit boundary by the VAD, so the transcription
-        // sees exactly that audio regardless of when it runs.
-        void transcribeAsCommit(sessionId, result.committedSamples, post);
+      if (result.commit && result.transcriptionSamples) {
+        // Commit: always transcribe, never skip. The transcription samples are the
+        // committed region trimmed to its speech span — a snapshot taken at the
+        // commit boundary by the VAD, so the transcription sees exactly that audio
+        // regardless of when it runs. When transcriptionSamples is null the
+        // committed region had no speech (a cap-forced commit on noise), so there
+        // is nothing to transcribe and the call is skipped.
+        void transcribeAsCommit(sessionId, result.transcriptionSamples, post);
       } else if (result.refresh) {
         if (session.refreshInFlight) {
           // Load shedding: skip this refresh. The region buffer is untouched —
@@ -782,12 +787,14 @@ function feedLiveFrame(
           // rendering of provisional text; dropping audio is permanent.
           return;
         }
+        // Trim the region to its speech span for the transcription input. The
+        // region buffer itself is unchanged — only what we hand the model is
+        // trimmed. Null means the region has no speech, which should not happen
+        // here (the refresh is gated by the speech filter), but is handled
+        // defensively: no speech means no transcription call.
+        const samples = session.vad.speechSpanSamples();
+        if (samples === null) return;
         session.refreshInFlight = true;
-        // Snapshot the region at the refresh point. The region keeps growing
-        // (more frames arrive while the transcription is in flight), but this
-        // snapshot is what the tail renders. The next refresh takes a fresh
-        // snapshot that includes the new audio.
-        const samples = session.vad.samples;
         void transcribeAsTail(sessionId, samples, post);
       }
     })

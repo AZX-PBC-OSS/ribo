@@ -147,6 +147,17 @@ export const VAD_MIN_REGION_SECONDS = 15;
  */
 export const VAD_MIN_SPEECH_MS = 250;
 
+/**
+ * Padding added to each side of the speech span when trimming the transcription input.
+ *
+ * **Taken from the batch path deliberately** — `segmentation.ts`'s `DEFAULTS.padMs` uses the same
+ * 200 ms so a consonant onset or a trailing fricative is not clipped at a speech boundary. The
+ * batch path pads every VAD-cut region; the live path must do the same for the same reason, or
+ * the two paths would clip different onsets and produce different text from the same audio.
+ * Injectable through the constructor so tests pin their own.
+ */
+export const VAD_PAD_MS = 200;
+
 /** One frame's duration in milliseconds (512 / 16000 × 1000). */
 const FRAME_DURATION_MS = (VAD_FRAME_SIZE / VAD_SAMPLE_RATE) * 1000;
 
@@ -172,11 +183,30 @@ export interface RegionFrameResult {
   /** A commit boundary was reached: a long-enough pause or the region cap. The buffer has advanced. */
   readonly commit: boolean;
   /**
-   * The committed audio — the region's samples that were committed on this frame. Non-null only
-   * when `commit` is true. The caller transcribes this (or uses the last refresh's text) to
-   * produce the permanent text.
+   * The committed audio — the full region's samples, every frame from the last commit point to
+   * this one. Non-null only when `commit` is true. The buffer advances past this exact audio;
+   * the next region starts where this one ended. **This is not what gets transcribed** — see
+   * {@link transcriptionSamples}.
    */
   readonly committedSamples: Float32Array | null;
+  /**
+   * The transcription input — the committed region **trimmed to its speech span** (first speech
+   * frame through last, padded by {@link VAD_PAD_MS} on each side, clamped to the region bounds).
+   * Null when the committed region contained no speech at all (the caller skips the transcription
+   * call rather than sending noise to the model) or when no commit occurred on this frame.
+   *
+   * **Why the committed text boundary and the buffer advance are still exact when the transcribed
+   * audio was trimmed.** The trimmed audio is a strict subset of the committed region — no speech
+   * is excluded, only non-speech at the leading and trailing edges. The commit boundary is a
+   * position in the audio (the pause or the cap), not a position in the text, so the buffer
+   * advances past the whole region regardless of what is transcribed. The text corresponds to the
+   * speech within that region, all of which is inside the trimmed span. The next region begins
+   * where the committed region ended — no gap, no overlap — because the advance is driven by the
+   * full region, not by the trimmed input. A reader who wonders "if we transcribed less than we
+   * committed, is the boundary still exact?" can stop here: yes, because nothing that was trimmed
+   * away was speech.
+   */
+  readonly transcriptionSamples: Float32Array | null;
 }
 
 /**
@@ -253,6 +283,15 @@ export class RegionVad {
   // Speech frames (probability ≥ exit) in the current region — drives the 250 ms noise filter.
   #speechFrameCount = 0;
 
+  // ── Speech span (for trimming the transcription input) ──
+  // The first and last frame indices (into #regionFrames) that were classified as speech in the
+  // current region. -1 means no speech has been seen yet. Used by #trimToSpeechSpan to cut the
+  // leading and trailing non-speech before handing audio to the model — the same thing the batch
+  // path does with planVadChunks, but driven by the per-frame decisions RegionVad already makes
+  // rather than a second VAD pass.
+  #firstSpeechFrame = -1;
+  #lastSpeechFrame = -1;
+
   // ── The region buffer ──
   // Every frame fed, contiguous and in order. No frame is ever removed until a commit advances
   // past it.
@@ -265,14 +304,16 @@ export class RegionVad {
   readonly #commitSilenceFrames: number;
   readonly #regionCapFrames: number;
   readonly #minRegionFrames: number;
+  readonly #padFrames: number;
 
   /**
-   * `refreshSilenceMs`, `commitSilenceMs`, `regionCapSeconds` and `minRegionSeconds` are injectable
-   * so a **test can pin its own thresholds**. The tests build literal probability sequences whose
-   * silence runs have to cross the refresh or commit boundary; pinned to the production constants,
-   * they broke the first time a threshold was tuned — tests failing while still describing correct
-   * behaviour, which is noise between a reader and a real regression. The thresholds are product
-   * decisions that will be tuned again; the frame loop's behaviour is not.
+   * `refreshSilenceMs`, `commitSilenceMs`, `regionCapSeconds`, `minRegionSeconds` and `padMs` are
+   * injectable so a **test can pin its own thresholds**. The tests build literal probability
+   * sequences whose silence runs have to cross the refresh or commit boundary; pinned to the
+   * production constants, they broke the first time a threshold was tuned — tests failing while
+   * still describing correct behaviour, which is noise between a reader and a real regression.
+   * The thresholds are product decisions that will be tuned again; the frame loop's behaviour
+   * is not.
    */
   constructor(
     detector: ProbabilityDetector,
@@ -281,6 +322,7 @@ export class RegionVad {
       commitSilenceMs?: number;
       regionCapSeconds?: number;
       minRegionSeconds?: number;
+      padMs?: number;
     } = {},
   ) {
     this.#detector = detector;
@@ -300,6 +342,9 @@ export class RegionVad {
     this.#minRegionFrames = Math.ceil(
       ((options.minRegionSeconds ?? VAD_MIN_REGION_SECONDS) * VAD_SAMPLE_RATE) / VAD_FRAME_SIZE,
     );
+    // `ceil` so we pad at least the named duration — clipping a consonant onset is the failure
+    // this exists to prevent, and rounding down would give less padding than intended.
+    this.#padFrames = Math.ceil((options.padMs ?? VAD_PAD_MS) / FRAME_DURATION_MS);
   }
 
   /**
@@ -327,10 +372,49 @@ export class RegionVad {
   }
 
   /**
+   * The current region trimmed to its speech span — first speech frame through last, padded by
+   * `padMs` on each side, clamped to the region bounds. Returns `null` when the current region
+   * contains no speech at all, so the caller can skip the transcription call rather than sending
+   * noise to the model. **This is the refresh path's transcription input** — the region buffer
+   * itself ({@link samples}) is unchanged; only what we hand the model is trimmed.
+   *
+   * The batch path does the same thing with `planVadChunks` in `segmentation.ts`: it cuts to
+   * speech boundaries and pads by 200 ms. The live path cannot run a second VAD pass (Silero is
+   * already running per frame), so it reuses the per-frame speech decisions {@link RegionVad}
+   * already tracks — the first frame that entered speech through to the last — rather than
+   * inventing a second detector.
+   */
+  speechSpanSamples(): Float32Array | null {
+    return this.#trimToSpeechSpan(this.samples);
+  }
+
+  /**
+   * Trim a region's samples to its speech span. The span is the first frame that entered speech
+   * through the last frame that was still in speech, padded by `#padFrames` on each side and
+   * clamped to `[0, samples.length]`. Internal pauses — silence between two speech segments —
+   * are preserved; only leading and trailing non-speech is removed. Returns `null` when the
+   * region contains no speech (`#firstSpeechFrame === -1`).
+   *
+   * `subarray`, not `slice`: a view over the samples already in memory — the caller does not
+   * need an independent copy (the transcription call reads it once and does not retain it).
+   */
+  #trimToSpeechSpan(samples: Float32Array): Float32Array | null {
+    if (this.#firstSpeechFrame === -1) return null;
+    const frameCount = samples.length / VAD_FRAME_SIZE;
+    const startFrame = Math.max(0, this.#firstSpeechFrame - this.#padFrames);
+    const endFrame = Math.min(frameCount, this.#lastSpeechFrame + 1 + this.#padFrames);
+    return samples.subarray(startFrame * VAD_FRAME_SIZE, endFrame * VAD_FRAME_SIZE);
+  }
+
+  /**
    * Return the current region's samples and reset the buffer. The close-time safety net —
    * the worker's `liveClose` handler drains whatever remains when the session closes, so
    * the last region is never lost. In the new model nothing is discarded, so this is simply
    * "return the region that never saw a commit boundary."
+   *
+   * Returns the **speech-span-trimmed** samples, or an empty `Float32Array` when the region
+   * contained no speech — so a close on a noise-only region produces no transcription call
+   * rather than sending noise to the model. The buffer is fully cleared either way.
    *
    * Serializes through the same chain as {@link feed} so a drain cannot race an in-flight feed
    * for the buffer state.
@@ -351,6 +435,7 @@ export class RegionVad {
   async #processFrame(frame: Float32Array): Promise<RegionFrameResult> {
     let refresh = false;
     let committedSamples: Float32Array | null = null;
+    let transcriptionSamples: Float32Array | null = null;
 
     // 1. Cap check: if the buffer is at the cap, commit before appending. The committed audio
     //    is exactly `#regionCapFrames` frames; the current frame starts the new region.
@@ -358,10 +443,16 @@ export class RegionVad {
     //    bound, not a product decision about when text is worth keeping.
     if (this.#regionFrames.length >= this.#regionCapFrames) {
       committedSamples = concatenateFrames(this.#regionFrames);
+      // Trim to the speech span BEFORE resetting the span indices — #trimToSpeechSpan reads
+      // #firstSpeechFrame/#lastSpeechFrame, which are about to be cleared. Returns null when
+      // the cap-committed region had no speech, so the worker skips the transcription call.
+      transcriptionSamples = this.#trimToSpeechSpan(committedSamples);
       this.#regionFrames = [];
       this.#speechFrameCount = 0;
       this.#silenceFrameCount = 0;
       this.#inSpeech = false;
+      this.#firstSpeechFrame = -1;
+      this.#lastSpeechFrame = -1;
     }
 
     // 2. Append the frame to the region buffer, unconditionally. Every frame, speech or not.
@@ -377,9 +468,14 @@ export class RegionVad {
         this.#inSpeech = true;
         this.#silenceFrameCount = 0;
         this.#speechFrameCount++;
+        // Record the first speech frame in this region — the leading edge of the trim span.
+        // #regionFrames.length - 1 is the frame just appended (step 2).
+        const frameIdx = this.#regionFrames.length - 1;
+        if (this.#firstSpeechFrame === -1) this.#firstSpeechFrame = frameIdx;
+        this.#lastSpeechFrame = frameIdx;
       }
       // Not in speech: no pause to detect. The frame is already in the buffer.
-      return { refresh, commit: committedSamples !== null, committedSamples };
+      return { refresh, commit: committedSamples !== null, committedSamples, transcriptionSamples };
     }
 
     // ── In speech ──
@@ -410,10 +506,14 @@ export class RegionVad {
           // forward — exactly the "region accumulates across pauses" behaviour the design wants.
           if (this.#regionFrames.length >= this.#minRegionFrames) {
             committedSamples = concatenateFrames(this.#regionFrames);
+            // Trim to the speech span BEFORE resetting — see the cap commit above.
+            transcriptionSamples = this.#trimToSpeechSpan(committedSamples);
             this.#regionFrames = [];
             this.#speechFrameCount = 0;
             this.#silenceFrameCount = 0;
             this.#inSpeech = false;
+            this.#firstSpeechFrame = -1;
+            this.#lastSpeechFrame = -1;
           }
         }
       } else if (this.#silenceFrameCount === this.#refreshSilenceFrames) {
@@ -429,9 +529,11 @@ export class RegionVad {
       // Still speech: reset the silence counter and count this frame toward the speech filter.
       this.#silenceFrameCount = 0;
       this.#speechFrameCount++;
+      // Extend the trailing edge of the trim span to this frame.
+      this.#lastSpeechFrame = this.#regionFrames.length - 1;
     }
 
-    return { refresh, commit: committedSamples !== null, committedSamples };
+    return { refresh, commit: committedSamples !== null, committedSamples, transcriptionSamples };
   }
 
   /**
@@ -440,11 +542,16 @@ export class RegionVad {
    */
   #drainBuffer(): Float32Array {
     const samples = concatenateFrames(this.#regionFrames);
+    // Trim to the speech span BEFORE resetting the indices — a noise-only region returns empty,
+    // so the worker skips the transcription call rather than sending noise to the model.
+    const trimmed = this.#trimToSpeechSpan(samples);
     this.#regionFrames = [];
     this.#speechFrameCount = 0;
     this.#silenceFrameCount = 0;
     this.#inSpeech = false;
-    return samples;
+    this.#firstSpeechFrame = -1;
+    this.#lastSpeechFrame = -1;
+    return trimmed ?? new Float32Array(0);
   }
 }
 
