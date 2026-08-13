@@ -29,10 +29,12 @@
  *    drives _timing only_ — it selects refresh and commit points and never filters audio.
  * 4. On a pause (silence past the refresh threshold), report a **refresh** — the caller
  *    re-transcribes the region. The buffer does not advance.
- * 5. On a long-enough pause (past the commit threshold), or when the region reaches its cap,
- *    report a **commit** — the text becomes permanent and the buffer advances past the
- *    committed audio. Because the boundary is a position in the audio rather than a position
- *    in the text, the advance is exact and needs no timestamps.
+ * 5. On a long-enough pause (past the commit threshold) — but only once the region has reached
+ *    the minimum region duration — or when the region reaches its cap, report a **commit** —
+ *    the text becomes permanent and the buffer advances past the committed audio. Below the
+ *    minimum, a qualifying pause triggers a refresh instead and the region keeps growing.
+ *    Because the boundary is a position in the audio rather than a position in the text, the
+ *    advance is exact and needs no timestamps.
  * 6. On reaching the region cap without a pause, commit at the cap and carry the remainder
  *    forward.
  *
@@ -108,6 +110,34 @@ export const VAD_COMMIT_SILENCE_MS = 800;
 export const VAD_REGION_CAP_SECONDS = 30;
 
 /**
+ * Minimum region duration before a pause may commit.
+ *
+ * A pause — silence past {@link VAD_COMMIT_SILENCE_MS} — only commits once the region has reached
+ * this duration. Below it, the pause triggers a refresh (the tail is re-transcribed and replaced)
+ * and the region keeps growing. The cap still forces a commit regardless, and `drain` still
+ * returns whatever remains at close.
+ *
+ * **Why this exists.** Real dictation is short phrases separated by pauses longer than 800 ms.
+ * Without a minimum, every phrase committed immediately, regions stayed 2–5 seconds long, and the
+ * model was handed short fragments with no context — precisely the failure revision 7 was written
+ * to eliminate. The design's intent is long commit regions for accuracy, refreshed on every pause
+ * for responsiveness. The refresh half worked; the commit half did not.
+ *
+ * **The commit boundary is the pause, not the minimum.** When a qualifying pause arrives and the
+ * region is already past the minimum, the commit boundary is _that_ pause — the committed audio
+ * is the whole region up to and including the pause's trailing silence, exactly as before. The
+ * minimum is a gate on _when_ a pause may commit, not a trigger for committing at a fixed
+ * duration. A region that reaches the minimum mid-speech with no pause for a long time afterwards
+ * simply keeps growing — which is the design's intent (long regions for accuracy). The cap is the
+ * only backstop if no qualifying pause ever arrives.
+ *
+ * **15 s is a placeholder pending measurement on real speech.** The design lists the region cap
+ * and refresh cadence as open questions; this belongs with them. Injectable through the
+ * constructor so tests pin their own.
+ */
+export const VAD_MIN_REGION_SECONDS = 15;
+
+/**
  * Speech shorter than this is noise — a region with less speech is not worth transcribing.
  *
  * **Revision 7 changes this filter's role.** It was an emission gate that discarded regions;
@@ -132,7 +162,9 @@ const MIN_SPEECH_FRAMES = Math.ceil(VAD_MIN_SPEECH_MS / FRAME_DURATION_MS);
  *
  * `refresh` and `commit` are mutually exclusive on a single frame: a commit clears the buffer
  * and resets the silence counter, so a refresh cannot also be due. A cap-driven commit happens
- * before the detector runs, so the pause logic sees a fresh region and cannot fire.
+ * before the detector runs, so the pause logic sees a fresh region and cannot fire. A pause-driven
+ * commit requires the region to have reached the minimum duration; below that, the pause produces
+ * a refresh (fired earlier at the refresh threshold) and the region keeps growing.
  */
 export interface RegionFrameResult {
   /** A refresh is due: a pause occurred. Re-transcribe the region; the buffer has NOT advanced. */
@@ -232,14 +264,15 @@ export class RegionVad {
   readonly #refreshSilenceFrames: number;
   readonly #commitSilenceFrames: number;
   readonly #regionCapFrames: number;
+  readonly #minRegionFrames: number;
 
   /**
-   * `refreshSilenceMs`, `commitSilenceMs` and `regionCapSeconds` are injectable so a **test can
-   * pin its own thresholds**. The tests build literal probability sequences whose silence runs
-   * have to cross the refresh or commit boundary; pinned to the production constants, they broke
-   * the first time a threshold was tuned — tests failing while still describing correct behaviour,
-   * which is noise between a reader and a real regression. The thresholds are product decisions
-   * that will be tuned again; the frame loop's behaviour is not.
+   * `refreshSilenceMs`, `commitSilenceMs`, `regionCapSeconds` and `minRegionSeconds` are injectable
+   * so a **test can pin its own thresholds**. The tests build literal probability sequences whose
+   * silence runs have to cross the refresh or commit boundary; pinned to the production constants,
+   * they broke the first time a threshold was tuned — tests failing while still describing correct
+   * behaviour, which is noise between a reader and a real regression. The thresholds are product
+   * decisions that will be tuned again; the frame loop's behaviour is not.
    */
   constructor(
     detector: ProbabilityDetector,
@@ -247,6 +280,7 @@ export class RegionVad {
       refreshSilenceMs?: number;
       commitSilenceMs?: number;
       regionCapSeconds?: number;
+      minRegionSeconds?: number;
     } = {},
   ) {
     this.#detector = detector;
@@ -259,6 +293,12 @@ export class RegionVad {
     );
     this.#regionCapFrames = Math.floor(
       ((options.regionCapSeconds ?? VAD_REGION_CAP_SECONDS) * VAD_SAMPLE_RATE) / VAD_FRAME_SIZE,
+    );
+    // `ceil` so the region must hold at least the named duration — conservative for quality
+    // (the cap uses `floor` for the opposite reason: it is a maximum, and rounding down commits
+    // slightly early, which is conservative for memory).
+    this.#minRegionFrames = Math.ceil(
+      ((options.minRegionSeconds ?? VAD_MIN_REGION_SECONDS) * VAD_SAMPLE_RATE) / VAD_FRAME_SIZE,
     );
   }
 
@@ -354,11 +394,27 @@ export class RegionVad {
         // The 250 ms filter guards against committing (and thus transcribing) a region with no
         // speech at all. The cap handles the all-silence case without this guard.
         if (this.#speechFrameCount >= MIN_SPEECH_FRAMES) {
-          committedSamples = concatenateFrames(this.#regionFrames);
-          this.#regionFrames = [];
-          this.#speechFrameCount = 0;
-          this.#silenceFrameCount = 0;
-          this.#inSpeech = false;
+          // The minimum-region-length gate: a pause may only commit once the region has reached
+          // VAD_MIN_REGION_SECONDS. Below that, the pause is treated as a refresh opportunity
+          // (the refresh already fired at the refresh threshold earlier in this silence run) and
+          // the region keeps growing. This is the fix for the "every pause commits" bug: real
+          // dictation is short phrases separated by >800 ms pauses, so without this gate every
+          // phrase committed immediately and the model saw only fragments.
+          //
+          // The `>=` on the silence count means this check runs on every silence frame past the
+          // commit threshold, not just the one that crossed it. That is correct: if the region is
+          // still below the minimum when the commit threshold is reached, the silence continues
+          // to accumulate in the buffer (every frame is appended unconditionally), and the commit
+          // fires on the first frame where both conditions are met. If speech resumes before
+          // that, the silence counter resets and the region carries the inter-phrase silence
+          // forward — exactly the "region accumulates across pauses" behaviour the design wants.
+          if (this.#regionFrames.length >= this.#minRegionFrames) {
+            committedSamples = concatenateFrames(this.#regionFrames);
+            this.#regionFrames = [];
+            this.#speechFrameCount = 0;
+            this.#silenceFrameCount = 0;
+            this.#inSpeech = false;
+          }
         }
       } else if (this.#silenceFrameCount === this.#refreshSilenceFrames) {
         // 6. Refresh: a pause, but not long enough to commit. The buffer does NOT advance.
