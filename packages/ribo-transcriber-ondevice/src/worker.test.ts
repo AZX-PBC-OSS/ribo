@@ -832,3 +832,145 @@ describe("Test 6 — an empty commit is posted, not silently dropped", () => {
     clearLiveSessions();
   });
 });
+
+// ── Test 7: coalesced buffer exceeding the model's 30s window is split ────────
+//
+// The coalescing fix (Test 5) bounds queue DEPTH but not buffer SIZE —
+// pendingCommitSamples grows by unbounded concatenation, so three backed-up
+// 30s regions become a single 90s transcription call that exceeds the model's
+// input window. transcribeBounded reuses planFallbackChunks to split the
+// coalesced buffer into ≤ 30s windows, transcribing each separately and joining
+// the text. No audio's text is dropped.
+
+describe("Test 7 — coalesced commit buffer exceeding the 30s window is split", () => {
+  const CAP_SAMPLES = 30 * WHISPER_SAMPLE_RATE;
+
+  /** Fill samples with their global index so the fake transcribe can report which range it saw. */
+  function makeIndexedSamples(start: number, length: number): Float32Array {
+    const s = new Float32Array(length);
+    for (let i = 0; i < length; i++) s[i] = start + i;
+    return s;
+  }
+
+  test("a coalesced buffer longer than the cap is transcribed in multiple calls, text covers all audio", async () => {
+    clearLiveSessions();
+    const sessionId = "test-cap-split";
+    const { posts, post } = makePost();
+
+    const transcribeCalls: { length: number; first: number; last: number }[] = [];
+    const deferred1 = makeDeferred<string>();
+
+    const commitResult = (offset: number): RegionFrameResult => ({
+      refresh: false,
+      commit: true,
+      committedSamples: new Float32Array(512),
+      transcriptionSamples: makeIndexedSamples(offset, CAP_SAMPLES),
+    });
+
+    let callCount = 0;
+    injectLiveSession(sessionId, {
+      vad: makeFakeRegionVad([
+        commitResult(0),
+        commitResult(CAP_SAMPLES),
+        commitResult(CAP_SAMPLES * 2),
+      ]),
+      transcribe: (samples) => {
+        callCount++;
+        const record = {
+          length: samples.length,
+          first: samples[0] ?? 0,
+          last: samples[samples.length - 1] ?? 0,
+        };
+        transcribeCalls.push(record);
+        if (callCount === 1) return deferred1.promise;
+        return Promise.resolve(`[${record.first},${record.last}]`);
+      },
+      refreshInFlight: false,
+    });
+
+    // Feed 3 commits (30s each). First starts transcribing (deferred1 pending).
+    // Commits 2-3 coalesce into pendingCommitSamples (60s).
+    for (let i = 0; i < 3; i++) {
+      await handleMessage({ type: "liveFeed", sessionId, frame: new Float32Array(512) }, post);
+      await settle();
+    }
+    expect(transcribeCalls).toHaveLength(1);
+
+    // Release → first commit posted, re-queue transcribes coalesced 60s in 3 chunks.
+    deferred1.resolve("[0,479999]");
+    await settle();
+
+    // 4 calls total: 1 for the first commit (30s, 1 chunk), 3 for the coalesced 60s.
+    expect(transcribeCalls).toHaveLength(4);
+
+    // Every call received at most the cap.
+    for (const call of transcribeCalls) {
+      expect(call.length).toBeLessThanOrEqual(CAP_SAMPLES);
+    }
+
+    // The coalesced buffer (calls 2-4) covers the full range [CAP_SAMPLES, CAP_SAMPLES*3-1].
+    expect(transcribeCalls[1]!.first).toBe(CAP_SAMPLES);
+    expect(transcribeCalls[3]!.last).toBe(CAP_SAMPLES * 3 - 1);
+
+    // The posted text for the coalesced segment covers the full range — no text lost.
+    const commitPosts = posts.filter((m) => m.type === "liveSegment");
+    expect(commitPosts).toHaveLength(2);
+    if (commitPosts[1]!.type === "liveSegment") {
+      const text = commitPosts[1]!.text;
+      expect(text).toContain(`[${CAP_SAMPLES},`);
+      expect(text).toContain(`,${CAP_SAMPLES * 3 - 1}]`);
+    }
+
+    clearLiveSessions();
+  });
+
+  test("the cap holds — no single call exceeds the cap, however many commits back up", async () => {
+    clearLiveSessions();
+    const sessionId = "test-cap-holds";
+    const { posts, post } = makePost();
+
+    const transcribeLengths: number[] = [];
+    const deferred1 = makeDeferred<string>();
+
+    const commitResult = (): RegionFrameResult => ({
+      refresh: false,
+      commit: true,
+      committedSamples: new Float32Array(512),
+      transcriptionSamples: new Float32Array(CAP_SAMPLES),
+    });
+
+    let callCount = 0;
+    injectLiveSession(sessionId, {
+      vad: makeFakeRegionVad(Array.from({ length: 5 }, () => commitResult())),
+      transcribe: (samples) => {
+        callCount++;
+        transcribeLengths.push(samples.length);
+        if (callCount === 1) return deferred1.promise;
+        return Promise.resolve(`text-${samples.length}`);
+      },
+      refreshInFlight: false,
+    });
+
+    // Feed 5 commits (30s each). First starts transcribing (deferred1 pending).
+    // Commits 2-5 coalesce into pendingCommitSamples (120s).
+    for (let i = 0; i < 5; i++) {
+      await handleMessage({ type: "liveFeed", sessionId, frame: new Float32Array(512) }, post);
+      await settle();
+    }
+    expect(transcribeLengths).toHaveLength(1);
+
+    // Release → re-queue transcribes coalesced 120s in multiple chunks.
+    deferred1.resolve("first");
+    await settle();
+
+    // Multiple calls (1 for the first commit + several for the coalesced 120s).
+    expect(transcribeLengths.length).toBeGreaterThan(1);
+
+    // THE CAP: no single transcription call exceeds 480000 samples.
+    for (const length of transcribeLengths) {
+      expect(length).toBeLessThanOrEqual(CAP_SAMPLES);
+    }
+
+    clearLiveSessions();
+  });
+});
