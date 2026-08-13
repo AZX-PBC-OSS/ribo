@@ -781,7 +781,7 @@ function transcribeAsTail(
     try {
       const text = await session.transcribe(samples);
       console.log(
-        `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s -> ${JSON.stringify(text)}`,
+        `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s rms=${rootMeanSquare(samples).toFixed(5)} peak=${samples.reduce((m, v) => Math.max(m, Math.abs(v)), 0).toFixed(4)} -> ${JSON.stringify(text)}`,
       );
       if (text.length > 0) post({ type: "liveSegment", sessionId, kind: "tail", text });
     } catch (error) {
@@ -810,7 +810,7 @@ function transcribeAsCommit(
     try {
       const text = await session.transcribe(samples);
       console.log(
-        `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s -> ${JSON.stringify(text)}`,
+        `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s rms=${rootMeanSquare(samples).toFixed(5)} peak=${samples.reduce((m, v) => Math.max(m, Math.abs(v)), 0).toFixed(4)} -> ${JSON.stringify(text)}`,
       );
       if (text.length > 0) post({ type: "liveSegment", sessionId, kind: "commit", text });
     } catch (error) {
@@ -858,7 +858,7 @@ function closeLiveSession(sessionId: string, post: (message: WorkerToMainMessage
         try {
           const text = await s.transcribe(samples);
           console.log(
-            `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s -> ${JSON.stringify(text)}`,
+            `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s rms=${rootMeanSquare(samples).toFixed(5)} peak=${samples.reduce((m, v) => Math.max(m, Math.abs(v)), 0).toFixed(4)} -> ${JSON.stringify(text)}`,
           );
           if (text.length > 0) post({ type: "liveSegment", sessionId, kind: "commit", text });
         } catch (error) {
