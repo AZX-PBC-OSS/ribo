@@ -659,6 +659,46 @@ function feedLiveFrame(
 }
 
 /**
+ * Handle `liveClose`: flush any buffered speech, transcribe it, post the segment, then
+ * remove the session. Goes through `serialize` so it runs after any pending `liveFeed`
+ * calls — the flush must see the buffer state after all queued frames are processed.
+ *
+ * Without this flush, speech right up to the moment the auditor pressed stop was silently
+ * dropped: the VAD emits only on a silence close, and continuous dictation never gives it
+ * 800 ms of silence. Measured on the 54-second fixture, the live path lost the last 24
+ * words. See `StreamingVad.flush` for the buffer mechanics.
+ */
+function closeLiveSession(sessionId: string, post: (message: WorkerToMainMessage) => void): void {
+  void serialize(async () => {
+    const session = liveSessions.get(sessionId);
+    if (!session) return;
+    try {
+      const utterances = await session.vad.flush();
+      if (utterances.length === 0) {
+        liveSessions.delete(sessionId);
+        return;
+      }
+      const pipeline = await getPipeline(session.config);
+      for (const { samples } of utterances) {
+        // No jargon prefix for live — same reasoning as `feedLiveFrame`: Moonshine (the
+        // default model) cannot be primed, and live previews are provisional anyway.
+        const text = await transcribeChunk(pipeline, samples, []);
+        if (text.length > 0) post({ type: "liveSegment", sessionId, text });
+      }
+    } catch (error) {
+      // Same error handling as `feedLiveFrame`: the session ends here, the error is
+      // surfaced, and later frames no-op on the map lookup. The flush is the last thing
+      // the session does — a failure here means the final segment is lost, but the
+      // batch pass after `stop()` recovers it.
+      liveSessions.delete(sessionId);
+      post({ type: "liveError", sessionId, message: errorMessage(error) });
+      return;
+    }
+    liveSessions.delete(sessionId);
+  });
+}
+
+/**
  * Handle one main→worker message. Exported (rather than only wired to `onmessage`) so the routing is
  * unit-testable without a real `WorkerGlobalScope`. `post` is the worker's `postMessage`, injected.
  */
@@ -695,7 +735,7 @@ export async function handleMessage(
     return;
   }
   if (message.type === "liveClose") {
-    liveSessions.delete(message.sessionId);
+    closeLiveSession(message.sessionId, post);
     return;
   }
 }

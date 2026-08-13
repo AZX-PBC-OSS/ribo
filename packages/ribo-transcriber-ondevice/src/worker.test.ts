@@ -147,8 +147,13 @@ describe("serialize — one inference at a time", () => {
 // loads a model. `liveOpen` dynamic-imports `@huggingface/transformers` via
 // `createSileroDetector` and is NOT tested here — that path is exercised by the
 // manual browser test and the `live.test.ts` FakeWorker tests.
+//
+// `liveClose` now flushes the VAD buffer, but the flush only calls `StreamingVad.flush`
+// (no model) and then `getPipeline` for transcription if there is audio to emit. The
+// test below posts `liveClose` for a session that was never opened, so the map lookup
+// returns `undefined` and the flush is a no-op — no model is touched.
 
-test("handleMessage for liveClose is a no-op that does not touch transformers", async () => {
+test("handleMessage for liveClose on a missing session is a silent no-op", async () => {
   clearLiveSessions();
   const post = vi.fn();
   await handleMessage({ type: "liveClose", sessionId: "no-such-session" }, post);

@@ -57,7 +57,9 @@ class FakeLiveWorker {
         20,
       );
     }
-    // liveClose: no reply.
+    // liveClose: no reply from the FakeLiveWorker — the real worker flushes the VAD
+    // buffer and posts a final `liveSegment`, but tests that need the flush segment
+    // deliver it explicitly via `emit()` (see Test C).
   }
   terminate(): void {}
 
@@ -125,48 +127,39 @@ describe("Test A — feed() returns before inference completes", () => {
   });
 });
 
-// ── Test B: a closed session's late reply is discarded ────────────────────────
+// ── Test B: close() stops feeding but does not drop in-flight segments ────────
 //
-// The trap (from the plan): "The reply must be dropped by session id, not merely by 'the
-// observable has no subscribers' — a test that unsubscribes first passes against no guard
-// at all."
+// The listener no longer gates on `#closed`: a segment arriving after close() may be the
+// flush of the last buffered speech (the worker's `liveClose` handler transcribes it and
+// posts it back), or a feed that was mid-inference when close arrived. Both are real speech
+// that must reach the subscriber — dropping them would lose data, the exact bug the flush
+// exists to fix. The `#closed` flag only prevents further `feed()` calls from posting frames.
 //
-// How this fails against no guard: if close() completed the Subject or removed the listener
-// (the "no subscribers" path), the late reply would be dropped — but for the wrong reason.
-// The test keeps the subscription active and the listener in place, so the only thing that
-// can drop the reply is the #closed / sessionId check inside the listener. Remove that check
-// and the reply leaks through to the subscriber.
+// How this fails against the old guard: if the listener checked `#closed` and returned, the
+// segment would be dropped — and the auditor's last sentence would be gone. The test keeps
+// the subscription active and the listener in place, so the only thing that can drop the
+// segment is a `#closed` check inside the listener. Remove that check (the fix) and the
+// segment reaches the subscriber.
 
-describe("Test B — a closed session's late reply is discarded by sessionId", () => {
-  test("a late segment reply after close() is not emitted on segments$", async () => {
+describe("Test B — close() stops feeding but forwards segments from the worker", () => {
+  test("a segment reply after close() reaches the subscriber — it may be the flush", async () => {
     const worker = new FakeLiveWorker();
     const session = await openSession(worker);
 
     const segments: string[] = [];
-    // IMPORTANT: keep the subscription active — do not unsubscribe before the late reply.
-    // The guard must be the session's #closed flag, not "no subscribers".
+    // IMPORTANT: keep the subscription active — the guard must not be "no subscribers".
     session.segments$.subscribe((text) => segments.push(text));
 
-    // Close the session. close() marks #closed = true but does NOT complete the Subject
-    // or remove the listener — so the late reply WILL reach the listener, where the
-    // #closed guard must drop it.
+    // Close the session. close() sets #closed = true (preventing further feed() calls) and
+    // posts liveClose to the worker. The listener stays installed — no #closed guard.
     session.close();
 
-    // Deliver a late reply carrying THIS session's sessionId. This simulates the race:
-    // the worker was mid-inference when close() arrived, and its reply lands after close.
-    worker.emit({ type: "liveSegment", sessionId: session.sessionId, text: "late reply" });
+    // A segment arrives after close — the flush, or a feed that was mid-inference. This
+    // simulates the race where the worker was processing audio when close() arrived.
+    worker.emit({ type: "liveSegment", sessionId: session.sessionId, text: "last words" });
 
-    // Nothing was emitted — the reply was dropped by the #closed guard.
-    expect(segments).toEqual([]);
-
-    // Sanity: the late reply did reach the listener (the listener is still installed).
-    // If close() had removed the listener, this emit would be a no-op — which would also
-    // pass the test but for the wrong reason. The guard we are testing is #closed, not
-    // listener removal. Verify by emitting a reply for a DIFFERENT (never-closed) session
-    // and confirming the listener IS active — except we cannot, because the listener
-    // filters by sessionId. Instead, verify the listener is installed by checking that a
-    // liveSegment for this sessionId before close WOULD have been received (Test A proves
-    // that path works). Here, the only thing that can drop the reply is #closed.
+    // The segment IS emitted — dropping it would lose the auditor's last sentence.
+    expect(segments).toEqual(["last words"]);
   });
 
   test("close() prevents further feed() calls from reaching the worker", async () => {
@@ -180,6 +173,37 @@ describe("Test B — a closed session's late reply is discarded by sessionId", (
 
     // feed() after close() is a no-op — the frame is not posted.
     expect(feedCountAfter).toBe(feedCountBefore);
+  });
+});
+
+// ── Test C: a flush segment reaches the subscriber after close ─────────────────
+//
+// The worker's `liveClose` handler flushes the VAD buffer, transcribes it, and posts the
+// text back as a `liveSegment`. That segment arrives AFTER `close()` was called on the
+// main thread — so the listener must forward it, not drop it. This test simulates the
+// flush segment delivery directly (the FakeLiveWorker does not run a real VAD) and asserts
+// it reaches the subscriber.
+
+describe("Test C — a flush segment after close() reaches the subscriber", () => {
+  test("a segment posted by the worker's liveClose flush is emitted on segments$", async () => {
+    const worker = new FakeLiveWorker();
+    const session = await openSession(worker);
+
+    const segments: string[] = [];
+    session.segments$.subscribe((text) => segments.push(text));
+
+    // Feed a frame so the worker has buffered speech (simulated — the FakeLiveWorker
+    // would emit a segment on the feed timer, but we are interested in the flush).
+    session.feed(new Float32Array(512));
+    // Let the feed's inference stand-in fire so its segment arrives before close.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Close the session — posts liveClose. The worker flushes and posts a final segment.
+    session.close();
+    worker.emit({ type: "liveSegment", sessionId: session.sessionId, text: "flushed last words" });
+
+    // The flush segment reached the subscriber — it was not dropped by a close guard.
+    expect(segments).toContain("flushed last words");
   });
 });
 

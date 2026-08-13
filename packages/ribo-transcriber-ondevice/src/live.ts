@@ -16,13 +16,19 @@
  * asynchronously in the worker; the resulting text arrives on `segments$` when it
  * completes.
  *
- * ## Late replies are dropped by `sessionId`, not by "no subscribers"
+ * ## `close()` stops feeding but does not drop segments
  *
- * `close()` marks the session closed but does **not** complete the `Subject` or remove
- * the message listener. A reply from a closed session (the worker was mid-inference
- * when `close()` arrived) hits the listener, which checks `#closed` and drops it. This
- * is the session-id guard the design requires — completing the `Subject` instead would
- * make the test pass against no guard at all.
+ * `close()` marks the session closed and posts `liveClose` to the worker. The worker
+ * flushes any buffered speech — transcribing the last sentence and posting it back as a
+ * `liveSegment` — **after** `close()` was called. That segment must reach the subscriber,
+ * so the message listener does NOT gate on `#closed`. The flag only prevents further
+ * `feed()` calls from posting frames; it does not block the segment listener.
+ *
+ * The listener stays installed and the `Subject` stays open after `close()` — removing
+ * either would drop the flush segment by mechanism rather than by decision. A late feed
+ * segment (the worker was mid-inference when `close()` arrived) is also forwarded, which
+ * is correct: it is real speech that was recorded before close, and dropping it would
+ * lose data — the exact bug the flush exists to fix.
  */
 
 import { Subject } from "rxjs";
@@ -63,8 +69,8 @@ async function isStreamingVadCached(cacheStorage: CacheStorage): Promise<boolean
 /**
  * A live session backed by a Web Worker. The main-thread half of the live conversation:
  * `feed()` posts frames synchronously, and the message listener routes `liveSegment`
- * replies into the `Subject` — unless the session is closed, in which case the reply is
- * dropped by the `#closed` guard (not by Subject completion or listener removal).
+ * replies into the `Subject` — including the flush segment that arrives after `close()`,
+ * which carries the last buffered speech and must not be dropped.
  */
 class OnDeviceLiveSession implements LiveSession {
   readonly sessionId: string;
@@ -82,9 +88,10 @@ class OnDeviceLiveSession implements LiveSession {
       // Live replies carry `sessionId`, not `requestId` — skip batch replies on the same channel.
       if (!("sessionId" in reply) || reply.sessionId !== this.sessionId) return;
       if (reply.type !== "liveSegment") return;
-      // THE GUARD: a closed session's late reply is dropped here, by sessionId — not by
-      // "the observable has no subscribers" or Subject completion. See the file header.
-      if (this.#closed) return;
+      // No #closed guard here: a segment arriving after close() is the flush of the last
+      // buffered speech (or a feed that was mid-inference when close arrived) — both are
+      // real speech that must reach the subscriber. See the file header. The #closed flag
+      // only prevents further feed() calls, not segment delivery.
       this.#subject.next(reply.text);
     };
     worker.addEventListener("message", this.#onMessage);
@@ -104,10 +111,11 @@ class OnDeviceLiveSession implements LiveSession {
     if (this.#closed) return;
     this.#closed = true;
     this.#worker.postMessage({ type: "liveClose", sessionId: this.sessionId });
-    // Intentionally do NOT remove the listener or complete the Subject here. The listener
-    // stays so late replies are received and checked against `#closed` — removing it would
-    // drop them by listener removal, which passes the test without the guard. The Subject
-    // stays open so the guard is `#closed`, not Subject completion.
+    // Do NOT remove the listener or complete the Subject here. The listener stays so the
+    // flush segment (posted by the worker's `liveClose` handler after transcribing the
+    // last buffered speech) reaches the subscriber — removing it would drop the flush by
+    // listener removal, not by decision. The Subject stays open so segments continue to
+    // flow until the worker finishes and the host is done with this session.
   }
 
   get segments$(): Observable<string> {
