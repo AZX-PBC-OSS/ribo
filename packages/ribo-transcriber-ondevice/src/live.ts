@@ -2,7 +2,7 @@
  * @file On-device implementation of `@azx/ribo-core`'s {@link LiveTranscriber} seam.
  *
  * Live (utterance-level) transcription over the same worker that runs batch inference.
- * The worker runs Silero VAD per frame (Task 2's {@link StreamingVad}) and, when an
+ * The worker runs Silero VAD per frame (the region VAD from Task 1) and, when an
  * utterance closes, transcribes it with the same ASR pipeline the batch path uses.
  * This file is the main-thread half: it owns the worker, posts frames synchronously,
  * and routes segment replies back through a `Subject` — the `Observable` the host
@@ -93,6 +93,10 @@ class OnDeviceLiveSession implements LiveSession {
         // buffered speech (or a feed that was mid-inference when close arrived) — both are
         // real speech that must reach the subscriber. See the file header. The #closed flag
         // only prevents further feed() calls, not segment delivery.
+        //
+        // The `kind` discriminator ("tail" | "commit") is not read here — Task 4
+        // carries it through the `LiveSession` seam to hosts. Until then, both
+        // kinds flow into `segments$` as plain text.
         this.#subject.next(reply.text);
       } else if (reply.type === "liveError") {
         // A mid-session error from the worker. The `liveError` listener in `openSession`'s

@@ -46,8 +46,8 @@ import {
   WHISPER_WINDOW_SECONDS,
 } from "./segmentation.js";
 import type { FrameGeometry, SampleRange } from "./segmentation.js";
-import { StreamingVad, createSileroDetector } from "./vad-stream.js";
-import type { Utterance } from "./vad-stream.js";
+import { RegionVad, createSileroDetector } from "./vad-stream.js";
+import type { RegionFrameResult } from "./vad-stream.js";
 
 /** The subpath this module is published under — the stable name of the worker entry. */
 export const WORKER_ENTRY_NAME = "@azx/ribo-transcriber-ondevice/worker" as const;
@@ -572,28 +572,41 @@ async function transcribe(config: PrimeConfig, request: TranscribeWorkerRequest)
 /**
  * Worker-side state for one live session. Created on `liveOpen`, removed on
  * `liveClose` (or when a `liveFeed` finds it missing — the close may have arrived
- * while a feed was queued behind `serialize`).
+ * while a feed was in flight).
  *
- * The `transcribe` field bundles the pipeline-load + inference step so the per-utterance
- * error boundary in `feedLiveFrame` / `closeLiveSession` can catch a transcription failure
- * without needing to know whether the pipeline was warm or cold — and so a test can inject
- * a session with a fake `transcribe` without dynamic-importing transformers.js.
+ * The `vad` field is a structural type matching {@link RegionVad}'s public
+ * surface, not `RegionVad` itself, so a test can inject a fake VAD via
+ * `injectLiveSession` without dynamic-importing transformers.js. The
+ * `transcribe` field bundles the pipeline-load + inference step so the
+ * per-region error boundary can catch a transcription failure without needing
+ * to know whether the pipeline was warm or cold — and so a test can inject a
+ * session with a fake `transcribe` without dynamic-importing transformers.js.
+ *
+ * `refreshInFlight` is the load-shedding flag: when `true`, a refresh
+ * transcription is running and new refreshes are skipped (not queued). See
+ * {@link feedLiveFrame} for why skipping a refresh is safe and skipping audio
+ * is not.
  */
 interface LiveWorkerSession {
   /**
-   * The streaming VAD that turns frames into closed utterances. A structural type, not
-   * `StreamingVad` itself, so a test can inject a fake VAD via `injectLiveSession` without
+   * The region VAD — turns frames into refresh/commit events over a contiguous,
+   * unfiltered region buffer. A structural type, not `RegionVad` itself, so a
+   * test can inject a fake VAD via `injectLiveSession` without
    * dynamic-importing transformers.js.
    */
   readonly vad: {
-    feed(frame: Float32Array): Promise<readonly Utterance[]>;
-    flush(): Promise<readonly Utterance[]>;
+    feed(frame: Float32Array): Promise<RegionFrameResult>;
+    drain(): Promise<Float32Array>;
+    readonly samples: Float32Array;
   };
   /**
-   * Transcribe one closed utterance's samples. Bundles `getPipeline` + `transcribeChunk` so
-   * the caller's error boundary does not care which threw — both are per-utterance failures.
+   * Transcribe one region's samples. Bundles `getPipeline` + `transcribeChunk`
+   * so the caller's error boundary does not care which threw — both are
+   * per-region failures.
    */
   readonly transcribe: (samples: Float32Array) => Promise<string>;
+  /** Whether a refresh transcription is currently in flight — load shedding. */
+  refreshInFlight: boolean;
 }
 
 /** Active live sessions, keyed by `sessionId`. */
@@ -610,7 +623,7 @@ export function clearLiveSessions(): void {
  * `handleMessage` for `liveOpen` dynamic-imports `@huggingface/transformers` via
  * `createSileroDetector`, which pulls `onnxruntime-node` (unbuilt native addon) in node.
  * Tests that need to exercise `feedLiveFrame`'s error handling inject a session with a
- * `StreamingVad` backed by a fake {@link ProbabilityDetector} and a fake `transcribe`
+ * `RegionVad` backed by a fake {@link ProbabilityDetector} and a fake `transcribe`
  * function — no model loads, no browser.
  */
 export function injectLiveSession(sessionId: string, session: LiveWorkerSession): void {
@@ -618,7 +631,7 @@ export function injectLiveSession(sessionId: string, session: LiveWorkerSession)
 }
 
 /**
- * Create the Silero detector and the {@link StreamingVad} for a new session.
+ * Create the Silero detector and the {@link RegionVad} for a new session.
  * The detector dynamic-imports `@huggingface/transformers` inside
  * {@link createSileroDetector} — the same deferred-load pattern as `getPipeline` —
  * so this import does not pull `onnxruntime-node` into the node-side unit tests
@@ -635,12 +648,13 @@ async function openLiveSession(
       ...(config.revision ? { revision: config.revision } : {}),
     });
     liveSessions.set(sessionId, {
-      vad: new StreamingVad(detector),
+      vad: new RegionVad(detector),
       // No jargon prefix for live — Moonshine (the default model) cannot be primed
       // (`config.ts` / `moonshine-priming.manual.ts`), and live previews are provisional
       // anyway: the batch pass after `stop()` replaces them entirely.
       transcribe: (samples) =>
         getPipeline(config).then((pipeline) => transcribeChunk(pipeline, samples, [])),
+      refreshInFlight: false,
     });
     post({ type: "liveOpened", sessionId });
   } catch (error) {
@@ -649,14 +663,42 @@ async function openLiveSession(
 }
 
 /**
- * Feed one frame to a live session's VAD. When the VAD emits closed utterances,
- * transcribe each with the ASR pipeline and post the text back. All of this goes
- * through `serialize` so VAD + ASR never interleave with a batch `transcribe` —
- * the single-inference-at-a-time constraint transformers.js imposes.
+ * Feed one frame to a live session's region VAD. On a refresh, transcribe the
+ * whole region and post the text as a provisional **tail**. On a commit,
+ * transcribe the committed samples and post the text as **committed**.
  *
- * If the session was closed while this feed was queued behind `serialize`, the
- * map lookup returns `undefined` and the feed is a no-op — the late reply simply
- * never happens.
+ * ## Why the VAD feed does NOT go through `serialize`
+ *
+ * `RegionVad` has its own internal promise chain that serializes VAD (Silero)
+ * calls among themselves — two concurrent feeds would race the recurrent state
+ * tensor. But the VAD feed is deliberately NOT wrapped in `serialize`, so it
+ * does not chain with ASR (Moonshine) or batch `transcribe` calls. This is what
+ * makes load shedding possible: while a refresh transcription is running through
+ * `serialize`, the VAD can still process arriving frames, detect new refreshes,
+ * and skip them — keeping the region buffer current without blocking on the
+ * slow ASR call. If the VAD feed chained through `serialize`, every frame would
+ * queue behind the in-flight transcription, the VAD would fall behind by the
+ * ASR duration on every refresh, and `refreshInFlight` could never be `true`
+ * when a new refresh fired — load shedding would be dead code.
+ *
+ * JavaScript's single-threaded event loop prevents true simultaneous ORT
+ * inference: a VAD feed's Silero call and an ASR call's Moonshine call are both
+ * synchronous WASM invocations that block the thread until they complete, so
+ * they serialize at the runtime level even though their JS promise chains are
+ * independent. `serialize` remains the guarantee for ASR-with-ASR and
+ * ASR-with-batch, which share one ORT session and cannot interleave.
+ *
+ * ## Load shedding
+ *
+ * If a refresh comes due while a refresh transcription is already in flight,
+ * **skip it** — do not queue. Dropping a refresh costs one intermediate
+ * rendering of provisional text that is provisional anyway, and the region
+ * buffer is untouched, so the next refresh sees everything including the audio
+ * that arrived during the skip. A commit is never skipped: committed text is
+ * permanent, and the committed samples are a snapshot taken at the commit
+ * boundary, so delaying the transcription does not change what it transcribes.
+ * Never let backpressure touch the region buffer — losing audio is the exact
+ * failure revision 7 exists to eliminate.
  *
  * ## Two error boundaries, on purpose
  *
@@ -666,89 +708,176 @@ async function openLiveSession(
  * pointless. The session is deleted (later frames no-op on the map lookup) and
  * the error is posted.
  *
- * The inner `catch` handles **per-utterance** failures: one `transcribe` call
- * threw (pipeline load or inference). A single failed utterance says nothing
- * about the next one — a transient OOM or a one-off ORT error does not mean the
- * remaining 30 minutes of an audit should lose their preview. The utterance is
- * skipped, the error is posted, and the session stays alive so later frames can
- * still produce segments. This is the trade the previous code got wrong: it
- * killed the session on any error, so one bad utterance silenced the preview for
- * the entire rest of the recording.
+ * The inner `catch` (in {@link transcribeAsTail} / {@link transcribeAsCommit})
+ * handles **per-region** failures: one `transcribe` call threw. A single failed
+ * region says nothing about the next one — a transient OOM or a one-off ORT
+ * error does not mean the remaining 30 minutes of an audit should lose their
+ * preview. The region is skipped, the error is posted, and the session stays
+ * alive so later frames can still produce text.
  */
 function feedLiveFrame(
   sessionId: string,
   frame: Float32Array,
   post: (message: WorkerToMainMessage) => void,
 ): void {
+  const session = liveSessions.get(sessionId);
+  if (!session) return;
+
+  // VAD feed — through RegionVad's internal chain only, NOT through `serialize`.
+  // See the comment above for why this is load-bearing for load shedding.
+  session.vad
+    .feed(frame)
+    .then((result) => {
+      if (result.commit && result.committedSamples) {
+        // Commit: always transcribe, never skip. The committed samples are a
+        // snapshot taken at the commit boundary by the VAD, so the transcription
+        // sees exactly that audio regardless of when it runs.
+        void transcribeAsCommit(sessionId, result.committedSamples, post);
+      } else if (result.refresh) {
+        if (session.refreshInFlight) {
+          // Load shedding: skip this refresh. The region buffer is untouched —
+          // the next refresh will see everything including the audio that
+          // arrived during this skip. Dropping a refresh costs one intermediate
+          // rendering of provisional text; dropping audio is permanent.
+          return;
+        }
+        session.refreshInFlight = true;
+        // Snapshot the region at the refresh point. The region keeps growing
+        // (more frames arrive while the transcription is in flight), but this
+        // snapshot is what the tail renders. The next refresh takes a fresh
+        // snapshot that includes the new audio.
+        const samples = session.vad.samples;
+        void transcribeAsTail(sessionId, samples, post);
+      }
+    })
+    .catch((error: unknown) => {
+      // Session-fatal: the VAD threw. Every future frame will hit the same
+      // failure, so continuing is pointless. Delete the session and surface
+      // the error.
+      liveSessions.delete(sessionId);
+      post({ type: "liveError", sessionId, message: errorMessage(error) });
+    });
+}
+
+/**
+ * Transcribe a region snapshot and post the result as a provisional **tail**.
+ * Goes through `serialize` so the ASR call does not interleave with a batch
+ * `transcribe` or a commit transcription — transformers.js does not support
+ * simultaneous inference in one worker.
+ *
+ * Sets `refreshInFlight = false` in the `finally` block, whether the
+ * transcription succeeded or failed, so the next refresh can proceed. A failed
+ * transcription is a per-region failure: the session stays alive and later
+ * refreshes still produce text.
+ */
+function transcribeAsTail(
+  sessionId: string,
+  samples: Float32Array,
+  post: (message: WorkerToMainMessage) => void,
+): void {
   void serialize(async () => {
     const session = liveSessions.get(sessionId);
     if (!session) return;
     try {
-      const utterances = await session.vad.feed(frame);
-      if (utterances.length === 0) return;
-      console.log(`@@LIVE@@ worker: vad emitted ${utterances.length} utterance(s)`);
-      for (const { samples } of utterances) {
-        try {
-          const text = await session.transcribe(samples);
-          console.log(
-            `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s -> ${JSON.stringify(text)}`,
-          );
-          if (text.length > 0) post({ type: "liveSegment", sessionId, text });
-        } catch (error) {
-          // Per-utterance: skip this utterance, surface the error, keep the session alive.
-          // The next utterance may transcribe fine — killing the session here is the bug
-          // this change fixes.
-          post({ type: "liveError", sessionId, message: errorMessage(error) });
-        }
-      }
+      const text = await session.transcribe(samples);
+      console.log(
+        `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s -> ${JSON.stringify(text)}`,
+      );
+      if (text.length > 0) post({ type: "liveSegment", sessionId, kind: "tail", text });
     } catch (error) {
-      // Session-fatal: the VAD threw. Every future frame will hit the same failure, so
-      // continuing is pointless. Delete the session and surface the error.
-      liveSessions.delete(sessionId);
+      // Per-region: skip this refresh, surface the error, keep the session alive.
+      post({ type: "liveError", sessionId, message: errorMessage(error) });
+    } finally {
+      const s = liveSessions.get(sessionId);
+      if (s) s.refreshInFlight = false;
+    }
+  });
+}
+
+/**
+ * Transcribe committed samples and post the result as **committed** text.
+ * Goes through `serialize` for the same reason as {@link transcribeAsTail}.
+ * A commit is never skipped by load shedding — committed text is permanent.
+ */
+function transcribeAsCommit(
+  sessionId: string,
+  samples: Float32Array,
+  post: (message: WorkerToMainMessage) => void,
+): void {
+  void serialize(async () => {
+    const session = liveSessions.get(sessionId);
+    if (!session) return;
+    try {
+      const text = await session.transcribe(samples);
+      console.log(
+        `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s -> ${JSON.stringify(text)}`,
+      );
+      if (text.length > 0) post({ type: "liveSegment", sessionId, kind: "commit", text });
+    } catch (error) {
+      // Per-region: skip this commit's text, surface the error, keep the session
+      // alive. The audio is durable — the batch pass after `stop()` recovers it.
       post({ type: "liveError", sessionId, message: errorMessage(error) });
     }
   });
 }
 
 /**
- * Handle `liveClose`: flush any buffered speech, transcribe it, post the segment, then
- * remove the session. Goes through `serialize` so it runs after any pending `liveFeed`
- * calls — the flush must see the buffer state after all queued frames are processed.
+ * Handle `liveClose`: drain the region buffer, transcribe whatever remains, and
+ * post it as a **commit** — so the last region is never lost. Then remove the
+ * session.
  *
- * Without this flush, speech right up to the moment the auditor pressed stop was silently
- * dropped: the VAD emits only on a silence close, and continuous dictation never gives it
- * 800 ms of silence. Measured on the 54-second fixture, the live path lost the last 24
- * words. See `StreamingVad.flush` for the buffer mechanics.
+ * The drain goes through `RegionVad`'s internal chain, so it sees the buffer
+ * state after all pending VAD feeds complete. The transcription goes through
+ * `serialize`, so it chains after any in-flight refresh or commit transcription
+ * — the close's commit runs after the last refresh's tail, which is the correct
+ * order.
+ *
+ * Without this drain, speech right up to the moment the auditor pressed stop
+ * was silently dropped: the VAD commits only on a long-enough pause or the
+ * region cap, and continuous dictation never gives it 800 ms of silence.
  */
 function closeLiveSession(sessionId: string, post: (message: WorkerToMainMessage) => void): void {
-  void serialize(async () => {
-    const session = liveSessions.get(sessionId);
-    if (!session) return;
-    try {
-      const utterances = await session.vad.flush();
-      if (utterances.length === 0) {
+  const session = liveSessions.get(sessionId);
+  if (!session) return;
+
+  // Drain through RegionVad's internal chain — waits for pending feeds, then
+  // returns and clears the region buffer.
+  session.vad
+    .drain()
+    .then((samples) => {
+      if (samples.length === 0) {
         liveSessions.delete(sessionId);
         return;
       }
-      for (const { samples } of utterances) {
+      // Transcribe the drained region as a commit through `serialize` — chains
+      // after any in-flight transcription, so the close's commit is the last
+      // segment the host receives.
+      void serialize(async () => {
+        const s = liveSessions.get(sessionId);
+        if (!s) return;
         try {
-          const text = await session.transcribe(samples);
-          if (text.length > 0) post({ type: "liveSegment", sessionId, text });
+          const text = await s.transcribe(samples);
+          console.log(
+            `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s -> ${JSON.stringify(text)}`,
+          );
+          if (text.length > 0) post({ type: "liveSegment", sessionId, kind: "commit", text });
         } catch (error) {
-          // Per-utterance, same boundary as `feedLiveFrame`: one failed utterance in the
-          // flush must not prevent the remaining buffered speech from being transcribed.
+          // Per-region: the final region's transcription failed. The audio is
+          // durable — the batch pass after `stop()` recovers it. Surface the
+          // error and clean up.
           post({ type: "liveError", sessionId, message: errorMessage(error) });
+        } finally {
+          liveSessions.delete(sessionId);
         }
-      }
-    } catch (error) {
-      // Session-fatal (VAD flush threw). The session is closing anyway — surface the error
-      // and clean up. The final segment is lost, but the batch pass after `stop()` recovers it.
+      });
+    })
+    .catch((error: unknown) => {
+      // Session-fatal (VAD drain threw). The session is closing anyway — surface
+      // the error and clean up. The final region is lost, but the batch pass
+      // after `stop()` recovers it.
       liveSessions.delete(sessionId);
       post({ type: "liveError", sessionId, message: errorMessage(error) });
-      return;
-    }
-    liveSessions.delete(sessionId);
-  });
+    });
 }
 
 /**

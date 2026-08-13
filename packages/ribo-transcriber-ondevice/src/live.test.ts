@@ -53,7 +53,13 @@ class FakeLiveWorker {
       // blocked until inference completed, this timer would have already fired by the
       // time the synchronous assertion runs — which is exactly what the test catches.
       setTimeout(
-        () => this.emit({ type: "liveSegment", sessionId: message.sessionId, text: "hello" }),
+        () =>
+          this.emit({
+            type: "liveSegment",
+            sessionId: message.sessionId,
+            kind: "tail",
+            text: "hello",
+          }),
         20,
       );
     }
@@ -156,7 +162,12 @@ describe("Test B — close() stops feeding but forwards segments from the worker
 
     // A segment arrives after close — the flush, or a feed that was mid-inference. This
     // simulates the race where the worker was processing audio when close() arrived.
-    worker.emit({ type: "liveSegment", sessionId: session.sessionId, text: "last words" });
+    worker.emit({
+      type: "liveSegment",
+      sessionId: session.sessionId,
+      kind: "tail",
+      text: "last words",
+    });
 
     // The segment IS emitted — dropping it would lose the auditor's last sentence.
     expect(segments).toEqual(["last words"]);
@@ -200,7 +211,12 @@ describe("Test C — a flush segment after close() reaches the subscriber", () =
 
     // Close the session — posts liveClose. The worker flushes and posts a final segment.
     session.close();
-    worker.emit({ type: "liveSegment", sessionId: session.sessionId, text: "flushed last words" });
+    worker.emit({
+      type: "liveSegment",
+      sessionId: session.sessionId,
+      kind: "commit",
+      text: "flushed last words",
+    });
 
     // The flush segment reached the subscriber — it was not dropped by a close guard.
     expect(segments).toContain("flushed last words");
@@ -250,7 +266,12 @@ describe("Test D — a mid-session worker error reaches the host", () => {
     worker.emit({ type: "liveError", sessionId: session.sessionId, message: "transient failure" });
 
     // A segment arrives after the error — the preview must still work for later utterances.
-    worker.emit({ type: "liveSegment", sessionId: session.sessionId, text: "next utterance" });
+    worker.emit({
+      type: "liveSegment",
+      sessionId: session.sessionId,
+      kind: "tail",
+      text: "next utterance",
+    });
 
     expect(segments).toEqual(["next utterance"]);
   });
