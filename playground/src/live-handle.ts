@@ -101,6 +101,24 @@ let segmentSubscription: { unsubscribe: () => void } | undefined;
 let errorSubscription: { unsubscribe: () => void } | undefined;
 
 /**
+ * Monotonic generation counter, incremented on every {@link openLiveSession}
+ * and {@link closeLiveSession} call. A pending `openLiveSession` that was
+ * superseded by a newer open or a close sees a stale generation and aborts —
+ * preventing a late open from installing a session whose lifecycle nobody
+ * manages.
+ *
+ * The race this guards: `openLiveForCapture` is fire-and-forget from the
+ * capture session factory, so `openLiveSession` runs asynchronously. If
+ * `recorder.stop()` (and thus `closeLiveSession`) arrives while
+ * `liveCapability()` or `openSession()` is still pending, the late open would
+ * set `currentSession` and `segmentSubscription` *after* close cleared them —
+ * a session opened after recording ended, whose subscription leaks forever
+ * because nobody will call `closeLiveSession` again. The generation check
+ * makes the late open close its own session and bail.
+ */
+let liveGeneration = 0;
+
+/**
  * Open a live session and connect its segments to the outbox row.
  *
  * Called by the `captureSession` factory after `beginRecording` inserts the
@@ -115,11 +133,21 @@ export async function openLiveSession(
   itemId: string,
   outbox: Outbox,
 ): Promise<void> {
+  const myGeneration = ++liveGeneration;
   const liveTranscriber = getLiveTranscriber();
   try {
     const capability = await liveTranscriber.liveCapability();
     if (capability.status !== "ready") return;
     const session = await liveTranscriber.openSession(recording);
+    // closeLiveSession (or a newer openLiveSession) may have been called while
+    // we were awaiting liveCapability/openSession. A session installed after
+    // its close is a leak: its subscription would never be torn down and its
+    // segments would be committed to a row that has already moved past
+    // recording. Close the orphan and bail.
+    if (myGeneration !== liveGeneration) {
+      session.close();
+      return;
+    }
     currentSession = session;
     segmentSubscription = session.segments$.subscribe((text) => {
       console.log(`@@LIVE@@ host: segment received ${JSON.stringify(text)} -> item ${itemId}`);
@@ -141,6 +169,8 @@ export async function openLiveSession(
 
 /** Close the current live session and clear all live state. Idempotent. */
 export function closeLiveSession(): void {
+  // Supersede any pending openLiveSession — a late open after close is a leak.
+  liveGeneration++;
   segmentSubscription?.unsubscribe();
   segmentSubscription = undefined;
   errorSubscription?.unsubscribe();
