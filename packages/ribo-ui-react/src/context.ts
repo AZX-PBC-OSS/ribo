@@ -40,10 +40,13 @@ export interface RiboInstances {
   readonly captureCoordinator?: CaptureCoordinator;
   /**
    * Optional live transcription engine. When supplied and ready, recording
-   * opens a {@link LiveSession} whose segments are appended to the outbox row
-   * as they arrive. The host owns the instance — the provider never constructs
-   * one — and the session lifecycle is driven by `recorder.start()`/`stop()`
-   * through the host's capture-session wiring, not by the hooks directly.
+   * opens a {@link LiveSession} whose `segments$` carries tail/commit
+   * distinctions to the outbox row — tails via `writePreviewTail`
+   * (provisional, replaced wholesale), commits via `commitPreview`
+   * (permanent, appended). The host owns the instance — the provider never
+   * constructs one — and the session lifecycle is driven by
+   * `recorder.start()`/`stop()` through the host's capture-session wiring,
+   * not by the hooks directly.
    */
   readonly liveTranscriber?: LiveTranscriber;
 }
