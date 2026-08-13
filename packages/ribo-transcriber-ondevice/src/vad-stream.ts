@@ -355,6 +355,15 @@ export class StreamingVad {
         if (this.#speechFrameCount >= MIN_SPEECH_FRAMES && longEnough) {
           utterances.push({ samples: concatenateFrames(this.#speechFrames) });
         }
+        console.log(
+          `@@LIVE@@ vad close: frames=${this.#speechFrames.length}/${this.#minUtteranceFrames} speechCount=${this.#speechFrameCount}/${MIN_SPEECH_FRAMES} -> ${
+            this.#speechFrameCount >= MIN_SPEECH_FRAMES && longEnough
+              ? "EMIT"
+              : !longEnough && this.#speechFrameCount >= MIN_SPEECH_FRAMES
+                ? "HOLD"
+                : "DISCARD"
+          }`,
+        );
         this.#inSpeech = false;
         // Hold the buffer only when it was real speech that was merely short. Genuine noise (below
         // the min-speech filter) is discarded as before — holding it would prepend a cough to

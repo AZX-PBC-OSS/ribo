@@ -686,9 +686,13 @@ function feedLiveFrame(
     try {
       const utterances = await session.vad.feed(frame);
       if (utterances.length === 0) return;
+      console.log(`@@LIVE@@ worker: vad emitted ${utterances.length} utterance(s)`);
       for (const { samples } of utterances) {
         try {
           const text = await session.transcribe(samples);
+          console.log(
+            `@@LIVE@@ worker: transcribed ${(samples.length / 16000).toFixed(1)}s -> ${JSON.stringify(text)}`,
+          );
           if (text.length > 0) post({ type: "liveSegment", sessionId, text });
         } catch (error) {
           // Per-utterance: skip this utterance, surface the error, keep the session alive.

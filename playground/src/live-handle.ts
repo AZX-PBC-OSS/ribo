@@ -122,7 +122,11 @@ export async function openLiveSession(
     const session = await liveTranscriber.openSession(recording);
     currentSession = session;
     segmentSubscription = session.segments$.subscribe((text) => {
-      void outbox.appendPreviewSegment(itemId, text).catch(() => undefined);
+      console.log(`@@LIVE@@ host: segment received ${JSON.stringify(text)} -> item ${itemId}`);
+      void outbox.appendPreviewSegment(itemId, text).then(
+        () => console.log("@@LIVE@@ host: appendPreviewSegment OK"),
+        (e: unknown) => console.log("@@LIVE@@ host: appendPreviewSegment FAILED", e),
+      );
     });
     // Surface live errors to the console so a mid-session failure is visible, not silent.
     // Live is best-effort: the error must never affect recording, and it does not — this
