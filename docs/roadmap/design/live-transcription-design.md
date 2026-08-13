@@ -1,7 +1,58 @@
 # Live transcription — utterance-level preview during recording
 
-**Status:** Design, revision 6. **Piece 2 of 2. Unblocked, ready to plan.**
-**Date:** 2026-08-08, split 2026-08-10, revised 2026-08-11
+**Status:** Design, revision 7. **Piece 2 of 2. Implemented, and the segmentation model is being replaced.**
+**Date:** 2026-08-08, split 2026-08-10, revised 2026-08-12
+
+> **Revision 7: the VAD stops deciding what gets transcribed.** Revisions 1–6 all assumed the live
+> unit of work is a _VAD-detected utterance_. Implementation shipped, and field testing showed that
+> assumption is what makes the preview bad. This revision removes it. Like revisions 5 and 6, the fix
+> is a subtraction.
+>
+> **The measurement.** A real dictation with short, stuttering pauses was instrumented at every stage
+> — VAD decision, transcription result, host delivery. Every stage worked; six utterances emitted,
+> transcribed and rendered with no errors. The preview was still missing roughly half the words. The
+> reason is visible in the ratio of _buffered_ frames to _speech_ frames on each close:
+>
+> | buffer | speech    | speech % | transcribed text                                                   |
+> | ------ | --------- | -------- | ------------------------------------------------------------------ |
+> | 6.8 s  | 4.3 s     | 63 %     | "Okay, so, starting recording with a lot of small thoughts again." |
+> | 4.6 s  | **1.3 s** | **28 %** | "Anything interesting home yeah"                                   |
+> | 5.4 s  | 4.1 s     | 76 %     | "So that did just happen after I stopped talking."                 |
+> | 5.1 s  | **2.0 s** | **40 %** | "If i do is like hello"                                            |
+>
+> The two worst ratios produced the two worst transcripts. The batch pass over the same stretch as row
+> 2 reads _"and we'll see if it continues to give me anything interesting um yeah"_ — thirteen words
+> against four. Those words were not mistranscribed. **They were never sent to the model.**
+>
+> **The mechanism.** `StreamingVad` retains only frames it classifies as speech, plus a short
+> pre-roll. Everything else is discarded before any transcription happens. A speaker whose delivery
+> dips below the exit threshold — hesitation, trailing off, thinking aloud, which is how people
+> actually dictate — has those words dropped permanently. The VAD is not merely choosing poor
+> boundaries; **it is a lossy filter on the audio**, and no threshold fixes that, because a threshold
+> admitting more speech admits more noise.
+>
+> **The replacement.** The VAD is demoted to a _trigger_: it decides **when** to transcribe and where
+> a commit boundary may fall. It no longer decides **what** is transcribed. The unit of work becomes
+> the raw, contiguous, unfiltered buffer from the last commit point to now. Nothing can be dropped,
+> because nothing is being classified. See §The frame loop.
+>
+> **What this deletes:** the minimum-utterance hold, the close-time flush, and the min-speech filter's
+> role as an emission gate — the machinery that existed to compensate for lossy segmentation. Every
+> live defect found during implementation lived in it.
+>
+> **What it does not change:** the streaming state, the seam, the worker-contention rules, the
+> provisional-then-replaced contract, and the failure table. Those all survive intact.
+>
+> **LocalAgreement was evaluated and rejected** (`live-localagreement-spike.md`). Committing text on
+> agreement between consecutive hypotheses commits errors permanently — the probe committed _"six
+> error changes"_ where the truth is "six air changes", because both hypotheses agreed on the
+> mishearing. It is also unnecessary here: a commit boundary at a VAD pause is a known audio position,
+> so no text-to-audio alignment is required at all.
+>
+> **Two numbers that justify the shape.** Transcribing _long_ regions in isolation already reaches
+> batch parity — **108 words against batch's 109** on the 54-second fixture; the quality collapse is
+> specific to short regions. And re-transcribing a growing region is cheap: measured peak duty cycle
+> **0.093**, against an earlier estimate of 0.65 that was wrong by sevenfold.
 
 > **Revision 6 is a subtraction.** Two things changed underneath this document and both made it
 > smaller.
@@ -134,12 +185,13 @@ mic ─► MediaStream ─┬─► MediaRecorder ──► chunks ──► aud
                     │                                 AUDIO_ATTACHMENT_ID
                     └─► AudioWorklet ─► 512-sample frames ─► LiveSession.feed()
                                                        │
-                                     [worker: Silero per frame, state carried]
-                                                       │ 400 ms of silence closes it
+                            [worker: every frame appended to the region buffer,
+                             Silero per frame for timing only, state carried]
+                                                       │ a pause triggers a refresh
                                                        ▼
-                                              Moonshine ──► segments$
+                                   Moonshine over the whole region ──► segments$
                                                                 │
-                                                    item.preview.segments[]
+                                            item.preview.tail, → committed[] on commit
                                                                 │
                                                       Outbox.watch() ──► useOutboxItems ──► UI
 
@@ -184,18 +236,34 @@ protocol alongside `prime` and `transcribe`.
 
 Per 512-sample frame, in the worker:
 
-1. Run Silero, passing the previous `state` tensor and keeping the one it returns. **This is the
+1. **Append the frame to the region buffer, unconditionally.** Every frame, speech or not, contiguous
+   and in order. This is the step revision 7 adds and it is the whole point: no classification stands
+   between the microphone and the model, so no word can be lost before transcription. At 16 kHz
+   float32 the buffer costs 64 KB/s — under 2 MB for a 30-second region.
+2. Run Silero, passing the previous `state` tensor and keeping the one it returns. **This is the
    entire streaming-state problem, solved by the model rather than by us.**
-2. Hysteresis on the returned probability: enter speech above **0.3**, leave below **0.1**.
-3. While in speech, append to a buffer capped at **30 s**.
-4. Keep a small FIFO of pre-speech frames (**80 ms**) and prepend it when a region opens, so a
-   consonant onset is not clipped by the frame that detected it.
-5. After **400 ms** of silence, dispatch the buffer to Moonshine, emit the text, reset.
-6. On buffer overflow at 30 s, dispatch and carry the overflow into the next buffer.
+3. Hysteresis on the returned probability: enter speech above **0.3**, leave below **0.1**. The
+   result now drives _timing only_ — it selects refresh and commit points and never filters audio.
+4. **On a pause** — silence past the threshold — transcribe the whole region buffer and publish the
+   result as the ephemeral tail.
+5. **Commit** when the region reaches its cap, or when a pause is long enough to be a natural
+   boundary: the current text becomes permanent, and the buffer advances to that pause. Because the
+   boundary is a position in the audio rather than a position in the text, the advance is exact and
+   needs no timestamps.
+6. On reaching the region cap without a pause, commit at the cap and carry the remainder forward.
 
-Every constant above is the reference implementation's, adopted rather than re-derived — with one
-exception worth noting: our batch pipeline's min-speech filter is **250 ms** and so is theirs, arrived
-at independently.
+**Why the region runs long.** A region is transcribed whole, every time, so its length sets how much
+context the model sees. Short regions are precisely the condition under which quality collapses;
+long ones reach batch parity. The cap is therefore a quality parameter, not just a memory bound, and
+the ephemeral tail is what makes a long region tolerable to watch.
+
+**Why re-transcription is affordable.** Each refresh re-transcribes the region from its start, so
+cost grows within a region and resets at each commit. Measured peak duty cycle is **0.093** — the
+refresh cadence can be far more frequent than pauses alone if responsiveness calls for it.
+
+Silero's constants remain the reference implementation's, adopted rather than re-derived. The
+**250 ms** min-speech filter survives only as a guard against transcribing a region that contains no
+speech at all; it no longer gates emission, and it never removes audio from a region.
 
 **Serialise inference.** transformers.js does not support simultaneous inference in one worker, so
 VAD and ASR calls chain through a single promise. This is the same constraint the batch path already
@@ -258,12 +326,26 @@ upgrade, and this design deliberately does not depend on one.
 The `recording` status, the recording-metadata lifecycle, and the `workSafety` / `audioReady`
 contract are specified in [piece 1](durable-capture-design.md). This document adds exactly one field.
 
-### `preview: { segments: string[] }`
+### `preview: { committed: string[], tail?: string }`
 
-An append-only array of utterance texts — no timings, no per-segment engine, no confidence. Index keys
-stay stable for incremental rendering; the joined form is `segments.join(" ")`. Timings are excluded
-because `transcript.ts` warns that _"a shape nobody consumes is a shape nobody keeps honest"_, and
-rendering a growing list needs no offsets.
+**Revision 7 replaces the append-only `segments` array.** Append-only encoded the old assumption that
+every emission is final the moment it appears. Under the new frame loop a region is re-transcribed as
+it grows, so its text must be allowed to change until it commits.
+
+`committed` is an append-only array of region texts — permanent once written, never revised, index
+keys stable for incremental rendering, joined with a space exactly as `segments` was. `tail` is the
+current region's provisional text: **replaced wholesale on every refresh, and never appended to.**
+On commit, the tail's final value is pushed onto `committed` and the tail is cleared. Still no
+timings, no per-segment engine, no confidence — `transcript.ts`'s warning that _"a shape nobody
+consumes is a shape nobody keeps honest"_ applies as much to the new shape as the old.
+
+This is a schema change with no migration cost: there are no users, and no persisted `preview`
+survives a recording anyway, since it is deleted in the same modification that writes `transcript`.
+
+**The two fields must render differently.** `committed` is settled text; `tail` is text the system is
+still revising, and it will visibly change under the reader. A UI that renders them identically
+presents churn as correction and will read as the system changing its mind — the same honesty
+requirement §Provisional already places on the preview as a whole, one level finer.
 
 **No lease, owner or generation token lives here.** Revision 2 put a heartbeat in `preview` and that
 was wrong twice: shallow patches let a heartbeat carrying a stale nested object erase a sibling field,
@@ -323,8 +405,8 @@ reply, which costs nothing.
 | `AudioWorklet` unavailable                            | No preview. Everything else unaffected.                              |
 | Silero or Moonshine fails to load                     | No preview. Recording continues; the batch path is unaffected.       |
 | Live transcription throws                             | Preview stops for that session. Recording continues; error surfaced. |
-| Worker busy with a batch item                         | Preview starts late. Utterances buffer; see below.                   |
-| Transcription falls behind, unbounded                 | Drop closed utterances awaiting transcription, never buffered PCM.   |
+| Worker busy with a batch item                         | Preview starts late. The region buffer keeps growing; see below.     |
+| Transcription falls behind, unbounded                 | Skip refreshes, never the region buffer. See below.                  |
 | Second tab tries to record                            | Refused by the capture lock (piece 1).                               |
 | Crash mid-recording                                   | Piece 1 recovers the audio into a new row. Preview is simply lost.   |
 
@@ -345,13 +427,15 @@ The only thing that can wait is the preview. So:
 - **An in-flight batch item runs to completion.** Live queues behind it.
 - **Recording starts instantly, always.**
 
-**Buffer the closed utterances during that wait; do not drop them.** The general backpressure rule
-drops closed utterances under load, which is right for _sustained_ overload — but this delay is
-bounded by a single item, and a minute of 16 kHz mono PCM is a few megabytes. Buffering lets the
-preview catch up in a burst instead of silently missing the opening of the walkthrough.
+**Keep accumulating the region buffer during that wait.** Under revision 7 there is nothing to queue:
+frames append to the region regardless of whether the worker is free, so a delay costs _refreshes_,
+not audio. When the worker frees up, the next refresh transcribes everything accumulated and the
+preview catches up in one pass rather than replaying a backlog.
 
-Never drop buffered **PCM** in either regime: removing PCM would let VAD join speech across the hole
-into one false utterance.
+**Shed load by skipping refreshes, never by touching the buffer.** Dropping a refresh costs one
+intermediate rendering of text that is provisional anyway; dropping audio is permanent and
+unrecoverable — the failure revision 7 exists to eliminate. A minute of 16 kHz mono PCM is a few
+megabytes, so the region cap bounds memory long before load-shedding needs to.
 
 ## Testing
 
@@ -391,4 +475,14 @@ unhinted on the jargon-dense transcript — 6.3 % against 22.4 %), and whether M
 - **WebGPU.** Every figure in the spike is WASM, because the headless harness cannot reach WebGPU. The
   reference implementation prefers it with a WASM fallback, so real-device numbers may be materially
   better than anything measured here.
-- Whether utterance boundaries ever need exposing, which would add timings to `preview`.
+- Whether region boundaries ever need exposing, which would add timings to `preview`.
+- **The region cap, unmeasured on real speech.** It is now a quality parameter, not just a memory
+  bound: longer regions give the model more context, at the cost of a tail that churns for longer
+  before it settles. 15 s and 30 s were both measured on the TTS fixture; neither has been measured on
+  the stuttering, pause-heavy delivery that motivated revision 7.
+- **The refresh cadence.** At a duty cycle of 0.093 the budget allows refreshing far more often than
+  once per pause. Whether more frequent refreshing reads as _responsive_ or as _flickering_ is a UI
+  question no measurement here answers.
+- **Whether the tail should ever be trimmed for display.** A 30-second region's tail is a long piece
+  of text rewriting itself. Showing only its last sentence may read better than showing all of it —
+  untested either way.
