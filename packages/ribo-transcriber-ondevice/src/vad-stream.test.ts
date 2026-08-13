@@ -621,6 +621,16 @@ test("leading and trailing non-speech are excluded from the transcription input,
   expect(trimmed).not.toContain(52);
   expect(trimmed).not.toContain(57);
 
+  // The trimmed output is a contiguous span — no gaps in the frame values. If the trim dropped
+  // internal pauses, the frame values would jump (e.g., 29 → 35 instead of 29 → 30), and this
+  // loop would fail at the first missing frame.
+  const frameValues = new Set(trimmed);
+  const minFrame = Math.min(...trimmed);
+  const maxFrame = Math.max(...trimmed);
+  for (let i = minFrame; i <= maxFrame; i++) {
+    expect(frameValues.has(i)).toBe(true);
+  }
+
   // The exact trimmed length: 39 frames (13–51 inclusive) × 512 samples.
   expect(transcriptionSamples!.length).toBe(39 * VAD_FRAME_SIZE);
 });
