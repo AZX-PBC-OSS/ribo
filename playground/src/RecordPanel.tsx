@@ -38,6 +38,7 @@ export function RecordPanel() {
   // automated run of this passed.
   const recordingItem = recordingItems.at(-1);
   const previewCommitted = recordingItem?.preview?.committed;
+  const previewTail = recordingItem?.preview?.tail;
 
   const recording = phase === "recording";
   const paused = phase === "paused";
@@ -82,10 +83,24 @@ export function RecordPanel() {
 
       <LevelMeter level={level} scaledLevel={scaledLevel} active={recording} />
 
-      {recording && previewCommitted && previewCommitted.length > 0 && (
+      {recording && (previewCommitted?.length || previewTail) && (
         <div data-testid="live-preview" style={{ marginTop: "0.75rem" }}>
           <div style={muted}>live preview (provisional — replaced by the final transcript):</div>
-          <p style={{ ...monospace, margin: "0.25rem 0 0" }}>{previewCommitted.join(" ")}</p>
+          {previewCommitted && previewCommitted.length > 0 && (
+            <p style={{ ...monospace, margin: "0.25rem 0 0" }}>{previewCommitted.join(" ")}</p>
+          )}
+          {/* The tail is provisional text the system is still rewriting — it will visibly
+              change under the reader as the region grows. Italic and muted so it does not
+              look identical to the settled committed text above; the design calls this out
+              as an honesty requirement, not a polish item. */}
+          {previewTail && (
+            <p
+              data-testid="live-preview-tail"
+              style={{ ...monospace, ...muted, fontStyle: "italic", margin: "0.15rem 0 0" }}
+            >
+              {previewTail}…
+            </p>
+          )}
         </div>
       )}
 
