@@ -927,7 +927,7 @@ describe("Test 7 — coalesced commit buffer exceeding the 30s window is split",
   test("the cap holds — no single call exceeds the cap, however many commits back up", async () => {
     clearLiveSessions();
     const sessionId = "test-cap-holds";
-    const { posts, post } = makePost();
+    const { post } = makePost();
 
     const transcribeLengths: number[] = [];
     const deferred1 = makeDeferred<string>();
