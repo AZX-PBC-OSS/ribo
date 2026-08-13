@@ -149,29 +149,53 @@ export async function openLiveSession(
       return;
     }
     currentSession = session;
-    segmentSubscription = session.segments$.subscribe((segment: LiveSegment) => {
-      console.log(
-        `@@LIVE@@ host: segment received kind=${segment.kind} ${JSON.stringify(segment.text)} -> item ${itemId}`,
-      );
-      // Route by kind: a tail is provisional text the system is still rewriting,
-      // a commit is permanent text for a settled region. An exhaustiveness-checked
-      // switch so a future third kind is a type error rather than silently dropped
-      // text — the same reasoning as the seam's discriminated value (live.ts).
-      switch (segment.kind) {
-        case "tail":
-          void outbox.writePreviewTail(itemId, segment.text).then(
-            () => console.log("@@LIVE@@ host: writePreviewTail OK"),
-            (e: unknown) => console.log("@@LIVE@@ host: writePreviewTail FAILED", e),
-          );
-          break;
-        case "commit":
-          void outbox.commitPreview(itemId, segment.text).then(
-            () => console.log("@@LIVE@@ host: commitPreview OK"),
-            (e: unknown) => console.log("@@LIVE@@ host: commitPreview FAILED", e),
-          );
-          break;
-      }
+    // Subscribe with a `complete` callback so the subscription is torn down when
+    // the worker posts `liveClosed` (which completes the `Subject`). This is the
+    // fix for the silent-loss bug: the host used to unsubscribe *before* close,
+    // so the flushed final region — transcribed by the worker *after* close —
+    // arrived at a subscriber that was already gone. Now the host closes first
+    // and lets the `complete` callback tear down, so the flush segment is
+    // received before the subscription goes away.
+    //
+    // The `complete` callback only clears module-level state if `segmentSubscription`
+    // still points at this subscription — a newer `openLiveSession` may have replaced
+    // it by the time the old session's drain finishes, and clearing the new one would
+    // be a bug.
+    const sub = session.segments$.subscribe({
+      next: (segment: LiveSegment) => {
+        console.log(
+          `@@LIVE@@ host: segment received kind=${segment.kind} ${JSON.stringify(segment.text)} -> item ${itemId}`,
+        );
+        // Route by kind: a tail is provisional text the system is still rewriting,
+        // a commit is permanent text for a settled region. An exhaustiveness-checked
+        // switch so a future third kind is a type error rather than silently dropped
+        // text — the same reasoning as the seam's discriminated value (live.ts).
+        switch (segment.kind) {
+          case "tail":
+            void outbox.writePreviewTail(itemId, segment.text).then(
+              () => console.log("@@LIVE@@ host: writePreviewTail OK"),
+              (e: unknown) => console.log("@@LIVE@@ host: writePreviewTail FAILED", e),
+            );
+            break;
+          case "commit":
+            void outbox.commitPreview(itemId, segment.text).then(
+              () => console.log("@@LIVE@@ host: commitPreview OK"),
+              (e: unknown) => console.log("@@LIVE@@ host: commitPreview FAILED", e),
+            );
+            break;
+        }
+      },
+      complete: () => {
+        console.log("@@LIVE@@ host: segments$ completed — draining finished, tearing down");
+        if (segmentSubscription === sub) {
+          sub.unsubscribe();
+          segmentSubscription = undefined;
+          errorSubscription?.unsubscribe();
+          errorSubscription = undefined;
+        }
+      },
     });
+    segmentSubscription = sub;
     // Surface live errors to the console so a mid-session failure is visible, not silent.
     // Live is best-effort: the error must never affect recording, and it does not — this
     // subscription only logs. The batch pass after `stop()` recovers the full transcript.
@@ -183,16 +207,48 @@ export async function openLiveSession(
   }
 }
 
-/** Close the current live session and clear all live state. Idempotent. */
+/**
+ * Close the current live session and clear all live state. Idempotent and safe
+ * to call when no session is open.
+ *
+ * **Closes the session before tearing down the subscription** — the opposite
+ * of the old order, which unsubscribed first and then closed. The worker's
+ * `liveClose` handler drains the final region, transcribes it, and posts it
+ * back as a commit *after* `close()` returns. The subscription must stay
+ * active to receive that segment; the `complete` callback installed in
+ * `openLiveSession` tears it down when the worker posts `liveClosed`
+ * (which completes the `Subject`).
+ *
+ * Unsubscribing before close was the bug: the last ~10 seconds of preview was
+ * lost on every recording because the flush segment arrived at a subscriber
+ * that was already gone. The batch transcript still covered it, so nothing
+ * reached the user as missing data — but it was the same silent-loss shape this
+ * feature has produced repeatedly, and the seam was built to prevent exactly
+ * this. A fixed delay would be a guess about inference time (which varies with
+ * region length); never unsubscribing would leak a subscription per recording.
+ * The `liveClosed` signal from the seam is the right answer: the worker knows
+ * when its own drain is finished better than the host does.
+ */
 export function closeLiveSession(): void {
   // Supersede any pending openLiveSession — a late open after close is a leak.
   liveGeneration++;
-  segmentSubscription?.unsubscribe();
-  segmentSubscription = undefined;
+  const session = currentSession;
+  currentSession = undefined;
+
+  if (!session) return; // idempotent — no session to close
+
+  // Close first — posts liveClose to the worker, which drains the final region
+  // and posts the flush segment. The subscription stays active to receive it.
+  session.close();
+
+  // Error subscription can be torn down immediately — errors after close are not
+  // actionable. The session is closing and the batch pass after stop() recovers.
   errorSubscription?.unsubscribe();
   errorSubscription = undefined;
-  currentSession?.close();
-  currentSession = undefined;
+
+  // The segment subscription is torn down by its `complete` callback when the
+  // worker posts `liveClosed` (which completes the `Subject`). Do NOT unsubscribe
+  // here — that would drop the flush segment, which is the bug this fixes.
 }
 
 /**
