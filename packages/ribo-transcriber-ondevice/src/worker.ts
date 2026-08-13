@@ -667,34 +667,6 @@ async function openLiveSession(
           // discriminates the two remaining families: if the same buffer produces text with
           // a large token budget, the fault is in how we call the model; if it stays empty,
           // the fault is in the audio we hand it.
-          if (text.length === 0) {
-            // Trim to the energy-bounded speech span and retry. Batch never hands the model
-            // clock-bounded audio: `planVadChunks` produces chunks that BEGIN and END at
-            // speech, keeping internal pauses but excluding dead air at the edges. Live
-            // regions run from the last commit to now, so whatever silence sits at the edges
-            // goes to the model too. If trimming recovers the text, that is the fix.
-            const win = 320; // 20 ms at 16 kHz
-            const thresh = 0.02;
-            let lo = -1;
-            let hi = -1;
-            for (let i = 0; i + win <= samples.length; i += win) {
-              let sum = 0;
-              for (let j = i; j < i + win; j++) sum += samples[j]! * samples[j]!;
-              if (Math.sqrt(sum / win) > thresh) {
-                if (lo < 0) lo = i;
-                hi = i + win;
-              }
-            }
-            if (lo >= 0 && hi > lo) {
-              const trimmed = samples.slice(lo, hi);
-              const retry = await transcribeChunk(pipeline, trimmed, []);
-              console.log(
-                `@@LIVE@@ worker: EMPTY ${(samples.length / 16000).toFixed(1)}s -> trimmed ${(trimmed.length / 16000).toFixed(1)}s (cut ${((samples.length - trimmed.length) / 16000).toFixed(1)}s) -> ${JSON.stringify(retry)}`,
-              );
-            } else {
-              console.log(`@@LIVE@@ worker: EMPTY and no speech energy found above ${thresh}`);
-            }
-          }
           return text;
         }),
       refreshInFlight: false,
