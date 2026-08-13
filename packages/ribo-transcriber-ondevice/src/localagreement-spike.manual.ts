@@ -249,6 +249,39 @@ async function runLocalAgreement(
   };
 }
 
+// ── Fixed-interval pause points ──────────────────────────────────────────────
+//
+// The production VAD (800 ms silence, 4 s minimum, 30 s cap) produces only 2 emit
+// points for 54 s of continuous dictation: the 30 s cap and the flush. That is too
+// few for LocalAgreement to ever agree. A fixed-interval cadence (every N seconds)
+// gives the technique the frequent refresh points it needs, and tests whether
+// agreement is possible at all on this audio — independent of the VAD's emit rate.
+
+function fixedIntervalPauses(samples: Float32Array, intervalSeconds: number): PausePoint[] {
+  const pauses: PausePoint[] = [];
+  const intervalSamples = Math.floor(intervalSeconds * VAD_SAMPLE_RATE);
+  for (let end = intervalSamples; end <= samples.length; end += intervalSamples) {
+    pauses.push({
+      endSample: end,
+      endSeconds: end / VAD_SAMPLE_RATE,
+      utteranceSamples: samples.subarray(end - intervalSamples, end),
+      utteranceSeconds: intervalSeconds,
+    });
+  }
+  if (samples.length % intervalSamples !== 0) {
+    const start = Math.floor(samples.length / intervalSamples) * intervalSamples;
+    if (start < samples.length) {
+      pauses.push({
+        endSample: samples.length,
+        endSeconds: samples.length / VAD_SAMPLE_RATE,
+        utteranceSamples: samples.subarray(start, samples.length),
+        utteranceSeconds: (samples.length - start) / VAD_SAMPLE_RATE,
+      });
+    }
+  }
+  return pauses;
+}
+
 // ── Formatting helpers ───────────────────────────────────────────────────────
 
 function f(n: number, decimals = 1): string {
@@ -388,6 +421,85 @@ test("LocalAgreement spike: isolated vs LA-2 vs LA-3 vs batch", async () => {
     `  total inference: ${f(la3_30.totalInferenceMs / 1000)}s  forced advances: ${la3_30.forcedAdvances}`,
   );
 
+  // ── 7b. Fixed-interval refresh (every 5s) ──────────────────────────────────
+  //
+  // The production VAD produced only 2 pause points for 54 s of continuous dictation
+  // (the 30 s cap and the flush). LocalAgreement never had enough hypotheses to agree.
+  // A 5 s fixed-interval cadence gives ~11 refresh points — enough for LA-2 to compare
+  // consecutive hypotheses over a growing buffer. This tests whether the technique
+  // works at all on this audio, independent of the VAD's emit rate.
+  const fixedPauses = fixedIntervalPauses(samples, 5);
+  console.log(`\n--- Fixed-interval pause points (every 5s, ${fixedPauses.length}) ---`);
+  for (const [i, pt] of fixedPauses.entries()) {
+    console.log(`  #${i + 1}  end=${f(pt.endSeconds)}s`);
+  }
+
+  // LA-2 with fixed-interval, 30s cap
+  const la2_fix30 = await runLocalAgreement(asr, samples, fixedPauses, 2, 30);
+  console.log(`\n--- LocalAgreement-2, fixed 5s interval (30s cap) ---`);
+  console.log(
+    `  #  end    bufSec  hypW  newCmt  cmtTot  lag    infMs   duty   forced | hypothesis`,
+  );
+  for (const [i, e] of la2_fix30.log.entries()) {
+    console.log(
+      `  ${p(i + 1, 2)}  ${p(f(e.pauseEnd), 5)}  ${p(f(e.bufferSeconds), 5)}  ${p(e.hypothesisWords, 4)}  ${p(e.newlyCommittedWords, 6)}  ${p(e.committedTotal, 6)}  ${p(f(e.audioLag), 5)}  ${p(e.inferenceMs, 6)}  ${p(f(e.dutyCycle, 3), 5)}  ${e.forcedAdvance ? "YES" : " no"}   | ${e.hypothesisText}`,
+    );
+    if (e.newlyCommittedWords > 0) {
+      console.log(`       + committed: "${e.newlyCommittedText}"`);
+    }
+    if (e.ephemeralTail) {
+      console.log(`       ~ ephemeral:  "${e.ephemeralTail}"`);
+    }
+  }
+  console.log(`\n  committed text (${splitWords(la2_fix30.committedText).length} words):`);
+  console.log(`  ${la2_fix30.committedText}`);
+  console.log(
+    `  total inference: ${f(la2_fix30.totalInferenceMs / 1000)}s  forced advances: ${la2_fix30.forcedAdvances}`,
+  );
+
+  // LA-2 with fixed-interval, 15s cap
+  const la2_fix15 = await runLocalAgreement(asr, samples, fixedPauses, 2, 15);
+  console.log(`\n--- LocalAgreement-2, fixed 5s interval (15s cap) ---`);
+  console.log(
+    `  #  end    bufSec  hypW  newCmt  cmtTot  lag    infMs   duty   forced | hypothesis`,
+  );
+  for (const [i, e] of la2_fix15.log.entries()) {
+    console.log(
+      `  ${p(i + 1, 2)}  ${p(f(e.pauseEnd), 5)}  ${p(f(e.bufferSeconds), 5)}  ${p(e.hypothesisWords, 4)}  ${p(e.newlyCommittedWords, 6)}  ${p(e.committedTotal, 6)}  ${p(f(e.audioLag), 5)}  ${p(e.inferenceMs, 6)}  ${p(f(e.dutyCycle, 3), 5)}  ${e.forcedAdvance ? "YES" : " no"}   | ${e.hypothesisText}`,
+    );
+    if (e.newlyCommittedWords > 0) {
+      console.log(`       + committed: "${e.newlyCommittedText}"`);
+    }
+  }
+  console.log(`\n  committed text (${splitWords(la2_fix15.committedText).length} words):`);
+  console.log(`  ${la2_fix15.committedText}`);
+  console.log(
+    `  total inference: ${f(la2_fix15.totalInferenceMs / 1000)}s  forced advances: ${la2_fix15.forcedAdvances}`,
+  );
+
+  // LA-3 with fixed-interval, 30s cap
+  const la3_fix30 = await runLocalAgreement(asr, samples, fixedPauses, 3, 30);
+  console.log(`\n--- LocalAgreement-3, fixed 5s interval (30s cap) ---`);
+  console.log(
+    `  #  end    bufSec  hypW  newCmt  cmtTot  lag    infMs   duty   forced | hypothesis`,
+  );
+  for (const [i, e] of la3_fix30.log.entries()) {
+    console.log(
+      `  ${p(i + 1, 2)}  ${p(f(e.pauseEnd), 5)}  ${p(f(e.bufferSeconds), 5)}  ${p(e.hypothesisWords, 4)}  ${p(e.newlyCommittedWords, 6)}  ${p(e.committedTotal, 6)}  ${p(f(e.audioLag), 5)}  ${p(e.inferenceMs, 6)}  ${p(f(e.dutyCycle, 3), 5)}  ${e.forcedAdvance ? "YES" : " no"}   | ${e.hypothesisText}`,
+    );
+    if (e.newlyCommittedWords > 0) {
+      console.log(`       + committed: "${e.newlyCommittedText}"`);
+    }
+    if (e.ephemeralTail) {
+      console.log(`       ~ ephemeral:  "${e.ephemeralTail}"`);
+    }
+  }
+  console.log(`\n  committed text (${splitWords(la3_fix30.committedText).length} words):`);
+  console.log(`  ${la3_fix30.committedText}`);
+  console.log(
+    `  total inference: ${f(la3_fix30.totalInferenceMs / 1000)}s  forced advances: ${la3_fix30.forcedAdvances}`,
+  );
+
   // ── 8. Reproducibility: same buffer transcribed twice ──────────────────────
   // The whole technique rests on hypotheses agreeing. If the same audio produces
   // different text on re-transcription, agreement is a matter of luck.
@@ -438,53 +550,79 @@ test("LocalAgreement spike: isolated vs LA-2 vs LA-3 vs batch", async () => {
     }
   }
 
-  // ── 9. Cost summary: 30s cap vs 15s cap ────────────────────────────────────
-  console.log(`\n--- Cost summary: LA-2 duty cycle at 30s vs 15s region caps ---`);
-  console.log(`  cap   totalInf   avgDuty  maxDuty  forced  committedWords`);
-  for (const { cap, res } of [
-    { cap: "30s", res: la2_30 },
-    { cap: "15s", res: la2_15 },
+  // Cross-call non-determinism: transcribe the same 30s buffer that was transcribed
+  // earlier in the LA-2 VAD run, and compare. The LA-2 run's first hypothesis and the
+  // reproducibility check above may differ despite being the same audio — ORT WASM
+  // can produce different results depending on what ran before.
+  const { text: cross30 } = await transcribeBuffer(asr, repr30Buf);
+  const cross30W = splitWords(cross30);
+  const crossSameAsRepr = cross30 === r30a;
+  const crossSameAsLa2 = la2_30.log[0]?.hypothesisText === cross30;
+  console.log(`\n--- Cross-call non-determinism: same 30s buffer at different points ---`);
+  console.log(`  LA-2 VAD run (early):    ${la2_30.log[0]?.hypothesisText ?? "<none>"}`);
+  console.log(`  reproducibility (late):  ${r30a}`);
+  console.log(`  this call (later still): ${cross30}`);
+  console.log(`  matches reproducibility: ${crossSameAsRepr}`);
+  console.log(`  matches LA-2 VAD run:    ${crossSameAsLa2}`);
+  const crossCommonLa2 = commonWordPrefix(
+    splitWords((la2_30.log[0]?.hypothesisText ?? "").toLowerCase()),
+    cross30W.map((w) => w.toLowerCase()),
+  );
+  console.log(
+    `  common prefix vs LA-2: ${crossCommonLa2.length} / ${splitWords(la2_30.log[0]?.hypothesisText ?? "").length} words`,
+  );
+
+  // ── 9. Cost summary ────────────────────────────────────────────────────────
+  console.log(`\n--- Cost summary: duty cycle across configs ---`);
+  console.log(`  config              totalInf   avgDuty  maxDuty  forced  committedWords`);
+  for (const { label, res } of [
+    { label: "VAD 30s", res: la2_30 },
+    { label: "VAD 15s", res: la2_15 },
+    { label: "fixed5s 30s", res: la2_fix30 },
+    { label: "fixed5s 15s", res: la2_fix15 },
   ]) {
     const duties = res.log.map((e) => e.dutyCycle);
     const avgDuty = duties.reduce((a, b) => a + b, 0) / duties.length;
     const maxDuty = Math.max(...duties);
     console.log(
-      `  ${cap}   ${p(f(res.totalInferenceMs / 1000), 7)}s  ${p(f(avgDuty, 3), 7)}  ${p(f(maxDuty, 3), 7)}  ${p(res.forcedAdvances, 6)}  ${splitWords(res.committedText).length}`,
+      `  ${label.padEnd(18)}  ${p(f(res.totalInferenceMs / 1000), 7)}s  ${p(f(avgDuty, 3), 7)}  ${p(f(maxDuty, 3), 7)}  ${p(res.forcedAdvances, 6)}  ${splitWords(res.committedText).length}`,
     );
   }
 
   // ── 10. Side-by-side transcript comparison ─────────────────────────────────
   console.log(`\n--- Side-by-side transcript comparison ---`);
-  console.log(`  BATCH:     ${batchTranscript.text}`);
-  console.log(`  ISOLATED:  ${isolatedText}`);
-  console.log(`  LA-2 30s:  ${la2_30.committedText}`);
-  console.log(`  LA-3 30s:  ${la3_30.committedText}`);
+  console.log(`  BATCH:          ${batchTranscript.text}`);
+  console.log(`  ISOLATED:       ${isolatedText}`);
+  console.log(`  LA-2 VAD 30s:   ${la2_30.committedText}`);
+  console.log(`  LA-2 fixed 30s: ${la2_fix30.committedText}`);
+  console.log(`  LA-3 VAD 30s:   ${la3_30.committedText}`);
+  console.log(`  LA-3 fixed 30s: ${la3_fix30.committedText}`);
 
-  // ── 11. Committed text check: LA-2 vs batch ────────────────────────────────
+  // ── 11. Committed text check: LA-2 fixed-interval vs batch ─────────────────
   const batchWords = splitWords(batchTranscript.text.toLowerCase());
-  const la2Words = splitWords(la2_30.committedText.toLowerCase());
-  console.log(`\n--- Committed text check: LA-2 30s vs batch (case-insensitive) ---`);
+  const la2FixWords = splitWords(la2_fix30.committedText.toLowerCase());
+  console.log(`\n--- Committed text check: LA-2 fixed 30s vs batch (case-insensitive) ---`);
   let mismatches = 0;
-  for (let i = 0; i < la2Words.length; i++) {
-    if (batchWords[i] !== la2Words[i]) {
+  for (let i = 0; i < la2FixWords.length; i++) {
+    if (batchWords[i] !== la2FixWords[i]) {
       mismatches++;
       console.log(
-        `  word ${i + 1}: committed "${la2Words[i]}" vs batch "${batchWords[i] ?? "<none>"}"`,
+        `  word ${i + 1}: committed "${la2FixWords[i]}" vs batch "${batchWords[i] ?? "<none>"}"`,
       );
     }
   }
   if (mismatches === 0) {
     console.log(
-      `  All ${la2Words.length} committed words match the batch reference at the same position.`,
+      `  All ${la2FixWords.length} committed words match the batch reference at the same position.`,
     );
   } else {
-    console.log(`  ${mismatches} mismatch(es) out of ${la2Words.length} committed words.`);
+    console.log(`  ${mismatches} mismatch(es) out of ${la2FixWords.length} committed words.`);
   }
 
-  // ── 12. LA-2 vs LA-3 comparison ────────────────────────────────────────────
-  const la2w = splitWords(la2_30.committedText.toLowerCase());
-  const la3w = splitWords(la3_30.committedText.toLowerCase());
-  console.log(`\n--- LA-2 vs LA-3 committed text comparison ---`);
+  // ── 12. LA-2 vs LA-3 comparison (fixed-interval) ───────────────────────────
+  const la2w = splitWords(la2_fix30.committedText.toLowerCase());
+  const la3w = splitWords(la3_fix30.committedText.toLowerCase());
+  console.log(`\n--- LA-2 vs LA-3 committed text comparison (fixed 5s, 30s cap) ---`);
   console.log(`  LA-2: ${la2w.length} words`);
   console.log(`  LA-3: ${la3w.length} words`);
   const laCommon = commonWordPrefix(la2w, la3w);
