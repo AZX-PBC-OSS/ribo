@@ -47,7 +47,7 @@ export type {
 // Live transcription: the streaming seam — utterance-level preview during
 // recording. Defined here, implemented by the on-device engine. Not composed
 // through `firstCapable`; held directly by the live orchestrator.
-export type { LiveSession, LiveTranscriber } from "./live.js";
+export type { LiveSegment, LiveSegmentKind, LiveSession, LiveTranscriber } from "./live.js";
 
 // Selection: try engines in preference order, first one ready wins. The only
 // combinator, and deliberately the only one.

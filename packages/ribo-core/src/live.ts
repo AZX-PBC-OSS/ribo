@@ -33,30 +33,95 @@ import type { TranscriberCapability } from "./transcriber.js";
  */
 
 /**
+ * Whether a {@link LiveSegment} is provisional text for the current growing
+ * region or permanent text for a committed region. Mirrors the worker protocol's
+ * own `LiveSegmentKind` (`@azx/ribo-transcriber-ondevice`'s `protocol.ts`), kept
+ * in this package so hosts do not depend on the engine's private protocol.
+ *
+ * - `"tail"` — provisional text for the current growing region. Replaces the
+ *   previous tail wholesale; never appended to. The host renders it as still
+ *   being revised and stores it via `Outbox.writePreviewTail`.
+ * - `"commit"` — permanent text for a committed region. Appended to the
+ *   committed list; never revised. The host renders it as settled and stores it
+ *   via `Outbox.commitPreview`.
+ */
+export type LiveSegmentKind = "tail" | "commit";
+
+/**
+ * One emission on {@link LiveSession.segments$} — transcribed text for a region,
+ * tagged so the receiver knows whether to render it as provisional or permanent.
+ *
+ * ## Why one observable of a discriminated value, not two
+ *
+ * The alternative is two observables — `tails$` and `commits$` — and it is
+ * worse on every axis that matters for the actual consumers:
+ *
+ * 1. **A host that ignores the distinction still gets all the text, in order.**
+ *    `playground/src/live-handle.ts` subscribes today, and Task 5 will route
+ *    tails to `writePreviewTail` and commits to `commitPreview`. But a host that
+ *    does not care about the distinction — a test, a logger, a future consumer
+ *    — subscribes to one stream, reads `.text`, and ignores `.kind`. With two
+ *    observables the same host must subscribe to both, and RxJS gives no
+ *    ordering guarantee across two separate `Subject`s: the host either loses
+ *    half the text (subscribes to one) or gets it out of order (subscribes to
+ *    both). The silently-wrong outcome is the one this shape exists to prevent.
+ *
+ * 2. **The flush-after-close property stays on one stream.** The worker's
+ *    `liveClose` handler transcribes the final drained region *after* `close()`
+ *    and posts it back — that segment must reach the subscriber (see
+ *    {@link LiveSession.close}). Splitting into two `Subject`s duplicates the
+ *    "do not gate on `#closed`" logic for no benefit, and a late commit after
+ *    close would need to reach `commits$` while a late tail reaches `tails$` —
+ *    the same mechanism, twice.
+ *
+ * 3. **Task 5's routing is one `switch (segment.kind)` in one subscriber.** Two
+ *    observables make the routing implicit in which subscription you are in, but
+ *    not safer: a host that wires both to the same write still needs to
+ *    distinguish, now across two callbacks instead of one exhaustiveness-checked
+ *    switch.
+ *
+ * `errors$` stays a separate observable for a *different* reason — erroring the
+ * segment `Subject` would terminate it permanently — and that reasoning is about
+ * a different kind of channel, not about the tail/commit distinction.
+ */
+export type LiveSegment =
+  | { readonly kind: "tail"; readonly text: string }
+  | { readonly kind: "commit"; readonly text: string };
+
+/**
  * A live transcription session — the handle returned by
  * {@link LiveTranscriber.openSession}.
  *
- * Feed 512-sample audio frames in at audio-callback rate; closed utterances come
- * out on `segments$`. The session is opened by the capture session and closed by
- * it — if capture ends (stop, abort, failure, tab losing the capture lock), the
- * session closes and its in-flight replies are discarded by `sessionId`.
+ * Feed 512-sample audio frames in at audio-callback rate; transcribed region
+ * text comes out on `segments$` — tagged `tail` (provisional, still being
+ * revised) or `commit` (permanent, settled). The session is opened by the
+ * capture session and closed by it — if capture ends (stop, abort, failure, tab
+ * losing the capture lock), the session closes and further `feed()` calls are
+ * no-ops.
  */
 export interface LiveSession {
   /**
    * Stamp that correlates worker replies to this session. Every `liveSegment`
-   * reply carries it; replies from a closed session are dropped by matching
-   * against it — not by "the observable has no subscribers", which would pass
-   * against no guard at all.
+   * reply carries it; the message listener uses it to skip replies from other
+   * sessions sharing the same worker channel — not to drop late replies from
+   * this session after `close()` (see {@link segments$} and {@link close}).
    */
   readonly sessionId: string;
 
   /**
-   * One emission per closed utterance — the transcribed text. Internal to core:
-   * the host app reads preview segments through `Outbox.watch()`, not by
-   * subscribing here directly. This observable stays open after `close()` so the
-   * `sessionId` guard (not Subject completion) is what drops late replies.
+   * One emission per transcribed region — a {@link LiveSegment} carrying the
+   * text and whether it is a provisional tail or a permanent commit. Internal
+   * to core: the host app reads preview text through `Outbox.watch()`, not by
+   * subscribing here directly.
+   *
+   * **Stays open after `close()`** so the worker's final drain — transcribing
+   * the last region after `close()` was called — still reaches the subscriber.
+   * The listener is deliberately not removed and the `Subject` deliberately not
+   * completed on close, because dropping that segment would lose the auditor's
+   * last sentence. The `#closed` flag only prevents further `feed()` calls; it
+   * does not gate segment delivery.
    */
-  readonly segments$: Observable<string>;
+  readonly segments$: Observable<LiveSegment>;
 
   /**
    * Live-transcription errors that occurred mid-session — one emission per
@@ -67,10 +132,10 @@ export interface LiveSession {
    * for that session. But the design's failure table
    * (`docs/roadmap/design/live-transcription-design.md`, §Failure handling) calls
    * for "preview stops, **recording continues**, error surfaced" on a live
-   * transcription throw, and a per-utterance failure (one bad `generate` call)
-   * says nothing about the next utterance. Killing the whole segment stream for a
-   * single failed utterance is the exact trade this change exists to correct. A
-   * separate channel lets per-utterance failures be surfaced without ending the
+   * transcription throw, and a per-region failure (one bad `generate` call)
+   * says nothing about the next region. Killing the whole segment stream for a
+   * single failed region is the exact trade this change exists to correct. A
+   * separate channel lets per-region failures be surfaced without ending the
    * preview, and lets session-fatal failures be surfaced without risking an
    * unhandled rejection on `segments$` — which a subscriber like the playground's
    * `live-handle.ts` does not catch, and which RxJS 7 rethrows asynchronously
@@ -94,8 +159,11 @@ export interface LiveSession {
 
   /**
    * Close the session. Posts a `liveClose` to the worker and marks this session
-   * as closed so late replies carrying its `sessionId` are discarded. After
-   * `close()`, `feed()` is a no-op and `segments$` emits nothing further.
+   * as closed so further `feed()` calls are no-ops. The worker transcribes the
+   * final drained region *after* `close()` and posts it back as a
+   * `liveSegment` — that segment **must** reach the subscriber, so the message
+   * listener is not removed and the `Subject` is not completed here. See
+   * {@link segments$} for why the stream stays open.
    */
   close(): void;
 }
