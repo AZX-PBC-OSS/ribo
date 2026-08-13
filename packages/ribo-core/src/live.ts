@@ -59,6 +59,28 @@ export interface LiveSession {
   readonly segments$: Observable<string>;
 
   /**
+   * Live-transcription errors that occurred mid-session — one emission per
+   * surfaced failure, carrying the worker's error message.
+   *
+   * **Why a separate observable, not `segments$.error()`.** Erroring the segment
+   * `Subject` would terminate it permanently — no segment could ever flow again
+   * for that session. But the design's failure table
+   * (`docs/roadmap/design/live-transcription-design.md`, §Failure handling) calls
+   * for "preview stops, **recording continues**, error surfaced" on a live
+   * transcription throw, and a per-utterance failure (one bad `generate` call)
+   * says nothing about the next utterance. Killing the whole segment stream for a
+   * single failed utterance is the exact trade this change exists to correct. A
+   * separate channel lets per-utterance failures be surfaced without ending the
+   * preview, and lets session-fatal failures be surfaced without risking an
+   * unhandled rejection on `segments$` — which a subscriber like the playground's
+   * `live-handle.ts` does not catch, and which RxJS 7 rethrows asynchronously
+   * when a subscriber has no error handler. Recording is never affected either
+   * way: live is strictly best-effort and the capture pipeline never touches this
+   * observable.
+   */
+  readonly errors$: Observable<string>;
+
+  /**
    * Push one 512-sample frame into the streaming VAD.
    *
    * **Synchronous — must return before the inference it triggers.** Called from

@@ -58,6 +58,7 @@ async function until<T>(read: () => Promise<T | undefined>, label: string): Prom
  */
 function createFakeSession(text: string): LiveSession {
   const handlers: Array<(value: string) => void> = [];
+  const errorHandlers: Array<(value: string) => void> = [];
   let closed = false;
   setTimeout(() => {
     if (!closed) {
@@ -77,6 +78,17 @@ function createFakeSession(text: string): LiveSession {
         };
       },
     } as unknown as LiveSession["segments$"],
+    errors$: {
+      subscribe: (next: (value: string) => void) => {
+        errorHandlers.push(next);
+        return {
+          unsubscribe: () => {
+            const i = errorHandlers.indexOf(next);
+            if (i >= 0) errorHandlers.splice(i, 1);
+          },
+        };
+      },
+    } as unknown as LiveSession["errors$"],
     feed: () => undefined,
     close: () => {
       closed = true;

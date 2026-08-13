@@ -75,6 +75,7 @@ async function isStreamingVadCached(cacheStorage: CacheStorage): Promise<boolean
 class OnDeviceLiveSession implements LiveSession {
   readonly sessionId: string;
   readonly #subject = new Subject<string>();
+  readonly #errors = new Subject<string>();
   #closed = false;
   readonly #worker: Worker;
   readonly #onMessage: (event: MessageEvent<WorkerToMainMessage>) => void;
@@ -87,12 +88,21 @@ class OnDeviceLiveSession implements LiveSession {
       const reply = event.data;
       // Live replies carry `sessionId`, not `requestId` — skip batch replies on the same channel.
       if (!("sessionId" in reply) || reply.sessionId !== this.sessionId) return;
-      if (reply.type !== "liveSegment") return;
-      // No #closed guard here: a segment arriving after close() is the flush of the last
-      // buffered speech (or a feed that was mid-inference when close arrived) — both are
-      // real speech that must reach the subscriber. See the file header. The #closed flag
-      // only prevents further feed() calls, not segment delivery.
-      this.#subject.next(reply.text);
+      if (reply.type === "liveSegment") {
+        // No #closed guard here: a segment arriving after close() is the flush of the last
+        // buffered speech (or a feed that was mid-inference when close arrived) — both are
+        // real speech that must reach the subscriber. See the file header. The #closed flag
+        // only prevents further feed() calls, not segment delivery.
+        this.#subject.next(reply.text);
+      } else if (reply.type === "liveError") {
+        // A mid-session error from the worker. The `liveError` listener in `openSession`'s
+        // promise is removed by `cleanup()` as soon as `liveOpened` arrives, so without this
+        // branch a post-open error is posted into the void — the bug this change fixes. The
+        // error goes to `errors$`, not `segments$.error()`, so the segment stream stays alive
+        // and a per-utterance failure does not end the preview for the whole session. See the
+        // `errors$` doc on `LiveSession` for the full reasoning.
+        this.#errors.next(reply.message);
+      }
     };
     worker.addEventListener("message", this.#onMessage);
   }
@@ -120,6 +130,10 @@ class OnDeviceLiveSession implements LiveSession {
 
   get segments$(): Observable<string> {
     return this.#subject.asObservable();
+  }
+
+  get errors$(): Observable<string> {
+    return this.#errors.asObservable();
   }
 }
 

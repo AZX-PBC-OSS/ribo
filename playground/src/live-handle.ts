@@ -97,6 +97,9 @@ let currentSession: LiveSession | undefined;
 /** Subscription to `currentSession.segments$`, torn down on close. Minimal — just `unsubscribe`. */
 let segmentSubscription: { unsubscribe: () => void } | undefined;
 
+/** Subscription to `currentSession.errors$`, torn down on close. */
+let errorSubscription: { unsubscribe: () => void } | undefined;
+
 /**
  * Open a live session and connect its segments to the outbox row.
  *
@@ -121,6 +124,12 @@ export async function openLiveSession(
     segmentSubscription = session.segments$.subscribe((text) => {
       void outbox.appendPreviewSegment(itemId, text).catch(() => undefined);
     });
+    // Surface live errors to the console so a mid-session failure is visible, not silent.
+    // Live is best-effort: the error must never affect recording, and it does not — this
+    // subscription only logs. The batch pass after `stop()` recovers the full transcript.
+    errorSubscription = session.errors$.subscribe((message) => {
+      console.warn("[ribo live] preview error:", message);
+    });
   } catch {
     // Live must never degrade recording — a failed open is silently no-preview.
   }
@@ -130,6 +139,8 @@ export async function openLiveSession(
 export function closeLiveSession(): void {
   segmentSubscription?.unsubscribe();
   segmentSubscription = undefined;
+  errorSubscription?.unsubscribe();
+  errorSubscription = undefined;
   currentSession?.close();
   currentSession = undefined;
 }

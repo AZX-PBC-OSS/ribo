@@ -207,6 +207,55 @@ describe("Test C — a flush segment after close() reaches the subscriber", () =
   });
 });
 
+// ── Test D: a mid-session worker error reaches the host ───────────────────────
+//
+// The `liveError` listener in `openSession`'s promise is removed by `cleanup()` as soon as
+// `liveOpened` arrives. After open, the only listener on the worker's message channel is
+// `OnDeviceLiveSession`'s own `#onMessage` — which, before this fix, forwarded `liveSegment`
+// and silently dropped `liveError`. A mid-session error (a per-utterance transcription
+// failure, a VAD error) was posted into the void: no console output, no host signal, no
+// error on any observable. The recording itself was perfect, and the auditor's only clue was
+// that text quietly stopped appearing.
+//
+// This test opens a session, delivers a `liveError` AFTER open (via `emit`), and asserts the
+// host observes it on `errors$`. Against the old code this fails: `errors$` did not exist and
+// `liveError` was dropped.
+
+describe("Test D — a mid-session worker error reaches the host", () => {
+  test("a liveError posted after open is emitted on errors$", async () => {
+    const worker = new FakeLiveWorker();
+    const session = await openSession(worker);
+
+    const errors: string[] = [];
+    session.errors$.subscribe((message) => errors.push(message));
+
+    // Deliver a mid-session error — the worker posted liveError after the session opened.
+    worker.emit({
+      type: "liveError",
+      sessionId: session.sessionId,
+      message: "OOM during generate",
+    });
+
+    expect(errors).toEqual(["OOM during generate"]);
+  });
+
+  test("a mid-session error does not error segments$ — the segment stream stays alive", async () => {
+    const worker = new FakeLiveWorker();
+    const session = await openSession(worker);
+
+    const segments: string[] = [];
+    session.segments$.subscribe((text) => segments.push(text));
+
+    // A mid-session error arrives.
+    worker.emit({ type: "liveError", sessionId: session.sessionId, message: "transient failure" });
+
+    // A segment arrives after the error — the preview must still work for later utterances.
+    worker.emit({ type: "liveSegment", sessionId: session.sessionId, text: "next utterance" });
+
+    expect(segments).toEqual(["next utterance"]);
+  });
+});
+
 // ── liveCapability: the separate probe for live readiness ─────────────────────
 //
 // `liveCapability()` is separate from `capability()` because live additionally needs

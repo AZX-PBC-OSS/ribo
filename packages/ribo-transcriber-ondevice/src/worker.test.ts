@@ -5,10 +5,12 @@ import {
   WORKER_ENTRY_NAME,
   clearLiveSessions,
   handleMessage,
+  injectLiveSession,
   normalizeProgress,
   planChunks,
   serialize,
 } from "./worker.js";
+import type { WorkerToMainMessage } from "./protocol.js";
 
 // Node-side coverage of the worker's pure routing/normalization. It deliberately never drives the
 // `prime` path here: that dynamic-imports `@huggingface/transformers`, whose node entry pulls the
@@ -170,4 +172,117 @@ test("handleMessage for liveFeed on a missing session is a silent no-op", async 
   // The feed queues through `serialize`, so let the microtask settle before checking.
   await new Promise((resolve) => setTimeout(resolve, 10));
   expect(post).not.toHaveBeenCalled();
+});
+
+// ── Test E: a session survives a failed utterance ─────────────────────────────
+//
+// Before this fix, `feedLiveFrame` caught any error, deleted the session from `liveSessions`,
+// and posted `liveError`. The deletion meant every subsequent frame no-op'd on the map lookup
+// forever — one bad utterance killed the preview for the remaining 30 minutes of an audit.
+// The `liveError` was posted but never reached the host (Test D covers that half).
+//
+// This test injects a fake session with a scripted VAD and transcribe function. The first
+// feed's utterance rejects (per-utterance failure); a later feed's utterance transcribes
+// successfully. Against the old code the session is deleted on the first error, so the second
+// feed no-ops and no `liveSegment` is ever posted.
+
+/** A VAD that emits one scripted utterance per `feed` call. */
+function makeScriptedVad(utteranceCount: number): {
+  feed: (frame: Float32Array) => Promise<readonly { readonly samples: Float32Array }[]>;
+  flush: () => Promise<readonly { readonly samples: Float32Array }[]>;
+} {
+  let calls = 0;
+  return {
+    feed: () => {
+      if (calls++ >= utteranceCount) return Promise.resolve([]);
+      return Promise.resolve([
+        { samples: new Float32Array(512) } as { readonly samples: Float32Array },
+      ]);
+    },
+    flush: () => Promise.resolve([]),
+  };
+}
+
+/** Wait for the `serialize` chain to drain — `feedLiveFrame` queues through it. */
+function settle(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 10));
+}
+
+describe("Test E — a session survives a failed utterance", () => {
+  test("one utterance's transcription rejects, a later frame still produces a segment", async () => {
+    clearLiveSessions();
+    const sessionId = "test-survive";
+
+    let transcribeCalls = 0;
+    injectLiveSession(sessionId, {
+      vad: makeScriptedVad(2),
+      transcribe: () => {
+        transcribeCalls++;
+        if (transcribeCalls === 1) return Promise.reject(new Error("generate OOM"));
+        return Promise.resolve("recovered utterance");
+      },
+    });
+
+    const posts: WorkerToMainMessage[] = [];
+    const post = (msg: WorkerToMainMessage): void => {
+      posts.push(msg);
+    };
+
+    // First feed: the VAD emits an utterance, transcribe rejects.
+    await handleMessage({ type: "liveFeed", sessionId, frame: new Float32Array(512) }, post);
+    await settle();
+
+    const firstError = posts.find((m) => m.type === "liveError");
+    expect(firstError?.type).toBe("liveError");
+    if (firstError?.type === "liveError") {
+      expect(firstError.message).toBe("generate OOM");
+    }
+
+    // Second feed: the VAD emits another utterance, transcribe succeeds. Against the old code
+    // the session was deleted on the first error, so this feed no-ops and no segment is posted.
+    await handleMessage({ type: "liveFeed", sessionId, frame: new Float32Array(512) }, post);
+    await settle();
+
+    const segment = posts.find((m) => m.type === "liveSegment");
+    expect(segment?.type).toBe("liveSegment");
+    if (segment?.type === "liveSegment") {
+      expect(segment.text).toBe("recovered utterance");
+    }
+
+    clearLiveSessions();
+  });
+
+  test("a VAD failure is session-fatal — the session is deleted and later feeds no-op", async () => {
+    clearLiveSessions();
+    const sessionId = "test-vad-fatal";
+
+    injectLiveSession(sessionId, {
+      vad: {
+        feed: () => Promise.reject(new Error("VAD model crashed")),
+        flush: () => Promise.resolve([]),
+      },
+      transcribe: () => Promise.resolve("never reached"),
+    });
+
+    const posts: WorkerToMainMessage[] = [];
+    const post = (msg: WorkerToMainMessage): void => {
+      posts.push(msg);
+    };
+
+    // The VAD throws — session-fatal. The error is posted and the session is deleted.
+    await handleMessage({ type: "liveFeed", sessionId, frame: new Float32Array(512) }, post);
+    await settle();
+
+    expect(posts.some((m) => m.type === "liveError")).toBe(true);
+
+    // A later feed no-ops — the session was deleted, so the map lookup returns undefined.
+    await handleMessage({ type: "liveFeed", sessionId, frame: new Float32Array(512) }, post);
+    await settle();
+
+    // Still only the one error from the VAD failure — no second error, no segment.
+    expect(posts.filter((m) => m.type === "liveError")).toHaveLength(1);
+    expect(posts.some((m) => m.type === "liveSegment")).toBe(false);
+
+    clearLiveSessions();
+  });
 });

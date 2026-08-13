@@ -47,6 +47,7 @@ import {
 } from "./segmentation.js";
 import type { FrameGeometry, SampleRange } from "./segmentation.js";
 import { StreamingVad, createSileroDetector } from "./vad-stream.js";
+import type { Utterance } from "./vad-stream.js";
 
 /** The subpath this module is published under — the stable name of the worker entry. */
 export const WORKER_ENTRY_NAME = "@azx/ribo-transcriber-ondevice/worker" as const;
@@ -572,12 +573,27 @@ async function transcribe(config: PrimeConfig, request: TranscribeWorkerRequest)
  * Worker-side state for one live session. Created on `liveOpen`, removed on
  * `liveClose` (or when a `liveFeed` finds it missing — the close may have arrived
  * while a feed was queued behind `serialize`).
+ *
+ * The `transcribe` field bundles the pipeline-load + inference step so the per-utterance
+ * error boundary in `feedLiveFrame` / `closeLiveSession` can catch a transcription failure
+ * without needing to know whether the pipeline was warm or cold — and so a test can inject
+ * a session with a fake `transcribe` without dynamic-importing transformers.js.
  */
 interface LiveWorkerSession {
-  /** The streaming VAD that turns frames into closed utterances. */
-  readonly vad: StreamingVad;
-  /** The pipeline config for ASR calls on closed utterances. */
-  readonly config: PrimeConfig;
+  /**
+   * The streaming VAD that turns frames into closed utterances. A structural type, not
+   * `StreamingVad` itself, so a test can inject a fake VAD via `injectLiveSession` without
+   * dynamic-importing transformers.js.
+   */
+  readonly vad: {
+    feed(frame: Float32Array): Promise<readonly Utterance[]>;
+    flush(): Promise<readonly Utterance[]>;
+  };
+  /**
+   * Transcribe one closed utterance's samples. Bundles `getPipeline` + `transcribeChunk` so
+   * the caller's error boundary does not care which threw — both are per-utterance failures.
+   */
+  readonly transcribe: (samples: Float32Array) => Promise<string>;
 }
 
 /** Active live sessions, keyed by `sessionId`. */
@@ -586,6 +602,19 @@ const liveSessions = new Map<string, LiveWorkerSession>();
 /** Clear all live sessions — test cleanup so one test's session does not leak into the next. */
 export function clearLiveSessions(): void {
   liveSessions.clear();
+}
+
+/**
+ * Inject a live session directly into the session map — test-only.
+ *
+ * `handleMessage` for `liveOpen` dynamic-imports `@huggingface/transformers` via
+ * `createSileroDetector`, which pulls `onnxruntime-node` (unbuilt native addon) in node.
+ * Tests that need to exercise `feedLiveFrame`'s error handling inject a session with a
+ * `StreamingVad` backed by a fake {@link ProbabilityDetector} and a fake `transcribe`
+ * function — no model loads, no browser.
+ */
+export function injectLiveSession(sessionId: string, session: LiveWorkerSession): void {
+  liveSessions.set(sessionId, session);
 }
 
 /**
@@ -605,7 +634,14 @@ async function openLiveSession(
       wasmPaths: config.wasmPaths,
       ...(config.revision ? { revision: config.revision } : {}),
     });
-    liveSessions.set(sessionId, { vad: new StreamingVad(detector), config });
+    liveSessions.set(sessionId, {
+      vad: new StreamingVad(detector),
+      // No jargon prefix for live — Moonshine (the default model) cannot be primed
+      // (`config.ts` / `moonshine-priming.manual.ts`), and live previews are provisional
+      // anyway: the batch pass after `stop()` replaces them entirely.
+      transcribe: (samples) =>
+        getPipeline(config).then((pipeline) => transcribeChunk(pipeline, samples, [])),
+    });
     post({ type: "liveOpened", sessionId });
   } catch (error) {
     post({ type: "liveError", sessionId, message: errorMessage(error) });
@@ -621,6 +657,23 @@ async function openLiveSession(
  * If the session was closed while this feed was queued behind `serialize`, the
  * map lookup returns `undefined` and the feed is a no-op — the late reply simply
  * never happens.
+ *
+ * ## Two error boundaries, on purpose
+ *
+ * The outer `catch` handles **session-fatal** failures: the VAD threw. The VAD
+ * processes every frame, so if it is broken every subsequent frame will throw
+ * the same error and there is nothing to transcribe anyway — continuing is
+ * pointless. The session is deleted (later frames no-op on the map lookup) and
+ * the error is posted.
+ *
+ * The inner `catch` handles **per-utterance** failures: one `transcribe` call
+ * threw (pipeline load or inference). A single failed utterance says nothing
+ * about the next one — a transient OOM or a one-off ORT error does not mean the
+ * remaining 30 minutes of an audit should lose their preview. The utterance is
+ * skipped, the error is posted, and the session stays alive so later frames can
+ * still produce segments. This is the trade the previous code got wrong: it
+ * killed the session on any error, so one bad utterance silenced the preview for
+ * the entire rest of the recording.
  */
 function feedLiveFrame(
   sessionId: string,
@@ -633,25 +686,20 @@ function feedLiveFrame(
     try {
       const utterances = await session.vad.feed(frame);
       if (utterances.length === 0) return;
-      const pipeline = await getPipeline(session.config);
       for (const { samples } of utterances) {
-        // No jargon prefix for live — Moonshine (the default model) cannot be primed
-        // (`config.ts` / `moonshine-priming.manual.ts`), and live previews are
-        // provisional anyway: the batch pass after `stop()` replaces them entirely.
-        const text = await transcribeChunk(pipeline, samples, []);
-        if (text.length > 0) post({ type: "liveSegment", sessionId, text });
+        try {
+          const text = await session.transcribe(samples);
+          if (text.length > 0) post({ type: "liveSegment", sessionId, text });
+        } catch (error) {
+          // Per-utterance: skip this utterance, surface the error, keep the session alive.
+          // The next utterance may transcribe fine — killing the session here is the bug
+          // this change fixes.
+          post({ type: "liveError", sessionId, message: errorMessage(error) });
+        }
       }
     } catch (error) {
-      // **Surfaced, and the session ends here.** Without this the rejection was `void`-ed into an
-      // `unhandledrejection` nobody sees: a Moonshine OOM two minutes into a walkthrough stopped the
-      // preview with no console output and no host signal, and every later frame threw again. The
-      // auditor's only clue was that text quietly stopped appearing.
-      //
-      // The design's failure table asks for three things — preview stops, recording continues, error
-      // surfaced. Deleting the session delivers the first (later frames no-op on the map lookup, the
-      // same path `liveClose` uses), the main thread was never involved so the second holds by
-      // construction, and `liveError` is the third. It already existed and was posted only by
-      // `openLiveSession`; this is the other half it was designed for.
+      // Session-fatal: the VAD threw. Every future frame will hit the same failure, so
+      // continuing is pointless. Delete the session and surface the error.
       liveSessions.delete(sessionId);
       post({ type: "liveError", sessionId, message: errorMessage(error) });
     }
@@ -678,18 +726,19 @@ function closeLiveSession(sessionId: string, post: (message: WorkerToMainMessage
         liveSessions.delete(sessionId);
         return;
       }
-      const pipeline = await getPipeline(session.config);
       for (const { samples } of utterances) {
-        // No jargon prefix for live — same reasoning as `feedLiveFrame`: Moonshine (the
-        // default model) cannot be primed, and live previews are provisional anyway.
-        const text = await transcribeChunk(pipeline, samples, []);
-        if (text.length > 0) post({ type: "liveSegment", sessionId, text });
+        try {
+          const text = await session.transcribe(samples);
+          if (text.length > 0) post({ type: "liveSegment", sessionId, text });
+        } catch (error) {
+          // Per-utterance, same boundary as `feedLiveFrame`: one failed utterance in the
+          // flush must not prevent the remaining buffered speech from being transcribed.
+          post({ type: "liveError", sessionId, message: errorMessage(error) });
+        }
       }
     } catch (error) {
-      // Same error handling as `feedLiveFrame`: the session ends here, the error is
-      // surfaced, and later frames no-op on the map lookup. The flush is the last thing
-      // the session does — a failure here means the final segment is lost, but the
-      // batch pass after `stop()` recovers it.
+      // Session-fatal (VAD flush threw). The session is closing anyway — surface the error
+      // and clean up. The final segment is lost, but the batch pass after `stop()` recovers it.
       liveSessions.delete(sessionId);
       post({ type: "liveError", sessionId, message: errorMessage(error) });
       return;
