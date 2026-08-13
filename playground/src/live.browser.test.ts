@@ -1,5 +1,10 @@
 import { expect, test } from "vitest";
-import type { LiveSession, LiveTranscriber, TranscriberCapability } from "@azx/ribo-core";
+import type {
+  LiveSegment,
+  LiveSession,
+  LiveTranscriber,
+  TranscriberCapability,
+} from "@azx/ribo-core";
 import { FakeTranscriber, createRelay } from "@azx/ribo-core";
 
 import { getOutbox } from "./outbox-handle.js";
@@ -57,18 +62,18 @@ async function until<T>(read: () => Promise<T | undefined>, label: string): Prom
  * we do not need, and `rxjs` is not a direct dependency of the playground.
  */
 function createFakeSession(text: string): LiveSession {
-  const handlers: Array<(value: string) => void> = [];
+  const handlers: Array<(value: LiveSegment) => void> = [];
   const errorHandlers: Array<(value: string) => void> = [];
   let closed = false;
   setTimeout(() => {
     if (!closed) {
-      for (const handler of handlers) handler(text);
+      for (const handler of handlers) handler({ kind: "commit", text });
     }
   }, SEGMENT_DELAY_MS);
   return {
     sessionId: crypto.randomUUID(),
     segments$: {
-      subscribe: (next: (value: string) => void) => {
+      subscribe: (next: (value: LiveSegment) => void) => {
         handlers.push(next);
         return {
           unsubscribe: () => {
