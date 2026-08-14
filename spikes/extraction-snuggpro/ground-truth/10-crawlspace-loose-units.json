@@ -18,7 +18,7 @@
     "hvac.hvacDuctInsulation": {
       "status": "asserted",
       "sourceSpan": "fiberglass wrap, the two-inch stuff",
-      "member": "Fiberglass 2\""
+      "member": "Fiberglass 2 inch"
     },
     "hvac.hvacDuctLeakage": {
       "status": "asserted",

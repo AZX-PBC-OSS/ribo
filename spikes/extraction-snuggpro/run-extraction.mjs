@@ -250,6 +250,11 @@ Options:
   --strategy <name>  Run only one: "single-shot" or "per-group" (default: both)
   --only <prefixes>  Comma-separated slug prefixes, e.g. "01,05,08" (default: all 14)
   --transport <name> "openai" (default) or "helix" (POST <base>/_api/llm/chat)
+  --strip-descriptions  Remove every "description" from the response schema before
+                     sending. This is what makes single-shot fit under a platform
+                     schema cap at all — 39,759 bytes with descriptions, 19,301
+                     without — so it is the honest baseline to compare per-group
+                     against, not a handicap.
   --origin <url>     Origin header for a Helix dev token (default: http://localhost:5173)
   --help             Show this help
 
@@ -277,6 +282,7 @@ function parseArgs(argv) {
     if (a === "--help" || a === "-h") opts.help = true;
     else if (a === "--force") opts.force = true;
     else if (a === "--model") opts.model = argv[++i];
+    else if (a === "--strip-descriptions") opts.stripDescriptions = true;
     else if (a === "--transport") opts.transport = argv[++i];
     else if (a === "--origin") opts.origin = argv[++i];
     else if (a === "--only") opts.only = String(argv[++i]).split(",").map((x) => x.trim());
@@ -323,6 +329,36 @@ async function main() {
   // top-level field, roles are user/assistant only, and the path is /_api/llm/chat.
   // Its dev token is also origin-scoped, so the Origin header is not optional — a
   // call without one is 403 regardless of the token. See helix-chat.ts.
+  // Strip descriptions in flight rather than in the extractor: the comparison needs
+  // single-shot to run AT ALL (its 39,759-byte schema is over the platform cap; 19,301
+  // without descriptions), and doing it here leaves the extractors exactly as they ship.
+  const stripDescriptions = (node) =>
+    Array.isArray(node)
+      ? node.map(stripDescriptions)
+      : node && typeof node === "object"
+        ? Object.fromEntries(
+            Object.entries(node)
+              .filter(([k]) => k !== "description")
+              .map(([k, v]) => [k, stripDescriptions(v)]),
+          )
+        : node;
+  const withoutDescriptions = (inner) => ({
+    complete: (request, options) =>
+      inner.complete(
+        {
+          ...request,
+          response_format: {
+            ...request.response_format,
+            json_schema: {
+              ...request.response_format.json_schema,
+              schema: stripDescriptions(request.response_format.json_schema.schema),
+            },
+          },
+        },
+        options,
+      ),
+  });
+
   const chat =
     opts.transport === "helix"
       ? helixChat({
@@ -331,9 +367,10 @@ async function main() {
           origin: opts.origin ?? process.env.HELIX_ORIGIN ?? "http://localhost:5173",
         })
       : openAiChat({ apiKey, baseUrl: opts.baseUrl });
+  const effectiveChat = opts.stripDescriptions ? withoutDescriptions(chat) : chat;
 
   await runExtraction({
-    chat,
+    chat: effectiveChat,
     model: opts.model,
     outputDir: opts.output,
     transcriptDir: join(HERE, "transcripts"),

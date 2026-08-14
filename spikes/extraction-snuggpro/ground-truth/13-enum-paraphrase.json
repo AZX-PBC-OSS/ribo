@@ -65,7 +65,7 @@
     "hvac.hvacDuctInsulation": {
       "status": "asserted",
       "sourceSpan": "that rigid duct board, the inch-and-a-half board",
-      "member": "Duct Board 1.5\""
+      "member": "Duct Board 1.5 inch"
     },
     "dhw.dhwType2": {
       "status": "asserted",
