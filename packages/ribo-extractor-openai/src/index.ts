@@ -23,6 +23,11 @@ export type { ExtractionGroup } from "./split-schema.js";
 export { perGroupExtractor } from "./per-group.js";
 export type { PerGroupOptions } from "./per-group.js";
 
+// Per-group prompt assembly: `buildGroupMessages` builds per-group chat messages
+// (instructions + projected examples + transcript), and `projectExample` narrows
+// a few-shot example to a single group's key. Exported for testing (R3 Task 4).
+export { buildGroupMessages, projectExample } from "./extraction-common.js";
+
 // The OpenAI-compatible chat transport and its options.
 export { openAiChat } from "./openai-chat.js";
 export type { OpenAiChatOptions } from "./openai-chat.js";

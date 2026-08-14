@@ -45,7 +45,7 @@ import type { Enveloped, Extractor, ExtractionResult, ExtractionTarget } from "@
 import type { ChatClient } from "./chat-client.js";
 import {
   assertStopFinishReason,
-  buildMessages,
+  buildGroupMessages,
   completeOrClassify,
   parseJsonContent,
   parseWithSchema,
@@ -80,6 +80,19 @@ export interface PerGroupOptions<V extends Record<string, unknown>> {
    * Defaults to 4.
    */
   readonly concurrency?: number;
+  /**
+   * Per-group instructions assembly. When provided, each grouped call gets the
+   * instructions returned by `groupInstructions(key)` instead of the target's full
+   * `instructions`, and each few-shot example is projected to the group's single
+   * key — the assistant turn carries only that group's fields. When omitted (or
+   * for the non-grouped fallback), every call uses `target.instructions` and the
+   * unprojected examples unchanged — today's behaviour.
+   *
+   * The caller supplies an adapter-specific function (e.g. `snuggGroupInstructions`
+   * from `@azx/ribo-adapter-snuggpro`); the extractor stays tool-agnostic and
+   * calls it mechanically.
+   */
+  readonly groupInstructions?: (groupKey: string) => string;
 }
 
 /**
@@ -127,9 +140,12 @@ interface PreparedGroup {
  *   1. Split the target's `extractionSchema` into per-group schemas
  *      ({@link splitExtractionSchema}). A non-grouped schema yields one entry
  *      covering the whole schema — one call, today's behaviour.
- *   2. Build the same messages for every group (the target's instructions and
- *      examples unchanged, transcript last) and pin each call's
- *      `response_format` to that group's schema.
+ *   2. Build per-group messages: when `groupInstructions` is provided, each
+ *      grouped call gets its own instructions (universal + group-specific rules)
+ *      and a projected example (one top-level key in the assistant turn);
+ *      otherwise every call gets the full prompt — today's behaviour. The
+ *      transcript stays last. Each call's `response_format` is pinned to that
+ *      group's schema.
  *   3. Run the calls concurrently with a bounded pool. For each response:
  *      - **Pre-parse check** ({@link assertStopFinishReason}): reject a
  *        non-`"stop"` completion before parsing, so truncation is not
@@ -152,6 +168,7 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
   maxTokens,
   normalize = (fields) => fields,
   concurrency = 4,
+  groupInstructions,
 }: PerGroupOptions<V>): Extractor<Enveloped<V>> {
   // Split at construction time — the group list is a pure function of the schema
   // and does not depend on the transcript. A non-grouped schema yields one entry
@@ -175,12 +192,13 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
 
   return {
     async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
-      // The same messages for every group: the target's instructions and examples
-      // unchanged, with the transcript last. Task 4 makes the prompts per-group;
-      // this task sends the full prompt and pins only the response schema.
-      const messages = buildMessages(target, transcript);
-
+      // Per-group messages: when `groupInstructions` is provided, each grouped
+      // call gets its own instructions and a projected example (one top-level key
+      // in the assistant turn). Without it, every call gets the full prompt —
+      // today's behaviour. The non-grouped fallback (key "") always uses the
+      // full prompt. The transcript stays last in both cases.
       const responses = await mapWithPool(prepared, concurrency, async (entry) => {
+        const messages = buildGroupMessages(target, entry.group.key, transcript, groupInstructions);
         const completion = await completeOrClassify(
           chat,
           {

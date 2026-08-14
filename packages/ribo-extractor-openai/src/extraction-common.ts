@@ -59,6 +59,68 @@ export function buildMessages<V extends Record<string, unknown>>(
 }
 
 /**
+ * Project a few-shot example to a single group: keep the transcript unchanged and
+ * narrow `fields` to `{ [groupKey]: fields[groupKey] }` — the one-key shape a
+ * per-group call is asked to imitate. The transcript is data, not instructions,
+ * so it is never modified.
+ *
+ * Returns `null` when the group key is absent from `fields`, so a caller can skip
+ * an example that has no fields for this group rather than emitting an assistant
+ * turn carrying an empty object.
+ */
+export function projectExample<F extends Record<string, unknown>>(
+  example: { readonly transcript: string; readonly fields: F },
+  groupKey: string,
+): { readonly transcript: string; readonly fields: Record<string, unknown> } | null {
+  const fields = example.fields as Record<string, unknown>;
+  if (!(groupKey in fields)) return null;
+  return { transcript: example.transcript, fields: { [groupKey]: fields[groupKey] } };
+}
+
+/**
+ * Assemble per-group chat messages — the per-group counterpart of
+ * {@link buildMessages}.
+ *
+ * When `groupInstructions` is provided and `groupKey` is non-empty, each call gets
+ * the instructions returned by `groupInstructions(groupKey)` instead of the
+ * target's full `instructions`, and each few-shot example is projected to the
+ * group's single key via {@link projectExample} — the assistant turn carries only
+ * that group's fields, so the model imitates the one-key shape it is being asked
+ * to produce.
+ *
+ * When `groupInstructions` is omitted or `groupKey` is `""` (the non-grouped
+ * fallback from `splitExtractionSchema`), this behaves exactly like
+ * {@link buildMessages}: the full `target.instructions` and unprojected examples.
+ * That is today's behaviour — one call carrying everything.
+ *
+ * The transcript stays last for the same injection-boundary reason as
+ * {@link buildMessages}.
+ */
+export function buildGroupMessages<V extends Record<string, unknown>>(
+  target: ExtractionTarget<V>,
+  groupKey: string,
+  transcript: string,
+  groupInstructions?: (key: string) => string,
+): ChatMessage[] {
+  const perGroup = groupInstructions !== undefined && groupKey !== "";
+  const instructions = perGroup ? groupInstructions!(groupKey) : target.instructions;
+  const messages: ChatMessage[] = [{ role: "system", content: instructions }];
+  for (const example of target.examples ?? []) {
+    if (perGroup) {
+      const projected = projectExample(example, groupKey);
+      if (projected === null) continue;
+      messages.push({ role: "user", content: projected.transcript });
+      messages.push({ role: "assistant", content: JSON.stringify(projected.fields) });
+    } else {
+      messages.push({ role: "user", content: example.transcript });
+      messages.push({ role: "assistant", content: JSON.stringify(example.fields) });
+    }
+  }
+  messages.push({ role: "user", content: transcript });
+  return messages;
+}
+
+/**
  * Send the request, translating the transport's terminal failures into terminal QUEUE
  * failures.
  *
