@@ -58,7 +58,18 @@ export { snuggCtxSchema } from "./context.js";
 export type { SnuggWriteContext } from "./context.js";
 
 // The extraction instructions (the normalization intent) and few-shot examples.
-export { snuggProInstructions } from "./instructions.js";
+// `snuggProInstructions` is the full prompt (all thirteen rules, seven-key output
+// section) for the single-shot extractor. `snuggGroupInstructions(key)` produces
+// a per-group prompt (universal rules + only that group's rules, one-key output
+// section) for the per-group extractor (R3 Task 4). The rule data (`SNUGG_RULES`,
+// `SNUGG_GROUP_KEYS`) is exported so tests can verify no rule is silently lost.
+export {
+  SNUGG_GROUP_KEYS,
+  SNUGG_RULES,
+  snuggGroupInstructions,
+  snuggProInstructions,
+} from "./instructions.js";
+export type { SnuggRule } from "./instructions.js";
 export { snuggExamples } from "./examples.js";
 
 // The deterministic, model-free normalization pass and its transforms.
