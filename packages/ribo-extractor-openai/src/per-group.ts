@@ -28,9 +28,16 @@
  * confidence across the whole enveloped shape, and running it per group would
  * run it seven times on seven partial shapes for no benefit.
  *
- * **No per-group retry in this task** (Task 3 adds it). Any group failing fails
- * the extraction, which is today's all-or-nothing behaviour — the relay's
- * existing backoff, attempt count and `dead` handling take over unchanged.
+ * **Bounded per-group retry (Task 3).** A group that fails transiently is
+ * retried a bounded number of times while successful groups are held, so one
+ * blip does not discard six good calls. **Terminal failures are never
+ * retried** — {@link assertStopFinishReason} already classifies truncation
+ * (`finishReason: "length"`) and content filtering as
+ * {@link TerminalQueueError} precisely because re-sending an identical request
+ * truncates at the identical point; retrying those would burn the budget for
+ * nothing and hide a configuration problem behind a retry storm. If a group
+ * still fails after its retries, `extract()` throws and the relay's existing
+ * backoff, attempt count and `dead` handling take over unchanged.
  *
  * **The non-grouped fallback.** A target whose schema is not an object of groups
  * gets one entry covering the whole schema from `splitExtractionSchema`, so this
@@ -40,6 +47,7 @@
 
 import { z } from "zod";
 
+import { TerminalQueueError } from "@azx/ribo-core";
 import type { Enveloped, Extractor, ExtractionResult, ExtractionTarget } from "@azx/ribo-core";
 
 import type { ChatClient } from "./chat-client.js";
@@ -75,11 +83,29 @@ export interface PerGroupOptions<V extends Record<string, unknown>> {
   readonly normalize?: (fields: Enveloped<V>) => Enveloped<V>;
   /**
    * Max concurrent group calls. The calls run concurrently with a bounded pool so
-   * the worst case (all groups plus their inner retries, once Task 3 lands) fits
-   * inside the relay's `stepTimeoutMs` — seven sequential calls would not.
-   * Defaults to 4.
+   * the worst case (all groups plus their inner retries) fits inside the relay's
+   * `stepTimeoutMs` — seven sequential calls would not. Defaults to 4.
    */
   readonly concurrency?: number;
+  /**
+   * Max retries per group after a transient failure (so the total attempts per
+   * group is `maxRetries + 1`). Terminal failures ({@link TerminalQueueError} —
+   * truncation, content filtering, refusal, unsupported) are never retried.
+   * Defaults to 2. The default is derived from the step-timeout relationship —
+   * see {@link PER_CALL_CEILING_MS} and the comment where
+   * {@link perGroupExtractor} caps it.
+   */
+  readonly maxRetries?: number;
+  /**
+   * The relay's step timeout — the wall-clock ceiling inside which all group
+   * calls plus their retries must complete. The relay wraps `extract()` in
+   * `withTimeout(stepTimeoutMs)`; a timeout here presents as a failed
+   * extraction with no indication that some groups succeeded. Defaults to
+   * `900_000` (15 minutes), matching the relay's `DEFAULT_STEP_TIMEOUT_MS`.
+   * The retry budget is capped so the worst case fits inside this — see the
+   * comment in {@link perGroupExtractor}.
+   */
+  readonly stepTimeoutMs?: number;
   /**
    * Per-group instructions assembly. When provided, each grouped call gets the
    * instructions returned by `groupInstructions(key)` instead of the target's full
@@ -96,24 +122,63 @@ export interface PerGroupOptions<V extends Record<string, unknown>> {
 }
 
 /**
+ * Conservative upper bound on one chat call's wall-clock duration, used to
+ * derive the retry budget from the step-timeout relationship. A
+ * structured-output call typically takes 10–30 s; 120 s leaves headroom for a
+ * slow endpoint without the retry budget being so tight it cannot absorb a
+ * real blip. This is a physical assumption about call latency, not an
+ * arbitrary retry count — the retry budget is derived from it and
+ * {@link PerGroupOptions.stepTimeoutMs}.
+ */
+const PER_CALL_CEILING_MS = 120_000;
+
+/**
  * Run `fn` over `items` with at most `limit` calls in flight at once, preserving
- * order. Rejects on the first failure (via `Promise.all`): in Task 2 any group
- * failing fails the extraction, so the first rejection is the extraction's
- * rejection. Workers that are still in-flight when a sibling rejects continue to
- * completion — their results are discarded, which is the cost of not
- * persisting partial state (design §5).
+ * order. Rejects on the first failure (via `Promise.all`): any group failing
+ * fails the extraction, so the first rejection is the extraction's rejection.
+ *
+ * **Stops pulling new work after a failure.** When any worker's `fn` rejects,
+ * the `failed` flag is set and `abort.abort()` is called. Other workers check
+ * the flag (or the aborted signal) before pulling the next item and return
+ * immediately — so a failing extraction does not start every remaining group's
+ * call. Without this, workers kept pulling from the queue after a sibling
+ * rejected, and those calls outlived the rejected `extract()`. That was a
+ * minor waste before retries and a real problem once retries multiplied the
+ * call count.
+ *
+ * **Aborts in-flight calls.** The `AbortController` is shared with `fn` via
+ * the closure in `perGroupExtractor`, which passes `abort.signal` to every
+ * `chat.complete` call. When a worker fails and calls `abort.abort()`,
+ * in-flight calls in other workers reject with `ChatError.aborted`, and the
+ * retry loop does not retry an aborted call. This prevents calls from
+ * outliving the rejected `extract()` — both new work (stopped by the flag)
+ * and in-flight work (cancelled by the signal).
  */
 async function mapWithPool<T, R>(
   items: readonly T[],
   limit: number,
   fn: (item: T, index: number) => Promise<R>,
+  abort: AbortController,
 ): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let next = 0;
+  let failed = false;
   const worker = async (): Promise<void> => {
     while (next < items.length) {
+      // Stop pulling new work after any worker has failed. The abort signal
+      // cancels in-flight calls in other workers; this check stops workers
+      // that are between calls from starting new ones.
+      if (failed || abort.signal.aborted) return;
       const index = next++;
-      results[index] = await fn(items[index]!, index);
+      try {
+        results[index] = await fn(items[index]!, index);
+      } catch (cause) {
+        if (!failed) {
+          failed = true;
+          abort.abort();
+        }
+        throw cause;
+      }
     }
   };
   const size = Math.min(Math.max(1, limit), items.length);
@@ -145,8 +210,14 @@ interface PreparedGroup {
  *      and a projected example (one top-level key in the assistant turn);
  *      otherwise every call gets the full prompt — today's behaviour. The
  *      transcript stays last. Each call's `response_format` is pinned to that
- *      group's schema.
+ *      group's schema. Message assembly runs **once per entry**, outside the
+ *      retry loop.
  *   3. Run the calls concurrently with a bounded pool. For each response:
+ *      - **Bounded retry** (Task 3): a transient failure is retried up to
+ *        `maxRetries` times while successful groups are held. Terminal failures
+ *        ({@link TerminalQueueError}) are never retried. If a group still
+ *        fails, `extract()` throws and the relay's existing machinery takes
+ *        over unchanged.
  *      - **Pre-parse check** ({@link assertStopFinishReason}): reject a
  *        non-`"stop"` completion before parsing, so truncation is not
  *        misreported as invalid JSON. Terminal, not retried.
@@ -159,7 +230,7 @@ interface PreparedGroup {
  *      would have.
  *   6. **Normalize once** on the merged result.
  *
- * `usage.calls` reports the number of calls made — one per group.
+ * `usage.calls` reports the real number of calls made, including retries.
  */
 export function perGroupExtractor<V extends Record<string, unknown>>({
   target,
@@ -168,6 +239,8 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
   maxTokens,
   normalize = (fields) => fields,
   concurrency = 4,
+  maxRetries = 2,
+  stepTimeoutMs = 900_000,
   groupInstructions,
 }: PerGroupOptions<V>): Extractor<Enveloped<V>> {
   // Split at construction time — the group list is a pure function of the schema
@@ -190,38 +263,109 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
     return { group, jsonSchema, name, context };
   });
 
+  // The relay wraps extract() in withTimeout(stepTimeoutMs). All group calls
+  // plus their retries must fit inside it. The worst case — every group
+  // exhausting its full retry budget — runs this many sequential chat calls:
+  //
+  //   ceil(G / concurrency) * (effectiveMaxRetries + 1)
+  //
+  // where G = prepared.length. We derive effectiveMaxRetries by capping
+  // maxRetries so the worst case fits within stepTimeoutMs at the conservative
+  // per-call ceiling — a caller who lowers stepTimeoutMs gets a proportionally
+  // lower retry budget rather than a step timeout that presents as a bare
+  // extraction failure with no indication that some groups succeeded.
+  //
+  // With the defaults (stepTimeoutMs = 900_000, concurrency = 4,
+  // maxRetries = 2, PER_CALL_CEILING_MS = 120_000) and the Snugg target's 7
+  // groups: maxSafeRetries = floor(900_000 / (ceil(7/4) * 120_000)) - 1 = 2,
+  // so effectiveMaxRetries = min(2, 2) = 2. The worst case is
+  // ceil(7/4) * 3 = 6 sequential calls, 6 * 120 s = 12 minutes — inside the
+  // 15-minute step timeout.
+  const batches = Math.ceil(prepared.length / concurrency);
+  const maxSafeRetries = Math.max(
+    0,
+    Math.floor(stepTimeoutMs / (batches * PER_CALL_CEILING_MS)) - 1,
+  );
+  const effectiveMaxRetries = Math.max(0, Math.min(maxRetries, maxSafeRetries));
+
   return {
     async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
-      // Per-group messages: when `groupInstructions` is provided, each grouped
-      // call gets its own instructions and a projected example (one top-level key
-      // in the assistant turn). Without it, every call gets the full prompt —
-      // today's behaviour. The non-grouped fallback (key "") always uses the
-      // full prompt. The transcript stays last in both cases.
-      const responses = await mapWithPool(prepared, concurrency, async (entry) => {
-        const messages = buildGroupMessages(target, entry.group.key, transcript, groupInstructions);
-        const completion = await completeOrClassify(
-          chat,
-          {
+      // One AbortController for the whole extraction. When any group fails
+      // (terminally or past its retry budget), abort is called: in-flight calls
+      // in other workers reject with ChatError.aborted, and workers stop
+      // pulling new work (mapWithPool checks the signal). This prevents the
+      // calls-outlive-extract() waste that retries would multiply.
+      const abort = new AbortController();
+      let totalCalls = 0;
+
+      const responses = await mapWithPool(
+        prepared,
+        concurrency,
+        async (entry) => {
+          // Message assembly runs once per entry — OUTSIDE the retry loop.
+          // The retry wraps only the chat call, not the prompt construction.
+          const messages = buildGroupMessages(
+            target,
+            entry.group.key,
+            transcript,
+            groupInstructions,
+          );
+          const request = {
             model,
             messages,
             response_format: {
-              type: "json_schema",
-              json_schema: { name: entry.name, schema: entry.jsonSchema, strict: true },
+              type: "json_schema" as const,
+              json_schema: { name: entry.name, schema: entry.jsonSchema, strict: true as const },
             },
             maxTokens,
-          },
-          "perGroupExtractor",
-        );
+          };
 
-        assertStopFinishReason(completion, entry.context);
+          let lastError: unknown;
+          for (let attempt = 0; attempt <= effectiveMaxRetries; attempt++) {
+            // If a sibling group's failure has aborted the extraction, don't
+            // start a new call — propagate so this worker stops. mapWithPool
+            // checks the signal before pulling new work; this check catches
+            // the case where the abort fires between retry attempts.
+            if (abort.signal.aborted) {
+              throw lastError ?? new Error("perGroupExtractor: aborted by a sibling failure");
+            }
 
-        const raw = parseJsonContent(completion.content, entry.context);
+            totalCalls++;
+            try {
+              const completion = await completeOrClassify(chat, request, entry.context, {
+                signal: abort.signal,
+              });
 
-        // First trust-boundary parse: validate against this group's own schema.
-        // A response carrying another group's key is rejected here — the split
-        // narrows rather than merely relabels (split-schema.ts).
-        return parseWithSchema(entry.group.schema, raw, entry.context);
-      });
+              assertStopFinishReason(completion, entry.context);
+
+              const raw = parseJsonContent(completion.content, entry.context);
+
+              // First trust-boundary parse: validate against this group's own
+              // schema. A response carrying another group's key is rejected
+              // here — the split narrows rather than merely relabels.
+              return parseWithSchema(entry.group.schema, raw, entry.context);
+            } catch (cause) {
+              lastError = cause;
+              // Terminal failures are never retried —
+              // assertStopFinishReason throws TerminalQueueError for
+              // truncation and content filtering precisely because re-sending
+              // an identical request reproduces the same result.
+              // completeOrClassify similarly classifies refusal/unsupported as
+              // TerminalQueueError. Retrying those would burn the budget for
+              // nothing and hide a configuration problem behind a retry storm.
+              if (cause instanceof TerminalQueueError) throw cause;
+              // If aborted by a sibling failure, don't retry — propagate.
+              if (abort.signal.aborted) throw cause;
+              // Transient failure — retry if budget remains (loop continues).
+            }
+          }
+          // Budget exhausted — rethrow the last transient error. This throws
+          // and the relay's existing backoff, attempt count and dead handling
+          // take over unchanged.
+          throw lastError;
+        },
+        abort,
+      );
 
       // Merge by shallow assignment — each response has exactly one top-level
       // key, so assigning in sequence produces the whole without re-keying.
@@ -242,7 +386,7 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
       return {
         fields: normalize(parsed),
         raw: merged,
-        usage: { calls: prepared.length },
+        usage: { calls: totalCalls },
       };
     },
   };
