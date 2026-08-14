@@ -3,7 +3,9 @@
 **Authority:** `r3-per-group-extraction-design.md`. Read §4 (design), §5 (partial failure) and §7
 (the measured sizes and the open decision) before starting any task.
 
-**Scope: increment 1 only.** One call per top-level field group, always all groups, no router.
+**Scope: increment 1 only.** One call per top-level field group, always all groups, no router, no
+per-group retry. Tasks 1, 2, 4 and 5 build it; Task 6 is the gate. Task 3 is deferred — see its
+section for why.
 
 ## Two decisions pinned for this increment
 
@@ -91,27 +93,22 @@ whole enveloped shape.
 - `normalize` is called once, not once per group.
 - A truncated response (`finishReason: "length"`) is terminal, not retried.
 
-## Task 3 — Bounded per-group retry, inside the step budget
+## Task 3 — Bounded per-group retry — **DEFERRED to increment 2**
 
-**Files:** the Task 2 extractor and its tests. **Depends on Task 2.**
+Not in this increment. Without it, one group failing fails the extraction and the relay retries the
+whole item — which is exactly today's all-or-nothing behaviour, so nothing regresses. It is an
+improvement over today, not a requirement for it.
 
-**Intent.** A group that fails transiently is retried a bounded number of times while successful
-groups are held, so one blip does not discard six good calls. If a group still fails, `extract()`
-throws and the relay's existing backoff, attempt count and `dead` handling take over unchanged.
+It is also the fiddliest part of the work: per-group retries have to fit inside the relay's
+`withTimeout(stepTimeoutMs)` alongside every group call, and a timeout there presents as a failed
+extraction with no indication that six groups succeeded. That budgeting deserves its own increment
+rather than riding along with the split.
 
-**The constraint that must be explicit in the code, not incidental.** The relay wraps the whole step
-in `withTimeout(stepTimeoutMs)`. All group calls plus their retries must fit inside it. State the
-worst-case relationship in a comment and make the retry budget derive from it rather than being a
-magic number — a timeout here presents as a failed extraction with no indication that six groups
-succeeded.
-
-**Must-fail tests.**
-
-- A transient failure on one group is retried and the extraction still succeeds, with the other
-  groups' results intact and not re-requested.
-- A group that fails past its retry budget fails the extraction.
-- A terminal failure (truncation, content filter) is **not** retried.
-- The worst case — every group failing its full retry budget — does not exceed the step timeout.
+**When it lands:** a group that fails transiently is retried a bounded number of times while
+successful groups are held; a group that fails past its budget throws and the relay's existing
+backoff, attempt count and `dead` handling take over unchanged. Terminal failures (truncation,
+content filter) are never retried. The retry budget must derive from the step timeout rather than
+being a magic number.
 
 ## Task 4 — Per-group prompts
 
@@ -145,7 +142,7 @@ to `hvac`, rule 8 to `attic`, rule 9 to `health`. The rest is universal and ever
 ## Task 5 — Turn it on
 
 **Files:** `packages/ribo-adapter-snuggpro/src/schema.ts`, the playground wiring, and their tests.
-**Depends on Tasks 3 and 4.**
+**Depends on Task 4.**
 
 **Intent.** Stop stripping the vendor descriptions, and construct the per-group extractor in the
 playground.
