@@ -39,6 +39,8 @@ export {
   HvacHeatingSystemManufacturer,
   HvacSystemEquipmentType,
   HvacUpgradeAction,
+  SCHEMA_NESTING_DEPTH_CAP,
+  SCHEMA_SERIALIZED_CHAR_CAP,
   snuggExtractionSchema,
   snuggValuesSchema,
   TypeOfHome,
