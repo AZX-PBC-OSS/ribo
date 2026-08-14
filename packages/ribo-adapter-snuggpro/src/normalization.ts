@@ -30,16 +30,76 @@
  *     concern (the API has no null state) and lands with egress in Phase 4 Task 6;
  *     keeping silence as `null` through extraction is what keeps a hallucinated
  *     pass measurable (`normalization.md` §"Hazard 3 in detail").
- *   - enum -> Snugg wire token. There is no such transform any more: `schema.ts`
+ *   - enum -> Snugg wire token. For most enums there is no such transform: `schema.ts`
  *     stores the spec's literal strings, so an extracted enum member IS the wire
- *     value. That deleted layer is the whole point of the schema being built from
- *     the machine-readable spec rather than a printed field sheet.
+ *     value. The one exception is `hvacDuctInsulation`, whose six inch-mark members
+ *     are aliased to quote-free strings to satisfy the platform's structured-output
+ *     route (see `schema.ts`'s `HvacDuctInsulation`); `DUCT_INSULATION_VENDOR_LITERALS`
+ *     below maps those aliases back to the vendor's wire strings, and is the first
+ *     entry in the per-enum lookup table doc 17 §3 forecasts for ~25 of 34
+ *     enum-typed fields.
  */
 
 import type { AtticInsulationDepth, DhwAgeBand, SnuggExtraction } from "./schema.js";
+import { HvacDuctInsulation } from "./schema.js";
 
 type AtticBand = (typeof AtticInsulationDepth.options)[number];
 type AgeBand = (typeof DhwAgeBand.options)[number];
+
+/**
+ * Alias → vendor-literal mapping for `hvacDuctInsulation`.
+ *
+ * The platform's structured-output route rejects a schema whose enum contains a
+ * double-quote character (verified in isolation: `enum ["Duct Board 1.5\""]` →
+ * `400 validation_failed`), so `schema.ts`'s `HvacDuctInsulation` replaces the
+ * six inch-mark members with quote-free aliases that spell the inch out. Those
+ * aliases are what the model extracts and what review shows. But Snugg Pro's API
+ * stores the original quoted strings, so `write` must send `Duct Board 1.5"` —
+ * not `Duct Board 1.5 inch` — or the write silently fails at the API.
+ *
+ * This table is the first entry in the per-enum lookup that doc 17 §3 forecasts
+ * for ~25 of 34 enum-typed fields. It is **not** applied by `normalizeFields`:
+ * the deterministic pass runs on the extraction shape (before review), and the
+ * vendor literal is a write-time concern. `adapter.write` — unimplemented today,
+ * gated on HMAC signing — will consume this table when egress lands. The mapping
+ * exists and is tested now precisely because a divergence nobody recorded is one
+ * nobody will remember: when write ships, it must send the vendor's literal.
+ *
+ * The three members without a quote (`No Insulation`, `Reflective bubble wrap`,
+ * `Measured (R Value)`) are intentionally absent: their alias IS their wire
+ * value, and a lookup miss signals "no translation needed".
+ */
+export const DUCT_INSULATION_VENDOR_LITERALS: ReadonlyMap<string, string> = new Map([
+  ["Duct Board 1 inch", 'Duct Board 1"'],
+  ["Duct Board 1.5 inch", 'Duct Board 1.5"'],
+  ["Duct Board 2 inch", 'Duct Board 2"'],
+  ["Fiberglass 1.25 inch", 'Fiberglass 1.25"'],
+  ["Fiberglass 2 inch", 'Fiberglass 2"'],
+  ["Fiberglass 2.5 inch", 'Fiberglass 2.5"'],
+]);
+
+/**
+ * Resolve a `hvacDuctInsulation` value to the vendor's literal wire string.
+ *
+ * Aliased members (the six inch-mark entries) map to their quoted vendor literal;
+ * unaliased members pass through unchanged. Returns `null` for `null` so a caller
+ * threading a nullable leaf does not need to guard separately.
+ */
+export const resolveDuctInsulationVendorLiteral = (value: string | null): string | null => {
+  if (value === null) return null;
+  return DUCT_INSULATION_VENDOR_LITERALS.get(value) ?? value;
+};
+
+/**
+ * Every alias in the table is a real `HvacDuctInsulation` member, and every
+ * member that is NOT in the table is a pass-through. This is a static guarantee
+ * the tests pin, but the check here catches a divergence at module-load time
+ * rather than at test time — a value in the map that the enum rejects, or a
+ * quoted member that the enum no longer carries, is a build error.
+ */
+for (const alias of DUCT_INSULATION_VENDOR_LITERALS.keys()) {
+  HvacDuctInsulation.parse(alias);
+}
 
 /**
  * Clamp a self-reported confidence into the intended 0..1 range. The schema cannot
