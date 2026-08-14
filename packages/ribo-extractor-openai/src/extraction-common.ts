@@ -28,7 +28,7 @@
  * that boundary in one place rather than two.
  */
 
-import { z } from "zod";
+import type { z } from "zod";
 
 import { TerminalQueueError } from "@azx/ribo-core";
 import type { ExtractionTarget } from "@azx/ribo-core";

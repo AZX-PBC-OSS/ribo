@@ -105,15 +105,19 @@ export function singleShotExtractor<V extends Record<string, unknown>>({
 
   return {
     async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
-      const completion = await completeOrClassify(chat, {
-        model,
-        messages: buildMessages(target, transcript),
-        response_format: {
-          type: "json_schema",
-          json_schema: { name: target.name, schema: jsonSchema, strict: true },
+      const completion = await completeOrClassify(
+        chat,
+        {
+          model,
+          messages: buildMessages(target, transcript),
+          response_format: {
+            type: "json_schema",
+            json_schema: { name: target.name, schema: jsonSchema, strict: true },
+          },
+          maxTokens,
         },
-        maxTokens,
-      }, "singleShotExtractor");
+        "singleShotExtractor",
+      );
 
       assertStopFinishReason(completion, context);
 
