@@ -56,9 +56,7 @@ function fakeGroupChat(): { chat: ChatClient; requests: ChatRequest[] } {
         colonIdx >= 0
           ? (() => {
               const groupKey = name.slice(colonIdx + 1);
-              return groupKey in fixtureFields
-                ? { [groupKey]: fixtureFields[groupKey] }
-                : {};
+              return groupKey in fixtureFields ? { [groupKey]: fixtureFields[groupKey] } : {};
             })()
           : fixtureFields;
       return Promise.resolve({
