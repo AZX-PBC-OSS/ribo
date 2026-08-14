@@ -117,8 +117,9 @@ describe("splitExtractionSchema — grouped schema", () => {
     expect(hvac.schema.safeParse(hvacData).success).toBe(true);
 
     // The same hvac data parsed against the attic group schema must fail — attic's
-    // schema has `attic` as its sole key, and `hvac` is an extra key a strict
-    // object rejects. This proves the split narrows rather than merely relabels.
+    // schema has `attic` as its sole required key, and `hvac` is an extra key a
+    // strict object rejects. This proves the split narrows rather than merely
+    // relabels: the per-group schema rejects what the full schema would accept.
     expect(attic.schema.safeParse(hvacData).success).toBe(false);
 
     // And vice versa.
@@ -130,6 +131,14 @@ describe("splitExtractionSchema — grouped schema", () => {
     };
     expect(attic.schema.safeParse(atticData).success).toBe(true);
     expect(hvac.schema.safeParse(atticData).success).toBe(false);
+
+    // Strictness: an object carrying BOTH groups' keys is rejected by either
+    // per-group schema, even though the full schema accepts it. A non-strict
+    // (open) per-group schema would accept the extra key — this is the assertion
+    // that catches `z.object` where `z.strictObject` was needed.
+    const bothGroups = { ...hvacData, ...atticData };
+    expect(hvac.schema.safeParse(bothGroups).success).toBe(false);
+    expect(attic.schema.safeParse(bothGroups).success).toBe(false);
   });
 
   test("every leaf of the original schema appears in exactly one group schema, and none is lost", () => {
