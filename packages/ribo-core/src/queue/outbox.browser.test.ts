@@ -224,10 +224,10 @@ test("step outputs written before a close are readable after a reopen", async ()
 });
 
 // ---------------------------------------------------------------------------
-// The v0 → v2 schema migration.
+// The v0 → v3 schema migration.
 //
-// A reopen does not test this: `openOutbox` can only ever create a v2 store, so
-// two opens against the same name both see version 2, nothing migrates, and the
+// A reopen does not test this: `openOutbox` can only ever create a v3 store, so
+// two opens against the same name both see version 3, nothing migrates, and the
 // test would pass whether or not the migration plugin and strategy exist at all
 // — the exact "passes while production is broken" shape this file's own header
 // warns about for the durability test above.
@@ -240,7 +240,7 @@ test("step outputs written before a close are readable after a reopen", async ()
 // store (one per `<collection>-<version>`, holding that version's schema), not
 // from the presence of rows in the versioned physical database. A hand-written
 // `docs` row with no matching internal meta document is invisible to
-// `mustMigrate()` — RxDB just creates a fresh v2 collection and never looks at
+// `mustMigrate()` — RxDB just creates a fresh v3 collection and never looks at
 // the row, so the test would report a pass while testing nothing, which is a
 // worse failure mode than the reopen it was meant to replace.
 //
@@ -252,7 +252,9 @@ test("step outputs written before a close are readable after a reopen", async ()
 // ---------------------------------------------------------------------------
 
 /** The outbox's RxDB schema exactly as it was before this task's version bump. */
-const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<Omit<OutboxDocument, "reviewOutcome" | "capture">> = {
+const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<
+  Omit<OutboxDocument, "reviewOutcome" | "capture" | "preview">
+> = {
   version: 0,
   primaryKey: "id",
   type: "object",
@@ -330,7 +332,7 @@ async function seedVersionZeroOutbox(
   await database.close();
 }
 
-test("an outbox stored at schema version 0 opens and migrates to version 2", async () => {
+test("an outbox stored at schema version 0 opens and migrates to version 3", async () => {
   const name = uniqueName();
   await seedVersionZeroOutbox(name, v0Document());
 

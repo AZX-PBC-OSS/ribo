@@ -32,12 +32,20 @@ export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
  * needs no transformation. Revision 9 removed `canonicalAttachmentId` and
  * `step`, so the strategy no longer populates anything.
  *
+ * v2 → v3 added `preview` (optional) — identity, for the same reason: an absent
+ * optional field needs no transformation. `preview` is written only by
+ * `Outbox.writePreviewTail` / `Outbox.commitPreview` and deleted only by
+ * `Outbox.writeTranscript`, so pre-v3 documents simply have no preview, which is
+ * the correct state for a recording that was captured before live transcription
+ * existed.
+ *
  * Exported (rather than inlined into `addCollections`) so a test can exercise
  * the strategy function directly, independent of a real migration run.
  */
 export const OUTBOX_MIGRATION_STRATEGIES = {
   1: (doc: OutboxDocument) => doc,
   2: (doc: OutboxDocument) => doc,
+  3: (doc: OutboxDocument) => doc,
 };
 
 /**

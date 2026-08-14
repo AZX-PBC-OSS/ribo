@@ -1,4 +1,4 @@
-import type { Connectivity, Outbox, Recorder } from "@azx/ribo-core";
+import type { Connectivity, LiveTranscriber, Outbox, Recorder } from "@azx/ribo-core";
 import { createContext } from "react";
 
 import type { CaptureCoordinator } from "./capture-coordinator.js";
@@ -38,6 +38,17 @@ export interface RiboInstances {
   readonly outbox?: Outbox;
   readonly connectivity?: Connectivity;
   readonly captureCoordinator?: CaptureCoordinator;
+  /**
+   * Optional live transcription engine. When supplied and ready, recording
+   * opens a {@link LiveSession} whose `segments$` carries tail/commit
+   * distinctions to the outbox row — tails via `writePreviewTail`
+   * (provisional, replaced wholesale), commits via `commitPreview`
+   * (permanent, appended). The host owns the instance — the provider never
+   * constructs one — and the session lifecycle is driven by
+   * `recorder.start()`/`stop()` through the host's capture-session wiring,
+   * not by the hooks directly.
+   */
+  readonly liveTranscriber?: LiveTranscriber;
 }
 
 /** Empty rather than `undefined`, so "no provider" and "empty provider" fail identically. */

@@ -360,6 +360,14 @@ class QueueRelay implements Relay {
    */
   async #drain(): Promise<void> {
     for (;;) {
+      // Live needs the worker: do not admit new items while anything is recording.
+      // An in-flight item (already claimed by a previous iteration) runs to
+      // completion — this check is before the next `nextPending()` claim, not
+      // after `#processStep`, so the current item is never interrupted. Recording
+      // never waits (the recorder has no worker); the preview does.
+      const [recording] = await this.#options.outbox.list({ status: ["recording"], limit: 1 });
+      if (recording) return;
+
       const item = await this.#options.outbox.nextPending();
       if (!item) return;
       if (Date.parse(item.nextAttemptAt) > this.#now()) return;
@@ -457,13 +465,27 @@ class QueueRelay implements Relay {
       // `dropAudioAfterTranscription` is deliberately NOT applied here: a human
       // investigating a suspiciously empty transcript needs to listen to the
       // recording, and dropping the bytes would make that impossible.
-      await this.#patch(item.id, { transcript, status: "awaiting-review", attempts: 0 });
+      //
+      // Routed through `writeTranscript` rather than `patch` so that `preview`
+      // is deleted in the same committed revision — a subscriber never sees the
+      // provisional text beside the final transcript.
+      await this.#options.outbox.writeTranscript(item.id, transcript, {
+        status: "awaiting-review",
+        attempts: 0,
+      });
       return;
     }
-    // Persisted BEFORE the status moves on, so a crash between the two lands on
-    // "transcript present, status stale" — which `nextStep` reads correctly —
-    // rather than "status advanced, transcript lost".
-    await this.#patch(item.id, { transcript, status: "extracting", attempts: 0 });
+    // Transcript and status land in ONE revision, so there is no crash window between
+    // them. (This comment used to explain the ordering of two separate writes; they were
+    // combined into a single patch some time ago, and are now a single `incrementalModify`.)
+    //
+    // Routed through `writeTranscript` rather than `patch` so that `preview` is deleted in
+    // that same revision — a subscriber never sees the provisional text beside the final
+    // transcript, in either order.
+    await this.#options.outbox.writeTranscript(item.id, transcript, {
+      status: "extracting",
+      attempts: 0,
+    });
     if (this.#options.dropAudioAfterTranscription) {
       await this.#options.outbox.dropAudio(item.id);
     }

@@ -7,12 +7,12 @@
  * `?worker` import (vitejs/vite#15618). The `@azx/source` branch on this subpath points here at
  * source, so the playground can exercise the worker in-workspace without building `dist/` first.
  *
- * ## Task 2: priming, not inference
+ * ## Messages handled
  *
- * This worker currently handles one message — `prime` — which constructs the ASR pipeline. That
- * download-and-cache step is the whole of Task 2: it proves the model comes down with visible
- * progress and lands in the `transformers-cache` bucket. Inference on a `Float32Array` (the
- * `transcribe` message, {@link TranscribeWorkerRequest}) is Task 3.
+ * `prime` (constructs the ASR pipeline — download + cache), `transcribe` (batch
+ * inference on a `Float32Array`, {@link TranscribeWorkerRequest}), and the live
+ * conversation: `liveOpen`, `liveFeed`, `liveClose`. The live seam runs Silero VAD
+ * per frame and transcribes closed utterances with the same ASR pipeline.
  *
  * ## Why `@huggingface/transformers` is imported dynamically
  *
@@ -46,6 +46,8 @@ import {
   WHISPER_WINDOW_SECONDS,
 } from "./segmentation.js";
 import type { FrameGeometry, SampleRange } from "./segmentation.js";
+import { RegionVad, createSileroDetector } from "./vad-stream.js";
+import type { RegionFrameResult } from "./vad-stream.js";
 
 /** The subpath this module is published under — the stable name of the worker entry. */
 export const WORKER_ENTRY_NAME = "@azx/ribo-transcriber-ondevice/worker" as const;
@@ -448,6 +450,7 @@ async function transcribeChunk(
   pipeline: AsrPipeline,
   samples: Float32Array,
   prefix: readonly number[],
+  tokenBudgetOverride?: number,
 ): Promise<string> {
   const features = await pipeline.processor(samples);
   // `?? null` rather than `||`: an empty tensor is still the model's input, and coercing it away here
@@ -478,7 +481,11 @@ async function transcribeChunk(
     // Whisper is excluded deliberately: its config bounds generation already, and 6 tokens/s would
     // truncate IT. `input_values` is the discriminator — Whisper's extractor emits `input_features`.
     ...(waveformInput
-      ? { max_new_tokens: Math.max(1, Math.floor(samples.length / WHISPER_SAMPLE_RATE) * 6) }
+      ? {
+          max_new_tokens:
+            tokenBudgetOverride ??
+            Math.max(1, Math.floor(samples.length / WHISPER_SAMPLE_RATE) * 6),
+        }
       : {}),
     ...(prefix.length > 0 ? { decoder_input_ids: [...prefix] } : {}),
   });
@@ -558,6 +565,564 @@ async function transcribe(config: PrimeConfig, request: TranscribeWorkerRequest)
   });
 }
 
+// ── Live transcription (Task 3: the live seam) ───────────────────────────────
+//
+// The live conversation runs alongside `prime` and `transcribe` in this same worker.
+// Frames arrive at audio-callback rate (32 ms each); the worker runs Silero per frame,
+// and when an utterance closes, transcribes it with the same ASR pipeline the batch path
+// uses. ASR (refresh, commit, and close transcriptions) goes through the `serialize`
+// chain so it never interleaves with a batch `transcribe` call — transformers.js does
+// not support simultaneous inference in one worker, and this worker already serialises
+// its batch passes. The VAD feed deliberately does NOT go through `serialize` — see
+// the comment on `feedLiveFrame` for why that is load-bearing for load shedding.
+
+/**
+ * Worker-side state for one live session. Created on `liveOpen`, removed on
+ * `liveClose` (or when a `liveFeed` finds it missing — the close may have arrived
+ * while a feed was in flight).
+ *
+ * The `vad` field is a structural type matching {@link RegionVad}'s public
+ * surface, not `RegionVad` itself, so a test can inject a fake VAD via
+ * `injectLiveSession` without dynamic-importing transformers.js. The
+ * `transcribe` field bundles the pipeline-load + inference step so the
+ * per-region error boundary can catch a transcription failure without needing
+ * to know whether the pipeline was warm or cold — and so a test can inject a
+ * session with a fake `transcribe` without dynamic-importing transformers.js.
+ *
+ * `refreshInFlight` is the load-shedding flag: when `true`, a refresh
+ * transcription is running and new refreshes are skipped (not queued). See
+ * {@link feedLiveFrame} for why skipping a refresh is safe and skipping audio
+ * is not.
+ */
+interface LiveWorkerSession {
+  /**
+   * The region VAD — turns frames into refresh/commit events over a contiguous,
+   * unfiltered region buffer. A structural type, not `RegionVad` itself, so a
+   * test can inject a fake VAD via `injectLiveSession` without
+   * dynamic-importing transformers.js.
+   */
+  readonly vad: {
+    feed(frame: Float32Array): Promise<RegionFrameResult>;
+    drain(): Promise<Float32Array>;
+    readonly samples: Float32Array;
+    /** Trimmed speech-span samples for the refresh path's transcription input. Null = no speech. */
+    speechSpanSamples(): Float32Array | null;
+  };
+  /**
+   * Transcribe one region's samples. Bundles `getPipeline` + `transcribeChunk`
+   * so the caller's error boundary does not care which threw — both are
+   * per-region failures.
+   */
+  readonly transcribe: (samples: Float32Array) => Promise<string>;
+  /** Whether a refresh transcription is currently in flight — load shedding. */
+  refreshInFlight: boolean;
+  /**
+   * True when a commit transcription is queued or in-flight. New commits that
+   * arrive while this is `true` are **coalesced** into {@link pendingCommitSamples}
+   * rather than enqueuing a separate `serialize` call — see {@link feedLiveFrame}'s
+   * commit branch for why this bounds the queue without losing audio.
+   */
+  commitInFlight?: boolean;
+  /**
+   * Samples from commits that arrived while {@link commitInFlight} was `true`.
+   * The in-flight (or queued) commit transcription drains this buffer before it
+   * starts and after it finishes, so coalesced commits are transcribed together
+   * with the audio that preceded them. Consecutive regions are contiguous audio,
+   * so concatenating and transcribing once is equivalent to transcribing each
+   * separately — no text is lost. `null`/`undefined` = no pending commit.
+   */
+  pendingCommitSamples?: Float32Array | null;
+}
+
+/** Concatenate two `Float32Array`s into a new buffer. Used to coalesce queued commit samples. */
+function concatSamples(a: Float32Array, b: Float32Array): Float32Array {
+  const out = new Float32Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
+}
+
+/**
+ * Transcribe `samples` through `transcribe`, splitting into model-window-sized chunks first so no
+ * single call receives more than the model's receptive field.
+ *
+ * Reuses the batch path's `planFallbackChunks` — the same fixed-window march `transcribe` uses when
+ * VAD is unavailable. The live path's `session.transcribe` calls `transcribeChunk` directly (one
+ * inference pass over at most 30 s), which is correct for a single region but not for a **coalesced**
+ * commit buffer: `pendingCommitSamples` grows by unbounded concatenation, so on a slow device with
+ * sustained dictation three backed-up 30 s regions become a single 90 s call that exceeds the model's
+ * input window. Moonshine's reference caps at 30 s (`MAX_BUFFER_DURATION = 30`); behaviour beyond
+ * that is untested, and this model is already known to return empty text under conditions not fully
+ * understood.
+ *
+ * **The cap** is `WHISPER_WINDOW_SECONDS` (30 s) × `WHISPER_SAMPLE_RATE` (16 000) = 480 000 samples,
+ * matching `planFallbackChunks`'s window. When the coalesced buffer reaches the cap,
+ * `planFallbackChunks` splits it into overlapping windows (10 s overlap) and each is transcribed
+ * separately; the texts are joined with a space.
+ *
+ * **What the user sees:** all the text, as a single commit segment, with some duplicated words at
+ * chunk boundaries from the 10 s overlap. The duplication is the safe direction — a repeated phrase
+ * is harmless, a deleted one is not — and the live preview is provisional: the batch pass after
+ * `stop()` produces the final transcript without duplication. No audio's text is dropped.
+ *
+ * Not applied to the tail or close paths: those transcribe a single region bounded by
+ * `VAD_REGION_CAP_SECONDS` (30 s), so they never exceed the window.
+ */
+async function transcribeBounded(
+  transcribe: (samples: Float32Array) => Promise<string>,
+  samples: Float32Array,
+): Promise<string> {
+  const chunks = planFallbackChunks(samples.length, WHISPER_SAMPLE_RATE);
+  const texts: string[] = [];
+  for (const { start, end } of chunks) {
+    const text = await transcribe(samples.subarray(start, end));
+    if (text.length > 0) texts.push(text);
+  }
+  return texts.join(" ").trim();
+}
+
+/** Active live sessions, keyed by `sessionId`. */
+const liveSessions = new Map<string, LiveWorkerSession>();
+
+/**
+ * Session ids that received a `liveClose` before their `liveOpen` completed.
+ *
+ * `handleMessage` is async and does not await `openLiveSession` before processing the
+ * next message, so a `liveClose` can arrive while the Silero model is still loading.
+ * Without this set, the close finds nothing in `liveSessions`, returns, and the open
+ * later inserts a session that can never be closed — leaking a `RegionVad`, a Silero
+ * detector, and the main thread's message listener. This is not just a priming race:
+ * a user who stops recording immediately hits the same path.
+ *
+ * `openLiveSession` checks this set after inserting the session and, if the id is
+ * present, closes the session immediately so nothing leaks.
+ */
+const pendingCloses = new Set<string>();
+
+/** Clear all live sessions and pending closes — test cleanup. */
+export function clearLiveSessions(): void {
+  liveSessions.clear();
+  pendingCloses.clear();
+}
+
+/**
+ * Inject a live session directly into the session map — test-only.
+ *
+ * `handleMessage` for `liveOpen` dynamic-imports `@huggingface/transformers` via
+ * `createSileroDetector`, which pulls `onnxruntime-node` (unbuilt native addon) in node.
+ * Tests that need to exercise `feedLiveFrame`'s error handling inject a session with a
+ * `RegionVad` backed by a fake {@link ProbabilityDetector} and a fake `transcribe`
+ * function — no model loads, no browser.
+ */
+export function injectLiveSession(sessionId: string, session: LiveWorkerSession): void {
+  liveSessions.set(sessionId, session);
+}
+
+/**
+ * If a `liveClose` arrived before this session's `liveOpen` completed, close the
+ * session now and post `liveClosed`. Called by `openLiveSession` after inserting
+ * the session. Exported so the pending-close race can be tested in node without
+ * dynamic-importing transformers.js (which `openLiveSession` does via
+ * `createSileroDetector`).
+ *
+ * The session was just created and has no buffered frames, so `closeLiveSession`'s
+ * drain returns empty samples and takes the fast cleanup path — delete + post
+ * `liveClosed`. `liveOpened` was already posted before this call, so the main thread
+ * has created its `OnDeviceLiveSession` and installed the message listener that will
+ * receive `liveClosed`.
+ */
+export function processPendingClose(
+  sessionId: string,
+  post: (message: WorkerToMainMessage) => void,
+): void {
+  if (pendingCloses.delete(sessionId)) {
+    closeLiveSession(sessionId, post);
+  }
+}
+
+/**
+ * Create the Silero detector and the {@link RegionVad} for a new session.
+ * The detector dynamic-imports `@huggingface/transformers` inside
+ * {@link createSileroDetector} — the same deferred-load pattern as `getPipeline` —
+ * so this import does not pull `onnxruntime-node` into the node-side unit tests
+ * that import this module for routing alone.
+ */
+async function openLiveSession(
+  sessionId: string,
+  config: PrimeConfig,
+  post: (message: WorkerToMainMessage) => void,
+): Promise<void> {
+  try {
+    const detector = await createSileroDetector({
+      wasmPaths: config.wasmPaths,
+      ...(config.revision ? { revision: config.revision } : {}),
+    });
+    liveSessions.set(sessionId, {
+      vad: new RegionVad(detector),
+      // No jargon prefix for live — Moonshine (the default model) cannot be primed
+      // (`config.ts` / `moonshine-priming.manual.ts`), and live previews are provisional
+      // anyway: the batch pass after `stop()` replaces them entirely.
+      transcribe: (samples) =>
+        getPipeline(config).then(async (pipeline) => {
+          const text = await transcribeChunk(pipeline, samples, []);
+          // TEMP DIAGNOSTIC — DROP BEFORE MERGE. Three hypotheses for empty live output
+          // (silence ratio, amplitude, sample rate) were falsified by measurement. This
+          // discriminates the two remaining families: if the same buffer produces text with
+          // a large token budget, the fault is in how we call the model; if it stays empty,
+          // the fault is in the audio we hand it.
+          return text;
+        }),
+      refreshInFlight: false,
+      commitInFlight: false,
+      pendingCommitSamples: null,
+    });
+    post({ type: "liveOpened", sessionId });
+    // A `liveClose` may have arrived while the Silero model was loading —
+    // `handleMessage` does not await this function before processing the next
+    // message. If so, close the session now so it does not leak.
+    processPendingClose(sessionId, post);
+  } catch (error) {
+    post({ type: "liveError", sessionId, message: errorMessage(error) });
+    // The session was never created, so there is nothing to close. Drop the
+    // pending close so it does not outlive the session it was meant for.
+    pendingCloses.delete(sessionId);
+  }
+}
+
+/**
+ * Feed one frame to a live session's region VAD. On a refresh, transcribe the
+ * whole region and post the text as a provisional **tail**. On a commit,
+ * transcribe the committed samples and post the text as **committed**.
+ *
+ * ## Why the VAD feed does NOT go through `serialize`
+ *
+ * `RegionVad` has its own internal promise chain that serializes VAD (Silero)
+ * calls among themselves — two concurrent feeds would race the recurrent state
+ * tensor. But the VAD feed is deliberately NOT wrapped in `serialize`, so it
+ * does not chain with ASR (Moonshine) or batch `transcribe` calls. This is what
+ * makes load shedding possible: while a refresh transcription is running through
+ * `serialize`, the VAD can still process arriving frames, detect new refreshes,
+ * and skip them — keeping the region buffer current without blocking on the
+ * slow ASR call. If the VAD feed chained through `serialize`, every frame would
+ * queue behind the in-flight transcription, the VAD would fall behind by the
+ * ASR duration on every refresh, and `refreshInFlight` could never be `true`
+ * when a new refresh fired — load shedding would be dead code.
+ *
+ * What is guaranteed: `serialize` chains ASR-with-ASR and ASR-with-batch calls,
+ * which share one ORT session and must not interleave. `RegionVad`'s internal
+ * promise chain serializes VAD-with-VAD calls, protecting the recurrent state
+ * tensor.
+ *
+ * What is assumed, not guaranteed: VAD (Silero) and ASR (Moonshine) do not
+ * overlap. Their JS promise chains are independent, and the argument for safety
+ * rests on ORT WASM inference being synchronous and blocking — which is true for
+ * the WASM backend today. But this is a property of the backend, not of the
+ * runtime: `onnxruntime-web` can run asynchronously under WebGPU or threaded
+ * WASM, and `createSileroDetector` does not receive a `device` parameter, so it
+ * may select a different backend than the ASR pipeline (which can be configured
+ * for WebGPU). If both backends dispatch asynchronously, a VAD feed and an ASR
+ * call could be in flight simultaneously. This is a known risk, not a current
+ * bug: both pipelines use the WASM backend today, where inference blocks.
+ * Restructuring the concurrency model to make this guarantee explicit is
+ * deferred until a non-WASM backend is actually in use.
+ *
+ * ## Load shedding
+ *
+ * If a refresh comes due while a refresh transcription is already in flight,
+ * **skip it** — do not queue. Dropping a refresh costs one intermediate
+ * rendering of provisional text that is provisional anyway, and the region
+ * buffer is untouched, so the next refresh sees everything including the audio
+ * that arrived during the skip. A commit is never skipped: committed text is
+ * permanent, and the committed samples are a snapshot taken at the commit
+ * boundary, so delaying the transcription does not change what it transcribes.
+ * Never let backpressure touch the region buffer — losing audio is the exact
+ * failure revision 7 exists to eliminate.
+ *
+ * ## Two error boundaries, on purpose
+ *
+ * The outer `catch` handles **session-fatal** failures: the VAD threw. The VAD
+ * processes every frame, so if it is broken every subsequent frame will throw
+ * the same error and there is nothing to transcribe anyway — continuing is
+ * pointless. The session is deleted (later frames no-op on the map lookup) and
+ * the error is posted.
+ *
+ * The inner `catch` (in {@link transcribeAsTail} / {@link transcribeAsCommit})
+ * handles **per-region** failures: one `transcribe` call threw. A single failed
+ * region says nothing about the next one — a transient OOM or a one-off ORT
+ * error does not mean the remaining 30 minutes of an audit should lose their
+ * preview. The region is skipped, the error is posted, and the session stays
+ * alive so later frames can still produce text.
+ */
+function feedLiveFrame(
+  sessionId: string,
+  frame: Float32Array,
+  post: (message: WorkerToMainMessage) => void,
+): void {
+  const session = liveSessions.get(sessionId);
+  if (!session) return;
+
+  // VAD feed — through RegionVad's internal chain only, NOT through `serialize`.
+  // See the comment above for why this is load-bearing for load shedding.
+  session.vad
+    .feed(frame)
+    .then((result) => {
+      if (result.commit && result.transcriptionSamples) {
+        // Commit: always transcribe, never skip. The transcription samples are the
+        // committed region trimmed to its speech span — a snapshot taken at the
+        // commit boundary by the VAD, so the transcription sees exactly that audio
+        // regardless of when it runs. When transcriptionSamples is null the
+        // committed region had no speech (a cap-forced commit on noise), so there
+        // is nothing to transcribe and the call is skipped.
+        //
+        // ## Bounding the commit queue (the fix for unbounded backlog)
+        //
+        // `serialize` is a single unbounded promise chain. Without coalescing,
+        // every commit enqueues a separate closure that captures its region's
+        // `Float32Array` and waits behind every earlier commit. On a slow device
+        // (5–10 s per region) with continuous dictation (a commit every 15–30 s),
+        // the backlog compounds and the newest commit waits for the sum of all
+        // earlier durations — a ~10 s preview lag observed in the field.
+        //
+        // **The bound:** at most ONE commit transcription is in-flight or queued
+        // at a time. When a commit arrives while `commitInFlight` is already
+        // `true`, its samples are merged into `pendingCommitSamples` instead of
+        // enqueuing a new `serialize` call. The in-flight transcription drains
+        // `pendingCommitSamples` before it starts (merging anything that arrived
+        // while it was queued) and re-queues itself after it finishes if more
+        // commits arrived while it was running.
+        //
+        // **What the user loses:** individual commit boundaries. Two regions that
+        // would have been separate commit segments become one larger segment whose
+        // text is the transcription of their concatenated audio. The text is all
+        // there — consecutive regions are contiguous audio, so transcribing them
+        // together is equivalent to transcribing each separately and joining. The
+        // user would know this is happening because commit segments arrive less
+        // frequently and contain more text per segment during sustained dictation
+        // on a slow device.
+        //
+        // **Why this beats the alternatives:**
+        //   - **Shedding commits like refreshes** would silently lose real text —
+        //     this feature has produced that exact bug four separate times.
+        //   - **Back-pressuring the producer** would block the VAD feed, which
+        //     could lose audio — the exact failure this revision exists to
+        //     eliminate.
+        //   - **A cap that surfaces `liveError` when exceeded** would make the loss
+        //     visible, but the text is still lost. Coalescing loses nothing.
+        if (session.commitInFlight) {
+          session.pendingCommitSamples = session.pendingCommitSamples
+            ? concatSamples(session.pendingCommitSamples, result.transcriptionSamples)
+            : result.transcriptionSamples;
+        } else {
+          session.commitInFlight = true;
+          void transcribeAsCommit(sessionId, result.transcriptionSamples, post);
+        }
+      } else if (result.refresh) {
+        if (session.refreshInFlight) {
+          // Load shedding: skip this refresh. The region buffer is untouched —
+          // the next refresh will see everything including the audio that
+          // arrived during this skip. Dropping a refresh costs one intermediate
+          // rendering of provisional text; dropping audio is permanent.
+          return;
+        }
+        // Trim the region to its speech span for the transcription input. The
+        // region buffer itself is unchanged — only what we hand the model is
+        // trimmed. Null means the region has no speech, which should not happen
+        // here (the refresh is gated by the speech filter), but is handled
+        // defensively: no speech means no transcription call.
+        const samples = session.vad.speechSpanSamples();
+        if (samples === null) return;
+        session.refreshInFlight = true;
+        void transcribeAsTail(sessionId, samples, post);
+      }
+    })
+    .catch((error: unknown) => {
+      // Session-fatal: the VAD threw. Every future frame will hit the same
+      // failure, so continuing is pointless. Delete the session and surface
+      // the error.
+      liveSessions.delete(sessionId);
+      post({ type: "liveError", sessionId, message: errorMessage(error) });
+    });
+}
+
+/**
+ * Transcribe a region snapshot and post the result as a provisional **tail**.
+ * Goes through `serialize` so the ASR call does not interleave with a batch
+ * `transcribe` or a commit transcription — transformers.js does not support
+ * simultaneous inference in one worker.
+ *
+ * Sets `refreshInFlight = false` in the `finally` block, whether the
+ * transcription succeeded or failed, so the next refresh can proceed. A failed
+ * transcription is a per-region failure: the session stays alive and later
+ * refreshes still produce text.
+ */
+function transcribeAsTail(
+  sessionId: string,
+  samples: Float32Array,
+  post: (message: WorkerToMainMessage) => void,
+): void {
+  void serialize(async () => {
+    const session = liveSessions.get(sessionId);
+    if (!session) return;
+    try {
+      const text = await session.transcribe(samples);
+      if (text.length > 0) post({ type: "liveSegment", sessionId, kind: "tail", text });
+    } catch (error) {
+      // Per-region: skip this refresh, surface the error, keep the session alive.
+      post({ type: "liveError", sessionId, message: errorMessage(error) });
+    } finally {
+      const s = liveSessions.get(sessionId);
+      if (s) s.refreshInFlight = false;
+    }
+  });
+}
+
+/**
+ * Transcribe committed samples and post the result as **committed** text.
+ * Goes through `serialize` for the same reason as {@link transcribeAsTail}.
+ * A commit is never skipped by load shedding — committed text is permanent.
+ *
+ * ## Coalescing drain (the bounded-queue mechanism)
+ *
+ * Before transcribing, this function drains `pendingCommitSamples` — commits
+ * that arrived while this call was queued behind `serialize`. Their samples are
+ * concatenated onto the initial samples (they are contiguous audio, so the
+ * order is initial → pending) and transcribed in one pass.
+ *
+ * After transcribing, if more commits arrived during the `await`, the function
+ * re-queues itself through `serialize` with those samples. This keeps each
+ * commit transcription as a separate `serialize` entry (refreshes and batch
+ * transcribes can interleave between them) while never letting the queue grow
+ * beyond one pending entry. `commitInFlight` stays `true` across the re-queue
+ * so new commits continue to coalesce rather than starting parallel calls.
+ * An empty commit is posted, not silently dropped. On a commit the region buffer
+ * has already advanced, so an empty ASR result means that audio's text is gone
+ * from the preview with no trace — the exact silent-loss failure mode this feature
+ * produced four separate times. The preview is provisional and the batch pass after
+ * `stop()` recovers the text, but nothing else records that the commit happened.
+ * Posting the empty segment gives the host a signal: it knows a region was
+ * committed, can render a placeholder, and is not left guessing whether a segment
+ * was lost or simply never produced. (The tail path keeps the `text.length > 0`
+ * guard: an empty tail just means "no speech yet", and posting it would clear the
+ * previous tail.)
+ */
+function transcribeAsCommit(
+  sessionId: string,
+  initialSamples: Float32Array,
+  post: (message: WorkerToMainMessage) => void,
+): void {
+  void serialize(async () => {
+    const session = liveSessions.get(sessionId);
+    if (!session) return;
+    // Drain commits that coalesced while we were queued behind serialize.
+    // Order: initialSamples (the triggering commit) precedes pending (later commits).
+    let samples = initialSamples;
+    if (session.pendingCommitSamples) {
+      samples = concatSamples(samples, session.pendingCommitSamples);
+      session.pendingCommitSamples = null;
+    }
+    try {
+      const text = await transcribeBounded(session.transcribe, samples);
+      post({ type: "liveSegment", sessionId, kind: "commit", text });
+    } catch (error) {
+      // Per-region: skip this commit's text, surface the error, keep the session
+      // alive. The audio is durable — the batch pass after `stop()` recovers it.
+      post({ type: "liveError", sessionId, message: errorMessage(error) });
+    }
+    // If more commits arrived while we were transcribing, re-queue. This keeps
+    // the queue bounded at one pending entry while ensuring no commit is lost.
+    // commitInFlight stays true so new commits continue to coalesce into
+    // pendingCommitSamples rather than starting a parallel transcribeAsCommit.
+    const next = liveSessions.get(sessionId);
+    if (!next) return;
+    if (next.pendingCommitSamples) {
+      const more = next.pendingCommitSamples;
+      next.pendingCommitSamples = null;
+      void transcribeAsCommit(sessionId, more, post);
+    } else {
+      next.commitInFlight = false;
+    }
+  });
+}
+
+/**
+ * Handle `liveClose`: drain the region buffer, transcribe whatever remains, and
+ * post it as a **commit** — so the last region is never lost. Then remove the
+ * session and post `liveClosed` so the main thread knows the drain is finished
+ * and can tear down its subscription.
+ *
+ * `liveClosed` is posted in **every** exit path — empty drain, successful
+ * commit, transcription error, and VAD-drain error — so the host never waits
+ * for a signal that never comes. Without it the host has no way to know the
+ * worker is done: the Subject stays open forever and the subscription leaks, or
+ * the host guesses with a timer and either drops the flush or leaks.
+ *
+ * The drain goes through `RegionVad`'s internal chain, so it sees the buffer
+ * state after all pending VAD feeds complete. The transcription goes through
+ * `serialize`, so it chains after any in-flight refresh or commit transcription
+ * — the close's commit runs after the last refresh's tail, which is the correct
+ * order.
+ *
+ * Without this drain, speech right up to the moment the auditor pressed stop
+ * was silently dropped: the VAD commits only on a long-enough pause or the
+ * region cap, and continuous dictation never gives it 800 ms of silence.
+ */
+function closeLiveSession(sessionId: string, post: (message: WorkerToMainMessage) => void): void {
+  const session = liveSessions.get(sessionId);
+  if (!session) {
+    // The open may still be in flight — `openLiveSession` is async (it loads the
+    // Silero model), and `handleMessage` does not await it before processing the
+    // next message, so a `liveClose` can arrive before the session is inserted.
+    // This is not just a priming race: a user who stops recording immediately
+    // hits the same path. Record the pending close so `openLiveSession` can
+    // close the session once it lands. `liveClosed` is posted at that point, not
+    // here — the main thread has no `OnDeviceLiveSession` listener until
+    // `liveOpened` arrives, so posting `liveClosed` now would be lost.
+    pendingCloses.add(sessionId);
+    return;
+  }
+
+  // Drain through RegionVad's internal chain — waits for pending feeds, then
+  // returns and clears the region buffer.
+  session.vad
+    .drain()
+    .then((samples) => {
+      if (samples.length === 0) {
+        liveSessions.delete(sessionId);
+        post({ type: "liveClosed", sessionId });
+        return;
+      }
+      // Transcribe the drained region as a commit through `serialize` — chains
+      // after any in-flight transcription, so the close's commit is the last
+      // segment the host receives.
+      void serialize(async () => {
+        const s = liveSessions.get(sessionId);
+        if (!s) return;
+        try {
+          const text = await s.transcribe(samples);
+          // Always post, even when empty — see transcribeAsCommit for why an
+          // empty commit is recorded rather than silently dropped.
+          post({ type: "liveSegment", sessionId, kind: "commit", text });
+        } catch (error) {
+          // Per-region: the final region's transcription failed. The audio is
+          // durable — the batch pass after `stop()` recovers it. Surface the
+          // error and clean up.
+          post({ type: "liveError", sessionId, message: errorMessage(error) });
+        } finally {
+          liveSessions.delete(sessionId);
+          post({ type: "liveClosed", sessionId });
+        }
+      });
+    })
+    .catch((error: unknown) => {
+      // Session-fatal (VAD drain threw). The session is closing anyway — surface
+      // the error and clean up. The final region is lost, but the batch pass
+      // after `stop()` recovers it.
+      liveSessions.delete(sessionId);
+      post({ type: "liveError", sessionId, message: errorMessage(error) });
+      post({ type: "liveClosed", sessionId });
+    });
+}
+
 /**
  * Handle one main→worker message. Exported (rather than only wired to `onmessage`) so the routing is
  * unit-testable without a real `WorkerGlobalScope`. `post` is the worker's `postMessage`, injected.
@@ -584,6 +1149,18 @@ export async function handleMessage(
     } catch (error) {
       post({ type: "error", requestId, message: errorMessage(error) });
     }
+    return;
+  }
+  if (message.type === "liveOpen") {
+    await openLiveSession(message.sessionId, message.config, post);
+    return;
+  }
+  if (message.type === "liveFeed") {
+    feedLiveFrame(message.sessionId, message.frame, post);
+    return;
+  }
+  if (message.type === "liveClose") {
+    closeLiveSession(message.sessionId, post);
     return;
   }
 }

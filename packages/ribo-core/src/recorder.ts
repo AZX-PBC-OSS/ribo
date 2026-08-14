@@ -221,7 +221,38 @@ export interface RecorderOptions<C = EmptyContext> {
   }) => Promise<CaptureSession>;
   /** Timeslice for `MediaRecorder.start()` in durable mode. Defaults to 5000 ms. */
   readonly timesliceMs?: number;
+  /**
+   * Optional live-sample tap. When supplied, the same `getUserMedia` stream also feeds an
+   * `AudioWorklet` that emits **512-sample frames of 16 kHz mono PCM** — the frame size Silero VAD
+   * consumes. Without this callback, behaviour is byte-for-byte what it is today: the stream feeds
+   * only `MediaRecorder`, and no worklet is created.
+   *
+   * The tap is **best-effort**. If the worklet fails to load or throws, recording continues and the
+   * audio still reaches disk — a preview is a nicety, the audio is the product.
+   */
+  readonly onSamples?: (frame: Float32Array) => void;
+  /**
+   * Factory for the live sample tap. Defaults to an `AudioWorklet` loaded from this package's
+   * `./worklet` subpath (`new URL("./worklet.js", import.meta.url)`). Injectable so tests can
+   * supply a Blob-URL worklet and so a host can customise the audio graph. The returned teardown
+   * function is called by `stop()` and by every `#teardown` path.
+   *
+   * This is **not** a URL-injection option. The Vite library-mode worker bug (vitejs/vite#15618)
+   * that forced `createWorker` injection does not apply to `addModule(url)`, so there is no
+   * production need for a URL seam. The factory exists for testability, matching `getUserMedia`
+   * and `createRecorder`.
+   */
+  readonly createSampleTap?: (opts: SampleTapOptions) => Promise<SampleTapTeardown>;
 }
+
+/** Options passed to {@link RecorderOptions.createSampleTap}. */
+export interface SampleTapOptions {
+  readonly stream: MediaStream;
+  readonly onSamples: (frame: Float32Array) => void;
+}
+
+/** Teardown function returned by {@link RecorderOptions.createSampleTap}. */
+export type SampleTapTeardown = () => void;
 
 /** Everything that exists only for the duration of one capture. */
 interface Session {
@@ -241,6 +272,12 @@ interface Session {
    * commit and catastrophic for the one that did.
    */
   finalized?: boolean;
+  /**
+   * Teardown for the live sample tap, set once the worklet has finished loading.
+   * `undefined` until then — the `.then()` in `#beginSession` stores it, or calls
+   * it immediately if the session was already torn down by the time it fires.
+   */
+  teardownSampleTap?: SampleTapTeardown;
 }
 
 /**
@@ -295,6 +332,8 @@ export class Recorder<C = EmptyContext> {
       }) => Promise<CaptureSession>)
     | undefined;
   readonly #timesliceMs: number;
+  readonly #onSamples: ((frame: Float32Array) => void) | undefined;
+  readonly #createSampleTap: (opts: SampleTapOptions) => Promise<SampleTapTeardown>;
 
   readonly #listeners = new Set<(state: RecorderState) => void>();
   #phase: RecorderPhase = "idle";
@@ -330,6 +369,8 @@ export class Recorder<C = EmptyContext> {
         }) => Promise<CaptureSession>)
       | undefined;
     this.#timesliceMs = options.timesliceMs ?? 5000;
+    this.#onSamples = options.onSamples;
+    this.#createSampleTap = options.createSampleTap ?? defaultCreateSampleTap;
   }
 
   get phase(): RecorderPhase {
@@ -661,6 +702,33 @@ export class Recorder<C = EmptyContext> {
       ...meter,
       ticker: setInterval(() => this.#tick(), this.#tickMs),
     };
+
+    // Best-effort: a worklet failure must never stop capture. The setup is
+    // fire-and-forget — `start()` does not await it, so recording begins
+    // immediately regardless of how long `addModule` takes. If the session is
+    // torn down before the worklet finishes loading, the `.then()` sees
+    // `this.#session !== session` (cleared by `#teardown`) and calls the
+    // teardown itself — no leak.
+    if (this.#onSamples) {
+      // `Promise.resolve().then(...)` rather than calling the factory bare. The type says it returns
+      // a promise, but nothing enforces that on an injected one — and a SYNCHRONOUS throw from it
+      // would escape `#beginSession` into `start()`, which reports a misleading
+      // "The MediaRecorder could not be started." AND leaks the ticker forever, because
+      // `this.#session` was never assigned so `#teardown` never runs for this session. A capture that
+      // fails to start because a preview seam threw is the exact inversion of "live must never
+      // degrade recording".
+      Promise.resolve()
+        .then(async () => await this.#createSampleTap({ stream, onSamples: this.#onSamples! }))
+        .then((teardown) => {
+          if (this.#session === session) {
+            session.teardownSampleTap = teardown;
+          } else {
+            teardown();
+          }
+        })
+        .catch(() => undefined);
+    }
+
     return session;
   }
 
@@ -685,6 +753,21 @@ export class Recorder<C = EmptyContext> {
     this.#releaseLock?.();
     this.#releaseLock = undefined;
     clearInterval(session.ticker);
+    // Tear down the live sample tap — a worklet left on a dead stream is a leak
+    // the existing teardown tests do not cover. When the setup has not yet
+    // completed (`teardownSampleTap` still `undefined`), the `.then()` in
+    // `#beginSession` will call the teardown itself once it fires, because
+    // `this.#session` is already `undefined` by then.
+    // Guarded, and `releaseStream` is what it protects. A host-supplied teardown that throws
+    // synchronously would otherwise skip the line below and leave the microphone open with the
+    // browser's recording indicator lit — the privacy failure this file's header singles out, caused
+    // by an optional preview feature. The default teardown cannot throw synchronously; an injected
+    // one can.
+    try {
+      session.teardownSampleTap?.();
+    } catch {
+      /* a failed tap teardown must not cost us the microphone */
+    }
     releaseStream(session.stream);
     void session.audioContext?.close().catch(() => undefined);
     this.#session = undefined;
@@ -759,4 +842,87 @@ const rootMeanSquare = (samples: Uint8Array): number => {
     sum += centered * centered;
   }
   return Math.min(1, Math.sqrt(sum / samples.length));
+};
+
+/**
+ * The sample rate the live path operates at — Silero VAD's frame rate.
+ *
+ * The `AudioContext` is constructed at this rate so the browser resamples the
+ * `MediaStream` to 16 kHz before the worklet sees it. No resampling in the
+ * worklet.
+ */
+const LIVE_SAMPLE_RATE = 16000;
+
+/** Matches the name in `worklet.ts`'s `registerProcessor` call. */
+const PCM_PROCESSOR_NAME = "pcm-frame-processor";
+
+/**
+ * Default sample-tap factory: loads the `AudioWorklet` from this package's
+ * `./worklet` subpath and wires it to `onSamples`.
+ *
+ * `new URL("./worklet.js", import.meta.url)` passes through the build verbatim
+ * (tsdown deliberately omits `experimental.resolveNewUrlToAsset` — see
+ * `@azx/build-config`). A consumer's bundler statically analyses the
+ * `new URL(..., import.meta.url)` pattern and emits `worklet.js` as a separate
+ * asset, exactly as `@azx/ribo-transcriber-ondevice`'s `./worker` entry already
+ * does.
+ *
+ * **In-workspace, this default does not load, and the source file is named for that reason.** A
+ * relative `new URL` involves no module resolution at all, so the `@azx/source` condition on the
+ * `./worklet` subpath does not redirect it: under `@azx/source` this module is served from `src/`, and
+ * the URL resolves to `src/worklet.js` — a file that does not exist, because the source is TypeScript.
+ * The failure is swallowed below, so recording is unaffected and the preview is simply silent. Keeping
+ * the source basename `worklet.ts` matches the `./worker` precedent (`src/worker.ts` ↔
+ * `dist/worker.js`) and leaves a bundler's `.js`→`.ts` probing its only chance of working; that
+ * probing is unproven here, and nothing in this repo has ever exercised it — the playground injects
+ * `createWorker` for the same reason. **A workspace host that wants live frames must inject
+ * `createSampleTap`.**
+ *
+ * The worklet is a **tap**, not a sink: the `AudioWorkletNode` is not connected
+ * to `audioContext.destination` — it produces no audible output. A
+ * `MediaStreamSource` drives the node, so `process()` fires whether or not the
+ * node is connected to the destination (unlike an `OscillatorNode`, which has
+ * no external driver and would need a destination connection to run).
+ */
+const defaultCreateSampleTap = async ({
+  stream,
+  onSamples,
+}: SampleTapOptions): Promise<SampleTapTeardown> => {
+  const audioContext = new AudioContext({ sampleRate: LIVE_SAMPLE_RATE });
+  try {
+    await audioContext.audioWorklet.addModule(new URL("./worklet.js", import.meta.url).href);
+  } catch (error) {
+    void audioContext.close().catch(() => undefined);
+    throw error;
+  }
+  let node: AudioWorkletNode;
+  try {
+    // Inside a `try` because this throws when the processor name does not match the one the module
+    // registered — a drift this file cannot type-check, since the name lives in a string on both
+    // sides. Outside the `try`, that drift leaked an open `AudioContext` per start.
+    node = new AudioWorkletNode(audioContext, PCM_PROCESSOR_NAME);
+  } catch (error) {
+    void audioContext.close().catch(() => undefined);
+    throw error;
+  }
+  // The context can start suspended when a browser refuses audio without a gesture. The level meter
+  // in this same file resumes for exactly that reason; without the parity the tap is silently dead
+  // while everything reports healthy.
+  void audioContext.resume().catch(() => undefined);
+  node.port.onmessage = (event) => {
+    // Guarded because this runs on the main thread at ~31 Hz. An `onSamples` that throws would
+    // otherwise emit an uncaught error per frame — it cannot stop capture (`dataavailable` is a
+    // separate dispatch) but it can drown the console and the main thread the recorder shares.
+    try {
+      onSamples(event.data as Float32Array);
+    } catch {
+      /* the caller's callback is the caller's problem; capture is not */
+    }
+  };
+  audioContext.createMediaStreamSource(stream).connect(node);
+  return () => {
+    node.port.close();
+    node.disconnect();
+    void audioContext.close().catch(() => undefined);
+  };
 };

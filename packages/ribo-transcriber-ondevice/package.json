@@ -40,7 +40,8 @@
   },
   "dependencies": {
     "@azx/ribo-core": "workspace:^",
-    "@huggingface/transformers": "catalog:"
+    "@huggingface/transformers": "catalog:",
+    "rxjs": "catalog:"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "catalog:",
