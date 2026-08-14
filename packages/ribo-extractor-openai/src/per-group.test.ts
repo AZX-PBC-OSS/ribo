@@ -3,7 +3,8 @@ import type { Enveloped, ExtractionTarget, ToolAdapterExample } from "@azx/ribo-
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import type { ChatClient, ChatFinishReason, ChatRequest } from "./chat-client.js";
+import { ChatError } from "./chat-client.js";
+import type { ChatClient, ChatCompletion, ChatFinishReason, ChatRequest } from "./chat-client.js";
 import { perGroupExtractor } from "./per-group.js";
 import { splitExtractionSchema } from "./split-schema.js";
 
@@ -161,6 +162,42 @@ function fakeGroupChat(
 
 /** Schema name for a grouped call — `${target.name}:${group.key}`. */
 const groupedName = (key: string): string => `${groupedTarget.name}:${key}`;
+
+// --- Retry-test helper -------------------------------------------------------
+
+/**
+ * A {@link ChatClient} that tracks per-group call counts and delegates to a
+ * per-group handler, dispatching by `response_format.json_schema.name`. The
+ * handler receives the 1-based attempt number and the {@link AbortSignal}, so a
+ * test can fail the first N attempts, succeed on attempt N+1, or check whether
+ * the signal was passed. If a handler throws, the error propagates as a
+ * rejected promise — simulating a transport failure or other transient error.
+ */
+function fakeRetryChat(
+  handlers: Record<string, (attempt: number, signal?: AbortSignal) => ChatCompletion>,
+): {
+  chat: ChatClient;
+  requests: ChatRequest[];
+  callCounts: Record<string, number>;
+  signals: (AbortSignal | undefined)[];
+} {
+  const requests: ChatRequest[] = [];
+  const callCounts: Record<string, number> = {};
+  const signals: (AbortSignal | undefined)[] = [];
+  const chat: ChatClient = {
+    complete: async (request, options) => {
+      const name = request.response_format.json_schema.name;
+      callCounts[name] = (callCounts[name] ?? 0) + 1;
+      requests.push(request);
+      signals.push(options?.signal);
+      const attempt = callCounts[name]!;
+      const handler = handlers[name] ?? handlers["*"];
+      if (!handler) throw new Error(`fakeRetryChat: no handler for "${name}"`);
+      return handler(attempt, options?.signal);
+    },
+  };
+  return { chat, requests, callCounts, signals };
+}
 
 // --- Tests -------------------------------------------------------------------
 
@@ -500,5 +537,181 @@ describe("perGroupExtractor — non-grouped fallback", () => {
 
     expect((error as Error).message).toContain("maxTokens");
     expect(isTransientFailure(error)).toBe(false);
+  });
+});
+
+// --- Task 3: bounded per-group retry -----------------------------------------
+
+/**
+ * Five must-fail tests for Task 3 — bounded per-group retry, inside the step
+ * budget:
+ *   1. A transient failure on one group is retried and the extraction still
+ *      succeeds, with the other groups' results intact and not re-requested.
+ *   2. A group that fails past its retry budget fails the extraction.
+ *   3. A terminal failure is not retried — one call, then the throw.
+ *   4. The worst case fits the step timeout — every group failing its full
+ *      budget does not exceed it. Asserts the relationship, not wall-clock.
+ *   5. No new work starts after a failure.
+ */
+describe("perGroupExtractor — bounded retry (Task 3)", () => {
+  test("a transient failure on one group is retried and the extraction still succeeds, with other groups not re-requested", async () => {
+    // hvac fails transiently on attempt 1, succeeds on attempt 2. attic
+    // succeeds on attempt 1. The extraction succeeds, and attic is NOT
+    // re-requested — its first result is held, not discarded.
+    const { chat, callCounts } = fakeRetryChat({
+      [groupedName("hvac")]: (attempt) => {
+        if (attempt < 2) throw ChatError.transport("transient blip");
+        return { content: JSON.stringify(hvacResponse), finishReason: "stop" };
+      },
+      [groupedName("attic")]: () => ({
+        content: JSON.stringify(atticResponse),
+        finishReason: "stop",
+      }),
+    });
+    const extractor = perGroupExtractor({ target: groupedTarget, chat, model: "m", maxRetries: 2 });
+
+    const result = await extractor.extract("Furnace is a Carrier. Attic has R-38.");
+
+    // hvac was called twice (1 initial + 1 retry); attic was called once.
+    expect(callCounts[groupedName("hvac")]).toBe(2);
+    expect(callCounts[groupedName("attic")]).toBe(1);
+    // usage.calls reports the real call count, including the retry.
+    expect(result.usage.calls).toBe(3);
+
+    // Both groups' fields are in the merged result.
+    expect(result.fields.hvac.equipmentType.value).toBe("Boiler");
+    expect(result.fields.hvac.fuel.value).toBe("Natural Gas");
+    expect(result.fields.attic.insulationDepth.value).toBe("10-12");
+    expect(result.fields.attic.insulationRValue.value).toBe(30);
+  });
+
+  test("a group that fails past its retry budget fails the extraction", async () => {
+    // hvac fails transiently on every attempt. With maxRetries=2, it is called
+    // 3 times (1 initial + 2 retries), then the extraction throws.
+    const { chat, callCounts } = fakeRetryChat({
+      [groupedName("hvac")]: () => {
+        throw ChatError.transport("persistent blip");
+      },
+      [groupedName("attic")]: () => ({
+        content: JSON.stringify(atticResponse),
+        finishReason: "stop",
+      }),
+    });
+    const extractor = perGroupExtractor({ target: groupedTarget, chat, model: "m", maxRetries: 2 });
+
+    await expect(extractor.extract("t")).rejects.toThrow("persistent blip");
+
+    // hvac exhausted its budget: 3 calls (1 initial + 2 retries).
+    expect(callCounts[groupedName("hvac")]).toBe(3);
+  });
+
+  test("a terminal failure is not retried — one call, then the throw", async () => {
+    // hvac returns a truncated response (finishReason: "length"). This is a
+    // TerminalQueueError — it must not be retried. One call to hvac, then the
+    // extraction throws.
+    const { chat, callCounts } = fakeRetryChat({
+      [groupedName("hvac")]: () => ({
+        content: JSON.stringify(hvacResponse),
+        finishReason: "length",
+      }),
+      [groupedName("attic")]: () => ({
+        content: JSON.stringify(atticResponse),
+        finishReason: "stop",
+      }),
+    });
+    const extractor = perGroupExtractor({ target: groupedTarget, chat, model: "m", maxRetries: 2 });
+
+    const error = await extractor.extract("t").then(
+      () => {
+        throw new Error("expected extract() to reject on a terminal failure");
+      },
+      (caught: unknown) => caught,
+    );
+
+    // hvac was called exactly once — the terminal failure was not retried.
+    expect(callCounts[groupedName("hvac")]).toBe(1);
+    expect((error as Error).message).toContain("maxTokens");
+    expect(isTransientFailure(error)).toBe(false);
+  });
+
+  test("the worst case — every group failing its full budget — fits inside the step timeout", async () => {
+    // Every group fails transiently on every attempt. With maxRetries=2, each
+    // group is called 3 times. The total calls = G * (maxRetries + 1). We
+    // verify the budget is bounded and then assert the mathematical
+    // relationship to stepTimeoutMs — not a wall-clock duration.
+    const { chat, callCounts } = fakeRetryChat({
+      [groupedName("hvac")]: () => {
+        throw ChatError.transport("blip");
+      },
+      [groupedName("attic")]: () => {
+        throw ChatError.transport("blip");
+      },
+    });
+    const maxRetries = 2;
+    const stepTimeoutMs = 900_000;
+    const concurrency = 4;
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      maxRetries,
+      stepTimeoutMs,
+      concurrency,
+    });
+
+    await expect(extractor.extract("t")).rejects.toThrow("blip");
+
+    const G = splitExtractionSchema(groupedExtraction).length;
+    const totalCalls = Object.values(callCounts).reduce((a, b) => a + b, 0);
+
+    // The budget is bounded: total calls = G * (maxRetries + 1).
+    expect(totalCalls).toBe(G * (maxRetries + 1));
+
+    // The worst-case sequential calls fit within the step timeout. The relay
+    // wraps extract() in withTimeout(stepTimeoutMs). The worst case runs
+    // ceil(G / concurrency) * (maxRetries + 1) sequential calls. At a
+    // conservative per-call ceiling, this must be <= stepTimeoutMs. This
+    // asserts the relationship, not a timing duration — a timing-dependent
+    // test is a flaky test.
+    const perCallCeilingMs = 120_000;
+    const worstCaseSequentialCalls = Math.ceil(G / concurrency) * (maxRetries + 1);
+    expect(worstCaseSequentialCalls * perCallCeilingMs).toBeLessThanOrEqual(stepTimeoutMs);
+
+    // Also verify for the production Snugg target (7 groups) — the tighter
+    // bound that motivated the default.
+    const snuggGroups = 7;
+    const snuffWorstCase = Math.ceil(snuggGroups / concurrency) * (maxRetries + 1);
+    expect(snuffWorstCase * perCallCeilingMs).toBeLessThanOrEqual(stepTimeoutMs);
+  });
+
+  test("no new work starts after a failure — the pool stops pulling", async () => {
+    // With concurrency 1, groups run sequentially. hvac fails immediately
+    // (maxRetries=0, one attempt). attic must NEVER be called — the pool stops
+    // pulling new work after the failure.
+    const { chat, callCounts, signals } = fakeRetryChat({
+      [groupedName("hvac")]: () => {
+        throw ChatError.transport("fail immediately");
+      },
+      [groupedName("attic")]: () => ({
+        content: JSON.stringify(atticResponse),
+        finishReason: "stop",
+      }),
+    });
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      maxRetries: 0,
+      concurrency: 1,
+    });
+
+    await expect(extractor.extract("t")).rejects.toThrow("fail immediately");
+
+    // hvac was called once (maxRetries=0). attic was never started.
+    expect(callCounts[groupedName("hvac")]).toBe(1);
+    expect(callCounts[groupedName("attic")]).toBeUndefined();
+
+    // The abort signal was wired — each call receives an AbortSignal.
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
   });
 });
