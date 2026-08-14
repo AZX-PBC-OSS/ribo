@@ -17,9 +17,10 @@
  * on the other lobe (see "sanctioned" below); this is NOT a hallucination and is reported under
  * enum-mapping, not under the hallucination section.
  *
- * A ground-truth file with no "leaves" key is the OLD (pre-rebuild) format — 13 of the 14 corpus
- * transcripts are still in it, pending the 26-way parallel re-annotation this rewrite gates. Those
- * are reported as PENDING RE-ANNOTATION, not scored and not crashed on.
+ * A ground-truth file with no "leaves" key is the OLD (pre-rebuild) format. All 14 corpus
+ * transcripts have been re-annotated into the new format; the `isNewFormat` check remains as a
+ * safety guard so a stale old-format file is reported as PENDING RE-ANNOTATION rather than
+ * crashing the run.
  *
  * Robustness: a missing/unparseable/malformed result is scored EXACTLY as if the extractor had
  * emitted an empty object — every GT-non-null leaf becomes a real, counted miss (never a silent

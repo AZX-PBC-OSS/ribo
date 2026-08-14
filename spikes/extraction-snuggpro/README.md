@@ -5,17 +5,18 @@ Pro capture model instead of an invented one. The question is: can a
 single schema-constrained LLM call pull an auditor's dictation into a fixed field set without
 inventing the parts that were never said? What matters here is the schema — and the schema is the point.
 
-> **Ground truth is being re-annotated (track-b0).** `schema.ts`, `prompt.md` and `normalization.md`
-> in this directory still describe the PRE-REBUILD field set — 23 flat snake_case fields plus an
-> 11-test `healthSafety` object. The real authority is now
-> [`packages/ribo-adapter-snuggpro/src/schema.ts`](../../packages/ribo-adapter-snuggpro/src/schema.ts)
-> (51 leaves under 7 resource groups, the API's own literal enum strings). `ground-truth/`,
-> `score.mjs` and `score.test.mjs` have been rebuilt against the real schema — see
-> [`ground-truth-format.md`](ground-truth-format.md) for the new, vocabulary-neutral ground-truth
-> format and its rationale, and [`ANNOTATOR_GUIDE.md`](ANNOTATOR_GUIDE.md) for how to re-annotate a
-> transcript. `schema.ts`/`prompt.md`/`normalization.md`/the extraction-running instructions below
-> are **not yet updated** for the new schema — that is a separate, follow-on task; the four hazards
-> they describe are still real, but the field names, enum members and test count they quote are the
+> **Ground truth has been re-annotated (track-b0 complete).** All 14 corpus transcripts now have
+> ground-truth files in the vocabulary-neutral `leaves` format described in
+> [`ground-truth-format.md`](ground-truth-format.md) and [`ANNOTATOR_GUIDE.md`](ANNOTATOR_GUIDE.md).
+> `schema.ts`, `prompt.md` and `normalization.md` in this directory still describe the PRE-REBUILD
+> field set — 23 flat snake_case fields plus an 11-test `healthSafety` object. The real authority
+> is now [`packages/ribo-adapter-snuggpro/src/schema.ts`](../../packages/ribo-adapter-snuggpro/src/schema.ts)
+> (51 leaves under 7 resource groups, the API's own literal enum strings). `score.mjs` and
+> `score.test.mjs` have been rebuilt against the real schema — see
+> [`ground-truth-format.md`](ground-truth-format.md) for the format and its rationale.
+> `schema.ts`/`prompt.md`/`normalization.md`/the extraction-running instructions below are **not
+> yet updated** for the new schema — that is a separate, follow-on task; the four hazards they
+> describe are still real, but the field names, enum members and test count they quote are the
 > old ones. Do not hand a model `schema.ts` from this directory expecting new-schema output.
 
 ## Why the schema is the point
@@ -265,10 +266,10 @@ plainly and do not build review-card flagging on the number. The deterministic f
 | `ground-truth-format.md`    | **The vocabulary-neutral ground-truth format and its rationale** — read this before annotating                                                                             |
 | `ANNOTATOR_GUIDE.md`        | **How to re-annotate one transcript** — span rules, retraction, group-negation, the health matrix                                                                          |
 | `schema-leaves.mjs`         | Introspects the REAL adapter schema for the leaf list + both enum vocabularies — the resolver                                                                              |
-| `ground-truth.mjs`          | The new format's runtime shape check; `isNewFormat` distinguishes new vs. the 13 still-old files                                                                           |
+| `ground-truth.mjs`          | The new format's runtime shape check; `isNewFormat` distinguishes new vs. old format files (all 14 are now new)                                                          |
 | `validate-ground-truth.mjs` | CLI: `node validate-ground-truth.mjs ground-truth/NN-slug.json` — run this before submitting                                                                               |
 | `transcripts/`              | Synthetic auditor dictations — **authored by a different agent** (not built here)                                                                                          |
-| `ground-truth/`             | Expected values, in the NEW format for `11-ambiguous-attic` only; the other 13 are pending re-annotation                                                                   |
+| `ground-truth/`             | Expected values, all 14 in the new `leaves` format                                                                                                                        |
 | `results/<model>/`          | Raw extraction output, one file per transcript (not committed); predates the schema rebuild — stale until re-run                                                           |
 
 Nothing here is production code; nothing is imported by a package. Once the accuracy harness exists
