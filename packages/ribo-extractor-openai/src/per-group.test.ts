@@ -716,8 +716,20 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
       [tripledName("hvac")]: () => {
         throw ChatError.transport("fail immediately");
       },
-      [tripledName("attic")]: () => ({ content: "{}", finishReason: "stop" }),
-      [tripledName("wall")]: () => ({ content: "{}", finishReason: "stop" }),
+      [tripledName("attic")]: () => ({
+        content: JSON.stringify({
+          attic: {
+            insulationDepth: { value: "10-12", confidence: 0.9, sourceSpan: "about ten inches" },
+          },
+        }),
+        finishReason: "stop",
+      }),
+      [tripledName("wall")]: () => ({
+        content: JSON.stringify({
+          wall: { rValue: { value: 13, confidence: 0.9, sourceSpan: "R-13" } },
+        }),
+        finishReason: "stop",
+      }),
     });
     const extractor = perGroupExtractor({
       target: tripledTarget,
