@@ -266,10 +266,10 @@ plainly and do not build review-card flagging on the number. The deterministic f
 | `ground-truth-format.md`    | **The vocabulary-neutral ground-truth format and its rationale** — read this before annotating                                                                             |
 | `ANNOTATOR_GUIDE.md`        | **How to re-annotate one transcript** — span rules, retraction, group-negation, the health matrix                                                                          |
 | `schema-leaves.mjs`         | Introspects the REAL adapter schema for the leaf list + both enum vocabularies — the resolver                                                                              |
-| `ground-truth.mjs`          | The new format's runtime shape check; `isNewFormat` distinguishes new vs. old format files (all 14 are now new)                                                          |
+| `ground-truth.mjs`          | The new format's runtime shape check; `isNewFormat` distinguishes new vs. old format files (all 14 are now new)                                                            |
 | `validate-ground-truth.mjs` | CLI: `node validate-ground-truth.mjs ground-truth/NN-slug.json` — run this before submitting                                                                               |
 | `transcripts/`              | Synthetic auditor dictations — **authored by a different agent** (not built here)                                                                                          |
-| `ground-truth/`             | Expected values, all 14 in the new `leaves` format                                                                                                                        |
+| `ground-truth/`             | Expected values, all 14 in the new `leaves` format                                                                                                                         |
 | `results/<model>/`          | Raw extraction output, one file per transcript (not committed); predates the schema rebuild — stale until re-run                                                           |
 
 Nothing here is production code; nothing is imported by a package. Once the accuracy harness exists

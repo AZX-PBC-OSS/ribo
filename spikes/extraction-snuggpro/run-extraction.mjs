@@ -60,11 +60,19 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
-const ADAPTER_DIST = join(HERE, "..", "..", "packages", "ribo-adapter-snuggpro", "dist", "index.js");
+const ADAPTER_DIST = join(
+  HERE,
+  "..",
+  "..",
+  "packages",
+  "ribo-adapter-snuggpro",
+  "dist",
+  "index.js",
+);
 const EXTRACTOR_DIST = join(
   HERE,
   "..",
@@ -264,7 +272,9 @@ function parseArgs(argv) {
     else if (a === "--strategy") {
       const v = argv[++i];
       if (v !== "single-shot" && v !== "per-group") {
-        console.error(`run-extraction.mjs: --strategy must be "single-shot" or "per-group", got "${v}"`);
+        console.error(
+          `run-extraction.mjs: --strategy must be "single-shot" or "per-group", got "${v}"`,
+        );
         process.exit(1);
       }
       opts.strategies = [v];

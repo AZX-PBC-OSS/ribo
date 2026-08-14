@@ -19,7 +19,7 @@
  * Exit non-zero if any assertion fails.
  */
 
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -138,7 +138,7 @@ async function testShape() {
   const out = makeTmpDir("shape");
   try {
     const chat = fakeChat();
-    const manifests = await runExtraction({
+    await runExtraction({
       chat,
       model: "fake-model",
       outputDir: out,
@@ -200,7 +200,10 @@ async function testShape() {
             break;
           }
         }
-        check(`${strategyName}: ${slug} every leaf has {value, confidence, sourceSpan}`, allEnvelopesOk);
+        check(
+          `${strategyName}: ${slug} every leaf has {value, confidence, sourceSpan}`,
+          allEnvelopesOk,
+        );
       }
 
       // Per-group should make more calls per transcript than single-shot
@@ -257,7 +260,10 @@ async function testResume() {
     });
 
     const entries2 = manifest2[strategy]?.transcripts ?? [];
-    check("resume: all entries are 'skipped'", entries2.every((t) => t.status === "skipped"));
+    check(
+      "resume: all entries are 'skipped'",
+      entries2.every((t) => t.status === "skipped"),
+    );
     check(`resume: ${SLUGS.length} skipped entries`, entries2.length === SLUGS.length);
 
     // Files unchanged
@@ -283,7 +289,10 @@ async function testResume() {
     });
 
     const entries3 = manifest3[strategy]?.transcripts ?? [];
-    check("force: all entries are 'ok'", entries3.every((t) => t.status === "ok"));
+    check(
+      "force: all entries are 'ok'",
+      entries3.every((t) => t.status === "ok"),
+    );
     check(`force: ${SLUGS.length} ok entries`, entries3.length === SLUGS.length);
   } finally {
     rmSync(out, { recursive: true, force: true });
@@ -325,7 +334,10 @@ async function testIsolation() {
 
       // The failed transcript is recorded as "failed" in the manifest
       const failedEntry = entries.find((t) => t.slug === failSlug);
-      check(`${strategyName}: ${failSlug} manifest status is "failed"`, failedEntry?.status === "failed");
+      check(
+        `${strategyName}: ${failSlug} manifest status is "failed"`,
+        failedEntry?.status === "failed",
+      );
       check(
         `${strategyName}: ${failSlug} manifest has error message`,
         typeof failedEntry?.error === "string" && failedEntry.error.length > 0,
