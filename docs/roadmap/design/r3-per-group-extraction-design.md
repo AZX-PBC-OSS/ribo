@@ -24,8 +24,29 @@ fields — the wording a Snugg Pro user reads in their UI, which `scripts/snugg-
 exists to keep anchored to theirs, composed as vendor-definition-then-our-prohibition ("never ACH50,
 never CFM25"). The model currently never sees any of it.
 
-**That lever is spent.** 19,295 of 32,768 is 59% of the cap _after_ the only large saving available.
-The schema grows with every vendor field, and R1.6 will grow it further.
+**That lever is spent, and the cheaper alternatives were measured and do not work.** 19,301 of
+32,768 is 59% of the cap _after_ the only large saving available. Three cheaper fixes were tried
+before designing this:
+
+| attempt                                     |  bytes | vs 32,768 cap |
+| ------------------------------------------- | -----: | ------------: |
+| descriptions as generated                   | 39,741 |        +6,973 |
+| `z.toJSONSchema({ reused: "ref" })`         | 39,489 |        +6,721 |
+| …plus hoisting the 13×-repeated description | 33,959 |        +1,191 |
+
+The middle row is small because zod's `reused` keys on schema _identity_, and the thirteen `health`
+test fields are thirteen separate instances that happen to carry the same text — so they inline
+thirteen copies. Hoisting them to one shared instance recovers 5,530 bytes, the largest single saving
+in the schema, **and it still does not fit.** Anything that did squeak under would hold roughly 1%
+headroom, which one new vendor field erases.
+
+Moving descriptions into the system prompt was also considered. It is smaller than it looks — the
+vendor text is 7,161 bytes across 32 fields, averaging 223 each — and generating a glossary from
+`descriptions.generated.ts` carries no drift risk. It is rejected on binding, not size: in the schema
+a description sits on the field the model is emitting, while in a prompt it is a lookup performed
+while filling 51 fields.
+
+Splitting is what actually fits. See §7 for the measured per-group sizes.
 
 **Small models fare better on small schemas.** The original motivation, unchanged: a per-group call
 is a smaller, more focused task than filling 51 fields at once, which matters most for the offline
