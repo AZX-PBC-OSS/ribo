@@ -204,7 +204,7 @@ describe("perGroupExtractor — N groups produce N calls", () => {
     expect((result.raw as Record<string, unknown>).attic).toBeDefined();
   });
 
-  test("every group gets the same messages — instructions, examples, then transcript last", async () => {
+  test("without groupInstructions, every group gets the same messages — instructions, examples, then transcript last", async () => {
     const { chat, requests } = fakeGroupChat({
       [groupedName("hvac")]: JSON.stringify(hvacResponse),
       [groupedName("attic")]: JSON.stringify(atticResponse),
@@ -212,10 +212,10 @@ describe("perGroupExtractor — N groups produce N calls", () => {
     const transcript = "Furnace is a Carrier, natural gas. Attic has R-38.";
     await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract(transcript);
 
-    // Both requests carry the SAME messages — the target's instructions and
-    // examples unchanged, with the transcript last. Task 4 makes prompts
-    // per-group; this task sends the full prompt and pins only the response
-    // schema.
+    // Without `groupInstructions`, both requests carry the SAME messages — the
+    // target's full instructions and unprojected examples, with the transcript
+    // last. This is today's behaviour (R3 Task 2); Task 4's per-group prompts are
+    // opt-in via `groupInstructions`.
     for (const req of requests) {
       expect(req.messages).toEqual([
         { role: "system", content: groupedTarget.instructions },
@@ -224,6 +224,57 @@ describe("perGroupExtractor — N groups produce N calls", () => {
         { role: "user", content: transcript },
       ]);
     }
+  });
+
+  test("with groupInstructions, each group gets its own instructions and a projected example", async () => {
+    const hvacInstructions = "Extract only the hvac fields.";
+    const atticInstructions = "Extract only the attic fields.";
+    const groupInstructions = (key: string): string =>
+      key === "hvac" ? hvacInstructions : atticInstructions;
+
+    const { chat, requests } = fakeGroupChat({
+      [groupedName("hvac")]: JSON.stringify(hvacResponse),
+      [groupedName("attic")]: JSON.stringify(atticResponse),
+    });
+    const transcript = "Furnace is a Carrier, natural gas. Attic has R-38.";
+    await perGroupExtractor({ target: groupedTarget, chat, model: "m", groupInstructions }).extract(
+      transcript,
+    );
+
+    const hvacReq = requests.find(
+      (r) => r.response_format.json_schema.name === groupedName("hvac"),
+    );
+    const atticReq = requests.find(
+      (r) => r.response_format.json_schema.name === groupedName("attic"),
+    );
+    expect(hvacReq, "hvac request").toBeDefined();
+    expect(atticReq, "attic request").toBeDefined();
+
+    // Each call gets its own instructions — not the target's full `instructions`.
+    expect(hvacReq!.messages[0]).toEqual({ role: "system", content: hvacInstructions });
+    expect(atticReq!.messages[0]).toEqual({ role: "system", content: atticInstructions });
+
+    // The example is projected: the assistant turn carries only the group's key,
+    // not the whole `fields` object. The transcript (user turn) is unchanged.
+    const hvacAssistant = hvacReq!.messages[2]!;
+    expect(hvacAssistant.role).toBe("assistant");
+    const hvacFields = JSON.parse(hvacAssistant.content) as Record<string, unknown>;
+    expect(Object.keys(hvacFields)).toEqual(["hvac"]);
+    expect(hvacFields.hvac).toEqual(groupedExample.fields.hvac);
+
+    const atticAssistant = atticReq!.messages[2]!;
+    expect(atticAssistant.role).toBe("assistant");
+    const atticFields = JSON.parse(atticAssistant.content) as Record<string, unknown>;
+    expect(Object.keys(atticFields)).toEqual(["attic"]);
+    expect(atticFields.attic).toEqual(groupedExample.fields.attic);
+
+    // The example transcript is unchanged in both.
+    expect(hvacReq!.messages[1]).toEqual({ role: "user", content: groupedExample.transcript });
+    expect(atticReq!.messages[1]).toEqual({ role: "user", content: groupedExample.transcript });
+
+    // The live transcript is the final user message in both.
+    expect(hvacReq!.messages[3]).toEqual({ role: "user", content: transcript });
+    expect(atticReq!.messages[3]).toEqual({ role: "user", content: transcript });
   });
 });
 
