@@ -685,31 +685,56 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
   });
 
   test("no new work starts after a failure — the pool stops pulling", async () => {
-    // With concurrency 1, groups run sequentially. hvac fails immediately
-    // (maxRetries=0, one attempt). attic must NEVER be called — the pool stops
-    // pulling new work after the failure.
+    // Three groups, concurrency 2. Two workers start: one pulls hvac, one
+    // pulls attic. hvac fails immediately (maxRetries=0, one attempt). The
+    // failing worker sets the `failed` flag and calls abort. When the attic
+    // worker finishes its in-flight call, it checks `failed` and returns
+    // WITHOUT pulling wall. wall must NEVER be called.
+    //
+    // This test needs more items than workers — with concurrency 1 the
+    // single worker exits by throwing, so "no new work" is trivially true
+    // even without the pool fix. Three groups with concurrency 2 is the
+    // minimal setup where the fix is observable: there IS a remaining item
+    // (wall) that a worker could pull after a sibling fails.
+    const tripledPatch = z
+      .object({
+        hvac: z.object({ equipmentType: z.string().nullable().optional() }).strict().optional(),
+        attic: z.object({ insulationDepth: z.string().nullable().optional() }).strict().optional(),
+        wall: z.object({ rValue: z.number().nullable().optional() }).strict().optional(),
+      })
+      .strict();
+
+    const tripledTarget: ExtractionTarget<z.infer<typeof tripledPatch>> = {
+      name: "demo-tripled",
+      extractionSchema: enveloped(tripledPatch),
+      instructions: "Extract the fields.",
+      examples: [],
+    };
+    const tripledName = (key: string): string => `${tripledTarget.name}:${key}`;
+
     const { chat, callCounts, signals } = fakeRetryChat({
-      [groupedName("hvac")]: () => {
+      [tripledName("hvac")]: () => {
         throw ChatError.transport("fail immediately");
       },
-      [groupedName("attic")]: () => ({
-        content: JSON.stringify(atticResponse),
-        finishReason: "stop",
-      }),
+      [tripledName("attic")]: () => ({ content: "{}", finishReason: "stop" }),
+      [tripledName("wall")]: () => ({ content: "{}", finishReason: "stop" }),
     });
     const extractor = perGroupExtractor({
-      target: groupedTarget,
+      target: tripledTarget,
       chat,
       model: "m",
       maxRetries: 0,
-      concurrency: 1,
+      concurrency: 2,
     });
 
     await expect(extractor.extract("t")).rejects.toThrow("fail immediately");
 
-    // hvac was called once (maxRetries=0). attic was never started.
-    expect(callCounts[groupedName("hvac")]).toBe(1);
-    expect(callCounts[groupedName("attic")]).toBeUndefined();
+    // hvac was called once (maxRetries=0). attic was called once (it was
+    // in-flight when hvac failed). wall was NEVER started — the pool stopped
+    // pulling after the failure.
+    expect(callCounts[tripledName("hvac")]).toBe(1);
+    expect(callCounts[tripledName("attic")]).toBe(1);
+    expect(callCounts[tripledName("wall")]).toBeUndefined();
 
     // The abort signal was wired — each call receives an AbortSignal.
     expect(signals[0]).toBeInstanceOf(AbortSignal);
