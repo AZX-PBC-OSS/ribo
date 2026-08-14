@@ -32,6 +32,12 @@ export { buildGroupMessages, projectExample } from "./extraction-common.js";
 export { openAiChat } from "./openai-chat.js";
 export type { OpenAiChatOptions } from "./openai-chat.js";
 
+// The Helix platform LLM route transport and its options — a second
+// `ChatClient` beside `openAiChat`, for the provider-neutral `/_api/llm/chat`
+// route (not OpenAI-compatible).
+export { helixChat } from "./helix-chat.js";
+export type { HelixChatOptions } from "./helix-chat.js";
+
 // The chat transport seam: the interface an extractor calls, its request/response
 // types, its call options, and the typed error its implementations throw.
 // `ChatError` is a VALUE export (a class); the rest are types.
