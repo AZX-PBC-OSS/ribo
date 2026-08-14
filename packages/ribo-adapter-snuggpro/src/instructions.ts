@@ -255,7 +255,7 @@ output if one is stated ("eighty thousand BTU" → \`80000\`). Let the efficienc
 
 Every enum value in the schema is a literal string to be reproduced **character for character**,
 including capitalisation, spaces, slashes, percent signs and inch marks: \`"6% - Well sealed"\`,
-\`"Furnace / Central AC (shared ducts)"\`, \`"Duct Board 1.5\\""\`, \`"Not Tested"\`. A tidied-up or
+\`"Furnace / Central AC (shared ducts)"\`, \`"Duct Board 1.5 inch"\`, \`"Not Tested"\`. A tidied-up or
 re-cased value is a wrong value.
 
 The stored member is almost never the spoken words. "Shared-duct heat pump" →

@@ -12,8 +12,8 @@
  *      `heatingEquipmentType`. There is no rename table between this schema and
  *      the API, so there is no rename table to get wrong.
  *   2. **The enum members are the wire strings, verbatim** — `"6% - Well sealed"`,
- *      `"Furnace / Central AC (shared ducts)"`, `"Not Tested"`, `'Duct Board 1.5"'`.
- *      Title Case, spaces, slashes, percent signs, inch marks and all. A previous
+ *      `"Furnace / Central AC (shared ducts)"`, `"Not Tested"`, `"Duct Board 1.5 inch"`.
+ *      Title Case, spaces, slashes, percent signs and all. A previous
  *      version stored snake_cased tokens (`well_sealed`, `not_tested`), which made
  *      every enumerated leaf need a lookup table at write time; doc 17 §3 measured
  *      that at ~25 of 27 enumerated leaves. Storing what the API accepts deletes
@@ -321,15 +321,29 @@ export const HvacDuctLeakage = z
     'Qualitative duct tightness, or "Measured (CFM25)" when a duct-blaster number was read — that number goes in hvacDuctLeakageValue, not here.',
   );
 
-/** `hvacDuctInsulation` (`hvac`). Note the inch marks — they are in the wire value. */
+/**
+ * `hvacDuctInsulation` (`hvac`).
+ *
+ * The vendor's wire values use double-quote inch marks (`Duct Board 1.5"`). The
+ * platform's structured-output route (`POST <base>/_api/llm/chat`) rejects a
+ * schema whose enum contains a double-quote character with a generic
+ * `400 validation_failed` — verified in isolation against the live route, and
+ * bisected from a whole-schema failure down to exactly these six members. So the
+ * extraction enum uses quote-free aliases that spell the inch out ("1.5 inch"),
+ * and `normalization.ts`'s `DUCT_INSULATION_VENDOR_LITERALS` maps each alias back
+ * to the vendor's literal wire string for write-back. The three members below
+ * that never carried a quote (`No Insulation`, `Reflective bubble wrap`,
+ * `Measured (R Value)`) are unchanged and appear in neither the alias set nor the
+ * lookup table — they need no translation.
+ */
 export const HvacDuctInsulation = z.enum([
   "No Insulation",
-  'Duct Board 1"',
-  'Duct Board 1.5"',
-  'Duct Board 2"',
-  'Fiberglass 1.25"',
-  'Fiberglass 2"',
-  'Fiberglass 2.5"',
+  "Duct Board 1 inch",
+  "Duct Board 1.5 inch",
+  "Duct Board 2 inch",
+  "Fiberglass 1.25 inch",
+  "Fiberglass 2 inch",
+  "Fiberglass 2.5 inch",
   "Reflective bubble wrap",
   "Measured (R Value)",
 ]);
