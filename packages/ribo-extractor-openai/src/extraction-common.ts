@@ -34,7 +34,13 @@ import { TerminalQueueError } from "@azx/ribo-core";
 import type { ExtractionTarget } from "@azx/ribo-core";
 
 import { ChatError } from "./chat-client.js";
-import type { ChatClient, ChatCompletion, ChatMessage, ChatRequest } from "./chat-client.js";
+import type {
+  ChatCallOptions,
+  ChatClient,
+  ChatCompletion,
+  ChatMessage,
+  ChatRequest,
+} from "./chat-client.js";
 
 /**
  * Assemble the chat messages: the instructions as the system prompt, each few-shot
@@ -146,9 +152,10 @@ export async function completeOrClassify(
   chat: ChatClient,
   request: ChatRequest,
   context: string,
+  options?: ChatCallOptions,
 ): Promise<ChatCompletion> {
   try {
-    return await chat.complete(request);
+    return await chat.complete(request, options);
   } catch (cause) {
     if (cause instanceof ChatError && (cause.kind === "refusal" || cause.kind === "unsupported")) {
       throw new TerminalQueueError(
