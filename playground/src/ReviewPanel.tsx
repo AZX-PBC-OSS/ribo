@@ -154,7 +154,8 @@ function ExtractorBanner() {
     <div style={noticeBox} data-testid="extractor-status">
       <p style={{ margin: 0 }}>
         <strong>
-          Extraction: live — <code style={monospace}>{extractorStatus.model}</code> via{" "}
+          Extraction: live ({extractorStatus.strategy}) —{" "}
+          <code style={monospace}>{extractorStatus.model}</code> via{" "}
           <code style={monospace}>{extractorStatus.baseUrl}</code>.
         </strong>
       </p>
