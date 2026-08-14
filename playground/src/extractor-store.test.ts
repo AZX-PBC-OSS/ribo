@@ -2,7 +2,11 @@ import { expect, test } from "vitest";
 
 import type { ExtractStepInput, OutboxItem, Transcript } from "@azx/ribo-core";
 import type { ChatClient, ChatCompletion, ChatRequest } from "@azx/ribo-extractor-openai";
-import { snuggExamples, snuggProInstructions } from "@azx/ribo-adapter-snuggpro";
+import {
+  SNUGGPRO_ADAPTER_NAME,
+  snuggExamples,
+  snuggProInstructions,
+} from "@azx/ribo-adapter-snuggpro";
 
 import { buildExtractorStep } from "./extractor-store.js";
 
@@ -37,7 +41,7 @@ const item = { id: "item-1" } as OutboxItem;
 /**
  * A fake {@link ChatClient} that returns a valid per-group response for each
  * request, projected from the Delgado fixture. The per-group extractor names each
- * request `"{adapter}:{groupKey}"`, so the fake parses the group key off the
+ * request `"{adapter}-{groupKey}"`, so the fake parses the group key off the
  * `response_format.json_schema.name` and returns that group's enveloped fields
  * from the fixture — the same shape `projectExample` produces.
  */
@@ -48,14 +52,14 @@ function fakeGroupChat(): { chat: ChatClient; requests: ChatRequest[] } {
     complete: (request: ChatRequest): Promise<ChatCompletion> => {
       requests.push(request);
       const name = request.response_format.json_schema.name;
-      // The per-group extractor names each request `"{adapter}:{groupKey}"`;
+      // The per-group extractor names each request `"{adapter}-{groupKey}"`;
       // the single-shot extractor names it just `"{adapter}"`. Return the
       // one-key projection for per-group, the full fixture for single-shot.
-      const colonIdx = name.indexOf(":");
+      const sepIdx = name.indexOf("-", SNUGGPRO_ADAPTER_NAME.length);
       const response =
-        colonIdx >= 0
+        sepIdx >= 0
           ? (() => {
-              const groupKey = name.slice(colonIdx + 1);
+              const groupKey = name.slice(sepIdx + 1);
               return groupKey in fixtureFields ? { [groupKey]: fixtureFields[groupKey] } : {};
             })()
           : fixtureFields;

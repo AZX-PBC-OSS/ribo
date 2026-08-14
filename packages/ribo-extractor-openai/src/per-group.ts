@@ -256,7 +256,12 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
       string,
       unknown
     >;
-    const name = group.key ? `${target.name}:${group.key}` : target.name;
+    // `-`, not `:` — a structured-output schema name is constrained to
+    // [A-Za-z0-9_-] by at least one platform route (Helix rejects a colon with a
+    // generic `400 validation_failed`, which reads identically to an over-cap
+    // schema and costs an afternoon to tell apart). Keep the separator inside the
+    // charset every route accepts.
+    const name = group.key ? `${target.name}-${group.key}` : target.name;
     const context = group.key
       ? `perGroupExtractor: model response for "${target.name}" group "${group.key}"`
       : `perGroupExtractor: model response for "${target.name}"`;

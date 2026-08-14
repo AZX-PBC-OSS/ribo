@@ -141,7 +141,7 @@ const clamp = (n: number): number => Math.max(0, Math.min(1, n));
 /**
  * A ChatClient that records every request and replays a canned response per
  * group, dispatching by `response_format.json_schema.name`. The name is
- * `${target.name}:${group.key}` for grouped schemas, or just `target.name` for
+ * `${target.name}-${group.key}` for grouped schemas, or just `target.name` for
  * the non-grouped fallback.
  */
 function fakeGroupChat(
@@ -160,8 +160,10 @@ function fakeGroupChat(
   return { chat, requests };
 }
 
-/** Schema name for a grouped call — `${target.name}:${group.key}`. */
-const groupedName = (key: string): string => `${groupedTarget.name}:${key}`;
+/** Schema name for a grouped call — `${target.name}-${group.key}`. */
+// Mirrors perGroupExtractor's naming. `-`, not `:` — a structured-output schema
+// name is constrained to [A-Za-z0-9_-] by at least one platform route.
+const groupedName = (key: string): string => `${groupedTarget.name}-${key}`;
 
 // --- Retry-test helper -------------------------------------------------------
 
@@ -710,7 +712,7 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
       instructions: "Extract the fields.",
       examples: [],
     };
-    const tripledName = (key: string): string => `${tripledTarget.name}:${key}`;
+    const tripledName = (key: string): string => `${tripledTarget.name}-${key}`;
 
     const { chat, callCounts, signals } = fakeRetryChat({
       [tripledName("hvac")]: () => {
@@ -751,4 +753,22 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
     // The abort signal was wired — each call receives an AbortSignal.
     expect(signals[0]).toBeInstanceOf(AbortSignal);
   });
+});
+
+test("every per-group schema name is within the structured-output name charset", async () => {
+  // Platform routes constrain `response_format.json_schema.name` to
+  // [A-Za-z0-9_-]{1,64}. A name outside it is rejected with a generic validation
+  // error that reads identically to an over-cap schema — an expensive thing to
+  // diagnose, so pin the charset here rather than rediscover it against a route.
+  const { chat, requests } = fakeGroupChat({
+    [groupedName("hvac")]: JSON.stringify(hvacResponse),
+    [groupedName("attic")]: JSON.stringify(atticResponse),
+  });
+
+  await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract("t");
+
+  expect(requests.length).toBeGreaterThan(1);
+  for (const request of requests) {
+    expect(request.response_format.json_schema.name).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
+  }
 });

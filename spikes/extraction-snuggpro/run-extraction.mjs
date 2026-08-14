@@ -97,7 +97,8 @@ for (const [label, path] of [
 }
 
 const { snuggProAdapter, normalizeFields, snuggGroupInstructions } = await import(ADAPTER_DIST);
-const { openAiChat, singleShotExtractor, perGroupExtractor } = await import(EXTRACTOR_DIST);
+const { openAiChat, helixChat, singleShotExtractor, perGroupExtractor } =
+  await import(EXTRACTOR_DIST);
 
 // ---------------------------------------------------------------------------
 // Strategy definitions — how each extractor is built from a ChatClient + model.
@@ -165,11 +166,17 @@ export async function runExtraction({
   strategies = STRATEGY_NAMES,
   log = (msg) => console.log(msg),
   baseUrl,
+  only,
 }) {
   const slugs = readdirSync(transcriptDir)
     .filter((f) => f.endsWith(".txt"))
     .map((f) => f.replace(/\.txt$/, ""))
-    .sort();
+    .sort()
+    // `only` subsets the corpus by slug prefix (e.g. "01,05,08"). A full 14x2 run is
+    // 112 model calls; a subset proves the harness against a real endpoint and gives an
+    // early signal for a fraction of the spend. Resume then adds the rest without
+    // redoing these, because existing result files are skipped.
+    .filter((slug) => only === undefined || only.some((p) => slug.startsWith(p)));
 
   const manifests = {};
 
@@ -241,6 +248,9 @@ Options:
   --base-url <url>   Override OPENAI_BASE_URL
   --force            Overwrite existing results (default: skip)
   --strategy <name>  Run only one: "single-shot" or "per-group" (default: both)
+  --only <prefixes>  Comma-separated slug prefixes, e.g. "01,05,08" (default: all 14)
+  --transport <name> "openai" (default) or "helix" (POST <base>/_api/llm/chat)
+  --origin <url>     Origin header for a Helix dev token (default: http://localhost:5173)
   --help             Show this help
 
 Output:
@@ -267,6 +277,9 @@ function parseArgs(argv) {
     if (a === "--help" || a === "-h") opts.help = true;
     else if (a === "--force") opts.force = true;
     else if (a === "--model") opts.model = argv[++i];
+    else if (a === "--transport") opts.transport = argv[++i];
+    else if (a === "--origin") opts.origin = argv[++i];
+    else if (a === "--only") opts.only = String(argv[++i]).split(",").map((x) => x.trim());
     else if (a === "--output") opts.output = resolve(argv[++i]);
     else if (a === "--base-url") opts.baseUrl = argv[++i];
     else if (a === "--strategy") {
@@ -294,7 +307,10 @@ async function main() {
     return;
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey =
+    parseArgs(process.argv.slice(2)).transport === "helix"
+      ? (process.env.HELIX_DEV_TOKEN ?? process.env.OPENAI_API_KEY)
+      : process.env.OPENAI_API_KEY;
   if (!apiKey) {
     console.error(
       "run-extraction.mjs: OPENAI_API_KEY is not set. " +
@@ -303,7 +319,18 @@ async function main() {
     process.exit(1);
   }
 
-  const chat = openAiChat({ apiKey, baseUrl: opts.baseUrl });
+  // Helix's LLM route is provider-neutral, not OpenAI-compatible: system is a
+  // top-level field, roles are user/assistant only, and the path is /_api/llm/chat.
+  // Its dev token is also origin-scoped, so the Origin header is not optional — a
+  // call without one is 403 regardless of the token. See helix-chat.ts.
+  const chat =
+    opts.transport === "helix"
+      ? helixChat({
+          token: apiKey,
+          baseUrl: opts.baseUrl ?? process.env.HELIX_BASE_URL ?? "",
+          origin: opts.origin ?? process.env.HELIX_ORIGIN ?? "http://localhost:5173",
+        })
+      : openAiChat({ apiKey, baseUrl: opts.baseUrl });
 
   await runExtraction({
     chat,
@@ -313,6 +340,7 @@ async function main() {
     force: opts.force,
     strategies: opts.strategies,
     baseUrl: opts.baseUrl,
+    only: opts.only,
   });
 }
 
