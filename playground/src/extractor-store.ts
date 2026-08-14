@@ -1,6 +1,16 @@
 import { FakeExtractor, toExtractStep, type ExtractStep } from "@azx/ribo-core";
-import { openAiChat, perGroupExtractor, singleShotExtractor } from "@azx/ribo-extractor-openai";
-import { normalizeFields, snuggExamples, snuggGroupInstructions, snuggProAdapter } from "@azx/ribo-adapter-snuggpro";
+import {
+  openAiChat,
+  perGroupExtractor,
+  singleShotExtractor,
+  type ChatClient,
+} from "@azx/ribo-extractor-openai";
+import {
+  normalizeFields,
+  snuggExamples,
+  snuggGroupInstructions,
+  snuggProAdapter,
+} from "@azx/ribo-adapter-snuggpro";
 
 /**
  * @file The ONE extract step both relays share — constructed once, here.
@@ -94,6 +104,13 @@ export interface BuildExtractorOptions {
   readonly model: string;
   /** Which strategy to run on the live path. Defaults to `"per-group"`. */
   readonly strategy?: ExtractorStrategy;
+  /**
+   * Override the chat transport (tests). When omitted, the live path constructs
+   * {@link openAiChat} from the key and base URL. The extractors do no network
+   * work at construction time, so a test can inject a fake {@link ChatClient} and
+   * run the extractor end to end without a real endpoint.
+   */
+  readonly chat?: ChatClient;
 }
 
 /**
@@ -114,6 +131,7 @@ export function buildExtractorStep({
   baseUrl,
   model,
   strategy = "per-group",
+  chat: chatOverride,
 }: BuildExtractorOptions): { extractStep: ExtractStep; status: ExtractorStatus } {
   if (!apiKey) {
     return {
@@ -122,7 +140,7 @@ export function buildExtractorStep({
     };
   }
 
-  const chat = openAiChat({ apiKey, baseUrl });
+  const chat = chatOverride ?? openAiChat({ apiKey, baseUrl });
   const extractor =
     strategy === "per-group"
       ? perGroupExtractor({
