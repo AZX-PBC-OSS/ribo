@@ -173,9 +173,7 @@ describe("splitExtractionSchema — non-grouped fallback", () => {
 
     // The patch's optionality does not survive enveloping — an omitted key is
     // rejected, which is the same behaviour the single-shot extractor sees.
-    expect(
-      groups[0]!.schema.safeParse({ rValue: full.rValue }).success,
-    ).toBe(false);
+    expect(groups[0]!.schema.safeParse({ rValue: full.rValue }).success).toBe(false);
   });
 
   test("a non-object schema yields one entry covering everything", () => {
