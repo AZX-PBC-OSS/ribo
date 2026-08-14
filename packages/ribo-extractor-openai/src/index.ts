@@ -13,9 +13,15 @@ export type { SingleShotOptions } from "./single-shot.js";
 
 // The per-group schema split — the pure, model-free half of R3. Takes a target's
 // `extractionSchema` and returns one entry per top-level group (or one fallback
-// entry covering the whole schema). Task 2's per-group extractor consumes this.
+// entry covering the whole schema). The per-group extractor consumes this.
 export { splitExtractionSchema } from "./split-schema.js";
 export type { ExtractionGroup } from "./split-schema.js";
+
+// The per-group managed-LLM extractor (R3 Task 2) — one chat call per top-level
+// group, concurrently with a bounded pool, assembled into one result. The
+// sibling of `singleShotExtractor`; same `Extractor` seam.
+export { perGroupExtractor } from "./per-group.js";
+export type { PerGroupOptions } from "./per-group.js";
 
 // The OpenAI-compatible chat transport and its options.
 export { openAiChat } from "./openai-chat.js";
