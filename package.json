@@ -51,5 +51,17 @@
     "vite": "catalog:",
     "vitepress": "catalog:",
     "vitest": "4.1.10"
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-uri": "^3.1.5",
+      "brace-expansion@>=2.0.0 <3": "^2.1.4",
+      "brace-expansion@>=5": "^5.0.9",
+      "js-yaml@3": "^3.15.1",
+      "js-yaml@4": "^4.3.1",
+      "postcss": "^8.5.26",
+      "adm-zip": "^0.6.0",
+      "sharp": "^0.35.3"
+    }
   }
 }
