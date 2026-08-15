@@ -39,6 +39,25 @@
  * still fails after its retries, `extract()` throws and the relay's existing
  * backoff, attempt count and `dead` handling take over unchanged.
  *
+ * **Backoff between retries.** A transient failure is not re-sent immediately:
+ * the loop backs off using {@link fullJitterDelay} — the same exponential
+ * full-jitter function the relay uses to schedule its own retries — so a reader
+ * meets one backoff policy in this codebase, not two. The delay is injectable
+ * (`delay` option) so tests do not sleep; the default is a real `setTimeout`.
+ *
+ * **429s are treated alike.** A `429 rate_limited` whose body says "retry
+ * shortly" (too many requests this second) and one whose body says "burst spend
+ * budget exhausted" (spend limit hit) are both retried with backoff. We cannot
+ * reliably tell them apart from the status alone, and parsing the body for a
+ * distinguishing signal is vendor-specific and fragile — a wording change breaks
+ * the heuristic. Treating them alike is defensible: a burst-spend 429 simply
+ * keeps failing through the per-group retry budget and then throws to the relay,
+ * whose own backoff and `dead` handling take over. The backoff prevents a retry
+ * storm, and the asymmetry that makes `isTransientFailure` default to retryable
+ * applies here too — wrongly retrying a terminal 429 costs a few delayed
+ * requests, while wrongly declaring a transient 429 terminal silently loses a
+ * recording someone drove to a house to make.
+ *
  * **The non-grouped fallback.** A target whose schema is not an object of groups
  * gets one entry covering the whole schema from `splitExtractionSchema`, so this
  * extractor makes one call — exactly as today. The second trust-boundary parse
@@ -47,8 +66,19 @@
 
 import { z } from "zod";
 
-import { TerminalQueueError } from "@azx/ribo-core";
-import type { Enveloped, Extractor, ExtractionResult, ExtractionTarget } from "@azx/ribo-core";
+import {
+  DEFAULT_BACKOFF_BASE_MS,
+  DEFAULT_BACKOFF_CAP_MS,
+  fullJitterDelay,
+  TerminalQueueError,
+} from "@azx/ribo-core";
+import type {
+  BackoffOptions,
+  Enveloped,
+  Extractor,
+  ExtractionResult,
+  ExtractionTarget,
+} from "@azx/ribo-core";
 
 import type { ChatClient } from "./chat-client.js";
 import {
@@ -61,7 +91,7 @@ import {
 import { splitExtractionSchema } from "./split-schema.js";
 
 /** Options for {@link perGroupExtractor}. */
-export interface PerGroupOptions<V extends Record<string, unknown>> {
+export interface PerGroupOptions<V extends Record<string, unknown>> extends BackoffOptions {
   /** The field knowledge: `name`, `extractionSchema`, `instructions`, and few-shot `examples`. */
   readonly target: ExtractionTarget<V>;
   /** The injected chat transport. A fake in tests; {@link openAiChat} in production. */
@@ -83,29 +113,36 @@ export interface PerGroupOptions<V extends Record<string, unknown>> {
   readonly normalize?: (fields: Enveloped<V>) => Enveloped<V>;
   /**
    * Max concurrent group calls. The calls run concurrently with a bounded pool so
-   * the worst case (all groups plus their inner retries) fits inside the relay's
-   * `stepTimeoutMs` — seven sequential calls would not. Defaults to 4.
+   * the worst case (all groups plus their inner retries plus their backoff
+   * delays) fits inside the relay's `stepTimeoutMs` — seven sequential calls
+   * would not. Defaults to 4.
    */
   readonly concurrency?: number;
   /**
    * Max retries per group after a transient failure (so the total attempts per
    * group is `maxRetries + 1`). Terminal failures ({@link TerminalQueueError} —
-   * truncation, content filtering, refusal, unsupported) are never retried.
-   * Defaults to 2. The default is derived from the step-timeout relationship —
-   * see {@link PER_CALL_CEILING_MS} and the comment where
+   * truncation, content filtering, refusal, unsupported) are never retried and
+   * never delay. Defaults to 2. The default is derived from the step-timeout
+   * relationship — see {@link PER_CALL_CEILING_MS} and the comment where
    * {@link perGroupExtractor} caps it.
    */
   readonly maxRetries?: number;
   /**
    * The relay's step timeout — the wall-clock ceiling inside which all group
-   * calls plus their retries must complete. The relay wraps `extract()` in
-   * `withTimeout(stepTimeoutMs)`; a timeout here presents as a failed
-   * extraction with no indication that some groups succeeded. Defaults to
-   * `900_000` (15 minutes), matching the relay's `DEFAULT_STEP_TIMEOUT_MS`.
+   * calls plus their retries plus their backoff delays must complete. The relay
+   * wraps `extract()` in `withTimeout(stepTimeoutMs)`; a timeout here presents as
+   * a failed extraction with no indication that some groups succeeded. Defaults
+   * to `900_000` (15 minutes), matching the relay's `DEFAULT_STEP_TIMEOUT_MS`.
    * The retry budget is capped so the worst case fits inside this — see the
    * comment in {@link perGroupExtractor}.
    */
   readonly stepTimeoutMs?: number;
+  /**
+   * Injectable sleep used between retry attempts, so tests do not wait real
+   * seconds. Defaults to `setTimeout`. The value passed is the
+   * {@link fullJitterDelay} result in milliseconds.
+   */
+  readonly delay?: (ms: number) => Promise<void>;
   /**
    * Per-group instructions assembly. When provided, each grouped call gets the
    * instructions returned by `groupInstructions(key)` instead of the target's full
@@ -131,6 +168,55 @@ export interface PerGroupOptions<V extends Record<string, unknown>> {
  * {@link PerGroupOptions.stepTimeoutMs}.
  */
 const PER_CALL_CEILING_MS = 120_000;
+
+/**
+ * Worst-case accumulated backoff for one group exhausting `retries` retries —
+ * the sum of {@link fullJitterDelay} results when `random()` returns 1 every
+ * time, so each delay is `min(cap, base * 2^attempts)`. The real delay is
+ * always ≤ this; the budget derivation uses the worst case so the step timeout
+ * is never exceeded by backoff alone.
+ */
+function maxAccumulatedBackoff(retries: number, baseMs: number, capMs: number): number {
+  let total = 0;
+  for (let i = 0; i < retries; i++) {
+    total += Math.min(capMs, baseMs * 2 ** Math.min(i, 32));
+  }
+  return total;
+}
+
+/**
+ * Derive the effective max retries so the worst case — every group exhausting
+ * its full retry budget, including backoff delays — fits inside `stepTimeoutMs`.
+ *
+ * The worst case per batch is one group's full budget:
+ *
+ *   (retries + 1) * PER_CALL_CEILING_MS + maxAccumulatedBackoff(retries)
+ *
+ * across `batches` sequential batches. We decrement from the requested
+ * `maxRetries` until it fits, floor 0 — the same relationship the previous
+ * derivation enforced, now with accumulated backoff included so a timeout never
+ * presents as a failed extraction with no sign that some groups succeeded.
+ */
+function deriveMaxRetries(
+  requested: number,
+  batches: number,
+  stepTimeoutMs: number,
+  baseMs: number,
+  capMs: number,
+): number {
+  for (let r = Math.max(0, requested); r >= 0; r--) {
+    const perGroup = (r + 1) * PER_CALL_CEILING_MS + maxAccumulatedBackoff(r, baseMs, capMs);
+    if (batches * perGroup <= stepTimeoutMs) return r;
+  }
+  return 0;
+}
+
+/**
+ * The default {@link PerGroupOptions.delay} — a real `setTimeout` sleep. Tests
+ * inject a fake that records the value and resolves immediately.
+ */
+const defaultDelay = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Run `fn` over `items` with at most `limit` calls in flight at once, preserving
@@ -214,10 +300,11 @@ interface PreparedGroup {
  *      retry loop.
  *   3. Run the calls concurrently with a bounded pool. For each response:
  *      - **Bounded retry** (Task 3): a transient failure is retried up to
- *        `maxRetries` times while successful groups are held. Terminal failures
- *        ({@link TerminalQueueError}) are never retried. If a group still
- *        fails, `extract()` throws and the relay's existing machinery takes
- *        over unchanged.
+ *        `maxRetries` times while successful groups are held, with
+ *        {@link fullJitterDelay} backoff between attempts. Terminal failures
+ *        ({@link TerminalQueueError}) are never retried and never delay. If a
+ *        group still fails, `extract()` throws and the relay's existing
+ *        machinery takes over unchanged.
  *      - **Pre-parse check** ({@link assertStopFinishReason}): reject a
  *        non-`"stop"` completion before parsing, so truncation is not
  *        misreported as invalid JSON. Terminal, not retried.
@@ -241,6 +328,10 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
   concurrency = 4,
   maxRetries = 2,
   stepTimeoutMs = 900_000,
+  delay = defaultDelay,
+  baseMs,
+  capMs,
+  random,
   groupInstructions,
 }: PerGroupOptions<V>): Extractor<Enveloped<V>> {
   // Split at construction time — the group list is a pure function of the schema
@@ -269,29 +360,43 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
   });
 
   // The relay wraps extract() in withTimeout(stepTimeoutMs). All group calls
-  // plus their retries must fit inside it. The worst case — every group
-  // exhausting its full retry budget — runs this many sequential chat calls:
+  // plus their retries plus their backoff delays must fit inside it. The worst
+  // case — every group exhausting its full retry budget — runs this many
+  // sequential chat calls:
   //
   //   ceil(G / concurrency) * (effectiveMaxRetries + 1)
   //
-  // where G = prepared.length. We derive effectiveMaxRetries by capping
-  // maxRetries so the worst case fits within stepTimeoutMs at the conservative
-  // per-call ceiling — a caller who lowers stepTimeoutMs gets a proportionally
-  // lower retry budget rather than a step timeout that presents as a bare
-  // extraction failure with no indication that some groups succeeded.
+  // where G = prepared.length, each call taking up to PER_CALL_CEILING_MS, and
+  // between calls a backoff delay of up to min(cap, base * 2^attempts). We
+  // derive effectiveMaxRetries so the worst case — call time PLUS accumulated
+  // backoff — fits within stepTimeoutMs. A caller who lowers stepTimeoutMs gets
+  // a proportionally lower retry budget rather than a step timeout that presents
+  // as a bare extraction failure with no indication that some groups succeeded.
+  //
+  // The revised relationship is:
+  //
+  //   ceil(G / concurrency) * ((maxRetries + 1) * PER_CALL_CEILING_MS
+  //                             + maxAccumulatedBackoff(maxRetries)) <= stepTimeoutMs
   //
   // With the defaults (stepTimeoutMs = 900_000, concurrency = 4,
-  // maxRetries = 2, PER_CALL_CEILING_MS = 120_000) and the Snugg target's 7
-  // groups: maxSafeRetries = floor(900_000 / (ceil(7/4) * 120_000)) - 1 = 2,
-  // so effectiveMaxRetries = min(2, 2) = 2. The worst case is
-  // ceil(7/4) * 3 = 6 sequential calls, 6 * 120 s = 12 minutes — inside the
-  // 15-minute step timeout.
+  // maxRetries = 2, PER_CALL_CEILING_MS = 120_000, base = 1_000, cap = 300_000)
+  // and the Snugg target's 7 groups: maxAccumulatedBackoff(2) = 1_000 + 2_000 =
+  // 3_000; per-group budget = 3 * 120_000 + 3_000 = 363_000; worst case =
+  // ceil(7/4) * 363_000 = 726_000 — inside the 15-minute step timeout.
+  const backoffBaseMs = baseMs ?? DEFAULT_BACKOFF_BASE_MS;
+  const backoffCapMs = capMs ?? DEFAULT_BACKOFF_CAP_MS;
   const batches = Math.ceil(prepared.length / concurrency);
-  const maxSafeRetries = Math.max(
-    0,
-    Math.floor(stepTimeoutMs / (batches * PER_CALL_CEILING_MS)) - 1,
+  const effectiveMaxRetries = deriveMaxRetries(
+    maxRetries,
+    batches,
+    stepTimeoutMs,
+    backoffBaseMs,
+    backoffCapMs,
   );
-  const effectiveMaxRetries = Math.max(0, Math.min(maxRetries, maxSafeRetries));
+  // Pre-compute the backoff options object once — passed to fullJitterDelay on
+  // every retry. The random function defaults to Math.random inside
+  // fullJitterDelay when not supplied here.
+  const backoffOpts: BackoffOptions = { baseMs: backoffBaseMs, capMs: backoffCapMs, random };
 
   return {
     async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
@@ -361,7 +466,16 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
               if (cause instanceof TerminalQueueError) throw cause;
               // If aborted by a sibling failure, don't retry — propagate.
               if (abort.signal.aborted) throw cause;
-              // Transient failure — retry if budget remains (loop continues).
+              // Transient failure — back off before the next attempt if budget
+              // remains. fullJitterDelay takes the failure count before this
+              // failure (matching the relay's convention), so the first retry
+              // draws from [0, base]. The delay is injected so tests do not
+              // sleep; the default is a real setTimeout. After the delay, the
+              // loop's top-of-iteration abort check catches a sibling failure
+              // that fired while we were sleeping.
+              if (attempt < effectiveMaxRetries) {
+                await delay(fullJitterDelay(attempt, backoffOpts));
+              }
             }
           }
           // Budget exhausted — rethrow the last transient error. This throws
