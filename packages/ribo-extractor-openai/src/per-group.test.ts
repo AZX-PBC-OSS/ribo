@@ -1,4 +1,9 @@
-import { enveloped, isTransientFailure } from "@azx/ribo-core";
+import {
+  DEFAULT_BACKOFF_BASE_MS,
+  DEFAULT_BACKOFF_CAP_MS,
+  enveloped,
+  isTransientFailure,
+} from "@azx/ribo-core";
 import type { Enveloped, ExtractionTarget, ToolAdapterExample } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
@@ -201,6 +206,9 @@ function fakeRetryChat(
   return { chat, requests, callCounts, signals };
 }
 
+/** A delay that resolves immediately — so tests do not sleep on backoff. */
+const noDelay = (): Promise<void> => Promise.resolve();
+
 // --- Tests -------------------------------------------------------------------
 
 describe("perGroupExtractor — N groups produce N calls", () => {
@@ -326,7 +334,12 @@ describe("perGroupExtractor — trust boundary", () => {
       [groupedName("hvac")]: JSON.stringify({ hvac: "not an envelope object" }),
       [groupedName("attic")]: JSON.stringify(atticResponse),
     });
-    const extractor = perGroupExtractor({ target: groupedTarget, chat, model: "m" });
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      delay: noDelay,
+    });
 
     await expect(extractor.extract("t")).rejects.toThrow(/did not match the schema/);
   });
@@ -468,7 +481,12 @@ describe("perGroupExtractor — failure classification", () => {
       [groupedName("hvac")]: JSON.stringify({ hvac: "not an envelope" }),
       [groupedName("attic")]: JSON.stringify(atticResponse),
     });
-    const extractor = perGroupExtractor({ target: groupedTarget, chat, model: "m" });
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      delay: noDelay,
+    });
 
     const error = await extractor.extract("t").then(
       () => {
@@ -513,7 +531,7 @@ describe("perGroupExtractor — non-grouped fallback", () => {
 
   test("a non-JSON response in the fallback is transient (queue retries)", async () => {
     const { chat } = fakeGroupChat({ [flatTarget.name]: "Sorry, I can't help. {not json" });
-    const extractor = perGroupExtractor({ target: flatTarget, chat, model: "m" });
+    const extractor = perGroupExtractor({ target: flatTarget, chat, model: "m", delay: noDelay });
 
     const error = await extractor.extract("t").then(
       () => {
@@ -550,10 +568,13 @@ describe("perGroupExtractor — non-grouped fallback", () => {
  *   1. A transient failure on one group is retried and the extraction still
  *      succeeds, with the other groups' results intact and not re-requested.
  *   2. A group that fails past its retry budget fails the extraction.
- *   3. A terminal failure is not retried — one call, then the throw.
+ *   3. A terminal failure is not retried — one call, then the throw, and never delays.
  *   4. The worst case fits the step timeout — every group failing its full
- *      budget does not exceed it. Asserts the relationship, not wall-clock.
+ *      budget, including backoff, does not exceed it. Asserts the relationship,
+ *      not wall-clock.
  *   5. No new work starts after a failure.
+ *   6. Attempts are separated by a backoff delay — called between attempts with
+ *      a growing value, not before the first attempt.
  */
 describe("perGroupExtractor — bounded retry (Task 3)", () => {
   test("a transient failure on one group is retried and the extraction still succeeds, with other groups not re-requested", async () => {
@@ -570,7 +591,13 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
         finishReason: "stop",
       }),
     });
-    const extractor = perGroupExtractor({ target: groupedTarget, chat, model: "m", maxRetries: 2 });
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      maxRetries: 2,
+      delay: noDelay,
+    });
 
     const result = await extractor.extract("Furnace is a Carrier. Attic has R-38.");
 
@@ -599,7 +626,13 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
         finishReason: "stop",
       }),
     });
-    const extractor = perGroupExtractor({ target: groupedTarget, chat, model: "m", maxRetries: 2 });
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      maxRetries: 2,
+      delay: noDelay,
+    });
 
     await expect(extractor.extract("t")).rejects.toThrow("persistent blip");
 
@@ -607,10 +640,16 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
     expect(callCounts[groupedName("hvac")]).toBe(3);
   });
 
-  test("a terminal failure is not retried — one call, then the throw", async () => {
+  test("a terminal failure is not retried — one call, then the throw, and never delays", async () => {
     // hvac returns a truncated response (finishReason: "length"). This is a
     // TerminalQueueError — it must not be retried. One call to hvac, then the
-    // extraction throws.
+    // extraction throws. The delay function is never called: terminal failures
+    // short-circuit before the backoff.
+    const delays: number[] = [];
+    const recordingDelay = (ms: number): Promise<void> => {
+      delays.push(ms);
+      return Promise.resolve();
+    };
     const { chat, callCounts } = fakeRetryChat({
       [groupedName("hvac")]: () => ({
         content: JSON.stringify(hvacResponse),
@@ -621,7 +660,13 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
         finishReason: "stop",
       }),
     });
-    const extractor = perGroupExtractor({ target: groupedTarget, chat, model: "m", maxRetries: 2 });
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      maxRetries: 2,
+      delay: recordingDelay,
+    });
 
     const error = await extractor.extract("t").then(
       () => {
@@ -634,13 +679,16 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
     expect(callCounts[groupedName("hvac")]).toBe(1);
     expect((error as Error).message).toContain("maxTokens");
     expect(isTransientFailure(error)).toBe(false);
+    // The delay function was never called — terminal failures don't back off.
+    expect(delays).toHaveLength(0);
   });
 
-  test("the worst case — every group failing its full budget — fits inside the step timeout", async () => {
+  test("the worst case — every group failing its full budget, including backoff — fits inside the step timeout", async () => {
     // Every group fails transiently on every attempt. With maxRetries=2, each
-    // group is called 3 times. The total calls = G * (maxRetries + 1). We
-    // verify the budget is bounded and then assert the mathematical
-    // relationship to stepTimeoutMs — not a wall-clock duration.
+    // group is called 3 times, with backoff delays between attempts. The total
+    // calls = G * (maxRetries + 1). We verify the budget is bounded and then
+    // assert the mathematical relationship to stepTimeoutMs — including
+    // accumulated backoff, not a wall-clock duration.
     const { chat, callCounts } = fakeRetryChat({
       [groupedName("hvac")]: () => {
         throw ChatError.transport("blip");
@@ -659,6 +707,7 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
       maxRetries,
       stepTimeoutMs,
       concurrency,
+      delay: noDelay,
     });
 
     await expect(extractor.extract("t")).rejects.toThrow("blip");
@@ -669,21 +718,59 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
     // The budget is bounded: total calls = G * (maxRetries + 1).
     expect(totalCalls).toBe(G * (maxRetries + 1));
 
-    // The worst-case sequential calls fit within the step timeout. The relay
-    // wraps extract() in withTimeout(stepTimeoutMs). The worst case runs
-    // ceil(G / concurrency) * (maxRetries + 1) sequential calls. At a
-    // conservative per-call ceiling, this must be <= stepTimeoutMs. This
-    // asserts the relationship, not a timing duration — a timing-dependent
-    // test is a flaky test.
+    // The worst case — call time PLUS accumulated backoff — fits within the
+    // step timeout. The relay wraps extract() in withTimeout(stepTimeoutMs).
+    // The worst case per batch is one group's full budget:
+    //   (maxRetries + 1) * PER_CALL_CEILING_MS + maxAccumulatedBackoff
+    // across ceil(G / concurrency) sequential batches. This asserts the
+    // relationship, not a timing duration — a timing-dependent test is a
+    // flaky test.
     const perCallCeilingMs = 120_000;
-    const worstCaseSequentialCalls = Math.ceil(G / concurrency) * (maxRetries + 1);
-    expect(worstCaseSequentialCalls * perCallCeilingMs).toBeLessThanOrEqual(stepTimeoutMs);
+    const baseMs = DEFAULT_BACKOFF_BASE_MS;
+    const capMs = DEFAULT_BACKOFF_CAP_MS;
+    let accumulatedBackoff = 0;
+    for (let i = 0; i < maxRetries; i++) {
+      accumulatedBackoff += Math.min(capMs, baseMs * 2 ** i);
+    }
+    const worstCasePerGroup = (maxRetries + 1) * perCallCeilingMs + accumulatedBackoff;
+    const worstCase = Math.ceil(G / concurrency) * worstCasePerGroup;
+    expect(worstCase).toBeLessThanOrEqual(stepTimeoutMs);
 
     // Also verify for the production Snugg target (7 groups) — the tighter
     // bound that motivated the default.
     const snuggGroups = 7;
-    const snuffWorstCase = Math.ceil(snuggGroups / concurrency) * (maxRetries + 1);
-    expect(snuffWorstCase * perCallCeilingMs).toBeLessThanOrEqual(stepTimeoutMs);
+    const snuggWorstCase = Math.ceil(snuggGroups / concurrency) * worstCasePerGroup;
+    expect(snuggWorstCase).toBeLessThanOrEqual(stepTimeoutMs);
+
+    // The backoff-aware cap kicks in: with a stepTimeoutMs too tight for
+    // maxRetries=2 including backoff (363_001 would fit, 362_999 would not),
+    // the effective retries are capped to 1 — the old call-time-only formula
+    // would still allow 2, so this is the assertion that catches a derivation
+    // that ignores backoff.
+    const tightTimeout = 362_999;
+    const { chat: tightChat, callCounts: tightCounts } = fakeRetryChat({
+      [groupedName("hvac")]: () => {
+        throw ChatError.transport("blip");
+      },
+      [groupedName("attic")]: () => {
+        throw ChatError.transport("blip");
+      },
+    });
+    const tightExtractor = perGroupExtractor({
+      target: groupedTarget,
+      chat: tightChat,
+      model: "m",
+      maxRetries,
+      stepTimeoutMs: tightTimeout,
+      concurrency,
+      delay: noDelay,
+    });
+    await expect(tightExtractor.extract("t")).rejects.toThrow("blip");
+    const tightTotal = Object.values(tightCounts).reduce((a, b) => a + b, 0);
+    // effectiveMaxRetries is capped to 1 (not 2) because maxRetries=2 with
+    // backoff would exceed the tight timeout: 3 * 120_000 + 3_000 = 363_000 >
+    // 362_999. Total calls = G * (1 + 1) = 4, not 6.
+    expect(tightTotal).toBe(G * 2);
   });
 
   test("no new work starts after a failure — the pool stops pulling", async () => {
@@ -752,6 +839,51 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
 
     // The abort signal was wired — each call receives an AbortSignal.
     expect(signals[0]).toBeInstanceOf(AbortSignal);
+  });
+
+  test("attempts are separated by a delay — called between attempts with a growing value, not before the first", async () => {
+    // A single group (the non-grouped fallback) fails on the first two
+    // attempts and succeeds on the third. The injected delay records every
+    // value it is called with. With random=1 and base=1000, fullJitterDelay
+    // returns the full window: 1000 after attempt 0, 2000 after attempt 1.
+    // The delay must NOT be called before the first attempt.
+    const delays: number[] = [];
+    const recordingDelay = (ms: number): Promise<void> => {
+      delays.push(ms);
+      return Promise.resolve();
+    };
+    const { chat, callCounts } = fakeRetryChat({
+      [flatTarget.name]: (attempt) => {
+        if (attempt <= 2) throw ChatError.transport("blip");
+        return { content: JSON.stringify(flatResponse), finishReason: "stop" };
+      },
+    });
+    const extractor = perGroupExtractor({
+      target: flatTarget,
+      chat,
+      model: "m",
+      maxRetries: 2,
+      delay: recordingDelay,
+      random: () => 1,
+      baseMs: 1000,
+    });
+
+    const result = await extractor.extract("The wall is R-13, four hundred square feet.");
+
+    // Three calls: attempt 0 (fail), attempt 1 (fail), attempt 2 (succeed).
+    expect(callCounts[flatTarget.name]).toBe(3);
+    expect(result.fields.rValue.value).toBe(13);
+
+    // The delay was called exactly twice — between attempt 0→1 and 1→2.
+    // It was NOT called before the first attempt, and NOT after the
+    // successful third attempt.
+    expect(delays).toHaveLength(2);
+    // The values are the full-jitter windows with random=1: base * 2^0 = 1000,
+    // base * 2^1 = 2000. Growing — a 429 re-sent immediately is the bug this
+    // fixes.
+    expect(delays[0]).toBe(1000);
+    expect(delays[1]).toBe(2000);
+    expect(delays[1]).toBeGreaterThan(delays[0]!);
   });
 });
 
