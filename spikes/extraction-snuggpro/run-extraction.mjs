@@ -97,8 +97,9 @@ for (const [label, path] of [
 }
 
 const { snuggProAdapter, normalizeFields, snuggGroupInstructions } = await import(ADAPTER_DIST);
-const { openAiChat, helixChat, singleShotExtractor, perGroupExtractor } =
-  await import(EXTRACTOR_DIST);
+const { openAiChat, helixChat, singleShotExtractor, perGroupExtractor } = await import(
+  EXTRACTOR_DIST
+);
 
 // ---------------------------------------------------------------------------
 // Strategy definitions — how each extractor is built from a ChatClient + model.
@@ -285,7 +286,10 @@ function parseArgs(argv) {
     else if (a === "--strip-descriptions") opts.stripDescriptions = true;
     else if (a === "--transport") opts.transport = argv[++i];
     else if (a === "--origin") opts.origin = argv[++i];
-    else if (a === "--only") opts.only = String(argv[++i]).split(",").map((x) => x.trim());
+    else if (a === "--only")
+      opts.only = String(argv[++i])
+        .split(",")
+        .map((x) => x.trim());
     else if (a === "--output") opts.output = resolve(argv[++i]);
     else if (a === "--base-url") opts.baseUrl = argv[++i];
     else if (a === "--strategy") {
