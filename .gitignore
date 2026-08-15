@@ -74,3 +74,8 @@ snugg-pro.html
 # actions/cache. The tarballs/scratch-app themselves live outside the repo entirely (os.tmpdir()),
 # not here — see that script's header for why.
 .cache/pack-and-consume/
+
+# Score outputs name the results directory they scored, which is often a scratch
+# path — the run they describe is not reproducible from the repo. Regenerate with
+# `node spikes/extraction-snuggpro/score.mjs <resultsDir>`.
+spikes/extraction-snuggpro/results/*-score.json

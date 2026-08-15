@@ -12,8 +12,8 @@
  *      `heatingEquipmentType`. There is no rename table between this schema and
  *      the API, so there is no rename table to get wrong.
  *   2. **The enum members are the wire strings, verbatim** — `"6% - Well sealed"`,
- *      `"Furnace / Central AC (shared ducts)"`, `"Not Tested"`, `'Duct Board 1.5"'`.
- *      Title Case, spaces, slashes, percent signs, inch marks and all. A previous
+ *      `"Furnace / Central AC (shared ducts)"`, `"Not Tested"`, `"Duct Board 1.5 inch"`.
+ *      Title Case, spaces, slashes, percent signs and all. A previous
  *      version stored snake_cased tokens (`well_sealed`, `not_tested`), which made
  *      every enumerated leaf need a lookup table at write time; doc 17 §3 measured
  *      that at ~25 of 27 enumerated leaves. Storing what the API accepts deletes
@@ -321,15 +321,29 @@ export const HvacDuctLeakage = z
     'Qualitative duct tightness, or "Measured (CFM25)" when a duct-blaster number was read — that number goes in hvacDuctLeakageValue, not here.',
   );
 
-/** `hvacDuctInsulation` (`hvac`). Note the inch marks — they are in the wire value. */
+/**
+ * `hvacDuctInsulation` (`hvac`).
+ *
+ * The vendor's wire values use double-quote inch marks (`Duct Board 1.5"`). The
+ * platform's structured-output route (`POST <base>/_api/llm/chat`) rejects a
+ * schema whose enum contains a double-quote character with a generic
+ * `400 validation_failed` — verified in isolation against the live route, and
+ * bisected from a whole-schema failure down to exactly these six members. So the
+ * extraction enum uses quote-free aliases that spell the inch out ("1.5 inch"),
+ * and `normalization.ts`'s `DUCT_INSULATION_VENDOR_LITERALS` maps each alias back
+ * to the vendor's literal wire string for write-back. The three members below
+ * that never carried a quote (`No Insulation`, `Reflective bubble wrap`,
+ * `Measured (R Value)`) are unchanged and appear in neither the alias set nor the
+ * lookup table — they need no translation.
+ */
 export const HvacDuctInsulation = z.enum([
   "No Insulation",
-  'Duct Board 1"',
-  'Duct Board 1.5"',
-  'Duct Board 2"',
-  'Fiberglass 1.25"',
-  'Fiberglass 2"',
-  'Fiberglass 2.5"',
+  "Duct Board 1 inch",
+  "Duct Board 1.5 inch",
+  "Duct Board 2 inch",
+  "Fiberglass 1.25 inch",
+  "Fiberglass 2 inch",
+  "Fiberglass 2.5 inch",
   "Reflective bubble wrap",
   "Measured (R Value)",
 ]);
@@ -885,3 +899,34 @@ export const snuggExtractionSchema = enveloped(snuggValuesSchema);
  * returns.
  */
 export type SnuggExtraction = Enveloped<SnuggValues>;
+
+// --- The platform-route caps (R3 Task 5) -------------------------------------
+// The structured-output route the extractor sends to rejects a schema that is too
+// big or too deep, with an HTTP 400 whose text names both limits verbatim. The
+// whole R3 per-group increment exists because the full `snuggExtractionSchema`
+// with vendor descriptions is 39,741 characters against the character cap — one
+// call carrying it is over; seven calls each carrying one group are not. These
+// constants turn that production HTTP 400 into a failing build: the per-group
+// cap test (per-group-cap.test.ts) asserts every group's serialized JSON Schema
+// sits under both ceilings, so a future field that breaks one fails the test
+// rather than a real extraction in the field.
+
+/**
+ * The maximum serialized character count the structured-output route accepts in
+ * `response_format.json_schema.schema`.
+ *
+ * The vendor's own error text: `schema must serialize to <= 32768 characters and
+ * nest <= 12 levels`. Both limits are named in that one message, and only the
+ * nesting one was ever checked (by `extraction-shape.test.ts` against OpenAI's
+ * documented 10-level ceiling — a different, stricter source). This constant
+ * guards the character half. Measured today: the largest per-group schema is
+ * `health` at ~13.3k characters, comfortably under.
+ */
+export const SCHEMA_SERIALIZED_CHAR_CAP = 32_768;
+
+/**
+ * The maximum nesting depth the structured-output route accepts. The vendor's
+ * error text names this alongside the character cap: `schema must serialize to
+ * <= 32768 characters and nest <= 12 levels`.
+ */
+export const SCHEMA_NESTING_DEPTH_CAP = 12;

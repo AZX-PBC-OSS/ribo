@@ -19,15 +19,25 @@
  * the target's field knowledge, so `ribo-core` and this adapter never import a
  * provider SDK. The two alternative strategies (plan-then-execute, a managed
  * endpoint) share this same {@link Extractor} seam; see Task 5.
+ *
+ * The prompt assembly, the pre-parse `finishReason` check, the terminal-transport
+ * classification, and the two parse helpers live in {@link file://./extraction-common.ts}
+ * — shared with the per-group extractor (R3 Task 2) so the hard-won reasoning
+ * behind each is not copied.
  */
 
 import { z } from "zod";
 
-import { TerminalQueueError } from "@azx/ribo-core";
 import type { Enveloped, Extractor, ExtractionResult, ExtractionTarget } from "@azx/ribo-core";
 
-import { ChatError } from "./chat-client.js";
-import type { ChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
+import type { ChatClient } from "./chat-client.js";
+import {
+  assertStopFinishReason,
+  buildMessages,
+  completeOrClassify,
+  parseJsonContent,
+  parseWithSchema,
+} from "./extraction-common.js";
 
 /** Options for {@link singleShotExtractor}. */
 export interface SingleShotOptions<V extends Record<string, unknown>> {
@@ -58,58 +68,6 @@ export interface SingleShotOptions<V extends Record<string, unknown>> {
 }
 
 /**
- * Assemble the chat messages: the instructions as the system prompt, each few-shot
- * example as a user (transcript) / assistant (JSON fields) turn, then the live
- * transcript as the final user message.
- */
-function buildMessages<V extends Record<string, unknown>>(
-  target: ExtractionTarget<V>,
-  transcript: string,
-): ChatMessage[] {
-  const messages: ChatMessage[] = [{ role: "system", content: target.instructions }];
-  for (const example of target.examples ?? []) {
-    messages.push({ role: "user", content: example.transcript });
-    messages.push({ role: "assistant", content: JSON.stringify(example.fields) });
-  }
-  messages.push({ role: "user", content: transcript });
-  return messages;
-}
-
-/**
- * Send the request, translating the transport's terminal failures into terminal QUEUE
- * failures.
- *
- * `isTransientFailure` reads any error without a numeric `status` as retryable, so a
- * bare {@link ChatError} of these kinds would be re-sent until the item reached `dead` —
- * defeating the exact reasoning that makes a non-`"stop"` finish reason terminal a few
- * lines below.
- *
- *   - `refusal` — the model declined THIS input. Re-sending it produces the same refusal.
- *   - `unsupported` — this client cannot honour something the request asked for (a CLI
- *     transport given `maxTokens`, say). A configuration error, fixed by changing the
- *     configuration, never by trying again.
- *
- * `aborted` is deliberately left retryable, which is where this departs from a review
- * that grouped all three: an abort is caller-initiated, and a host that cancels on a
- * deadline may well succeed on a later attempt with a fresh one. `transport`,
- * `malformed-response` and a 5xx/408/429 `http` stay retryable for the same reason they
- * always were — they describe a blip, not a verdict.
- */
-async function completeOrClassify(chat: ChatClient, request: ChatRequest) {
-  try {
-    return await chat.complete(request);
-  } catch (cause) {
-    if (cause instanceof ChatError && (cause.kind === "refusal" || cause.kind === "unsupported")) {
-      throw new TerminalQueueError(
-        `singleShotExtractor: the transport failed terminally (${cause.kind}): ${cause.message}`,
-        { cause },
-      );
-    }
-    throw cause;
-  }
-}
-
-/**
  * Build a single-shot {@link Extractor} for a target.
  *
  * On each `extract`:
@@ -128,6 +86,9 @@ async function completeOrClassify(chat: ChatClient, request: ChatRequest) {
  *      error), so the queue retries rather than losing a recording someone drove
  *      to a house to make. Nothing here is thrown as a `TerminalQueueError`: a bad
  *      response is more likely a truncation or a blip than a permanent condition.
+ *
+ * Steps 2 and 3 use the shared helpers in {@link file://./extraction-common.ts},
+ * where the full reasoning behind each is documented.
  */
 export function singleShotExtractor<V extends Record<string, unknown>>({
   target,
@@ -140,64 +101,30 @@ export function singleShotExtractor<V extends Record<string, unknown>>({
     string,
     unknown
   >;
+  const context = `singleShotExtractor: model response for "${target.name}"`;
 
   return {
     async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
-      const completion = await completeOrClassify(chat, {
-        model,
-        messages: buildMessages(target, transcript),
-        response_format: {
-          type: "json_schema",
-          json_schema: { name: target.name, schema: jsonSchema, strict: true },
+      const completion = await completeOrClassify(
+        chat,
+        {
+          model,
+          messages: buildMessages(target, transcript),
+          response_format: {
+            type: "json_schema",
+            json_schema: { name: target.name, schema: jsonSchema, strict: true },
+          },
+          maxTokens,
         },
-        maxTokens,
-      });
+        "singleShotExtractor",
+      );
 
-      // The other half of the token cap: a non-"stop" finish reason means the
-      // model's output is not a complete result. Reject BEFORE the zod parse, so
-      // a truncated or filtered response is not misreported as "invalid JSON" —
-      // the diagnostic failure this cap exists to prevent. "length" names
-      // maxTokens (the knob that fixes it); "content_filter" names the cause.
-      //
-      // TerminalQueueError, NOT a plain Error: `isTransientFailure` treats any
-      // error without a numeric `status` as retryable, and both of these are
-      // deterministic. Re-sending an identical request with an identical
-      // `maxTokens` truncates at the identical point, and a content filter fires
-      // again on the same content — so a plain Error would burn every attempt and
-      // land the item in `dead`, hiding a configuration problem behind a retry
-      // storm. The fix is to change `maxTokens` or the input, never to try again.
-      if (completion.finishReason && completion.finishReason !== "stop") {
-        const hint =
-          completion.finishReason === "length"
-            ? " — the response was truncated; increase maxTokens and re-run"
-            : " — the response was content-filtered; the model declined to complete it";
-        throw new TerminalQueueError(
-          `singleShotExtractor: model response for "${target.name}" ended with finishReason "${completion.finishReason}"${hint}.`,
-        );
-      }
+      assertStopFinishReason(completion, context);
 
-      let raw: unknown;
-      try {
-        raw = JSON.parse(completion.content);
-      } catch (cause) {
-        // Transient by default: a truncated/garbled body is worth a retry, and a
-        // plain Error (no HTTP status) is exactly what isTransientFailure retries.
-        throw new Error(
-          `singleShotExtractor: model response for "${target.name}" was not valid JSON`,
-          { cause },
-        );
-      }
+      const raw = parseJsonContent(completion.content, context);
+      const parsed = parseWithSchema(target.extractionSchema, raw, context);
 
-      const parsed = target.extractionSchema.safeParse(raw);
-      if (!parsed.success) {
-        throw new Error(
-          `singleShotExtractor: model response for "${target.name}" did not match the schema: ` +
-            parsed.error.message,
-          { cause: parsed.error },
-        );
-      }
-
-      return { fields: normalize(parsed.data), raw, usage: { calls: 1 } };
+      return { fields: normalize(parsed), raw, usage: { calls: 1 } };
     },
   };
 }

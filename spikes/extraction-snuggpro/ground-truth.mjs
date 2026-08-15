@@ -4,11 +4,10 @@
  * is documented in `ground-truth-format.md` — read that first; this file enforces what it
  * describes and must not drift from it.
  *
- * A ground-truth file is "new format" iff it has a `leaves` object; the 13 pre-existing files (old
- * adapter shape: flat snake_case fields, an 11-test `healthSafety` object, no `schemaVersion`) have
- * `fields` instead and are left alone by everything here — `isNewFormat` below is the single place
- * that draws the line, so score.mjs can report "not yet re-annotated" instead of crashing on the
- * ones the fan-out has not reached yet.
+ * A ground-truth file is "new format" iff it has a `leaves` object. All 14 corpus transcripts have
+ * been re-annotated into the new format; `isNewFormat` below remains as the single place that draws
+ * the line, so a stale old-format file (if one is ever reintroduced) is reported as "not yet
+ * re-annotated" by score.mjs instead of crashing on it.
  *
  * TWO LAYERS, not one:
  *   - The RAW file an annotator writes: `leaves` is SPARSE — only the leaves they can address

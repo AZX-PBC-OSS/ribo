@@ -675,12 +675,12 @@
                   "type": "string",
                   "enum": [
                     "No Insulation",
-                    "Duct Board 1\"",
-                    "Duct Board 1.5\"",
-                    "Duct Board 2\"",
-                    "Fiberglass 1.25\"",
-                    "Fiberglass 2\"",
-                    "Fiberglass 2.5\"",
+                    "Duct Board 1 inch",
+                    "Duct Board 1.5 inch",
+                    "Duct Board 2 inch",
+                    "Fiberglass 1.25 inch",
+                    "Fiberglass 2 inch",
+                    "Fiberglass 2.5 inch",
                     "Reflective bubble wrap",
                     "Measured (R Value)"
                   ],

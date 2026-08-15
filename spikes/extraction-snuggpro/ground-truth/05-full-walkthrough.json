@@ -75,7 +75,7 @@
     "hvac.hvacDuctInsulation": {
       "status": "asserted",
       "sourceSpan": "The ducts are wrapped in that thin fiberglass, the inch-and-a-quarter stuff, not much.",
-      "member": "Fiberglass 1.25\""
+      "member": "Fiberglass 1.25 inch"
     },
     "attic.atticInsulationDepth": {
       "status": "asserted",
