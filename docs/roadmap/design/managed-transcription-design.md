@@ -122,14 +122,26 @@ later as a refinement.
 ### 5.2 The managed transcriber
 
 A new package, `@azx/ribo-transcriber-managed`, mirroring the on-device one: implements `Transcriber`,
-engine id `managed-azure-speech`, POSTs to `/_api/fetch/<azure-stt-endpoint>`.
+engine id `managed-azure-speech`.
 
-Everything is injected — token, base URL, `Origin`, and `fetch` — exactly as `helixChat` does it in
-`ribo-extractor-openai`. No secret is bundled and the browser never holds the Azure key; egress
-injects it.
+**The package does not know how its call is routed.** It takes the Azure transcribe endpoint and an
+injected `fetch`, builds the multipart request, and calls it. Whether that fetch goes straight to
+Azure with a key attached, or is rewritten onto `<gateway>/_api/fetch/<url>` so egress injects the
+stored `azure-stt` secret, is the host's business and never the package's.
 
-Capability reporting maps onto reasons that already exist: `not-configured` when no token is
-supplied, `offline` when connectivity is down, `ready` otherwise. Neither is permanent, so both are
+This is a deliberate strengthening of "no secret is bundled". Rather than the package holding a
+credential and being trusted not to leak it, the package has **no capacity to authenticate at all** —
+the credential lives in the transport the host supplies. It also makes the eventual migration from
+development credentials to the Helix connection a change at the composition site, with no package
+release.
+
+The development transport — key attached, straight to Azure — is viable only because a localhost dev
+server has no Content-Security-Policy. A deployed Helix app cannot reach a third-party origin
+directly (`connect-src 'self'`), so production is necessarily proxied. Dev-direct is therefore
+bounded by the platform, not merely by our own discipline.
+
+Capability reporting maps onto reasons that already exist: `not-configured` when no transport or
+endpoint is supplied, `offline` when connectivity is down, `ready` otherwise. Neither is permanent, so both are
 re-probed — correct, since both are situations rather than facts about the hardware.
 
 Failure classification follows the contract's existing split, and getting it wrong is the bug the

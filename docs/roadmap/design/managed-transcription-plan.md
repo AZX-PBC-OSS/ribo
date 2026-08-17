@@ -131,13 +131,19 @@ fiddly and has its own gates) is reviewed separately from the request logic.
 Engine id is `managed-azure-speech`, stable and short: it is persisted into every `Transcript.engine`
 it produces.
 
-Everything is injected — bearer token, gateway base URL, `Origin`, the Azure resource host, and
-`fetch`. Connectivity is injected too, as a predicate: do **not** reach for `navigator.onLine`
-directly and do not duplicate core's three-state connectivity model.
+**The package must have no capacity to authenticate.** It takes the Azure transcribe endpoint and an
+injected `fetch`, and knows nothing about how the call is routed — whether the host sends it straight
+to Azure with a key attached, or rewrites it onto `<gateway>/_api/fetch/<url>` for egress to inject
+the stored secret. There is **no token option, no API-key option, and no gateway base URL** in this
+package. If you are writing code that attaches a credential, you are in the wrong package: read
+design §5.2.
 
-Capability maps onto reasons that already exist: no token yields `not-configured`, a connectivity
-predicate reporting down yields `offline`, otherwise `ready`. Neither failure is permanent, and that
-matters — both are situations, not facts about the hardware.
+Connectivity is injected too, as a predicate: do **not** reach for `navigator.onLine` directly and do
+not duplicate core's three-state connectivity model.
+
+Capability maps onto reasons that already exist: a missing endpoint or transport yields
+`not-configured`, a connectivity predicate reporting down yields `offline`, otherwise `ready`.
+Neither failure is permanent, and that matters — both are situations, not facts about the hardware.
 
 **Interfaces.** Produces the options interface and the class name Task 4 extends and Task 7 constructs.
 State both in your report.
@@ -147,8 +153,8 @@ package present. These gates exist because a package can typecheck and still be 
 
 **Must-fail tests.**
 
-- No token yields `not-configured`, and `isPermanentlyUnavailable()` is **false** for it — a missing
-  key must not permanently demote the engine, because the host may supply one later.
+- A missing endpoint yields `not-configured`, and `isPermanentlyUnavailable()` is **false** for it — a
+  missing configuration must not permanently demote the engine, because the host may supply one later.
 - A connectivity predicate reporting down yields `offline`; reporting up with a token yields `ready`.
 - The engine id is exactly the documented string. Assert the literal — it is persisted data, and a
   rename is a migration.
@@ -161,10 +167,13 @@ package present. These gates exist because a package can typecheck and still be 
 endpoint through the gateway, and map the response onto a `Transcript`.
 
 The request shape is settled and verified (§7): the target is
-`<resource-host>/speechtotext/transcriptions:transcribe?api-version=2025-10-15`, prefixed onto
-`<baseUrl>/_api/fetch/`. Two form parts: `audio` carrying the blob, and `definition` carrying JSON.
-The transcript text is `combinedPhrases[0].text`. Send the blob **as recorded** — no transcode, no
-re-containering.
+`<resource-host>/speechtotext/transcriptions:transcribe?api-version=2025-10-15`. Two form parts:
+`audio` carrying the blob, and `definition` carrying JSON. The transcript text is
+`combinedPhrases[0].text`. Send the blob **as recorded** — no transcode, no re-containering.
+
+Build that URL and hand it to the injected `fetch`. **Do not prefix `/_api/fetch/` here** — routing
+belongs to the host's transport (Task 3, design §5.2), and baking the gateway into the package is
+exactly what that split exists to prevent.
 
 **Failure classification is the point of this task, and getting it wrong is the bug the contract
 exists to prevent** (`transcriber.ts`, and rule 5 of `firstCapable`):
@@ -190,10 +199,12 @@ matches the input `Recording` and whose `engine` is the package's engine id.
   "simplify" it.
 - A 401 throws `TranscriberUnavailableError` with reason `not-configured`.
 - An oversized payload fails terminally rather than as a retryable attempt failure.
-- The request URL contains the `/_api/fetch/` prefix, the resource host, and
-  `api-version=2025-10-15`. A silently wrong api-version would lose `phraseList` with no error.
-- The bearer token appears in the request headers and **nowhere in any thrown error message or log
-  line**.
+- The request URL passed to the injected `fetch` is the bare Azure endpoint carrying
+  `api-version=2025-10-15`, with **no** `/_api/fetch/` prefix. A silently wrong api-version would lose
+  `phraseList` with no error, and a prefix added here would double up once the host's transport adds
+  its own.
+- No credential appears anywhere in the request the package builds — it has none to add. Assert the
+  absence of `Authorization` and `Ocp-Apim-Subscription-Key` headers.
 
 ## Task 5 — The phrase list
 
@@ -278,8 +289,14 @@ Wire `firstCapable([onDevice, managed])` as the default, and expose the hedged c
 opt-in the playground can toggle, so both paths are exercised by hand. The host holds the domain
 vocabulary and passes it to both engines (Task 5).
 
-Managed configuration comes from the environment, as the existing Helix dev-gateway wiring does. **No
-token in source.**
+**The playground owns the transport, and this is where the credential lives.** Supply the managed
+transcriber a `fetch` that attaches the Azure key from the environment and calls the endpoint
+directly — viable in development only because a localhost dev server has no CSP. Write it so the
+production variant, which rewrites the URL onto `<gateway>/_api/fetch/<url>` and attaches nothing, is
+an obvious swap at one call site: that migration must not require a package change.
+
+Configuration comes from the environment, as the existing Helix dev-gateway wiring does. **No key in
+source, and none in a committed fixture.**
 
 **Must-fail tests.** A browser test that a recording queued with no on-device model available reaches
 the managed engine and produces a transcript, with `fetch` doubled. Do not call the real service from
