@@ -53,7 +53,7 @@ export function TranscribePanel({ outbox }: { outbox: Outbox }) {
       </p>
 
       <ModelControl whisper={whisper} />
-      <TranscribeControl outbox={outbox} ready={whisper.phase === "ready"} />
+      <TranscribeControl outbox={outbox} onDeviceReady={whisper.phase === "ready"} />
 
       <p style={{ ...muted, marginTop: "1rem" }}>
         <strong>Offline demo.</strong> Make the model available offline{" "}
@@ -177,10 +177,32 @@ function DownloadProgress({ whisper }: { whisper: WhisperState }) {
   );
 }
 
-function TranscribeControl({ outbox, ready }: { outbox: Outbox; ready: boolean }) {
+function TranscribeControl({ outbox, onDeviceReady }: { outbox: Outbox; onDeviceReady: boolean }) {
   const [items, setItems] = useState<OutboxItem[] | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [managedReady, setManagedReady] = useState(false);
+
+  // Ask the managed engine whether it can run. This gate used to be "is the
+  // Whisper model primed", which was right when on-device was the only engine and
+  // is wrong now that there is a roster: it disabled the button in exactly the
+  // state the fallback exists to serve. `capability()` is contractually cheap.
+  useEffect(() => {
+    let cancelled = false;
+    void getManagedTranscriber()
+      .capability()
+      .then((capability) => {
+        if (!cancelled) setManagedReady(capability.status === "ready");
+      })
+      .catch(() => {
+        if (!cancelled) setManagedReady(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const ready = onDeviceReady || managedReady;
 
   // Guards against a re-entrant drain the way `QueuePanel` does: the relay's own
   // writes re-render this component, and `busy` state is a render behind.
@@ -218,18 +240,36 @@ function TranscribeControl({ outbox, ready }: { outbox: Outbox; ready: boolean }
   return (
     <div style={{ marginTop: "1rem" }}>
       <button type="button" style={button} onClick={run} disabled={!ready || busy || !drainable}>
-        {busy ? "transcribing…" : "Transcribe queued recordings on-device"}
+        {/* Name the engine that would actually run. Saying "managed fallback"
+            whenever the model is unprimed would be wrong on a checkout with no
+            managed credentials, where nothing falls back to anything. */}
+        {busy
+          ? "transcribing…"
+          : !onDeviceReady && managedReady
+            ? "Transcribe queued recordings (managed fallback)"
+            : "Transcribe queued recordings on-device"}
       </button>
       <p style={{ ...muted, margin: "0.4rem 0 0" }}>
-        Drains the queue through <code style={monospace}>ribo-core</code>&rsquo;s relay — the real
-        Whisper transcriber in the queue&rsquo;s <code style={monospace}>transcribing</code> step,
-        not a bypass, then the real <code style={monospace}>extracting</code> step (the shared
-        extractor — sample data by default, a live model when configured). Its fields, with their
-        provenance, show in <em>Review extracted fields</em> below. Write-back is still a stub, so
-        items finish at <code style={monospace}>done</code>.
+        Drains the queue through <code style={monospace}>ribo-core</code>&rsquo;s relay — a real
+        transcriber in the queue&rsquo;s <code style={monospace}>transcribing</code> step, not a
+        bypass, then the real <code style={monospace}>extracting</code> step (the shared extractor —
+        sample data by default, a live model when configured). Its fields, with their provenance,
+        show in <em>Review extracted fields</em> below. Write-back is still a stub, so items finish
+        at <code style={monospace}>done</code>.
       </p>
+      {managedReady && (
+        <p style={{ ...muted, margin: "0.25rem 0 0" }}>
+          Roster: <code style={monospace}>firstCapable([on-device, managed])</code>.{" "}
+          {onDeviceReady
+            ? "The model is primed, so this transcribes on-device and no audio leaves the machine."
+            : "The model is not primed, so this falls through to the managed engine — the audio is sent for transcription."}
+        </p>
+      )}
       {!ready && (
-        <p style={{ ...muted, margin: "0.25rem 0 0" }}>Make the model available offline first.</p>
+        <p style={{ ...muted, margin: "0.25rem 0 0" }}>
+          Make the model available offline first — or enable the managed fallback with{" "}
+          <code style={monospace}>VITE_MANAGED_TRANSCRIPTION=1</code>.
+        </p>
       )}
       {error !== undefined && <p style={errorBox}>{error}</p>}
     </div>
