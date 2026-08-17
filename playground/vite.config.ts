@@ -7,6 +7,7 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 import { extractApiPlugin } from "./vite-extract.js";
+import { transcribeApiPlugin } from "./vite-transcribe.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -71,6 +72,11 @@ export default defineConfig({
     // extraction panel — runs inference server-side (keyless codex by default) so
     // no key ever reaches the browser. Not present in the built client bundle.
     extractApiPlugin(),
+    // DEV/PREVIEW ONLY. The `/api/transcribe` endpoint behind the managed
+    // transcriber — attaches the Azure key server-side, so no key reaches the
+    // browser. Structurally identical to Helix's `/_api/fetch/<url>`, which is
+    // what replaces it in a real deployment. Not present in the built bundle.
+    transcribeApiPlugin(),
     VitePWA({
       // `generateSW`, not `injectManifest`: we have no service-worker logic of
       // our own beyond precaching, and hand-rolling the manifest gets the

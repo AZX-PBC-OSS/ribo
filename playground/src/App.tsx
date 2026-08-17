@@ -125,8 +125,8 @@ export function App() {
           <code style={monospace}>RiboProvider</code>;{" "}
           <code style={monospace}>@azx/ribo-adapter-snuggpro</code> now ships a real adapter;{" "}
           <code style={monospace}>@azx/ribo-transcriber-managed</code> ships the{" "}
-          <code style={monospace}>{MANAGED_AZURE_SPEECH_ENGINE}</code> engine, scaffolded but not
-          yet wired into the queue.
+          <code style={monospace}>{MANAGED_AZURE_SPEECH_ENGINE}</code> engine, which the transcribe
+          panel falls back to when the on-device model is not primed.
         </footer>
       </main>
     </RiboProvider>

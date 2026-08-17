@@ -1,34 +1,82 @@
 import { ManagedTranscriber, MANAGED_AZURE_SPEECH_ENGINE } from "@azx/ribo-transcriber-managed";
 
+import { DOMAIN_VOCABULARY } from "./whisper-store.js";
+
 /**
- * @file The shared managed transcriber — constructed once, here.
+ * @file The shared managed transcriber, and the transport that credentials it.
  *
- * The playground owns the transport, and this is where the endpoint is supplied
- * (Task 3 scaffold; Task 7 wires it into the queue composition). The package has
- * no capacity to authenticate: the endpoint and the bare global `fetch` are all
- * it gets here, and whatever credential the call needs is the transport's
- * responsibility — supplied by Task 7 as a `fetchImpl` that attaches the Azure
- * key from the environment. No key lives in this file.
+ * **The host owns the transport; the package owns the request.**
+ * `@azx/ribo-transcriber-managed` deliberately has no capacity to authenticate —
+ * no token option, no key option (design §5.2). It builds the Azure request and
+ * calls an injected `fetch`. This file supplies that `fetch`.
  *
- * Same singleton pattern as `whisper-store.ts` / `extractor-store.ts`: one
- * instance for the whole app, constructed lazily on first use.
+ * ## The transport, and why it is shaped like this
+ *
+ * {@link devTransport} rewrites the Azure URL onto the same-origin
+ * `/api/transcribe`, which the Vite plugin in `../vite-transcribe.ts` forwards
+ * upstream with the subscription key attached **server-side**. The key never
+ * reaches the browser and is never inlined into a bundle.
+ *
+ * That is deliberately the same shape as production. Helix's fetch-proxy is
+ * `POST <gateway>/_api/fetch/<absolute-url>`, with the edge injecting the stored
+ * `azure-stt` secret — a same-origin call that gets credentialed where the browser
+ * cannot see. So the eventual migration is a change to the URL this function
+ * builds, and nothing else: no package release, no change to any caller.
+ *
+ * ## Vocabulary
+ *
+ * {@link DOMAIN_VOCABULARY} is the single host-held list, already used to prime the
+ * on-device engine's jargon prefix. It feeds the managed engine's
+ * `definition.phraseList.phrases` too — one source, two mechanisms. This is
+ * load-bearing rather than cosmetic: the same audio returned "our 19" without a
+ * phrase list and "R-19" with one (design §6).
  */
 
-const endpoint = import.meta.env.VITE_AZURE_SPEECH_ENDPOINT;
+/**
+ * Route the package's Azure request through the same-origin dev endpoint.
+ *
+ * The package's URL is discarded rather than forwarded, and deliberately so: the
+ * server derives the real endpoint from its own environment, and letting the
+ * browser name the upstream host would make this a request forwarder pointed
+ * wherever a page asked. The Helix transport that replaces this one *does* carry
+ * the absolute URL — but the platform validates it against a manifest allowlist,
+ * which is the check this dev endpoint has no way to perform.
+ */
+const devTransport: typeof fetch = (_input, init) => fetch("/api/transcribe", init);
+
+/**
+ * The endpoint the package builds its request against — when managed
+ * transcription is switched on at all.
+ *
+ * **`VITE_MANAGED_TRANSCRIPTION=1` is the switch, and it is off by default.** The
+ * browser cannot tell whether the dev server actually holds a key: that lives in
+ * `process.env` on the Vite side, correctly invisible here. Without a switch the
+ * transcriber would claim `ready` on every machine, `firstCapable` would select it
+ * over an unprimed on-device engine, and every drain on a machine with no
+ * credentials would fail instead of behaving as it does today. Off by default
+ * keeps CI and every uncredentialed checkout on exactly their current path.
+ *
+ * The host itself is a placeholder. The dev server derives the real resource
+ * endpoint from `AZURE_AI_FOUNDRY_OPENAI_BASE_URL` on its own side; what matters
+ * here is only that the package *has* an endpoint, so `capability()` can report
+ * `ready`. The package never contacts this host — `devTransport` rewrites the
+ * call onto `/api/transcribe`.
+ */
+const ENABLED = import.meta.env.VITE_MANAGED_TRANSCRIPTION === "1";
+
+const ENDPOINT = ENABLED
+  ? "https://managed-transcription.invalid/speechtotext/transcriptions:transcribe?api-version=2025-10-15"
+  : undefined;
 
 let transcriber: ManagedTranscriber | undefined;
 
-/**
- * The shared managed transcriber, constructed on first use.
- *
- * With no `VITE_AZURE_SPEECH_ENDPOINT` the transcriber reports `not-configured` —
- * the demo runs with the on-device engine alone. Set the endpoint and it becomes
- * `ready` (subject to connectivity), ready for Task 7's queue composition.
- */
+/** The shared managed transcriber, constructed on first use. */
 export function getManagedTranscriber(): ManagedTranscriber {
   transcriber ??= new ManagedTranscriber({
-    endpoint,
+    endpoint: ENDPOINT,
+    fetchImpl: devTransport,
     isOnline: () => navigator.onLine,
+    vocabulary: DOMAIN_VOCABULARY,
   });
   return transcriber;
 }

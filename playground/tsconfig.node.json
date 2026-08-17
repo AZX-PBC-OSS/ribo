@@ -29,5 +29,11 @@
     // the browser-targeted packages.
     "lib": ["ESNext", "DOM"]
   },
-  "include": ["vite.config.ts", "vite-extract.ts", "vite-extract.test.ts"]
+  "include": [
+    "vite.config.ts",
+    "vite-extract.ts",
+    "vite-extract.test.ts",
+    "vite-transcribe.ts",
+    "vite-transcribe.test.ts"
+  ]
 }

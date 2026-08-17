@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { createRelay, type Outbox, type OutboxItem } from "@azx/ribo-core";
+import { createRelay, firstCapable, type Outbox, type OutboxItem } from "@azx/ribo-core";
 
 import { extractStep } from "./extractor-store.js";
 import { formatBytes, messageOf } from "./format.js";
+import { getManagedTranscriber } from "./managed-transcriber-store.js";
 import { button, errorBox, monospace, muted, panel } from "./styles.js";
 import {
   getTranscriber,
@@ -236,8 +237,18 @@ function TranscribeControl({ outbox, ready }: { outbox: Outbox; ready: boolean }
 }
 
 /**
- * Drain the queue with the real on-device transcriber in the transcribing step
+ * Drain the queue with the real transcriber **roster** in the transcribing step
  * and the SHARED real extract step in the extracting step.
+ *
+ * The roster is `firstCapable([onDevice, managed])` — the composition a host
+ * actually ships. On-device comes first because it is faster to reach, works with
+ * no uplink, and keeps the audio on the machine; the managed engine covers the
+ * devices that cannot run the model or cannot run it quickly enough.
+ *
+ * With `VITE_MANAGED_TRANSCRIPTION` unset the managed engine reports
+ * `not-configured` and `firstCapable` skips it, so this button behaves exactly as
+ * it did before. Set it, and an unprimed model means the drain falls through to
+ * the managed engine — which is the fallback, watchable.
  *
  * Built per click rather than started at boot, and via `syncNow` — the manual
  * path that bypasses connectivity hysteresis, so it transcribes even while the
@@ -252,7 +263,7 @@ function TranscribeControl({ outbox, ready }: { outbox: Outbox; ready: boolean }
 async function runOnDeviceRelay(outbox: Outbox): Promise<void> {
   const relay = createRelay({
     outbox,
-    transcriber: getTranscriber(),
+    transcriber: firstCapable([getTranscriber(), getManagedTranscriber()]),
     extract: extractStep,
     write: () => Promise.resolve({ writtenBy: "playground on-device demo" }),
   });
