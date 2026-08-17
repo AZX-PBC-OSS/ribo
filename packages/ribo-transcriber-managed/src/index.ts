@@ -48,6 +48,7 @@ export class ManagedTranscriber implements Transcriber {
   readonly #endpoint?: string;
   readonly #doFetch?: typeof fetch;
   readonly #isOnline: () => boolean;
+  readonly #vocabulary?: readonly string[];
 
   constructor(options: ManagedTranscriberOptions = {}) {
     this.#endpoint = options.endpoint;
@@ -57,6 +58,7 @@ export class ManagedTranscriber implements Transcriber {
     // Optimistic default: a host that cares about offline state supplies a real
     // predicate. The package never reaches for `navigator.onLine` directly.
     this.#isOnline = options.isOnline ?? (() => true);
+    this.#vocabulary = options.vocabulary;
   }
 
   async capability(): Promise<TranscriberCapability> {
@@ -96,6 +98,7 @@ export class ManagedTranscriber implements Transcriber {
       endpoint: this.#endpoint,
       doFetch: this.#doFetch,
       engine: this.engine,
+      vocabulary: this.#vocabulary,
     });
   }
 }

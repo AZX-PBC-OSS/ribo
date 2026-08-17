@@ -57,6 +57,19 @@ function fakeFetch(response: Response): {
   return { fetchImpl, calls };
 }
 
+/**
+ * Pull the `definition` form part out of a recorded request body and parse it.
+ * The Fast Transcription request sends `definition` as a stringified-JSON form
+ * part alongside the `audio` blob (design §7), so the phrase-list assertions
+ * inspect the body the package actually built, not a builder return value.
+ */
+function parseDefinition(calls: Array<{ url: string; init: RequestInit }>): unknown {
+  const form = calls[0]!.init.body as FormData;
+  const raw = form.get("definition");
+  expect(typeof raw).toBe("string");
+  return JSON.parse(raw as string);
+}
+
 describe("ManagedTranscriber — transcribe", () => {
   test("a recorded fixture response yields a Transcript with the expected text, recordingId, and engine id", async () => {
     const { fetchImpl } = fakeFetch(Response.json(OK_BODY));
@@ -132,5 +145,67 @@ describe("ManagedTranscriber — transcribe", () => {
     // this package builds must carry no auth header at all.
     expect(headers.get("authorization")).toBeNull();
     expect(headers.get("ocp-apim-subscription-key")).toBeNull();
+  });
+
+  // --- Task 5 — the phrase list --------------------------------------------------
+  //
+  // The vocabulary belongs to the host, not this package (plan Task 5). These
+  // tests assert the request body the package builds, because a plausible-looking
+  // wrong key is silently ignored by the service — no error, just worse
+  // transcription (design §6, measured 2026-08-17: "our 19" → "R-19").
+
+  test("supplied vocabulary appears at definition.phraseList.phrases in the request body — exact nesting", async () => {
+    // The exact nesting is load-bearing: `phraseList.phrases` is the only key
+    // the service reads. `phrase_list`, `phraseHints` or a bare array would be
+    // silently ignored, so assert the nesting on the body, not just "phrases
+    // exist".
+    const { fetchImpl, calls } = fakeFetch(Response.json(OK_BODY));
+    const t = new ManagedTranscriber({
+      endpoint: ENDPOINT,
+      fetchImpl,
+      vocabulary: ["R-19", "CFM50", "blower door"],
+    });
+
+    await t.transcribe(RECORDING, AUDIO);
+
+    const definition = parseDefinition(calls) as {
+      phraseList?: { phrases?: unknown };
+    };
+    expect(definition.phraseList).toEqual({ phrases: ["R-19", "CFM50", "blower door"] });
+  });
+
+  test("no vocabulary supplied omits phraseList entirely from the request body", async () => {
+    // An empty phrase list is no phrase list. Sending `phraseList: { phrases: [] }`
+    // would be a meaningless part the service did not ask for; assert the key is
+    // absent, not merely empty.
+    const { fetchImpl, calls } = fakeFetch(Response.json(OK_BODY));
+    const t = new ManagedTranscriber({ endpoint: ENDPOINT, fetchImpl });
+
+    await t.transcribe(RECORDING, AUDIO);
+
+    const definition = parseDefinition(calls) as { phraseList?: unknown };
+    expect(definition.phraseList).toBeUndefined();
+    expect("phraseList" in definition).toBe(false);
+  });
+
+  test("locales is still present in the request body when a phrase list is supplied", async () => {
+    // A builder that *replaces* the definition instead of extending it would
+    // pass a naive phrase-list test while silently breaking language selection.
+    // `locales` must survive alongside `phraseList`.
+    const { fetchImpl, calls } = fakeFetch(Response.json(OK_BODY));
+    const t = new ManagedTranscriber({
+      endpoint: ENDPOINT,
+      fetchImpl,
+      vocabulary: ["R-19"],
+    });
+
+    await t.transcribe(RECORDING, AUDIO);
+
+    const definition = parseDefinition(calls) as {
+      locales?: unknown;
+      phraseList?: unknown;
+    };
+    expect(definition.locales).toEqual(["en-US"]);
+    expect(definition.phraseList).toBeDefined();
   });
 });

@@ -34,6 +34,8 @@
 import { TerminalQueueError, TranscriberUnavailableError } from "@azx/ribo-core";
 import type { Recording, Transcript } from "@azx/ribo-core";
 
+import { buildDefinition } from "./definition.js";
+
 /** The subset of the Fast Transcription response body this module reads. */
 interface FastTranscriptionResponse {
   readonly combinedPhrases?: ReadonlyArray<{ readonly text?: unknown }>;
@@ -47,6 +49,11 @@ export interface TranscribeViaManagedAzureOptions {
   readonly doFetch: typeof fetch;
   /** `Transcriber.engine` — stamped onto the resulting `Transcript.engine`. */
   readonly engine: string;
+  /**
+   * Domain terms sent as `definition.phraseList.phrases` (Task 5). Omitted or
+   * empty sends no `phraseList` — see {@link buildDefinition}.
+   */
+  readonly vocabulary?: readonly string[];
 }
 
 /**
@@ -63,13 +70,16 @@ export async function transcribeViaManagedAzure(
   audio: Blob,
   options: TranscribeViaManagedAzureOptions,
 ): Promise<Transcript> {
-  const { endpoint, doFetch, engine } = options;
+  const { endpoint, doFetch, engine, vocabulary } = options;
 
-  // Two form parts: the audio blob as recorded, and the definition JSON.
-  // `locales` only for now — the phrase list is Task 5.
+  // Two form parts: the audio blob as recorded, and the definition JSON. The
+  // definition carries `locales` always, and `phraseList.phrases` when the host
+  // supplied a vocabulary (Task 5, design §6). `buildDefinition` omits
+  // `phraseList` entirely when there are no terms — an empty phrase list is no
+  // phrase list.
   const form = new FormData();
   form.append("audio", audio);
-  form.append("definition", JSON.stringify({ locales: ["en-US"] }));
+  form.append("definition", JSON.stringify(buildDefinition(vocabulary)));
 
   let response: Response;
   try {

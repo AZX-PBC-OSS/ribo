@@ -55,4 +55,26 @@ export interface ManagedTranscriberOptions {
    * `ribo-core`'s `Connectivity` or `navigator.onLine`.
    */
   readonly isOnline?: () => boolean;
+
+  /**
+   * Domain terms sent to the Fast Transcription endpoint as
+   * `definition.phraseList.phrases` to bias recognition toward supplied
+   * vocabulary. This is load-bearing, not a refinement: measured on 2026-08-17
+   * the same audio returned "our 19" with no phrase list and "R-19" with one
+   * (design §6) — R-values are exactly the class of term the downstream
+   * extractor reads.
+   *
+   * **The vocabulary belongs to the host.** This package is tool-agnostic and
+   * holds no home-energy word list; the host supplies the list (plan Task 7).
+   * The option mirrors the shape of `TranscribeHints.vocabulary` in
+   * `ribo-transcriber-ondevice/src/config.ts` (`readonly string[]`) so a single
+   * host-held list can feed both engines by two mechanisms — a jargon prefix
+   * on-device, a phrase list here. The type is re-declared rather than
+   * imported: `TranscribeHints` lives in the on-device package and must not
+   * move to `ribo-core` (plan Task 5).
+   *
+   * Omitted, or a list that is empty after trimming, sends no `phraseList` at
+   * all — an empty phrase list is no phrase list.
+   */
+  readonly vocabulary?: readonly string[];
 }
