@@ -24,10 +24,17 @@ function makeTranscriber(): OnDeviceTranscriber {
     // Deterministic across headless Chromium (WebGPU may or may not be present): the WASM build is
     // always available, and priming loads it via the same-origin wasmPaths.
     device: "wasm",
-    // fp32 avoids the quantized decoder weights, whose 4-bit MatMulNBits path this ORT dev build
-    // rejects for tiny.en on WASM (both q4 and q8 variants fail session creation). Immaterial to
-    // Task 2 (we prove download+cache, not inference); Task 3/4 pick the production dtype against
-    // measured accuracy. This is also a real Task-3 finding — see the report.
+    // fp32 is the dtype this test pins, and it is deliberate: it is what the package ships, so
+    // proving download+cache against it proves the production path.
+    //
+    // This comment used to add "(both q4 and q8 variants fail session creation)". Re-measured
+    // 2026-08-17 on the same pinned ORT (`dtype-probe.manual.ts`): q4 loads on WASM, and q8/int8
+    // load on **WebGPU** — the execution provider gates this, not the dtype. The WASM failure is
+    // ORT issue #28306, fixed in 1.27.0, newer than the dev build transformers.js 4.2.0 pins. See
+    // `config.ts`'s MODEL_DOWNLOAD_BYTES comment for the full matrix and the two cautions.
+    //
+    // This test still pins fp32 deliberately: `device: "wasm"` above is chosen for determinism in
+    // headless Chromium, which has no GPU adapter, and fp32 is the dtype that loads there.
     dtype: "fp32",
     wasmPaths: __ORT_WASM_BASE__,
     // The consumer constructs the worker in their own bundler context (AGENTS §5.2). Here the test

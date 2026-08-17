@@ -1,7 +1,8 @@
 import { expect, test } from "vitest";
 
-import { isPermanentlyUnavailable } from "@azx/ribo-core";
+import { firstCapable, isPermanentlyUnavailable } from "@azx/ribo-core";
 
+import { ondeviceEngineId } from "./engine-id.js";
 import { OnDeviceTranscriber } from "./index.js";
 import { TRANSFORMERS_CACHE_NAME } from "./model-cache.js";
 import { DEFAULT_RTF_THRESHOLD, readRtfVerdict, writeRtfVerdict } from "./rtf-verdict.js";
@@ -15,6 +16,11 @@ import { DEFAULT_RTF_THRESHOLD, readRtfVerdict, writeRtfVerdict } from "./rtf-ve
 const WASM_PATHS = "/ort/";
 const MODEL = "Xenova/whisper-tiny.en";
 const OTHER_MODEL = "Xenova/whisper-small.en";
+
+// The verdict is keyed by ENGINE id, not model id — a verdict measured on one operating point
+// must not demote another, and `too-slow` is permanent, so inheriting it is unrecoverable.
+const ENGINE = ondeviceEngineId({ modelId: MODEL });
+const OTHER_ENGINE = ondeviceEngineId({ modelId: OTHER_MODEL });
 
 const encoderUrl = (model: string) =>
   `https://huggingface.co/${model}/resolve/main/onnx/encoder_model_quantized.onnx`;
@@ -73,7 +79,7 @@ function cachesWithModel(model: string): CacheStorage {
 // weights and reports ready regardless of speed.
 test("stored RTF above threshold with model cached yields unavailable/too-slow carrying the measured value", async () => {
   const caches = cachesWithModel(MODEL);
-  await writeRtfVerdict(MODEL, 4.2, caches);
+  await writeRtfVerdict(ENGINE, 4.2, caches);
 
   const transcriber = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,
@@ -94,7 +100,7 @@ test("stored RTF above threshold with model cached yields unavailable/too-slow c
 // within tolerance should still be selected.
 test("stored RTF below threshold and model cached yields ready", async () => {
   const caches = cachesWithModel(MODEL);
-  await writeRtfVerdict(MODEL, 0.5, caches);
+  await writeRtfVerdict(ENGINE, 0.5, caches);
 
   const transcriber = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,
@@ -124,7 +130,7 @@ test("no stored verdict and model cached yields ready (today's behaviour unchang
 // capability we produce must honour that.
 test("the too-slow verdict is permanently unavailable so firstCapable stops re-probing", async () => {
   const caches = cachesWithModel(MODEL);
-  await writeRtfVerdict(MODEL, 4.2, caches);
+  await writeRtfVerdict(ENGINE, 4.2, caches);
 
   const transcriber = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,
@@ -143,7 +149,7 @@ test("verdict is durable across instances and isolated by model id", async () =>
   const caches = cachesWithModel(MODEL);
 
   // Write the verdict through the store — Task 2 will write through `prime()`.
-  await writeRtfVerdict(MODEL, 4.2, caches);
+  await writeRtfVerdict(ENGINE, 4.2, caches);
 
   // A fresh instance with the same model and storage reads it.
   const transcriberB = new OnDeviceTranscriber({
@@ -157,7 +163,7 @@ test("verdict is durable across instances and isolated by model id", async () =>
   const cachesForOther = cachesWithModel(OTHER_MODEL);
   // Copy the RTF verdict from the shared storage so the other model's cache has it
   // under MODEL's key — proving the key includes the model id.
-  await writeRtfVerdict(MODEL, 4.2, cachesForOther);
+  await writeRtfVerdict(ENGINE, 4.2, cachesForOther);
   const transcriberC = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,
     modelId: OTHER_MODEL,
@@ -166,13 +172,67 @@ test("verdict is durable across instances and isolated by model id", async () =>
   await expect(transcriberC.measuredRtf()).resolves.toBeUndefined();
   // And its capability is not too-slow — it is ready (the other model is cached).
   await expect(transcriberC.capability()).resolves.toEqual({ status: "ready" });
+  // The other model's engine id is genuinely different, which is what isolates them.
+  expect(OTHER_ENGINE).not.toBe(ENGINE);
+});
+
+// The sharper case, and the one the model-keyed verdict got wrong: two operating points of the
+// SAME model. fp32 and q8 run at different speeds, so a `too-slow` measured on one must not
+// demote the other — and `too-slow` is permanent, so inheriting it would be unrecoverable
+// without clearing storage.
+test("a too-slow verdict on one dtype does not demote another dtype of the same model", async () => {
+  const caches = cachesWithModel(MODEL);
+  const slowEngine = ondeviceEngineId({ modelId: MODEL, device: "wasm", dtype: "fp32" });
+  await writeRtfVerdict(slowEngine, 4.2, caches);
+
+  const fp32 = new OnDeviceTranscriber({
+    wasmPaths: WASM_PATHS,
+    modelId: MODEL,
+    device: "wasm",
+    dtype: "fp32",
+    cacheStorage: caches,
+  });
+  const q8 = new OnDeviceTranscriber({
+    wasmPaths: WASM_PATHS,
+    modelId: MODEL,
+    device: "wasm",
+    dtype: "q8",
+    cacheStorage: caches,
+  });
+
+  // The measured one is demoted...
+  const slow = await fp32.capability();
+  expect(slow.status).toBe("unavailable");
+  // ...and the unmeasured one is not.
+  await expect(q8.measuredRtf()).resolves.toBeUndefined();
+  expect((await q8.capability()).status).not.toBe("unavailable");
+});
+
+// The engine ids must differ, or `firstCapable` refuses the roster outright — its capability
+// cache is keyed by engine id, so it throws a TypeError on duplicates rather than let two
+// configurations silently share one verdict.
+test("two dtypes of the same model are constructible as a roster", () => {
+  const fp32 = new OnDeviceTranscriber({
+    wasmPaths: WASM_PATHS,
+    modelId: MODEL,
+    device: "wasm",
+    dtype: "fp32",
+  });
+  const q8 = new OnDeviceTranscriber({
+    wasmPaths: WASM_PATHS,
+    modelId: MODEL,
+    device: "wasm",
+    dtype: "q8",
+  });
+  expect(fp32.engine).not.toBe(q8.engine);
+  expect(() => firstCapable([fp32, q8])).not.toThrow();
 });
 
 // The threshold is configurable — a custom threshold changes the verdict boundary.
 test("rtfThreshold option controls the gate boundary", async () => {
   const caches = cachesWithModel(MODEL);
   // RTF 1.5 is below the default threshold (3) but above a custom threshold of 1.
-  await writeRtfVerdict(MODEL, 1.5, caches);
+  await writeRtfVerdict(ENGINE, 1.5, caches);
 
   const defaultThreshold = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,
@@ -223,11 +283,11 @@ test("DEFAULT_RTF_THRESHOLD is 3 (provisional default)", () => {
 // Direct store round-trip: write then read returns the same value.
 test("writeRtfVerdict then readRtfVerdict round-trips a value", async () => {
   const caches = fakeCacheStorage();
-  await writeRtfVerdict(MODEL, 2.7, caches);
-  await expect(readRtfVerdict(MODEL, caches)).resolves.toBe(2.7);
+  await writeRtfVerdict(ENGINE, 2.7, caches);
+  await expect(readRtfVerdict(ENGINE, caches)).resolves.toBe(2.7);
 });
 
 // readRtfVerdict returns undefined when storage is absent.
 test("readRtfVerdict returns undefined when storage is absent", async () => {
-  await expect(readRtfVerdict(MODEL, undefined)).resolves.toBeUndefined();
+  await expect(readRtfVerdict(ENGINE, undefined)).resolves.toBeUndefined();
 });

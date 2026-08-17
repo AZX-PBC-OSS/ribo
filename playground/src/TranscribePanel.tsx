@@ -4,6 +4,7 @@ import { createRelay, firstCapable, type Outbox, type OutboxItem } from "@azx/ri
 import { extractStep } from "./extractor-store.js";
 import { formatBytes, messageOf } from "./format.js";
 import { getManagedTranscriber } from "./managed-transcriber-store.js";
+import { getRoutingEvents, recordFallback, subscribeToRouting } from "./routing-store.js";
 import { button, errorBox, monospace, muted, panel } from "./styles.js";
 import {
   getTranscriber,
@@ -272,6 +273,38 @@ function TranscribeControl({ outbox, onDeviceReady }: { outbox: Outbox; onDevice
         </p>
       )}
       {error !== undefined && <p style={errorBox}>{error}</p>}
+      <RoutingLog />
+    </div>
+  );
+}
+
+/**
+ * What the roster actually did, rather than what it was configured to do.
+ *
+ * Renders nothing on the happy path: `onFallback` fires only when a preferred engine was
+ * skipped, so silence here means the roster used its first choice. A line appearing is the
+ * signal — most importantly the one that says audio left the device.
+ */
+function RoutingLog() {
+  const events = useSyncExternalStore(subscribeToRouting, getRoutingEvents);
+  if (events.length === 0) return null;
+  return (
+    <div style={{ marginTop: "0.75rem" }}>
+      <p style={{ ...muted, margin: 0 }}>
+        <strong>Routing</strong> — a preferred engine was skipped:
+      </p>
+      <ul style={{ ...muted, margin: "0.25rem 0 0", paddingLeft: "1.2rem" }}>
+        {events.map((event) => (
+          <li key={`${event.recordingId}-${event.at}`}>
+            ran <code style={monospace}>{event.selected}</code>, skipped{" "}
+            {event.skipped.map((s) => (
+              <code key={s} style={monospace}>
+                {s}{" "}
+              </code>
+            ))}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -303,7 +336,12 @@ function TranscribeControl({ outbox, onDeviceReady }: { outbox: Outbox; onDevice
 async function runOnDeviceRelay(outbox: Outbox): Promise<void> {
   const relay = createRelay({
     outbox,
-    transcriber: firstCapable([getTranscriber(), getManagedTranscriber()]),
+    // `onFallback` was designed to make exactly one thing visible — "every recording is
+    // silently going to cloud STT while everyone believes the fleet is offline-capable" — and
+    // was wired to nothing, here or anywhere else in the app. An unread event is not telemetry.
+    transcriber: firstCapable([getTranscriber(), getManagedTranscriber()], {
+      onFallback: recordFallback,
+    }),
     extract: extractStep,
     write: () => Promise.resolve({ writtenBy: "playground on-device demo" }),
   });

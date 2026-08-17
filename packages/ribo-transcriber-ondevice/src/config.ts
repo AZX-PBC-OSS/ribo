@@ -113,10 +113,54 @@ export const DEFAULT_MODEL_ID = "onnx-community/moonshine-base-ONNX";
  * `ribo-core`'s `needs-download` capability requires be counted (`transcriber.ts`). These feed the
  * consent screen only.
  *
- * These are **fp32** figures: q4/q8 do not load on the ORT build transformers.js 4.2.0 pins, so the
- * PoC ships fp32 (~2x the quantized budget older docs cite). `base.en` is MEASURED — ~290 MB weights
- * + ~24 MB runtime = ~314 MB, from Task 4 (`docs/implementation/14-transcription-measurement.md`).
- * `tiny.en`/`small.en` are still fp32 estimates, scaled from the parameter counts, not measured.
+ * These are **fp32** figures, which is what the PoC ships (~2x the quantized budget older docs
+ * cite). `base.en` is MEASURED — ~290 MB weights + ~24 MB runtime = ~314 MB, from Task 4
+ * (`docs/implementation/14-transcription-measurement.md`). `tiny.en`/`small.en` are still fp32
+ * estimates, scaled from the parameter counts, not measured.
+ *
+ * **This comment used to say "q4/q8 do not load on the ORT build transformers.js 4.2.0 pins". That
+ * is wrong in both halves, re-measured 2026-08-17** (`dtype-probe.manual.ts`, on the same pinned
+ * `onnxruntime-web@1.26.0-dev.20260416`, `moonshine-tiny` and `whisper-tiny.en` agreeing):
+ *
+ * | dtype  | WASM  | WebGPU |
+ * | ------ | ----- | ------ |
+ * | `fp32` | loads | loads  |
+ * | `q4`   | loads | loads  |
+ * | `q8`   | FAILS | **loads** |
+ * | `int8` | FAILS | **loads** |
+ * | `fp16` | FAILS | FAILS  |
+ *
+ * **The execution provider, not the dtype, is what gates quantization here.** The WASM failure is
+ * `TransposeDQWeightsForMatMulNBits Missing required scale: model.decoder.embed_tokens.weight` —
+ * ONNX Runtime issue #28306, a regression in the DQ→`MatMulNBits` graph-fusion pass on models whose
+ * decoder ties its embedding weights, which Whisper and Moonshine both do. It is fixed in **ORT
+ * 1.27.0 stable** (2026-06-19), which is newer than the dev build transformers.js 4.2.0 pins.
+ * WebGPU never runs that fusion pass, which is why the same weights load there.
+ *
+ * **Overriding `onnxruntime-web` to 1.27.0 removes the WASM column entirely** — measured the same
+ * day, every dtype above except `fp16` then loads on WASM too. That is a `pnpm.overrides` entry
+ * against a transitive dependency of transformers.js, which still pins the pre-fix dev build itself.
+ *
+ * **And `q8` is the dtype worth having, on output as well as size.** Transcribing the committed
+ * calibration clip through each (`dtype-probe.manual.ts` prints the text, it does not assert on it):
+ *
+ * - `q8` returned output **identical to `fp32`** on both models, loading ~4.5x faster
+ *   (8.1 s against 36.9 s for moonshine-tiny) from ~4x fewer bytes.
+ * - `q4` degraded on `whisper-tiny.en` — "fiberglass-spats" for "fiberglass batts", "the ease" for
+ *   "the eaves" — and its decoder is *larger* than q8's (86.7 MB against 30.7 MB). The one dtype
+ *   that worked before the ORT bump is the wrong one on every axis.
+ *
+ * Two things this still does not establish, and neither is small:
+ *
+ * 1. **Peak RSS per dtype is unmeasured.** Memory, not bytes, is what an out-of-memory kill on a
+ *    4 GB device is about, and that kill does not fire `error` — see {@link
+ *    OnDeviceTranscriberOptions.workerTimeoutMs}.
+ * 2. **One clip is not the corpus.** Identical output on five seconds of clean speech is evidence,
+ *    not a WER measurement, and the clip is jargon-light — which is exactly where quantization
+ *    damage would be expected to show first.
+ *
+ * The byte figures below are still fp32 and have not been re-measured per dtype. See the Surface
+ * Go 3 sizing task on the board.
  */
 export const MODEL_DOWNLOAD_BYTES: Readonly<Record<string, number>> = {
   "Xenova/whisper-tiny.en": 175_000_000, // estimate (fp32)

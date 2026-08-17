@@ -11,7 +11,12 @@ import {
   type WriteStep,
 } from "@azx/ribo-core";
 
-import { decodeTo16kMono, ONDEVICE_WHISPER_ENGINE, OnDeviceTranscriber } from "./index.js";
+import {
+  decodeTo16kMono,
+  DEFAULT_MODEL_ID,
+  ondeviceEngineId,
+  OnDeviceTranscriber,
+} from "./index.js";
 import type { MainToWorkerMessage, WorkerToMainMessage } from "./protocol.js";
 
 /**
@@ -159,7 +164,10 @@ test("transcribe decodes on the main thread, transfers samples, and stamps the e
   expect(transcript).toEqual({
     recordingId: "rec-1",
     text: "the attic R-value is forty nine",
-    engine: ONDEVICE_WHISPER_ENGINE,
+    // Names the model this instance was pinned to, not the package default — which is the
+    // whole point of deriving the id: a persisted transcript can be attributed to the
+    // configuration that produced it.
+    engine: ondeviceEngineId({ modelId: "Xenova/whisper-base.en" }),
   });
 
   const posted = worker!.posted.at(-1)!;
@@ -255,7 +263,7 @@ test("the queue relay drives an OnDeviceTranscriber with no changes", async () =
   expect(item?.transcript).toEqual({
     recordingId: "rec-1",
     text: "on-device transcript",
-    engine: ONDEVICE_WHISPER_ENGINE,
+    engine: ondeviceEngineId({ modelId: DEFAULT_MODEL_ID }),
   });
   await outbox.close();
 });

@@ -6,6 +6,7 @@ import {
   buildHintPrompt,
   DEFAULT_MODEL_ID,
   ONDEVICE_WHISPER_ENGINE,
+  ondeviceEngineId,
   OnDeviceTranscriber,
 } from "./index.js";
 import { TRANSFORMERS_CACHE_NAME } from "./model-cache.js";
@@ -78,7 +79,17 @@ class FakeWorker {
 
 test("is a ribo-core Transcriber substitutable for FakeTranscriber", () => {
   const transcriber: Transcriber = new OnDeviceTranscriber({ wasmPaths: WASM_PATHS });
-  expect(transcriber.engine).toBe(ONDEVICE_WHISPER_ENGINE);
+  expect(transcriber.engine).toBe(ondeviceEngineId({ modelId: DEFAULT_MODEL_ID }));
+});
+
+test("the engine id names the model that actually ran", () => {
+  // The defect this replaced: the id was the constant "ondevice-whisper" while the default
+  // model has been Moonshine since the live-transcription work, so every Moonshine transcript
+  // in the outbox was stamped as Whisper and could not be attributed to its configuration.
+  const transcriber = new OnDeviceTranscriber({ wasmPaths: WASM_PATHS });
+  expect(transcriber.engine).toContain("moonshine");
+  expect(transcriber.engine).not.toContain("whisper");
+  // The old constant survives only as the historical value carried by already-persisted rows.
   expect(ONDEVICE_WHISPER_ENGINE).toBe("ondevice-whisper");
 });
 

@@ -92,7 +92,13 @@ Runs performed 2026-07-23, macOS (darwin), Node 24, headless Chromium via Playwr
    pages, so this is a **ceiling for the whole headless browser**, not the model alone. The JS heap
    the page can read is only ~22 MB — it does **not** include the WASM/ORT arena where the model
    lives, which is why process RSS is the honest figure. fp32's large weights make this notably heavy;
-   fp16 (~145 MB, deferred in Task 2) is the lever if this becomes a device limit.
+   ~~fp16 (~145 MB, deferred in Task 2) is the lever if this becomes a device limit.~~
+   **That lever is closed.** Measured 2026-08-17 (`dtype-probe.manual.ts`): fp16 fails session
+   creation on **both** WASM and WebGPU, on `moonshine-tiny` and `whisper-tiny.en` alike. The
+   working lever is **q8**, which returned output identical to fp32 on the calibration clip while
+   loading ~4.5x faster from ~4x fewer bytes — but it needs `onnxruntime-web` ≥ 1.27.0, newer than
+   the dev build transformers.js 4.2.0 pins, or a WebGPU device. Peak RSS per dtype is still
+   unmeasured, so whether this closes the device limit is not yet established.
 
 RTF is process-time (decode + resample + inference, the full `transcribe()` call) ÷ audio duration.
 

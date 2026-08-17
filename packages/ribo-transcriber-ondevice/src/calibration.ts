@@ -47,7 +47,7 @@ const CALIBRATION_RECORDING: Recording = {
  *
  * @param transcribe the transcriber's `transcribe` method — called on the warm
  *   pipeline, so the measurement covers decode + inference, not model load.
- * @param modelId keyed into the RTF verdict store so a model swap re-measures.
+ * @param engineId keyed into the RTF verdict store, so a change of model, device or dtype re-measures rather than inheriting another operating point's verdict.
  * @param cacheStorage where the verdict is persisted, following the same injection
  *   pattern as the model cache.
  * @param now wall-clock source — defaults to `performance.now` in the caller.
@@ -55,7 +55,7 @@ const CALIBRATION_RECORDING: Recording = {
  */
 export async function measureRtf(
   transcribe: (recording: Recording, audio: Blob) => Promise<Transcript>,
-  modelId: string,
+  engineId: string,
   cacheStorage: CacheStorage | undefined,
   now: () => number,
 ): Promise<void> {
@@ -65,7 +65,7 @@ export async function measureRtf(
     await transcribe(CALIBRATION_RECORDING, clip);
     const elapsed = now() - start;
     const rtf = elapsed / CALIBRATION_CLIP_DURATION_MS;
-    await writeRtfVerdict(modelId, rtf, cacheStorage);
+    await writeRtfVerdict(engineId, rtf, cacheStorage);
   } catch {
     // Swallow: a calibration failure must not fail prime(). No verdict is stored,
     // so capability() treats the device as "unknown, therefore ready" — the

@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,11 +28,25 @@ const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 // copy `onnxruntime-web/dist/ort-wasm-simd-threaded*.{wasm,mjs}` into a static dir on their own
 // origin — without adding a dependency just to grab the bytes.
 const pnpmDir = join(repoRoot, "node_modules", ".pnpm");
-const ortEntry = readdirSync(pnpmDir).find((name) => name.startsWith("onnxruntime-web@"));
-if (!ortEntry) {
-  throw new Error("onnxruntime-web not found under node_modules/.pnpm — run `pnpm install` first.");
+
+// Resolve through transformers' OWN link rather than scanning `.pnpm` for a name prefix. The scan
+// used to be `readdirSync(...).find(n => n.startsWith("onnxruntime-web@"))`, which silently picks
+// the alphabetically-first match — fine while exactly one version was installed, wrong the moment a
+// `pnpm.overrides` entry puts two there, because `1.26.0-dev…` sorts before `1.27.0`. That serves
+// one version's `.wasm` binaries to another version's JS, and the resulting failure looks like a
+// dtype or model problem rather than a mismatched runtime.
+const transformersEntry = readdirSync(pnpmDir).find((name) =>
+  name.startsWith("@huggingface+transformers@"),
+);
+if (!transformersEntry) {
+  throw new Error(
+    "@huggingface/transformers not found under node_modules/.pnpm — run `pnpm install` first.",
+  );
 }
-const ortDist = join(pnpmDir, ortEntry, "node_modules", "onnxruntime-web", "dist");
+const ortDist = join(
+  realpathSync(join(pnpmDir, transformersEntry, "node_modules", "onnxruntime-web")),
+  "dist",
+);
 const ortWasmBase = `/@fs${ortDist}/`;
 
 export default defineConfig({

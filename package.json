@@ -51,5 +51,10 @@
     "vite": "catalog:",
     "vitepress": "catalog:",
     "vitest": "4.1.10"
+  },
+  "pnpm": {
+    "overrides": {
+      "onnxruntime-web": "1.27.0"
+    }
   }
 }
