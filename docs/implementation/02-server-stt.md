@@ -1,5 +1,22 @@
 # 02 — Server STT Path (Managed, Azure) + Conditional Custom Service
 
+> **Built on 2026-08-17.** `@azx/ribo-transcriber-managed` implements this path; see
+> [Managed Transcription — Design](../roadmap/design/managed-transcription-design.md) for what was
+> measured against the live endpoint, and note three corrections to this document:
+>
+> 1. **The vendor question below is closed: Azure AI Speech Fast Transcription**, api-version
+>    `2025-10-15`. The deciding factor is not in this document — it is the **phrase list**, which
+>    Azure OpenAI transcription does not offer. Measured: the same audio returned "our 19" without one
+>    and "R-19" with one, and R-values are exactly what the extractor reads.
+> 2. **Client-side chunking was not needed.** This document treats it as a given because of the
+>    10 MB/hop cap, but the recorder emits Opus, so a hop carries roughly ten minutes of dictation —
+>    longer than a field recording. A `MediaRecorder` WebM/Opus blob is accepted by the endpoint
+>    as-recorded, so there is no transcode either.
+> 3. **The size estimate held.** "S" was right, though the larger half of the work turned out to be
+>    the real-time-factor gate in the on-device package rather than this path: without it
+>    `capability()` judged readiness on cached weights alone, so a slow device always reported
+>    `ready` and this fallback could never be selected.
+
 > **Design spec D4.** For v1 the server path is a **direct proxy to a managed Azure STT endpoint — no custom service to build or deploy**. A custom STT service is a _conditional_ upgrade, built only where a step requires it. Follows the "custom backend only where required" principle and removes what had been the biggest schedule risk.
 
 ## Role
@@ -44,4 +61,4 @@ The vendor sits behind `ribo-core`'s `Transcriber` interface, so Azure AI Speech
 
 - **Size (default, managed proxy):** **S** — provision Azure STT, store the connection secret, wire the transcriber + chunking. (Down from ~**L**; the deploy-substrate risk is removed.)
 - **Size (only if a custom STT service becomes required):** **+L** incl. deploy.
-- **Open:** which Azure STT (AI Speech Fast Transcription vs Azure OpenAI transcription); whether any real v1 need forces a custom service (default assumption: **no**).
+- **~~Open:~~ Closed 2026-08-17.** AI Speech Fast Transcription, on the phrase list (see the note at the top). No v1 need forced a custom service, and the default assumption of **no** held: chunking, the most likely trigger, turned out unnecessary at the recorder's bitrate.

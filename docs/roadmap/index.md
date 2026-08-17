@@ -239,9 +239,14 @@ So nobody re-litigates it:
 - **Snugg Pro write-back and the request-signing it depends on.** Write-back is scaffolded behind the
   `WriteStep`/`ToolAdapter.write` seam but gated OFF pending Helix egress HMAC-SHA256 signing (A1 in
   `docs/implementation/13-helix-platform-asks.md`). Do not fake the signing to green a demo.
-- **The managed STT fallback.** Designed (Azure AI Speech Fast Transcription or Azure OpenAI
-  transcription, proxied through Helix) but not built. On-device transcription is the primary path;
-  the fallback exists for devices that are too slow, not just those that lack the APIs.
+- **~~The managed STT fallback.~~ Built (2026-08-17.)** Azure AI Speech Fast Transcription behind the
+  `Transcriber` seam, plus the measured real-time-factor gate that makes it reachable — before it,
+  `capability()` judged readiness on cached weights alone, so a slow device always reported `ready`
+  and the fallback could never be selected at any threshold. See
+  [Managed Transcription — Design](design/managed-transcription-design.md). What is **not** built:
+  the Helix `azure-stt` connection itself (development runs against a same-origin dev endpoint that
+  holds the key server-side), and live preview on the managed path, which no gateway WebSocket makes
+  possible.
 - **iOS on-device transcription.** Phase 3 targets evergreen Chromium with WebGPU. iOS/Safari support,
   engine sniffing, and the WASM single-threaded path are deferred.
 

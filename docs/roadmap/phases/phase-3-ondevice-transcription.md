@@ -12,7 +12,9 @@ The plan for on-device transcription — Whisper via `@huggingface/transformers`
 
 **Target: evergreen Chromium with WebGPU — Surface tablets and desktop.** iOS is explicitly **out of scope for this phase**.
 
-That is a deliberate narrowing, and it defers real work: engine sniffing, the WASM single-threaded path, and the managed Azure STT fallback (which existed to serve devices that cannot run on-device). Those remain designed and documented in [`01`](../../implementation/01-feasibility-spike.md) and [`02`](../../implementation/02-server-stt.md); they are not deleted, just not built yet.
+That is a deliberate narrowing, and it defers real work: engine sniffing and the WASM single-threaded path. Those remain designed and documented in [`01`](../../implementation/01-feasibility-spike.md); they are not deleted, just not built yet.
+
+**The managed Azure STT fallback is no longer deferred — it was built on 2026-08-17** ([design](../design/managed-transcription-design.md)), together with the RTF gate this phase's `capability()` left as "Task 3/4". Note what that gate changes about the sentence above: the fallback no longer serves only devices that _cannot_ run on-device, but also those that can run it too slowly, which is a verdict this phase had no way to reach.
 
 **The known gap, which must stay visible:** field devices were described as _"Surfaces but maybe also mobile phones."_ An auditor on an iPhone is unsupported on this path. Do not let that quietly become an assumption that everyone has a Surface.
 
