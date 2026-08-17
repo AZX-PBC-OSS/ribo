@@ -18,12 +18,12 @@
  *
  * ## What it does
  *
- * 1. Builds the five publishable packages fresh (`pnpm build:packages`), so the tarballs below
+ * 1. Builds the six publishable packages fresh (`pnpm build:packages`), so the tarballs below
  *    reflect the current tree, not a stale `dist/`.
  * 2. Packs each with `pnpm pack --json` — a REAL tarball, the exact bytes `pnpm publish` would
  *    upload.
  * 3. Writes a fresh, minimal app into a temp directory OUTSIDE this repo (see SCRATCH_DIR below)
- *    and installs the five tarballs into it as `file:` dependencies — pnpm extracts a `file:`
+ *    and installs the six tarballs into it as `file:` dependencies — pnpm extracts a `file:`
  *    pointing at a `.tgz` exactly like it would a registry tarball; this is NOT the `file:`-to-a-
  *    live-directory escape hatch doc 10 §5 warns the field app off (that one hard-links a live,
  *    uncompiled workspace directory and resolves peers from the consumer; this is a real archive).
@@ -33,7 +33,7 @@
  * 5. Serves the built `dist/` and drives a real headless Chromium against it, asserting — per doc
  *    10 §7's minimum bar — that `@azx/ribo-transcriber-ondevice`'s published `./worker` entry
  *    spawns and its ONNX Runtime WASM backend actually initializes a session, plus that the other
- *    four packages resolved, bundled and ran correctly from their tarballs too.
+ *    five packages resolved, bundled and ran correctly from their tarballs too.
  *
  * ## A defect class this tier actually caught, that no static gate here does
  *
@@ -49,7 +49,7 @@
  * ## Why this is NOT in `./check.sh`
  *
  * `./check.sh` is the fast, frequent, "am I done?" loop (AGENTS.md §7) — every stage in it runs
- * against files already on disk in this repo. This tier packs five tarballs, does a full `pnpm
+ * against files already on disk in this repo. This tier packs six tarballs, does a full `pnpm
  * install` into a directory OUTSIDE the repo, and downloads a small HF Hub test model over the
  * network: tens of seconds of I/O that has nothing to do with most edits, and exactly the "a
  * network fetch masquerading as a check" shape `vitest.manual.config.ts` already rejected for a
@@ -101,7 +101,7 @@
  *
  * `assertResult` below reports a `category` distinguishing three unrelated failure shapes — see
  * `app-template.mjs`'s doc comment on `MAIN_JS` — so a red run names which one before you open
- * this file: a real packaging regression in one of the other four packages
+ * this file: a real packaging regression in one of the other five packages
  * (`setup-before-worker`), a real regression in the worker entry itself
  * (`worker-spawn-or-import`), or a probable transient Hub issue (`network-fetch-after-spawn`).
  *
@@ -168,7 +168,7 @@ const CHROME_PROFILE_DIR = join(REPO_ROOT, ".cache", "pack-and-consume", "chromi
 
 const KEEP_SCRATCH = process.env.RIBO_PACK_AND_CONSUME_KEEP === "1";
 
-const EXPECTED_PUBLISHED_COUNT = 5;
+const EXPECTED_PUBLISHED_COUNT = 6;
 
 function log(message) {
   console.log(`[pack-and-consume] ${message}`);
@@ -220,7 +220,7 @@ function discoverPublishablePackages() {
 }
 
 function buildPackages() {
-  log("building all five publishable packages (pnpm build:packages)...");
+  log("building all six publishable packages (pnpm build:packages)...");
   execFileSync("pnpm", ["run", "build:packages"], { cwd: REPO_ROOT, stdio: "inherit" });
 }
 
@@ -413,6 +413,8 @@ function assertResult({ result, consoleErrors, pageErrors }) {
     ["riboCoreGroundedSpanFalse", c.riboCoreGroundedSpanFalse === false],
     ["adapterSchemaKeyCount > 0", c.adapterSchemaKeyCount > 0],
     ["extractorHasExtractFn", c.extractorHasExtractFn === true],
+    ["managedUnconfigured", c.managedUnconfigured === true],
+    ["managedReady", c.managedReady === true],
     ["uiReactRendered", c.uiReactRendered === true],
     ["workerPrimedWithoutThrowing", c.workerPrimedWithoutThrowing === true],
     ["workerReportedProgress", c.workerReportedProgress === true],
@@ -422,7 +424,7 @@ function assertResult({ result, consoleErrors, pageErrors }) {
     throw new Error(`failed check(s): ${failed.join(", ")}\nfull checks: ${JSON.stringify(c)}`);
   }
   log(
-    "PASS — 5 tarballs installed via file: (not the workspace), production build succeeded, " +
+    "PASS — 6 tarballs installed via file: (not the workspace), production build succeeded, " +
       `@azx/ribo-transcriber-ondevice's worker spawned and primed ${TEST_MODEL_ID}@${TEST_MODEL_REVISION} ` +
       "(ONNX Runtime WASM session created) with real progress events.",
   );
