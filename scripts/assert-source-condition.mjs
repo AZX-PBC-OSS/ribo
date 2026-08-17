@@ -87,7 +87,7 @@ for (const dir of readdirSync(packagesDir, { withFileTypes: true })) {
 }
 publishedPackages.sort();
 
-const EXPECTED_PUBLISHED_COUNT = 5;
+const EXPECTED_PUBLISHED_COUNT = 6;
 if (publishedPackages.length !== EXPECTED_PUBLISHED_COUNT) {
   console.error(
     `assert-source-condition: discovered ${publishedPackages.length} publishable packages, ` +

@@ -15,6 +15,7 @@
  */
 import type { Recording, Transcript, Transcriber, TranscriberCapability } from "@azx/ribo-core";
 
+import { measureRtf } from "./calibration.js";
 import {
   buildHintPrompt,
   DEFAULT_MODEL_ID,
@@ -28,6 +29,7 @@ import {
 } from "./config.js";
 import { decodeTo16kMono } from "./decode.js";
 import { isModelCached } from "./model-cache.js";
+import { DEFAULT_RTF_THRESHOLD, readRtfVerdict } from "./rtf-verdict.js";
 import type {
   MainToWorkerMessage,
   OnnxDtype,
@@ -55,6 +57,12 @@ export {
 export type { OnDeviceTranscriberOptions, TranscribeHints } from "./config.js";
 export { decodeTo16kMono } from "./decode.js";
 export { TRANSFORMERS_CACHE_NAME, isModelCached } from "./model-cache.js";
+export {
+  DEFAULT_RTF_THRESHOLD,
+  RTF_VERDICT_CACHE_NAME,
+  readRtfVerdict,
+  writeRtfVerdict,
+} from "./rtf-verdict.js";
 export type { PrimeConfig, PrimeProgress, TranscribeWorkerRequest } from "./protocol.js";
 
 // Live transcription: the streaming seam implementation.
@@ -100,8 +108,10 @@ export class OnDeviceTranscriber implements Transcriber {
   readonly #hints?: TranscribeHints;
   readonly #downloadBytes: number;
   readonly #cacheStorage?: CacheStorage;
+  readonly #rtfThreshold: number;
   readonly #createWorker: () => Worker;
   readonly #timeoutMs: number;
+  readonly #now: () => number;
 
   /** Constructed lazily on the first {@link prime}, then reused. */
   #worker?: Worker;
@@ -129,24 +139,32 @@ export class OnDeviceTranscriber implements Transcriber {
     this.#downloadBytes = options.downloadBytes ?? estimateDownloadBytes(this.#modelId);
     // `?? undefined` so an explicit override still wins but the default is read lazily at probe time.
     this.#cacheStorage = options.cacheStorage;
+    this.#rtfThreshold = options.rtfThreshold ?? DEFAULT_RTF_THRESHOLD;
     this.#createWorker = options.createWorker ?? defaultCreateWorker;
     this.#timeoutMs = options.workerTimeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS;
+    this.#now = options.now ?? (() => performance.now());
   }
 
   /**
-   * What this engine can do right now, judged from the Cache API alone (no download, cheap enough to
-   * call often per the `Transcriber` contract).
+   * What this engine can do right now, judged from the Cache API and a persisted RTF
+   * verdict (no download, no inference — cheap enough to call often per the `Transcriber`
+   * contract).
    *
-   * - No `CacheStorage` at all → `unavailable`/`unsupported-platform`: without it the model cannot be
-   *   persisted for offline use, which is the entire premise. Permanent, so `firstCapable` stops
-   *   re-probing it.
+   * - No `CacheStorage` at all → `unavailable`/`unsupported-platform`: without it the model
+   *   cannot be persisted for offline use, which is the entire premise. Permanent, so
+   *   `firstCapable` stops re-probing it.
+   * - A stored RTF above threshold → `unavailable`/`too-slow`, carrying the measured value
+   *   in `detail`. This **outranks the cache check**: a device known to be too slow must
+   *   report unavailable even with the weights cached, because the weights being present is
+   *   exactly the situation the old code mistook for readiness. Permanent, so `firstCapable`
+   *   stops re-probing a fact about the hardware.
    * - Model weights already in `transformers-cache` → `ready`.
-   * - Otherwise → `needs-download`, carrying the byte estimate (weights **plus** the ORT runtime) for
-   *   the consent screen. `firstCapable` deliberately never auto-selects this — the fetch needs a
-   *   human's say-so, which {@link prime} is where it happens.
+   * - Otherwise → `needs-download`, carrying the byte estimate (weights **plus** the ORT
+   *   runtime) for the consent screen. `firstCapable` deliberately never auto-selects this —
+   *   the fetch needs a human's say-so, which {@link prime} is where it happens.
    *
-   * Task-2 honest: this reflects cache state, not a measured throughput verdict. The `too-slow`
-   * real-time-factor gate and the WebGPU probe are Task 3/4.
+   * When there is no stored RTF verdict — a device that primed but never calibrated, or
+   * never primed at all — the verdict check is skipped and today's behaviour is preserved.
    */
   async capability(): Promise<TranscriberCapability> {
     const cacheStorage = this.#cacheStorage ?? globalThis.caches;
@@ -155,6 +173,18 @@ export class OnDeviceTranscriber implements Transcriber {
         status: "unavailable",
         reason: "unsupported-platform",
         detail: "Cache API unavailable — the model cannot be cached for offline use here.",
+      };
+    }
+    // A stored too-slow verdict outranks the cache check: a device known to be too slow
+    // must report unavailable even with the weights cached. `readRtfVerdict` returns
+    // `undefined` when no verdict is stored, which falls through to the cache check —
+    // preserving today's behaviour for devices that never calibrated.
+    const rtf = await readRtfVerdict(this.#modelId, cacheStorage);
+    if (rtf !== undefined && rtf > this.#rtfThreshold) {
+      return {
+        status: "unavailable",
+        reason: "too-slow",
+        detail: `measured real-time factor ${rtf} exceeds threshold ${this.#rtfThreshold}`,
       };
     }
     // `ready` is judged on the ASR weights ALONE. The voice-activity model is a quality upgrade for
@@ -169,10 +199,33 @@ export class OnDeviceTranscriber implements Transcriber {
   }
 
   /**
+   * The measured real-time factor for this instance's model, or `undefined` before
+   * calibration.
+   *
+   * Task 6's hedge delay policy reads this through a host-supplied accessor —
+   * `ribo-core` never learns what an RTF is, only that a function returns
+   * milliseconds. Returns `undefined` (not a sentinel number) when no verdict is
+   * stored, so the delay policy can distinguish "never measured" from "measured and
+   * fast" and fall back to a default prediction rather than computing one from a
+   * meaningless zero.
+   */
+  async measuredRtf(): Promise<number | undefined> {
+    return readRtfVerdict(this.#modelId, this.#cacheStorage ?? globalThis.caches);
+  }
+
+  /**
    * Download and cache the model, streaming per-file progress to `onProgress`. Resolves once the
-   * pipeline has constructed (weights fetched, ORT initialized, everything in `transformers-cache`);
-   * rejects if the worker reports an error. Explicit and user-initiated — never call this on a timer
-   * or a queue drain.
+   * pipeline has constructed (weights fetched, ORT initialized, everything in `transformers-cache`)
+   * and the RTF calibration has run; rejects if the worker reports an error during priming.
+   * Explicit and user-initiated — never call this on a timer or a queue drain.
+   *
+   * After the pipeline is warm, one calibration inference runs over the committed
+   * clip to measure this device's real-time factor (design §5.1). The pipeline is
+   * already constructed at that point, so the measurement covers inference rather
+   * than model load — measuring the load instead would produce a number that says
+   * more about the disk than the device. A calibration failure is swallowed: it
+   * leaves no verdict stored, which `capability()` treats as "unknown, therefore
+   * ready", so the device degrades to today's behaviour instead of a broken prime.
    *
    * Safe to call again: a warm cache re-reads rather than re-downloads, and `onProgress` then sees no
    * `"progress"` byte events — which is exactly how a caller can confirm the second load hit cache.
@@ -185,7 +238,24 @@ export class OnDeviceTranscriber implements Transcriber {
       requestId,
       config: this.#pipelineConfig(),
     };
-    return this.#awaitReply(worker, message, "primed", "priming", onProgress).then(() => undefined);
+    return this.#awaitReply(worker, message, "primed", "priming", onProgress).then(() =>
+      this.#calibrate(),
+    );
+  }
+
+  /**
+   * Run one calibration transcription over the committed clip and persist the
+   * measured real-time factor. Called after `prime()` has warmed the pipeline,
+   * so the measurement covers decode + inference, not model load. Errors are
+   * swallowed inside `measureRtf` — a calibration failure must not fail `prime()`.
+   */
+  async #calibrate(): Promise<void> {
+    await measureRtf(
+      (recording, audio) => this.transcribe(recording, audio),
+      this.#modelId,
+      this.#cacheStorage ?? globalThis.caches,
+      this.#now,
+    );
   }
 
   /** Terminate the worker, if one was created. The next {@link prime} constructs a fresh one. */

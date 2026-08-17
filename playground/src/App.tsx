@@ -9,6 +9,7 @@ import { getConnectivity } from "./connectivity-store.js";
 import { EvictionNotice } from "./EvictionNotice.js";
 import { messageOf } from "./format.js";
 import { getLiveTranscriber } from "./live-handle.js";
+import { MANAGED_AZURE_SPEECH_ENGINE } from "./managed-transcriber-store.js";
 import { getOutbox } from "./outbox-handle.js";
 import { QueuePanel } from "./QueuePanel.js";
 import { getRecorder } from "./recorder-handle.js";
@@ -48,7 +49,7 @@ import { WorkSafetyPanel } from "./WorkSafetyPanel.js";
  * SDK feature no host turns on is a feature nobody has watched work.
  */
 
-const COMPOSED_NAMES = ["@azx/ribo-ui-react", ADAPTER];
+const COMPOSED_NAMES = ["@azx/ribo-ui-react", ADAPTER, "@azx/ribo-transcriber-managed"];
 
 export function App() {
   const outbox = useOutbox();
@@ -122,7 +123,10 @@ export function App() {
           ))}{" "}
           — <code style={monospace}>@azx/ribo-ui-react</code> ships{" "}
           <code style={monospace}>RiboProvider</code>;{" "}
-          <code style={monospace}>@azx/ribo-adapter-snuggpro</code> now ships a real adapter.
+          <code style={monospace}>@azx/ribo-adapter-snuggpro</code> now ships a real adapter;{" "}
+          <code style={monospace}>@azx/ribo-transcriber-managed</code> ships the{" "}
+          <code style={monospace}>{MANAGED_AZURE_SPEECH_ENGINE}</code> engine, which the transcribe
+          panel falls back to when the on-device model is not primed.
         </footer>
       </main>
     </RiboProvider>

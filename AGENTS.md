@@ -17,8 +17,13 @@ the `Transcriber` contract (capability reporting, `firstCapable` selection, a `F
 double), the `Extractor<F>` seam (`toExtractStep`, `FakeExtractor`), `ToolAdapter<F, C>`, the review
 contract (`buildReviewRequest`, `resolveReview`), and the offline-first outbox/relay state machine
 (`queued → transcribing → extracting → awaiting-review → writing → done`) with connectivity and
-work-safety. `@azx/ribo-transcriber-ondevice` runs real WASM Whisper on-device;
-`@azx/ribo-adapter-snuggpro` is the real Snugg Pro `ToolAdapter`; `@azx/ribo-extractor-openai` is
+work-safety. `@azx/ribo-transcriber-ondevice` runs real WASM Whisper on-device and measures the
+device's real-time factor at `prime()` time, which is what lets `capability()` report `too-slow`;
+`@azx/ribo-transcriber-managed` is the fallback for devices that fail that gate — Azure AI Speech
+Fast Transcription behind the same `Transcriber` seam, with **no capacity to authenticate**: it takes
+an endpoint and an injected `fetch`, so the credential lives in the host's transport and never in the
+package. `ribo-core` composes the two with `firstCapable` (sequential) or `hedged` (an opt-in race on
+a latency budget). `@azx/ribo-adapter-snuggpro` is the real Snugg Pro `ToolAdapter`; `@azx/ribo-extractor-openai` is
 the tool-agnostic single-shot managed-LLM extractor (its OpenAI-compatible transport and the
 single-shot strategy). `@azx/ribo-ui-react` is now the **headless hook layer**: `RiboProvider` plus
 six hooks over core's engine — `useRecorder`, `useOutboxItems`, `useReview`, `useConnectivity`,
@@ -41,7 +46,7 @@ command below is run from the repo root and has been verified against this tree.
 ```bash
 pnpm install                          # bootstrap the workspace
 ./check.sh                            # THE "am I done?" signal — see §7 for the full stage list
-pnpm build:packages                   # build all five publishable packages (tsdown)
+pnpm build:packages                   # build all six publishable packages (tsdown)
 pnpm target:refresh                   # regenerate the syntax floor from browserslist
 pnpm --filter playground dev          # dev server on http://localhost:5173
 pnpm vitest run packages/ribo-core    # one package's tests (path filter, not --filter)
@@ -54,7 +59,7 @@ The two `--filter` arguments above look inconsistent but are both correct: `--fi
 unscoped), while the libraries are scoped `@azx/*`. Not a typo.
 
 Root scripts, if you need a stage on its own: `pnpm typecheck` (runs each package's own
-`typecheck` in parallel), `pnpm lint`, `pnpm format:check`, `pnpm build:packages` (the five
+`typecheck` in parallel), `pnpm lint`, `pnpm format:check`, `pnpm build:packages` (the six
 library builds), `pnpm build:app` (the playground's production build), `pnpm build` (both,
 in order), `pnpm check:resolve`, `pnpm check:pkg`, `pnpm target:refresh`, `pnpm test`,
 `pnpm test:pack-and-consume`.
@@ -227,8 +232,8 @@ Also note `"types"` must come **before** any JS condition in the block — publi
 and getting it wrong silently breaks consumer type resolution.
 
 **Subpath exports.** Two subpaths exist beyond `.`: `@azx/ribo-transcriber-ondevice/worker` and `@azx/ribo-core/worklet`
-(§5.2). All five packages build (`pnpm build:packages`), so `dist/index.js`, `dist/index.d.ts`
-and `dist/worker.js` all exist and **both** branches of the five root `exports` plus the
+(§5.2). All six packages build (`pnpm build:packages`), so `dist/index.js`, `dist/index.d.ts`
+and `dist/worker.js` all exist and **both** branches of the six root `exports` plus the
 `./worker` subpath resolve — which is what `pnpm check:resolve` asserts on every `./check.sh`
 run. `@azx/ribo-ui-react` no longer has a `./styles.css` subpath: it is a headless hook layer
 and ships no stylesheet, so the subpath was removed along with `sideEffects: ["*.css"]`.
@@ -471,7 +476,7 @@ Checklist:
   will never fail, and never be checked.
 - **Add a `tsdown.config.ts`** that spreads `sharedTsdown` from `@azx/build-config` and declares
   only its own `entry` in **object form**. Do not inline build settings — the shared base is what
-  keeps one syntax target across all five packages.
+  keeps one syntax target across all six packages.
 - **Add the four build devDependencies**: `tsdown`, `publint` and `@arethetypeswrong/core` as
   `catalog:`, and `@azx/build-config` as `workspace:*`. All four are per-package because pnpm does
   not hoist: `pnpm run build` resolves the `tsdown` binary from the package's own
@@ -504,7 +509,7 @@ runtime smoke test, gated on every `./check.sh` run, not a manual step — see
 above its `test` stage for the roster.
 
 **`./check.sh` does not include R3's pack-and-consume tier** (`pnpm test:pack-and-consume`,
-`scripts/pack-and-consume/`). That tier packs the five publishable packages into real tarballs,
+`scripts/pack-and-consume/`). That tier packs the six publishable packages into real tarballs,
 installs them into a fresh app **outside this repository** via `file:` tarball dependencies, runs
 that app's own production Vite build, and drives a real headless Chromium against the result —
 asserting, per `docs/implementation/10-build-and-packaging.md` §7, that
@@ -518,7 +523,7 @@ check loop `./check.sh` exists to be. Every push still runs it, though — unlik
 purely manual would make it the gate nobody runs.
 
 If you touched anything under §5, `./check.sh`'s **resolve** stage already verifies source-first
-resolution end to end, in both directions, for all five packages — that is what
+resolution end to end, in both directions, for all six packages — that is what
 `scripts/assert-source-condition.mjs` does, and it is a gate rather than a manual step. To run it
 alone:
 

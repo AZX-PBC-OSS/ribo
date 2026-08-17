@@ -49,8 +49,8 @@ export type {
 // through `firstCapable`; held directly by the live orchestrator.
 export type { LiveSegment, LiveSegmentKind, LiveSession, LiveTranscriber } from "./live.js";
 
-// Selection: try engines in preference order, first one ready wins. The only
-// combinator, and deliberately the only one.
+// Selection: try engines in preference order, first one ready wins. The
+// sequential combinator — deliberately the only one until hedging was added.
 export { DEFAULT_CAPABILITY_TTL_MS, firstCapable } from "./first-capable.js";
 export type {
   CompositeTranscriber,
@@ -58,6 +58,25 @@ export type {
   FirstCapableOptions,
   TranscriberFallback,
 } from "./first-capable.js";
+
+// Hedging: race a preferred engine against a fallback on a latency budget.
+// A sibling of `firstCapable`, not a flag inside it — rule 5 stays untouched.
+// `ribo-core` does not know what a real-time factor is; the delay policy
+// receives a function returning milliseconds, supplied by the host.
+export {
+  DEFAULT_HEDGE_BUDGET_MS,
+  DEFAULT_HEDGE_FACTOR,
+  DEFAULT_HEDGE_FLOOR_MS,
+  hedgeDelay,
+  hedged,
+} from "./hedged.js";
+export type {
+  HedgeDelayOptions,
+  HedgeDelayPolicy,
+  HedgedOptions,
+  PredictedDurationMs,
+  TranscriberHedgeEvent,
+} from "./hedged.js";
 
 // The fake that lets later phases run the pipeline — and drive every capability
 // state and both failure kinds — without a model.

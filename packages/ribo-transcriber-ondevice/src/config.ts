@@ -250,6 +250,25 @@ export interface OnDeviceTranscriberOptions {
    * so the cache logic is unit-testable in node, where there is no `caches` global.
    */
   readonly cacheStorage?: CacheStorage;
+  /**
+   * Real-time-factor threshold above which `capability()` reports `too-slow`. Defaults to
+   * `DEFAULT_RTF_THRESHOLD` (3, provisional — refine with measured Surface Go 3 numbers).
+   *
+   * A device whose measured RTF exceeds this is permanently demoted: `too-slow` is in
+   * `PERMANENT_TRANSCRIBER_UNAVAILABLE_REASONS`, so `firstCapable` stops re-probing it and
+   * the managed engine is selected instead. Set higher to tolerate slower devices, lower to
+   * route to the managed engine sooner.
+   */
+  readonly rtfThreshold?: number;
+  /**
+   * Wall-clock source for the RTF calibration timer that runs inside `prime()`.
+   * Defaults to `performance.now`. Injectable so tests can control the clock and
+   * assert the arithmetic exactly — a clip of known duration timed against a
+   * controlled clock yields the arithmetically correct RTF, which a test
+   * asserting only "some number appeared" would not catch if the units were
+   * inverted.
+   */
+  readonly now?: () => number;
 }
 
 /**

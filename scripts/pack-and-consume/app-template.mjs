@@ -28,6 +28,7 @@ export function scratchPackageJson(tarballPaths) {
       "@azx/ribo-adapter-snuggpro": fileSpec("@azx/ribo-adapter-snuggpro"),
       "@azx/ribo-extractor-openai": fileSpec("@azx/ribo-extractor-openai"),
       "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
+      "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
       "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       // Exact versions, matching the workspace catalog (pnpm-workspace.yaml) — this app is NOT a
       // workspace member, so it cannot write `catalog:`; these are hand-pinned to the same values.
@@ -38,10 +39,10 @@ export function scratchPackageJson(tarballPaths) {
     devDependencies: {
       vite: "8.1.5",
     },
-    // None of these five packages is published yet (doc 10 §10), so a nested reference — e.g.
+    // None of these six packages is published yet (doc 10 §10), so a nested reference — e.g.
     // ribo-adapter-snuggpro's own `"@azx/ribo-core": "^0.0.0"`, rewritten from `workspace:^` at
     // pack time — has nothing to resolve against on the real registry (ERR_PNPM_FETCH_404
-    // without this). The override forces every nested occurrence of each of these five names,
+    // without this). The override forces every nested occurrence of each of these six names,
     // at any depth, to resolve to the SAME local tarball the root dependency above uses — which
     // is what keeps this a single coherent install (one @azx/ribo-core, not "whatever the
     // registry has"), the same property a real registry's own semver resolution would give for
@@ -52,6 +53,7 @@ export function scratchPackageJson(tarballPaths) {
         "@azx/ribo-adapter-snuggpro": fileSpec("@azx/ribo-adapter-snuggpro"),
         "@azx/ribo-extractor-openai": fileSpec("@azx/ribo-extractor-openai"),
         "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
+        "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
         "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       },
     },
@@ -116,7 +118,7 @@ export const TEST_MODEL_ID = "Xenova/tiny-random-WhisperForConditionalGeneration
 export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
 
 /**
- * The scratch app's entry point. Touches all five published packages from their real tarball
+ * The scratch app's entry point. Touches all six published packages from their real tarball
  * installs and records what happened onto \`globalThis.__RIBO_PACK_CONSUME_RESULT__\` — a plain,
  * JSON-serializable object Playwright reads back with \`page.evaluate\`.
  *
@@ -124,8 +126,8 @@ export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
  * CI run which of three unrelated things broke, without opening this script:
  *
  *   - `"setup-before-worker"` — one of ribo-core / ribo-adapter-snuggpro / ribo-extractor-openai /
- *     ribo-ui-react threw. None of this touches the network, so a Hub outage can never explain it —
- *     this is a real packaging regression in one of those four packages.
+ *     ribo-transcriber-managed / ribo-ui-react threw. None of this touches the network, so a Hub outage can never explain it —
+ *     this is a real packaging regression in one of those five packages.
  *   - `"worker-spawn-or-import"` — `prime()` threw and the worker never reported even an `initiate`
  *     progress event. A worker that never started can never have posted one, so this is very
  *     likely a real regression in `@azx/ribo-transcriber-ondevice`'s published `./worker` entry
@@ -142,6 +144,7 @@ export const MAIN_JS = `import { isSpanGrounded } from "@azx/ribo-core";
 import { normalizeFields, snuggProAdapter } from "@azx/ribo-adapter-snuggpro";
 import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
 import { OnDeviceTranscriber } from "@azx/ribo-transcriber-ondevice";
+import { ManagedTranscriber } from "@azx/ribo-transcriber-managed";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import React from "react";
 import { createRoot } from "react-dom/client";
@@ -179,6 +182,19 @@ async function run() {
       normalize: normalizeFields,
     });
     checks.extractorHasExtractFn = typeof extractor.extract === "function";
+
+    // ribo-transcriber-managed: real capability logic across the tarball boundary, and no
+    // network — capability() never fetches. Both directions, because the interesting bug
+    // would be an engine that claims \`ready\` with nothing configured, which would outrank
+    // a working on-device engine in \`firstCapable\` and fail every drain.
+    const unconfigured = await new ManagedTranscriber({}).capability();
+    checks.managedUnconfigured = unconfigured.status === "unavailable" && unconfigured.reason === "not-configured";
+    const configured = await new ManagedTranscriber({
+      endpoint: "https://example.invalid/speechtotext/transcriptions:transcribe?api-version=2025-10-15",
+      fetchImpl: () => Promise.reject(new Error("never called")),
+      isOnline: () => true,
+    }).capability();
+    checks.managedReady = configured.status === "ready";
 
     // ribo-ui-react: a REAL React render through RiboProvider, proving one React instance.
     const mountNode = document.getElementById("app");
