@@ -52,16 +52,16 @@ the new engine.
 More than `02` assumes, and this design is mostly about filling one gap rather than building a
 mechanism.
 
-| Already there | Where |
-| --- | --- |
-| The seam, with the managed engine named in its file header as an expected implementation | `ribo-core/src/transcriber.ts` |
-| `unavailable` reasons `offline` and `not-configured`, written for this path — "the managed path becomes `unavailable` the moment the uplink drops" | `transcriber.ts` |
-| `too-slow` present in both the reason list and the *permanent* subset | `transcriber.ts:24`, `:49` |
-| Roster selection, capability caching with TTL, demotion on `TranscriberUnavailableError`, `onFallback` telemetry | `ribo-core/src/first-capable.ts` |
-| `Recording.durationMs`, needed to predict transcription time | `ribo-core/src/recording.ts` |
-| Vocabulary biasing on the on-device path — "every chunk gets the same jargon prefix" | `ribo-transcriber-ondevice/src/worker.ts:524` |
+| Already there                                                                                                                                      | Where                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| The seam, with the managed engine named in its file header as an expected implementation                                                           | `ribo-core/src/transcriber.ts`                |
+| `unavailable` reasons `offline` and `not-configured`, written for this path — "the managed path becomes `unavailable` the moment the uplink drops" | `transcriber.ts`                              |
+| `too-slow` present in both the reason list and the _permanent_ subset                                                                              | `transcriber.ts:24`, `:49`                    |
+| Roster selection, capability caching with TTL, demotion on `TranscriberUnavailableError`, `onFallback` telemetry                                   | `ribo-core/src/first-capable.ts`              |
+| `Recording.durationMs`, needed to predict transcription time                                                                                       | `ribo-core/src/recording.ts`                  |
+| Vocabulary biasing on the on-device path — "every chunk gets the same jargon prefix"                                                               | `ribo-transcriber-ondevice/src/worker.ts:524` |
 
-The single gap is that no implementation ever *produces* `too-slow`. The only occurrence outside the
+The single gap is that no implementation ever _produces_ `too-slow`. The only occurrence outside the
 type definitions is a test fixture (`first-capable.test.ts:313`, `detail: "RTF 4.2"`) — the vocabulary
 was designed, and the measurement was deferred.
 
@@ -171,7 +171,7 @@ The clamp is not defensive tidiness. The obvious formula — fire after the prim
 duration — is **wrong**, because it scales the deadline by the device's slowness. On a three-minute
 dictation an RTF of 0.5 predicts 90 s and hedges at 135 s, but an RTF of 2.5 predicts 450 s and would
 hedge at 675 s: the slower the device, the later the help. `budgetMs` expresses how long the auditor
-will actually wait; the prediction only pulls the hedge *earlier* on fast devices.
+will actually wait; the prediction only pulls the hedge _earlier_ on fast devices.
 
 This also delimits what hedging is for. It serves the **middle band** — devices that pass the RTF gate
 but are sluggish. Below it the primary finishes inside the budget and the hedge never fires; above it
@@ -182,16 +182,16 @@ stays in the package that measured it and `ribo-core` never learns the concept.
 
 Resolution, which is where the tests belong:
 
-| Situation | Result |
-| --- | --- |
-| Primary resolves before the timer | Primary. Hedge never fires; no audio leaves the device |
-| Timer fired, primary still resolves first | Primary; hedge result discarded |
-| Timer fired, hedge resolves first | Hedge |
-| Both already resolved | **Primary** — privacy is the tie-break, absent a confidence signal. Rare in practice (§7.1) |
-| Primary throws `TranscriberUnavailableError` | Hedge takes over, primary demoted — same semantics as `firstCapable` |
-| Primary throws an ordinary error, hedge succeeded | Hedge's transcript |
-| Both throw | Primary's error propagates; it is the more actionable one |
-| Primary not `ready` | No race; straight delegation to the hedge |
+| Situation                                         | Result                                                                                      |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Primary resolves before the timer                 | Primary. Hedge never fires; no audio leaves the device                                      |
+| Timer fired, primary still resolves first         | Primary; hedge result discarded                                                             |
+| Timer fired, hedge resolves first                 | Hedge                                                                                       |
+| Both already resolved                             | **Primary** — privacy is the tie-break, absent a confidence signal. Rare in practice (§7.1) |
+| Primary throws `TranscriberUnavailableError`      | Hedge takes over, primary demoted — same semantics as `firstCapable`                        |
+| Primary throws an ordinary error, hedge succeeded | Hedge's transcript                                                                          |
+| Both throw                                        | Primary's error propagates; it is the more actionable one                                   |
+| Primary not `ready`                               | No race; straight delegation to the hedge                                                   |
 
 Every discarded promise must have a rejection handler attached, or a losing failure surfaces as an
 unhandled rejection.
@@ -258,15 +258,15 @@ than to this tranche, noted here so it is not rediscovered.
 Three runs per clip, same endpoint, same day. "Effective RTF" is wall-clock over audio duration, the
 same units the on-device gate uses, so the two paths can be compared directly.
 
-| Audio | Bytes | Wall clock | Effective RTF |
-| --- | --- | --- | --- |
-| 9.0 s (WebM/Opus) | 145 KB | 1.08 s | 0.12 |
-| 9.3 s (WAV) | 304 KB | 1.16 s | 0.13 |
-| 2 m 09 s (WAV) | 4.1 MB | 5.6 s | 0.043 |
-| 6 m 28 s (WAV) | 12.4 MB | 9.5 s | 0.024 |
+| Audio             | Bytes   | Wall clock | Effective RTF |
+| ----------------- | ------- | ---------- | ------------- |
+| 9.0 s (WebM/Opus) | 145 KB  | 1.08 s     | 0.12          |
+| 9.3 s (WAV)       | 304 KB  | 1.16 s     | 0.13          |
+| 2 m 09 s (WAV)    | 4.1 MB  | 5.6 s      | 0.043         |
+| 6 m 28 s (WAV)    | 12.4 MB | 9.5 s      | 0.024         |
 
 Connection setup is a steady ~0.27 s; everything else is upload plus service. Longer audio is
-*relatively* cheaper because that overhead amortises. A realistic three-minute dictation lands around
+_relatively_ cheaper because that overhead amortises. A realistic three-minute dictation lands around
 six to seven seconds.
 
 **This changes what hedging means.** At RTF 0.02–0.12 the managed path is roughly one to two orders of
@@ -283,14 +283,14 @@ the reason the recorder bitrate matters: a 4× smaller upload saves time exactly
 
 ## 8. What changes where
 
-| Package | Change |
-| --- | --- |
-| `@azx/ribo-transcriber-ondevice` | `prime()` measures and persists RTF; `capability()` reports `too-slow` above threshold; an accessor exposes the measured value |
-| `@azx/ribo-transcriber-managed` | New package: the Azure transcriber, its Helix transport, and chunking if §7 requires it |
-| `@azx/ribo-core` | New `hedged` combinator and its delay helper. **No change to `Transcriber`, `TranscriberCapability`, `firstCapable`, or the outbox schema** |
-| `playground` | Compose the real roster. Batch transcription there still runs a `FakeTranscriber` (`QueuePanel.tsx:243`), so this is also where the on-device engine first reaches the batch path |
-| `docs/roadmap/index.md` | Managed STT moves out of "deliberately out of scope" |
-| `docs/implementation/02-server-stt.md` | Record the vendor decision (§6) and the chunking correction (§7) |
+| Package                                | Change                                                                                                                                                                            |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@azx/ribo-transcriber-ondevice`       | `prime()` measures and persists RTF; `capability()` reports `too-slow` above threshold; an accessor exposes the measured value                                                    |
+| `@azx/ribo-transcriber-managed`        | New package: the Azure transcriber, its Helix transport, and chunking if §7 requires it                                                                                           |
+| `@azx/ribo-core`                       | New `hedged` combinator and its delay helper. **No change to `Transcriber`, `TranscriberCapability`, `firstCapable`, or the outbox schema**                                       |
+| `playground`                           | Compose the real roster. Batch transcription there still runs a `FakeTranscriber` (`QueuePanel.tsx:243`), so this is also where the on-device engine first reaches the batch path |
+| `docs/roadmap/index.md`                | Managed STT moves out of "deliberately out of scope"                                                                                                                              |
+| `docs/implementation/02-server-stt.md` | Record the vendor decision (§6) and the chunking correction (§7)                                                                                                                  |
 
 ## 9. Open questions
 
