@@ -320,6 +320,9 @@ provisioning or platform approval gates this work.
   never present in the browser.
 - With hedging composed, a primary that beats the budget produces **no outbound request** — the
   privacy-relevant assertion, and the one worth a test that fails loudly.
-- A hedge that fires produces exactly one transcript, and `onHedge` reports which engine won.
+- A hedge that fires produces exactly one transcript, and `onHedge` reports it **whether or not the
+  hedge won**. Dispatch is the event with consequences — the audio left the device and the managed
+  call was paid for — and it is the fire rate, not the win rate, that says whether `budgetMs` is set
+  correctly. An event that only fires on a win cannot supply that number.
 - `./check.sh` passes, and the accuracy comparison against the corpus runs as a separate exercise
   rather than a gate on any of the above.
