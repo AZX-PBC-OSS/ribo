@@ -271,7 +271,9 @@ So nobody re-litigates it:
   devices that cannot run the model, or cannot run it fast enough: a measured real-time-factor gate in
   `prime()`, a managed Azure AI Speech engine behind the fetch-proxy, and an opt-in `hedged` combinator
   that races the two on a latency budget. Nothing external blocks it — unlike write-back, the
-  `azure-stt` secret is a plain header injection.
+  `azure-stt` secret is a plain header injection. Container support, latency and the phrase list are
+  **measured against the real endpoint**, not assumed (§6, §7). Its
+  [plan](design/managed-transcription-plan.md) is 8 tasks, none started.
 
 ## Phase records
 

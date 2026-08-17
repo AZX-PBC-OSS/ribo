@@ -205,8 +205,12 @@ exactly the domain terms extraction depends on.
 The 2026-08-17 probe supplied unsolicited evidence for this. The test sentence contained "R nineteen",
 a standard insulation R-value, and the service returned **"our 19"** — from both the WAV and the WebM,
 so it is a vocabulary failure and not a container artefact. That is precisely the class of term the
-extractor depends on, mis-heard on the first sentence anyone tried. A phrase list is not a refinement
-here; it is load-bearing.
+extractor depends on, mis-heard on the first sentence anyone tried.
+
+Re-running the same audio with a phrase list of eight domain terms returned **"R-19"**. One variable
+changed, and the term came back correct — so this is measured, not argued. The parameter is
+`definition.phraseList.phrases`, and it exists only from api-version **2025-10-15** onward, which is
+the version this design targets. A phrase list is not a refinement here; it is load-bearing.
 
 **Headroom.** Fast Transcription accepts files up to 500 MB and five hours; Azure OpenAI transcription
 caps at 25 MB. Neither is the binding constraint (§7), but the larger limit removes a second ceiling
