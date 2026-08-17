@@ -15,6 +15,7 @@
  */
 import type { Recording, Transcript, Transcriber, TranscriberCapability } from "@azx/ribo-core";
 
+import { measureRtf } from "./calibration.js";
 import {
   buildHintPrompt,
   DEFAULT_MODEL_ID,
@@ -110,6 +111,7 @@ export class OnDeviceTranscriber implements Transcriber {
   readonly #rtfThreshold: number;
   readonly #createWorker: () => Worker;
   readonly #timeoutMs: number;
+  readonly #now: () => number;
 
   /** Constructed lazily on the first {@link prime}, then reused. */
   #worker?: Worker;
@@ -140,6 +142,7 @@ export class OnDeviceTranscriber implements Transcriber {
     this.#rtfThreshold = options.rtfThreshold ?? DEFAULT_RTF_THRESHOLD;
     this.#createWorker = options.createWorker ?? defaultCreateWorker;
     this.#timeoutMs = options.workerTimeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS;
+    this.#now = options.now ?? (() => performance.now());
   }
 
   /**
@@ -212,9 +215,17 @@ export class OnDeviceTranscriber implements Transcriber {
 
   /**
    * Download and cache the model, streaming per-file progress to `onProgress`. Resolves once the
-   * pipeline has constructed (weights fetched, ORT initialized, everything in `transformers-cache`);
-   * rejects if the worker reports an error. Explicit and user-initiated — never call this on a timer
-   * or a queue drain.
+   * pipeline has constructed (weights fetched, ORT initialized, everything in `transformers-cache`)
+   * and the RTF calibration has run; rejects if the worker reports an error during priming.
+   * Explicit and user-initiated — never call this on a timer or a queue drain.
+   *
+   * After the pipeline is warm, one calibration inference runs over the committed
+   * clip to measure this device's real-time factor (design §5.1). The pipeline is
+   * already constructed at that point, so the measurement covers inference rather
+   * than model load — measuring the load instead would produce a number that says
+   * more about the disk than the device. A calibration failure is swallowed: it
+   * leaves no verdict stored, which `capability()` treats as "unknown, therefore
+   * ready", so the device degrades to today's behaviour instead of a broken prime.
    *
    * Safe to call again: a warm cache re-reads rather than re-downloads, and `onProgress` then sees no
    * `"progress"` byte events — which is exactly how a caller can confirm the second load hit cache.
@@ -227,7 +238,24 @@ export class OnDeviceTranscriber implements Transcriber {
       requestId,
       config: this.#pipelineConfig(),
     };
-    return this.#awaitReply(worker, message, "primed", "priming", onProgress).then(() => undefined);
+    return this.#awaitReply(worker, message, "primed", "priming", onProgress).then(() =>
+      this.#calibrate(),
+    );
+  }
+
+  /**
+   * Run one calibration transcription over the committed clip and persist the
+   * measured real-time factor. Called after `prime()` has warmed the pipeline,
+   * so the measurement covers decode + inference, not model load. Errors are
+   * swallowed inside `measureRtf` — a calibration failure must not fail `prime()`.
+   */
+  async #calibrate(): Promise<void> {
+    await measureRtf(
+      (recording, audio) => this.transcribe(recording, audio),
+      this.#modelId,
+      this.#cacheStorage ?? globalThis.caches,
+      this.#now,
+    );
   }
 
   /** Terminate the worker, if one was created. The next {@link prime} constructs a fresh one. */

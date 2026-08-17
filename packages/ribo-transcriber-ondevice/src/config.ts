@@ -260,6 +260,15 @@ export interface OnDeviceTranscriberOptions {
    * route to the managed engine sooner.
    */
   readonly rtfThreshold?: number;
+  /**
+   * Wall-clock source for the RTF calibration timer that runs inside `prime()`.
+   * Defaults to `performance.now`. Injectable so tests can control the clock and
+   * assert the arithmetic exactly — a clip of known duration timed against a
+   * controlled clock yields the arithmetically correct RTF, which a test
+   * asserting only "some number appeared" would not catch if the units were
+   * inverted.
+   */
+  readonly now?: () => number;
 }
 
 /**
