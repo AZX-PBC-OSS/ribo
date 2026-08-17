@@ -175,7 +175,7 @@ Resolution, which is where the tests belong:
 | Primary resolves before the timer | Primary. Hedge never fires; no audio leaves the device |
 | Timer fired, primary still resolves first | Primary; hedge result discarded |
 | Timer fired, hedge resolves first | Hedge |
-| Both already resolved | **Primary** — privacy is the tie-break, absent a confidence signal |
+| Both already resolved | **Primary** — privacy is the tie-break, absent a confidence signal. Rare in practice (§7.1) |
 | Primary throws `TranscriberUnavailableError` | Hedge takes over, primary demoted — same semantics as `firstCapable` |
 | Primary throws an ordinary error, hedge succeeded | Hedge's transcript |
 | Both throw | Primary's error propagates; it is the more actionable one |
@@ -212,7 +212,7 @@ here; it is load-bearing.
 caps at 25 MB. Neither is the binding constraint (§7), but the larger limit removes a second ceiling
 to reason about.
 
-## 7. Audio size and container — measured
+## 7. Audio, container and latency — measured
 
 `02` treats client-side chunking as a given, because of Helix's 10 MB/hop fetch-proxy cap. Both halves
 of that premise were tested against the real endpoint on 2026-08-17.
@@ -237,6 +237,34 @@ setting `audioBitsPerSecond` to roughly 32 kbps would restore the 40-minute figu
 blobs in IndexedDB, and cut upload time on the managed path. That is a change to the recorder rather
 than to this tranche, noted here so it is not rediscovered.
 
+### 7.1 Latency
+
+Three runs per clip, same endpoint, same day. "Effective RTF" is wall-clock over audio duration, the
+same units the on-device gate uses, so the two paths can be compared directly.
+
+| Audio | Bytes | Wall clock | Effective RTF |
+| --- | --- | --- | --- |
+| 9.0 s (WebM/Opus) | 145 KB | 1.08 s | 0.12 |
+| 9.3 s (WAV) | 304 KB | 1.16 s | 0.13 |
+| 2 m 09 s (WAV) | 4.1 MB | 5.6 s | 0.043 |
+| 6 m 28 s (WAV) | 12.4 MB | 9.5 s | 0.024 |
+
+Connection setup is a steady ~0.27 s; everything else is upload plus service. Longer audio is
+*relatively* cheaper because that overhead amortises. A realistic three-minute dictation lands around
+six to seven seconds.
+
+**This changes what hedging means.** At RTF 0.02–0.12 the managed path is roughly one to two orders of
+magnitude faster than a sluggish on-device device (RTF 1–3, the band the gate admits). So a hedge that
+fires **wins essentially always**, and the positional tie-break in §5.3 is close to unreachable in
+practice. Hedging is therefore not a latency optimisation with a privacy side effect; it is a decision
+to route audio off-device, and `budgetMs` is the control that governs it.
+
+**These numbers are a floor, not a field figure.** They were taken on an office uplink, and upload sits
+inside that wall clock. At the current ~0.97 MB/min a three-minute recording is ~2.9 MB — roughly 5 s
+on a 5 Mbps uplink but ~23 s on 1 Mbps, against ~5 s of service time. In the field this is plausibly
+**upload-bound at 10–30 s**. Measuring that on a real uplink is deliberately deferred (§9), but it is
+the reason the recorder bitrate matters: a 4× smaller upload saves time exactly where it is scarce.
+
 ## 8. What changes where
 
 | Package | Change |
@@ -258,10 +286,12 @@ provisioning or platform approval gates this work.
 1. **What is the calibration clip?** A bundled short speech fixture is deterministic and gives a
    known-duration input; synthesized audio is free but may not produce a representative RTF. A real
    asset in the package is the likely answer.
-2. **What are the default `budgetMs` and the RTF gate threshold?** No Surface Go 3 measurements exist.
-   Both ship as documented provisional defaults with knobs; `onHedge` telemetry is what makes them
-   tunable later. RTF < 1 is the usual hard floor for interactive ASR, but the gate is not the same
-   question as interactivity and should be set higher.
+2. **What are the default `budgetMs` and the RTF gate threshold?** The managed side is now measured
+   (§7.1); what is missing is the two numbers that bracket it — on-device RTF on a real Surface Go 3,
+   and upload time on a real field uplink. **Both are deliberately deferred rather than blocking.**
+   Ship documented provisional defaults with knobs, and let `onHedge` telemetry supply the field data
+   rather than a measurement campaign up front. RTF < 1 is the usual hard floor for interactive ASR,
+   but the gate is not the same question as interactivity and should sit higher.
 3. **Does transformers.js expose per-segment logprobs?** If it does, confidence-based arbitration
    becomes available and the positional tie-break in §5.3 could be revisited. Assume not until
    checked — the stack is already known to withhold timestamps on Moonshine.
