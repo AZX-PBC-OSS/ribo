@@ -28,6 +28,7 @@ import {
 } from "./config.js";
 import { decodeTo16kMono } from "./decode.js";
 import { isModelCached } from "./model-cache.js";
+import { DEFAULT_RTF_THRESHOLD, readRtfVerdict } from "./rtf-verdict.js";
 import type {
   MainToWorkerMessage,
   OnnxDtype,
@@ -55,6 +56,12 @@ export {
 export type { OnDeviceTranscriberOptions, TranscribeHints } from "./config.js";
 export { decodeTo16kMono } from "./decode.js";
 export { TRANSFORMERS_CACHE_NAME, isModelCached } from "./model-cache.js";
+export {
+  DEFAULT_RTF_THRESHOLD,
+  RTF_VERDICT_CACHE_NAME,
+  readRtfVerdict,
+  writeRtfVerdict,
+} from "./rtf-verdict.js";
 export type { PrimeConfig, PrimeProgress, TranscribeWorkerRequest } from "./protocol.js";
 
 // Live transcription: the streaming seam implementation.
@@ -100,6 +107,7 @@ export class OnDeviceTranscriber implements Transcriber {
   readonly #hints?: TranscribeHints;
   readonly #downloadBytes: number;
   readonly #cacheStorage?: CacheStorage;
+  readonly #rtfThreshold: number;
   readonly #createWorker: () => Worker;
   readonly #timeoutMs: number;
 
@@ -129,24 +137,31 @@ export class OnDeviceTranscriber implements Transcriber {
     this.#downloadBytes = options.downloadBytes ?? estimateDownloadBytes(this.#modelId);
     // `?? undefined` so an explicit override still wins but the default is read lazily at probe time.
     this.#cacheStorage = options.cacheStorage;
+    this.#rtfThreshold = options.rtfThreshold ?? DEFAULT_RTF_THRESHOLD;
     this.#createWorker = options.createWorker ?? defaultCreateWorker;
     this.#timeoutMs = options.workerTimeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS;
   }
 
   /**
-   * What this engine can do right now, judged from the Cache API alone (no download, cheap enough to
-   * call often per the `Transcriber` contract).
+   * What this engine can do right now, judged from the Cache API and a persisted RTF
+   * verdict (no download, no inference — cheap enough to call often per the `Transcriber`
+   * contract).
    *
-   * - No `CacheStorage` at all → `unavailable`/`unsupported-platform`: without it the model cannot be
-   *   persisted for offline use, which is the entire premise. Permanent, so `firstCapable` stops
-   *   re-probing it.
+   * - No `CacheStorage` at all → `unavailable`/`unsupported-platform`: without it the model
+   *   cannot be persisted for offline use, which is the entire premise. Permanent, so
+   *   `firstCapable` stops re-probing it.
+   * - A stored RTF above threshold → `unavailable`/`too-slow`, carrying the measured value
+   *   in `detail`. This **outranks the cache check**: a device known to be too slow must
+   *   report unavailable even with the weights cached, because the weights being present is
+   *   exactly the situation the old code mistook for readiness. Permanent, so `firstCapable`
+   *   stops re-probing a fact about the hardware.
    * - Model weights already in `transformers-cache` → `ready`.
-   * - Otherwise → `needs-download`, carrying the byte estimate (weights **plus** the ORT runtime) for
-   *   the consent screen. `firstCapable` deliberately never auto-selects this — the fetch needs a
-   *   human's say-so, which {@link prime} is where it happens.
+   * - Otherwise → `needs-download`, carrying the byte estimate (weights **plus** the ORT
+   *   runtime) for the consent screen. `firstCapable` deliberately never auto-selects this —
+   *   the fetch needs a human's say-so, which {@link prime} is where it happens.
    *
-   * Task-2 honest: this reflects cache state, not a measured throughput verdict. The `too-slow`
-   * real-time-factor gate and the WebGPU probe are Task 3/4.
+   * When there is no stored RTF verdict — a device that primed but never calibrated, or
+   * never primed at all — the verdict check is skipped and today's behaviour is preserved.
    */
   async capability(): Promise<TranscriberCapability> {
     const cacheStorage = this.#cacheStorage ?? globalThis.caches;
@@ -155,6 +170,18 @@ export class OnDeviceTranscriber implements Transcriber {
         status: "unavailable",
         reason: "unsupported-platform",
         detail: "Cache API unavailable — the model cannot be cached for offline use here.",
+      };
+    }
+    // A stored too-slow verdict outranks the cache check: a device known to be too slow
+    // must report unavailable even with the weights cached. `readRtfVerdict` returns
+    // `undefined` when no verdict is stored, which falls through to the cache check —
+    // preserving today's behaviour for devices that never calibrated.
+    const rtf = await readRtfVerdict(this.#modelId, cacheStorage);
+    if (rtf !== undefined && rtf > this.#rtfThreshold) {
+      return {
+        status: "unavailable",
+        reason: "too-slow",
+        detail: `measured real-time factor ${rtf} exceeds threshold ${this.#rtfThreshold}`,
       };
     }
     // `ready` is judged on the ASR weights ALONE. The voice-activity model is a quality upgrade for
@@ -166,6 +193,21 @@ export class OnDeviceTranscriber implements Transcriber {
       return { status: "ready" };
     }
     return { status: "needs-download", downloadBytes: this.#downloadBytes, detail: this.#modelId };
+  }
+
+  /**
+   * The measured real-time factor for this instance's model, or `undefined` before
+   * calibration.
+   *
+   * Task 6's hedge delay policy reads this through a host-supplied accessor —
+   * `ribo-core` never learns what an RTF is, only that a function returns
+   * milliseconds. Returns `undefined` (not a sentinel number) when no verdict is
+   * stored, so the delay policy can distinguish "never measured" from "measured and
+   * fast" and fall back to a default prediction rather than computing one from a
+   * meaningless zero.
+   */
+  async measuredRtf(): Promise<number | undefined> {
+    return readRtfVerdict(this.#modelId, this.#cacheStorage ?? globalThis.caches);
   }
 
   /**
