@@ -1,7 +1,7 @@
 # Managed transcription — Design
 
 **Date:** 2026-08-17
-**Status:** Draft — shape agreed, four decisions open (§9)
+**Status:** Draft — shape agreed and validated against the real endpoint; three decisions open (§9)
 **Task:** [Investigate online transcription via Azure Speech](https://app.asana.com/1/1208495702765136/project/1216763563065333/task/1217509060037650) — rescoped from a spike to an implementation
 **Depends on:** nothing blocking. The `azure-stt` connection secret is a constant-header recipe and is
 untouched by ask A1, which gates only the Snugg Pro write
@@ -202,28 +202,40 @@ already biases vocabulary through a jargon prefix (`worker.ts:524`). A phrase li
 by a different mechanism, so both engines can share one vocabulary source instead of drifting apart on
 exactly the domain terms extraction depends on.
 
+The 2026-08-17 probe supplied unsolicited evidence for this. The test sentence contained "R nineteen",
+a standard insulation R-value, and the service returned **"our 19"** — from both the WAV and the WebM,
+so it is a vocabulary failure and not a container artefact. That is precisely the class of term the
+extractor depends on, mis-heard on the first sentence anyone tried. A phrase list is not a refinement
+here; it is load-bearing.
+
 **Headroom.** Fast Transcription accepts files up to 500 MB and five hours; Azure OpenAI transcription
 caps at 25 MB. Neither is the binding constraint (§7), but the larger limit removes a second ceiling
 to reason about.
 
-## 7. Audio size, and a correction to `02`
+## 7. Audio size and container — measured
 
-`02` treats client-side chunking as a given, because of Helix's 10 MB/hop fetch-proxy cap. **At the
-bitrate this app actually records, that cap is not the main-path concern `02` implies.**
+`02` treats client-side chunking as a given, because of Helix's 10 MB/hop fetch-proxy cap. Both halves
+of that premise were tested against the real endpoint on 2026-08-17.
 
-The recorder negotiates Opus in preference to everything else (`ribo-core/src/recorder.ts:59`). Opus
-at speech bitrates runs roughly 180–240 KB per minute, so 10 MB is on the order of **40+ minutes** of
-dictation — far longer than a field dictation.
+**The container is accepted, so there is no transcode.** A genuine `MediaRecorder` blob — recorded
+through real Chromium against a fake capture device, negotiated as `audio/webm;codecs=opus`, the exact
+path `Recorder` takes — transcribed at the first attempt. The transcript matched a WAV baseline of the
+same audio and carried correct word-level timings. Azure also reported the right
+`durationMilliseconds` despite the streaming-style container, which was the specific risk worth
+testing: `MediaRecorder` cannot know a recording's length while writing it, so its WebM is not the
+ordinary seekable variant decoders are usually exercised against.
 
-The picture inverts if the audio is transcoded. Decoded 16 kHz mono PCM is about 1.9 MB per minute, so
-10 MB is roughly **five minutes**, and chunking becomes load-bearing immediately. The machinery for
-that decode already exists on the on-device path (`decodeTo16kMono`).
+**The size figure is worse than estimated, and the cause is our own default.** Measured output was
+145,196 bytes for 9 s — about 16 KB/s, or **0.97 MB per minute**. A 10 MB hop is therefore roughly
+**ten minutes** of dictation, not the 40+ that typical speech-Opus bitrates would suggest.
+`recorder.ts` sets no `audioBitsPerSecond`, so Chromium's ~128 kbps default applies: four to five
+times what speech needs.
 
-So the size question reduces to a single unresolved fact: **does the endpoint accept the container the
-recorder produces?** If WebM-Opus is accepted, the request is a passthrough of bytes we already hold
-and chunking is a tail case for unusually long recordings. If it is not, we transcode, and chunking is
-a feature of this tranche. This is the first thing to establish, because it decides the size of the
-work (§9).
+Chunking therefore stays out of this tranche — ten minutes comfortably exceeds a field dictation. But
+the margin is thinner than `02` implies, and it is worth recording which way it can be widened:
+setting `audioBitsPerSecond` to roughly 32 kbps would restore the 40-minute figure, shrink queued
+blobs in IndexedDB, and cut upload time on the managed path. That is a change to the recorder rather
+than to this tranche, noted here so it is not rediscovered.
 
 ## 8. What changes where
 
@@ -238,16 +250,19 @@ work (§9).
 
 ## 9. Open questions
 
-1. **Does Azure Fast Transcription accept WebM-Opus?** Decides whether chunking is in this tranche at
-   all (§7). Establish first — it is a single request against a real endpoint.
-2. **What is the calibration clip?** A bundled short speech fixture is deterministic and gives a
+**Answered 2026-08-17 — does Fast Transcription accept WebM-Opus?** Yes, measured against the real
+endpoint: no transcode, chunking out of this tranche. See §7 for the numbers, and note the bitrate
+finding it turned up. The Speech capability is live on the existing AI Foundry resource, so no
+provisioning or platform approval gates this work.
+
+1. **What is the calibration clip?** A bundled short speech fixture is deterministic and gives a
    known-duration input; synthesized audio is free but may not produce a representative RTF. A real
    asset in the package is the likely answer.
-3. **What are the default `budgetMs` and the RTF gate threshold?** No Surface Go 3 measurements exist.
+2. **What are the default `budgetMs` and the RTF gate threshold?** No Surface Go 3 measurements exist.
    Both ship as documented provisional defaults with knobs; `onHedge` telemetry is what makes them
    tunable later. RTF < 1 is the usual hard floor for interactive ASR, but the gate is not the same
    question as interactivity and should be set higher.
-4. **Does transformers.js expose per-segment logprobs?** If it does, confidence-based arbitration
+3. **Does transformers.js expose per-segment logprobs?** If it does, confidence-based arbitration
    becomes available and the positional tie-break in §5.3 could be revisited. Assume not until
    checked — the stack is already known to withhold timestamps on Moonshine.
 
