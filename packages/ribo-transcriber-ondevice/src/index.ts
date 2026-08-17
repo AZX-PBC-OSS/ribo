@@ -16,6 +16,7 @@
 import type { Recording, Transcript, Transcriber, TranscriberCapability } from "@azx/ribo-core";
 
 import { measureRtf } from "./calibration.js";
+import { ondeviceEngineId } from "./engine-id.js";
 import {
   buildHintPrompt,
   DEFAULT_MODEL_ID,
@@ -56,6 +57,8 @@ export {
 } from "./config.js";
 export type { OnDeviceTranscriberOptions, TranscribeHints } from "./config.js";
 export { decodeTo16kMono } from "./decode.js";
+export { ONDEVICE_ENGINE_PREFIX, ondeviceEngineId, shortModelName } from "./engine-id.js";
+export type { EngineIdentity } from "./engine-id.js";
 export { TRANSFORMERS_CACHE_NAME, isModelCached } from "./model-cache.js";
 export {
   DEFAULT_RTF_THRESHOLD,
@@ -70,9 +73,15 @@ export { DEFAULT_LIVE_OPEN_TIMEOUT_MS, OnDeviceLiveTranscriber } from "./live.js
 export type { OnDeviceLiveTranscriberOptions } from "./live.js";
 
 /**
- * `Transcriber.engine` this implementation stamps onto every {@link Transcript} it produces. Short
- * and stable across versions — it rides into the outbox document, so the on-device/managed engine
- * mix is readable straight off `Outbox.list()`. Matches `docs/implementation/03` and `transcript.ts`.
+ * **Superseded.** The `Transcriber.engine` value is now derived per configuration by
+ * {@link ondeviceEngineId} — see `engine-id.ts` for why a shared constant was wrong in three
+ * ways, the sharpest being that it made a two-configuration roster throw at construction.
+ *
+ * Kept only as the historical value: transcripts written before 2026-08-17 carry this string,
+ * and it names Whisper on a package whose default model has been Moonshine since the
+ * live-transcription work — which is exactly the provenance defect the derived id fixes.
+ *
+ * @deprecated Read `transcriber.engine`, or build one with {@link ondeviceEngineId}.
  */
 export const ONDEVICE_WHISPER_ENGINE = "ondevice-whisper";
 
@@ -98,7 +107,12 @@ export type PrimeProgressListener = (progress: PrimeProgress) => void;
  * thread and transfers the samples to the worker.
  */
 export class OnDeviceTranscriber implements Transcriber {
-  readonly engine = ONDEVICE_WHISPER_ENGINE;
+  /**
+   * Derived from (model, device, dtype) rather than a module constant — see `engine-id.ts` for
+   * the three defects that shared constant caused. Assigned in the constructor because it
+   * depends on the options.
+   */
+  readonly engine: string;
 
   readonly #modelId: string;
   readonly #wasmPaths: string;
@@ -115,6 +129,9 @@ export class OnDeviceTranscriber implements Transcriber {
 
   /** Constructed lazily on the first {@link prime}, then reused. */
   #worker?: Worker;
+
+  /** Memoized WebGPU adapter probe — see {@link #executionProviderAvailable}. */
+  #webgpuAvailable?: Promise<boolean>;
 
   constructor(options: OnDeviceTranscriberOptions) {
     this.#modelId = options.modelId ?? DEFAULT_MODEL_ID;
@@ -143,6 +160,39 @@ export class OnDeviceTranscriber implements Transcriber {
     this.#createWorker = options.createWorker ?? defaultCreateWorker;
     this.#timeoutMs = options.workerTimeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS;
     this.#now = options.now ?? (() => performance.now());
+    this.engine = ondeviceEngineId({
+      modelId: this.#modelId,
+      device: this.#device,
+      dtype: this.#dtype,
+    });
+  }
+
+  /**
+   * Is the configured execution provider actually present?
+   *
+   * `capability()` used to answer purely from the Cache API, which meant an instance configured
+   * `device: "webgpu"` on a machine with no adapter reported `ready` and then failed inside the
+   * worker — as an *ordinary* error, which `firstCapable` rule 5 propagates rather than falling
+   * through. That produced a hard failure at exactly the point a fallback was wanted.
+   *
+   * Memoized, because `capability()` is contractually cheap and called on every queue drain
+   * while `requestAdapter()` is neither. Caching is safe in both directions: a GPU does not
+   * appear or vanish mid-session, which is the same reasoning that puts `unsupported-platform`
+   * in the permanent set.
+   */
+  async #executionProviderAvailable(): Promise<boolean> {
+    if (this.#device !== "webgpu") return true;
+    this.#webgpuAvailable ??= (async () => {
+      const gpu = (navigator as { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu;
+      if (!gpu) return false;
+      try {
+        return (await gpu.requestAdapter()) !== null;
+      } catch {
+        // A throwing adapter request is an absent adapter for our purposes.
+        return false;
+      }
+    })();
+    return this.#webgpuAvailable;
   }
 
   /**
@@ -175,11 +225,24 @@ export class OnDeviceTranscriber implements Transcriber {
         detail: "Cache API unavailable — the model cannot be cached for offline use here.",
       };
     }
+    // The configured execution provider has to exist before anything else is worth asking.
+    // Permanent: a GPU adapter does not appear mid-session.
+    if (!(await this.#executionProviderAvailable())) {
+      return {
+        status: "unavailable",
+        reason: "unsupported-platform",
+        detail: "WebGPU was requested but no GPU adapter is available on this device.",
+      };
+    }
     // A stored too-slow verdict outranks the cache check: a device known to be too slow
     // must report unavailable even with the weights cached. `readRtfVerdict` returns
     // `undefined` when no verdict is stored, which falls through to the cache check —
     // preserving today's behaviour for devices that never calibrated.
-    const rtf = await readRtfVerdict(this.#modelId, cacheStorage);
+    //
+    // Keyed by ENGINE id, not model id: a verdict measured on one operating point must not
+    // demote another. fp32 and q8 of the same model are different speeds, and `too-slow` is
+    // permanent, so inheriting it across them would be unrecoverable.
+    const rtf = await readRtfVerdict(this.engine, cacheStorage);
     if (rtf !== undefined && rtf > this.#rtfThreshold) {
       return {
         status: "unavailable",
@@ -192,7 +255,11 @@ export class OnDeviceTranscriber implements Transcriber {
     // `needs-download` without it would be actively harmful: `firstCapable` selects only `ready`
     // transcribers and skips `needs-download`, so a user who primed before VAD shipped would
     // silently switch to a managed transcriber, or get nothing at all offline.
-    if (await isModelCached(this.#modelId, cacheStorage)) {
+    // Dtype-aware: the cache probe used to match any dtype's weights, which was right for one
+    // configuration and wrong for two. With fp32 cached and q8 not, a q8 instance would have
+    // reported `ready` and then downloaded mid-drain — defeating the consent gate that
+    // `needs-download` exists to enforce.
+    if (await isModelCached(this.#modelId, cacheStorage, this.#dtype)) {
       return { status: "ready" };
     }
     return { status: "needs-download", downloadBytes: this.#downloadBytes, detail: this.#modelId };
@@ -210,7 +277,7 @@ export class OnDeviceTranscriber implements Transcriber {
    * meaningless zero.
    */
   async measuredRtf(): Promise<number | undefined> {
-    return readRtfVerdict(this.#modelId, this.#cacheStorage ?? globalThis.caches);
+    return readRtfVerdict(this.engine, this.#cacheStorage ?? globalThis.caches);
   }
 
   /**
@@ -252,7 +319,7 @@ export class OnDeviceTranscriber implements Transcriber {
   async #calibrate(): Promise<void> {
     await measureRtf(
       (recording, audio) => this.transcribe(recording, audio),
-      this.#modelId,
+      this.engine,
       this.#cacheStorage ?? globalThis.caches,
       this.#now,
     );

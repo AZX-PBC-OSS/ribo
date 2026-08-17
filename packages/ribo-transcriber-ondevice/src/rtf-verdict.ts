@@ -1,11 +1,11 @@
 /**
- * @file The measured real-time-factor verdict: one number per model id, persisted
+ * @file The measured real-time-factor verdict: one number per engine id, persisted
  * across reloads, consulted by `capability()` to produce `too-slow`.
  *
  * `too-slow` is in `PERMANENT_TRANSCRIBER_UNAVAILABLE_REASONS` (`ribo-core`'s
  * `transcriber.ts`), so the verdict must survive a reload — re-measuring on every
  * page load would defeat the point of a permanent reason, and `firstCapable`
- * would re-probe a permanent fact on every drain. It is keyed by model id, so
+ * would re-probe a permanent fact on every drain. It is keyed by ENGINE id, so
  * swapping models re-measures rather than inheriting a verdict that may not apply
  * to the new weights.
  *
@@ -39,7 +39,7 @@ interface RtfVerdictRecord {
 }
 
 /**
- * Read the stored real-time factor for `modelId`, or `undefined` if no verdict
+ * Read the stored real-time factor for `engineId`, or `undefined` if no verdict
  * has been recorded.
  *
  * Returns `undefined` (never throws) when storage is absent, the bucket does not
@@ -50,13 +50,13 @@ interface RtfVerdictRecord {
  * bad data.
  */
 export async function readRtfVerdict(
-  modelId: string,
+  engineId: string,
   cacheStorage: CacheStorage | undefined,
 ): Promise<number | undefined> {
   if (!cacheStorage) return undefined;
   if (!(await cacheStorage.has(RTF_VERDICT_CACHE_NAME))) return undefined;
   const cache = await cacheStorage.open(RTF_VERDICT_CACHE_NAME);
-  const response = await cache.match(verdictKey(modelId));
+  const response = await cache.match(verdictKey(engineId));
   if (!response) return undefined;
   try {
     return parseRtfVerdict(await response.json());
@@ -66,36 +66,35 @@ export async function readRtfVerdict(
 }
 
 /**
- * Write a measured real-time factor for `modelId`. Called by Task 2's calibration
+ * Write a measured real-time factor for `engineId`. Called by Task 2's calibration
  * after `prime()`; in this task, called only by tests.
  *
- * A verdict stored under one model id is not read under another —
- * {@link readRtfVerdict} keys by model id, so a model swap re-measures rather
+ * A verdict stored under one engine id is not read under another —
+ * {@link readRtfVerdict} keys by engine id, so a change of model, device or dtype re-measures rather
  * than inheriting. No-ops (never throws) when storage is absent.
  */
 export async function writeRtfVerdict(
-  modelId: string,
+  engineId: string,
   rtf: number,
   cacheStorage: CacheStorage | undefined,
 ): Promise<void> {
   if (!cacheStorage) return;
   const cache = await cacheStorage.open(RTF_VERDICT_CACHE_NAME);
   const body = JSON.stringify({ rtf } satisfies RtfVerdictRecord);
-  await cache.put(verdictKey(modelId), new Response(body));
+  await cache.put(verdictKey(engineId), new Response(body));
 }
 
 /**
- * The storage key for `modelId`'s verdict.
+ * The storage key for `engineId`'s verdict.
  *
- * Shape: `https://ribo.local/rtf/<modelId>` — a synthetic URL under a dedicated
+ * Shape: `https://ribo.local/rtf/<engineId>` — a synthetic URL under a dedicated
  * host so it never collides with the HuggingFace model-file URLs that
- * `transformers-cache` holds. The model id's own `/` (e.g.
- * `onnx-community/moonshine-base-ONNX`) maps cleanly onto a URL path, and the
- * bucket name (`ribo-rtf-verdict`) plus this key together form the full storage
- * address: bucket `ribo-rtf-verdict`, key `https://ribo.local/rtf/<modelId>`.
+ * `transformers-cache` holds. An engine id (`ondevice:moonshine-base:wasm:q8`)
+ * carries no `/` and no character a URL path objects to, and the bucket name
+ * (`ribo-rtf-verdict`) plus this key together form the full storage address.
  */
-function verdictKey(modelId: string): Request {
-  return new Request(`https://ribo.local/rtf/${modelId}`);
+function verdictKey(engineId: string): Request {
+  return new Request(`https://ribo.local/rtf/${engineId}`);
 }
 
 /** Parse a stored verdict, returning `undefined` for anything that is not a finite number. */
