@@ -11,9 +11,11 @@
  * (design §5.2). Connectivity is injected as a predicate too. See {@link
  * ManagedTranscriberOptions} for the full constraint.
  */
+import { TranscriberUnavailableError } from "@azx/ribo-core";
 import type { Recording, Transcript, Transcriber, TranscriberCapability } from "@azx/ribo-core";
 
 import { MANAGED_AZURE_SPEECH_ENGINE, type ManagedTranscriberOptions } from "./config.js";
+import { transcribeViaManagedAzure } from "./transcribe.js";
 
 export { MANAGED_AZURE_SPEECH_ENGINE } from "./config.js";
 export type { ManagedTranscriberOptions } from "./config.js";
@@ -31,12 +33,14 @@ export type { ManagedTranscriberOptions } from "./config.js";
  *   not a fact about the hardware, so also **not** permanent.
  * - Otherwise `ready`.
  *
- * ## Transcription (Task 4 — not yet implemented)
+ * ## Transcription (Task 4)
  *
- * {@link transcribe} is a stub that throws. The request path, failure
- * classification, and response mapping land in Task 4 of the managed transcription
- * plan. Splitting here keeps the packaging gates (`check:pkg`, `check:resolve`,
- * `build:packages`) reviewable separately from the request logic.
+ * {@link transcribe} POSTs the recording's audio blob as `multipart/form-data`
+ * to the Fast Transcription endpoint through the injected `fetch`, and maps
+ * the response onto a `Transcript`. The transcript text is
+ * `combinedPhrases[0].text` (design §7). See {@link ./transcribe.ts} for the
+ * request path and failure classification — the split keeps this file focused
+ * on the class and its capability reporting.
  */
 export class ManagedTranscriber implements Transcriber {
   readonly engine = MANAGED_AZURE_SPEECH_ENGINE;
@@ -75,13 +79,23 @@ export class ManagedTranscriber implements Transcriber {
     return { status: "ready" };
   }
 
-  transcribe(_recording: Recording, _audio: Blob): Promise<Transcript> {
-    // Task 4 implements the multipart Fast Transcription request, failure
-    // classification, and response mapping. A stub that throws is correct here —
-    // splitting keeps the packaging gates reviewable separately from the request
-    // logic.
-    throw new Error(
-      `${MANAGED_AZURE_SPEECH_ENGINE}: transcribe() is not implemented yet — see Task 4 of the managed transcription plan`,
-    );
+  async transcribe(recording: Recording, audio: Blob): Promise<Transcript> {
+    // If the endpoint or transport is missing, `capability()` would have
+    // reported `not-configured` — but `firstCapable` caches capabilities, so
+    // the configuration may have changed between the probe and this call.
+    // Throwing `TranscriberUnavailableError` here is the "capability was
+    // wrong" signal the contract describes (transcriber.ts).
+    if (!this.#endpoint || !this.#doFetch) {
+      throw new TranscriberUnavailableError({
+        engine: this.engine,
+        reason: "not-configured",
+        detail: "No Azure transcribe endpoint or transport is configured.",
+      });
+    }
+    return transcribeViaManagedAzure(recording, audio, {
+      endpoint: this.#endpoint,
+      doFetch: this.#doFetch,
+      engine: this.engine,
+    });
   }
 }
