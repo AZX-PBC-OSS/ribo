@@ -113,10 +113,41 @@ export const DEFAULT_MODEL_ID = "onnx-community/moonshine-base-ONNX";
  * `ribo-core`'s `needs-download` capability requires be counted (`transcriber.ts`). These feed the
  * consent screen only.
  *
- * These are **fp32** figures: q4/q8 do not load on the ORT build transformers.js 4.2.0 pins, so the
- * PoC ships fp32 (~2x the quantized budget older docs cite). `base.en` is MEASURED — ~290 MB weights
- * + ~24 MB runtime = ~314 MB, from Task 4 (`docs/implementation/14-transcription-measurement.md`).
- * `tiny.en`/`small.en` are still fp32 estimates, scaled from the parameter counts, not measured.
+ * These are **fp32** figures, which is what the PoC ships (~2x the quantized budget older docs
+ * cite). `base.en` is MEASURED — ~290 MB weights + ~24 MB runtime = ~314 MB, from Task 4
+ * (`docs/implementation/14-transcription-measurement.md`). `tiny.en`/`small.en` are still fp32
+ * estimates, scaled from the parameter counts, not measured.
+ *
+ * **This comment used to say "q4/q8 do not load on the ORT build transformers.js 4.2.0 pins". That
+ * is wrong in both halves, re-measured 2026-08-17** (`dtype-probe.manual.ts`, on the same pinned
+ * `onnxruntime-web@1.26.0-dev.20260416`, `moonshine-tiny` and `whisper-tiny.en` agreeing):
+ *
+ * | dtype  | WASM  | WebGPU |
+ * | ------ | ----- | ------ |
+ * | `fp32` | loads | loads  |
+ * | `q4`   | loads | loads  |
+ * | `q8`   | FAILS | **loads** |
+ * | `int8` | FAILS | **loads** |
+ * | `fp16` | FAILS | FAILS  |
+ *
+ * **The execution provider, not the dtype, is what gates quantization here.** The WASM failure is
+ * `TransposeDQWeightsForMatMulNBits Missing required scale: model.decoder.embed_tokens.weight` —
+ * ONNX Runtime issue #28306, a regression in the DQ→`MatMulNBits` graph-fusion pass on models whose
+ * decoder ties its embedding weights, which Whisper and Moonshine both do. It is fixed in **ORT
+ * 1.27.0 stable** (2026-06-19), which is newer than the dev build transformers.js 4.2.0 pins.
+ * WebGPU never runs that fusion pass, which is why the same weights load there.
+ *
+ * Two cautions before reading this as "switch to WebGPU and quantize":
+ *
+ * 1. **Loading is not correctness.** transformers.js #1317 reports a q8 WebGPU decoder producing
+ *    wrong output where WASM was correct. Nothing here scores a transcript; that is the next
+ *    question, not this one.
+ * 2. **`q4` is not the small one.** For `whisper-tiny.en` the q4 decoder is 86.7 MB against q8's
+ *    30.7 MB. The dtype that loads everywhere is the weaker saving; the one worth having is the
+ *    one WASM currently refuses.
+ *
+ * The byte figures below are still fp32 and have not been re-measured per dtype. See the Surface
+ * Go 3 sizing task on the board.
  */
 export const MODEL_DOWNLOAD_BYTES: Readonly<Record<string, number>> = {
   "Xenova/whisper-tiny.en": 175_000_000, // estimate (fp32)
