@@ -1,6 +1,16 @@
 import { test } from "vitest";
 
+import { CALIBRATION_CLIP_DURATION_MS, calibrationClip } from "./calibration-clip.js";
 import { OnDeviceTranscriber } from "./index.js";
+
+/**
+ * What the calibration clip actually says. Quantization damage shows up as drift from
+ * this, so the probe prints the transcript rather than asserting on it — the interesting
+ * failure is a dtype that loads and then returns plausible nonsense, which no session-
+ * creation check can see and no exact-match assertion would describe usefully.
+ */
+const EXPECTED =
+  "The attic insulation is fiberglass batts with visible gaps near the eaves and the furnace is a condensing unit.";
 
 /**
  * OPT-IN, NOT GATED. Runs only under `vitest.manual.config.ts` — never in `./check.sh`.
@@ -84,7 +94,27 @@ async function probe(model: string, dtype: string, device: string): Promise<Outc
   const start = performance.now();
   try {
     await transcriber.prime();
-    return { model, dtype, device, ok: true, ms: performance.now() - start, detail: "" };
+    // Loading is not correctness. transformers.js #1317 reports a q8 decoder that created a
+    // session happily and then produced wrong text, so a probe that stops at `prime()` would
+    // green-light exactly the failure worth catching.
+    const text = await transcriber.transcribe(
+      {
+        id: "dtype-probe",
+        capturedAt: "2026-08-17T00:00:00.000Z",
+        durationMs: CALIBRATION_CLIP_DURATION_MS,
+        mimeType: "audio/webm;codecs=opus",
+        ctx: {},
+      },
+      calibrationClip(),
+    );
+    return {
+      model,
+      dtype,
+      device,
+      ok: true,
+      ms: performance.now() - start,
+      detail: text.text.trim(),
+    };
   } catch (cause) {
     return {
       model,
@@ -136,4 +166,5 @@ test("which (model, dtype, device) combinations create a session at all", async 
   }
   const loaded = results.filter((r) => r.ok);
   console.log(`\n${loaded.length} of ${results.length} combinations created a session.`);
+  console.log(`\nexpected transcript:\n  ${EXPECTED}`);
 }, 3_600_000);

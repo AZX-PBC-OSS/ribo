@@ -137,14 +137,27 @@ export const DEFAULT_MODEL_ID = "onnx-community/moonshine-base-ONNX";
  * 1.27.0 stable** (2026-06-19), which is newer than the dev build transformers.js 4.2.0 pins.
  * WebGPU never runs that fusion pass, which is why the same weights load there.
  *
- * Two cautions before reading this as "switch to WebGPU and quantize":
+ * **Overriding `onnxruntime-web` to 1.27.0 removes the WASM column entirely** — measured the same
+ * day, every dtype above except `fp16` then loads on WASM too. That is a `pnpm.overrides` entry
+ * against a transitive dependency of transformers.js, which still pins the pre-fix dev build itself.
  *
- * 1. **Loading is not correctness.** transformers.js #1317 reports a q8 WebGPU decoder producing
- *    wrong output where WASM was correct. Nothing here scores a transcript; that is the next
- *    question, not this one.
- * 2. **`q4` is not the small one.** For `whisper-tiny.en` the q4 decoder is 86.7 MB against q8's
- *    30.7 MB. The dtype that loads everywhere is the weaker saving; the one worth having is the
- *    one WASM currently refuses.
+ * **And `q8` is the dtype worth having, on output as well as size.** Transcribing the committed
+ * calibration clip through each (`dtype-probe.manual.ts` prints the text, it does not assert on it):
+ *
+ * - `q8` returned output **identical to `fp32`** on both models, loading ~4.5x faster
+ *   (8.1 s against 36.9 s for moonshine-tiny) from ~4x fewer bytes.
+ * - `q4` degraded on `whisper-tiny.en` — "fiberglass-spats" for "fiberglass batts", "the ease" for
+ *   "the eaves" — and its decoder is *larger* than q8's (86.7 MB against 30.7 MB). The one dtype
+ *   that worked before the ORT bump is the wrong one on every axis.
+ *
+ * Two things this still does not establish, and neither is small:
+ *
+ * 1. **Peak RSS per dtype is unmeasured.** Memory, not bytes, is what an out-of-memory kill on a
+ *    4 GB device is about, and that kill does not fire `error` — see {@link
+ *    OnDeviceTranscriberOptions.workerTimeoutMs}.
+ * 2. **One clip is not the corpus.** Identical output on five seconds of clean speech is evidence,
+ *    not a WER measurement, and the clip is jargon-light — which is exactly where quantization
+ *    damage would be expected to show first.
  *
  * The byte figures below are still fp32 and have not been re-measured per dtype. See the Surface
  * Go 3 sizing task on the board.
