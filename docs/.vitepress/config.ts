@@ -28,7 +28,13 @@ export default defineConfig({
   title: "Ribo",
   description:
     "A reusable voice-capture SDK for field data collection: capture, on-device transcription, extraction, and human review with provenance.",
-  cleanUrls: true,
+  // Helix's static host matches request paths to files exactly and falls back to the site's
+  // index.html for anything that doesn't match (see docs/AGENTS or the helix-app skill). Clean
+  // URLs link to paths without a `.html` extension, which never match the on-disk file on a host
+  // that doesn't do extension resolution -- a direct load of a nested page then silently renders
+  // the home page's markup underneath the sidebar. Keeping the `.html` extension in generated
+  // links keeps every direct load an exact match.
+  cleanUrls: false,
   // The internal process docs live under docs/ but are not part of the public site. The roadmap
   // (design specs and per-phase plans) stays committed but unpublished; the implementation findings
   // are repackaged into Deep Dives (Task 2), not served raw.
