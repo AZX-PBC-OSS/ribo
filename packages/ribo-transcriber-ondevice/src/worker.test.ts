@@ -66,6 +66,81 @@ test("handleMessage ignores non-prime messages without touching transformers", a
 });
 
 /**
+ * `env.allowRemoteModels` is a mutable transformers.js singleton shared by every pipeline build in
+ * this worker. `prime` is the only caller allowed to leave it open — `transcribe` (and, by the same
+ * code path, a live session) must gate it closed even on a cache-hit build, or a build that reaches
+ * `_get_file_metadata` for a cached file lacking a `content-length` header hits the network for no
+ * reason. On a host where that request hangs instead of failing outright, that turns "the model is
+ * already on this device" into a silent, permanent stall — which is exactly what this test is a
+ * regression guard against; see `getPipeline`'s doc comment in `worker.ts` for the full mechanism.
+ *
+ * `@huggingface/transformers` is mocked rather than exercised for real, same reason every other test
+ * in this file avoids the dynamic import (see the file header): the real one drags in
+ * `onnxruntime-node`, unbuilt here. Priming and transcribing use different `modelId`s so each gets
+ * its own `pipelineCache` entry — same-key reuse would let the transcribe call skip the builder
+ * (and the assertion) entirely by returning prime's already-resolved pipeline.
+ */
+test("prime leaves remote models allowed; a warm transcribe gates them closed", async () => {
+  vi.resetModules();
+  const seenAllowRemoteModels: boolean[] = [];
+
+  vi.doMock("@huggingface/transformers", () => {
+    const env: { allowRemoteModels: boolean; backends: { onnx: { wasm: object } } } = {
+      allowRemoteModels: true,
+      backends: { onnx: { wasm: {} } },
+    };
+    const asrPipeline = {
+      tokenizer: {
+        encode: () => [],
+        decode: () => "hello",
+      },
+      model: {
+        generation_config: {},
+        generate: async () => [{ tolist: () => [1, 2, 3] }],
+      },
+      processor: async () => ({ input_values: new Float32Array(1) }),
+    };
+    const pipeline = vi.fn(async () => {
+      // Captured at call time, not after: this is the value the build actually ran under.
+      seenAllowRemoteModels.push(env.allowRemoteModels);
+      return asrPipeline;
+    });
+    return {
+      env,
+      pipeline,
+      AutoProcessor: { from_pretrained: vi.fn() },
+      AutoModelForAudioFrameClassification: { from_pretrained: vi.fn() },
+    };
+  });
+
+  const worker = await import("./worker.js");
+
+  await worker.handleMessage(
+    {
+      type: "prime",
+      requestId: "prime-1",
+      config: { modelId: "test-prime-model", wasmPaths: "/ort/" },
+    },
+    vi.fn(),
+  );
+
+  await worker.handleMessage(
+    {
+      type: "transcribe",
+      requestId: "transcribe-1",
+      config: { modelId: "test-transcribe-model", wasmPaths: "/ort/" },
+      request: { samples: new Float32Array(16_000) },
+    },
+    vi.fn(),
+  );
+
+  expect(seenAllowRemoteModels).toEqual([true, false]);
+
+  vi.doUnmock("@huggingface/transformers");
+  vi.resetModules();
+});
+
+/**
  * The chunking DECISION TREE — which of the four routes a recording takes. The segmentation maths
  * itself is proved in `segmentation.test.ts`; what is proved here is the routing around it.
  *

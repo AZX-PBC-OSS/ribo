@@ -137,10 +137,29 @@ function pipelineKey(config: PrimeConfig): string {
  * populates `transformers-cache`, streaming per-file progress to `onProgress` — so this is both
  * Task 2's prime and the warm handle Task 3's inference reuses. A warm-cache build reads from
  * `transformers-cache` rather than the network.
+ *
+ * `allowDownload` gates `env.allowRemoteModels` around the build, and defaults to `false` — the
+ * safe direction, since every caller except {@link prime} expects the model already cached and
+ * must never touch the network. Without this, a cache-hit build can still reach `huggingface.co`:
+ * transformers.js's `_get_file_metadata` fetches a file's size for progress reporting whenever the
+ * cached `Response` lacks a `content-length` header, with no timeout on that fetch. On a network
+ * that black-holes the request instead of failing it outright (rather than one that's simply
+ * absent), that single metadata call hangs forever, and with it the whole pipeline build — even
+ * though every byte it needs is already local. `env.allowRemoteModels = false` turns that into an
+ * immediate, loud `local_files_only` error instead of a silent, permanent hang, which is the
+ * correct failure mode for a path that (per this file's header) must never download outside an
+ * explicit, human-initiated {@link prime} call.
+ *
+ * `env` is a mutable global transformers.js singleton, shared by every call site in this worker —
+ * so this flag is set immediately before the build it governs, on every call, rather than relying
+ * on the library's default. Leaving prime's build to fall back on that default would leave it
+ * silently `false` (and priming unable to download anything) the first time it runs after any warm
+ * build has set it, since both share the same `env` object for the life of the worker.
  */
 function getPipeline(
   config: PrimeConfig,
   onProgress?: (progress: PrimeProgress) => void,
+  allowDownload = false,
 ): Promise<AsrPipeline> {
   const key = pipelineKey(config);
   if (pipelineCache && pipelineCache.key === key) return pipelineCache.pipeline;
@@ -153,6 +172,7 @@ function getPipeline(
     // runtime binary, so the ~24 MB .wasm is not re-fetched every session.
     const wasm = env.backends?.onnx?.wasm;
     if (wasm) wasm.wasmPaths = config.wasmPaths;
+    env.allowRemoteModels = allowDownload;
 
     return (await pipeline("automatic-speech-recognition", config.modelId, {
       ...(config.device ? { device: config.device } : {}),
@@ -196,10 +216,15 @@ let vadCache: { readonly key: string; readonly pipeline: Promise<VadPipeline> } 
  * Get (or build) the voice-activity model. Same promise-caching shape as {@link getPipeline}, for
  * the same reasons: concurrent callers share one build, and a failed build is evicted so a transient
  * load error does not poison every later call.
+ *
+ * `allowDownload` carries the same meaning and the same default as {@link getPipeline}'s — see its
+ * doc comment for why a warm build must gate `env.allowRemoteModels` closed rather than inherit
+ * whatever a prior build left it as.
  */
 function getVad(
   config: PrimeConfig,
   onProgress?: (p: PrimeProgress) => void,
+  allowDownload = false,
 ): Promise<VadPipeline> {
   const modelId = config.vadModelId;
   if (modelId === undefined) return Promise.reject(new Error("no VAD model configured"));
@@ -211,6 +236,7 @@ function getVad(
       await import("@huggingface/transformers");
     const wasm = env.backends?.onnx?.wasm;
     if (wasm) wasm.wasmPaths = config.wasmPaths;
+    env.allowRemoteModels = allowDownload;
 
     const progress_callback = (item: RawProgressItem): void => {
       const progress = normalizeProgress(item);
@@ -241,13 +267,13 @@ async function prime(
   config: PrimeConfig,
   onProgress: (progress: PrimeProgress) => void,
 ): Promise<void> {
-  await getPipeline(config, onProgress);
+  await getPipeline(config, onProgress, true);
   // The VAD model is a quality upgrade, not a prerequisite: long audio falls back to fixed windows
   // without it. So a failure here must NOT fail the prime and strand a user whose ASR weights
   // downloaded perfectly well.
   if (config.vadModelId !== undefined) {
     try {
-      await getVad(config, onProgress);
+      await getVad(config, onProgress, true);
     } catch {
       /* fallback covers it */
     }
