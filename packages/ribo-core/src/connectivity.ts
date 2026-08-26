@@ -228,6 +228,12 @@ class ConnectivityModel implements Connectivity {
     this.#unbind = undefined;
     this.#abandonProbe();
     this.#clearStabilityWindow();
+    // The probe is gone, so the status must stop claiming one is running:
+    // #evaluate() reads `probing` as "already probing" and would refuse to
+    // start a new cycle after a restart. `offline` is also the honest answer —
+    // a stopped model is not measuring — and returns #status to its initial
+    // value, making stop/start symmetric.
+    this.#setStatus("offline");
   }
 
   /**
