@@ -251,3 +251,46 @@ test("composite order is managed-first, on-device-second", () => {
   expect(entries[0]!.chat.engine).toBe("openai");
   expect(entries[1]!.chat.engine).toBe(ONDEVICE_CHAT_ENGINE);
 });
+
+// ---------------------------------------------------------------------------
+// Which global the Prompt API actually lives on
+//
+// Measured rather than assumed: `globalThis.LanguageModel`, under Chrome 149 and
+// 151 — see packages/ribo-extractor-ondevice/src/prompt-api-availability.browser.test.ts.
+// An earlier draft of this wiring read `globalThis.ai.languageModel`, the older
+// experimental shape, which finds nothing today.
+//
+// Nothing else in this suite would notice that mistake. The on-device entry would
+// report `unavailable` forever, the composite would fall back to managed on every
+// extraction, and the offline path this feature exists for would never once run —
+// with no error and nothing in a log. The only symptom is silence.
+// ---------------------------------------------------------------------------
+
+test("the on-device delegate resolves from globalThis.LanguageModel", async () => {
+  const globals = globalThis as unknown as Record<string, unknown>;
+  const hadLanguageModel = "LanguageModel" in globals;
+  const previousLanguageModel = globals.LanguageModel;
+  const hadAi = "ai" in globals;
+  const previousAi = globals.ai;
+
+  // The current global says `available`; the legacy path, if anything read it,
+  // says `unavailable`. So the capability answer identifies which one was used.
+  globals.LanguageModel = { availability: async () => "available" };
+  globals.ai = { languageModel: { availability: async () => "unavailable" } };
+
+  try {
+    const { entries } = buildExtractorWiring({
+      apiKey: "sk-test",
+      baseUrl: "http://test",
+      model: "m",
+    });
+    const onDevice = entries[1]!;
+    expect(onDevice.chat.engine).toBe(ONDEVICE_CHAT_ENGINE);
+    expect(await onDevice.chat.capability()).toEqual({ status: "ready" });
+  } finally {
+    if (hadLanguageModel) globals.LanguageModel = previousLanguageModel;
+    else delete globals.LanguageModel;
+    if (hadAi) globals.ai = previousAi;
+    else delete globals.ai;
+  }
+});

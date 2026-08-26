@@ -161,7 +161,7 @@ export interface BuildExtractorOptions {
   readonly chat?: ChatClient | CapableChatClient;
   /**
    * Override the on-device language model (tests). When omitted, the live path
-   * reads `globalThis.ai?.languageModel` if present; otherwise the on-device
+   * reads `globalThis.LanguageModel` if present; otherwise the on-device
    * delegate reports `unavailable`.
    */
   readonly onDeviceLanguageModel?: LanguageModel;
@@ -304,10 +304,21 @@ function getOnDeviceLanguageModel(override?: LanguageModel): LanguageModel {
   return override ?? getGlobalLanguageModel() ?? unavailableLanguageModel();
 }
 
+/**
+ * The Prompt API entry point is **`globalThis.LanguageModel`**, measured directly
+ * (`packages/ribo-extractor-ondevice/src/prompt-api-availability.browser.test.ts`, Chrome 149
+ * and 151).
+ *
+ * It is emphatically **not** `globalThis.ai.languageModel`. That was the earlier experimental
+ * shape and reading it finds nothing today — which is a silent failure rather than a loud one:
+ * the on-device entry would simply report `unavailable` forever, the composite would fall back
+ * to managed every time, and the offline path this whole feature exists for would never once
+ * engage. No error, no log, just a feature that is never used.
+ */
 function getGlobalLanguageModel(): LanguageModel | undefined {
-  // The Chrome Prompt API is not in the DOM types yet; read it carefully so a
-  // missing API returns `undefined` instead of throwing on the global lookup.
-  return (globalThis as unknown as { ai?: { languageModel?: LanguageModel } }).ai?.languageModel;
+  // Not in the DOM types yet, so read it defensively — a missing API must return `undefined`
+  // rather than throwing on the lookup.
+  return (globalThis as unknown as { LanguageModel?: LanguageModel }).LanguageModel;
 }
 
 function unavailableLanguageModel(): LanguageModel {
