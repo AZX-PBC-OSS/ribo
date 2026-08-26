@@ -12,3 +12,6 @@ export type {
 
 export { ONDEVICE_CHAT_ENGINE, OnDeviceChat } from "./ondevice-chat.js";
 export type { OnDeviceChatOptions } from "./ondevice-chat.js";
+
+export { threePhaseExtractor } from "./three-phase-extractor.js";
+export type { ThreePhaseExtractorOptions } from "./three-phase-extractor.js";
