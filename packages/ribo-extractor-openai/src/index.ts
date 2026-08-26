@@ -44,7 +44,9 @@ export type { HelixChatOptions } from "./helix-chat.js";
 export { ChatError } from "./chat-client.js";
 export type {
   ChatCallOptions,
+  ChatCapability,
   ChatClient,
+  CapableChatClient,
   ChatCompletion,
   ChatErrorKind,
   ChatFinishReason,

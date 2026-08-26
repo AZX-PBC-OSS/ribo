@@ -110,6 +110,108 @@ export interface ChatClient {
 }
 
 /**
+ * Why a chat engine cannot run.
+ *
+ * A closed set on purpose: a UI has to branch on this, and free-text reasons
+ * make that impossible. The human-readable part lives in `detail`, which is
+ * required precisely so a reason code never has to carry nuance it cannot express.
+ */
+export const CHAT_UNAVAILABLE_REASONS = [
+  /** The device or browser cannot run this engine at all — e.g. no Prompt API. */
+  "unsupported-platform",
+  /** It needs the network and there is none. The managed path's normal failure. */
+  "offline",
+  /** Missing endpoint, key or user consent. Nothing is wrong with the device. */
+  "not-configured",
+  /** Weights or runtime binaries are not on the device and could not be fetched. */
+  "model-unavailable",
+  /** The probe itself failed in a way this vocabulary does not describe. */
+  "unknown",
+] as const;
+
+export type ChatUnavailableReason = (typeof CHAT_UNAVAILABLE_REASONS)[number];
+
+/**
+ * What a chat engine can do **right now**.
+ *
+ * Three states rather than a boolean, because `needs-download` and `unavailable`
+ * produce completely different screens: "capable, but a download has to finish
+ * first" against "this cannot run here, and here is why". Collapsing them into
+ * `available: false` is what makes a download UI impossible to write.
+ *
+ * Availability is dynamic in **both** directions: on-device becomes `ready` after a
+ * download finishes, and the managed path becomes `unavailable` the moment the
+ * uplink drops. Nothing may treat this as a value read once at init.
+ *
+ * Mirrors {@link TranscriberCapability} in `ribo-core/src/transcriber.ts` with one
+ * intentional difference: `needs-download` carries **no byte count**. The Prompt
+ * API reports progress as a 0..1 fraction and `total` is always 1, so no real size
+ * is available; inventing a number would make the consent screen dishonest. Use
+ * `detail` for human-readable context instead.
+ */
+export type ChatCapability =
+  | {
+      /** Can serve a call now, with no further fetching and no further consent. */
+      readonly status: "ready";
+    }
+  | {
+      /**
+       * Capable of running here, but weights must be fetched first.
+       *
+       * A selection combinator must **never** pick this on its own: the fetch needs
+       * a user gesture and a human's agreement, and a queue drain is not the place
+       * either can be obtained.
+       *
+       * No `downloadBytes` field is present here. The underlying API reports progress
+       * as a 0..1 fraction with `total` always 1, so no byte count exists; adding one
+       * would be fabricated. The UI should show a bare percentage and explain that
+       * the size is unknown and the wait is minutes.
+       */
+      readonly status: "needs-download";
+      /** What is being downloaded, e.g. `"Chrome-managed language model"`. */
+      readonly detail?: string;
+    }
+  | {
+      /** Cannot run. */
+      readonly status: "unavailable";
+      readonly reason: ChatUnavailableReason;
+      /** Human-readable specifics. Required — a reason code with no detail is unactionable. */
+      readonly detail: string;
+    };
+
+/**
+ * A {@link ChatClient} that can also report whether it can run right now.
+ *
+ * Both the managed and on-device transports implement this: the managed path may
+ * become unavailable when the uplink drops, and the on-device path may need a
+ * download or may be unsupported. Keeping the contract here, at the transport seam,
+ * avoids a dependency cycle: the on-device package depends on this package, so it
+ * cannot export a type that `helixChat` and the composite extractor (both here)
+ * need to consume.
+ */
+export interface CapableChatClient extends ChatClient {
+  /**
+   * Stable, opaque id for this engine. Goes into extraction provenance so it ends
+   * up persisted in the outbox — keep it short and stable across versions.
+   */
+  readonly engine: string;
+
+  /**
+   * What this engine can do right now.
+   *
+   * **Expected to be called often and expected to be cheap.** Implementations that
+   * probe something expensive (a model availability check, a network reachability
+   * test) should memoize internally; a selection combinator additionally caches the
+   * answer so a queue drain of many extractions does not re-probe many times. Both
+   * layers are deliberate — an implementation used bare still needs to be cheap.
+   *
+   * Rejecting is allowed and is treated as `unavailable` with reason `"unknown"`;
+   * a probe is not permitted to take the caller down.
+   */
+  capability(): Promise<ChatCapability>;
+}
+
+/**
  * Why a {@link ChatClient.complete} call failed. A single discriminant (`kind`)
  * rather than six subclasses: it supports exhaustive switching, does not multiply
  * types, and does not force `instanceof` chains.
