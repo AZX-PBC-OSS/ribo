@@ -29,6 +29,9 @@
     "typecheck": "tsc --noEmit",
     "build": "tsdown"
   },
+  "dependencies": {
+    "@azx/ribo-extractor-openai": "workspace:^"
+  },
   "devDependencies": {
     "@arethetypeswrong/core": "catalog:",
     "@azx/build-config": "workspace:*",
