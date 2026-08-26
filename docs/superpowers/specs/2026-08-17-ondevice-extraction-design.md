@@ -178,11 +178,17 @@ seam now costs a rename, import churn across the playground and acceptance harne
 `check:pkg` / `check:resolve` / pack-and-consume surface — spent on a beta whose dominant risk
 is model quality. **The seam moves the moment a third transport appears.**
 
-Public surface:
+**`ChatCapability` belongs to the seam, not to the on-device package.** It is declared beside
+`ChatClient` in `ribo-extractor-openai`, along with a `CapableChatClient` interface (a
+`ChatClient` that also reports `engine` and `capability()`). Earlier drafts put it in the
+on-device package; both reviewers caught that as a dependency cycle (§11), since `helixChat`
+and the composite live in `-openai` and would have had to import a type from the package that
+depends on *them*. One declaration, at the layer both transports implement.
 
-- **`OnDeviceChat`** — implements `ChatClient`; adds `capability()` and `prime(onProgress?)`.
-  Mirrors `OnDeviceTranscriber`, including its "no background or automatic download" rule.
-- **`ChatCapability`** — `ready` / `needs-download` / `unavailable`, minus `downloadBytes`.
+Public surface of `@azx/ribo-extractor-ondevice`:
+
+- **`OnDeviceChat`** — implements `CapableChatClient`; adds `prime(onProgress?)`. Mirrors
+  `OnDeviceTranscriber`, including its "no background or automatic download" rule.
 - **A stable engine id**, mirroring `ONDEVICE_WHISPER_ENGINE`.
 
 The **composite `Extractor`** goes beside `perGroupExtractor` in `ribo-extractor-openai`; the
@@ -283,6 +289,24 @@ opposite is right: a **~15s per-call ceiling with 4–5 retries.** Through `deri
 each transport an honest ceiling means making it a per-instance option. Small, but it is a real
 edit to `per-group.ts`, and §5 is corrected accordingly.
 
+**And the ceiling is arithmetic, not a deadline — so the client must enforce its own.** Nothing
+in `per-group.ts` times a call. `PER_CALL_CEILING_MS` only *sizes the retry budget*; the sole
+real deadline is the relay's `withTimeout(stepTimeoutMs)`. Two consequences the earlier
+revisions missed, both raised by review (§11):
+
+- **The whitespace detector only catches trailing whitespace runs.** Any other degeneration —
+  a repeated field, an unbounded string value — runs to the model's output cap instead,
+  measured at **114.8 s** (§10.3). Nothing would stop it before then.
+- **A timed-out `extract()` keeps running detached** (`relay.ts:227-229`). `withTimeout`
+  abandons the loser rather than cancelling it, so a step that blows `stepTimeoutMs` leaves
+  Nano generating on the same main thread as whatever runs next.
+
+`OnDeviceChat` therefore imposes its own per-call deadline with an `AbortSignal`, independent of
+the whitespace detector and of anything `perGroupExtractor` believes. Belt and braces: the
+detector catches the common degeneration in ~1.4 s, and the deadline bounds every other one.
+The measurement harness of §10 already did exactly this — a hard abort alongside the whitespace
+check — and the design should have carried it over the first time.
+
 **No throughput gate, for beta.** #24 added a measured RTF verdict and a permanent `too-slow`
 reason because a slow device always reported ready and the managed fallback was unreachable.
 The defect transfers; the remedy does not. When the transcriber demotes on `too-slow` it falls
@@ -350,10 +374,16 @@ decoding should make non-conforming output impossible; a failure means a transla
 **content accuracy is recorded, not gated** (requiring codex's 0.5% hallucination rate from a
 ~3B model would block the beta permanently).
 
-**One targeted fix to existing code.** Doc 18 records that a failing acceptance run writes no
-artifact — `acceptance/results/` is gitignored and the baseline updates only on a clean pass. For
-a beta where nearly every run fails, that makes this feature unmeasurable. Split the concepts as
-doc 18 recommends: every run writes a run record; only a clean pass updates the baseline.
+**~~One targeted fix to existing code.~~ Already shipped — do not rebuild it.** Earlier
+revisions carried doc 18's "a failing run writes no artifact" into scope. **That is stale**:
+`1b2d003` ("Extraction accuracy as committed run records", #10) landed it. `gate.manual.ts`
+persists a run record *before* any assertion, `run-store.ts` writes `runs/current-<label>.json`
+and `history-<label>.jsonl`, those artifacts are committed, and per-hazard outcomes are already
+captured. Both reviewers caught this independently (§11); doc 18's closing note predates the fix.
+
+The genuinely remaining work is narrower: **the browser-mode acceptance runner must emit run
+records in that existing format**, so on-device runs land in the same store as the CLI backends
+rather than in a parallel one.
 
 ## 5. What this design does not change
 
@@ -563,10 +593,57 @@ four times: **20/20 solved, 0 gave up**, histogram `{1:4, 2:10, 3:5, 4:1}` (mean
 **6,482 ms mean per group**, **~45s for seven groups** against a 900s step timeout. Loop-kill
 latency 1.4s median versus 3.9s median for a successful call.
 
-### 10.6 What the measurements changed
+### 10.6 Reaching a real model from a test is not solved
+
+Every §10 number came from a **standalone page in real Chrome**, driven by hand, with the model
+pre-armed. That was not a convenience: Playwright's bundled Chromium — which the repo's browser
+project launches — has no Gemini Nano, because the model arrives through branded Chrome's
+component updater. Downloading it inside a test is also blocked by the user-gesture rule
+(§10.4) and would take ~5.4 minutes.
+
+**So any acceptance run against the real model needs a Chrome-channel launch with a persistent,
+pre-armed profile, or a standalone harness like §10's.** Recorded because the first plan drafted
+from this spec assumed the ordinary browser project would do, which would have produced tests
+that skip everywhere and look like coverage.
+
+### 10.7 What the measurements changed
 
 Context window ceased to be the gate (§6.1). Latency ceased to be a concern (§6.3). The
 whitespace loop became the central design problem, and its mitigation (§3.5) became
 load-bearing. The timing model inverted from a 120s ceiling with zero retries to a ~15s ceiling
 with 4–5 — which requires making `PER_CALL_CEILING_MS` configurable, the one shared-code edit
 this design needs.
+
+## 11. Second review round — 2026-08-25 (plan review, findings folded back)
+
+Two independent reviewers read the implementation plan and this spec together, both read-only,
+both told to verify claims against source rather than reason from the documents: **`kimi-k3`**
+via dispatch (a different model family — the cross-family read) and **Fable** (same family as
+the author, so a weaker independence check, weighted accordingly). They agreed on every critical
+finding, which is the strongest signal available here.
+
+Folded back into this spec:
+
+1. **`ChatCapability` was declared in the wrong package.** §3.2 put it in the on-device package
+   while §3.4 gave `helixChat` — in `ribo-extractor-openai` — a capability-reporting return
+   type. Since the on-device package depends on `-openai`, that is a cycle. It survived the
+   first review and two revisions. Fixed: the capability contract lives beside `ChatClient`.
+2. **The per-call ceiling is arithmetic, not a deadline.** Nothing in `per-group.ts` times a
+   call, the whitespace detector only catches *trailing* runs, and `withTimeout` leaves a
+   timed-out `extract()` running detached. §3.5 now requires `OnDeviceChat` to enforce its own
+   `AbortSignal` deadline.
+3. **The acceptance run-record fix was already shipped** in `1b2d003` (#10). §4 carried doc 18's
+   stale "not done here" note into scope. Removed; the narrower remaining work is named instead.
+4. **Reaching a real model from a test is unsolved** — Playwright's Chromium has no Nano, so
+   any real-model acceptance run needs a Chrome-channel launch with a pre-armed profile, or a
+   standalone harness. Recorded as §10.6.
+
+Also confirmed sound by both, independently: §3.5's retry arithmetic is exact, and the
+transient-classification chain (`completeOrClassify` → per-group retry → relay
+`isTransientFailure` → `maxAttempts`) terminates without loop or swallow.
+
+**A note on how three of these arose.** Each came from trusting a document over the tree — doc
+18 for the run records, an earlier draft for the capability's home, and the author's own prior
+message for the browser harness. The measurement round (§10) had already established the
+Playwright limitation and the need for a hard deadline; neither reached the design. When this
+spec and the tree disagree, the tree is right.
