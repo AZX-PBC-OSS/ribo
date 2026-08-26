@@ -11,10 +11,12 @@
  * bare global, never `window.fetch`.
  */
 
+import type { ConnectivitySource, ConnectivityStatus } from "@azx/ribo-core";
 import {
   ChatError,
+  type CapableChatClient,
   type ChatCallOptions,
-  type ChatClient,
+  type ChatCapability,
   type ChatCompletion,
   type ChatFinishReason,
   type ChatRequest,
@@ -42,6 +44,13 @@ export interface HelixChatOptions {
   readonly origin?: string;
   /** Override `fetch` (tests). Defaults to the global `fetch`. */
   readonly fetchImpl?: typeof fetch;
+  /**
+   * Live connectivity model. When absent, the managed path is assumed ready,
+   * preserving today's unconditional behaviour. When present, capability is
+   * derived from its subscription — not a snapshot at construction — so a dead
+   * uplink is recognised as soon as the model does.
+   */
+  readonly connectivity?: ConnectivitySource;
 }
 
 /** The subset of the Helix non-streaming response body this client reads. */
@@ -95,11 +104,45 @@ interface HelixErrorBody {
  * truncation guard keeps working (`assertStopFinishReason` treats `"length"` as
  * a `TerminalQueueError`); `"end_turn"` maps to `"stop"`.
  */
-export function helixChat({ token, baseUrl, origin, fetchImpl }: HelixChatOptions): ChatClient {
+export function helixChat({
+  token,
+  baseUrl,
+  origin,
+  fetchImpl,
+  connectivity,
+}: HelixChatOptions): CapableChatClient {
   const doFetch = fetchImpl ?? fetch;
   const url = `${baseUrl.replace(/\/+$/, "")}/_api/llm/chat`;
 
+  // Track the latest connectivity status through a live subscription. A
+  // construction-time snapshot would go stale the moment the uplink dropped,
+  // causing the selector to keep choosing a dead managed path.
+  let connectivityStatus: ConnectivityStatus = "offline";
+  if (connectivity) {
+    connectivity.subscribe((state) => {
+      connectivityStatus = state.status;
+    });
+  }
+
   return {
+    engine: "helix",
+    async capability(): Promise<ChatCapability> {
+      if (!connectivity || connectivityStatus === "online") {
+        return { status: "ready" };
+      }
+      if (connectivityStatus === "offline") {
+        return {
+          status: "unavailable",
+          reason: "offline",
+          detail: "The uplink is offline; Helix extraction cannot reach the managed model.",
+        };
+      }
+      return {
+        status: "unavailable",
+        reason: "offline",
+        detail: "The uplink is still being checked; Helix extraction is not ready.",
+      };
+    },
     async complete(request: ChatRequest, options?: ChatCallOptions): Promise<ChatCompletion> {
       if (request.maxTokens !== undefined) {
         if (!Number.isInteger(request.maxTokens) || request.maxTokens <= 0) {

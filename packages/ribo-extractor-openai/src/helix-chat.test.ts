@@ -1,9 +1,39 @@
-import { isTransientFailure } from "@azx/ribo-core";
+import {
+  isTransientFailure,
+  type ConnectivitySource,
+  type ConnectivityState,
+  type ConnectivityStatus,
+} from "@azx/ribo-core";
 import { describe, expect, test } from "vitest";
 
 import { ChatError } from "./chat-client.js";
 import type { ChatRequest } from "./chat-client.js";
 import { helixChat } from "./helix-chat.js";
+
+/**
+ * A hand-driven connectivity source for capability tests. Mirrors the real
+ * model's subscription contract: the listener is called immediately on subscribe
+ * and again on every pushed change.
+ */
+class FakeConnectivitySource implements ConnectivitySource {
+  #listeners = new Set<(state: ConnectivityState) => void>();
+  #status: ConnectivityStatus = "offline";
+
+  setStatus(status: ConnectivityStatus): void {
+    if (status === this.#status) return;
+    this.#status = status;
+    const state: ConnectivityState = { status };
+    for (const listener of this.#listeners) listener(state);
+  }
+
+  subscribe = (listener: (state: ConnectivityState) => void): (() => void) => {
+    this.#listeners.add(listener);
+    listener({ status: this.#status });
+    return () => {
+      this.#listeners.delete(listener);
+    };
+  };
+}
 
 /**
  * Key-free CI tests for the Helix platform LLM transport. `fetch` is INJECTED
@@ -442,5 +472,69 @@ describe("helixChat — typed errors", () => {
     }
     expect(error).toBeInstanceOf(ChatError);
     expect((error as ChatError).kind).toBe("malformed-response");
+  });
+});
+
+describe("helixChat — capability", () => {
+  test("connectivity reporting online → capability is ready", async () => {
+    const source = new FakeConnectivitySource();
+    source.setStatus("online");
+    const chat = helixChat({
+      token: "t",
+      baseUrl: "https://h",
+      connectivity: source,
+    });
+
+    expect(await chat.capability()).toEqual({ status: "ready" });
+  });
+
+  test("connectivity reporting offline → capability is unavailable with reason offline", async () => {
+    const source = new FakeConnectivitySource();
+    source.setStatus("offline");
+    const chat = helixChat({
+      token: "t",
+      baseUrl: "https://h",
+      connectivity: source,
+    });
+
+    const cap = await chat.capability();
+    expect(cap).toEqual({
+      status: "unavailable",
+      reason: "offline",
+      detail: expect.any(String),
+    });
+  });
+
+  test("the client subscribes and tracks connectivity change", async () => {
+    const source = new FakeConnectivitySource();
+    source.setStatus("online");
+    const chat = helixChat({
+      token: "t",
+      baseUrl: "https://h",
+      connectivity: source,
+    });
+
+    expect(await chat.capability()).toEqual({ status: "ready" });
+
+    source.setStatus("offline");
+
+    expect(await chat.capability()).toEqual({
+      status: "unavailable",
+      reason: "offline",
+      detail: expect.any(String),
+    });
+  });
+
+  test("no connectivity source at all → capability is ready", async () => {
+    const chat = helixChat({ token: "t", baseUrl: "https://h" });
+
+    expect(await chat.capability()).toEqual({ status: "ready" });
+  });
+
+  test("engine is a non-empty string", () => {
+    const chat = helixChat({ token: "t", baseUrl: "https://h" });
+
+    expect(chat.engine).toBe("helix");
+    expect(chat.engine.length).toBeGreaterThan(0);
   });
 });
