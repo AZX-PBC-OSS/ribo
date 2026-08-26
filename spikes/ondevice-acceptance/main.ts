@@ -10,6 +10,9 @@
  * on-device timing constants — rather than a simplified copy, so what gets scored is
  * what would actually ship. Results are posted back and written where `score.mjs`
  * reads them; the scorer itself is reused verbatim and is not touched.
+ *
+ * A second button runs a two-phase extract-then-classify strategy to test the
+ * hypothesis that the whitespace loop is a property of the grammar, not the model.
  */
 
 import {
@@ -20,15 +23,11 @@ import {
 import { perGroupExtractor } from "@azx/ribo-extractor-openai";
 import { OnDeviceChat } from "@azx/ribo-extractor-ondevice";
 
+import { extractTwoPhase, formatStats, mergeStats, newStats } from "./two-phase.js";
+
 const out = document.getElementById("out") as HTMLPreElement;
-const go = document.getElementById("go") as HTMLButtonElement;
-const lines: string[] = [];
-const log = (line: string): void => {
-  lines.push(line);
-  out.textContent = lines.join("\n");
-  out.scrollTop = out.scrollHeight;
-  void fetch("/api/log", { method: "POST", body: lines.join("\n") }).catch(() => undefined);
-};
+const goPerGroup = document.getElementById("go-per-group") as HTMLButtonElement;
+const goTwoPhase = document.getElementById("go-two-phase") as HTMLButtonElement;
 
 /**
  * The on-device delegate's production timing (mirrors `ONDEVICE_PER_GROUP_TIMING` in
@@ -69,7 +68,7 @@ function languageModel(): LanguageModelLike | undefined {
  * not a real model. Without this the run would produce 13 result files of nonsense and
  * a scorecard that looks like data.
  */
-async function assertRealModel(): Promise<void> {
+async function assertRealModel(log: (line: string) => void): Promise<void> {
   const model = languageModel();
   if (!model) throw new Error("No LanguageModel global. Open this page in Chrome.");
 
@@ -97,9 +96,22 @@ async function assertRealModel(): Promise<void> {
   }
 }
 
-async function run(): Promise<void> {
-  lines.length = 0;
-  await assertRealModel();
+function makeLog(dir: string): (line: string) => void {
+  const lines: string[] = [];
+  return (line: string): void => {
+    lines.push(line);
+    out.textContent = lines.join("\n");
+    out.scrollTop = out.scrollHeight;
+    void fetch(`/api/log?dir=${encodeURIComponent(dir)}`, {
+      method: "POST",
+      body: lines.join("\n"),
+    }).catch(() => undefined);
+  };
+}
+
+async function runPerGroup(log: (line: string) => void): Promise<void> {
+  log("strategy: per-group (production)");
+  await assertRealModel(log);
 
   const { slugs } = (await (await fetch("/api/corpus")).json()) as { slugs: string[] };
   log(`corpus: ${slugs.length} annotated transcripts`);
@@ -124,7 +136,7 @@ async function run(): Promise<void> {
     try {
       const result = await extractor.extract(transcript);
       const ms = Math.round(performance.now() - t0);
-      await fetch(`/api/result?slug=${slug}`, {
+      await fetch(`/api/result?slug=${slug}&dir=ondevice`, {
         method: "POST",
         body: JSON.stringify(result.fields, null, 2),
       });
@@ -146,13 +158,83 @@ async function run(): Promise<void> {
   );
 }
 
-go.addEventListener("click", () => {
-  go.disabled = true;
-  run()
+async function runTwoPhase(log: (line: string) => void): Promise<void> {
+  log("strategy: two-phase extract-then-classify");
+  log("hypothesis: the whitespace loop is a property of the grammar, not the model");
+  await assertRealModel(log);
+
+  const { slugs } = (await (await fetch("/api/corpus")).json()) as { slugs: string[] };
+  log(`corpus: ${slugs.length} annotated transcripts`);
+
+  const chat = new OnDeviceChat({ languageModel: languageModel() as never });
+  const stats = newStats();
+
+  let ok = 0;
+  let failed = 0;
+  const started = performance.now();
+
+  for (const [index, slug] of slugs.entries()) {
+    const transcript = await (await fetch(`/api/transcript?slug=${slug}`)).text();
+    const t0 = performance.now();
+    try {
+      const { fields, stats: runStats } = await extractTwoPhase(transcript, chat, log);
+      mergeStats(stats, runStats);
+      const ms = Math.round(performance.now() - t0);
+      await fetch(`/api/result?slug=${slug}&dir=ondevice-two-phase`, {
+        method: "POST",
+        body: JSON.stringify(fields, null, 2),
+      });
+      ok += 1;
+      log(
+        `[${index + 1}/${slugs.length}] ${slug} — OK in ${(ms / 1000).toFixed(1)}s (${formatStats(runStats)})`,
+      );
+    } catch (error) {
+      failed += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      log(`[${index + 1}/${slugs.length}] ${slug} — FAILED: ${message.slice(0, 160)}`);
+    }
+  }
+
+  log(
+    `\ndone: ${ok} extracted, ${failed} failed, ` +
+      `${((performance.now() - started) / 1000 / 60).toFixed(1)} min total`,
+  );
+  log(formatStats(stats));
+  log(
+    "\nNote: wrapped phase-2 calls weaken the grammar hypothesis because they re-introduce a single-key object root." +
+      " If phase-2 bare roots were rejected, the run log already noted each fallback.",
+  );
+  log(
+    `\nNow run: node spikes/extraction-snuggpro/score.mjs spikes/extraction-snuggpro/results/ondevice-two-phase`,
+  );
+}
+
+function enable(): void {
+  goPerGroup.disabled = false;
+  goTwoPhase.disabled = false;
+}
+
+function disable(): void {
+  goPerGroup.disabled = true;
+  goTwoPhase.disabled = true;
+}
+
+goPerGroup.addEventListener("click", () => {
+  disable();
+  const log = makeLog("ondevice");
+  runPerGroup(log)
     .catch((error: unknown) => {
       log(`\nRUN ABORTED: ${error instanceof Error ? error.message : String(error)}`);
     })
-    .finally(() => {
-      go.disabled = false;
-    });
+    .finally(enable);
+});
+
+goTwoPhase.addEventListener("click", () => {
+  disable();
+  const log = makeLog("ondevice-two-phase");
+  runTwoPhase(log)
+    .catch((error: unknown) => {
+      log(`\nRUN ABORTED: ${error instanceof Error ? error.message : String(error)}`);
+    })
+    .finally(enable);
 });

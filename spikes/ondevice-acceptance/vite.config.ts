@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,7 +9,6 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const CORPUS = resolve(HERE, "..", "extraction-snuggpro");
 const TRANSCRIPTS = join(CORPUS, "transcripts");
 const GROUND_TRUTH = join(CORPUS, "ground-truth");
-const OUT_DIR = join(CORPUS, "results", "ondevice");
 
 /**
  * The corpus goes out and the results come back, both over the dev server.
@@ -21,8 +21,13 @@ const OUT_DIR = join(CORPUS, "results", "ondevice");
  *
  * Only the slugs with ground truth are offered, so the runner cannot silently score
  * a transcript nobody annotated.
+ *
+ * The result and log endpoints accept a `dir` query parameter so the two strategies
+ * each write to their own results directory.
  */
 function corpusBridge(): Plugin {
+  const VALID_DIR = /^[a-zA-Z0-9-]+$/;
+
   return {
     name: "ondevice-acceptance-corpus",
     configureServer(server) {
@@ -47,28 +52,44 @@ function corpusBridge(): Plugin {
       });
 
       server.middlewares.use("/api/result", (req, res) => {
-        const slug = new URL(req.url ?? "", "http://x").searchParams.get("slug") ?? "";
+        const url = new URL(req.url ?? "", "http://x");
+        const slug = url.searchParams.get("slug") ?? "";
+        const dir = url.searchParams.get("dir") ?? "ondevice";
         if (!/^[\w.-]+$/.test(slug)) {
           res.statusCode = 400;
           res.end("bad slug");
           return;
         }
+        if (!VALID_DIR.test(dir)) {
+          res.statusCode = 400;
+          res.end("bad dir");
+          return;
+        }
         let body = "";
         req.on("data", (chunk) => (body += chunk));
         req.on("end", () => {
-          mkdirSync(OUT_DIR, { recursive: true });
-          writeFileSync(join(OUT_DIR, `${slug}.json`), body);
+          const outDir = join(CORPUS, "results", dir);
+          mkdirSync(outDir, { recursive: true });
+          writeFileSync(join(outDir, `${slug}.json`), body);
           res.statusCode = 204;
           res.end();
         });
       });
 
       server.middlewares.use("/api/log", (req, res) => {
+        const url = new URL(req.url ?? "", "http://x");
+        const dir = url.searchParams.get("dir") ?? "ondevice";
+        if (!VALID_DIR.test(dir)) {
+          res.statusCode = 400;
+          res.end("bad dir");
+          return;
+        }
         let body = "";
         req.on("data", (chunk) => (body += chunk));
         req.on("end", () => {
-          mkdirSync(OUT_DIR, { recursive: true });
-          writeFileSync(join(OUT_DIR, "run-log.txt"), body);
+          const outDir = join(CORPUS, "results", dir);
+          mkdirSync(outDir, { recursive: true });
+          writeFileSync(join(outDir, "run-log.txt"), body);
           res.statusCode = 204;
           res.end();
         });
@@ -79,6 +100,18 @@ function corpusBridge(): Plugin {
 
 const PACKAGES = resolve(HERE, "..", "..", "packages");
 const src = (pkg: string): string => join(PACKAGES, pkg, "src", "index.ts");
+
+/**
+ * Resolve the zod package that the adapter already depends on, so the spike can use
+ * `z.toJSONSchema()` without a direct dependency of its own. The spike is not a
+ * pnpm workspace member, so a plain `import { z } from "zod"` would not resolve; this
+ * alias points Vite at the same package instance the adapter uses.
+ */
+const require = createRequire(import.meta.url);
+const zodPackageJson = require.resolve("zod/package.json", {
+  paths: [resolve(PACKAGES, "ribo-adapter-snuggpro")],
+});
+const zodDir = dirname(zodPackageJson);
 
 export default defineConfig({
   root: HERE,
@@ -96,6 +129,7 @@ export default defineConfig({
       "@azx/ribo-extractor-openai": src("ribo-extractor-openai"),
       "@azx/ribo-extractor-ondevice": src("ribo-extractor-ondevice"),
       "@azx/ribo-adapter-snuggpro": src("ribo-adapter-snuggpro"),
+      zod: zodDir,
     },
     conditions: ["@azx/source"],
   },

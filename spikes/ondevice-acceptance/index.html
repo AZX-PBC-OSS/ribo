@@ -15,6 +15,7 @@
     font: inherit;
     padding: 0.7rem 1.2rem;
     cursor: pointer;
+    margin-right: 0.5rem;
   }
   button[disabled] {
     cursor: default;
@@ -33,17 +34,29 @@
 </style>
 <h1>On-device extraction — corpus run</h1>
 <p>
-  Runs the annotated transcripts through the real on-device model, one extraction each, and writes
-  results where <code>score.mjs</code> reads them.
+  Two strategies, each writing to its own results directory. <code>score.mjs</code> reads both
+  unchanged.
 </p>
+<ul>
+  <li>
+    <strong>Per-group</strong> — the production wiring: seven calls, each constrained to a nested
+    object of envelopes.
+  </li>
+  <li>
+    <strong>Two-phase</strong> — a spike: one call per group for verbatim spans, then one call per
+    non-null span for the leaf value. The hypothesis is that the narrower constraint removes the
+    whitespace loop.
+  </li>
+</ul>
 <p class="warn">
   Must be opened in <strong>real Chrome</strong>. Chromium's Prompt API is a stub that answers with
   fixed text, so a run there would grade nothing. This page checks and refuses.
 </p>
 <p>
-  Each extraction makes seven calls and roughly half of them degenerate and retry, so expect a few
-  minutes. Leave the tab focused — a background tab gets throttled.
+  Leave the tab focused — a background tab gets throttled. The two-phase strategy makes many more
+  calls than the per-group one, so it takes longer.
 </p>
-<button id="go">Run the corpus</button>
+<button id="go-per-group">Run per-group strategy</button>
+<button id="go-two-phase">Run two-phase strategy</button>
 <pre id="out">idle</pre>
 <script type="module" src="./main.ts"></script>
