@@ -1,0 +1,271 @@
+{
+  "basedata": {
+    "yearBuilt": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "conditionedArea": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "floorsAboveGrade": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "numberOfBedrooms": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "typeOfHome": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "blowerDoorReading": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "blowerDoorTestPerformed": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "hvac": {
+    "hvacSystemEquipmentType": {
+      "value": "Boiler",
+      "sourceSpan": "oil boiler, Burnham, cast iron sections",
+      "confidence": 1
+    },
+    "hvacUpgradeAction": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacHeatingEnergySource": {
+      "value": "Fuel Oil",
+      "sourceSpan": "oil",
+      "confidence": 1
+    },
+    "hvacHeatingSystemManufacturer": {
+      "value": null,
+      "sourceSpan": "Burnham",
+      "confidence": 0
+    },
+    "hvacHeatingSystemModel": {
+      "value": null,
+      "sourceSpan": "V8, V-eight series",
+      "confidence": 0
+    },
+    "hvacHeatingSystemModelYear": {
+      "value": 2004,
+      "sourceSpan": "two thousand four",
+      "confidence": 1
+    },
+    "hvacHeatingCapacity": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacCoolingCapacity": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctLocation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctLeakage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctLeakageValue": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctInsulation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "attic": {
+    "atticInsulationDepth": {
+      "value": "4-6",
+      "sourceSpan": "it's cellulose, gray blown-in, and I got about six inches of it across most of the attic. Six inches of cellulose.",
+      "confidence": 1
+    },
+    "atticInsulationType": {
+      "value": "Cellulose",
+      "sourceSpan": "cellulose",
+      "confidence": 1
+    },
+    "atticInsulation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "atticHasKneeWall": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "atticRoofType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "wall": {
+    "wallsInsulated": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "wallExteriorWallSiding": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "wallCavityInsulation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "wallCavityInsulationType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "window": {
+    "windowType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "windowFrame": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "windowEnergyStar": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "dhw": {
+    "dhwType2": {
+      "value": null,
+      "sourceSpan": "Hot water's made right off the boiler, it's an indirect tank, a forty-gallon Amtrol hanging next to it. So that runs on the oil too, same as the boiler.",
+      "confidence": 0
+    },
+    "dhwFuel2": {
+      "value": "Fuel Oil",
+      "sourceSpan": "it's an oil boiler, Burnham, cast iron sections. Model plate says V8, V-eight series, and the tag year is two thousand four. I don't see an output on the plate that I can read, it's painted over, so no BTU number from me.",
+      "confidence": 1
+    },
+    "dhwAge": {
+      "value": null,
+      "sourceSpan": "I'd say that tank's about eight years old, the install sticker says twenty seventeen.",
+      "confidence": 0
+    },
+    "dhwLocation": {
+      "value": null,
+      "sourceSpan": "The oil tank's in the corner.",
+      "confidence": 0
+    },
+    "dhwTankSize": {
+      "value": 275,
+      "sourceSpan": "two-seventy-five gallon",
+      "confidence": 1
+    },
+    "dhwManufacturer": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "health": {
+    "healthAmbientCarbonMonoxide": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthNaturalConditionSpillage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthWorstCaseDepressurization": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthWorstCaseSpillage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthUndilutedFlueCo": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthDraftPressure": {
+      "value": "Passed",
+      "sourceSpan": "Draft on the boiler flue — I got good draft, nice steady pull up the chimney, that passes.",
+      "confidence": 1
+    },
+    "healthGasLeak": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthVenting": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthMoldMoisture": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthRadon": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthAsbestos": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthLead": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthElectrical": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthRoofCondition": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  }
+}
