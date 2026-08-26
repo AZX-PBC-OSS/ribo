@@ -1,5 +1,9 @@
 import { FakeExtractor, toExtractStep, type Connectivity, type ExtractStep } from "@azx/ribo-core";
-import { OnDeviceChat, type LanguageModel } from "@azx/ribo-extractor-ondevice";
+import {
+  OnDeviceChat,
+  threePhaseExtractor,
+  type LanguageModel,
+} from "@azx/ribo-extractor-ondevice";
 import {
   compositeExtractor,
   openAiChat,
@@ -72,12 +76,10 @@ const model = import.meta.env.VITE_OPENAI_MODEL ?? DEFAULT_MODEL;
 type ExtractedShape = SnuggExtraction;
 
 /**
- * Production timing constants for the two per-group delegates. Exposed so the
- * regression guard can assert the on-device delegate actually derives a useful
- * retry budget: at `concurrency: 1` the default 120s ceiling gives zero retries,
- * which silently disables the loop-kill mitigation. These are the real options
- * passed to {@link perGroupExtractor}; the tests mirror its derivation rather
- * than trusting it.
+ * Timing for the **managed** per-group delegate. Only the managed path uses
+ * `perGroupExtractor` now: the on-device path runs {@link threePhaseExtractor},
+ * which asks smaller questions and never needed a retry budget at all
+ * (`docs/implementation/19-ondevice-extraction-strategies.md`).
  */
 export interface PerGroupTiming {
   readonly concurrency: number;
@@ -96,43 +98,6 @@ export const MANAGED_PER_GROUP_TIMING: PerGroupTiming = {
   maxRetries: 2,
   perCallCeilingMs: 120_000,
   stepTimeoutMs: 900_000,
-};
-
-/**
- * The on-device delegate: one serial call at a time, an 8s ceiling, nine retries,
- * and **almost no backoff between them**.
- *
- * These numbers come from a real corpus run (14 transcripts through Chrome's
- * on-device model), not from the earlier bench. The first configuration —
- * 15s ceiling, four retries, default backoff — failed **7 of 14 extractions**,
- * every one by exhausting its retry budget on a whitespace loop.
- *
- * Two things were wrong with it:
- *
- * 1. **The degeneration rate was measured on a toy schema.** The bench used a
- *    6-leaf group and saw ~50% per attempt; the real groups emit more output and
- *    run closer to ~62% (back-solved from 7/14 surviving at seven groups each).
- *    Four retries leaves ~9% of groups exhausting, which across seven groups is a
- *    coin flip per extraction.
- * 2. **Backing off was actively counterproductive.** `deriveMaxRetries` reserves
- *    room for exponential backoff, and at the queue's 1s base that reservation is
- *    what made more retries unaffordable. But this failure is not congestion or
- *    rate-limiting — it is a sampling accident inside one generation. There is
- *    nothing to wait for, and waiting only spends the budget that buys attempts.
- *
- * So: near-zero backoff, a ceiling matched to observed call times (4–5s, not 15),
- * and the retries that frees. Worst case is 7 × (10 × 8,000 + 3,250) = 582,750 ms,
- * inside the 900,000 ms step timeout. At ~62% per attempt this should take
- * per-extraction success from ~50% to ~94% — a prediction the next corpus run
- * tests.
- */
-export const ONDEVICE_PER_GROUP_TIMING: PerGroupTiming = {
-  concurrency: 1,
-  maxRetries: 9,
-  perCallCeilingMs: 8_000,
-  stepTimeoutMs: 900_000,
-  baseMs: 50,
-  capMs: 500,
 };
 
 /**
@@ -239,13 +204,15 @@ export function buildExtractorWiring(options: BuildExtractorOptions): ExtractorW
     ...MANAGED_PER_GROUP_TIMING,
   });
 
-  const onDevice = perGroupExtractor({
+  // The on-device delegate does NOT use `perGroupExtractor`. One constrained call per
+  // group loses 4 of 14 transcripts to a degenerate whitespace loop that retries do not
+  // fix; asking three smaller questions — is this discussed, quote it, classify the quote
+  // — completed 14/14 with zero degenerations, cut hallucination 3.8% -> 1.3% and took
+  // span fidelity to 100%. `docs/implementation/19-ondevice-extraction-strategies.md` has
+  // the numbers and the strategies that lost.
+  const onDevice = threePhaseExtractor({
     target: snuggProAdapter,
     chat: onDeviceChat,
-    model: options.model,
-    normalize: normalizeFields,
-    groupInstructions: snuggGroupInstructions,
-    ...ONDEVICE_PER_GROUP_TIMING,
   });
 
   const entries: readonly CompositeExtractorEntry<ExtractedShape>[] = [

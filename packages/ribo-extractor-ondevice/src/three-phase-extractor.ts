@@ -19,7 +19,10 @@ import type { ChatMessage, ChatRequest } from "@azx/ribo-extractor-openai";
 import { isSpanGrounded } from "@azx/ribo-core";
 import type { Enveloped, Extractor, ExtractionResult, ExtractionTarget } from "@azx/ribo-core";
 
-import type { OnDeviceChat } from "./ondevice-chat.js";
+// Typed against the seam, not against `OnDeviceChat` itself. This extractor only ever
+// calls `complete()` and reads `engine`, so demanding the concrete class would couple it
+// to an implementation it does not use and make it untestable with a plain fake chat.
+import type { CapableChatClient } from "@azx/ribo-extractor-openai";
 
 /** Default retry budget for a single call, matching the spike. */
 export const DEFAULT_MAX_RETRIES = 3;
@@ -42,7 +45,7 @@ export interface ThreePhaseExtractorOptions<V extends Record<string, unknown>> {
   /** The field knowledge: the extraction schema drives all three phases. */
   readonly target: ExtractionTarget<V>;
   /** The on-device chat transport. */
-  readonly chat: OnDeviceChat;
+  readonly chat: CapableChatClient;
   /** Max retries per model call. Defaults to {@link DEFAULT_MAX_RETRIES}. */
   readonly maxRetries?: number;
 }
@@ -203,7 +206,7 @@ function chatRequest(
 async function extractPresence(
   group: Group,
   transcript: string,
-  chat: OnDeviceChat,
+  chat: CapableChatClient,
   model: string,
   maxRetries: number,
   onCall: () => void,
@@ -277,7 +280,7 @@ async function extractSpans(
   group: Group,
   activeLeaves: readonly Leaf[],
   transcript: string,
-  chat: OnDeviceChat,
+  chat: CapableChatClient,
   model: string,
   maxRetries: number,
   onCall: () => void,
@@ -359,7 +362,7 @@ function parsePhase1Response(
 async function classifyLeaf(
   leaf: Leaf,
   span: string,
-  chat: OnDeviceChat,
+  chat: CapableChatClient,
   model: string,
   maxRetries: number,
   onCall: () => void,
@@ -387,7 +390,7 @@ async function classifyLeaf(
 async function classifyWrapped(
   leaf: Leaf,
   span: string,
-  chat: OnDeviceChat,
+  chat: CapableChatClient,
   model: string,
   maxRetries: number,
   onCall: () => void,

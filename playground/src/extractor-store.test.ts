@@ -19,7 +19,6 @@ import {
   buildExtractorStep,
   buildExtractorWiring,
   MANAGED_PER_GROUP_TIMING,
-  ONDEVICE_PER_GROUP_TIMING,
 } from "./extractor-store.js";
 
 /**
@@ -189,52 +188,12 @@ function derivedRetries(
   return 0;
 }
 
-test("on-device delegate is configured for serial execution, an 8s ceiling, and nine retries", () => {
-  expect(ONDEVICE_PER_GROUP_TIMING.concurrency).toBe(1);
-  expect(ONDEVICE_PER_GROUP_TIMING.perCallCeilingMs).toBe(8_000);
-  expect(ONDEVICE_PER_GROUP_TIMING.maxRetries).toBe(9);
-});
-
-test("on-device delegate backs off almost not at all between retries", () => {
-  // Deliberate, and the reason nine retries fit at all. `deriveMaxRetries` reserves
-  // room for exponential backoff, and at the queue's 1s base that reservation is
-  // what made a useful retry count unaffordable. But the failure being retried is a
-  // whitespace loop — a sampling accident inside one generation, not congestion or
-  // rate-limiting. There is nothing to wait for, and waiting only spends the budget
-  // that buys attempts. A corpus run lost 7 of 14 extractions to this.
-  expect(ONDEVICE_PER_GROUP_TIMING.baseMs).toBe(50);
-  expect(ONDEVICE_PER_GROUP_TIMING.capMs).toBe(500);
-});
-
-test("on-device delegate's configuration derives at least nine retries", () => {
-  const retries = derivedRetries(
-    ONDEVICE_PER_GROUP_TIMING.maxRetries,
-    SNUGG_GROUPS,
-    ONDEVICE_PER_GROUP_TIMING.concurrency,
-    ONDEVICE_PER_GROUP_TIMING.perCallCeilingMs,
-    ONDEVICE_PER_GROUP_TIMING.stepTimeoutMs,
-    // The delegate's OWN backoff, not the queue defaults — using the defaults here
-    // would verify arithmetic the production code no longer performs.
-    ONDEVICE_PER_GROUP_TIMING.baseMs ?? DEFAULT_BACKOFF_BASE_MS,
-    ONDEVICE_PER_GROUP_TIMING.capMs ?? DEFAULT_BACKOFF_CAP_MS,
-  );
-  expect(retries).toBeGreaterThanOrEqual(9);
-});
-
-test("on-device delegate's worst case fits inside the step timeout", () => {
-  const { maxRetries, concurrency, perCallCeilingMs, stepTimeoutMs, baseMs, capMs } =
-    ONDEVICE_PER_GROUP_TIMING;
-  const batches = Math.ceil(SNUGG_GROUPS / concurrency);
-  const accumulatedBackoff = maxAccumulatedBackoff(
-    maxRetries,
-    baseMs ?? DEFAULT_BACKOFF_BASE_MS,
-    capMs ?? DEFAULT_BACKOFF_CAP_MS,
-  );
-  const worstCase = batches * ((maxRetries + 1) * perCallCeilingMs + accumulatedBackoff);
-  // This proves arithmetic on constants, not real latency. Nothing in perGroupExtractor
-  // actually times a call; OnDeviceChat enforces its own hard deadline.
-  expect(worstCase).toBeLessThanOrEqual(stepTimeoutMs);
-});
+// The four on-device retry-budget guards that stood here are gone with the strategy
+// they guarded. They asserted that `deriveMaxRetries` granted the on-device delegate at
+// least nine retries at an 8s ceiling with near-zero backoff — correct arithmetic for a
+// strategy that no longer runs. The on-device path is now `threePhaseExtractor`, which
+// degenerated zero times in 283 calls and needs no retry budget to defend.
+// `docs/implementation/19-ondevice-extraction-strategies.md` records what they measured.
 
 test("managed delegate keeps the pre-existing defaults", () => {
   expect(MANAGED_PER_GROUP_TIMING.concurrency).toBe(4);
