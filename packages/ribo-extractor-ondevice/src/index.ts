@@ -9,3 +9,6 @@ export type {
   LanguageModelMonitor,
   PrimeProgressListener,
 } from "./capability.js";
+
+export { ONDEVICE_CHAT_ENGINE, OnDeviceChat } from "./ondevice-chat.js";
+export type { OnDeviceChatOptions } from "./ondevice-chat.js";
