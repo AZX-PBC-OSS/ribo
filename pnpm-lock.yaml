@@ -256,6 +256,9 @@ importers:
 
   packages/ribo-extractor-ondevice:
     dependencies:
+      '@azx/ribo-core':
+        specifier: workspace:^
+        version: link:../ribo-core
       '@azx/ribo-extractor-openai':
         specifier: workspace:^
         version: link:../ribo-extractor-openai
