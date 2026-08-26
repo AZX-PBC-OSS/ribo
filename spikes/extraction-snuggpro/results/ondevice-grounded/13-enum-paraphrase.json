@@ -1,0 +1,271 @@
+{
+  "basedata": {
+    "yearBuilt": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "conditionedArea": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "floorsAboveGrade": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "numberOfBedrooms": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "typeOfHome": {
+      "value": null,
+      "sourceSpan": "masonry house, block with a stucco skim on the outside",
+      "confidence": 0
+    },
+    "blowerDoorReading": {
+      "value": null,
+      "sourceSpan": "twenty-nine hundred CFM50",
+      "confidence": 0
+    },
+    "blowerDoorTestPerformed": {
+      "value": "Tested",
+      "sourceSpan": "Blower door came in at twenty-nine hundred CFM50.",
+      "confidence": 1
+    }
+  },
+  "hvac": {
+    "hvacSystemEquipmentType": {
+      "value": "Furnace with standalone ducts",
+      "sourceSpan": "furnace",
+      "confidence": 1
+    },
+    "hvacUpgradeAction": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacHeatingEnergySource": {
+      "value": "Natural Gas",
+      "sourceSpan": "natural gas",
+      "confidence": 1
+    },
+    "hvacHeatingSystemManufacturer": {
+      "value": "Carrier",
+      "sourceSpan": "Carrier",
+      "confidence": 1
+    },
+    "hvacHeatingSystemModel": {
+      "value": null,
+      "sourceSpan": "58STA",
+      "confidence": 0
+    },
+    "hvacHeatingSystemModelYear": {
+      "value": 2013,
+      "sourceSpan": "twenty-thirteen",
+      "confidence": 1
+    },
+    "hvacHeatingCapacity": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacCoolingCapacity": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctLocation": {
+      "value": null,
+      "sourceSpan": "through the basement",
+      "confidence": 0
+    },
+    "hvacDuctLeakage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctLeakageValue": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctInsulation": {
+      "value": "Duct Board 1.5 inch",
+      "sourceSpan": "that rigid duct board, the inch-and-a-half board",
+      "confidence": 1
+    }
+  },
+  "attic": {
+    "atticInsulationDepth": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "atticInsulationType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "atticInsulation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "atticHasKneeWall": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "atticRoofType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "wall": {
+    "wallsInsulated": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "wallExteriorWallSiding": {
+      "value": "Stucco",
+      "sourceSpan": "Exterior walls are concrete block, it's a masonry house, block with a stucco skim on the outside.",
+      "confidence": 1
+    },
+    "wallCavityInsulation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "wallCavityInsulationType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "window": {
+    "windowType": {
+      "value": "Double pane",
+      "sourceSpan": "these are the wood-frame ones with the metal cladding on the exterior, what we call clad, and they're double pane, the newer replacements. Clad, double pane.",
+      "confidence": 1
+    },
+    "windowFrame": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "windowEnergyStar": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "dhw": {
+    "dhwType2": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "dhwFuel2": {
+      "value": "Natural Gas",
+      "sourceSpan": "Heating is a furnace, natural gas, in the hall closet, a Carrier, I got the model, it's 58STA, and the year reads twenty-thirteen.",
+      "confidence": 1
+    },
+    "dhwAge": {
+      "value": "11-15",
+      "sourceSpan": "About fifteen years old, install tag reads twenty-ten.",
+      "confidence": 1
+    },
+    "dhwLocation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "dhwTankSize": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "dhwManufacturer": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "health": {
+    "healthAmbientCarbonMonoxide": {
+      "value": null,
+      "sourceSpan": "Safety — CO at both appliances was clean, zero ppm.",
+      "confidence": 0
+    },
+    "healthNaturalConditionSpillage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthWorstCaseDepressurization": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthWorstCaseSpillage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthUndilutedFlueCo": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthDraftPressure": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthGasLeak": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthVenting": {
+      "value": null,
+      "sourceSpan": "Water heater is a gas storage tank, and it's power-vented, there's a blower on top forcing it out the side wall, power vented right at the unit.",
+      "confidence": 0
+    },
+    "healthMoldMoisture": {
+      "value": "Warning",
+      "sourceSpan": "I did see some mold, black spotting on the bathroom ceiling and around the tub surround, there's a moisture problem in that bath, I'd flag mold and moisture as a warning, they need the bath fan fixed.",
+      "confidence": 1
+    },
+    "healthRadon": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthAsbestos": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthLead": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthElectrical": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthRoofCondition": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  }
+}

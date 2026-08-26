@@ -1,0 +1,271 @@
+{
+  "basedata": {
+    "yearBuilt": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "conditionedArea": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "floorsAboveGrade": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "numberOfBedrooms": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "typeOfHome": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "blowerDoorReading": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "blowerDoorTestPerformed": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "hvac": {
+    "hvacSystemEquipmentType": {
+      "value": "Furnace with standalone ducts",
+      "sourceSpan": "propane furnace",
+      "confidence": 1
+    },
+    "hvacUpgradeAction": {
+      "value": "Replace with a newer model",
+      "sourceSpan": "swap this out for a heat pump next year",
+      "confidence": 1
+    },
+    "hvacHeatingEnergySource": {
+      "value": "Propane",
+      "sourceSpan": "propane",
+      "confidence": 1
+    },
+    "hvacHeatingSystemManufacturer": {
+      "value": "Carrier",
+      "sourceSpan": "Carrier",
+      "confidence": 1
+    },
+    "hvacHeatingSystemModel": {
+      "value": null,
+      "sourceSpan": "59TP6",
+      "confidence": 0
+    },
+    "hvacHeatingSystemModelYear": {
+      "value": 2019,
+      "sourceSpan": "twenty nineteen",
+      "confidence": 1
+    },
+    "hvacHeatingCapacity": {
+      "value": 80000,
+      "sourceSpan": "eighty thousand BTU",
+      "confidence": 1
+    },
+    "hvacCoolingCapacity": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctLocation": {
+      "value": null,
+      "sourceSpan": "attic",
+      "confidence": 0
+    },
+    "hvacDuctLeakage": {
+      "value": null,
+      "sourceSpan": "one-fifty CFM25",
+      "confidence": 0
+    },
+    "hvacDuctLeakageValue": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctInsulation": {
+      "value": "Fiberglass 1.25 inch",
+      "sourceSpan": "thin fiberglass, the inch-and-a-quarter stuff",
+      "confidence": 1
+    }
+  },
+  "attic": {
+    "atticInsulationDepth": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "atticInsulationType": {
+      "value": "Cellulose",
+      "sourceSpan": "cellulose",
+      "confidence": 1
+    },
+    "atticInsulation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "atticHasKneeWall": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "atticRoofType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "wall": {
+    "wallsInsulated": {
+      "value": null,
+      "sourceSpan": "I'd call the walls insulated, yes, properly insulated.",
+      "confidence": 0
+    },
+    "wallExteriorWallSiding": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "wallCavityInsulation": {
+      "value": 1,
+      "sourceSpan": "I opened one cavity on the addition, there's fiberglass batt in there, decent, I'd call the walls insulated, yes, properly insulated.",
+      "confidence": 1
+    },
+    "wallCavityInsulationType": {
+      "value": "Fiberglass or Rockwool Batt",
+      "sourceSpan": "fiberglass batt",
+      "confidence": 1
+    }
+  },
+  "window": {
+    "windowType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "windowFrame": {
+      "value": "Wood or metal clad",
+      "sourceSpan": "wood with the aluminum cladding on the outside",
+      "confidence": 1
+    },
+    "windowEnergyStar": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "dhw": {
+    "dhwType2": {
+      "value": null,
+      "sourceSpan": "propane furnace",
+      "confidence": 0
+    },
+    "dhwFuel2": {
+      "value": "Propane",
+      "sourceSpan": "propane",
+      "confidence": 1
+    },
+    "dhwAge": {
+      "value": null,
+      "sourceSpan": "twenty nineteen",
+      "confidence": 0
+    },
+    "dhwLocation": {
+      "value": null,
+      "sourceSpan": "mechanical closet",
+      "confidence": 0
+    },
+    "dhwTankSize": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "dhwManufacturer": {
+      "value": null,
+      "sourceSpan": "Carrier",
+      "confidence": 0
+    }
+  },
+  "health": {
+    "healthAmbientCarbonMonoxide": {
+      "value": "Passed",
+      "sourceSpan": "Ambient CO throughout the house was zero to two ppm, clean, no CO issue anywhere.",
+      "confidence": 1
+    },
+    "healthNaturalConditionSpillage": {
+      "value": "Failed",
+      "sourceSpan": "I ran the natural condition spillage test on the water heater, and it spilled, it backdrafted under natural conditions, flue gases rolling right out the draft diverter, and that is a hard fail, a fail on spillage under natural conditions.",
+      "confidence": 1
+    },
+    "healthWorstCaseDepressurization": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthWorstCaseSpillage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthUndilutedFlueCo": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthDraftPressure": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthGasLeak": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthVenting": {
+      "value": "Passed",
+      "sourceSpan": "Dryer vents straight out the rim joist, short clean run, that's fine. Bath fans, both baths, they actually vent to the outside properly on this house, which is a nice change.",
+      "confidence": 1
+    },
+    "healthMoldMoisture": {
+      "value": null,
+      "sourceSpan": "There's also some moisture staining on the basement wall, efflorescence and a bit of soft drywall in the one corner, I'd flag that as a moisture concern, worth watching, call it a warning on moisture, not a crisis but keep an eye.",
+      "confidence": 0
+    },
+    "healthRadon": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthAsbestos": {
+      "value": "Not Tested",
+      "sourceSpan": "And there's old pipe wrap on the basement lines that looks like it could be asbestos — I did not test it, I'm not equipped to sample asbestos, so that one is not tested, defer it to an abatement pro.",
+      "confidence": 1
+    },
+    "healthLead": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthElectrical": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthRoofCondition": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  }
+}

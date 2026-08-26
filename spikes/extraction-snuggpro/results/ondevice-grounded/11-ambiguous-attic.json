@@ -1,0 +1,271 @@
+{
+  "basedata": {
+    "yearBuilt": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "conditionedArea": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "floorsAboveGrade": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "numberOfBedrooms": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "typeOfHome": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "blowerDoorReading": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "blowerDoorTestPerformed": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "hvac": {
+    "hvacSystemEquipmentType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacUpgradeAction": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacHeatingEnergySource": {
+      "value": "Natural Gas",
+      "sourceSpan": "furnace, a gas furnace, those pipes were just the old abandoned hydronic. Forced-air furnace, gas.",
+      "confidence": 1
+    },
+    "hvacHeatingSystemManufacturer": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacHeatingSystemModel": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacHeatingSystemModelYear": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacHeatingCapacity": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacCoolingCapacity": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctLocation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctLeakage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctLeakageValue": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctInsulation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "attic": {
+    "atticInsulationDepth": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "atticInsulationType": {
+      "value": "Fiberglass or Rockwool (batts or blown)",
+      "sourceSpan": "fiberglass batts",
+      "confidence": 1
+    },
+    "atticInsulation": {
+      "value": 13,
+      "sourceSpan": "R-13 kraft-faced batts. R-13, final answer.",
+      "confidence": 1
+    },
+    "atticHasKneeWall": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "atticRoofType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "wall": {
+    "wallsInsulated": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "wallExteriorWallSiding": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "wallCavityInsulation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "wallCavityInsulationType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "window": {
+    "windowType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "windowFrame": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "windowEnergyStar": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "dhw": {
+    "dhwType2": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "dhwFuel2": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "dhwAge": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "dhwLocation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "dhwTankSize": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "dhwManufacturer": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "health": {
+    "healthAmbientCarbonMonoxide": {
+      "value": null,
+      "sourceSpan": "Oh — CO, I had my personal monitor clipped on my belt the whole time and it never went off, but that's not a real test, I did not do an actual ambient CO measurement at the appliance, so don't log that as a CO test.",
+      "confidence": 0
+    },
+    "healthNaturalConditionSpillage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthWorstCaseDepressurization": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthWorstCaseSpillage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthUndilutedFlueCo": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthDraftPressure": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthGasLeak": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthVenting": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthMoldMoisture": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthRadon": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthAsbestos": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthLead": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthElectrical": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthRoofCondition": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  }
+}
