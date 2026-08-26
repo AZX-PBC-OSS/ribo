@@ -189,32 +189,46 @@ function derivedRetries(
   return 0;
 }
 
-test("on-device delegate is configured for serial execution and a 15s per-call ceiling", () => {
+test("on-device delegate is configured for serial execution, an 8s ceiling, and nine retries", () => {
   expect(ONDEVICE_PER_GROUP_TIMING.concurrency).toBe(1);
-  expect(ONDEVICE_PER_GROUP_TIMING.perCallCeilingMs).toBe(15_000);
-  expect(ONDEVICE_PER_GROUP_TIMING.maxRetries).toBe(4);
+  expect(ONDEVICE_PER_GROUP_TIMING.perCallCeilingMs).toBe(8_000);
+  expect(ONDEVICE_PER_GROUP_TIMING.maxRetries).toBe(9);
 });
 
-test("on-device delegate's configuration derives at least 4 retries", () => {
+test("on-device delegate backs off almost not at all between retries", () => {
+  // Deliberate, and the reason nine retries fit at all. `deriveMaxRetries` reserves
+  // room for exponential backoff, and at the queue's 1s base that reservation is
+  // what made a useful retry count unaffordable. But the failure being retried is a
+  // whitespace loop — a sampling accident inside one generation, not congestion or
+  // rate-limiting. There is nothing to wait for, and waiting only spends the budget
+  // that buys attempts. A corpus run lost 7 of 14 extractions to this.
+  expect(ONDEVICE_PER_GROUP_TIMING.baseMs).toBe(50);
+  expect(ONDEVICE_PER_GROUP_TIMING.capMs).toBe(500);
+});
+
+test("on-device delegate's configuration derives at least nine retries", () => {
   const retries = derivedRetries(
     ONDEVICE_PER_GROUP_TIMING.maxRetries,
     SNUGG_GROUPS,
     ONDEVICE_PER_GROUP_TIMING.concurrency,
     ONDEVICE_PER_GROUP_TIMING.perCallCeilingMs,
     ONDEVICE_PER_GROUP_TIMING.stepTimeoutMs,
-    DEFAULT_BACKOFF_BASE_MS,
-    DEFAULT_BACKOFF_CAP_MS,
+    // The delegate's OWN backoff, not the queue defaults — using the defaults here
+    // would verify arithmetic the production code no longer performs.
+    ONDEVICE_PER_GROUP_TIMING.baseMs ?? DEFAULT_BACKOFF_BASE_MS,
+    ONDEVICE_PER_GROUP_TIMING.capMs ?? DEFAULT_BACKOFF_CAP_MS,
   );
-  expect(retries).toBeGreaterThanOrEqual(4);
+  expect(retries).toBeGreaterThanOrEqual(9);
 });
 
 test("on-device delegate's worst case fits inside the step timeout", () => {
-  const { maxRetries, concurrency, perCallCeilingMs, stepTimeoutMs } = ONDEVICE_PER_GROUP_TIMING;
+  const { maxRetries, concurrency, perCallCeilingMs, stepTimeoutMs, baseMs, capMs } =
+    ONDEVICE_PER_GROUP_TIMING;
   const batches = Math.ceil(SNUGG_GROUPS / concurrency);
   const accumulatedBackoff = maxAccumulatedBackoff(
     maxRetries,
-    DEFAULT_BACKOFF_BASE_MS,
-    DEFAULT_BACKOFF_CAP_MS,
+    baseMs ?? DEFAULT_BACKOFF_BASE_MS,
+    capMs ?? DEFAULT_BACKOFF_CAP_MS,
   );
   const worstCase = batches * ((maxRetries + 1) * perCallCeilingMs + accumulatedBackoff);
   // This proves arithmetic on constants, not real latency. Nothing in perGroupExtractor

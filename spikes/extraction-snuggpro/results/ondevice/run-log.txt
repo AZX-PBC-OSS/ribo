@@ -1,0 +1,21 @@
+availability(): available
+stub check passed — model answered "ok\n"
+corpus: 14 annotated transcripts
+[1/14] 01-attic-r-value-shell — OK in 41.2s
+[2/14] 02-oil-boiler-basement — OK in 30.6s
+[3/14] 03-quick-exterior-short — OK in 39.3s
+[4/14] 04-fuel-stated-separately — FAILED: OnDeviceChat: the model output degenerated into a trailing whitespace loop
+[5/14] 05-full-walkthrough — OK in 74.1s
+[6/14] 06-homeowner-crosstalk — FAILED: OnDeviceChat: the model output degenerated into a trailing whitespace loop
+[7/14] 07-combustion-safety — OK in 91.1s
+[8/14] 08-no-fuel-silent-drop — FAILED: OnDeviceChat: the model output degenerated into a trailing whitespace loop
+[9/14] 09-chatter-and-scheduling — FAILED: OnDeviceChat: the model output degenerated into a trailing whitespace loop
+[10/14] 10-crawlspace-loose-units — OK in 40.6s
+[11/14] 11-ambiguous-attic — OK in 51.8s
+[12/14] 12-wrong-field-old-unit — OK in 36.4s
+[13/14] 13-enum-paraphrase — OK in 56.7s
+[14/14] 14-rapid-recap — OK in 45.4s
+
+done: 10 extracted, 4 failed, 11.2 min total
+
+Now run: node spikes/extraction-snuggpro/score.mjs spikes/extraction-snuggpro/results/ondevice

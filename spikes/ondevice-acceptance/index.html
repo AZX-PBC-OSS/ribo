@@ -1,0 +1,49 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>On-device extraction — corpus run</title>
+<style>
+  body {
+    font:
+      14px/1.6 ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      monospace;
+    margin: 2rem;
+    max-width: 68rem;
+  }
+  button {
+    font: inherit;
+    padding: 0.7rem 1.2rem;
+    cursor: pointer;
+  }
+  button[disabled] {
+    cursor: default;
+    opacity: 0.5;
+  }
+  pre {
+    background: #f4f4f4;
+    padding: 1rem;
+    white-space: pre-wrap;
+    max-height: 34rem;
+    overflow-y: auto;
+  }
+  .warn {
+    color: #a06000;
+  }
+</style>
+<h1>On-device extraction — corpus run</h1>
+<p>
+  Runs the annotated transcripts through the real on-device model, one extraction each, and writes
+  results where <code>score.mjs</code> reads them.
+</p>
+<p class="warn">
+  Must be opened in <strong>real Chrome</strong>. Chromium's Prompt API is a stub that answers with
+  fixed text, so a run there would grade nothing. This page checks and refuses.
+</p>
+<p>
+  Each extraction makes seven calls and roughly half of them degenerate and retry, so expect a few
+  minutes. Leave the tab focused — a background tab gets throttled.
+</p>
+<button id="go">Run the corpus</button>
+<pre id="out">idle</pre>
+<script type="module" src="./main.ts"></script>

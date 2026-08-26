@@ -1,0 +1,271 @@
+{
+  "basedata": {
+    "yearBuilt": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "conditionedArea": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorsAboveGrade": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "numberOfBedrooms": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "typeOfHome": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "blowerDoorReading": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "blowerDoorTestPerformed": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  },
+  "hvac": {
+    "hvacSystemEquipmentType": {
+      "value": "Furnace / Central AC (shared ducts)",
+      "confidence": 0.9,
+      "sourceSpan": "gas furnace"
+    },
+    "hvacUpgradeAction": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "hvacHeatingEnergySource": {
+      "value": "Natural Gas",
+      "confidence": 1,
+      "sourceSpan": "gas furnace"
+    },
+    "hvacHeatingSystemManufacturer": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "hvacHeatingSystemModel": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "hvacHeatingSystemModelYear": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "hvacHeatingCapacity": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "hvacCoolingCapacity": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "hvacDuctLocation": {
+      "value": "Shared ducts",
+      "confidence": 1,
+      "sourceSpan": "both venting into a shared B-vent"
+    },
+    "hvacDuctLeakage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "hvacDuctLeakageValue": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "hvacDuctInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  },
+  "attic": {
+    "atticInsulationDepth": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "atticInsulationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "atticInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "atticHasKneeWall": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "atticRoofType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  },
+  "wall": {
+    "wallsInsulated": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "wallExteriorWallSiding": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "wallCavityInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "wallCavityInsulationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  },
+  "window": {
+    "windowType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "windowFrame": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "windowEnergyStar": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  },
+  "dhw": {
+    "dhwType2": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "dhwFuel2": {
+      "value": "Natural Gas",
+      "confidence": 1,
+      "sourceSpan": "gas storage water heater"
+    },
+    "dhwAge": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "dhwLocation": {
+      "value": "Indoors and within heated area",
+      "confidence": 0.8,
+      "sourceSpan": "both in the utility room"
+    },
+    "dhwTankSize": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "dhwManufacturer": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  },
+  "health": {
+    "healthAmbientCarbonMonoxide": {
+      "value": "Failed",
+      "confidence": 1,
+      "sourceSpan": "Ambient CO — I let them run and sampled. The furnace flue itself was fine but ambient CO in the room climbed to thirty-five ppm with both firing, that is over my threshold, I'm calling that a fail on ambient CO, and I shut the furnace down."
+    },
+    "healthNaturalConditionSpillage": {
+      "value": "Passed",
+      "confidence": 1,
+      "sourceSpan": "Natural condition spillage, meaning before I depressurized anything, under normal operation — that one was actually fine, no spillage under natural conditions, it only let go under worst case."
+    },
+    "healthWorstCaseDepressurization": {
+      "value": "Failed",
+      "confidence": 1,
+      "sourceSpan": "I depressurized the house with the exhaust fans and the dryer running, got it to about minus fifty pascals, and the water heater spilled at the draft hood, sustained, did not clear."
+    },
+    "healthWorstCaseSpillage": {
+      "value": "Failed",
+      "confidence": 1,
+      "sourceSpan": "I depressurized the house with the exhaust fans and the dryer running, got it to about minus fifty pascals, and the water heater spilled at the draft hood, sustained, did not clear."
+    },
+    "healthUndilutedFlueCo": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthDraftPressure": {
+      "value": "Passed",
+      "confidence": 1,
+      "sourceSpan": "Draft pressure on the furnace, once it was the only thing running, was adequate, good steady draft, that one passes."
+    },
+    "healthGasLeak": {
+      "value": "Warning",
+      "confidence": 1,
+      "sourceSpan": "Gas leak — I sniffed all the connections, the furnace, the water heater, the range. There's a small leak at the range shutoff valve, the sniffer lit up on it, not huge but it's real, I'd call that a warning, needs a plumber, but it's not an evacuate-the-house level."
+    },
+    "healthVenting": {
+      "value": "Warning",
+      "confidence": 1,
+      "sourceSpan": "Venting — the B-vent connector's got a bit of a sag to it and one joint isn't screwed together, I'm flagging venting as a warning too, it needs to be re-supported and fastened."
+    },
+    "healthMoldMoisture": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthRadon": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthAsbestos": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthLead": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthElectrical": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthRoofCondition": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  }
+}

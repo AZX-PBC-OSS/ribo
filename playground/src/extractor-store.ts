@@ -84,6 +84,10 @@ export interface PerGroupTiming {
   readonly maxRetries: number;
   readonly perCallCeilingMs: number;
   readonly stepTimeoutMs: number;
+  /** Backoff base between retries. Omitted means the queue's default (1s). */
+  readonly baseMs?: number;
+  /** Backoff ceiling between retries. Omitted means the queue's default (5min). */
+  readonly capMs?: number;
 }
 
 /** The managed delegate: four concurrent calls, two-minute ceiling, two retries. */
@@ -95,16 +99,40 @@ export const MANAGED_PER_GROUP_TIMING: PerGroupTiming = {
 };
 
 /**
- * The on-device delegate: one serial call at a time, a ~15s ceiling and four
- * retries. The ceiling is what buys the retry budget back at `concurrency: 1`;
- * requesting the retries is not optional because `deriveMaxRetries` only counts
- * down from the requested value.
+ * The on-device delegate: one serial call at a time, an 8s ceiling, nine retries,
+ * and **almost no backoff between them**.
+ *
+ * These numbers come from a real corpus run (14 transcripts through Chrome's
+ * on-device model), not from the earlier bench. The first configuration —
+ * 15s ceiling, four retries, default backoff — failed **7 of 14 extractions**,
+ * every one by exhausting its retry budget on a whitespace loop.
+ *
+ * Two things were wrong with it:
+ *
+ * 1. **The degeneration rate was measured on a toy schema.** The bench used a
+ *    6-leaf group and saw ~50% per attempt; the real groups emit more output and
+ *    run closer to ~62% (back-solved from 7/14 surviving at seven groups each).
+ *    Four retries leaves ~9% of groups exhausting, which across seven groups is a
+ *    coin flip per extraction.
+ * 2. **Backing off was actively counterproductive.** `deriveMaxRetries` reserves
+ *    room for exponential backoff, and at the queue's 1s base that reservation is
+ *    what made more retries unaffordable. But this failure is not congestion or
+ *    rate-limiting — it is a sampling accident inside one generation. There is
+ *    nothing to wait for, and waiting only spends the budget that buys attempts.
+ *
+ * So: near-zero backoff, a ceiling matched to observed call times (4–5s, not 15),
+ * and the retries that frees. Worst case is 7 × (10 × 8,000 + 3,250) = 582,750 ms,
+ * inside the 900,000 ms step timeout. At ~62% per attempt this should take
+ * per-extraction success from ~50% to ~94% — a prediction the next corpus run
+ * tests.
  */
 export const ONDEVICE_PER_GROUP_TIMING: PerGroupTiming = {
   concurrency: 1,
-  maxRetries: 4,
-  perCallCeilingMs: 15_000,
+  maxRetries: 9,
+  perCallCeilingMs: 8_000,
   stepTimeoutMs: 900_000,
+  baseMs: 50,
+  capMs: 500,
 };
 
 /**
