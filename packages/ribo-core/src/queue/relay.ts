@@ -21,8 +21,24 @@ export interface ExtractStepInput {
   transcript: Transcript;
 }
 
+/**
+ * What one extraction step produced: the fields, and optionally which engine produced them.
+ *
+ * A wrapper object rather than "either a bare field map or a wrapper". `ExtractedFieldMap` is
+ * `Record<string, unknown>`, so a legitimate field map could itself carry a `fields` key and no
+ * runtime check could tell the two apart. One shape, always.
+ */
+export interface ExtractStepResult {
+  readonly fields: ExtractedFieldMap;
+  /**
+   * Which engine produced these fields. Absent for a single-transport extractor, which is the
+   * common case — only a composite that chooses between transports has anything to report.
+   */
+  readonly engine?: string;
+}
+
 /** Transcript → structured fields. Network-bound, so it is a queued step. */
-export type ExtractStep = (input: ExtractStepInput) => Promise<ExtractedFieldMap>;
+export type ExtractStep = (input: ExtractStepInput) => Promise<ExtractStepResult>;
 
 export interface WriteStepInput {
   item: OutboxItem;
@@ -492,7 +508,7 @@ class QueueRelay implements Relay {
   }
 
   async #extract(item: OutboxItem): Promise<void> {
-    const extracted = await withTimeout(
+    const { fields: extracted, engine } = await withTimeout(
       this.#options.extract({ item, transcript: item.transcript! }),
       this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
       "extract",
@@ -501,7 +517,16 @@ class QueueRelay implements Relay {
     // not in ACTIVE_OUTBOX_STATUSES, so `nextPending()` stops selecting this item
     // and the drain moves on to the next capture. `Outbox.submitReview` is the
     // only thing that moves it forward.
-    await this.#patch(item.id, { extracted, status: "awaiting-review", attempts: 0 });
+    // `extractedBy` is written only when the step reported one. `patch` is an incremental
+    // patch and cannot delete a key, so writing `undefined` explicitly would be a no-op
+    // rather than an absence — spreading it in conditionally keeps "no engine reported" and
+    // "engine reported as undefined" from becoming the same persisted state.
+    await this.#patch(item.id, {
+      extracted,
+      ...(engine === undefined ? {} : { extractedBy: engine }),
+      status: "awaiting-review",
+      attempts: 0,
+    });
   }
 
   async #write(item: OutboxItem): Promise<void> {

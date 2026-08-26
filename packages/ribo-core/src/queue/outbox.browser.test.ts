@@ -227,7 +227,7 @@ test("step outputs written before a close are readable after a reopen", async ()
 // The v0 → v3 schema migration.
 //
 // A reopen does not test this: `openOutbox` can only ever create a v3 store, so
-// two opens against the same name both see version 3, nothing migrates, and the
+// two opens against the same name both see version 4, nothing migrates, and the
 // test would pass whether or not the migration plugin and strategy exist at all
 // — the exact "passes while production is broken" shape this file's own header
 // warns about for the durability test above.
@@ -253,7 +253,7 @@ test("step outputs written before a close are readable after a reopen", async ()
 
 /** The outbox's RxDB schema exactly as it was before this task's version bump. */
 const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<
-  Omit<OutboxDocument, "reviewOutcome" | "capture" | "preview">
+  Omit<OutboxDocument, "reviewOutcome" | "capture" | "preview" | "extractedBy">
 > = {
   version: 0,
   primaryKey: "id",
@@ -332,7 +332,7 @@ async function seedVersionZeroOutbox(
   await database.close();
 }
 
-test("an outbox stored at schema version 0 opens and migrates to version 3", async () => {
+test("an outbox stored at schema version 0 opens and migrates to version 4", async () => {
   const name = uniqueName();
   await seedVersionZeroOutbox(name, v0Document());
 

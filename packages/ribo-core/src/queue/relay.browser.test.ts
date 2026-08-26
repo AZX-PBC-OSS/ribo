@@ -162,7 +162,7 @@ function buildRelay(
     overrides.extract ??
     (async ({ transcript, item }) => {
       extractCalls.push({ transcript: transcript.text, item });
-      return { atticInsulation: transcript.text };
+      return { fields: { atticInsulation: transcript.text } };
     });
 
   const write: WriteStep =
@@ -384,6 +384,49 @@ test("a successful extraction parks the item for review instead of writing it", 
   expect(harness.writeCalls).toHaveLength(0);
 });
 
+// ---------------------------------------------------------------------------
+// Engine provenance
+//
+// Which engine drafted an extraction has to survive to review, because by then
+// the extractor that chose it is long gone and the reviewer's question — "should
+// I trust this card less than usual?" — has no other way to be answered. The
+// value is computed in the extractor and would be discarded at this boundary
+// unless the step carries it and the relay persists it.
+// ---------------------------------------------------------------------------
+
+test("the engine an extract step reports is persisted on the item", async () => {
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = buildRelay(outbox, {
+    extract: async ({ transcript }) => ({
+      fields: { atticInsulation: transcript.text },
+      engine: "ondevice-prompt-api",
+    }),
+  });
+  const item = await outbox.enqueue({ recording, audio: audio() });
+
+  await drainToReview(harness.relay);
+
+  const parked = await outbox.get(item.id);
+  expect(parked?.extractedBy).toBe("ondevice-prompt-api");
+});
+
+test("an extract step that reports no engine leaves the column absent", async () => {
+  // The managed path and every single-transport extractor land here. An absent
+  // column must stay absent rather than becoming a persisted `undefined`, since
+  // `patch` is incremental and cannot delete a key once written.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = buildRelay(outbox, {
+    extract: async ({ transcript }) => ({ fields: { atticInsulation: transcript.text } }),
+  });
+  const item = await outbox.enqueue({ recording, audio: audio() });
+
+  await drainToReview(harness.relay);
+
+  const parked = await outbox.get(item.id);
+  expect(parked?.extracted).toEqual({ atticInsulation: "the attic is R-19" });
+  expect(parked?.extractedBy).toBeUndefined();
+});
+
 test("a parked item does not block the recordings behind it", async () => {
   // The point of parking rather than awaiting a presenter: a human reviewing the
   // first recording must not stop the second from transcribing and extracting.
@@ -473,7 +516,7 @@ test("an accepted review of an extraction that found nothing says so, not that f
   // reading "the review rejected every field" off this row would go looking for a
   // reviewer who never saw a field to reject.
   const outbox = await openTestOutbox(uniqueName());
-  const harness = buildRelay(outbox, { extract: async () => ({}) });
+  const harness = buildRelay(outbox, { extract: async () => ({ fields: {} }) });
   const item = await outbox.enqueue({ recording, audio: audio() });
   await drainToReview(harness.relay);
 
@@ -1476,7 +1519,7 @@ test("two relays over one outbox run each step ONCE, not twice", async () => {
 
   const extract: ExtractStep = async ({ transcript }) => {
     extractCalls.push(transcript.text);
-    return { atticInsulation: transcript.text };
+    return { fields: { atticInsulation: transcript.text } };
   };
 
   const a = buildRelay(outbox, { transcriber: slowTranscriber, extract });
@@ -1516,7 +1559,7 @@ test("a relay that acquires the lock AFTER another finished does not re-run the 
   const extractCalls: string[] = [];
   const extract: ExtractStep = async ({ transcript }) => {
     extractCalls.push(transcript.text);
-    return { atticInsulation: transcript.text };
+    return { fields: { atticInsulation: transcript.text } };
   };
 
   // Holds the second relay at the door until the first is completely finished, then lets it in. A

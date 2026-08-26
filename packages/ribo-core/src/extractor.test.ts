@@ -64,12 +64,12 @@ test("toExtractStep hands the extractor the transcript TEXT, and returns only it
   const extractor = new FakeExtractor<AtticFields>({ atticInsulation: "R-19" });
   const step = toExtractStep(extractor);
 
-  const fields = await step({ item, transcript });
+  const result = await step({ item, transcript });
 
   // The extractor was called with `transcript.text`, not the whole Transcript.
   expect(extractor.calls).toEqual(["the attic is R-19"]);
-  // Only `.fields` crosses into the field map — `raw`/`usage` stay behind.
-  expect(fields).toEqual({ atticInsulation: "R-19" });
+  // Only `.fields` crosses into the field map — `raw` and the call count stay behind.
+  expect(result.fields).toEqual({ atticInsulation: "R-19" });
 });
 
 test("toExtractStep adapts any Extractor, not just the fake", async () => {
@@ -83,7 +83,37 @@ test("toExtractStep adapts any Extractor, not just the fake", async () => {
   };
   const step = toExtractStep(handRolled);
 
-  const fields = await step({ item, transcript });
+  const result = await step({ item, transcript });
 
-  expect(fields).toEqual({ atticInsulation: "THE ATTIC IS R-19" });
+  expect(result.fields).toEqual({ atticInsulation: "THE ATTIC IS R-19" });
+});
+
+// ---------------------------------------------------------------------------
+// Engine provenance — which engine drafted this, carried to where review can see it
+// ---------------------------------------------------------------------------
+
+test("toExtractStep passes the extractor's engine through beside the fields", async () => {
+  const extractor = new FakeExtractor<AtticFields>(
+    { atticInsulation: "R-19" },
+    { usage: { calls: 1, engine: "ondevice-prompt-api" } },
+  );
+
+  const result = await toExtractStep(extractor)({ item, transcript });
+
+  expect(result).toEqual({
+    fields: { atticInsulation: "R-19" },
+    engine: "ondevice-prompt-api",
+  });
+});
+
+test("toExtractStep reports no engine when the extractor does not name one", async () => {
+  // The common case, and the one that must keep working: every single-transport
+  // extractor in this repo reports `{ calls }` and nothing more. `engine` being
+  // optional is what keeps them all compiling.
+  const extractor = new FakeExtractor<AtticFields>({ atticInsulation: "R-19" });
+
+  const result = await toExtractStep(extractor)({ item, transcript });
+
+  expect(result.fields).toEqual({ atticInsulation: "R-19" });
+  expect(result.engine).toBeUndefined();
 });
