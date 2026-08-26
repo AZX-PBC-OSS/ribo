@@ -90,9 +90,9 @@ export class OnDeviceChat implements CapableChatClient {
       );
     } catch (error) {
       if (isNotAllowedError(error)) {
-      throw ChatError.unsupported(
-        "OnDeviceChat: create() requires a user gesture when the model is not downloaded",
-      );
+        throw ChatError.unsupported(
+          "OnDeviceChat: create() requires a user gesture when the model is not downloaded",
+        );
       }
       throw error;
     }
@@ -164,9 +164,10 @@ export class OnDeviceChat implements CapableChatClient {
   }
 }
 
-function splitMessages(
-  messages: readonly ChatMessage[],
-): { initialPrompts: LanguageModelPrompt[]; input: string } {
+function splitMessages(messages: readonly ChatMessage[]): {
+  initialPrompts: LanguageModelPrompt[];
+  input: string;
+} {
   if (messages.length === 0) {
     throw ChatError.unsupported("OnDeviceChat requires at least one message");
   }
@@ -215,10 +216,7 @@ function classifyPromptError(
   }
 
   if (deadlineHit) {
-    return ChatError.transport(
-      "OnDeviceChat: the prompt exceeded the hard deadline",
-      error,
-    );
+    return ChatError.transport("OnDeviceChat: the prompt exceeded the hard deadline", error);
   }
 
   if (isNotSupportedError(error)) {

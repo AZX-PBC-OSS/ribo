@@ -9,9 +9,7 @@ import {
   wellFormedResponse,
 } from "./test-support/fake-language-model.js";
 
-function makeRequest(
-  overrides: Partial<ChatRequest> & { transcript?: string } = {},
-): ChatRequest {
+function makeRequest(overrides: Partial<ChatRequest> & { transcript?: string } = {}): ChatRequest {
   const transcript = overrides.transcript ?? "the live transcript";
   return {
     model: overrides.model ?? "ignored-model",
@@ -58,7 +56,10 @@ describe("OnDeviceChat capability and priming", () => {
   test("prime() downloads and reports capability", async () => {
     const model = new FakeLanguageModel();
     model.availabilityValue = "downloadable";
-    model.progressSequence = [{ loaded: 0.5, total: 1 }, { loaded: 1, total: 1 }];
+    model.progressSequence = [
+      { loaded: 0.5, total: 1 },
+      { loaded: 1, total: 1 },
+    ];
     const events: { loaded: number; total: 1 }[] = [];
     const chat = new OnDeviceChat({ languageModel: model });
 
