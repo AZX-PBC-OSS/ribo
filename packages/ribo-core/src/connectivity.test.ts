@@ -296,4 +296,45 @@ describe("lifecycle", () => {
     await vi.advanceTimersByTimeAsync(10_000);
     expect(conn.state.status).not.toBe("online");
   });
+  // stop() cancels the in-flight probe, so it must also stop advertising one:
+  // #evaluate() treats `probing` as "a probe is already running" and returns
+  // early, so a status left over from the previous run leaves the model unable
+  // to ever probe again. React StrictMode performs exactly this cycle on every
+  // mount in development, so the restart is the common path, not an edge case.
+  test("stop() then start() probes again, rather than wedging on the last run's status", async () => {
+    const source = new FakeSource();
+    source.online = true;
+    const probe = countingProbe();
+    const conn = build(source, probe.fn, { stabilityWindowMs: 1000 });
+
+    conn.start();
+    expect(probe.calls).toBe(1);
+
+    conn.stop();
+    conn.start();
+    expect(probe.calls).toBe(2);
+
+    // And the restarted cycle is a whole cycle, not just a fired probe: healthy
+    // answer, stability window elapses uninterrupted, `online`.
+    await flush();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(conn.state.status).toBe("online");
+  });
+
+  test("stop() reports offline, because a stopped model is no longer measuring", () => {
+    const source = new FakeSource();
+    source.online = true;
+    const conn = build(source, healthy);
+
+    const seen: ConnectivityStatus[] = [];
+    conn.start();
+    expect(conn.state.status).toBe("probing");
+
+    conn.subscribe((state) => seen.push(state.status));
+    conn.stop();
+
+    expect(conn.state.status).toBe("offline");
+    // One final emission at teardown — subscribers are told it stopped measuring.
+    expect(seen).toEqual(["probing", "offline"]);
+  });
 });
