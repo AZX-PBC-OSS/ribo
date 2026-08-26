@@ -1,10 +1,7 @@
 import type { ChatCapability } from "@azx/ribo-extractor-openai";
 
 export type LanguageModelAvailability =
-  | "unavailable"
-  | "downloadable"
-  | "downloading"
-  | "available";
+  "unavailable" | "downloadable" | "downloading" | "available";
 
 export interface DownloadProgressEvent {
   readonly loaded: number;
@@ -18,13 +15,62 @@ export interface LanguageModelMonitor {
   ): void;
 }
 
+/** One role-tagged turn of the session's standing context. */
+export interface LanguageModelPrompt {
+  readonly role: "system" | "user" | "assistant";
+  readonly content: string;
+}
+
 export interface LanguageModelCreateOptions {
-  monitor(monitor: LanguageModelMonitor): void;
+  /**
+   * **Optional**, because most `create()` calls are not downloads. Only `prime()` — the one
+   * call a human triggers — has any progress to report; the lazy session build during a queue
+   * drain passes nothing. A fake that assumes this is always present fails the far more common
+   * path.
+   */
+  monitor?: (monitor: LanguageModelMonitor) => void;
+  /** Standing context: the system prompt and any few-shot turns. */
+  initialPrompts?: readonly LanguageModelPrompt[];
+  /** Declared output languages. The model advertises a limited set. */
+  expectedOutputs?: readonly { readonly type: "text"; readonly languages: readonly string[] }[];
+  signal?: AbortSignal;
+}
+
+/** Per-prompt options. `responseConstraint` is what makes the output a schema-shaped JSON. */
+export interface LanguageModelPromptOptions {
+  responseConstraint?: Record<string, unknown>;
+  omitResponseConstraintInput?: boolean;
+  signal?: AbortSignal;
+}
+
+/**
+ * One session. Sessions are the unit of context: a base session carries the standing prompt,
+ * and each call runs on a {@link LanguageModelSession.clone} of it so one group's answer never
+ * sits in another group's context.
+ */
+export interface LanguageModelSession {
+  /** Total tokens this session can hold, input and output together. Measured at 9,216. */
+  readonly contextWindow: number;
+  /** Tokens currently consumed by the standing context. */
+  readonly contextUsage: number;
+  /**
+   * Price an input before sending it.
+   *
+   * Note this **ignores `responseConstraint`**: measured across schemas from 1.5 KB to 26 KB it
+   * returned an identical figure, and a 26 KB schema still completed inside a 9,216-token
+   * window. The constraint is enforced at the sampler and does not consume context, so pricing
+   * the prompt alone is the correct measurement rather than a limitation.
+   */
+  measureContextUsage(input: string, options?: LanguageModelPromptOptions): Promise<number>;
+  promptStreaming(input: string, options?: LanguageModelPromptOptions): AsyncIterable<string>;
+  /** A fresh context sharing this session's standing prompt. */
+  clone(): Promise<LanguageModelSession>;
+  destroy(): void;
 }
 
 export interface LanguageModel {
   availability(): Promise<LanguageModelAvailability>;
-  create(options: LanguageModelCreateOptions): Promise<unknown>;
+  create(options?: LanguageModelCreateOptions): Promise<LanguageModelSession>;
 }
 
 export type PrimeProgressListener = (progress: DownloadProgressEvent) => void;
@@ -59,8 +105,7 @@ export async function probeLanguageModel(
     if (availability === "downloadable" || availability === "downloading") {
       return {
         status: "needs-download",
-        detail:
-          "The on-device language model is not yet downloaded. Priming is required.",
+        detail: "The on-device language model is not yet downloaded. Priming is required.",
       };
     }
 
@@ -92,13 +137,17 @@ export async function primeLanguageModel(
   onProgress?: PrimeProgressListener,
 ): Promise<ChatCapability> {
   try {
-    await languageModel.create({
+    const session = await languageModel.create({
       monitor: (monitor) => {
         monitor.addEventListener("downloadprogress", (event) => {
           onProgress?.(event);
         });
       },
     });
+    // `create()` is the download trigger AND a session factory, and priming wants only the
+    // former. The session holder builds its own base session later with the standing prompt
+    // this one lacks, so keeping this would pin a model in memory that nothing will ever use.
+    session.destroy();
     return { status: "ready" };
   } catch (error) {
     if (isNotAllowedError(error)) {

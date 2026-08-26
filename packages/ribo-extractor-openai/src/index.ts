@@ -41,10 +41,7 @@ export type { HelixChatOptions } from "./helix-chat.js";
 // The composite extractor: choose between multiple transports per extraction.
 // Managed-first is deliberate — see `composite-extractor.ts` for the rationale.
 export { compositeExtractor } from "./composite-extractor.js";
-export type {
-  CompositeExtractor,
-  CompositeExtractorEntry,
-} from "./composite-extractor.js";
+export type { CompositeExtractor, CompositeExtractorEntry } from "./composite-extractor.js";
 
 // The chat transport seam: the interface an extractor calls, its request/response
 // types, its call options, and the typed error its implementations throw.

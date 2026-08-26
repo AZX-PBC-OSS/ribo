@@ -69,7 +69,7 @@ function fakeExtractor<F>(
   };
 }
 
-const ready = (engine: string): ChatCapability => ({ status: "ready" });
+const ready = (): ChatCapability => ({ status: "ready" });
 const unavailable = (detail: string): ChatCapability => ({
   status: "unavailable",
   reason: "offline",
@@ -80,9 +80,9 @@ const needsDownload = (): ChatCapability => ({ status: "needs-download" });
 describe("compositeExtractor", () => {
   test("first entry ready -> first extractor runs and engine is stamped", async () => {
     const fields = { a: 1 };
-    const managedChat = fakeChatClient("managed", ready("managed"));
+    const managedChat = fakeChatClient("managed", ready());
     const managedExtractor = fakeExtractor(fields, { calls: 7, engine: "managed" });
-    const onDeviceChat = fakeChatClient("on-device", ready("on-device"));
+    const onDeviceChat = fakeChatClient("on-device", ready());
     const onDeviceExtractor = fakeExtractor(fields, { calls: 7, engine: "on-device" });
 
     const extractor = compositeExtractor([
@@ -102,7 +102,7 @@ describe("compositeExtractor", () => {
     const fields = { b: 2 };
     const managedChat = fakeChatClient("managed", unavailable("uplink is down"));
     const managedExtractor = fakeExtractor(fields, { engine: "managed" });
-    const onDeviceChat = fakeChatClient("on-device", ready("on-device"));
+    const onDeviceChat = fakeChatClient("on-device", ready());
     const onDeviceExtractor = fakeExtractor(fields, { engine: "on-device" });
 
     const extractor = compositeExtractor([
@@ -144,7 +144,7 @@ describe("compositeExtractor", () => {
   });
 
   test("capability is probed once per extraction even though the chosen extractor makes many calls", async () => {
-    const chat = fakeChatClient("managed", ready("managed"));
+    const chat = fakeChatClient("managed", ready());
     const inner = fakeExtractor({ fields: true }, { calls: 7 });
 
     const extractor = compositeExtractor([{ chat, extractor: inner }]);
@@ -157,7 +157,7 @@ describe("compositeExtractor", () => {
 
   test("invalidate() makes the next extraction re-probe", async () => {
     const clock = makeClock();
-    const chat = fakeChatClient("managed", ready("managed"));
+    const chat = fakeChatClient("managed", ready());
     const inner = fakeExtractor({});
 
     const extractor = compositeExtractor([{ chat, extractor: inner }], {
@@ -174,7 +174,7 @@ describe("compositeExtractor", () => {
 
   test("within the TTL and without invalidate(), a second extraction does not re-probe", async () => {
     const clock = makeClock();
-    const chat = fakeChatClient("managed", ready("managed"));
+    const chat = fakeChatClient("managed", ready());
     const inner = fakeExtractor({});
 
     const extractor = compositeExtractor([{ chat, extractor: inner }], {
