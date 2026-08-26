@@ -10,7 +10,7 @@ import { describe, expect, test } from "vitest";
 
 import { ChatError } from "./chat-client.js";
 import type { ChatClient, ChatCompletion, ChatFinishReason, ChatRequest } from "./chat-client.js";
-import { perGroupExtractor } from "./per-group.js";
+import { deriveMaxRetries, perGroupExtractor } from "./per-group.js";
 import { splitExtractionSchema } from "./split-schema.js";
 
 /**
@@ -884,6 +884,49 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
     expect(delays[0]).toBe(1000);
     expect(delays[1]).toBe(2000);
     expect(delays[1]).toBeGreaterThan(delays[0]!);
+  });
+});
+
+describe("perGroupExtractor — per-call ceiling derivation (Task 1)", () => {
+  const snuggGroups = 7;
+
+  test("default ceiling keeps existing callers at the requested retry count", () => {
+    expect(
+      deriveMaxRetries(
+        2,
+        Math.ceil(snuggGroups / 4),
+        900_000,
+        120_000,
+        DEFAULT_BACKOFF_BASE_MS,
+        DEFAULT_BACKOFF_CAP_MS,
+      ),
+    ).toBe(2);
+  });
+
+  test("serializing under the default ceiling yields zero retries", () => {
+    expect(
+      deriveMaxRetries(
+        2,
+        snuggGroups,
+        900_000,
+        120_000,
+        DEFAULT_BACKOFF_BASE_MS,
+        DEFAULT_BACKOFF_CAP_MS,
+      ),
+    ).toBe(0);
+  });
+
+  test("a lower ceiling lets a serial delegate honour the requested retries", () => {
+    expect(
+      deriveMaxRetries(
+        4,
+        snuggGroups,
+        900_000,
+        15_000,
+        DEFAULT_BACKOFF_BASE_MS,
+        DEFAULT_BACKOFF_CAP_MS,
+      ),
+    ).toBe(4);
   });
 });
 
