@@ -1,8 +1,10 @@
 # On-device extraction: unblocking the offline queue
 
 **Date:** 2026-08-17
-**Status:** Design. Revised twice — after external review (§9), then after direct measurement
-against real Gemini Nano on 2026-08-25 (§10). No implementation code written.
+**Status:** Design, **implemented**. Revised three times — after external review (§9), after
+bench measurement against real Gemini Nano (§10), and after four corpus runs replaced the
+extraction strategy outright ([doc 19](../../implementation/19-ondevice-extraction-strategies.md),
+§3.5).
 **Ships as:** beta — see §7 for what "beta" constrains and what it does not.
 
 ## The one thing to take away
@@ -14,16 +16,23 @@ extra trigger), so the drain runs offline and fails at the one step that needs t
 Giving extraction an engine that runs on-device makes that step succeed and carries the item
 to `awaiting-review` with the radio off.
 
-The engine is **Chrome's Prompt API** (Gemini Nano), reached as a `ChatClient` so it inherits
-the per-group pipeline unchanged. Two `perGroupExtractor` instances — one per transport, each
-configured for its own timing — sit behind a composite `Extractor` that picks per extraction.
+The engine is **Chrome's Prompt API** (Gemini Nano), reached as a `ChatClient`. The managed
+transport keeps `perGroupExtractor`; the on-device one runs a **three-phase extractor** (§3.5).
+Both sit behind a composite `Extractor` that picks per extraction.
 
-**It has been measured end to end and it works** (§10). Inference is confirmed local: a full
-constrained extraction ran with egress blocked. The gating risk turned out to be neither
-context window (dead) nor latency (comfortable) but a **degenerate whitespace loop** in
-roughly half of all constrained calls — which is detectable in-stream within ~1.4s and
-converges to success in 20/20 trials with retries. That mitigation is now load-bearing and is
-specified in §3.5.
+**It has been measured end to end on the real corpus and it works** (§10, and
+[doc 19](../../implementation/19-ondevice-extraction-strategies.md)). Inference is confirmed
+local: a full constrained extraction ran with egress blocked. Context window turned out not to
+be a constraint and latency is comfortable.
+
+**The thing that decided this design was the shape of the question, not the engineering around
+the answer.** One constrained call per field group degenerated into a whitespace loop on ~60% of
+calls, and no retry budget fixed it — 4 of 14 transcripts failed twice over. Asking three smaller
+questions instead (is this discussed, quote it, classify the quote) produced **zero degenerations
+in 283 calls**, completed 14/14, cut hallucination to 1.3% and took source-span fidelity to 100%.
+§3.5 specifies that strategy and records what the retry work bought instead.
+
+The number this design is still uncomfortable about is the **53% miss rate** (§6.8).
 
 ---
 
@@ -49,9 +58,10 @@ stand-in consumer, as `whisper-store.ts` / `TranscribePanel.tsx` already are for
 
 ## 2. Decision
 
-On-device extraction is a **`ChatClient`**. Two `perGroupExtractor` instances are built over it
-and over the managed transport, and a **composite `Extractor`** selects between them per
-extraction.
+On-device extraction is a **`ChatClient`**. A **composite `Extractor`** selects per extraction
+between two delegates over it: `perGroupExtractor` on the managed transport, and
+`threePhaseExtractor` on the on-device one (§3.5). The delegates differ because the transports
+differ — a frontier model answers a whole field group in one call, and a ~3B model does not.
 
 ### 2.1 Why Chrome's Prompt API rather than shipping our own weights
 
@@ -90,6 +100,12 @@ thing the product promises."
 `perGroupExtractor` sits above the `ChatClient` seam and owns the seven-group split, prompt
 assembly, few-shot examples, envelope parsing and merge. A strategy-level implementation would
 re-implement all of it or force it into a shared package first.
+
+**Measurement later required a strategy-level implementation anyway** — `threePhaseExtractor`
+(§3.5) — so this reasoning was right about the cost and wrong about the conclusion. It was worth
+paying: the per-group pipeline could not be made to work on a small model at any retry budget.
+The `ChatClient` choice still stands, because that seam is what let a second strategy be written
+without touching transports, capability or selection at all.
 
 ### 2.3 Why selection is at the `Extractor` level anyway
 
@@ -136,7 +152,12 @@ internally: base session built lazily on first call, cloned per call, destroyed 
 
 **The client streams internally.** `complete()` still returns a whole string and the seam stays
 non-streaming, but the implementation uses `promptStreaming` so it can watch output and kill a
-degenerate loop early (§3.5). This is not an optimization; without it the design does not work.
+degenerate loop early, and enforce its own deadline.
+
+This was once load-bearing — the design did not work without it. Under the three-phase strategy
+(§3.5) it is a **safety net**: zero degenerations in 283 measured calls. It is kept because the
+failure it catches is unbounded (a call that never returns) and the cost of keeping it is a string
+comparison per chunk.
 
 **Error mapping.**
 
@@ -251,68 +272,75 @@ choosing a dead uplink.
 drains and invalidates nothing (`relay.ts:324-333`). Without wiring it, a stale `ready` for the
 managed path survives a full TTL after the uplink drops.
 
-### 3.5 The degenerate-loop mitigation, and the timing model it implies
+### 3.5 How the extraction is asked — three phases, not one call per group
 
-**The failure mode.** In roughly half of constrained calls, Nano emits valid JSON content and
-then falls into an unbounded run of whitespace — `"\n  \n  \n  …"` — until it hits the output
-cap and throws `QuotaExceededError`. A JSON grammar permits arbitrary whitespace between
-tokens, so constrained decoding treats an infinite newline run as legal. **The constraint
-cannot save us here; the grammar has an unbounded production and the model falls into it.**
+**Superseded by measurement, 2026-08-26.** This section previously specified one constrained
+call per field group, with a retry budget and loop-detection machinery to survive the model's
+degenerate whitespace loop. That strategy was built, measured on the real corpus, and **lost**.
+[Doc 19](../../implementation/19-ondevice-extraction-strategies.md) has all four strategies and
+their numbers; the short version is that the engineering around the answer mattered far less than
+the shape of the question.
 
-Measured rates ranged from 0/6 to 5/6 across transcripts and 2/8 to 5/8 across option arms
-(§10.5), with large run-to-run variance on identical inputs. Treat ~50% per call as the working
-figure and do not model it as input-determined.
+|                       | per-group + retries | three phases + grounding |
+| --------------------- | ------------------: | -----------------------: |
+| transcripts completed |               10/14 |                **14/14** |
+| degenerate loops      |       ~60% of calls |              **0 / 283** |
+| wall clock            |            11.2 min |              **4.5 min** |
+| hard hallucination    |                3.8% |                 **1.3%** |
+| source-span verbatim  |               78.3% |                 **100%** |
+| enum member accuracy  |               82.7% |                **95.7%** |
 
-**The mitigation, which is load-bearing.** `OnDeviceChat` streams the response and aborts the
-moment the tail is a run of pure whitespace past a threshold. 80 characters is safe: successful
-outputs ran 462–917 characters of ordinary pretty-printed JSON and never approach 80
-consecutive whitespace characters, so this cannot false-positive on a good answer. Measured
-kill latency: **1.4s median**, against a 3.9s median for a successful call.
+**The strategy.** Per field group, in order:
 
-**A loop must be surfaced as a transient `ChatError`, never as truncation.**
-`perGroupExtractor` routes truncation to `TerminalQueueError` — never retried, never delayed.
-Since the client aborts loops before they reach the output cap, it controls the classification,
-and classifying a loop as terminal would disable the exact retry that fixes it.
+- **Phase 0 — presence.** One call, constrained to a flat object of leaf → boolean: is this field
+  discussed at all? A group where every leaf comes back false is skipped entirely.
+- **Phase 1 — spans.** One call, constrained to the leaves phase 0 admitted, each a nullable
+  verbatim quote.
+- **Phase 2 — classify.** One call per non-null span, constrained to the narrowest thing that leaf
+  allows — a bare enum, a bare number, a bare string.
 
-**Retry converges.** 20/20 trials succeeded within four attempts; the attempts histogram was
-`{1:4, 2:10, 3:5, 4:1}`, mean **6,482 ms per group**, giving **~45s for seven groups** — 5% of
-the 900,000 ms step timeout.
+Then **span grounding, unconditionally**: a leaf whose quote is not a verbatim substring of the
+transcript loses both the quote and the value it was supposed to justify.
+`isSpanGrounded` in `ribo-core` is the check, and until this change **no extraction path had ever
+called it** — its only callers were tests asserting the fixtures were grounded.
 
-**So the timing model inverts.** The previous revision gave the on-device delegate a 120s
-per-call ceiling and, correctly for that ceiling, **zero** retries. The measurements say the
-opposite is right: a **~15s per-call ceiling with 4–5 retries.** Through `deriveMaxRetries` at
-`batches = 7`: five attempts × 15,000 ms plus accumulated backoff ≈ 90,000 ms per group, ×7 =
-630,000 ms, inside the 900,000 ms timeout.
+**Why the presence phase carries most of the win.** Asking for "a verbatim quote, or null" is a
+_string-shaped_ question, and a small model asked for a string tends to produce one. Where the
+transcript says nothing, returning `null` reads as a refusal and the model would rather invent a
+plausible quote — which phase 2 then dutifully classifies, so a wrong value arrives carrying
+fabricated evidence. A boolean has no text to invent. Adding phase 0 took hallucination from 4.8%
+to 1.6%, the single largest quality move measured. It did not rubber-stamp: the presence-true rate
+was 165/714, and 49 of 98 groups were skipped outright.
 
-**This requires a change to shared code, which earlier revisions said would not be needed.**
-`PER_CALL_CEILING_MS` is a module-level constant (`per-group.ts:170`), not an option. Giving
-each transport an honest ceiling means making it a per-instance option. Small, but it is a real
-edit to `per-group.ts`, and §5 is corrected accordingly.
+**Why grounding is worth its cost.** It barely moved hallucination (1.6% → 1.3%) because most
+hallucinated values had _grounded_ spans — the model quoted something real and reasoned wrongly
+from it. What it bought was categorical: span fidelity 83.7% → **100%**. The provenance envelope
+exists so a reviewer can check the quote against the transcript, and at 83.7% a reviewer who finds
+one fabricated citation has no reason to trust any of them. Review is this feature's entire safety
+net; a citation that cannot be trusted does not provide one.
 
-**And the ceiling is arithmetic, not a deadline — so the client must enforce its own.** Nothing
-in `per-group.ts` times a call. `PER_CALL_CEILING_MS` only _sizes the retry budget_; the sole
-real deadline is the relay's `withTimeout(stepTimeoutMs)`. Two consequences the earlier
-revisions missed, both raised by review (§11):
+**What this cost, stated plainly.** The miss rate rose to **53%** — more than half of stated values
+come back null, against a frontier baseline of 0.8%. Grounding is strict about case and whitespace,
+so it drops near-miss paraphrases along with outright fabrications. That is the right direction of
+error here (a reviewer can fill a blank but cannot easily catch a plausible invention) and it is
+still strictly better than today's offline behaviour, where the item parks in `extracting` and the
+auditor gets nothing at all. It is not a number to quote without the caveat.
 
-- **The whitespace detector only catches trailing whitespace runs.** Any other degeneration —
-  a repeated field, an unbounded string value — runs to the model's output cap instead,
-  measured at **114.8 s** (§10.3). Nothing would stop it before then.
-- **A timed-out `extract()` keeps running detached** (`relay.ts:227-229`). `withTimeout`
-  abandons the loser rather than cancelling it, so a step that blows `stepTimeoutMs` leaves
-  Nano generating on the same main thread as whatever runs next.
+**What was retired with the old strategy.** The on-device delegate no longer uses
+`perGroupExtractor`, so its `concurrency: 1`, its per-call ceiling, its nine-retry budget and the
+near-zero backoff are all gone, along with the regression guards that defended them. Two facts
+survive from that work and are worth keeping in mind rather than rediscovering:
 
-`OnDeviceChat` therefore imposes its own per-call deadline with an `AbortSignal`, independent of
-the whitespace detector and of anything `perGroupExtractor` believes. Belt and braces: the
-detector catches the common degeneration in ~1.4 s, and the deadline bounds every other one.
-The measurement harness of §10 already did exactly this — a hard abort alongside the whitespace
-check — and the design should have carried it over the first time.
+1. **`deriveMaxRetries` reads configured concurrency, not observed parallelism.** Hiding
+   serialization below the seam corrupts its arithmetic silently. `PER_CALL_CEILING_MS` remains a
+   per-instance option because the managed path still depends on it.
+2. **Backing off is wrong for a degenerate loop.** It is a sampling accident inside one
+   generation, not congestion; waiting only spends the budget that buys attempts. If any future
+   strategy needs to retry a generation failure, it should retry immediately.
 
-**No throughput gate, for beta.** #24 added a measured RTF verdict and a permanent `too-slow`
-reason because a slow device always reported ready and the managed fallback was unreachable.
-The defect transfers; the remedy does not. When the transcriber demotes on `too-slow` it falls
-back to a managed engine that is reachable because the device is online. When the extractor
-would demote there is nothing to fall back to — it is running because the network is gone.
-Demoting converts "slow extraction" into "no extraction", which is what this design prevents.
+**`OnDeviceChat` keeps its loop detection and hard deadline.** Zero degenerations in 283 calls
+means they are now a safety net rather than a mechanism — but the failure they catch is unbounded
+(a call that never returns), and the cost of keeping them is a string comparison per chunk.
 
 ### 3.6 Getting the engine to the review card
 
@@ -355,9 +383,11 @@ and retry → fields plus engine reach the outbox → the review card badges a b
 - The composite never selects a delegate reporting `needs-download`.
 - Constructing the client and probing `capability()` download nothing; only `prime()` does.
 - Group 7's call cannot observe group 1's content — session isolation via clone.
-- The on-device delegate's configured ceiling and retry budget yield a **non-zero** retry count
-  under `deriveMaxRetries`; a change restoring the 120s ceiling (and thus zero retries) fails
-  this test. Regression guard for §3.5.
+- **A span that is not a verbatim substring of the transcript drops both the span and the value
+  it justifies.** Regression guard for §3.5's grounding rule: four lines of code, worth 16 points
+  of span fidelity, and entirely invisible if a refactor tidies them away.
+- A leaf phase 0 marks absent triggers **no** span or classify call — assert the call count, since
+  skipping the work is the point.
 - The engine reaches the outbox — guard against §3.6's original defect returning.
 - A capability change plus `invalidate()` flips the next selection without waiting out the TTL.
 
@@ -415,11 +445,14 @@ feature the envelope transform emits is covered.
 
 ### 6.3 Does this hold on a weak device?
 
-All §10 numbers come from an M-series laptop. The target is a Surface Go 3, which #24's RTF work
-already treats as the weak-device case. Seven groups at 45s leaves ~20× headroom against the
-900s step timeout, so the margin is generous — but the loop **rate** may also differ, and the
-retry budget is sized against the measured rate. **Re-run §10's harness on target hardware
-before trusting the retry budget.**
+Every measured number — §10's bench and doc 19's four corpus runs alike — comes from an M-series
+laptop. The target is a Surface Go 3, which #24's RTF work already treats as the weak-device case.
+
+A full corpus run takes 4.5 minutes and ~283 calls there, against a 900s step timeout per
+extraction, so the latency margin is generous. What is genuinely unknown is whether the
+**degeneration rate** holds: the three-phase strategy saw zero loops on this hardware, and that is
+the property the design now leans on rather than a retry budget. **Re-run the corpus harness on
+target hardware before trusting it.**
 
 ### 6.4 Is the Prompt API reachable from where extraction runs? — not a blocker
 
