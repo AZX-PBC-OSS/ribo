@@ -32,6 +32,7 @@ const out = document.getElementById("out") as HTMLPreElement;
 const goPerGroup = document.getElementById("go-per-group") as HTMLButtonElement;
 const goTwoPhase = document.getElementById("go-two-phase") as HTMLButtonElement;
 const goThreePhase = document.getElementById("go-three-phase") as HTMLButtonElement;
+const goGrounded = document.getElementById("go-grounded") as HTMLButtonElement;
 
 /**
  * The on-device delegate's production timing (mirrors `ONDEVICE_PER_GROUP_TIMING` in
@@ -213,8 +214,19 @@ async function runTwoPhase(log: (line: string) => void): Promise<void> {
   );
 }
 
-async function runThreePhase(log: (line: string) => void): Promise<void> {
-  log("strategy: three-phase presence-first extract-then-classify");
+async function runThreePhase(
+  log: (line: string) => void,
+  groundSpans = false,
+  dir = "ondevice-three-phase",
+): Promise<void> {
+  log(
+    `strategy: three-phase presence-first extract-then-classify${groundSpans ? " + span grounding" : ""}`,
+  );
+  if (groundSpans) {
+    log(
+      "span grounding ON: a sourceSpan that is not a verbatim substring of the transcript drops both the span and the value it justifies. Deterministic, no model call — isSpanGrounded from @azx/ribo-core.",
+    );
+  }
   log(
     "hypothesis: a boolean presence question is easier to answer truthfully than a nullable span, so the model declines cleanly where it currently fabricates",
   );
@@ -237,10 +249,16 @@ async function runThreePhase(log: (line: string) => void): Promise<void> {
     const transcript = await (await fetch(`/api/transcript?slug=${slug}`)).text();
     const t0 = performance.now();
     try {
-      const { fields, stats: runStats } = await threePhase.extractThreePhase(transcript, chat, log);
+      const { fields, stats: runStats } = await threePhase.extractThreePhase(
+        transcript,
+        chat,
+        log,
+        undefined,
+        groundSpans,
+      );
       threePhase.mergeStats(stats, runStats);
       const ms = Math.round(performance.now() - t0);
-      await fetch(`/api/result?slug=${slug}&dir=ondevice-three-phase`, {
+      await fetch(`/api/result?slug=${slug}&dir=${dir}`, {
         method: "POST",
         body: JSON.stringify(fields, null, 2),
       });
@@ -265,7 +283,7 @@ async function runThreePhase(log: (line: string) => void): Promise<void> {
       " If phase-2 bare roots were rejected, the run log already noted each fallback.",
   );
   log(
-    `\nNow run: node spikes/extraction-snuggpro/score.mjs spikes/extraction-snuggpro/results/ondevice-three-phase`,
+    `\nNow run: node spikes/extraction-snuggpro/score.mjs spikes/extraction-snuggpro/results/${dir}`,
   );
 }
 
@@ -273,12 +291,14 @@ function enable(): void {
   goPerGroup.disabled = false;
   goTwoPhase.disabled = false;
   goThreePhase.disabled = false;
+  goGrounded.disabled = false;
 }
 
 function disable(): void {
   goPerGroup.disabled = true;
   goTwoPhase.disabled = true;
   goThreePhase.disabled = true;
+  goGrounded.disabled = true;
 }
 
 goPerGroup.addEventListener("click", () => {
@@ -295,6 +315,16 @@ goTwoPhase.addEventListener("click", () => {
   disable();
   const log = makeLog("ondevice-two-phase");
   runTwoPhase(log)
+    .catch((error: unknown) => {
+      log(`\nRUN ABORTED: ${error instanceof Error ? error.message : String(error)}`);
+    })
+    .finally(enable);
+});
+
+goGrounded.addEventListener("click", () => {
+  disable();
+  const log = makeLog("ondevice-grounded");
+  runThreePhase(log, true, "ondevice-grounded")
     .catch((error: unknown) => {
       log(`\nRUN ABORTED: ${error instanceof Error ? error.message : String(error)}`);
     })

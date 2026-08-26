@@ -21,6 +21,7 @@
 
 import { snuggExtractionSchema } from "@azx/ribo-adapter-snuggpro";
 import type { SnuggExtraction } from "@azx/ribo-adapter-snuggpro";
+import { isSpanGrounded } from "@azx/ribo-core";
 import type { OnDeviceChat } from "@azx/ribo-extractor-ondevice";
 import type { ChatMessage } from "@azx/ribo-extractor-openai";
 import { z } from "zod";
@@ -51,6 +52,8 @@ export interface ThreePhaseStats {
   presenceAsked: number;
   presenceTrue: number;
   groupsSkipped: number;
+  /** Spans dropped because they were not verbatim substrings of the transcript. */
+  ungroundedSpansDropped: number;
 }
 
 export function newStats(): ThreePhaseStats {
@@ -67,6 +70,7 @@ export function newStats(): ThreePhaseStats {
     presenceAsked: 0,
     presenceTrue: 0,
     groupsSkipped: 0,
+    ungroundedSpansDropped: 0,
   };
 }
 
@@ -80,6 +84,7 @@ export function mergeStats(into: ThreePhaseStats, from: ThreePhaseStats): ThreeP
   into.phase2BareRejected += from.phase2BareRejected;
   into.phase2WrappedAttempts += from.phase2WrappedAttempts;
   into.phase2WrappedDegenerations += from.phase2WrappedDegenerations;
+  into.ungroundedSpansDropped += from.ungroundedSpansDropped;
   into.presenceAsked += from.presenceAsked;
   into.presenceTrue += from.presenceTrue;
   into.groupsSkipped += from.groupsSkipped;
@@ -112,17 +117,30 @@ export function formatStats(stats: ThreePhaseStats): string {
     `presence-true rate ${stats.presenceTrue}/${stats.presenceAsked} (${presenceRate}%)` +
     ` — if this rate is near 100%, the gate failed and this strategy added a phase for no benefit, ` +
     `groups skipped ${stats.groupsSkipped}, ` +
+    `ungrounded spans dropped ${stats.ungroundedSpansDropped}, ` +
     `phase2 bare rejected ${stats.phase2BareRejected}×, ` +
     `wrapped ${stats.phase2WrappedAttempts} attempts ` +
     `(${stats.phase2WrappedDegenerations} loops)`
   );
 }
 
+/**
+ * Drop a leaf whose `sourceSpan` is not a verbatim substring of the transcript.
+ *
+ * A fabricated quote is detectable in code — `isSpanGrounded` is a `String.includes`
+ * over the transcript, no model call and no judgement — and the provenance envelope's
+ * whole premise is that a reviewer can check the quote. A value justified by a quote
+ * that does not exist has no evidence behind it, so the honest output is null.
+ *
+ * This is off by default so the ungrounded run stays reproducible as a baseline; the
+ * page offers both, and the only difference between them is this filter.
+ */
 export async function extractThreePhase(
   transcript: string,
   chat: OnDeviceChat,
   log: (line: string) => void,
   maxRetries: number = DEFAULT_MAX_RETRIES,
+  groundSpans = false,
 ): Promise<{ fields: SnuggExtraction; stats: ThreePhaseStats }> {
   const schema = z.toJSONSchema(snuggExtractionSchema, { target: "draft-2020-12" }) as JsonSchema;
   const groups = extractGroups(schema);
@@ -186,6 +204,14 @@ export async function extractThreePhase(
     for (const leaf of group.leaves) {
       const span = spans[leaf.key] ?? null;
       if (span === null) {
+        groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
+        continue;
+      }
+      if (groundSpans && !isSpanGrounded(span, transcript)) {
+        // The quote is not in the transcript, so whatever it would justify is
+        // unsupported. Drop both rather than classify invented evidence — phase 2
+        // would otherwise map a fabricated quote to a confident wrong value.
+        stats.ungroundedSpansDropped += 1;
         groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
         continue;
       }
