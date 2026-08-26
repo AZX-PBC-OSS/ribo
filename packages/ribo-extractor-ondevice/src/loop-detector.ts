@@ -20,6 +20,11 @@ export function isLoopingOutput(output: string): boolean {
   if (output.length < WHITESPACE_LOOP_THRESHOLD) {
     return false;
   }
+  // `tail` is exactly WHITESPACE_LOOP_THRESHOLD characters long, because the
+  // length guard above already rejected anything shorter. So testing "all
+  // whitespace" is equivalent to testing "that many whitespace characters", and
+  // it stays correct if the threshold ever changes — a hardcoded `\s{80}` would
+  // silently stop matching the constant it is supposed to enforce.
   const tail = output.slice(-WHITESPACE_LOOP_THRESHOLD);
-  return /^\s{80}$/.test(tail);
+  return /^\s+$/.test(tail);
 }
