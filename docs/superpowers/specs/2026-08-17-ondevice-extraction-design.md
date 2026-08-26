@@ -1,27 +1,29 @@
 # On-device extraction: unblocking the offline queue
 
 **Date:** 2026-08-17
-**Status:** Design, approved in conversation. Revised after external review — see §9.
-No code written.
+**Status:** Design. Revised twice — after external review (§9), then after direct measurement
+against real Gemini Nano on 2026-08-25 (§10). No implementation code written.
 **Ships as:** beta — see §7 for what "beta" constrains and what it does not.
 
 ## The one thing to take away
 
-An auditor working offline today gets capture and on-device transcription, and then the
-item **parks in `extracting`** until signal returns. The relay is not connectivity-gated
-(`queue/relay.ts` — `syncNow()` and `start()` drain unconditionally; connectivity is only
-an extra trigger), so the drain runs offline and fails at the one step that needs the
-network. Giving extraction an engine that runs on-device makes that step succeed and
-carries the item all the way to `awaiting-review` with the radio off.
+An auditor working offline today gets capture and on-device transcription, and then the item
+**parks in `extracting`** until signal returns. The relay is not connectivity-gated
+(`queue/relay.ts` — `syncNow()` and `start()` drain unconditionally; connectivity is only an
+extra trigger), so the drain runs offline and fails at the one step that needs the network.
+Giving extraction an engine that runs on-device makes that step succeed and carries the item
+to `awaiting-review` with the radio off.
 
-The engine is **Chrome's Prompt API** (Gemini Nano), reached as a `ChatClient` so it
-inherits the whole per-group extraction pipeline unchanged. Two `perGroupExtractor`
-instances — one per transport, each configured honestly for its own timing — sit behind a
-thin composite `Extractor` that picks between them per extraction.
+The engine is **Chrome's Prompt API** (Gemini Nano), reached as a `ChatClient` so it inherits
+the per-group pipeline unchanged. Two `perGroupExtractor` instances — one per transport, each
+configured for its own timing — sit behind a composite `Extractor` that picks per extraction.
 
-The gating risk is context window, not quality — see §6.1. If the largest group schema
-does not fit in Nano's context, this design does not ship as written and sub-group
-extraction becomes a roadmap item.
+**It has been measured end to end and it works** (§10). Inference is confirmed local: a full
+constrained extraction ran with egress blocked. The gating risk turned out to be neither
+context window (dead) nor latency (comfortable) but a **degenerate whitespace loop** in
+roughly half of all constrained calls — which is detectable in-stream within ~1.4s and
+converges to success in 20/20 trials with retries. That mitigation is now load-bearing and is
+specified in §3.5.
 
 ---
 
@@ -30,138 +32,163 @@ extraction becomes a roadmap item.
 | Piece | Where | Relevance |
 | --- | --- | --- |
 | `Extractor<F>` seam | `ribo-core/src/extractor.ts` | Explicitly "a plain builder, not a capability contract". Stays that way. |
-| `ExtractStep` | `ribo-core/src/queue/relay.ts:25` | What the relay actually calls. Currently drops everything but `fields` — see §3.6. |
-| `ChatClient` seam | `ribo-extractor-openai/src/chat-client.ts` | The injected transport. This is where on-device plugs in. |
-| `perGroupExtractor` | `ribo-extractor-openai/src/per-group.ts` | Takes an injected `ChatClient`; owns the seven-group split, prompt assembly, examples, envelope parsing, merge, the bounded pool and the retry-budget derivation. |
-| `deriveMaxRetries` | `ribo-extractor-openai/src/per-group.ts:200` | Sizes the retry budget from `ceil(G / concurrency)`. Load-bearing — see §3.5. |
-| `helixChat()` | `ribo-extractor-openai/src/helix-chat.ts:98` | The managed transport. Returns a bare `ChatClient` with no capability notion. |
-| `firstCapable` | `ribo-core/src/first-capable.ts` | Sequential selection, TTL-cached capability, `invalidate()`, never auto-selects `needs-download`. The pattern this design copies. |
-| `hedged` | `ribo-core/src/hedged.ts` | Races primary against fallback on a latency budget. **Does not apply here** — see §3.4. |
-| `OnDeviceTranscriber.prime()` | `ribo-transcriber-ondevice/src/index.ts` | The download-on-explicit-request pattern, with progress. Copied in spirit. |
-| RTF verdict / `too-slow` | `ribo-transcriber-ondevice/src/rtf-verdict.ts` | A measured-throughput gate on `capability()`. Its lesson transfers; its remedy does not — see §3.5. |
+| `ExtractStep` | `ribo-core/src/queue/relay.ts:25` | What the relay calls. Drops everything but `fields` — see §3.6. |
+| `ChatClient` seam | `ribo-extractor-openai/src/chat-client.ts` | The injected transport. Where on-device plugs in. |
+| `perGroupExtractor` | `ribo-extractor-openai/src/per-group.ts` | Seven-group split, prompt assembly, examples, envelope parsing, merge, bounded pool, retry-budget derivation. |
+| `deriveMaxRetries` | `per-group.ts:200` | Sizes the retry budget from `ceil(G / concurrency)`. Load-bearing — see §3.5. |
+| `PER_CALL_CEILING_MS` | `per-group.ts:170` | Module constant, 120,000. **Must become configurable** — see §3.5. |
+| `helixChat()` | `helix-chat.ts:98` | Managed transport. Returns a bare `ChatClient`, no capability notion. |
+| `firstCapable` | `ribo-core/src/first-capable.ts` | Sequential selection, TTL cache, `invalidate()`, never auto-selects `needs-download`. |
+| `hedged` | `ribo-core/src/hedged.ts` | Races primary against fallback on a latency budget. **Does not apply** — §3.4. |
+| `OnDeviceTranscriber.prime()` | `ribo-transcriber-ondevice/src/index.ts` | Download-on-explicit-request, with progress. Copied in spirit. |
+| RTF verdict / `too-slow` | `ribo-transcriber-ondevice/src/rtf-verdict.ts` | A measured-throughput capability gate. Lesson transfers; remedy does not — §3.5. |
 
-Two constraints from outside the code. `ribo-ui-react` is headless — no components beyond
-the provider — and the consuming field app lives in a separate repo. So this repo ships
-capability states and a `prime()` affordance; it does not ship a download screen. The
-playground is this repo's stand-in for that consumer, exactly as `whisper-store.ts` /
-`TranscribePanel.tsx` already are for transcription.
+`ribo-ui-react` is headless and the consuming field app is a separate repo, so this repo ships
+capability states and a `prime()` affordance, not a download screen. The playground is the
+stand-in consumer, as `whisper-store.ts` / `TranscribePanel.tsx` already are for transcription.
 
 ## 2. Decision
 
-On-device extraction is a **`ChatClient`**. Two `perGroupExtractor` instances are built over
-it and over the managed transport, and a **composite `Extractor`** selects between them per
+On-device extraction is a **`ChatClient`**. Two `perGroupExtractor` instances are built over it
+and over the managed transport, and a **composite `Extractor`** selects between them per
 extraction.
 
-**Why on-device is a `ChatClient` and not its own extraction strategy.**
+### 2.1 Why Chrome's Prompt API rather than shipping our own weights
+
+Recorded because the first two drafts assumed this choice without arguing it, and it is the
+first question a reader asks.
+
+1. **Distribution.** A self-shipped 4B q4 model is ~2.5 GB we serve and version. Chrome manages
+   Nano's weights and shares them across every origin. Weaker than it first appears — Nano is
+   *also* a multi-GB download that must land before the auditor goes offline (§3.3), measured
+   at **5.4 minutes** (§10) — but it is not bytes we ship, and it may already be present.
+2. **Delivery constraints.** Apple's `FoundationModels` is native-only and unreachable from a
+   browser at all. Self-hosting weights means serving gigabytes from Helix's static host or
+   fetching from a CDN that CSP blocks. **This is the strongest of the four reasons** and the
+   one the decision actually rests on.
+3. **Constrained decoding is native.** `responseConstraint` needs no extra machinery. Softer
+   than it sounds — WebLLM/MLC does grammar-constrained JSON via XGrammar — so this is a work
+   difference, not a capability difference.
+4. ~~The transcriber's runtime cannot run a useful LLM.~~ **This reason is dead.** It rested on
+   `config.ts`'s claim that q4/q8 do not load on the pinned ORT build. #25 re-measured and
+   overturned it: the execution provider gates quantization, not the dtype, and a pnpm override
+   to onnxruntime-web 1.27.0 makes q8 load on WASM.
+
+**The counter-argument, recorded honestly.** We cannot pin Chrome's model. It changes under us
+with browser updates; we cannot version-lock it, swap a better one in, or reproduce a
+measurement later. For a beta whose purpose is measuring whether a small model can do this job,
+an unpinnable engine means the acceptance baseline can drift with no commit touching the repo.
+Combined with §6.6 (no interoperability guarantee) and §6.7 (locality not guaranteed by the
+API), the platform gives materially less than it appears to.
+
+The decision still stands on reason 2 alone. It should be revisited — with the numbers in §10
+in hand — if this ever graduates from "beta we are learning from" to "offline extraction is a
+thing the product promises."
+
+### 2.2 Why a `ChatClient` and not an extraction strategy
+
 `perGroupExtractor` sits above the `ChatClient` seam and owns the seven-group split, prompt
-assembly, few-shot examples, envelope parsing and merge. A strategy-level implementation
-would re-implement all of it, or force it out into a shared package first. Plugging in at
-the transport means the on-device path inherits the pipeline that is already measured.
+assembly, few-shot examples, envelope parsing and merge. A strategy-level implementation would
+re-implement all of it or force it into a shared package first.
 
-**Why selection is nonetheless at the `Extractor` level, not the transport level.** The
-first draft of this design selected between transports per *call*, inside a composite
-`ChatClient`. External review killed that (§9, finding 2). `perGroupExtractor` derives its
-retry budget from `ceil(G / concurrency)` using the **configured** `concurrency`, so a
-single instance cannot be simultaneously correct for a four-wide managed path and a
-serialized on-device one. Two instances, each configured for its own transport, are honest;
-one instance switching underneath is not.
+### 2.3 Why selection is at the `Extractor` level anyway
 
-**Why this does not become a capability contract on `Extractor<F>`.** The composite reads
+The first draft selected between transports per *call*, inside a composite `ChatClient`.
+External review killed that (§9). `perGroupExtractor` derives its retry budget from
+`ceil(G / concurrency)` using the **configured** concurrency, so one instance cannot be
+correct for both a four-wide managed path and a serialized on-device one.
+
+**This does not become a capability contract on `Extractor<F>`.** The composite reads
 capability from the `ChatClient`s it was handed, not from its delegate extractors. So
-`Extractor`'s "a plain builder, not a capability contract (the transcriber's `capability()`
-roster is for runtime device variance; strategy choice here is configuration)" **remains
-true and stays as written.** Runtime device variance lives in the transport, which is where
-it belongs; the composite is configuration built over it.
+`Extractor`'s "a plain builder, not a capability contract" comment stays true as written.
 
-**Provenance.** `ExtractionResult.usage` gains an **optional** `engine`. It must be optional:
-`FakeExtractor`, `singleShotExtractor` and `perGroupExtractor` all return `{ calls }` today
-(`extractor.ts:103`, `single-shot.ts:127`, `per-group.ts:508`), and a required field breaks
-every one. Getting that value as far as the review card needs more than the extractor —
-see §3.6.
+### 2.4 Provenance
+
+`ExtractionResult.usage` gains an **optional** `engine`. Optional is required: `FakeExtractor`,
+`singleShotExtractor` and `perGroupExtractor` all return `{ calls }` today (`extractor.ts:103`,
+`single-shot.ts:127`, `per-group.ts:508`). Getting that value to the review card needs more
+than the extractor — §3.6.
 
 ## 3. Design
 
 ### 3.1 The `ChatClient` translation
 
-`ChatRequest.messages` splits by role. The `system` message and any few-shot turns become
+`ChatRequest.messages` splits by role: the `system` message and few-shot turns become
 `initialPrompts` at session creation; only the transcript turn goes to the prompt call.
-`response_format.json_schema.schema` becomes the `responseConstraint` option — it accepts a
-JSON Schema object directly, so the schema the adapter already emits passes through
-unmodified. Sampling is pinned to the most predictable mode; the seam exposes no
-temperature knob and extraction does not want one.
+`response_format.json_schema.schema` becomes `responseConstraint`, which accepts a JSON Schema
+object directly — the schema the adapter already emits passes through unmodified, with every
+feature it uses accepted (§10.2).
 
-**Sessions and the seven-group loop.** Reusing one session across the seven calls would put
-groups 1–6 in context for group 7 — burning context window and creating exactly the
-cross-context bleed doc 16 §5 names as an existing failure mode. Instead, one base session
-carries the system prompt and examples, and each call runs on a **clone** of it. Every group
-gets a fresh context with the shared preamble already paid for.
+**Sampling is left at the default.** `samplingMode: "most-predictable"` was measured and did
+not help — it produced *more* degenerate loops than the default, and `session.samplingMode`
+read back as `n/a`, so it may be silently ignored on a normal web context. Do not re-propose it
+without new evidence.
 
-The `ChatClient` seam is stateless and has nowhere to put that lifecycle. Rather than widen
-the seam, the client owns it internally: base session built lazily on first call, cloned per
-call, destroyed after an idle timeout.
+**`omitResponseConstraintInput: true` is set.** Measured to roughly halve the loop rate
+(2/8 versus 4/8). The effect is not statistically strong at that sample size, but the option is
+free and never worse.
+
+**Sessions and the seven-group loop.** One base session carries the system prompt and examples;
+each call runs on a **clone**. Reusing one session across seven calls would put groups 1–6 in
+context for group 7 — burning a 9,216-token window (§10.1) and creating the cross-context bleed
+doc 16 §5 names. The `ChatClient` seam is stateless, so the client owns this lifecycle
+internally: base session built lazily on first call, cloned per call, destroyed after idle.
+
+**The client streams internally.** `complete()` still returns a whole string and the seam stays
+non-streaming, but the implementation uses `promptStreaming` so it can watch output and kill a
+degenerate loop early (§3.5). This is not an optimization; without it the design does not work.
 
 **Error mapping.**
 
 | Prompt API | `ChatClient` |
 | --- | --- |
+| `NotAllowedError` (no user gesture while `downloadable`/`downloading`) | `ChatError.unsupported`; only `prime()` should ever provoke it |
 | `NotSupportedError` (unsupported JSON Schema feature) | `ChatError.unsupported` |
+| `QuotaExceededError` | see below — **not** a single mapping |
 | `SyntaxError` (constraint unsatisfiable) | `ChatError.malformed` |
 | `AbortError` | `ChatError.aborted` |
 | `NetworkError` (model fetch failed) | `ChatError.transport` |
 
-**`QuotaExceededError` does not appear in that table, deliberately.** An earlier draft mapped
-it to a completion with `finishReason: "length"`, which was incoherent: the error is thrown
-*before* any response exists, so honouring that mapping would mean synthesising a completion
-that never happened. Context pressure is instead caught by the **pre-flight measurement**
-below and raised as a `ChatError`. If a `QuotaExceededError` still escapes at runtime it is a
-`ChatError` too — a bug in the pre-flight, not a truncated answer.
+**`QuotaExceededError` has two distinct causes and the second one matters.** The previous
+revision dropped this mapping entirely, reasoning the error was "thrown *before* any response
+exists." **That was wrong, and measurement disproved it** (§10.3): it also fires *after*
+generation, with `message` "The response exceeded output limits and was truncated." Input
+overflow is caught by the pre-flight below; output truncation is the real case and is treated
+as the loop signal of §3.5 — **transient, not terminal.**
 
-**Pre-flight.** Before the first call the client measures the prepared input against the
-session's context window and fails with a clear `ChatError` if it does not fit. This is what
-turns §6.1 from a hope into a checked precondition.
+**Pre-flight.** Before the first call the client measures the prepared input against
+`session.contextWindow`. Note `measureContextUsage` **ignores** `responseConstraint` (§10.2), so
+the measurement covers the prompt only — which is sound, because schema size does not consume
+input context.
 
-**Two honest gaps.** `ChatUsage.completionTokens` is not reported directly; it is derived
-from a context-usage delta across the call, which is close but not authoritative, and the
-code must say so. And download progress reports a fraction between 0 and 1 with the total
-**always** 1 — so unlike Whisper, no real byte count is available (§3.3).
-
-`finishReason` is documented at `chat-client.ts:81` as required-of-implementations even
-though it is optional on the type. This client honours that: every completion carries one.
+**Two honest gaps.** `ChatUsage.completionTokens` is derived from a context-usage delta, not
+authoritative. And download progress reports `loaded` 0..1 with `total` **always 1**, so no real
+byte count is available (§3.3).
 
 ### 3.2 Packaging
 
-A new `@azx/ribo-extractor-ondevice`, matching the `-ondevice` / `-managed` naming axis the
-repo already uses for transcribers. It depends on `ribo-extractor-openai` for `ChatClient`.
-That is an ordinary runtime dependency, not a type-only one — `perGroupExtractor` is a
-runtime function (`per-group.ts:322`), and whichever package composes the two must import it
-for real.
+A new `@azx/ribo-extractor-ondevice`, matching the `-ondevice` / `-managed` naming axis. It
+depends on `ribo-extractor-openai` for `ChatClient` — an ordinary runtime dependency, not
+type-only, since `perGroupExtractor` is a runtime function (`per-group.ts:322`).
 
-**The dependency direction is a known wart, accepted deliberately.**
-`ribo-extractor-openai` is already misnamed: it holds the generic `ChatClient` seam and the
-transport-agnostic `perGroupExtractor` alongside the OpenAI-compatible transport. An
-on-device package importing from a package called `-openai` reads like a mistake, and a
-reader is right to flinch. Splitting the seam into a neutral home now costs a package
-rename, import churn across the playground and the acceptance harness, and fresh
-`check:pkg` / `check:resolve` / pack-and-consume surface — spent on a beta whose dominant
-risk is that the model cannot do the job at all. **The seam moves the moment a third
-transport appears.** Until then this paragraph is the record of why it did not.
+**The dependency direction is a known wart, accepted deliberately.** `ribo-extractor-openai`
+already holds the generic seam and the transport-agnostic pipeline alongside the OpenAI
+transport, so an on-device package importing from `-openai` reads like a mistake. Splitting the
+seam now costs a rename, import churn across the playground and acceptance harness, and fresh
+`check:pkg` / `check:resolve` / pack-and-consume surface — spent on a beta whose dominant risk
+is model quality. **The seam moves the moment a third transport appears.**
 
-Public surface of the new package, three things:
+Public surface:
 
-- **`OnDeviceChat`** — implements `ChatClient`; adds `capability()` and
-  `prime(onProgress?)`. Mirrors `OnDeviceTranscriber` including its "there is **no**
-  background or automatic download; `prime` is called only when the user asks" rule.
-- **`ChatCapability`** — the three states of `TranscriberCapability` (`ready` /
-  `needs-download` / `unavailable`), minus `downloadBytes`.
+- **`OnDeviceChat`** — implements `ChatClient`; adds `capability()` and `prime(onProgress?)`.
+  Mirrors `OnDeviceTranscriber`, including its "no background or automatic download" rule.
+- **`ChatCapability`** — `ready` / `needs-download` / `unavailable`, minus `downloadBytes`.
 - **A stable engine id**, mirroring `ONDEVICE_WHISPER_ENGINE`.
 
-Two things live elsewhere. The **composite `Extractor`** goes beside `perGroupExtractor` in
-`ribo-extractor-openai`, since it belongs to neither transport. And the **provenance
-plumbing** of §3.6 goes in `ribo-core`.
+The **composite `Extractor`** goes beside `perGroupExtractor` in `ribo-extractor-openai`; the
+**provenance plumbing** (§3.6) goes in `ribo-core`.
 
-### 3.3 Capability
-
-Chrome's four availability values collapse onto the three states:
+### 3.3 Capability and priming
 
 | Prompt API | `ChatCapability` |
 | --- | --- |
@@ -169,305 +196,377 @@ Chrome's four availability values collapse onto the three states:
 | `downloadable`, `downloading` | `needs-download` |
 | `unavailable` | `unavailable`, with a reason |
 
-`needs-download` carries no byte count, for the reason in §3.1. The capability says the
-download is Chrome-managed and of unknown size rather than quoting a number this repo made
-up. This is a real regression against the Whisper consent screen, which quotes a measured
-~290 MB, and the consuming app's copy has to be honest about it.
+`needs-download` carries no byte count. The capability says the download is Chrome-managed and
+of unknown size rather than quoting an invented number — a real regression against the Whisper
+consent screen's measured ~290 MB, which the consuming app's copy must be honest about.
+Measured cold `create()` was **323 seconds** (§10.1), so "arming" is a five-minute wait shown as
+a bare percentage.
+
+**Chrome enforces the no-background-download rule for us.** `create()` throws
+`NotAllowedError: Requires a user gesture when availability is "downloading" or "downloadable"`
+(§10.4). This is undocumented in the explainer and was found by measurement. Consequences:
+
+- `prime()` **must be called from a user gesture.** The consuming app's "arm this device"
+  affordance has to be a real click, not an effect.
+- The lazy base-session build (§3.1) has no gesture, so it can only succeed when the model is
+  already `available` — exactly the wanted behaviour, now platform-enforced rather than
+  conventional.
+- The availability pre-check the previous revision specified as a *guard* is demoted to a
+  *courtesy*: it produces a better error than `NotAllowedError`, but it is no longer the thing
+  preventing an unconsented multi-gigabyte fetch.
 
 ### 3.4 Selection
 
 **Preference order is inverted relative to the transcriber, deliberately.** Transcription is
-device-first, because on-device is free and private and the managed path is the fallback.
-Extraction is **managed-first**: Helix when online, on-device only when Helix cannot run. A
-~3B model is worse than the managed one, so it is accepted only when the alternative is
-nothing.
+device-first because on-device is free and private. Extraction is **managed-first**: Helix when
+online, on-device only when Helix cannot run, because a ~3B model is worse and is accepted only
+when the alternative is nothing. `firstCapable`'s comment reasons about fallback rescuing the
+*online* path; here selection rescues the *offline* path. **Write that into the code** — it
+reads like a bug otherwise.
 
-`firstCapable`'s file comment reasons about fallback rescuing the *online* path. Here
-selection rescues the *offline* path. Same shape, opposite direction. **Write that reasoning
-into the code**, because the ordering reads like a bug otherwise and someone will helpfully
-correct it.
+`hedged` does not apply: it races two engines on a latency budget, which presumes both can run.
+Here they never can simultaneously, since Helix needs exactly the network whose absence is the
+reason on-device exists.
 
-`hedged` does not apply. It races a preferred engine against a fallback on a latency budget,
-which presumes both can run. Here they never can simultaneously: Helix needs exactly the
-network whose absence is the reason on-device exists. There is nothing to race.
+**Selection is per extraction, not per call.** The composite probes capability once and that
+delegate runs all seven groups. Forced by §3.5 — the delegates have different, individually
+correct timing budgets. It also makes provenance single-valued, so the earlier draft's
+mixed-run labelling rule is dropped. The cost is real: if the uplink dies after group 3, the
+managed delegate fails the whole extraction and the item parks; the next drain re-selects
+on-device and starts over.
 
-**Selection is per extraction, not per call.** The composite probes capability once, picks a
-delegate, and that delegate runs all seven groups. This is forced by §3.5 — the two delegates
-have different, individually-correct timing budgets, and switching mid-run would invalidate
-whichever one started. It also makes provenance single-valued for free: an extraction has one
-engine, so the earlier draft's "if any group ran on-device, label the whole thing on-device"
-rule is no longer needed and is dropped.
+**Helix reports capability by subscribing to the connectivity model** — not `navigator.onLine`,
+and not a snapshot at construction. `Connectivity.subscribe` emits immediately and on change
+(`connectivity.ts:144-151`); a construction-time sample goes stale and the composite keeps
+choosing a dead uplink.
 
-The cost is real and worth naming: if the uplink dies after group 3, the managed delegate
-fails the whole extraction and the item parks through normal backoff, where per-call
-selection would have finished it on-device. The next drain re-probes, selects on-device, and
-starts over. Losing that resilience is the price of an honest retry budget.
+**Cache invalidation must be wired.** The composite caches capability on a TTL, as
+`firstCapable` does, and exposes `invalidate()` — the relay's connectivity watch only triggers
+drains and invalidates nothing (`relay.ts:324-333`). Without wiring it, a stale `ready` for the
+managed path survives a full TTL after the uplink drops.
 
-**Helix reports capability by subscribing to the connectivity model, not by reading
-`navigator.onLine` and not by sampling once at construction.** `Connectivity.subscribe`
-emits immediately and on every change (`connectivity.ts:144-151`); a snapshot taken at
-construction would go stale and the composite would keep choosing a dead uplink.
-`helixChat()` gains an optional connectivity source and returns a capability-reporting
-client — additive, since existing callers only touch `.complete()`.
+### 3.5 The degenerate-loop mitigation, and the timing model it implies
 
-**Cache invalidation must be wired, not assumed.** The composite caches capability on a TTL,
-as `firstCapable` does. `firstCapable` pairs that with `invalidate()` precisely because a TTL
-alone is too slow, and the relay's connectivity watch only triggers drains — it invalidates
-nothing (`relay.ts:324-333`). The composite therefore exposes `invalidate()` and the consumer
-wires it to the same connectivity transitions it already watches. Without that, a stale
-`ready` for the managed path survives up to a full TTL after the uplink drops.
+**The failure mode.** In roughly half of constrained calls, Nano emits valid JSON content and
+then falls into an unbounded run of whitespace — `"\n  \n  \n  …"` — until it hits the output
+cap and throws `QuotaExceededError`. A JSON grammar permits arbitrary whitespace between
+tokens, so constrained decoding treats an infinite newline run as legal. **The constraint
+cannot save us here; the grammar has an unbounded production and the model falls into it.**
 
-### 3.5 Timing: two instances, two honest budgets
+Measured rates ranged from 0/6 to 5/6 across transcripts and 2/8 to 5/8 across option arms
+(§10.5), with large run-to-run variance on identical inputs. Treat ~50% per call as the working
+figure and do not model it as input-determined.
 
-`perGroupExtractor` computes `batches = ceil(G / concurrency)` and derives its retry budget
-so that `batches × ((maxRetries + 1) × PER_CALL_CEILING_MS + backoff) ≤ stepTimeoutMs`
-(`per-group.ts:200-212, 386-395`). With the defaults — 7 groups, `concurrency: 4`,
-`PER_CALL_CEILING_MS` 120,000, `stepTimeoutMs` 900,000 — that is 2 batches and a granted
-budget of 2 retries.
+**The mitigation, which is load-bearing.** `OnDeviceChat` streams the response and aborts the
+moment the tail is a run of pure whitespace past a threshold. 80 characters is safe: successful
+outputs ran 462–917 characters of ordinary pretty-printed JSON and never approach 80
+consecutive whitespace characters, so this cannot false-positive on a good answer. Measured
+kill latency: **1.4s median**, against a 3.9s median for a successful call.
 
-**The managed delegate keeps those defaults.** They were derived for it and are unchanged.
+**A loop must be surfaced as a transient `ChatError`, never as truncation.**
+`perGroupExtractor` routes truncation to `TerminalQueueError` — never retried, never delayed.
+Since the client aborts loops before they reach the output cap, it controls the classification,
+and classifying a loop as terminal would disable the exact retry that fixes it.
 
-**The on-device delegate is constructed with `concurrency: 1`.** One model on one device does
-not benefit from four concurrent sessions and may thrash or fail under them. Setting it
-explicitly is also what keeps `deriveMaxRetries` honest: at `batches = 7` it grants **zero**
-retries, because 7 × 120,000 = 840,000 already consumes 93% of the 15-minute step timeout on
-first attempts alone.
+**Retry converges.** 20/20 trials succeeded within four attempts; the attempts histogram was
+`{1:4, 2:10, 3:5, 4:1}`, mean **6,482 ms per group**, giving **~45s for seven groups** — 5% of
+the 900,000 ms step timeout.
 
-That is the correct answer, and it is a tight one. It means an on-device extraction gets one
-attempt per group and no retry budget at all, and it only fits if every group completes
-inside the 120-second per-call ceiling. §6.3 is the measurement that says whether this is
-survivable; if it is not, the levers are a larger `stepTimeoutMs` for the on-device delegate
-or the sub-group split of §6.1.
+**So the timing model inverts.** The previous revision gave the on-device delegate a 120s
+per-call ceiling and, correctly for that ceiling, **zero** retries. The measurements say the
+opposite is right: a **~15s per-call ceiling with 4–5 retries.** Through `deriveMaxRetries` at
+`batches = 7`: five attempts × 15,000 ms plus accumulated backoff ≈ 90,000 ms per group, ×7 =
+630,000 ms, inside the 900,000 ms timeout.
 
-**What the earlier draft got wrong**, recorded so it is not re-proposed: it kept one
-extractor at `concurrency: 4` and had the on-device *client* serialize internally. The pool
-would then believe 2 batches while reality ran 7, granting 2 retries against a worst case of
-7 × (2 × 120,000 + 1,000) ≈ 1,687,000 ms — nearly double the step timeout. The derivation
-reads configured concurrency, not observed parallelism, so hiding serialization below the
-seam corrupts it silently.
+**This requires a change to shared code, which earlier revisions said would not be needed.**
+`PER_CALL_CEILING_MS` is a module-level constant (`per-group.ts:170`), not an option. Giving
+each transport an honest ceiling means making it a per-instance option. Small, but it is a real
+edit to `per-group.ts`, and §5 is corrected accordingly.
 
-**No throughput gate, for beta.** #24 added a measured RTF verdict and a permanent
-`too-slow` reason because a slow device always reported ready and the managed fallback was
-unreachable. The defect transfers — deciding `ready` on availability alone says nothing about
-speed — but the remedy does not. When the transcriber demotes on `too-slow` it falls back to
-a managed engine that is reachable, because the device is online. When the extractor would
-demote there is by definition nothing to fall back to: it is running because the network is
-gone. Demoting converts "slow extraction" into "no extraction", which is what this design
-exists to prevent. The step timeout is the bound; if real devices cluster badly, the RTF
-pattern is the proven next step and this repo now has a working example to copy.
+**No throughput gate, for beta.** #24 added a measured RTF verdict and a permanent `too-slow`
+reason because a slow device always reported ready and the managed fallback was unreachable.
+The defect transfers; the remedy does not. When the transcriber demotes on `too-slow` it falls
+back to a managed engine that is reachable because the device is online. When the extractor
+would demote there is nothing to fall back to — it is running because the network is gone.
+Demoting converts "slow extraction" into "no extraction", which is what this design prevents.
 
 ### 3.6 Getting the engine to the review card
 
-`ExtractionResult.usage.engine` alone is not enough, and the first draft wrongly claimed it
-was. The relay calls `ExtractStep`, and `toExtractStep` returns `result.fields` and discards
-everything else (`extractor.ts:72-76`); the outbox's `extracted` column is a bare
-`z.record(z.string(), z.unknown())` (`queue/schema.ts:200`). Nothing carries `usage` across
-that boundary, so as originally specified the engine was computed and then thrown away —
-which would have removed the entire reason for preferring this shape over a plain transport
-swap.
+`ExtractionResult.usage.engine` alone is not enough. `toExtractStep` returns `result.fields` and
+discards the rest (`extractor.ts:72-76`), and the outbox's `extracted` column is a bare
+`z.record(z.string(), z.unknown())` (`queue/schema.ts:200`). Nothing carries `usage` across that
+boundary, so as first specified the engine was computed and thrown away — removing the entire
+reason for preferring this shape.
 
-The fix, in three additive pieces:
-
-1. `ExtractionResult.usage` gains an optional `engine` (§2).
-2. `ExtractStep`'s return widens so the step can report it alongside the field map, and
-   `toExtractStep` passes it through instead of dropping it.
-3. The outbox gains a column recording which engine extracted the item, which the relay
-   patches at the same point it already patches `extracted`.
-
-Step 3 is a schema change, and this repo's position is that **schema migrations are free** —
-there are no users, so outbox schema changes carry no back-compat burden. That makes the
-honest fix also the cheap one.
-
-This does mean a small relay change, contradicting the first draft's claim that there would
-be none. §5 is corrected accordingly.
+Three additive pieces: `ExtractionResult.usage` gains an optional `engine`; `ExtractStep`'s
+return widens so `toExtractStep` passes it through instead of dropping it; and the outbox gains
+a column the relay patches where it already patches `extracted`. That last is a schema change,
+and this repo's position is that **schema migrations are free** — no users, no back-compat
+burden — so the honest fix is also the cheap one. It does mean a small relay change.
 
 ### 3.7 End-to-end flow
 
-Consumer probes `capability()` at app start. If `needs-download`, it renders its own "arm
-this device for offline" affordance and calls `prime()` with progress. Thereafter: the relay
-drains → the composite probes capability and picks a delegate → that delegate runs all seven
-groups through its own transport → parsed fields plus the engine reach the outbox → the
-review card can badge a beta-extracted item.
+Consumer probes `capability()` at app start. If `needs-download`, it renders an "arm this
+device for offline" affordance — **a real button**, per §3.3 — and calls `prime()`, which takes
+minutes. Thereafter: the relay drains → the composite probes capability and picks a delegate →
+that delegate runs seven groups through its transport, each call streaming with loop-detection
+and retry → fields plus engine reach the outbox → the review card badges a beta extraction.
 
 ## 4. Testing
 
-Three tiers, because the Prompt API exists only in a browser and the real model is not
-deterministic.
+**Unit (vitest, Node) — a fake `LanguageModel` global.** Where nearly all must-fail tests live:
 
-**Unit (vitest, Node) — a fake `LanguageModel` global.** Where nearly all the must-fail
-tests live:
-
-- A prepared input measured larger than the session's context window fails pre-flight with a
-  clear `ChatError`. A `QuotaExceededError` escaping the client is the failure.
-- An unsupported JSON Schema feature surfaces as `ChatError.unsupported`, not as a generic
+- A tail of pure whitespace past the threshold aborts the call and surfaces a **transient**
+  `ChatError`. Surfacing it as truncation/terminal is the failure — that is the bug that would
+  silently disable retry.
+- Retry after a loop reaches success; a run that loops on every attempt exhausts the budget and
+  fails cleanly rather than hanging.
+- The loop detector does **not** fire on a well-formed pretty-printed response.
+- A prepared input exceeding `contextWindow` fails pre-flight with a clear `ChatError`.
+- An unsupported JSON Schema feature surfaces as `ChatError.unsupported`.
+- `NotAllowedError` from a gesture-less `create()` surfaces as a capability failure, not a
   transport error.
-- Online, the composite selects the managed delegate. Offline, it selects on-device. **Both
-  directions asserted**, so the inverted preference order of §3.4 cannot be silently "fixed".
-- The composite never selects a delegate whose transport reports `needs-download`.
-- Constructing the client and probing `capability()` download nothing. Only `prime()` does.
+- Online, the composite selects managed; offline, on-device. **Both directions asserted**, so
+  §3.4's inverted order cannot be silently "fixed".
+- The composite never selects a delegate reporting `needs-download`.
+- Constructing the client and probing `capability()` download nothing; only `prime()` does.
 - Group 7's call cannot observe group 1's content — session isolation via clone.
-- The on-device delegate is constructed such that `deriveMaxRetries` yields **zero** retries;
-  a change to `concurrency`, `stepTimeoutMs` or `PER_CALL_CEILING_MS` that silently restores
-  a retry budget fails this test. This is the regression guard for §3.5's whole argument.
-- The engine reaches the outbox: after an extraction, the persisted item records which engine
-  produced it. This is the guard against §3.6's original defect returning.
-- A capability change published by the connectivity model, followed by `invalidate()`, flips
-  the composite's next selection without waiting out the TTL.
+- The on-device delegate's configured ceiling and retry budget yield a **non-zero** retry count
+  under `deriveMaxRetries`; a change restoring the 120s ceiling (and thus zero retries) fails
+  this test. Regression guard for §3.5.
+- The engine reaches the outbox — guard against §3.6's original defect returning.
+- A capability change plus `invalidate()` flips the next selection without waiting out the TTL.
 
-**Browser (vitest browser mode).** The repo already has this infrastructure. Thin: shape
-conformance and one real end-to-end extraction against a real `LanguageModel`, skipped
-rather than failed where the model is absent.
+**Browser (vitest browser mode).** Shape conformance and one real end-to-end extraction against
+a real `LanguageModel`, skipped rather than failed where the model is absent.
 
-**Acceptance (quality).** `score.mjs` and `cli-chat.ts` are Node; the Prompt API is
-browser-only. The on-device acceptance run therefore executes in browser mode and emits the
-**same result JSON**, so `score.mjs` grades it **untouched** — what doc 16 §5 asks for, and
-the only way these numbers sit honestly beside the codex and claude baselines.
+**Acceptance (quality).** `score.mjs` and `cli-chat.ts` are Node; the Prompt API is browser-only.
+The on-device acceptance run executes in browser mode and emits the **same result JSON**, so
+`score.mjs` grades it **untouched** — doc 16 §5's requirement, and the only way these numbers sit
+honestly beside the codex and claude baselines.
 
-**How the gate behaves**, following doc 18's own split:
-
-- **Shape conformance is a hard gate.** Constrained decoding should make non-conforming
-  output impossible; a shape failure means a bug in the translation, not a weak model.
-- **Content accuracy is recorded, not gated.** Requiring codex's 0.5% hallucination rate
-  from a ~3B model would block the beta permanently. The gate exists to make the delta
-  visible, not to hold the door.
+**Gate behaviour**, per doc 18's split: **shape conformance is a hard gate** (constrained
+decoding should make non-conforming output impossible; a failure means a translation bug);
+**content accuracy is recorded, not gated** (requiring codex's 0.5% hallucination rate from a
+~3B model would block the beta permanently).
 
 **One targeted fix to existing code.** Doc 18 records that a failing acceptance run writes no
-artifact — `acceptance/results/` is gitignored and the baseline updates only on a clean pass,
-so `claude-cli`'s failing numbers survive only in prose. For a beta model where nearly every
-run is a failing run, that gap makes this feature unmeasurable. Split the two concepts as doc
-18 already recommends: **every run writes a run record; only a clean pass updates the
-baseline.** In scope because the work is unmeasurable without it, not as opportunistic
-cleanup.
+artifact — `acceptance/results/` is gitignored and the baseline updates only on a clean pass. For
+a beta where nearly every run fails, that makes this feature unmeasurable. Split the concepts as
+doc 18 recommends: every run writes a run record; only a clean pass updates the baseline.
 
 ## 5. What this design does not change
 
-- **The relay's drain policy.** Already unconditional; connectivity is only an extra trigger.
-  (The relay does gain the small provenance patch of §3.6 — that is a change to what it
-  records, not to when it runs.)
-- **The `Extractor<F>` interface.** Stays a plain builder — no `engine`, no `capability()`.
-  Its comment about capability contracts stays true as written.
-- **`perGroupExtractor`'s internals.** Unchanged. Two instances are *configured* differently;
-  no code inside it moves.
-- **`firstCapable` and `hedged`.** Untouched; the composite is a sibling, not an edit.
-- **`score.mjs`.** Reused verbatim, per doc 16 §5.
+- **The relay's drain policy.** Already unconditional. (It gains §3.6's provenance patch — a
+  change to what it records, not when it runs.)
+- **The `Extractor<F>` interface.** Stays a plain builder; its capability-contract comment stays
+  true.
+- **`perGroupExtractor`'s structure.** Two instances are *configured* differently. One genuine
+  edit is required: `PER_CALL_CEILING_MS` becomes a per-instance option (§3.5). Earlier
+  revisions claimed no edit at all; that was wrong.
+- **`firstCapable` and `hedged`.** Untouched; the composite is a sibling.
+- **`score.mjs`.** Reused verbatim.
 
 ## 6. Open questions and risks
 
-### 6.1 Does the largest group fit in context? (gating)
+### 6.1 ~~Does the largest group fit in context?~~ ANSWERED — no longer a risk
 
-The largest per-group schema is **13,273 bytes** of JSON Schema — roughly 3.3k tokens before
-the transcript, system prompt or few-shot examples. Gemini Nano's context window is small and
-this may not fit.
+Measured: `contextWindow` is **9,216** tokens, and `responseConstraint` does **not** consume it.
+A 26,393-byte schema — twice the largest real group — completed successfully, which it could not
+have done had the schema entered a 9,216-token window. Schema size is not a constraint on this
+design. See §10.2.
 
-**And 3.3k is a lower bound, not the figure to plan against.** The Prompt API explainer notes
-that an implementation may include the response constraint itself in the message sent to the
-model, consuming context — which is why it directs callers to measure usage *with* the
-constraint applied. The real per-group prompt may therefore exceed the window even where the
-raw schema size looks safe.
+### 6.2 ~~Which JSON Schema features does Chrome support?~~ ANSWERED for our shape
 
-**This is measured before anything else is built**, using the same measurement the pre-flight
-of §3.1 performs. If it does not fit, this design **does not ship as written** and sub-group
-extraction — splitting below the seven-group boundary — becomes a roadmap item with its own
-design. Everything downstream assumes a "yes".
+Nested objects, `additionalProperties: false`, all-keys-required, nullable leaves and string
+enums were all accepted, with no `NotSupportedError` across schemas from 1.5 KB to 26 KB (§10.2).
+Not exhaustive — the real schema carries vendor descriptions and deeper nesting — but every
+feature the envelope transform emits is covered.
 
-### 6.2 Which JSON Schema features does Chrome's constraint support?
+### 6.3 Does this hold on a weak device?
 
-`responseConstraint` errors with `NotSupportedError` on schema features the user agent does
-not implement. The enveloped extraction schema uses nested objects, closed objects,
-all-keys-required, nullable leaves and enums. Which of those Chrome honours is unverified.
-Measured in the same pre-flight as 6.1 — equally fatal, equally cheap to check.
+All §10 numbers come from an M-series laptop. The target is a Surface Go 3, which #24's RTF work
+already treats as the weak-device case. Seven groups at 45s leaves ~20× headroom against the
+900s step timeout, so the margin is generous — but the loop **rate** may also differ, and the
+retry budget is sized against the measured rate. **Re-run §10's harness on target hardware
+before trusting the retry budget.**
 
-### 6.3 Do seven serialized on-device calls fit the step timeout?
+### 6.4 Is the Prompt API reachable from where extraction runs? — not a blocker
 
-§3.5 grants the on-device delegate **zero** retries, and 7 × 120,000 ms of first attempts
-already consumes 93% of the default 900,000 ms step timeout. Whether real calls land inside
-the 120-second per-call ceiling is unmeasured and depends entirely on Nano's decode rate for
-a few hundred output tokens against a ~3.3k-token prompt. Same pre-flight session as §6.1 and
-§6.2. If it does not fit: raise `stepTimeoutMs` for the on-device delegate, or fall back to
-the sub-group split of §6.1.
+`createRelay` is called from React components (`QueuePanel.tsx:241`, `TranscribePanel.tsx:304`),
+so the extract step already runs on the main thread. The only worker is `whisper.worker.ts`,
+owned *inside* `OnDeviceTranscriber`. The reason transcription needs a worker does not transfer:
+transformers.js runs the model in the JS context, whereas the Prompt API hands inference to the
+browser and `prompt()` is an awaited promise.
 
-### 6.4 Is the Prompt API reachable from where extraction actually runs?
-
-The explainer states the API is **not available in workers**, and that cross-origin iframes
-need a permissions-policy grant. On-device transcription already runs in a worker
-(`whisper.worker.ts`), so "the on-device path runs in a worker" is a live assumption in this
-codebase and must not be carried over unchecked. Confirm extraction runs on a context where
-the API exists, and confirm the consuming field app does not host Ribo in a cross-origin
-iframe without the grant.
+Two constraints survive. **This closes a door**: moving the relay into a worker, or wanting
+background sync via a service worker, rules the API out — it is unavailable in workers.
+**And tab throttling is the likelier problem**: seven groups with retries is ~45s of main-thread
+work, and an auditor who backgrounds the tab or lets the screen sleep hits Chrome's background
+throttling mid-extraction. Cross-origin iframes additionally need Permissions Policy
+`allow="language-model"`.
 
 ### 6.5 Multi-tab contention
 
-The relay claims items under `navigator.locks`, so two tabs will not extract the same item.
-But two tabs each hold their own `OnDeviceChat`, and the browser may serve both from one
-underlying model. Whether that contends, queues or fails is unknown. The lock makes this a
-performance question rather than a correctness one, which is why it is here and not in §3.
+The relay claims items under `navigator.locks`, so two tabs will not extract the same item. But
+each tab holds its own `OnDeviceChat` and the browser may serve both from one model instance.
+Whether that contends, queues or fails is unknown. The lock makes this a performance question,
+not a correctness one.
 
-### 6.6 Nano's language coverage
+### 6.6 The API is not a standard, and guarantees nothing across browsers
 
-The Prompt API advertises a limited output-language set. English-only field audits are
-unaffected, but this is a hard ceiling on any future multilingual capture, and a property of
-the model rather than of this design.
+It sits in the Web Machine Learning **Community Group** — not a Working Group, not on the
+standards track, self-described as a proposal "seeking feedback and support ... to gain Working
+Group and implementer adoption," with features already being renamed. **Mozilla's standards
+position is negative** (#1213, closed May 2026), as it is for the sibling Writing Assistance and
+Translation APIs. Implementations exist in Chrome and Edge only.
 
-### 6.7 Quality is genuinely unknown
+The explainer states plainly: *"We do not intend to provide guarantees of language model quality,
+stability, or interoperability between browsers."*
 
-Doc 18's caveat stands: nothing measured so far predicts a small local model. Doc 16 §5's
-baseline — 0.5–1% hard hallucination, 0–0.8% miss, 100% enum accuracy, 100% verbatim spans —
-is the bar, and a ~3B model is not expected to meet it. Abstention is the specific expected
-weakness: emitting an explicit `null` for the large majority of leaves a single dictation
-never mentions. Constrained decoding does not help with that; it is a capability question.
+**Consequence for this design:** Edge having the API does not mean Edge behaves like Chrome —
+different model, context window, schema support, decode rate and loop rate. **§10's measurements
+are per-browser and must be repeated per browser**, not inherited.
 
-**The mitigation is already in the product.** Every extraction goes through human review
-before it is written back. A beta-quality extractor produces a worse first draft, not a wrong
-write.
+This is survivable because the design treats on-device as a capability that may be absent: where
+it is missing, the composite reports `unavailable`, selection falls through to managed, and
+offline items park exactly as today. A non-standard API is a **soft** dependency here.
+
+### 6.7 Locality is not guaranteed by the API — but is confirmed for Chrome today
+
+The explainer permits cloud-backed implementations: *"it may also be viable to implement this API
+entirely by using cloud services instead of on-device models."* `availability()` returns
+`available` either way, so **the API cannot tell us whether inference is local.**
+
+Measured, with egress genuinely blocked (§10.4): `availability()` returned `available`,
+`create()` succeeded in 8,040 ms, and a constrained prompt generated output until it hit the
+model's own cap. A cloud-backed implementation cannot produce that sequence. Corroborated by
+sustained fan noise — thermal load being the one signal the API cannot misreport.
+
+This holds for this Chrome build. It is not a promise, so the **offline path must stay in the
+acceptance suite** rather than be assumed once and inherited.
+
+### 6.8 Quality is still unknown, and abstention is the expected weakness
+
+Doc 18's caveat stands. Doc 16 §5's bar — 0.5–1% hard hallucination, 0–0.8% miss, 100% enum
+accuracy, 100% verbatim spans — is not expected from a ~3B model.
+
+Two early signals, neither scored. On the very first sample the model returned `"Yes"` for a
+duct-sealing field whose transcript said *"I'd call that well sealed"* with `"Well"` available in
+the enum — **the identical failure doc 18 recorded for `claude-cli`** on
+`wall.wallsInsulated`. That confusion is not small-model weakness; it is the enum design R1.6
+exists to fix. Separately, a 57-leaf run on meaningless generated field names left only 31 null,
+implying substantial over-filling — but those field names carried no real semantics, so it is not
+a fair abstention test. The real corpus and `score.mjs` settle this.
+
+**The mitigation is already in the product**: every extraction goes through human review before
+write-back. A beta-quality extractor produces a worse first draft, not a wrong write.
+
+### 6.9 Nano's language coverage
+
+The advertised output-language set is limited (`de, en, es, fr, ja`). English-only field audits
+are unaffected; this is a hard ceiling on multilingual capture and a property of the model.
 
 ## 7. What "beta" constrains
 
-Beta means content accuracy is recorded rather than gated (§4), the throughput gate is
-deferred (§3.5), and the consuming app is expected to badge on-device extractions in review
-(§3.6). It does **not** relax the shape gate, the provenance rule, the
-no-background-download rule, or the trust boundary: model output is still parsed through the
-adapter's schema before it becomes field data, exactly as the managed path is.
+Content accuracy is recorded rather than gated (§4), the throughput gate is deferred (§3.5), and
+the consuming app is expected to badge on-device extractions in review (§3.6). It does **not**
+relax the shape gate, the provenance rule, the no-background-download rule, or the trust
+boundary: model output is still parsed through the adapter's schema before it becomes field data.
 
 ## 8. Sources
 
 - `packages/ribo-core/src/{extractor,first-capable,hedged,transcriber,connectivity}.ts`,
-  `packages/ribo-core/src/queue/{relay,schema}.ts` — the seams, the drain policy and the
-  outbox shape this design reads.
+  `queue/{relay,schema}.ts` — seams, drain policy, outbox shape.
 - `packages/ribo-extractor-openai/src/{chat-client,per-group,helix-chat,split-schema}.ts` —
-  the transport seam, the pipeline above it, and the retry-budget derivation of §3.5.
-- `packages/ribo-transcriber-ondevice/src/{index,rtf-verdict}.ts` — the `prime()` and
-  measured-capability patterns.
-- `docs/implementation/16-extraction-schema-scale.md` §5 — the baseline to beat and the
-  instruction to reuse `score.mjs` untouched.
-- `docs/implementation/18-first-extraction-measurement.md` — the shape-versus-accuracy split,
-  the corpus-contamination correction, and the missing-run-record gap §4 adopts.
-- Prompt API explainer, `https://github.com/webmachinelearning/prompt-api` — fetched
-  2026-08-17 for the availability values, session and constraint options, progress shape,
-  token accounting, worker/iframe availability and exception types quoted throughout.
+  transport seam, pipeline, retry-budget derivation.
+- `packages/ribo-transcriber-ondevice/src/{index,rtf-verdict,config}.ts` — `prime()` and
+  measured-capability patterns; the dtype claim #25 overturned.
+- `docs/implementation/16-extraction-schema-scale.md` §5, `18-first-extraction-measurement.md`.
+- Prompt API explainer, `https://github.com/webmachinelearning/prompt-api` — fetched 2026-08-17
+  and 2026-08-25.
+- Mozilla standards-positions #1213.
 
 ## 9. Review history
 
-**2026-08-17, external review** (OpenCode / `kimi-k2p7-code`, read-only; Codex was
-unavailable — HTTP 402 `deactivated_workspace`). Findings verified against the source before
-being accepted. Two invalidated the first draft:
+**2026-08-17, external review** (OpenCode / `kimi-k2p7-code`, read-only; Codex unavailable —
+HTTP 402 `deactivated_workspace`). Findings verified against source before acceptance. Two
+invalidated the first draft:
 
-1. **Provenance never reached the outbox.** `toExtractStep` discards `usage`, and the outbox
-   has no engine column — so the engine was computed and thrown away, removing the reason for
-   preferring this shape at all. Fixed in §3.6, at the cost of a small relay change the first
-   draft claimed would not be needed.
-2. **Serializing below the seam corrupted the retry budget.** The first draft kept one
-   extractor at `concurrency: 4` and serialized inside the on-device client, so
-   `deriveMaxRetries` sized a budget for 2 batches while reality ran 7 — granting 2 retries
-   against a worst case of nearly double the step timeout. Fixed by splitting into two
-   correctly-configured delegates and moving selection up to the `Extractor` level (§2, §3.5),
-   which also made §3.4's mixed-run provenance rule unnecessary.
+1. **Provenance never reached the outbox** — `toExtractStep` discards `usage` and the outbox has
+   no engine column, so the engine was computed and thrown away. Fixed in §3.6.
+2. **Serializing below the seam corrupted the retry budget** — one extractor at `concurrency: 4`
+   with the client serializing internally had `deriveMaxRetries` sizing for 2 batches while
+   reality ran 7. Fixed by two correctly-configured delegates and moving selection to the
+   `Extractor` level.
 
-Also adopted: `usage.engine` must be optional or it breaks every existing implementation
-(§2); `helixChat` must subscribe to connectivity rather than sample it (§3.4); the composite
-must expose `invalidate()` because a TTL alone lags reality (§3.4); the `QuotaExceededError`
-mapping was incoherent and is dropped (§3.1); "type-only dependency" was wrong for a runtime
-function (§3.2); and the constraint may itself consume context window (§6.1). Worker/iframe
-availability (§6.4) and multi-tab model contention (§6.5) were unnamed risks and are now
-recorded.
+Also adopted: `usage.engine` must be optional; `helixChat` must subscribe to connectivity; the
+composite needs `invalidate()`; "type-only dependency" was wrong for a runtime function. Worker
+and multi-tab risks were unnamed and are now recorded.
 
-The review confirmed the design's other factual claims about existing code.
+## 10. Measurement log — 2026-08-25
+
+Chrome 151.0.7922.138, macOS 26.5.2, M-series laptop. Harness: a standalone page driving the
+real API, results posted back to a local collector. **All numbers below are from real Gemini
+Nano, not estimates.**
+
+### 10.1 Baseline
+
+- `contextWindow` **9,216** tokens. System prompt cost 25–31 tokens.
+- Cold `create()` (with download): **323,028 ms** (~5.4 min). Warm `create()`: **8,040 ms**.
+- Tokenization ≈ **0.26 tokens/byte** (637-byte transcript → 163 tokens).
+- Download progress reports `loaded` 0..1 with `total` always 1 — no byte figure available.
+
+### 10.2 Schema size and features
+
+`measureContextUsage` returned **163 tokens for every schema size** from 1,593 to 26,393 bytes —
+it ignores `responseConstraint`. But the 26,393-byte / 57-leaf schema **completed successfully**,
+which a 9,216-token window could not have absorbed. Conclusion: the constraint is enforced at the
+sampler and does not consume input context. Every schema feature the envelope transform emits was
+accepted; no `NotSupportedError` at any size.
+
+Latency by size (successful runs): 3 leaves 2.1s · 13 leaves 10.7s · 57 leaves 48.8s.
+
+### 10.3 The loop, discovered
+
+A 29-leaf schema failed after 114,814 ms with `QuotaExceededError: The response exceeded output
+limits and was truncated`, while 57 leaves succeeded — so it was never a size threshold.
+Streaming revealed the cause: output degenerating into unbounded whitespace
+(`"\n  \n  \n  …"`). This also disproved the previous revision's claim that `QuotaExceededError`
+fires only before generation.
+
+### 10.4 Offline and gesture
+
+With external fetch probes failing (`navigator.onLine` deliberately not trusted):
+`availability()` → `available`; `create()` → OK in 8,040 ms; a constrained prompt generated until
+it hit the cap. **Local execution confirmed.**
+
+Separately, `create()` without a user gesture while `downloadable` throws
+`NotAllowedError: Requires a user gesture when availability is "downloading" or "downloadable"` —
+undocumented in the explainer.
+
+### 10.5 Loop rate and mitigation
+
+| arm | loops |
+| --- | --- |
+| default options | 4/8, and 3/8 in a later run |
+| `omitResponseConstraintInput: true` | 2/8 |
+| `samplingMode: "most-predictable"` | 5/8 (worse; `session.samplingMode` read back `n/a`) |
+
+Per transcript (6 calls each): basement 360ch **0/6** · rambling 502ch **1/6** · gas 205ch
+**4/6** · sparse 123ch **5/6**. Suggestive that sparse inputs derail more — the abstention story
+of §6.8 — but the same transcript scored 0/6 here and 3/8 in another arm under identical
+settings, so **run-to-run variance is large and n is small.**
+
+**Mitigation validated.** Streaming with an 80-character whitespace-run abort, retrying up to
+four times: **20/20 solved, 0 gave up**, histogram `{1:4, 2:10, 3:5, 4:1}` (mean 2.15 attempts),
+**6,482 ms mean per group**, **~45s for seven groups** against a 900s step timeout. Loop-kill
+latency 1.4s median versus 3.9s median for a successful call.
+
+### 10.6 What the measurements changed
+
+Context window ceased to be the gate (§6.1). Latency ceased to be a concern (§6.3). The
+whitespace loop became the central design problem, and its mitigation (§3.5) became
+load-bearing. The timing model inverted from a 120s ceiling with zero retries to a ~15s ceiling
+with 4–5 — which requires making `PER_CALL_CEILING_MS` configurable, the one shared-code edit
+this design needs.
