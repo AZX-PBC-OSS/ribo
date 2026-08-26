@@ -610,20 +610,37 @@ Measured under the repo's own browser project
 | `availability()`       | **`downloadable`**                                                                               |
 | `create()`             | `NotAllowedError — Requires a user gesture when availability is "downloading" or "downloadable"` |
 
-So the API surface is there and the model is fetchable. The obstacle is the **user-gesture rule**
-of §10.4 — the same obstacle real Chrome has, not a property of Playwright's build.
+**Corrected again, same day.** The paragraph above was the _second_ wrong answer. Pushing one step
+further — clicking a real button and prompting the session it returns — produced this:
 
-That reframes the problem from "route around a missing API" to two open questions:
+> `USABLE — session answered "On-device model is not available in Chromium, this API is just a stub"`
 
-1. **Does a Playwright-synthesised click satisfy user activation?** Its input events are
-   dispatched through CDP and are trusted, so plausibly yes — unmeasured.
-2. **Does the downloaded model survive between runs?** Playwright launches ephemeral contexts by
-   default. A fresh profile per run means a ~5.4-minute multi-gigabyte download every time, which
-   is unusable for CI regardless of question 1. A persistent `user-data-dir` is the obvious
-   answer, also unmeasured.
+**Playwright's Chromium implements the Prompt API as a stub.** The surface exists, `availability()`
+reports `downloadable`, a synthesised click _does_ satisfy user activation, `create()` resolves —
+and `prompt()` returns canned text instead of running a model.
 
-The probe test above is kept in the suite rather than written up and deleted, so that if any of
-this changes the suite says so on the next run instead of a document going quietly stale.
+So the original conclusion was right and the reasoning behind it was wrong three times over:
+
+| round | claim                                  | verdict                   |
+| ----- | -------------------------------------- | ------------------------- |
+| 1     | Chromium has no Prompt API             | wrong — it has one        |
+| 2     | It has one; the gesture is the blocker | wrong — the gesture works |
+| 3     | It is a stub that returns fixed text   | **measured**              |
+
+**This shape is more dangerous than a missing API.** A real-model test under Playwright would not
+skip: the global is present, availability looks promising, a gesture-driven `create()` succeeds.
+It would run against a fixed string and report green — coverage that measures nothing. Any
+real-model test must therefore assert on _behaviour_ it could not get from a stub, not merely on
+the API being present.
+
+**Conclusion, unchanged from the original but now actually established:** real-model acceptance
+runs need real Chrome — a Chrome-channel launch with a pre-armed profile, or the standalone
+harness §10 used. Automating them under the repo's browser project is not possible.
+
+Both probes stay in the suite (`prompt-api-availability.browser.test.ts`,
+`prompt-api-gesture.browser.test.ts`) rather than being written up and deleted. The second asserts
+the stub marker, so if Chromium ever ships a working model that assertion fails — which is exactly
+when this decision deserves revisiting.
 
 ### 10.7 What the measurements changed
 
