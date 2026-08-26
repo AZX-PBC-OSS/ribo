@@ -13,6 +13,8 @@
  *
  * A second button runs a two-phase extract-then-classify strategy to test the
  * hypothesis that the whitespace loop is a property of the grammar, not the model.
+ * A third button runs a three-phase presence-first strategy to test the hypothesis
+ * that a boolean presence question is easier to answer truthfully than a nullable span.
  */
 
 import {
@@ -24,10 +26,12 @@ import { perGroupExtractor } from "@azx/ribo-extractor-openai";
 import { OnDeviceChat } from "@azx/ribo-extractor-ondevice";
 
 import { extractTwoPhase, formatStats, mergeStats, newStats } from "./two-phase.js";
+import * as threePhase from "./three-phase.js";
 
 const out = document.getElementById("out") as HTMLPreElement;
 const goPerGroup = document.getElementById("go-per-group") as HTMLButtonElement;
 const goTwoPhase = document.getElementById("go-two-phase") as HTMLButtonElement;
+const goThreePhase = document.getElementById("go-three-phase") as HTMLButtonElement;
 
 /**
  * The on-device delegate's production timing (mirrors `ONDEVICE_PER_GROUP_TIMING` in
@@ -209,14 +213,72 @@ async function runTwoPhase(log: (line: string) => void): Promise<void> {
   );
 }
 
+async function runThreePhase(log: (line: string) => void): Promise<void> {
+  log("strategy: three-phase presence-first extract-then-classify");
+  log(
+    "hypothesis: a boolean presence question is easier to answer truthfully than a nullable span, so the model declines cleanly where it currently fabricates",
+  );
+  log(
+    "critical diagnostic: the presence-true rate in the stats below. If it is near 100%, the model is saying true to everything and the gate added a phase for no benefit.",
+  );
+  await assertRealModel(log);
+
+  const { slugs } = (await (await fetch("/api/corpus")).json()) as { slugs: string[] };
+  log(`corpus: ${slugs.length} annotated transcripts`);
+
+  const chat = new OnDeviceChat({ languageModel: languageModel() as never });
+  const stats = threePhase.newStats();
+
+  let ok = 0;
+  let failed = 0;
+  const started = performance.now();
+
+  for (const [index, slug] of slugs.entries()) {
+    const transcript = await (await fetch(`/api/transcript?slug=${slug}`)).text();
+    const t0 = performance.now();
+    try {
+      const { fields, stats: runStats } = await threePhase.extractThreePhase(transcript, chat, log);
+      threePhase.mergeStats(stats, runStats);
+      const ms = Math.round(performance.now() - t0);
+      await fetch(`/api/result?slug=${slug}&dir=ondevice-three-phase`, {
+        method: "POST",
+        body: JSON.stringify(fields, null, 2),
+      });
+      ok += 1;
+      log(
+        `[${index + 1}/${slugs.length}] ${slug} — OK in ${(ms / 1000).toFixed(1)}s (${threePhase.formatStats(runStats)})`,
+      );
+    } catch (error) {
+      failed += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      log(`[${index + 1}/${slugs.length}] ${slug} — FAILED: ${message.slice(0, 160)}`);
+    }
+  }
+
+  log(
+    `\ndone: ${ok} extracted, ${failed} failed, ${stats.phase0Attempts + stats.phase1Attempts + stats.phase2Attempts + stats.phase2WrappedAttempts} calls, ` +
+      `${((performance.now() - started) / 1000 / 60).toFixed(1)} min total`,
+  );
+  log(threePhase.formatStats(stats));
+  log(
+    "\nNote: wrapped phase-2 calls weaken the grammar hypothesis because they re-introduce a single-key object root." +
+      " If phase-2 bare roots were rejected, the run log already noted each fallback.",
+  );
+  log(
+    `\nNow run: node spikes/extraction-snuggpro/score.mjs spikes/extraction-snuggpro/results/ondevice-three-phase`,
+  );
+}
+
 function enable(): void {
   goPerGroup.disabled = false;
   goTwoPhase.disabled = false;
+  goThreePhase.disabled = false;
 }
 
 function disable(): void {
   goPerGroup.disabled = true;
   goTwoPhase.disabled = true;
+  goThreePhase.disabled = true;
 }
 
 goPerGroup.addEventListener("click", () => {
@@ -233,6 +295,16 @@ goTwoPhase.addEventListener("click", () => {
   disable();
   const log = makeLog("ondevice-two-phase");
   runTwoPhase(log)
+    .catch((error: unknown) => {
+      log(`\nRUN ABORTED: ${error instanceof Error ? error.message : String(error)}`);
+    })
+    .finally(enable);
+});
+
+goThreePhase.addEventListener("click", () => {
+  disable();
+  const log = makeLog("ondevice-three-phase");
+  runThreePhase(log)
     .catch((error: unknown) => {
       log(`\nRUN ABORTED: ${error instanceof Error ? error.message : String(error)}`);
     })
