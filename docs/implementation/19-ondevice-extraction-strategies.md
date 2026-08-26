@@ -138,6 +138,30 @@ CLI backends scoring zero. Human review is the only thing standing behind it.
 **Health state accuracy sits at ~77%** across every strategy — the one axis the question-shape
 changes barely moved.
 
+## 6a. The promoted extractor reproduces the spike
+
+The strategy was measured as a spike, then moved into
+`packages/ribo-extractor-ondevice/src/three-phase-extractor.ts` — ~500 lines relocated, with the
+schema source changed from a hardcoded adapter import to `target.extractionSchema` so it works for
+any adapter. Unit tests cover the behaviours; only a corpus run confirms the numbers survived the
+move. It was re-run through the production object the composite actually wires:
+
+|                            | spike (grounded) |    production |
+| -------------------------- | ---------------: | ------------: |
+| transcripts completed      |            13/13 |         13/13 |
+| source-span verbatim       |             100% |      **100%** |
+| hard hallucination         |             1.3% |          1.1% |
+| enum member accuracy       |            95.7% |         93.8% |
+| accuracy, both non-null    |            95.2% |         93.8% |
+| hallucinated health passes |                2 |             1 |
+| miss rate                  |            53.0% |         52.4% |
+| calls / wall clock         |    283 / 4.5 min | 282 / 4.6 min |
+
+The two structural properties held: 100% span fidelity means grounding survived, and 13/13 at 282
+calls means the phase-skipping survived. The rest is single-digit counts on 13 transcripts against
+a non-deterministic model — 45/48 against 44/46 is noise, and neither run should be quoted as
+"the" number without the other beside it.
+
 ## 7. What this does and does not settle
 
 **Settled.** The degenerate loop is a property of how the question is asked, not an inherent model

@@ -1,0 +1,271 @@
+{
+  "basedata": {
+    "yearBuilt": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "conditionedArea": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "floorsAboveGrade": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "numberOfBedrooms": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "typeOfHome": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "blowerDoorReading": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "blowerDoorTestPerformed": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "hvac": {
+    "hvacSystemEquipmentType": {
+      "value": "Boiler",
+      "confidence": 1,
+      "sourceSpan": "oil boiler"
+    },
+    "hvacUpgradeAction": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacHeatingEnergySource": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": "oil"
+    },
+    "hvacHeatingSystemManufacturer": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": "Burnham"
+    },
+    "hvacHeatingSystemModel": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": "V8"
+    },
+    "hvacHeatingSystemModelYear": {
+      "value": 2004,
+      "confidence": 1,
+      "sourceSpan": "two thousand four"
+    },
+    "hvacHeatingCapacity": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacCoolingCapacity": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctLocation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctLeakage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctLeakageValue": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "hvacDuctInsulation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "attic": {
+    "atticInsulationDepth": {
+      "value": "1-3",
+      "confidence": 1,
+      "sourceSpan": "six inches of it across most of the attic. Six inches of cellulose."
+    },
+    "atticInsulationType": {
+      "value": "Cellulose",
+      "confidence": 1,
+      "sourceSpan": "cellulose"
+    },
+    "atticInsulation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": "I put the sniffer around the boiler and the oil lines, no gas smell obviously it's oil, but no leaks at the fittings either, all dry."
+    },
+    "atticHasKneeWall": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "atticRoofType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "wall": {
+    "wallsInsulated": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "wallExteriorWallSiding": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "wallCavityInsulation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "wallCavityInsulationType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "window": {
+    "windowType": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "windowFrame": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "windowEnergyStar": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "dhw": {
+    "dhwType2": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "dhwFuel2": {
+      "value": "Fuel Oil",
+      "confidence": 1,
+      "sourceSpan": "it's oil"
+    },
+    "dhwAge": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "dhwLocation": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": "The oil tank's in the corner"
+    },
+    "dhwTankSize": {
+      "value": 275,
+      "confidence": 1,
+      "sourceSpan": "two-seventy-five gallon"
+    },
+    "dhwManufacturer": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  },
+  "health": {
+    "healthAmbientCarbonMonoxide": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthNaturalConditionSpillage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthWorstCaseDepressurization": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthWorstCaseSpillage": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthUndilutedFlueCo": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthDraftPressure": {
+      "value": "Passed",
+      "confidence": 1,
+      "sourceSpan": "Draft on the boiler flue — I got good draft, nice steady pull up the chimney, that passes."
+    },
+    "healthGasLeak": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthVenting": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthMoldMoisture": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthRadon": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthAsbestos": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthLead": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthElectrical": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    },
+    "healthRoofCondition": {
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
+    }
+  }
+}
