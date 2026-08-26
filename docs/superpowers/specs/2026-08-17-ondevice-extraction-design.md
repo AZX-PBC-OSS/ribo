@@ -29,19 +29,19 @@ specified in §3.5.
 
 ## 1. Context: what already exists
 
-| Piece | Where | Relevance |
-| --- | --- | --- |
-| `Extractor<F>` seam | `ribo-core/src/extractor.ts` | Explicitly "a plain builder, not a capability contract". Stays that way. |
-| `ExtractStep` | `ribo-core/src/queue/relay.ts:25` | What the relay calls. Drops everything but `fields` — see §3.6. |
-| `ChatClient` seam | `ribo-extractor-openai/src/chat-client.ts` | The injected transport. Where on-device plugs in. |
-| `perGroupExtractor` | `ribo-extractor-openai/src/per-group.ts` | Seven-group split, prompt assembly, examples, envelope parsing, merge, bounded pool, retry-budget derivation. |
-| `deriveMaxRetries` | `per-group.ts:200` | Sizes the retry budget from `ceil(G / concurrency)`. Load-bearing — see §3.5. |
-| `PER_CALL_CEILING_MS` | `per-group.ts:170` | Module constant, 120,000. **Must become configurable** — see §3.5. |
-| `helixChat()` | `helix-chat.ts:98` | Managed transport. Returns a bare `ChatClient`, no capability notion. |
-| `firstCapable` | `ribo-core/src/first-capable.ts` | Sequential selection, TTL cache, `invalidate()`, never auto-selects `needs-download`. |
-| `hedged` | `ribo-core/src/hedged.ts` | Races primary against fallback on a latency budget. **Does not apply** — §3.4. |
-| `OnDeviceTranscriber.prime()` | `ribo-transcriber-ondevice/src/index.ts` | Download-on-explicit-request, with progress. Copied in spirit. |
-| RTF verdict / `too-slow` | `ribo-transcriber-ondevice/src/rtf-verdict.ts` | A measured-throughput capability gate. Lesson transfers; remedy does not — §3.5. |
+| Piece                         | Where                                          | Relevance                                                                                                     |
+| ----------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `Extractor<F>` seam           | `ribo-core/src/extractor.ts`                   | Explicitly "a plain builder, not a capability contract". Stays that way.                                      |
+| `ExtractStep`                 | `ribo-core/src/queue/relay.ts:25`              | What the relay calls. Drops everything but `fields` — see §3.6.                                               |
+| `ChatClient` seam             | `ribo-extractor-openai/src/chat-client.ts`     | The injected transport. Where on-device plugs in.                                                             |
+| `perGroupExtractor`           | `ribo-extractor-openai/src/per-group.ts`       | Seven-group split, prompt assembly, examples, envelope parsing, merge, bounded pool, retry-budget derivation. |
+| `deriveMaxRetries`            | `per-group.ts:200`                             | Sizes the retry budget from `ceil(G / concurrency)`. Load-bearing — see §3.5.                                 |
+| `PER_CALL_CEILING_MS`         | `per-group.ts:170`                             | Module constant, 120,000. **Must become configurable** — see §3.5.                                            |
+| `helixChat()`                 | `helix-chat.ts:98`                             | Managed transport. Returns a bare `ChatClient`, no capability notion.                                         |
+| `firstCapable`                | `ribo-core/src/first-capable.ts`               | Sequential selection, TTL cache, `invalidate()`, never auto-selects `needs-download`.                         |
+| `hedged`                      | `ribo-core/src/hedged.ts`                      | Races primary against fallback on a latency budget. **Does not apply** — §3.4.                                |
+| `OnDeviceTranscriber.prime()` | `ribo-transcriber-ondevice/src/index.ts`       | Download-on-explicit-request, with progress. Copied in spirit.                                                |
+| RTF verdict / `too-slow`      | `ribo-transcriber-ondevice/src/rtf-verdict.ts` | A measured-throughput capability gate. Lesson transfers; remedy does not — §3.5.                              |
 
 `ribo-ui-react` is headless and the consuming field app is a separate repo, so this repo ships
 capability states and a `prime()` affordance, not a download screen. The playground is the
@@ -60,7 +60,7 @@ first question a reader asks.
 
 1. **Distribution.** A self-shipped 4B q4 model is ~2.5 GB we serve and version. Chrome manages
    Nano's weights and shares them across every origin. Weaker than it first appears — Nano is
-   *also* a multi-GB download that must land before the auditor goes offline (§3.3), measured
+   _also_ a multi-GB download that must land before the auditor goes offline (§3.3), measured
    at **5.4 minutes** (§10) — but it is not bytes we ship, and it may already be present.
 2. **Delivery constraints.** Apple's `FoundationModels` is native-only and unreachable from a
    browser at all. Self-hosting weights means serving gigabytes from Helix's static host or
@@ -93,7 +93,7 @@ re-implement all of it or force it into a shared package first.
 
 ### 2.3 Why selection is at the `Extractor` level anyway
 
-The first draft selected between transports per *call*, inside a composite `ChatClient`.
+The first draft selected between transports per _call_, inside a composite `ChatClient`.
 External review killed that (§9). `perGroupExtractor` derives its retry budget from
 `ceil(G / concurrency)` using the **configured** concurrency, so one instance cannot be
 correct for both a four-wide managed path and a serialized on-device one.
@@ -120,7 +120,7 @@ object directly — the schema the adapter already emits passes through unmodifi
 feature it uses accepted (§10.2).
 
 **Sampling is left at the default.** `samplingMode: "most-predictable"` was measured and did
-not help — it produced *more* degenerate loops than the default, and `session.samplingMode`
+not help — it produced _more_ degenerate loops than the default, and `session.samplingMode`
 read back as `n/a`, so it may be silently ignored on a normal web context. Do not re-propose it
 without new evidence.
 
@@ -140,18 +140,18 @@ degenerate loop early (§3.5). This is not an optimization; without it the desig
 
 **Error mapping.**
 
-| Prompt API | `ChatClient` |
-| --- | --- |
+| Prompt API                                                             | `ChatClient`                                                   |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------- |
 | `NotAllowedError` (no user gesture while `downloadable`/`downloading`) | `ChatError.unsupported`; only `prime()` should ever provoke it |
-| `NotSupportedError` (unsupported JSON Schema feature) | `ChatError.unsupported` |
-| `QuotaExceededError` | see below — **not** a single mapping |
-| `SyntaxError` (constraint unsatisfiable) | `ChatError.malformed` |
-| `AbortError` | `ChatError.aborted` |
-| `NetworkError` (model fetch failed) | `ChatError.transport` |
+| `NotSupportedError` (unsupported JSON Schema feature)                  | `ChatError.unsupported`                                        |
+| `QuotaExceededError`                                                   | see below — **not** a single mapping                           |
+| `SyntaxError` (constraint unsatisfiable)                               | `ChatError.malformed`                                          |
+| `AbortError`                                                           | `ChatError.aborted`                                            |
+| `NetworkError` (model fetch failed)                                    | `ChatError.transport`                                          |
 
 **`QuotaExceededError` has two distinct causes and the second one matters.** The previous
-revision dropped this mapping entirely, reasoning the error was "thrown *before* any response
-exists." **That was wrong, and measurement disproved it** (§10.3): it also fires *after*
+revision dropped this mapping entirely, reasoning the error was "thrown _before_ any response
+exists." **That was wrong, and measurement disproved it** (§10.3): it also fires _after_
 generation, with `message` "The response exceeded output limits and was truncated." Input
 overflow is caught by the pre-flight below; output truncation is the real case and is treated
 as the loop signal of §3.5 — **transient, not terminal.**
@@ -183,7 +183,7 @@ is model quality. **The seam moves the moment a third transport appears.**
 `ChatClient` that also reports `engine` and `capability()`). Earlier drafts put it in the
 on-device package; both reviewers caught that as a dependency cycle (§11), since `helixChat`
 and the composite live in `-openai` and would have had to import a type from the package that
-depends on *them*. One declaration, at the layer both transports implement.
+depends on _them_. One declaration, at the layer both transports implement.
 
 Public surface of `@azx/ribo-extractor-ondevice`:
 
@@ -196,11 +196,11 @@ The **composite `Extractor`** goes beside `perGroupExtractor` in `ribo-extractor
 
 ### 3.3 Capability and priming
 
-| Prompt API | `ChatCapability` |
-| --- | --- |
-| `available` | `ready` |
-| `downloadable`, `downloading` | `needs-download` |
-| `unavailable` | `unavailable`, with a reason |
+| Prompt API                    | `ChatCapability`             |
+| ----------------------------- | ---------------------------- |
+| `available`                   | `ready`                      |
+| `downloadable`, `downloading` | `needs-download`             |
+| `unavailable`                 | `unavailable`, with a reason |
 
 `needs-download` carries no byte count. The capability says the download is Chrome-managed and
 of unknown size rather than quoting an invented number — a real regression against the Whisper
@@ -217,8 +217,8 @@ a bare percentage.
 - The lazy base-session build (§3.1) has no gesture, so it can only succeed when the model is
   already `available` — exactly the wanted behaviour, now platform-enforced rather than
   conventional.
-- The availability pre-check the previous revision specified as a *guard* is demoted to a
-  *courtesy*: it produces a better error than `NotAllowedError`, but it is no longer the thing
+- The availability pre-check the previous revision specified as a _guard_ is demoted to a
+  _courtesy_: it produces a better error than `NotAllowedError`, but it is no longer the thing
   preventing an unconsented multi-gigabyte fetch.
 
 ### 3.4 Selection
@@ -227,7 +227,7 @@ a bare percentage.
 device-first because on-device is free and private. Extraction is **managed-first**: Helix when
 online, on-device only when Helix cannot run, because a ~3B model is worse and is accepted only
 when the alternative is nothing. `firstCapable`'s comment reasons about fallback rescuing the
-*online* path; here selection rescues the *offline* path. **Write that into the code** — it
+_online_ path; here selection rescues the _offline_ path. **Write that into the code** — it
 reads like a bug otherwise.
 
 `hedged` does not apply: it races two engines on a latency budget, which presumes both can run.
@@ -290,7 +290,7 @@ each transport an honest ceiling means making it a per-instance option. Small, b
 edit to `per-group.ts`, and §5 is corrected accordingly.
 
 **And the ceiling is arithmetic, not a deadline — so the client must enforce its own.** Nothing
-in `per-group.ts` times a call. `PER_CALL_CEILING_MS` only *sizes the retry budget*; the sole
+in `per-group.ts` times a call. `PER_CALL_CEILING_MS` only _sizes the retry budget_; the sole
 real deadline is the relay's `withTimeout(stepTimeoutMs)`. Two consequences the earlier
 revisions missed, both raised by review (§11):
 
@@ -377,7 +377,7 @@ decoding should make non-conforming output impossible; a failure means a transla
 **~~One targeted fix to existing code.~~ Already shipped — do not rebuild it.** Earlier
 revisions carried doc 18's "a failing run writes no artifact" into scope. **That is stale**:
 `1b2d003` ("Extraction accuracy as committed run records", #10) landed it. `gate.manual.ts`
-persists a run record *before* any assertion, `run-store.ts` writes `runs/current-<label>.json`
+persists a run record _before_ any assertion, `run-store.ts` writes `runs/current-<label>.json`
 and `history-<label>.jsonl`, those artifacts are committed, and per-hazard outcomes are already
 captured. Both reviewers caught this independently (§11); doc 18's closing note predates the fix.
 
@@ -391,7 +391,7 @@ rather than in a parallel one.
   change to what it records, not when it runs.)
 - **The `Extractor<F>` interface.** Stays a plain builder; its capability-contract comment stays
   true.
-- **`perGroupExtractor`'s structure.** Two instances are *configured* differently. One genuine
+- **`perGroupExtractor`'s structure.** Two instances are _configured_ differently. One genuine
   edit is required: `PER_CALL_CEILING_MS` becomes a per-instance option (§3.5). Earlier
   revisions claimed no edit at all; that was wrong.
 - **`firstCapable` and `hedged`.** Untouched; the composite is a sibling.
@@ -425,7 +425,7 @@ before trusting the retry budget.**
 
 `createRelay` is called from React components (`QueuePanel.tsx:241`, `TranscribePanel.tsx:304`),
 so the extract step already runs on the main thread. The only worker is `whisper.worker.ts`,
-owned *inside* `OnDeviceTranscriber`. The reason transcription needs a worker does not transfer:
+owned _inside_ `OnDeviceTranscriber`. The reason transcription needs a worker does not transfer:
 transformers.js runs the model in the JS context, whereas the Prompt API hands inference to the
 browser and `prompt()` is an awaited promise.
 
@@ -451,8 +451,8 @@ Group and implementer adoption," with features already being renamed. **Mozilla'
 position is negative** (#1213, closed May 2026), as it is for the sibling Writing Assistance and
 Translation APIs. Implementations exist in Chrome and Edge only.
 
-The explainer states plainly: *"We do not intend to provide guarantees of language model quality,
-stability, or interoperability between browsers."*
+The explainer states plainly: _"We do not intend to provide guarantees of language model quality,
+stability, or interoperability between browsers."_
 
 **Consequence for this design:** Edge having the API does not mean Edge behaves like Chrome —
 different model, context window, schema support, decode rate and loop rate. **§10's measurements
@@ -464,8 +464,8 @@ offline items park exactly as today. A non-standard API is a **soft** dependency
 
 ### 6.7 Locality is not guaranteed by the API — but is confirmed for Chrome today
 
-The explainer permits cloud-backed implementations: *"it may also be viable to implement this API
-entirely by using cloud services instead of on-device models."* `availability()` returns
+The explainer permits cloud-backed implementations: _"it may also be viable to implement this API
+entirely by using cloud services instead of on-device models."_ `availability()` returns
 `available` either way, so **the API cannot tell us whether inference is local.**
 
 Measured, with egress genuinely blocked (§10.4): `availability()` returned `available`,
@@ -482,7 +482,7 @@ Doc 18's caveat stands. Doc 16 §5's bar — 0.5–1% hard hallucination, 0–0.
 accuracy, 100% verbatim spans — is not expected from a ~3B model.
 
 Two early signals, neither scored. On the very first sample the model returned `"Yes"` for a
-duct-sealing field whose transcript said *"I'd call that well sealed"* with `"Well"` available in
+duct-sealing field whose transcript said _"I'd call that well sealed"_ with `"Well"` available in
 the enum — **the identical failure doc 18 recorded for `claude-cli`** on
 `wall.wallsInsulated`. That confusion is not small-model weakness; it is the enum design R1.6
 exists to fix. Separately, a 57-leaf run on meaningless generated field names left only 31 null,
@@ -577,11 +577,11 @@ undocumented in the explainer.
 
 ### 10.5 Loop rate and mitigation
 
-| arm | loops |
-| --- | --- |
-| default options | 4/8, and 3/8 in a later run |
-| `omitResponseConstraintInput: true` | 2/8 |
-| `samplingMode: "most-predictable"` | 5/8 (worse; `session.samplingMode` read back `n/a`) |
+| arm                                 | loops                                               |
+| ----------------------------------- | --------------------------------------------------- |
+| default options                     | 4/8, and 3/8 in a later run                         |
+| `omitResponseConstraintInput: true` | 2/8                                                 |
+| `samplingMode: "most-predictable"`  | 5/8 (worse; `session.samplingMode` read back `n/a`) |
 
 Per transcript (6 calls each): basement 360ch **0/6** · rambling 502ch **1/6** · gas 205ch
 **4/6** · sparse 123ch **5/6**. Suggestive that sparse inputs derail more — the abstention story
@@ -629,7 +629,7 @@ Folded back into this spec:
    type. Since the on-device package depends on `-openai`, that is a cycle. It survived the
    first review and two revisions. Fixed: the capability contract lives beside `ChatClient`.
 2. **The per-call ceiling is arithmetic, not a deadline.** Nothing in `per-group.ts` times a
-   call, the whitespace detector only catches *trailing* runs, and `withTimeout` leaves a
+   call, the whitespace detector only catches _trailing_ runs, and `withTimeout` leaves a
    timed-out `extract()` running detached. §3.5 now requires `OnDeviceChat` to enforce its own
    `AbortSignal` deadline.
 3. **The acceptance run-record fix was already shipped** in `1b2d003` (#10). §4 carried doc 18's

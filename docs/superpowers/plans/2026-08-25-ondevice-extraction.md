@@ -26,18 +26,21 @@
 ## File Structure
 
 **New — `packages/ribo-extractor-ondevice/`**
+
 - `src/loop-detector.ts` — the pure trailing-whitespace predicate. Isolated because it is the one piece with subtle correctness.
 - `src/session.ts` — base-session lifecycle: lazy create, clone-per-call, idle destroy, gesture rules.
 - `src/ondevice-chat.ts` — the `CapableChatClient`: translation, streaming, loop kill, hard deadline, error mapping, `prime()`.
 - `src/index.ts` — public surface and the stable engine id. Exists from Task 2.
 
 **Modified — `packages/ribo-extractor-openai/src/`**
+
 - `chat-client.ts` — **`ChatCapability` and `CapableChatClient` are declared here**, at the seam both transports implement (spec §11, finding 1).
 - `per-group.ts` — `PER_CALL_CEILING_MS` becomes a per-instance option.
 - `helix-chat.ts` — optional connectivity source, capability reporting.
 - `composite-extractor.ts` (new) — the selecting `Extractor`.
 
 **Modified — `packages/ribo-core/src/`**
+
 - `extractor.ts`, `queue/relay.ts`, `queue/schema.ts`, `queue/database.ts` — provenance to the outbox, including an RxDB version bump.
 
 **Modified — `playground/src/`** — stand-in consumer: capability display, real-gesture priming, `invalidate()` wiring, beta badge.
@@ -51,13 +54,15 @@
 `PER_CALL_CEILING_MS` is a module constant of 120,000 (`per-group.ts:170`), so `deriveMaxRetries` grants the on-device delegate **zero** retries at `batches = 7`. Everything in spec §3.5 depends on fixing that.
 
 **Files:**
+
 - Modify: `packages/ribo-extractor-openai/src/per-group.ts` (constant at :170, `PerGroupOptions`, the `deriveMaxRetries` signature at :200 and its call site at ~:386-395)
 - Test: `packages/ribo-extractor-openai/src/per-group.test.ts`
 
 **Interfaces:**
+
 - Produces: `PerGroupOptions.perCallCeilingMs?: number`, defaulting to 120,000 so existing callers are unaffected. `deriveMaxRetries` takes the ceiling as a parameter.
 
-- [ ] **Step 1: Write the failing tests.** (a) Existing defaults — 7 groups, `concurrency: 4`, ceiling 120,000, `stepTimeoutMs` 900,000, `maxRetries` 2 — still derive **2**, proving the refactor is behaviour-preserving. (b) `concurrency: 1` with the 120,000 ceiling derives **zero**, pinning the defect so nobody "fixes" it by loosening the timeout. (c) `concurrency: 1`, ceiling 15,000, **and `maxRetries` requested as 4**, derives **4**. That requested value is not optional: `deriveMaxRetries` only ever counts *down* from what was asked (`per-group.ts:207`), so with the default of 2 this test would fail for the wrong reason.
+- [ ] **Step 1: Write the failing tests.** (a) Existing defaults — 7 groups, `concurrency: 4`, ceiling 120,000, `stepTimeoutMs` 900,000, `maxRetries` 2 — still derive **2**, proving the refactor is behaviour-preserving. (b) `concurrency: 1` with the 120,000 ceiling derives **zero**, pinning the defect so nobody "fixes" it by loosening the timeout. (c) `concurrency: 1`, ceiling 15,000, **and `maxRetries` requested as 4**, derives **4**. That requested value is not optional: `deriveMaxRetries` only ever counts _down_ from what was asked (`per-group.ts:207`), so with the default of 2 this test would fail for the wrong reason.
 - [ ] **Step 2: Run and watch them fail.** `pnpm vitest run packages/ribo-extractor-openai`.
 - [ ] **Step 3: Implement.** Add the option, thread it through, default it to the existing value. `PER_CALL_CEILING_MS` is module-private today and is **not** exported from `index.ts`; keep it private and make it the option's default. Update the long explanatory comment above the derivation so it reads as a default rather than a law.
 - [ ] **Step 4: Run the tests.** All three pass; the package's existing suite is untouched.
@@ -70,10 +75,12 @@
 Revision 1 put this type in the on-device package, which both reviewers caught as a dependency cycle — `helixChat` and the composite live in `-openai`, and `-ondevice` depends on `-openai` (spec §11, finding 1). Doing it first means Tasks 4, 7 and 8 all build against one declaration.
 
 **Files:**
+
 - Modify: `packages/ribo-extractor-openai/src/chat-client.ts`, `src/index.ts`
 - Test: `packages/ribo-extractor-openai/src/chat-client.test.ts`
 
 **Interfaces:**
+
 - Produces: `ChatCapability`, a discriminated union of `ready` / `needs-download` / `unavailable`, mirroring `TranscriberCapability` **minus `downloadBytes`** (the Prompt API reports progress as a 0..1 fraction with total always 1, so no byte figure exists; `unavailable` carries a required human-readable detail, as the transcriber's does). And `CapableChatClient` — a `ChatClient` that also has a readonly `engine` and a `capability()` returning a promise.
 - Consumed by: Tasks 4, 7, 8.
 
@@ -90,11 +97,13 @@ Revision 1 put this type in the on-device package, which both reviewers caught a
 Without this, `usage.engine` is computed and discarded (`extractor.ts:72-76`), which removes the reason for this architecture. **This is a real RxDB migration** — revision 1 called it free, which was wrong about the mechanism even though it is right about back-compat.
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/extractor.ts`; `queue/relay.ts` (the `ExtractStep` type at :25 and the extract step's patch site); `queue/schema.ts` (the document schema at ~:200 and the `version: 3` at ~:350); `queue/database.ts` (`OUTBOX_MIGRATION_STRATEGIES`, ~:45-49)
 - Test: `packages/ribo-core/src/extractor.test.ts`; `queue/schema.test.ts` (the version pin at ~:195); `queue/outbox.browser.test.ts` (the v0→v3 migration test at ~:335); `queue/outbox-memory.test.ts` (the version claim at ~:82)
 - **Note:** the relay's tests are `queue/relay.browser.test.ts`. There is no `relay.test.ts` — revision 1 named a file that does not exist.
 
 **Interfaces:**
+
 - Produces: `ExtractionResult.usage.engine?: string` — **optional**, since `FakeExtractor`, `singleShotExtractor` and `perGroupExtractor` all return `{ calls }` today and a required field breaks every one. `ExtractStep` returns a **wrapper object** carrying the field map plus an optional engine.
 - **Pick the wrapper, not a union.** A union of "bare field map or wrapper" cannot be discriminated safely: extraction field maps are arbitrary-keyed, so a legitimate map could itself carry a `fields` key. The wrapper means updating the inline `extract` fakes in `relay.browser.test.ts` — do that rather than inventing a runtime discriminator.
 
@@ -109,10 +118,12 @@ Without this, `usage.engine` is computed and discarded (`extractor.ts:72-76`), w
 ### Task 4: The whitespace loop detector, and the package scaffold
 
 **Files:**
+
 - Create: `packages/ribo-extractor-ondevice/src/loop-detector.ts`, `src/loop-detector.test.ts`, `src/index.ts`
 - Create: `package.json`, `tsconfig.json`, `tsdown.config.ts`, `README.md`
 
 **Interfaces:**
+
 - Produces: a predicate taking accumulated output and returning whether the trailing 80 characters are all whitespace. Threshold exported as a named constant so the client and tests share one value.
 
 - [ ] **Step 1: Scaffold the package.** Follow AGENTS §6.2's checklist. It **must** have a `typecheck` script and a real `src/index.ts` from this commit — a package missing either silently escapes the gate or breaks `build:packages`, and `./check.sh` may be run at any point between tasks.
@@ -127,9 +138,11 @@ Without this, `usage.engine` is computed and discarded (`extractor.ts:72-76`), w
 ### Task 5: Capability probe and `prime()`
 
 **Files:**
+
 - Create: `packages/ribo-extractor-ondevice/src/capability.ts`, `src/capability.test.ts`, `src/test-support/fake-language-model.ts`
 
 **Interfaces:**
+
 - Consumes: `ChatCapability` from Task 2 — **imported, not redeclared**.
 - Produces: a probe over an injected `LanguageModel`-shaped object, and a `prime` taking a progress callback.
 - The fake must model: the four availability values; a `create` that can throw `NotAllowedError`; a monitor emitting `downloadprogress`; a call counter; and (for Task 7) a `promptStreaming` yielding caller-supplied chunks and observing its `AbortSignal`.
@@ -145,9 +158,11 @@ Without this, `usage.engine` is computed and discarded (`extractor.ts:72-76`), w
 ### Task 6: Session lifecycle
 
 **Files:**
+
 - Create: `packages/ribo-extractor-ondevice/src/session.ts`, `src/session.test.ts`
 
 **Interfaces:**
+
 - Produces: a holder that lazily creates one base session with the system prompt and few-shot turns, hands out a **clone** per call, and destroys the base after idle. Timer injectable — reuse `ScheduleTimer`, which is **defined in `ribo-core/src/connectivity.ts`** and reused by `hedged.ts`; do not invent a new one.
 
 - [ ] **Step 1: Write the failing tests.** (a) Two sequential calls create the base **once** and clone **twice** — the rule preventing group 7 from seeing group 1's context. (b) A clone is destroyed after its call; the base is retained. (c) A clone is destroyed on the **error and abort paths** too, not only on success — otherwise every loop-kill leaks a session. (d) After the idle period the base is destroyed and the next call creates a fresh one. (e) When availability is not `available`, the lazy create is **not attempted** and the caller gets a capability failure — the lazy path has no user gesture, so attempting it throws `NotAllowedError` from inside a queue drain. (f) Concurrent calls share one base session rather than each creating their own.
@@ -163,10 +178,12 @@ Without this, `usage.engine` is computed and discarded (`extractor.ts:72-76`), w
 The heart of the package. Spec §3.1 and §3.5. Largest task in the plan; if it needs splitting, split along **error-mapping versus streaming**, not along translation versus the rest — a loop detector with no stream to cancel proves nothing.
 
 **Files:**
+
 - Create: `packages/ribo-extractor-ondevice/src/ondevice-chat.ts`, `src/ondevice-chat.test.ts`
 - Modify: `packages/ribo-extractor-ondevice/src/index.ts`
 
 **Interfaces:**
+
 - Consumes: Tasks 2, 4, 5, 6.
 - Produces: a `CapableChatClient` plus `prime()`, and a stable engine id constant mirroring `ONDEVICE_WHISPER_ENGINE`'s naming (`ribo-transcriber-ondevice/src/index.ts:77`).
 - Behaviour: `system` and few-shot messages become `initialPrompts`; only the final user turn is prompted. The JSON Schema becomes `responseConstraint`. `omitResponseConstraintInput` is true. **Sampling stays at default** — measured worse with `most-predictable` and possibly ignored outright (§10.5). `complete()` returns a whole string while consuming `promptStreaming` internally.
@@ -186,10 +203,12 @@ The heart of the package. Spec §3.1 and §3.5. Largest task in the plan; if it 
 ### Task 8: Give `helixChat` a capability
 
 **Files:**
+
 - Modify: `packages/ribo-extractor-openai/src/helix-chat.ts` (factory at :98)
 - Test: `packages/ribo-extractor-openai/src/helix-chat.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 2's `CapableChatClient`.
 - Produces: `HelixChatOptions` gains an optional connectivity source; the factory's return widens from `ChatClient` to `CapableChatClient`. Additive — existing callers touch only `complete()`.
 
@@ -204,10 +223,12 @@ The heart of the package. Spec §3.1 and §3.5. Largest task in the plan; if it 
 ### Task 9: The composite extractor
 
 **Files:**
+
 - Create: `packages/ribo-extractor-openai/src/composite-extractor.ts`, `src/composite-extractor.test.ts`
 - Modify: `packages/ribo-extractor-openai/src/index.ts`
 
 **Interfaces:**
+
 - Consumes: Tasks 2, 3, 8.
 - Produces: a factory over an ordered list of `{ chat: CapableChatClient, extractor: Extractor }` entries, returning an `Extractor`. Probes each entry's chat capability, picks the first `ready`, runs that entry's extractor for the whole extraction, stamps `usage.engine`. Exposes `invalidate()`. TTL-caches capability, reusing `DEFAULT_CAPABILITY_TTL_MS` (exported from `ribo-core`, `first-capable.ts:39`) rather than a new number.
 - **A managed client with no connectivity source reports `ready` (Task 8d), so a capability-less entry is not a case that needs handling** — every entry is a `CapableChatClient` by construction.
@@ -223,9 +244,11 @@ The heart of the package. Spec §3.1 and §3.5. Largest task in the plan; if it 
 ### Task 10: Wire the delegates, and guard the timing model
 
 **Files:**
+
 - Create/modify: the module constructing the production pair, and its test. The only in-repo production construction today is `playground/src/extractor-store.ts:144-166` — and it uses **`openAiChat`**, not `helixChat`. Either give it a connectivity source via `helixChat`, or keep `openAiChat` and wrap it to report `ready`; decide and state it in the commit.
 
 **Interfaces:**
+
 - Consumes: Tasks 1, 7, 8, 9.
 - Produces: the configured pair — managed on stock defaults (`concurrency: 4`, ceiling 120,000, retries 2); on-device on `concurrency: 1`, ceiling 15,000, **`maxRetries` requested as 4**.
 
@@ -243,6 +266,7 @@ The heart of the package. Spec §3.1 and §3.5. Largest task in the plan; if it 
 Spec §4 lists this and revision 1 had no task for it. Task 7 tests loop-kill in isolation; Task 10 counts derived retries. Neither exercises `perGroupExtractor` × `OnDeviceChat` together.
 
 **Files:**
+
 - Create: `packages/ribo-extractor-ondevice/src/retry-integration.test.ts`
 
 **Interfaces:** consumes Tasks 7, 10, and the fake from Task 5.
@@ -260,10 +284,12 @@ Spec §4 lists this and revision 1 had no task for it. Task 7 tests loop-kill in
 **This is the blocker that made revision 1's Tasks 10 and 13 undeliverable.** The browser project launches Playwright's bundled Chromium (`vitest.config.ts`), which has no Gemini Nano — the model arrives via branded Chrome's component updater. As written, every real-model test would skip everywhere, including dev machines, and look like coverage. Spec §10.6.
 
 **Files:**
+
 - Modify: `vitest.config.ts`
 - Create: a short `docs/implementation/` note recording how to arm a profile
 
 **Interfaces:**
+
 - Produces: a way to run a `.browser.test.ts` against real Chrome with a pre-armed profile. Two viable routes — pick one and record why: a Playwright `channel: "chrome"` launch with a persistent `user-data-dir` whose model is already downloaded; or a standalone harness like spec §10's, driven manually.
 - Also: the browser project's include covers only `packages/*/src/**` and `playground/src/**`, and `testTimeout` is 30s. A real extraction runs 4–50s and a corpus run is ~10 minutes, so both the include globs and the timeout need addressing for Tasks 13–14.
 
@@ -278,6 +304,7 @@ Spec §4 lists this and revision 1 had no task for it. Task 7 tests loop-kill in
 ### Task 13: Browser proof against the real model
 
 **Files:**
+
 - Create: `packages/ribo-extractor-ondevice/src/ondevice-chat.browser.test.ts`
 
 **Interfaces:** consumes Tasks 7, 12.
@@ -293,6 +320,7 @@ Spec §4 lists this and revision 1 had no task for it. Task 7 tests loop-kill in
 ### Task 14: Playground wiring — the stand-in consumer
 
 **Files:**
+
 - Create: `playground/src/ondevice-extractor-store.ts`, `src/ondevice-extractor-store.test.ts`
 - Modify: `playground/src/extractor-store.ts` and the panel rendering extraction state
 
@@ -311,10 +339,12 @@ Spec §4 lists this and revision 1 had no task for it. Task 7 tests loop-kill in
 The point of the beta. Until this runs, quality is entirely unmeasured (spec §6.8).
 
 **Files:**
+
 - Create: a browser-mode acceptance runner, located per Task 12's chosen route
 - Do **not** modify `spikes/extraction-snuggpro/score.mjs`
 
 **Interfaces:**
+
 - Consumes: Tasks 7, 12, 13.
 - Produces: result JSON in exactly the shape `score.mjs` consumes, **and a run record in the existing `run-store.ts` format** so on-device runs land in the same store as the CLI backends rather than a parallel one. The run-record infrastructure already exists (`1b2d003`) — reuse it; do not rebuild it.
 

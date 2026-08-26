@@ -13,6 +13,7 @@
   "dependencies": {
     "@azx/ribo-adapter-snuggpro": "workspace:*",
     "@azx/ribo-core": "workspace:*",
+    "@azx/ribo-extractor-ondevice": "workspace:*",
     "@azx/ribo-extractor-openai": "workspace:*",
     "@azx/ribo-transcriber-managed": "workspace:*",
     "@azx/ribo-transcriber-ondevice": "workspace:*",

@@ -44,7 +44,7 @@ for (const dir of readdirSync(packagesDir, { withFileTypes: true })) {
 }
 publishable.sort((a, b) => a.name.localeCompare(b.name));
 
-const EXPECTED_PUBLISHED_COUNT = 6;
+const EXPECTED_PUBLISHED_COUNT = 7;
 if (publishable.length !== EXPECTED_PUBLISHED_COUNT) {
   console.error(
     `pkg-gates: discovered ${publishable.length} publishable packages, expected ` +
