@@ -27,12 +27,15 @@ import { OnDeviceChat } from "@azx/ribo-extractor-ondevice";
 
 import { extractTwoPhase, formatStats, mergeStats, newStats } from "./two-phase.js";
 import * as threePhase from "./three-phase.js";
+import { threePhaseExtractor } from "@azx/ribo-extractor-ondevice";
+import { snuggProAdapter } from "@azx/ribo-adapter-snuggpro";
 
 const out = document.getElementById("out") as HTMLPreElement;
 const goPerGroup = document.getElementById("go-per-group") as HTMLButtonElement;
 const goTwoPhase = document.getElementById("go-two-phase") as HTMLButtonElement;
 const goThreePhase = document.getElementById("go-three-phase") as HTMLButtonElement;
 const goGrounded = document.getElementById("go-grounded") as HTMLButtonElement;
+const goProduction = document.getElementById("go-production") as HTMLButtonElement;
 
 /**
  * The on-device delegate's production timing (mirrors `ONDEVICE_PER_GROUP_TIMING` in
@@ -292,6 +295,7 @@ function enable(): void {
   goTwoPhase.disabled = false;
   goThreePhase.disabled = false;
   goGrounded.disabled = false;
+  goProduction.disabled = false;
 }
 
 function disable(): void {
@@ -299,6 +303,7 @@ function disable(): void {
   goTwoPhase.disabled = true;
   goThreePhase.disabled = true;
   goGrounded.disabled = true;
+  goProduction.disabled = true;
 }
 
 goPerGroup.addEventListener("click", () => {
@@ -335,6 +340,71 @@ goThreePhase.addEventListener("click", () => {
   disable();
   const log = makeLog("ondevice-three-phase");
   runThreePhase(log)
+    .catch((error: unknown) => {
+      log(`\nRUN ABORTED: ${error instanceof Error ? error.message : String(error)}`);
+    })
+    .finally(enable);
+});
+
+/**
+ * The PRODUCTION path: `threePhaseExtractor` from the package, not the spike's copy.
+ *
+ * Promotion moved ~500 lines out of `three-phase.ts` into the package and changed the
+ * schema source from a hardcoded adapter import to `target.extractionSchema`. Unit tests
+ * cover the behaviours; only a corpus run confirms the NUMBERS survived the move. If this
+ * lands materially off doc 19's grounded run, something changed in translation.
+ */
+async function runProduction(log: (line: string) => void): Promise<void> {
+  log("strategy: PRODUCTION threePhaseExtractor (package, not the spike copy)");
+  log("comparison target: doc 19's grounded run — 13/13, 1.3% hallucination, 100% span fidelity");
+  await assertRealModel(log);
+
+  const { slugs } = (await (await fetch("/api/corpus")).json()) as { slugs: string[] };
+  log(`corpus: ${slugs.length} annotated transcripts`);
+
+  const chat = new OnDeviceChat({ languageModel: languageModel() as never });
+  const extractor = threePhaseExtractor({ target: snuggProAdapter, chat });
+
+  let ok = 0;
+  let failed = 0;
+  let calls = 0;
+  const started = performance.now();
+
+  for (const [index, slug] of slugs.entries()) {
+    const transcript = await (await fetch(`/api/transcript?slug=${slug}`)).text();
+    const t0 = performance.now();
+    try {
+      const result = await extractor.extract(transcript);
+      calls += result.usage.calls;
+      const ms = Math.round(performance.now() - t0);
+      await fetch(`/api/result?slug=${slug}&dir=ondevice-production`, {
+        method: "POST",
+        body: JSON.stringify(result.fields, null, 2),
+      });
+      ok += 1;
+      log(
+        `[${index + 1}/${slugs.length}] ${slug} — OK in ${(ms / 1000).toFixed(1)}s (${result.usage.calls} calls, engine ${result.usage.engine ?? "?"})`,
+      );
+    } catch (error) {
+      failed += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      log(`[${index + 1}/${slugs.length}] ${slug} — FAILED: ${message.slice(0, 160)}`);
+    }
+  }
+
+  log(
+    `\ndone: ${ok} extracted, ${failed} failed, ${calls} calls, ` +
+      `${((performance.now() - started) / 1000 / 60).toFixed(1)} min total`,
+  );
+  log(
+    `\nNow run: node spikes/extraction-snuggpro/score.mjs spikes/extraction-snuggpro/results/ondevice-production`,
+  );
+}
+
+goProduction.addEventListener("click", () => {
+  disable();
+  const log = makeLog("ondevice-production");
+  runProduction(log)
     .catch((error: unknown) => {
       log(`\nRUN ABORTED: ${error instanceof Error ? error.message : String(error)}`);
     })
