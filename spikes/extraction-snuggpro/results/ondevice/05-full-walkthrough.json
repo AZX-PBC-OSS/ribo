@@ -1,34 +1,34 @@
 {
   "basedata": {
     "yearBuilt": {
-      "value": null,
+      "value": 2019,
       "confidence": 1,
-      "sourceSpan": "Forty-one Maple"
+      "sourceSpan": "the model plate year is twenty nineteen"
     },
     "conditionedArea": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": "forty-one Maple"
+      "sourceSpan": null
     },
     "floorsAboveGrade": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": "forty-one Maple"
+      "sourceSpan": null
     },
     "numberOfBedrooms": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": "forty-one Maple"
+      "sourceSpan": null
     },
     "typeOfHome": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": "forty-one Maple"
+      "sourceSpan": "Starting in the mechanical closet off the kitchen"
     },
     "blowerDoorReading": {
       "value": 2800,
       "confidence": 1,
-      "sourceSpan": "Blower door next, set up in the front door. I got twenty-eight hundred CFM50 on the fan."
+      "sourceSpan": "I got twenty-eight hundred CFM50 on the fan"
     },
     "blowerDoorTestPerformed": {
       "value": null,
@@ -39,38 +39,38 @@
   "hvac": {
     "hvacSystemEquipmentType": {
       "value": "Furnace / Central AC (shared ducts)",
-      "confidence": 0.9,
-      "sourceSpan": "The heating system is a propane furnace, forced air"
+      "confidence": 0.95,
+      "sourceSpan": "the heating system is a propane furnace, forced air, high-efficiency looking thing, condensing"
     },
     "hvacUpgradeAction": {
       "value": "Replace with a newer model",
-      "confidence": 0.7,
+      "confidence": 0.8,
       "sourceSpan": "the homeowner's got a quote to swap this out for a heat pump next year"
     },
     "hvacHeatingEnergySource": {
       "value": "Propane",
-      "confidence": 1,
+      "confidence": 0.9,
       "sourceSpan": "propane furnace"
     },
     "hvacHeatingSystemManufacturer": {
       "value": "Carrier",
-      "confidence": 1,
+      "confidence": 0.9,
       "sourceSpan": "It's a Carrier"
     },
     "hvacHeatingSystemModel": {
       "value": "59TP6",
-      "confidence": 1,
+      "confidence": 0.9,
       "sourceSpan": "the model number is 59TP6"
     },
     "hvacHeatingSystemModelYear": {
       "value": 2019,
-      "confidence": 1,
+      "confidence": 0.9,
       "sourceSpan": "the data plate year is twenty nineteen"
     },
     "hvacHeatingCapacity": {
       "value": 80000,
-      "confidence": 1,
-      "sourceSpan": "Output capacity is eighty thousand BTU"
+      "confidence": 0.9,
+      "sourceSpan": "output capacity is eighty thousand BTU"
     },
     "hvacCoolingCapacity": {
       "value": null,
@@ -78,31 +78,31 @@
       "sourceSpan": null
     },
     "hvacDuctLocation": {
-      "value": "Standalone",
+      "value": "Central AC (shared ducts)",
       "confidence": 0.9,
-      "sourceSpan": "standalone air handler up in the attic with its own duct runs"
+      "sourceSpan": "Cooling is central AC, it's got a standalone air handler up in the attic with its own duct runs, condenser outside on a pad."
     },
     "hvacDuctLeakage": {
-      "value": "15% - Somewhat leaky",
-      "confidence": 0.8,
-      "sourceSpan": "I could feel it, air pouring off the boots, pretty leaky, I'd call it very leaky"
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
     },
     "hvacDuctLeakageValue": {
-      "value": 15,
-      "confidence": 0.8,
-      "sourceSpan": "one-fifty at twenty-five pascals"
+      "value": 150,
+      "confidence": 0.9,
+      "sourceSpan": "I put the duct blaster on it and the duct leakage came in at one-fifty CFM25"
     },
     "hvacDuctInsulation": {
-      "value": "Duct Board 1.5 inch",
+      "value": "Fiberglass 1.25 inch",
       "confidence": 0.8,
-      "sourceSpan": "the ducts are wrapped in that thin fiberglass, the inch-and-a-quarter stuff, not much,"
+      "sourceSpan": "The ducts are wrapped in that thin fiberglass, the inch-and-a-quarter stuff, not much."
     }
   },
   "attic": {
     "atticInsulationDepth": {
       "value": "10-12",
       "confidence": 0.9,
-      "sourceSpan": "I'm getting eleven, twelve inches in the field, call it a good foot of cellulose"
+      "sourceSpan": "I'm getting eleven, twelve inches in the field"
     },
     "atticInsulationType": {
       "value": "Cellulose",
@@ -112,7 +112,7 @@
     "atticInsulation": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "I actually measured the depth with the ruler"
     },
     "atticHasKneeWall": {
       "value": null,
@@ -129,12 +129,12 @@
     "wallsInsulated": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": "wallsInsulated: \"Poorly\""
+      "sourceSpan": "walls insulated, yes, properly insulated."
     },
     "wallExteriorWallSiding": {
       "value": "Wood/Fiber Cement siding",
       "confidence": 1,
-      "sourceSpan": "Wood or metal clad"
+      "sourceSpan": "The windows are a mix but predominantly double pane, and the frames are that wood with the aluminum cladding on the outside, clad windows, wood clad."
     },
     "wallCavityInsulation": {
       "value": null,
@@ -142,21 +142,21 @@
       "sourceSpan": null
     },
     "wallCavityInsulationType": {
-      "value": "Cellulose",
+      "value": "Fiberglass or Rockwool Batt",
       "confidence": 1,
-      "sourceSpan": "Cellulose"
+      "sourceSpan": "I opened one cavity on the addition, there's fiberglass batt in there, decent"
     }
   },
   "window": {
     "windowType": {
-      "value": "Triple pane + low e",
+      "value": "Single pane",
       "confidence": 0.9,
-      "sourceSpan": "Triple pane + low e"
+      "sourceSpan": "single-glazed on three sides"
     },
     "windowFrame": {
       "value": "Wood or metal clad",
       "confidence": 0.9,
-      "sourceSpan": "Wood or metal clad"
+      "sourceSpan": "wood with the aluminum cladding on the outside, clad windows"
     },
     "windowEnergyStar": {
       "value": null,
@@ -168,21 +168,21 @@
     "dhwType2": {
       "value": "Tankless Water Heater",
       "confidence": 1,
-      "sourceSpan": "propane tankless unit, mounted on the wall in the closet, a Rinnai"
+      "sourceSpan": "it's a propane tankless unit"
     },
     "dhwFuel2": {
       "value": "Propane",
       "confidence": 1,
-      "sourceSpan": "propane tankless unit"
+      "sourceSpan": "it's a propane tankless unit"
     },
     "dhwAge": {
       "value": null,
-      "confidence": 0.9,
+      "confidence": 0.8,
       "sourceSpan": null
     },
     "dhwLocation": {
       "value": "Garage or Unconditioned Space",
-      "confidence": 0.8,
+      "confidence": 0.7,
       "sourceSpan": "mounted on the wall in the closet"
     },
     "dhwTankSize": {
@@ -198,14 +198,14 @@
   },
   "health": {
     "healthAmbientCarbonMonoxide": {
-      "value": null,
+      "value": "Passed",
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "zero to two ppm"
     },
     "healthNaturalConditionSpillage": {
       "value": "Failed",
       "confidence": 1,
-      "sourceSpan": "and it spilled, it backdrafted under natural conditions, flue gases rolling right out the draft diverter, and that is a hard fail"
+      "sourceSpan": "spilled, it backdrafted under natural conditions, flue gases rolling right out the draft diverter"
     },
     "healthWorstCaseDepressurization": {
       "value": null,
@@ -225,7 +225,7 @@
     "healthDraftPressure": {
       "value": "Passed",
       "confidence": 1,
-      "sourceSpan": "that passes"
+      "sourceSpan": "got good draft, nice steady pull up the chimney"
     },
     "healthGasLeak": {
       "value": "Passed",
@@ -235,12 +235,12 @@
     "healthVenting": {
       "value": "Passed",
       "confidence": 1,
-      "sourceSpan": "both baths, they actually vent to the outside properly on this house, which is a nice change"
+      "sourceSpan": "both baths, they actually vent to the outside properly"
     },
     "healthMoldMoisture": {
       "value": "Warning",
       "confidence": 0.8,
-      "sourceSpan": "some moisture staining on the basement wall, efflorescence and a bit of soft drywall in the one corner, I'd flag that as a moisture concern, worth watching, call it a warning on moisture"
+      "sourceSpan": "some moisture staining on the basement wall, efflorescence and a bit of soft drywall in the one corner, I'd flag that as a moisture concern, worth watching"
     },
     "healthRadon": {
       "value": null,
@@ -258,9 +258,9 @@
       "sourceSpan": null
     },
     "healthElectrical": {
-      "value": null,
+      "value": "Passed",
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": " Dryer vents straight out the rim joist, short clean run, that's fine."
     },
     "healthRoofCondition": {
       "value": null,

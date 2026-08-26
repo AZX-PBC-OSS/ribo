@@ -28,7 +28,7 @@
     "blowerDoorReading": {
       "value": 3600,
       "confidence": 1,
-      "sourceSpan": "And if you want air changes, that works out to about eight ACH50, but the number you write down for the blower door is the thirty-six hundred"
+      "sourceSpan": "And if you want air changes, that works out to about eight ACH50, but the number you write down for the blower door is the thirty-six hundred."
     },
     "blowerDoorTestPerformed": {
       "value": null,
@@ -39,8 +39,8 @@
   "hvac": {
     "hvacSystemEquipmentType": {
       "value": "Furnace / Central AC (shared ducts)",
-      "confidence": 1,
-      "sourceSpan": "The duct leakage, that's the duct blaster at twenty-five pascals, read two hundred and ten."
+      "confidence": 0.9,
+      "sourceSpan": "Heating down here is a heat pump"
     },
     "hvacUpgradeAction": {
       "value": null,
@@ -50,22 +50,22 @@
     "hvacHeatingEnergySource": {
       "value": "Electricity",
       "confidence": 1,
-      "sourceSpan": "It's a heat pump, it's a central heat pump on the shared ducts, the air handler's in the crawl. Electric, obviously, it's a heat pump."
+      "sourceSpan": "It's electric, obviously"
     },
     "hvacHeatingSystemManufacturer": {
       "value": "Bosch",
       "confidence": 0.9,
-      "sourceSpan": "a Bosch"
+      "sourceSpan": "it's a Bosch"
     },
     "hvacHeatingSystemModel": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0.9,
       "sourceSpan": "no model or year I could get to"
     },
     "hvacHeatingSystemModelYear": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": "I couldn't get to"
+      "sourceSpan": "it's crammed up in a tight spot"
     },
     "hvacHeatingCapacity": {
       "value": null,
@@ -83,19 +83,19 @@
       "sourceSpan": "Ducts run in the crawlspace"
     },
     "hvacDuctLeakage": {
-      "value": null,
-      "confidence": 1,
-      "sourceSpan": null
+      "value": "6% - Well sealed",
+      "confidence": 0.7,
+      "sourceSpan": "Sealing's okay, not great, somewhat leaky"
     },
     "hvacDuctLeakageValue": {
       "value": 210,
       "confidence": 0.9,
-      "sourceSpan": "read two hundred and ten"
+      "sourceSpan": "duct-blasted it. Now let me be careful reading my numbers back because I always get asked which is which. The duct leakage, that's the duct blaster at twenty-five pascals, read two hundred and ten."
     },
     "hvacDuctInsulation": {
       "value": "Fiberglass 2 inch",
       "confidence": 0.9,
-      "sourceSpan": "the two-inch stuff, in decent shape."
+      "sourceSpan": "They're insulated, looks like fiberglass wrap, the two-inch stuff,"
     }
   },
   "attic": {
@@ -142,9 +142,9 @@
       "sourceSpan": null
     },
     "wallCavityInsulationType": {
-      "value": "Fiberglass or Rockwool Batt",
+      "value": null,
       "confidence": 1,
-      "sourceSpan": "fiberglass wrap, the two-inch stuff"
+      "sourceSpan": null
     }
   },
   "window": {
@@ -177,13 +177,13 @@
     },
     "dhwAge": {
       "value": "6-10",
-      "confidence": 0.9,
+      "confidence": 0.8,
       "sourceSpan": "It's maybe six or seven years old"
     },
     "dhwLocation": {
-      "value": null,
-      "confidence": 1,
-      "sourceSpan": null
+      "value": "Indoors and within heated area",
+      "confidence": 0.8,
+      "sourceSpan": "sitting in the crawl too"
     },
     "dhwTankSize": {
       "value": null,
@@ -192,7 +192,7 @@
     },
     "dhwManufacturer": {
       "value": "Bosch",
-      "confidence": 0.9,
+      "confidence": 1,
       "sourceSpan": "a Bosch"
     }
   },
@@ -228,9 +228,9 @@
       "sourceSpan": null
     },
     "healthGasLeak": {
-      "value": null,
-      "confidence": 1,
-      "sourceSpan": null
+      "value": "Passed",
+      "confidence": 0.9,
+      "sourceSpan": "no leaks at the fittings either, all dry"
     },
     "healthVenting": {
       "value": null,

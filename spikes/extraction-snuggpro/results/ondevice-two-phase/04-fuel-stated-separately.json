@@ -1,271 +1,271 @@
 {
   "basedata": {
     "yearBuilt": {
-      "value": null,
-      "confidence": 1,
-      "sourceSpan": null
+      "value": 1999,
+      "sourceSpan": "nineteen ninety-nine",
+      "confidence": 1
     },
     "conditionedArea": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "floorsAboveGrade": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "numberOfBedrooms": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "typeOfHome": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "blowerDoorReading": {
-      "value": 3200,
-      "confidence": 1,
-      "sourceSpan": "We came in at thirty-two hundred CFM50."
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
     },
     "blowerDoorTestPerformed": {
       "value": null,
-      "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "I did not do the worst-case depressurization test today, I didn't have time to set the house up for it, so that one's not done",
+      "confidence": 0
     }
   },
   "hvac": {
     "hvacSystemEquipmentType": {
-      "value": "Furnace / Central AC (shared ducts)",
-      "confidence": 0.9,
-      "sourceSpan": "Heat's a gas furnace"
+      "value": "Boiler",
+      "sourceSpan": "boiler",
+      "confidence": 1
     },
     "hvacUpgradeAction": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "hvacHeatingEnergySource": {
-      "value": "Natural Gas",
-      "confidence": 1,
-      "sourceSpan": "gas furnace"
+      "value": "Fuel Oil",
+      "sourceSpan": "oil",
+      "confidence": 1
     },
     "hvacHeatingSystemManufacturer": {
-      "value": "Trane",
-      "confidence": 1,
-      "sourceSpan": "it's a Trane"
+      "value": null,
+      "sourceSpan": "Weil-McLain",
+      "confidence": 0
     },
     "hvacHeatingSystemModel": {
-      "value": "TUD100",
-      "confidence": 1,
-      "sourceSpan": "Model number off the label — it's a TUD100"
+      "value": null,
+      "sourceSpan": "WGO",
+      "confidence": 0
     },
     "hvacHeatingSystemModelYear": {
-      "value": 2017,
-      "confidence": 1,
-      "sourceSpan": "the manufacture date stamped is twenty seventeen"
+      "value": 1999,
+      "sourceSpan": "nineteen ninety-nine",
+      "confidence": 1
     },
     "hvacHeatingCapacity": {
-      "value": 100000,
-      "confidence": 1,
-      "sourceSpan": "Output's a hundred thousand BTU on the plate"
+      "value": 105000,
+      "sourceSpan": "Hundred and five thousand BTU",
+      "confidence": 1
     },
     "hvacCoolingCapacity": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "hvacDuctLocation": {
-      "value": "Central Heat Pump (shared ducts)",
-      "confidence": 0.8,
-      "sourceSpan": "forced hot air down in the utility closet"
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
     },
     "hvacDuctLeakage": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "hvacDuctLeakageValue": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "hvacDuctInsulation": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     }
   },
   "attic": {
     "atticInsulationDepth": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "atticInsulationType": {
-      "value": "Fiberglass or Rockwool (batts or blown)",
-      "confidence": 0.8,
-      "sourceSpan": "blown fiberglass"
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
     },
     "atticInsulation": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "atticHasKneeWall": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "atticRoofType": {
       "value": null,
-      "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "flat roof",
+      "confidence": 0
     }
   },
   "wall": {
     "wallsInsulated": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "wallExteriorWallSiding": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "wallCavityInsulation": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "wallCavityInsulationType": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     }
   },
   "window": {
     "windowType": {
-      "value": "Double pane",
-      "confidence": 1,
-      "sourceSpan": "Windows are all double pane, vinyl frames, looks like they were done all at once. Whole house double pane vinyl."
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
     },
     "windowFrame": {
-      "value": "Vinyl",
-      "confidence": 1,
-      "sourceSpan": "Windows are all double pane, vinyl frames, looks like they were done all at once. Whole house double pane vinyl."
+      "value": null,
+      "confidence": 0,
+      "sourceSpan": null
     },
     "windowEnergyStar": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     }
   },
   "dhw": {
     "dhwType2": {
-      "value": null,
-      "confidence": 1,
-      "sourceSpan": null
+      "value": "Tank Water Heater",
+      "sourceSpan": "Hot water is a standalone electric tank, fifty gallon, it's not tied to the boiler, separate electric water heater",
+      "confidence": 1
     },
     "dhwFuel2": {
-      "value": "Natural Gas",
-      "confidence": 1,
-      "sourceSpan": "Heat's a gas furnace"
+      "value": "Fuel Oil",
+      "sourceSpan": "oil",
+      "confidence": 1
     },
     "dhwAge": {
       "value": null,
-      "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "maybe twelve years old but call it early two-thousand-tens",
+      "confidence": 0
     },
     "dhwLocation": {
-      "value": "Garage or Unconditioned Space",
-      "confidence": 0.7,
-      "sourceSpan": "gas furnace down in the utility closet"
+      "value": null,
+      "sourceSpan": "mechanical room",
+      "confidence": 0
     },
     "dhwTankSize": {
-      "value": null,
-      "confidence": 1,
-      "sourceSpan": null
+      "value": 50,
+      "sourceSpan": "fifty gallon",
+      "confidence": 1
     },
     "dhwManufacturer": {
-      "value": "Triangle Tube",
-      "confidence": 1,
-      "sourceSpan": "it's a Trane"
+      "value": null,
+      "sourceSpan": "Rheem",
+      "confidence": 0
     }
   },
   "health": {
     "healthAmbientCarbonMonoxide": {
       "value": "Passed",
-      "confidence": 0.9,
-      "sourceSpan": "Ambient CO right next to the furnace while it was running read zero, so that's clean, no carbon monoxide, good."
+      "sourceSpan": "the ambient carbon monoxide by the burner read four ppm, which is fine, below any action level, so that's a pass on CO.",
+      "confidence": 1
     },
     "healthNaturalConditionSpillage": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "healthWorstCaseDepressurization": {
-      "value": null,
-      "confidence": 1,
-      "sourceSpan": null
+      "value": "Not Tested",
+      "sourceSpan": "I didn't do the worst-case depressurization test today, I didn't have time to set the house up for it, so that one's not done, we'll schedule it.",
+      "confidence": 1
     },
     "healthWorstCaseSpillage": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "healthUndilutedFlueCo": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "healthDraftPressure": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "healthGasLeak": {
       "value": "Passed",
-      "confidence": 0.9,
-      "sourceSpan": "no gas smell obviously it's oil, but no leaks at the fittings either, all dry"
+      "sourceSpan": "I ran the gas leak check even though it's oil, out of habit, sniffed all the fittings, came back completely clean, no leaks.",
+      "confidence": 1
     },
     "healthVenting": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "healthMoldMoisture": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "healthRadon": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "healthAsbestos": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "healthLead": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "healthElectrical": {
       "value": null,
-      "confidence": 1,
+      "confidence": 0,
       "sourceSpan": null
     },
     "healthRoofCondition": {
       "value": null,
-      "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "it's a flat roof, so I've got nothing on attic insulation.",
+      "confidence": 0
     }
   }
 }

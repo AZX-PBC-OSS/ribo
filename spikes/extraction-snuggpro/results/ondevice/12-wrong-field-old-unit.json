@@ -43,14 +43,14 @@
       "sourceSpan": "The new one is a gas furnace"
     },
     "hvacUpgradeAction": {
-      "value": "Replace with a newer model",
+      "value": "Install a new non-existing system",
       "confidence": 0.9,
       "sourceSpan": "They just put in a new heating system"
     },
     "hvacHeatingEnergySource": {
       "value": "Natural Gas",
       "confidence": 1,
-      "sourceSpan": "The new one is a gas furnace"
+      "sourceSpan": "gas furnace"
     },
     "hvacHeatingSystemManufacturer": {
       "value": "Bryant",
@@ -60,7 +60,7 @@
     "hvacHeatingSystemModel": {
       "value": "926T",
       "confidence": 1,
-      "sourceSpan": "the new one is a gas furnace, model 926T"
+      "sourceSpan": "model 926T"
     },
     "hvacHeatingSystemModelYear": {
       "value": 2024,
@@ -166,19 +166,19 @@
   },
   "dhw": {
     "dhwType2": {
-      "value": "Tank Water Heater",
-      "confidence": 1,
-      "sourceSpan": "the original, a gas storage tank"
+      "value": "Tankless Water Heater",
+      "confidence": 0.8,
+      "sourceSpan": "The water heater they kept, it's the original, a gas storage tank"
     },
     "dhwFuel2": {
       "value": "Natural Gas",
       "confidence": 1,
-      "sourceSpan": "a gas storage tank"
+      "sourceSpan": "the water heater they kept, it's the original, a gas storage tank"
     },
     "dhwAge": {
       "value": "26-30",
       "confidence": 0.9,
-      "sourceSpan": "that one is old, the sticker says nineteen ninety-eight, so that's twenty-six, twenty-seven years old"
+      "sourceSpan": "that one is old, nineteen ninety-eight"
     },
     "dhwLocation": {
       "value": null,

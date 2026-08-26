@@ -28,74 +28,74 @@
     "blowerDoorReading": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": "Didn't get into the attic, didn't see the heating, nothing on the inside today"
+      "sourceSpan": null
     },
     "blowerDoorTestPerformed": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": "Didn't get into the attic, didn't see the heating, nothing on the inside today"
+      "sourceSpan": null
     }
   },
   "hvac": {
     "hvacSystemEquipmentType": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": "It's a single story ranch, looks like a two-by-six frame from the addition framing I could see through the garage window."
+      "sourceSpan": "exterior only"
     },
     "hvacUpgradeAction": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "exterior only"
     },
     "hvacHeatingEnergySource": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "exterior only"
     },
     "hvacHeatingSystemManufacturer": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "exterior only"
     },
     "hvacHeatingSystemModel": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "exterior only"
     },
     "hvacHeatingSystemModelYear": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "exterior only"
     },
     "hvacHeatingCapacity": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "exterior only"
     },
     "hvacCoolingCapacity": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "exterior only"
     },
     "hvacDuctLocation": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "exterior only"
     },
     "hvacDuctLeakage": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "exterior only"
     },
     "hvacDuctLeakageValue": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "exterior only"
     },
     "hvacDuctInsulation": {
       "value": null,
       "confidence": 1,
-      "sourceSpan": null
+      "sourceSpan": "exterior only"
     }
   },
   "attic": {
@@ -149,14 +149,14 @@
   },
   "window": {
     "windowType": {
-      "value": "Single pane",
-      "confidence": 0.7,
-      "sourceSpan": "Windows from outside look like double pane, the reflection's got that double bounce, but I couldn't get up close on all of them so I'm not certain."
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
     },
     "windowFrame": {
       "value": "Vinyl",
       "confidence": 1,
-      "sourceSpan": "Vinyl frames though, that I'm sure of, white vinyl all the way around."
+      "sourceSpan": null
     },
     "windowEnergyStar": {
       "value": null,
