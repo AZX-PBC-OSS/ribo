@@ -23,6 +23,13 @@ import type {
   LanguageModelSession,
 } from "../capability.js";
 
+/**
+ * One scripted response for a single `promptStreaming` call: either the chunks to
+ * yield, or an error to throw at the start of the stream. Used by tests that need
+ * the fake to behave differently on each attempt, especially the retry path.
+ */
+export type FakeResponseSequence = readonly (readonly string[] | Error)[];
+
 export class FakeLanguageModel implements LanguageModel {
   availabilityValue: LanguageModelAvailability = "unavailable";
   availabilityError?: Error;
@@ -35,6 +42,15 @@ export class FakeLanguageModel implements LanguageModel {
   chunkDelayMs = 0;
   /** If set, every new session inherits this and throws it from `promptStreaming`. */
   promptError?: Error;
+  /**
+   * Per-attempt response overrides. If provided, the Nth `promptStreaming` call
+   * consumes the Nth entry instead of `chunks`/`promptError`. This lets tests
+   * script a degenerate first attempt, a good second attempt, etc., without
+   * rebuilding the fake between calls.
+   */
+  sequence: FakeResponseSequence = [];
+  /** How many `promptStreaming` calls have been made across all sessions. */
+  promptCallCount = 0;
 
   /** How many times `create()` was called — the no-background-download assertion. */
   createCount = 0;
@@ -97,8 +113,15 @@ export class FakeLanguageModelSession implements LanguageModelSession {
     options: LanguageModelPromptOptions = {},
   ): AsyncIterable<string> {
     this.prompts.push({ input, options });
+    this.#model.promptCallCount++;
     if (this.promptError) throw this.promptError;
-    for (const chunk of this.#model.chunks) {
+
+    const sequenceIndex = this.#model.promptCallCount - 1;
+    const entry = this.#model.sequence[sequenceIndex];
+    if (entry instanceof Error) throw entry;
+    const chunks = entry ?? this.#model.chunks;
+
+    for (const chunk of chunks) {
       if (options.signal?.aborted) {
         this.streamCancelled = true;
         throw new DOMException("The operation was aborted", "AbortError");
