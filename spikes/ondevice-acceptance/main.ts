@@ -23,12 +23,10 @@ import {
   normalizeFields,
 } from "@azx/ribo-adapter-snuggpro";
 import { perGroupExtractor } from "@azx/ribo-extractor-openai";
-import { OnDeviceChat } from "@azx/ribo-extractor-ondevice";
+import { OnDeviceChat, threePhaseExtractor } from "@azx/ribo-extractor-ondevice";
 
 import { extractTwoPhase, formatStats, mergeStats, newStats } from "./two-phase.js";
 import * as threePhase from "./three-phase.js";
-import { threePhaseExtractor } from "@azx/ribo-extractor-ondevice";
-import { snuggProAdapter } from "@azx/ribo-adapter-snuggpro";
 
 const out = document.getElementById("out") as HTMLPreElement;
 const goPerGroup = document.getElementById("go-per-group") as HTMLButtonElement;
