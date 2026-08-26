@@ -88,8 +88,14 @@ test("records whether a synthesised click grants user activation", async ({ skip
   });
 
   await userEvent.click(button);
-  // Long enough for the abort deadline plus a short prompt to come back.
-  await new Promise((resolve) => setTimeout(resolve, 12_000));
+
+  // Poll rather than sleep a fixed span. A fixed wait long enough for the slowest
+  // case pays that cost on every run of the full gate, and this probe settles in
+  // well under a second against the stub.
+  const deadline = Date.now() + 15_000;
+  while (outcome === "handler never ran" && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
 
   console.info(`[prompt-api gesture] ${outcome}`);
   button.remove();
