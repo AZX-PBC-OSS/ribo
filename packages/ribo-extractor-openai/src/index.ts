@@ -41,7 +41,7 @@ export type { HelixChatOptions } from "./helix-chat.js";
 // The chat transport seam: the interface an extractor calls, its request/response
 // types, its call options, and the typed error its implementations throw.
 // `ChatError` is a VALUE export (a class); the rest are types.
-export { ChatError } from "./chat-client.js";
+export { ChatError, CHAT_UNAVAILABLE_REASONS } from "./chat-client.js";
 export type {
   ChatCallOptions,
   ChatCapability,
@@ -50,6 +50,7 @@ export type {
   ChatCompletion,
   ChatErrorKind,
   ChatFinishReason,
+  ChatUnavailableReason,
   ChatMessage,
   ChatRequest,
   ChatResponseFormat,
