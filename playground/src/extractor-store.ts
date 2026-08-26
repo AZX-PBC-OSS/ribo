@@ -1,4 +1,4 @@
-import { FakeExtractor, toExtractStep, type ExtractStep } from "@azx/ribo-core";
+import { FakeExtractor, toExtractStep, type Connectivity, type ExtractStep } from "@azx/ribo-core";
 import { OnDeviceChat, type LanguageModel } from "@azx/ribo-extractor-ondevice";
 import {
   compositeExtractor,
@@ -165,6 +165,13 @@ export interface BuildExtractorOptions {
    * delegate reports `unavailable`.
    */
   readonly onDeviceLanguageModel?: LanguageModel;
+  /**
+   * Optional connectivity source. When provided, the composite's capability
+   * cache is invalidated on every transition so a stale managed `ready` is not
+   * reused after the uplink drops. See `docs/superpowers/specs/2026-08-17-ondevice-
+   * extraction-design.md` §3.4.
+   */
+  readonly connectivity?: Connectivity;
 }
 
 /** The two delegates and the composite that selects between them. */
@@ -218,11 +225,22 @@ export function buildExtractorWiring(options: BuildExtractorOptions): ExtractorW
     { chat: onDeviceChat, extractor: onDevice },
   ];
 
+  const composite = compositeExtractor(entries);
+
+  // The relay's connectivity watch only triggers drains; it invalidates nothing.
+  // A stale managed `ready` can survive a full TTL after the uplink drops, so any
+  // connectivity transition must drop the composite's capability cache.
+  if (options.connectivity) {
+    options.connectivity.subscribe(() => {
+      composite.invalidate();
+    });
+  }
+
   return {
     managed: entries[0]!,
     onDevice: entries[1]!,
     entries,
-    composite: compositeExtractor(entries),
+    composite,
   };
 }
 
@@ -245,11 +263,16 @@ export function buildExtractorStep({
   model,
   strategy = "per-group",
   ...rest
-}: BuildExtractorOptions): { extractStep: ExtractStep; status: ExtractorStatus } {
+}: BuildExtractorOptions): {
+  readonly extractStep: ExtractStep;
+  readonly status: ExtractorStatus;
+  readonly composite: CompositeExtractor<ExtractedShape> | undefined;
+} {
   if (!apiKey) {
     return {
       extractStep: toExtractStep(new FakeExtractor(sampleFields)),
       status: { mode: "fake" },
+      composite: undefined,
     };
   }
 
@@ -264,6 +287,7 @@ export function buildExtractorStep({
     return {
       extractStep: toExtractStep(extractor),
       status: { mode: "live", strategy, model, baseUrl },
+      composite: undefined,
     };
   }
 
@@ -271,6 +295,7 @@ export function buildExtractorStep({
   return {
     extractStep: toExtractStep(composite),
     status: { mode: "live", strategy, model, baseUrl },
+    composite,
   };
 }
 
@@ -343,6 +368,24 @@ function asCapableChatClient(chat: ChatClient, engine: string): CapableChatClien
   };
 }
 
+/**
+ * Subscribe a composite extractor to connectivity transitions.
+ *
+ * The relay's connectivity watch only drains the queue; it does not invalidate
+ * cached capability answers. Without this, a stale managed `ready` survives the
+ * TTL after the uplink drops and the composite wastes one extraction attempt on
+ * a dead path. Called from the panel that renders extraction state, once on
+ * mount.
+ */
+export function wireExtractorConnectivity(
+  composite: CompositeExtractor<ExtractedShape>,
+  connectivity: Connectivity,
+): void {
+  connectivity.subscribe(() => {
+    composite.invalidate();
+  });
+}
+
 // --- The module singleton ----------------------------------------------------
 // Both panels import `extractStep` — ONE shared step, so the two relays drain the
 // same outbox with the same extraction. See the file header for why this is a
@@ -355,3 +398,6 @@ export const extractStep: ExtractStep = built.extractStep;
 
 /** Which extractor is live — read by the UI to label the active path. */
 export const extractorStatus: ExtractorStatus = built.status;
+
+/** The composite behind the per-group live extractor, for connectivity invalidation. */
+export const extractorComposite: CompositeExtractor<ExtractedShape> | undefined = built.composite;

@@ -114,3 +114,14 @@ export const survivedBadge: CSSProperties = {
   fontWeight: 600,
   padding: "0.1rem 0.55rem",
 };
+
+/** Badges a review card that was drafted by the on-device beta model. */
+export const betaBadge: CSSProperties = {
+  background: "#bf8700",
+  borderRadius: 999,
+  color: "#fff",
+  fontSize: "0.75rem",
+  fontWeight: 600,
+  padding: "0.1rem 0.55rem",
+  textTransform: "uppercase",
+};
