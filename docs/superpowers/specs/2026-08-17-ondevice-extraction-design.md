@@ -593,18 +593,37 @@ four times: **20/20 solved, 0 gave up**, histogram `{1:4, 2:10, 3:5, 4:1}` (mean
 **6,482 ms mean per group**, **~45s for seven groups** against a 900s step timeout. Loop-kill
 latency 1.4s median versus 3.9s median for a successful call.
 
-### 10.6 Reaching a real model from a test is not solved
+### 10.6 Reaching a real model from a test — the blocker is the gesture, not the browser
 
-Every §10 number came from a **standalone page in real Chrome**, driven by hand, with the model
-pre-armed. That was not a convenience: Playwright's bundled Chromium — which the repo's browser
-project launches — has no Gemini Nano, because the model arrives through branded Chrome's
-component updater. Downloading it inside a test is also blocked by the user-gesture rule
-(§10.4) and would take ~5.4 minutes.
+**Corrected 2026-08-26.** This section previously claimed Playwright's bundled Chromium has no
+Gemini Nano, so any real-model test would have to use a Chrome-channel launch or a standalone
+harness. **That was wrong**, and it was asserted three times over — by this spec, by the plan
+built from it, and independently by both reviewers of that plan. Nobody measured it.
 
-**So any acceptance run against the real model needs a Chrome-channel launch with a persistent,
-pre-armed profile, or a standalone harness like §10's.** Recorded because the first plan drafted
-from this spec assumed the ordinary browser project would do, which would have produced tests
-that skip everywhere and look like coverage.
+Measured under the repo's own browser project
+(`packages/ribo-extractor-ondevice/src/prompt-api-availability.browser.test.ts`, HeadlessChrome
+149):
+
+| probe                  | result                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------ |
+| `LanguageModel` global | **present**                                                                                      |
+| `availability()`       | **`downloadable`**                                                                               |
+| `create()`             | `NotAllowedError — Requires a user gesture when availability is "downloading" or "downloadable"` |
+
+So the API surface is there and the model is fetchable. The obstacle is the **user-gesture rule**
+of §10.4 — the same obstacle real Chrome has, not a property of Playwright's build.
+
+That reframes the problem from "route around a missing API" to two open questions:
+
+1. **Does a Playwright-synthesised click satisfy user activation?** Its input events are
+   dispatched through CDP and are trusted, so plausibly yes — unmeasured.
+2. **Does the downloaded model survive between runs?** Playwright launches ephemeral contexts by
+   default. A fresh profile per run means a ~5.4-minute multi-gigabyte download every time, which
+   is unusable for CI regardless of question 1. A persistent `user-data-dir` is the obvious
+   answer, also unmeasured.
+
+The probe test above is kept in the suite rather than written up and deleted, so that if any of
+this changes the suite says so on the next run instead of a document going quietly stale.
 
 ### 10.7 What the measurements changed
 
