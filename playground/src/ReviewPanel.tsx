@@ -10,6 +10,7 @@ import type {
 } from "@azx/ribo-core";
 import { useOutboxItems, useReview } from "@azx/ribo-ui-react";
 import { snuggProAdapter, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
+import { ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 
 import { getConnectivity } from "./connectivity-store.js";
 import {
@@ -390,7 +391,11 @@ function ReviewCard({ item }: { item: OutboxItem }) {
       <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
         <strong style={monospace}>#{item.seq}</strong>
         <span style={statusBadge(item.status)}>{item.status}</span>
-        {item.extractedBy === "ondevice-chat" && (
+        {/* Compared against the exported constant, not a copy of its value: the
+            engine id is written by the extractor and read here, and a literal in
+            one of those two places drifts silently — the badge would just stop
+            appearing, which looks like "no on-device extractions happened". */}
+        {item.extractedBy === ONDEVICE_CHAT_ENGINE && (
           <span style={betaBadge}>beta — on-device extraction</span>
         )}
         <span style={muted}>
