@@ -10,7 +10,7 @@
 **How you ask the question mattered far more than any amount of engineering around the answer.**
 
 The design in
-[the on-device extraction spec](../superpowers/specs/2026-08-17-ondevice-extraction-design.md)
+[the on-device extraction spec](../roadmap/design/ondevice-extraction-design.md)
 sent one constrained call per field group and mitigated the model's failures with retries. That
 strategy lost **4 of 14 transcripts** even after the retry budget was tuned, and its quality got
 _worse_ as reliability improved.
@@ -180,14 +180,24 @@ well (band mapping scored 100%, health matrix ~77%). The last of those was desig
 
 ## Sources
 
-- `spikes/ondevice-acceptance/` — the runner and the three strategy implementations.
-- `spikes/extraction-snuggpro/results/{ondevice-run1,ondevice,ondevice-two-phase,ondevice-three-phase,ondevice-grounded}/`
-  — the raw result files and run logs for all five runs.
-- `spikes/extraction-snuggpro/score.mjs` — the scorer, reused verbatim.
+- `spikes/ondevice-acceptance/` — the runner and every strategy measured here. **Committed;
+  its output is not.** Each run produces ~6,000 lines of generated JSON, and every number in this
+  document is already above. Reproduce by serving that directory
+  (`pnpm exec vite --config spikes/ondevice-acceptance/vite.config.ts`), opening it in **real
+  Chrome** — it refuses to run against Chromium's Prompt API stub — and clicking a strategy.
+  Results land in `spikes/extraction-snuggpro/results/ondevice*/`, which is gitignored.
+- `spikes/extraction-snuggpro/score.mjs` — the scorer, reused verbatim:
+  `node spikes/extraction-snuggpro/score.mjs spikes/extraction-snuggpro/results/ondevice-production`.
+
+  **Reproductions will not match these figures exactly.** The model is non-deterministic and the
+  corpus is 13 transcripts, so single-digit counts move between runs — 45/48 against 44/46 on the
+  same code, measured. What should reproduce are the structural properties: every transcript
+  completing, zero degenerations, and 100% span fidelity.
+
 - [Doc 16](16-extraction-schema-scale.md) §5 — the frontier baselines quoted above, and the
   earlier finding that decomposition was a wash _for frontier models_, which is the premise this
   document overturns for a small one.
 - [Doc 18](18-first-extraction-measurement.md) — the shape-versus-accuracy split this follows.
-- [The on-device extraction spec](../superpowers/specs/2026-08-17-ondevice-extraction-design.md)
+- [The on-device extraction spec](../roadmap/design/ondevice-extraction-design.md)
   §10 — the earlier bench measurements, including the toy-schema degeneration rate that led to the
   wrong retry budget.

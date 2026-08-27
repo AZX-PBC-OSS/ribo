@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, zod, RxDB (outbox), vitest (unit + browser via Playwright), pnpm workspace, tsdown. Chrome Prompt API (`LanguageModel`) — browser-only, no npm dependency.
 
-**Spec:** `docs/superpowers/specs/2026-08-17-ondevice-extraction-design.md`. Read §3.5, §10 and §11 before starting. This plan is **revision 2**: two reviewers found three execution-blockers in revision 1, recorded in spec §11. Where this plan and the spec disagree with the tree, **the tree is right** — that is how all three blockers arose.
+**Spec:** `docs/roadmap/design/ondevice-extraction-design.md`. Read §3.5, §10 and §11 before starting. This plan is **revision 2**: two reviewers found three execution-blockers in revision 1, recorded in spec §11. Where this plan and the spec disagree with the tree, **the tree is right** — that is how all three blockers arose.
 
 ## Global Constraints
 

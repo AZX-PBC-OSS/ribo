@@ -1,4 +1,0 @@
-strategy: per-group (production)
-availability(): available
-stub check passed — model answered "ok\n"
-corpus: 14 annotated transcripts
