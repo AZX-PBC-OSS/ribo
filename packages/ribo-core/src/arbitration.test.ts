@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import type { ExtractionResult } from "./extractor.js";
 import { TerminalQueueError, isTransientFailure } from "./queue/backoff.js";
+import { SchemaParseError } from "./schema-parse-error.js";
 import {
   acceptAnySuccess,
   errorOutcome,
@@ -78,6 +79,19 @@ describe("terminalFallsThrough", () => {
 
     expectContinue(terminalFallsThrough(makeInput([errorOutcome("a", terminal)])));
     expectGiveUp(terminalFallsThrough(makeInput([errorOutcome("a", transient)])), transient);
+  });
+
+  test("falls through on a schema parse error even though it is transient", () => {
+    // A schema miss is sampled: the same request can pass zod on re-send, so it
+    // must stay transient (the queue keeps retrying). But it is also a shape
+    // mismatch, so the ladder should move on to a different strategy rather than
+    // sampling the same shape indefinitely.
+    const schemaError = new SchemaParseError(
+      "did not match the schema: equipment: expected object",
+    );
+    expect(isTransientFailure(schemaError)).toBe(true);
+
+    expectContinue(terminalFallsThrough(makeInput([errorOutcome("a", schemaError)])));
   });
 
   test("gives up on a bare Error with no status", () => {

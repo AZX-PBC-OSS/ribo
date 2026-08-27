@@ -1,5 +1,6 @@
 import type { ExtractionResult } from "./extractor.js";
 import { isTransientFailure } from "./queue/backoff.js";
+import { SchemaParseError } from "./schema-parse-error.js";
 
 /**
  * @file The arbiter contract: a caller-supplied classifier that decides whether an
@@ -100,7 +101,7 @@ function isErrorOutcome<F>(outcome: ExtractionOutcome<F>): outcome is ErrorOutco
 
 /**
  * The conservative default: accept the first success, fall through on a terminal
- * error, and give up immediately on a transient one.
+ * error or a schema-parse miss, and give up immediately on a transient one.
  *
  * The direction is the opposite of what the name suggests on a first reading.
  * By the time an error reaches the arbiter, the candidate has already spent its
@@ -109,11 +110,27 @@ function isErrorOutcome<F>(outcome: ExtractionOutcome<F>): outcome is ErrorOutco
  * transient error means the transport is down, and the next strategy on the same
  * engine shares that transport, so retrying the whole extraction later is better
  * than burning a worse strategy now.
+ *
+ * A schema-parse error is a special case: it is sampled (the same request can pass
+ * zod on re-send), so `isTransientFailure` still classifies it as retryable and
+ * the queue keeps retrying. But it is also a shape mismatch, so a different
+ * strategy might succeed where this one keeps sampling badly; we continue.
  */
 export function terminalFallsThrough<F>(input: ArbiterInput<F>): ArbiterVerdict<F> {
   const firstResult = input.outcomes.find(isResultOutcome);
   if (firstResult) {
     return { accept: firstResult.result };
+  }
+
+  // A schema miss is sampled, not deterministic. The queue should still retry it,
+  // but the ladder should also fall through to a different strategy rather than
+  // wedging on the same shape. Continue now and let the next candidate try.
+  const firstSchemaParse = input.outcomes.find(
+    (outcome): outcome is ErrorOutcome<F> =>
+      isErrorOutcome(outcome) && outcome.error instanceof SchemaParseError,
+  );
+  if (firstSchemaParse) {
+    return { continue: true };
   }
 
   // A transient error means the transport is down after the candidate's own

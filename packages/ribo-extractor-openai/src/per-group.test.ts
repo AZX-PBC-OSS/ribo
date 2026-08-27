@@ -3,6 +3,7 @@ import {
   DEFAULT_BACKOFF_CAP_MS,
   enveloped,
   isTransientFailure,
+  SchemaParseError,
 } from "@azx/ribo-core";
 import type { Enveloped, ExtractionTarget, ToolAdapterExample } from "@azx/ribo-core";
 import { z } from "zod";
@@ -473,13 +474,21 @@ describe("perGroupExtractor — failure classification", () => {
     expect(isTransientFailure(error)).toBe(false);
   });
 
-  test("a schema-invalid group response is transient (queue retries)", async () => {
-    // A response that passes JSON parse but fails the group schema throws a
-    // plain Error — which isTransientFailure classifies as transient, so the
-    // queue retries rather than marking the recording dead.
-    const { chat } = fakeGroupChat({
-      [groupedName("hvac")]: JSON.stringify({ hvac: "not an envelope" }),
-      [groupedName("attic")]: JSON.stringify(atticResponse),
+  test("a schema-invalid group response is a sampled parse failure (transient, so the queue retries)", async () => {
+    // A response that passes JSON parse but fails the group schema is a sampled
+    // miss: the same request can pass zod on re-send. It is therefore transient
+    // (the queue retries) but also recognisable (SchemaParseError) so a strategy
+    // ladder can fall through. The failing group is retried; the sibling group is
+    // called once and held while the failing group retries.
+    const { chat, callCounts } = fakeRetryChat({
+      [groupedName("hvac")]: () => ({
+        content: JSON.stringify({ hvac: "not an envelope" }),
+        finishReason: "stop",
+      }),
+      [groupedName("attic")]: () => ({
+        content: JSON.stringify(atticResponse),
+        finishReason: "stop",
+      }),
     });
     const extractor = perGroupExtractor({
       target: groupedTarget,
@@ -495,9 +504,15 @@ describe("perGroupExtractor — failure classification", () => {
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(Error);
+    expect(error).toBeInstanceOf(SchemaParseError);
     expect((error as Error).message).toContain("did not match the schema");
+    expect((error as Error).message).toContain("hvac");
     expect(isTransientFailure(error)).toBe(true);
+
+    // The failing group was retried, not marked dead immediately.
+    expect(callCounts[groupedName("hvac")]).toBeGreaterThan(1);
+    // The sibling group was not re-requested.
+    expect(callCounts[groupedName("attic")]).toBe(1);
   });
 });
 
@@ -542,6 +557,7 @@ describe("perGroupExtractor — non-grouped fallback", () => {
 
     expect((error as Error).message).toContain("was not valid JSON");
     expect(isTransientFailure(error)).toBe(true);
+    expect(error).not.toBeInstanceOf(SchemaParseError);
   });
 
   test("a truncated response in the fallback is terminal, not retried", async () => {

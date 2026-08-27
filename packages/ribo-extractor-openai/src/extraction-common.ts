@@ -30,7 +30,7 @@
 
 import type { z } from "zod";
 
-import { TerminalQueueError } from "@azx/ribo-core";
+import { SchemaParseError, TerminalQueueError } from "@azx/ribo-core";
 import type { ExtractionTarget } from "@azx/ribo-core";
 
 import { ChatError } from "./chat-client.js";
@@ -215,22 +215,24 @@ export function parseJsonContent(content: string, context: string): unknown {
 }
 
 /**
- * Parse `raw` against a zod schema, throwing a plain `Error` (transient by default) on
- * failure.
+ * Parse `raw` against a zod schema, throwing a {@link SchemaParseError} on failure.
  *
- * A response that does not satisfy the schema is more likely a truncation or a blip than
- * a permanent condition, so the error is a plain `Error` — which `isTransientFailure`
- * classifies as transient/retryable, so the queue retries rather than losing a recording
- * someone drove to a house to make. Nothing here is thrown as a `TerminalQueueError`: a
- * bad response is not a verdict, and the terminal cases (truncation, content filtering)
- * are caught earlier by {@link assertStopFinishReason}.
+ * A response that does not satisfy the schema is *sampled*: the same request can fail
+ * zod once and pass on re-send, so the failure stays transient/retryable. The queue
+ * keeps retrying rather than losing a recording someone drove to a house to make. At the
+ * same time the error is now recognisable: a strategy ladder can see it and fall through
+ * to a different shape instead of sampling the same broken one indefinitely. Both halves
+ * matter — making it transient alone would keep the ladder from moving on; making it
+ * terminal alone would strip retries from the very recordings that have no second chance.
+ * The terminal cases (truncation, content filtering) are caught earlier by
+ * {@link assertStopFinishReason}.
  *
  * @param context - a descriptive prefix for the error
  */
 export function parseWithSchema<T>(schema: z.ZodType<T>, raw: unknown, context: string): T {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
-    throw new Error(`${context} did not match the schema: ${parsed.error.message}`, {
+    throw new SchemaParseError(`${context} did not match the schema: ${parsed.error.message}`, {
       cause: parsed.error,
     });
   }

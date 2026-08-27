@@ -141,6 +141,12 @@ export type {
   ScheduleTimer,
 } from "./connectivity.js";
 
+// A model response that parsed as JSON but violated the extraction schema.
+// Thrown by the managed extractors and read by the default arbiter, so it lives
+// in core rather than in the extractor package — core cannot import from
+// `@azx/ribo-extractor-openai`.
+export { SchemaParseError } from "./schema-parse-error.js";
+
 // The durable outbox and its foreground relay. Forwarded wholesale through the
 // subsystem's own barrel (`queue/index.ts`) rather than reaching into
 // `queue/outbox.ts` & friends: the queue owns the list of names it publishes,
