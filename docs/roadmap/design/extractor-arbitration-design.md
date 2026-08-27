@@ -140,14 +140,31 @@ ladder is not privileged and not forbidden — it is offered, and the host decid
 A contract nobody can use correctly is not a contract. Two are supplied, and they are the ones we
 expect real callers to want:
 
-- **`retryableOnly`** — continue past a failure only when `isTransientFailure` says the error is
-  retryable _and_ the candidate has exhausted its own retry budget; accept the first successful
-  result; give up at exhaustion with the first error. This reproduces something close to today's
-  behaviour and is the conservative default.
+- **`terminalFallsThrough`** — accept the first successful result; continue past a failure only when
+  `isTransientFailure` says the error is **not** retryable; give up immediately on a transient error,
+  and at exhaustion give up with the first error. The conservative default.
 - **`acceptAnySuccess`** — accept the first successful result, continue past any error, and at
   exhaustion accept the best result available or give up if there is none. This is the
   degraded-experience arbiter, and naming it is how a deployment opts into degradation deliberately
   rather than by omission.
+
+**`terminalFallsThrough`'s direction is the opposite of what it first looks like, and an earlier
+revision of this section had it backwards.** By the time an error reaches the arbiter the candidate
+has already spent its own retry budget, so the two cases mean different things. A **terminal** error
+says the request we sent is structurally broken — that is precisely what the next strategy's
+different request shape might fix, so fall through. A **transient** error that survived retries says
+the transport is down, and the next strategy on the same engine uses the same transport, so running
+it now is futile: give up and let the relay's backoff retry the whole extraction later, when the
+network may be back. Continuing on transient would burn the degraded strategy at the worst possible
+moment and cache its worse result.
+
+**A consequence that lands on the strategies, not on this file.** `isTransientFailure` defaults an
+unrecognised error to retryable — deliberately, since a wrongly-`dead` transient failure loses a
+recording. A zod parse failure carries no HTTP status, so it classifies as transient and
+`terminalFallsThrough` would **not** fall through, contradicting §4.3. For a schema-parse failure to
+reach the next strategy, the strategy must throw it as a `TerminalQueueError`, the way
+`assertStopFinishReason` already does for truncation. That is a change to the strategies, and the
+plan carries it as its own task.
 
 A host that wants a quality judgement — _did this actually segment anything_ — writes its own. That
 is the case `r1.6-instance-extraction-design.md` needs, and it is why the input carries results and
