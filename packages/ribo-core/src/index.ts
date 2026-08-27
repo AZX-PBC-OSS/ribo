@@ -178,21 +178,34 @@ export type {
 // strategy outcomes. The core accumulates outcomes in settlement order; the host
 // decides whether to accept, continue, or give up. The two defaults are the
 // conservative policy (terminal errors fall through, transient ones stop) and the
-// degraded-experience policy (any success is accepted).
+// degraded-experience policy (any success is accepted). The shared sequential
+// engine underpins `fallbackExtractor` and the reimplemented `compositeExtractor`;
+// it is exported because Task 3's `compositeExtractor` consumes it directly.
 export {
   acceptAnySuccess,
+  createSequentialExtractor,
   errorOutcome,
   resultOutcome,
   terminalFallsThrough,
 } from "./arbitration.js";
 export type {
+  AdmissionVerdict,
   ArbiterInput,
   ArbiterVerdict,
   ErrorOutcome,
   ExtractionArbiter,
   ExtractionOutcome,
+  ExtractorEngineCandidate,
   ResultOutcome,
+  SequentialExtractorOptions,
 } from "./arbitration.js";
+
+// Strategy fallback: try extraction strategies in order and let an arbiter
+// decide whether each outcome is acceptable, continuing past failures the host
+// classifies as recoverable. Lives in core because it composes the core
+// Extractor seam and the arbiter vocabulary, not any model or transport.
+export { fallbackExtractor } from "./fallback-extractor.js";
+export type { FallbackCandidate } from "./fallback-extractor.js";
 
 // Work safety: the one honest "is my work safe?" answer, derived purely from the
 // outbox, the storage persistence grant and connectivity — so every presenter

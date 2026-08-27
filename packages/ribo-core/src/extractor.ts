@@ -26,7 +26,7 @@ export interface ExtractionResult<F> {
   /** The raw model/endpoint output, kept for provenance and debugging. Optional. */
   readonly raw?: unknown;
   /**
-   * What the run cost, and which engine produced it.
+   * What the run cost, and which engine/strategy produced it.
    *
    * `engine` is **optional**, and must stay that way: `FakeExtractor`, the single-shot extractor
    * and the per-group extractor all report `{ calls }` and nothing else, so requiring it would
@@ -37,8 +37,12 @@ export interface ExtractionResult<F> {
    * beta model" — the reviewer's question is not which engine produced field 12, it is whether
    * to trust this card less than usual. Reaching the card takes more than this field: see
    * {@link toExtractStep} and the relay's extract step.
+   *
+   * `strategy` is the same idea for the *approach* axis: `engine` is *which transport*,
+   * `strategy` is *which strategy* inside that transport. It is optional for the same reason
+   * `engine` is — a single-strategy extractor has no ladder to name.
    */
-  readonly usage: { readonly calls: number; readonly engine?: string };
+  readonly usage: { readonly calls: number; readonly engine?: string; readonly strategy?: string };
 }
 
 /**
@@ -110,7 +114,7 @@ export interface FakeExtractorOptions {
 export class FakeExtractor<F> implements Extractor<F> {
   readonly #fields: F;
   readonly #raw: unknown;
-  readonly #usage: { readonly calls: number };
+  readonly #usage: ExtractionResult<unknown>["usage"];
   readonly #calls: string[] = [];
 
   constructor(fields: F, options: FakeExtractorOptions = {}) {
