@@ -87,9 +87,19 @@ constructor you called has no parameter for it. A single configurable combinator
 knob converts a type-level fact into a boolean somebody can flip, and starts shipping audio off the
 device. `compositeExtractor`'s rule 5 is load-bearing in the same way.
 
-**So the resolution is: combinable in mechanism, separate in surface.** One internal engine
-implementing the four knobs; the public combinators stay thin, differently-typed constructors that
-each pin the knobs they must not expose. Duplication goes away; the guarantees stay structural.
+**So the resolution is: combinable in mechanism, separate in surface.** One shared engine
+implementing the four knobs; the combinators stay thin, differently-typed constructors that each pin
+the knobs they must not expose. Duplication goes away; the guarantees stay structural.
+
+**The engine ships exported, not module-private, and the guarantee survives that.** An earlier draft
+of this paragraph said "internal", and the implementation exports it — this is the corrected text,
+not a drift to tolerate. What makes §3.1's property structural is not the engine's privacy but the
+fact that scheduling is chosen by **which function you call** rather than by a parameter: there is a
+`createSequentialExtractor` and a `createConcurrentExtractor`, and no `{ scheduling }` flag anywhere
+to flip. Concurrency therefore still has to be asked for by name even by a caller reaching past the
+constructors. Exporting it is deliberate for a published SDK, where a consumer writing a combinator
+we did not anticipate — a different admission policy, say — would otherwise have to reimplement the
+iteration, validation and stamping we just centralised.
 
 **This cut unifies the extractor seam only.** The transcriber combinators are left exactly as they
 are. Generalising the engine across both seams is recorded in §8 as a stated future, to be done
