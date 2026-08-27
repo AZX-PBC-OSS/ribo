@@ -39,6 +39,18 @@ export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
  * the correct state for a recording that was captured before live transcription
  * existed.
  *
+ * v3 → v4 added `extractedBy` (optional) — identity, same reasoning again: an
+ * absent optional field needs no transformation. It records which engine produced
+ * `extracted`, and a document written before on-device extraction existed has no
+ * engine to name, which is the correct state for it. Nothing reads `extractedBy`
+ * to decide behaviour — it is a trust signal shown at review — so its absence
+ * degrades a badge, not the state machine.
+ *
+ * Note this entry is not optional bookkeeping: RxDB calls into the migration
+ * plugin for every version above 0, and a bumped schema with no strategy for the
+ * new version makes the outbox **fail to open**, not fail to migrate. The error
+ * arrives at open time and does not mention migrations.
+ *
  * Exported (rather than inlined into `addCollections`) so a test can exercise
  * the strategy function directly, independent of a real migration run.
  */
@@ -46,6 +58,7 @@ export const OUTBOX_MIGRATION_STRATEGIES = {
   1: (doc: OutboxDocument) => doc,
   2: (doc: OutboxDocument) => doc,
   3: (doc: OutboxDocument) => doc,
+  4: (doc: OutboxDocument) => doc,
 };
 
 /**

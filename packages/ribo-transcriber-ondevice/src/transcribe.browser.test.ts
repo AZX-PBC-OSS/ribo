@@ -251,7 +251,7 @@ test("the queue relay drives an OnDeviceTranscriber with no changes", async () =
       new FakeWorker(transcribeReply("on-device transcript")) as unknown as Worker,
   });
 
-  const extract: ExtractStep = () => Promise.resolve({ ok: true });
+  const extract: ExtractStep = () => Promise.resolve({ fields: { ok: true } });
   const write: WriteStep = () => Promise.resolve();
   const relay = createRelay({ outbox, transcriber, extract, write });
 

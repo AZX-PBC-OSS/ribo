@@ -79,3 +79,10 @@ snugg-pro.html
 # path — the run they describe is not reproducible from the repo. Regenerate with
 # `node spikes/extraction-snuggpro/score.mjs <resultsDir>`.
 spikes/extraction-snuggpro/results/*-score.json
+
+# On-device corpus runs: model output, regenerable by opening
+# `spikes/ondevice-acceptance/` in real Chrome and clicking a strategy. Not committed —
+# a single run is ~6,000 lines of generated JSON, and the numbers that matter are in
+# docs/implementation/19-ondevice-extraction-strategies.md. The runner IS committed; its
+# output is not. (Contrast results/codex and results/opencode, which predate this rule.)
+spikes/extraction-snuggpro/results/ondevice*/

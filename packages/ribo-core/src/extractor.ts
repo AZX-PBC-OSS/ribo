@@ -25,8 +25,20 @@ export interface ExtractionResult<F> {
   readonly fields: F;
   /** The raw model/endpoint output, kept for provenance and debugging. Optional. */
   readonly raw?: unknown;
-  /** What the run cost — today just how many model calls it took. */
-  readonly usage: { readonly calls: number };
+  /**
+   * What the run cost, and which engine produced it.
+   *
+   * `engine` is **optional**, and must stay that way: `FakeExtractor`, the single-shot extractor
+   * and the per-group extractor all report `{ calls }` and nothing else, so requiring it would
+   * break every existing implementation for the benefit of one. An extractor that composes over
+   * several transports sets it; a single-transport extractor need not.
+   *
+   * It exists because a review card has to be able to say "this draft came from the on-device
+   * beta model" — the reviewer's question is not which engine produced field 12, it is whether
+   * to trust this card less than usual. Reaching the card takes more than this field: see
+   * {@link toExtractStep} and the relay's extract step.
+   */
+  readonly usage: { readonly calls: number; readonly engine?: string };
 }
 
 /**
@@ -72,7 +84,11 @@ export type ExtractionTarget<V extends Record<string, unknown>> = Pick<
 export function toExtractStep<F>(extractor: Extractor<F>): ExtractStep {
   return async ({ transcript }) => {
     const result = await extractor.extract(transcript.text);
-    return result.fields as ExtractedFieldMap;
+    // `engine` rides along beside the fields rather than inside them: the field map is the
+    // adapter's shape, validated against its schema, and smuggling provenance into it would
+    // put a key there that no schema declares. `raw` and `calls` still stay with the extractor
+    // — only what the outbox persists crosses this boundary.
+    return { fields: result.fields as ExtractedFieldMap, engine: result.usage.engine };
   };
 }
 
@@ -81,7 +97,7 @@ export interface FakeExtractorOptions {
   /** Raw payload to echo back on the result. Omitted from the result when unset. */
   readonly raw?: unknown;
   /** Usage to report. Defaults to `{ calls: 0 }` — a fake makes no model calls. */
-  readonly usage?: { readonly calls: number };
+  readonly usage?: ExtractionResult<unknown>["usage"];
 }
 
 /**

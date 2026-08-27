@@ -47,6 +47,7 @@ test("the optional fields are the step outputs, the error message, capture, and 
   expect(optionalKeys).toEqual([
     "capture",
     "extracted",
+    "extractedBy",
     "lastError",
     "preview",
     "reviewOutcome",
@@ -192,8 +193,8 @@ test("a document carries an optional review outcome", () => {
   expect(reviewed.reviewOutcome).toEqual({ status: "accepted", fields: { atticRValue: 19 } });
 });
 
-test("the RxDB schema is at version 3", () => {
-  expect(outboxRxSchema.version).toBe(3);
+test("the RxDB schema is at version 4", () => {
+  expect(outboxRxSchema.version).toBe(4);
 });
 
 /** A minimal document that parses, for the negative cases to mutate. */

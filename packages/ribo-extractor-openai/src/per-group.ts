@@ -123,8 +123,8 @@ export interface PerGroupOptions<V extends Record<string, unknown>> extends Back
    * group is `maxRetries + 1`). Terminal failures ({@link TerminalQueueError} —
    * truncation, content filtering, refusal, unsupported) are never retried and
    * never delay. Defaults to 2. The default is derived from the step-timeout
-   * relationship — see {@link PER_CALL_CEILING_MS} and the comment where
-   * {@link perGroupExtractor} caps it.
+   * relationship — see {@link perGroupExtractor} and the comment where it caps
+   * the retry budget.
    */
   readonly maxRetries?: number;
   /**
@@ -137,6 +137,14 @@ export interface PerGroupOptions<V extends Record<string, unknown>> extends Back
    * comment in {@link perGroupExtractor}.
    */
   readonly stepTimeoutMs?: number;
+  /**
+   * Conservative upper bound on one chat call's wall-clock duration, used to
+   * derive the retry budget from the step-timeout relationship. Defaults to
+   * {@link PER_CALL_CEILING_MS} (120,000 ms), the measured ceiling for the
+   * managed transport. A faster transport (e.g., on-device) should lower this so
+   * the retry budget is sized honestly.
+   */
+  readonly perCallCeilingMs?: number;
   /**
    * Injectable sleep used between retry attempts, so tests do not wait real
    * seconds. Defaults to `setTimeout`. The value passed is the
@@ -159,13 +167,13 @@ export interface PerGroupOptions<V extends Record<string, unknown>> extends Back
 }
 
 /**
- * Conservative upper bound on one chat call's wall-clock duration, used to
- * derive the retry budget from the step-timeout relationship. A
- * structured-output call typically takes 10–30 s; 120 s leaves headroom for a
- * slow endpoint without the retry budget being so tight it cannot absorb a
- * real blip. This is a physical assumption about call latency, not an
- * arbitrary retry count — the retry budget is derived from it and
- * {@link PerGroupOptions.stepTimeoutMs}.
+ * Default conservative upper bound on one chat call's wall-clock duration.
+ * Used to derive the retry budget for callers that do not supply
+ * {@link PerGroupOptions.perCallCeilingMs}. A structured-output call typically
+ * takes 10–30 s; 120 s leaves headroom for a slow endpoint without the retry
+ * budget being so tight it cannot absorb a real blip. This is a physical
+ * assumption about call latency, not an arbitrary retry count — the retry
+ * budget is derived from it and {@link PerGroupOptions.stepTimeoutMs}.
  */
 const PER_CALL_CEILING_MS = 120_000;
 
@@ -190,22 +198,27 @@ function maxAccumulatedBackoff(retries: number, baseMs: number, capMs: number): 
  *
  * The worst case per batch is one group's full budget:
  *
- *   (retries + 1) * PER_CALL_CEILING_MS + maxAccumulatedBackoff(retries)
+ *   (retries + 1) * perCallCeilingMs + maxAccumulatedBackoff(retries)
  *
  * across `batches` sequential batches. We decrement from the requested
  * `maxRetries` until it fits, floor 0 — the same relationship the previous
  * derivation enforced, now with accumulated backoff included so a timeout never
  * presents as a failed extraction with no sign that some groups succeeded.
+ *
+ * `perCallCeilingMs` is a per-instance default, not a fixed law: an on-device
+ * transport whose calls complete in ~5 s can lower it so the derivation grants
+ * a useful retry budget instead of zero.
  */
-function deriveMaxRetries(
+export function deriveMaxRetries(
   requested: number,
   batches: number,
   stepTimeoutMs: number,
+  perCallCeilingMs: number,
   baseMs: number,
   capMs: number,
 ): number {
   for (let r = Math.max(0, requested); r >= 0; r--) {
-    const perGroup = (r + 1) * PER_CALL_CEILING_MS + maxAccumulatedBackoff(r, baseMs, capMs);
+    const perGroup = (r + 1) * perCallCeilingMs + maxAccumulatedBackoff(r, baseMs, capMs);
     if (batches * perGroup <= stepTimeoutMs) return r;
   }
   return 0;
@@ -328,6 +341,7 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
   concurrency = 4,
   maxRetries = 2,
   stepTimeoutMs = 900_000,
+  perCallCeilingMs = PER_CALL_CEILING_MS,
   delay = defaultDelay,
   baseMs,
   capMs,
@@ -366,20 +380,21 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
   //
   //   ceil(G / concurrency) * (effectiveMaxRetries + 1)
   //
-  // where G = prepared.length, each call taking up to PER_CALL_CEILING_MS, and
+  // where G = prepared.length, each call taking up to `perCallCeilingMs`, and
   // between calls a backoff delay of up to min(cap, base * 2^attempts). We
   // derive effectiveMaxRetries so the worst case — call time PLUS accumulated
-  // backoff — fits within stepTimeoutMs. A caller who lowers stepTimeoutMs gets
-  // a proportionally lower retry budget rather than a step timeout that presents
-  // as a bare extraction failure with no indication that some groups succeeded.
+  // backoff — fits within stepTimeoutMs. A caller who lowers stepTimeoutMs or
+  // perCallCeilingMs gets a proportionally lower retry budget rather than a step
+  // timeout that presents as a bare extraction failure with no indication that
+  // some groups succeeded.
   //
   // The revised relationship is:
   //
-  //   ceil(G / concurrency) * ((maxRetries + 1) * PER_CALL_CEILING_MS
+  //   ceil(G / concurrency) * ((maxRetries + 1) * perCallCeilingMs
   //                             + maxAccumulatedBackoff(maxRetries)) <= stepTimeoutMs
   //
   // With the defaults (stepTimeoutMs = 900_000, concurrency = 4,
-  // maxRetries = 2, PER_CALL_CEILING_MS = 120_000, base = 1_000, cap = 300_000)
+  // maxRetries = 2, perCallCeilingMs = 120_000, base = 1_000, cap = 300_000)
   // and the Snugg target's 7 groups: maxAccumulatedBackoff(2) = 1_000 + 2_000 =
   // 3_000; per-group budget = 3 * 120_000 + 3_000 = 363_000; worst case =
   // ceil(7/4) * 363_000 = 726_000 — inside the 15-minute step timeout.
@@ -390,6 +405,7 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
     maxRetries,
     batches,
     stepTimeoutMs,
+    perCallCeilingMs,
     backoffBaseMs,
     backoffCapMs,
   );

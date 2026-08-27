@@ -198,6 +198,16 @@ export const outboxDocumentSchema = z
     transcript: transcriptSchema.optional(),
     /** Step output — present once extraction has succeeded. */
     extracted: z.record(z.string(), z.unknown()).optional(),
+    /**
+     * Which engine produced `extracted`. Absent when the extractor did not report one, which
+     * is every single-transport extractor — only a composite choosing between transports has
+     * anything to say here.
+     *
+     * Persisted rather than derived because it is a **trust signal for review**: a card drafted
+     * by a small on-device model deserves a different amount of scepticism than one from the
+     * managed path, and by review time the extractor that made the choice is long gone.
+     */
+    extractedBy: z.string().optional(),
     /** Step output — whatever the tool adapter returned from the write. */
     writeResult: z.record(z.string(), z.unknown()).optional(),
     /**
@@ -347,7 +357,7 @@ export type OutboxPatch = Partial<
  * claiming to persist something it does not.
  */
 export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
-  version: 3,
+  version: 4,
   primaryKey: "id",
   type: "object",
   properties: {
@@ -365,6 +375,9 @@ export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
     recording: { type: "object" },
     transcript: { type: "object" },
     extracted: { type: "object" },
+    // Not indexed, so no `maxLength` is required — RxDB only needs bounded widths for fields it
+    // has to encode as sortable index keys.
+    extractedBy: { type: "string" },
     writeResult: { type: "object" },
     reviewOutcome: { type: "object" },
     capture: { type: "object" },

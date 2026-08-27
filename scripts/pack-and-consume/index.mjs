@@ -18,12 +18,12 @@
  *
  * ## What it does
  *
- * 1. Builds the six publishable packages fresh (`pnpm build:packages`), so the tarballs below
+ * 1. Builds every publishable package fresh (`pnpm build:packages`), so the tarballs below
  *    reflect the current tree, not a stale `dist/`.
  * 2. Packs each with `pnpm pack --json` — a REAL tarball, the exact bytes `pnpm publish` would
  *    upload.
  * 3. Writes a fresh, minimal app into a temp directory OUTSIDE this repo (see SCRATCH_DIR below)
- *    and installs the six tarballs into it as `file:` dependencies — pnpm extracts a `file:`
+ *    and installs those tarballs into it as `file:` dependencies — pnpm extracts a `file:`
  *    pointing at a `.tgz` exactly like it would a registry tarball; this is NOT the `file:`-to-a-
  *    live-directory escape hatch doc 10 §5 warns the field app off (that one hard-links a live,
  *    uncompiled workspace directory and resolves peers from the consumer; this is a real archive).
@@ -49,7 +49,7 @@
  * ## Why this is NOT in `./check.sh`
  *
  * `./check.sh` is the fast, frequent, "am I done?" loop (AGENTS.md §7) — every stage in it runs
- * against files already on disk in this repo. This tier packs six tarballs, does a full `pnpm
+ * against files already on disk in this repo. This tier packs every tarball, does a full `pnpm
  * install` into a directory OUTSIDE the repo, and downloads a small HF Hub test model over the
  * network: tens of seconds of I/O that has nothing to do with most edits, and exactly the "a
  * network fetch masquerading as a check" shape `vitest.manual.config.ts` already rejected for a
@@ -101,7 +101,7 @@
  *
  * `assertResult` below reports a `category` distinguishing three unrelated failure shapes — see
  * `app-template.mjs`'s doc comment on `MAIN_JS` — so a red run names which one before you open
- * this file: a real packaging regression in one of the other five packages
+ * this file: a real packaging regression in one of the non-worker packages
  * (`setup-before-worker`), a real regression in the worker entry itself
  * (`worker-spawn-or-import`), or a probable transient Hub issue (`network-fetch-after-spawn`).
  *
@@ -168,7 +168,7 @@ const CHROME_PROFILE_DIR = join(REPO_ROOT, ".cache", "pack-and-consume", "chromi
 
 const KEEP_SCRATCH = process.env.RIBO_PACK_AND_CONSUME_KEEP === "1";
 
-const EXPECTED_PUBLISHED_COUNT = 6;
+const EXPECTED_PUBLISHED_COUNT = 7;
 
 function log(message) {
   console.log(`[pack-and-consume] ${message}`);
@@ -190,8 +190,15 @@ function cleanScratch() {
 
 /**
  * The publishable packages, discovered the same way `scripts/pkg-gates.mjs` does — from the
- * workspace, not a hard-coded list — so adding a sixth publishable package without updating this
- * file fails loudly (the count guard below) rather than silently shipping ungated.
+ * workspace, not a hard-coded list — so adding one without updating this file fails loudly (the
+ * count guard below) rather than silently shipping ungated.
+ *
+ * **This constant now lives in three scripts** (here, `pkg-gates.mjs`, `assert-source-condition.mjs`),
+ * and the "two known gaps" note above says a third copy is the signal to extract it. That signal
+ * has now fired for real: adding `@azx/ribo-extractor-ondevice` updated two of the three, and the
+ * third was only caught in CI, because this tier is deliberately outside `./check.sh`. Extracting
+ * is not done here to keep an already-large change reviewable — but the next person to touch this
+ * should do it rather than bump a fourth copy.
  */
 function discoverPublishablePackages() {
   const packagesDir = join(REPO_ROOT, "packages");
@@ -220,7 +227,7 @@ function discoverPublishablePackages() {
 }
 
 function buildPackages() {
-  log("building all six publishable packages (pnpm build:packages)...");
+  log("building all publishable packages (pnpm build:packages)...");
   execFileSync("pnpm", ["run", "build:packages"], { cwd: REPO_ROOT, stdio: "inherit" });
 }
 
@@ -395,7 +402,7 @@ function describeFailure(result) {
   }
 }
 
-function assertResult({ result, consoleErrors, pageErrors }) {
+function assertResult({ result, consoleErrors, pageErrors, tarballCount }) {
   if (pageErrors.length > 0) {
     throw new Error(`uncaught page error(s):\n${pageErrors.join("\n")}`);
   }
@@ -413,6 +420,9 @@ function assertResult({ result, consoleErrors, pageErrors }) {
     ["riboCoreGroundedSpanFalse", c.riboCoreGroundedSpanFalse === false],
     ["adapterSchemaKeyCount > 0", c.adapterSchemaKeyCount > 0],
     ["extractorHasExtractFn", c.extractorHasExtractFn === true],
+    ["onDeviceEngineId", c.onDeviceEngineId === true],
+    ["onDeviceCapabilityShape", c.onDeviceCapabilityShape === true],
+    ["onDeviceExtractorHasExtractFn", c.onDeviceExtractorHasExtractFn === true],
     ["managedUnconfigured", c.managedUnconfigured === true],
     ["managedReady", c.managedReady === true],
     ["uiReactRendered", c.uiReactRendered === true],
@@ -424,7 +434,7 @@ function assertResult({ result, consoleErrors, pageErrors }) {
     throw new Error(`failed check(s): ${failed.join(", ")}\nfull checks: ${JSON.stringify(c)}`);
   }
   log(
-    "PASS — 6 tarballs installed via file: (not the workspace), production build succeeded, " +
+    `PASS — ${tarballCount} tarballs installed via file: (not the workspace), production build succeeded, ` +
       `@azx/ribo-transcriber-ondevice's worker spawned and primed ${TEST_MODEL_ID}@${TEST_MODEL_REVISION} ` +
       "(ONNX Runtime WASM session created) with real progress events.",
   );
@@ -441,7 +451,7 @@ async function main() {
     copyOrtRuntimeFiles();
     buildScratchApp();
     const outcome = await runInBrowser();
-    assertResult(outcome);
+    assertResult({ ...outcome, tarballCount: Object.keys(tarballs).length });
   } finally {
     if (KEEP_SCRATCH) {
       log(`RIBO_PACK_AND_CONSUME_KEEP=1 set — leaving scratch dir at ${SCRATCH_DIR}`);

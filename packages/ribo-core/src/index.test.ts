@@ -46,6 +46,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "buildReviewRequest",
     "chunkName",
     "chunkPrefix",
+    "compositeExtractor",
     "createConnectivity",
     "createRelay",
     "decodeAudioDuration",

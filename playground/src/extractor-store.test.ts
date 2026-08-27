@@ -1,6 +1,13 @@
 import { expect, test } from "vitest";
 
-import type { ExtractStepInput, OutboxItem, Transcript } from "@azx/ribo-core";
+import {
+  DEFAULT_BACKOFF_BASE_MS,
+  DEFAULT_BACKOFF_CAP_MS,
+  type ExtractStepInput,
+  type OutboxItem,
+  type Transcript,
+} from "@azx/ribo-core";
+import { ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 import type { ChatClient, ChatCompletion, ChatRequest } from "@azx/ribo-extractor-openai";
 import {
   SNUGGPRO_ADAPTER_NAME,
@@ -8,7 +15,11 @@ import {
   snuggProInstructions,
 } from "@azx/ribo-adapter-snuggpro";
 
-import { buildExtractorStep } from "./extractor-store.js";
+import {
+  buildExtractorStep,
+  buildExtractorWiring,
+  MANAGED_PER_GROUP_TIMING,
+} from "./extractor-store.js";
 
 /**
  * @file R3 Task 5 — the playground's live extractor is the per-group one.
@@ -136,4 +147,123 @@ test("strategy: 'single-shot' is reachable as the alternative (Task 6's baseline
   expect(requests).toHaveLength(1);
   // That one call's system message IS the full instructions.
   expect(requests[0]!.messages[0]!.content).toBe(snuggProInstructions);
+});
+
+// --- Task 10: the two extraction delegates and their timing model --------------
+
+/** Snugg Pro's schema splits into seven top-level groups. */
+const SNUGG_GROUPS = 7;
+
+/**
+ * Worst-case accumulated backoff when every retry draws the un-jittered cap.
+ * Mirrors the derivation in `perGroupExtractor` so the tests can reason about
+ * the actual timing constants without importing the private helper.
+ */
+function maxAccumulatedBackoff(retries: number, baseMs: number, capMs: number): number {
+  let total = 0;
+  for (let i = 0; i < retries; i++) {
+    total += Math.min(capMs, baseMs * 2 ** Math.min(i, 32));
+  }
+  return total;
+}
+
+/**
+ * How many retries the per-group budget actually grants, given the timing
+ * constants wired into the production pair. Mirrors `deriveMaxRetries`.
+ */
+function derivedRetries(
+  requested: number,
+  groups: number,
+  concurrency: number,
+  perCallCeilingMs: number,
+  stepTimeoutMs: number,
+  baseMs: number,
+  capMs: number,
+): number {
+  const batches = Math.ceil(groups / concurrency);
+  for (let r = Math.max(0, requested); r >= 0; r--) {
+    const perGroup = (r + 1) * perCallCeilingMs + maxAccumulatedBackoff(r, baseMs, capMs);
+    if (batches * perGroup <= stepTimeoutMs) return r;
+  }
+  return 0;
+}
+
+// The four on-device retry-budget guards that stood here are gone with the strategy
+// they guarded. They asserted that `deriveMaxRetries` granted the on-device delegate at
+// least nine retries at an 8s ceiling with near-zero backoff — correct arithmetic for a
+// strategy that no longer runs. The on-device path is now `threePhaseExtractor`, which
+// degenerated zero times in 283 calls and needs no retry budget to defend.
+// `docs/implementation/19-ondevice-extraction-strategies.md` records what they measured.
+
+test("managed delegate keeps the pre-existing defaults", () => {
+  expect(MANAGED_PER_GROUP_TIMING.concurrency).toBe(4);
+  expect(MANAGED_PER_GROUP_TIMING.perCallCeilingMs).toBe(120_000);
+  expect(MANAGED_PER_GROUP_TIMING.maxRetries).toBe(2);
+});
+
+test("managed delegate's derived retry count is the pre-existing default of 2", () => {
+  const retries = derivedRetries(
+    MANAGED_PER_GROUP_TIMING.maxRetries,
+    SNUGG_GROUPS,
+    MANAGED_PER_GROUP_TIMING.concurrency,
+    MANAGED_PER_GROUP_TIMING.perCallCeilingMs,
+    MANAGED_PER_GROUP_TIMING.stepTimeoutMs,
+    DEFAULT_BACKOFF_BASE_MS,
+    DEFAULT_BACKOFF_CAP_MS,
+  );
+  expect(retries).toBe(2);
+});
+
+test("composite order is managed-first, on-device-second", () => {
+  const { entries } = buildExtractorWiring({
+    apiKey: "sk-test",
+    baseUrl: "http://test",
+    model: "m",
+  });
+  expect(entries).toHaveLength(2);
+  expect(entries[0]!.source.engine).toBe("openai");
+  expect(entries[1]!.source.engine).toBe(ONDEVICE_CHAT_ENGINE);
+});
+
+// ---------------------------------------------------------------------------
+// Which global the Prompt API actually lives on
+//
+// Measured rather than assumed: `globalThis.LanguageModel`, under Chrome 149 and
+// 151 — see packages/ribo-extractor-ondevice/src/prompt-api-availability.browser.test.ts.
+// An earlier draft of this wiring read `globalThis.ai.languageModel`, the older
+// experimental shape, which finds nothing today.
+//
+// Nothing else in this suite would notice that mistake. The on-device entry would
+// report `unavailable` forever, the composite would fall back to managed on every
+// extraction, and the offline path this feature exists for would never once run —
+// with no error and nothing in a log. The only symptom is silence.
+// ---------------------------------------------------------------------------
+
+test("the on-device delegate resolves from globalThis.LanguageModel", async () => {
+  const globals = globalThis as unknown as Record<string, unknown>;
+  const hadLanguageModel = "LanguageModel" in globals;
+  const previousLanguageModel = globals.LanguageModel;
+  const hadAi = "ai" in globals;
+  const previousAi = globals.ai;
+
+  // The current global says `available`; the legacy path, if anything read it,
+  // says `unavailable`. So the capability answer identifies which one was used.
+  globals.LanguageModel = { availability: async () => "available" };
+  globals.ai = { languageModel: { availability: async () => "unavailable" } };
+
+  try {
+    const { entries } = buildExtractorWiring({
+      apiKey: "sk-test",
+      baseUrl: "http://test",
+      model: "m",
+    });
+    const onDevice = entries[1]!;
+    expect(onDevice.source.engine).toBe(ONDEVICE_CHAT_ENGINE);
+    expect(await onDevice.source.capability()).toEqual({ status: "ready" });
+  } finally {
+    if (hadLanguageModel) globals.LanguageModel = previousLanguageModel;
+    else delete globals.LanguageModel;
+    if (hadAi) globals.ai = previousAi;
+    else delete globals.ai;
+  }
 });

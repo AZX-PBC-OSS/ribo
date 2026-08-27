@@ -1,4 +1,4 @@
-import { useMemo, type ChangeEvent } from "react";
+import { useEffect, useMemo, useSyncExternalStore, type ChangeEvent } from "react";
 import { z } from "zod";
 import { stripOptionalNullable } from "@azx/ribo-core";
 import type {
@@ -10,9 +10,31 @@ import type {
 } from "@azx/ribo-core";
 import { useOutboxItems, useReview } from "@azx/ribo-ui-react";
 import { snuggProAdapter, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
+import { ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 
-import { extractorStatus } from "./extractor-store.js";
-import { button, errorBox, monospace, muted, noticeBox, panel, statusBadge } from "./styles.js";
+import { getConnectivity } from "./connectivity-store.js";
+import {
+  extractorComposite,
+  extractorStatus,
+  wireExtractorConnectivity,
+} from "./extractor-store.js";
+import {
+  getOnDeviceExtractorState,
+  primeOnDeviceExtractor,
+  startOnDeviceExtractor,
+  subscribeToOnDeviceExtractor,
+  type OnDeviceExtractorState,
+} from "./ondevice-extractor-store.js";
+import {
+  betaBadge,
+  button,
+  errorBox,
+  monospace,
+  muted,
+  noticeBox,
+  panel,
+  statusBadge,
+} from "./styles.js";
 
 /**
  * @file The review surface: every leaf of an extraction draft, one decision at a
@@ -101,6 +123,21 @@ function groupFields(fields: ReviewFields): readonly FieldGroupEntry[] {
 
 export function ReviewPanel() {
   const { items: parked, loading, error } = useOutboxItems({ status: "awaiting-review" });
+  const onDeviceExtractor = useSyncExternalStore(
+    subscribeToOnDeviceExtractor,
+    getOnDeviceExtractorState,
+  );
+
+  // The panel that renders extraction state also owns the on-device extractor's
+  // arming control and the connectivity invalidation wire. Both are one-shot:
+  // StrictMode's double mount is harmless because the store is idempotent and the
+  // composite invalidation is a no-op subscription.
+  useEffect(() => {
+    startOnDeviceExtractor();
+    if (extractorComposite !== undefined) {
+      wireExtractorConnectivity(extractorComposite, getConnectivity());
+    }
+  }, []);
 
   return (
     <section style={panel}>
@@ -113,6 +150,7 @@ export function ReviewPanel() {
         move forward, to <code style={monospace}>writing</code>, or are dropped.
       </p>
 
+      <OnDeviceExtractorControl state={onDeviceExtractor} />
       <ExtractorBanner />
       <MeasurementCaveat />
 
@@ -181,6 +219,99 @@ function MeasurementCaveat() {
       &ldquo;Lennox&rdquo; as &ldquo;Linux&rdquo; yields a perfectly ✓ span for the wrong word.
       Confirm each value against what you know was said.
     </p>
+  );
+}
+
+/**
+ * The arming affordance for on-device extraction.
+ *
+ * This is a real button, not an effect: Chrome throws `NotAllowedError` from
+ * `create()` when the model is downloadable and there is no user gesture
+ * (spec §10.4). The copy says the download is Chrome-managed, its size is
+ * unknown, and the wait is minutes — the Prompt API reports only a 0..1 fraction.
+ */
+function OnDeviceExtractorControl({ state }: { state: OnDeviceExtractorState }) {
+  switch (state.phase) {
+    case "checking":
+      return <p style={muted}>Checking whether on-device extraction is available…</p>;
+
+    case "unsupported":
+      return (
+        <p style={muted}>
+          On-device extraction is unavailable: {state.message ?? "unsupported platform"}.
+        </p>
+      );
+
+    case "needs-download":
+      return (
+        <div>
+          <p style={{ margin: "0 0 0.6rem" }}>
+            <strong>On-device extraction is available but not downloaded.</strong> The download is
+            Chrome-managed and its size is unknown; it takes about 5 minutes on a fast connection.
+            Nothing is fetched until you press the button.
+          </p>
+          <button type="button" style={button} onClick={() => primeOnDeviceExtractor()}>
+            Arm this device for offline extraction
+          </button>
+        </div>
+      );
+
+    case "downloading":
+      return <OnDeviceExtractorDownloadProgress state={state} />;
+
+    case "ready":
+      return (
+        <p style={muted}>
+          On-device extraction is armed and ready for offline use. A card drafted by the on-device
+          model will be marked below.
+        </p>
+      );
+
+    case "error":
+      return (
+        <div>
+          <p style={errorBox}>
+            On-device extraction arming failed: {state.message ?? "unknown error"}.
+          </p>
+          <button
+            type="button"
+            style={{ ...button, marginTop: "0.5rem" }}
+            onClick={() => primeOnDeviceExtractor()}
+          >
+            try again
+          </button>
+        </div>
+      );
+  }
+}
+
+function OnDeviceExtractorDownloadProgress({ state }: { state: OnDeviceExtractorState }) {
+  const fraction = state.progress?.fraction ?? 0;
+  const percent = Math.round(fraction * 100);
+
+  return (
+    <div>
+      <p style={{ margin: "0 0 0.5rem" }}>Downloading on-device extraction model… {percent}%</p>
+      <div
+        style={{ background: "#eaeef2", borderRadius: 7, height: 14, overflow: "hidden" }}
+        role="progressbar"
+        aria-valuenow={percent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div
+          style={{
+            background: "#1f883d",
+            height: "100%",
+            transition: "width 120ms linear",
+            width: `${String(percent)}%`,
+          }}
+        />
+      </div>
+      <p style={{ ...muted, margin: "0.4rem 0 0" }}>
+        This may take several minutes. Leave this tab open.
+      </p>
+    </div>
   );
 }
 
@@ -260,6 +391,13 @@ function ReviewCard({ item }: { item: OutboxItem }) {
       <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
         <strong style={monospace}>#{item.seq}</strong>
         <span style={statusBadge(item.status)}>{item.status}</span>
+        {/* Compared against the exported constant, not a copy of its value: the
+            engine id is written by the extractor and read here, and a literal in
+            one of those two places drifts silently — the badge would just stop
+            appearing, which looks like "no on-device extractions happened". */}
+        {item.extractedBy === ONDEVICE_CHAT_ENGINE && (
+          <span style={betaBadge}>beta — on-device extraction</span>
+        )}
         <span style={muted}>
           {stated} stated · {silent} silent · {Object.keys(fields).length} leaves total
         </span>

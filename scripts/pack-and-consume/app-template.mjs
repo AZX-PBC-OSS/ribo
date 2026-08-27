@@ -27,6 +27,7 @@ export function scratchPackageJson(tarballPaths) {
       "@azx/ribo-core": fileSpec("@azx/ribo-core"),
       "@azx/ribo-adapter-snuggpro": fileSpec("@azx/ribo-adapter-snuggpro"),
       "@azx/ribo-extractor-openai": fileSpec("@azx/ribo-extractor-openai"),
+      "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
       "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
       "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
       "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
@@ -39,10 +40,10 @@ export function scratchPackageJson(tarballPaths) {
     devDependencies: {
       vite: "8.1.5",
     },
-    // None of these six packages is published yet (doc 10 §10), so a nested reference — e.g.
+    // None of these packages is published yet (doc 10 §10), so a nested reference — e.g.
     // ribo-adapter-snuggpro's own `"@azx/ribo-core": "^0.0.0"`, rewritten from `workspace:^` at
     // pack time — has nothing to resolve against on the real registry (ERR_PNPM_FETCH_404
-    // without this). The override forces every nested occurrence of each of these six names,
+    // without this). The override forces every nested occurrence of each of these names,
     // at any depth, to resolve to the SAME local tarball the root dependency above uses — which
     // is what keeps this a single coherent install (one @azx/ribo-core, not "whatever the
     // registry has"), the same property a real registry's own semver resolution would give for
@@ -52,6 +53,7 @@ export function scratchPackageJson(tarballPaths) {
         "@azx/ribo-core": fileSpec("@azx/ribo-core"),
         "@azx/ribo-adapter-snuggpro": fileSpec("@azx/ribo-adapter-snuggpro"),
         "@azx/ribo-extractor-openai": fileSpec("@azx/ribo-extractor-openai"),
+        "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
         "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
         "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
         "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
@@ -143,6 +145,7 @@ export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
 export const MAIN_JS = `import { isSpanGrounded } from "@azx/ribo-core";
 import { normalizeFields, snuggProAdapter } from "@azx/ribo-adapter-snuggpro";
 import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
+import { OnDeviceChat, threePhaseExtractor, ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 import { OnDeviceTranscriber } from "@azx/ribo-transcriber-ondevice";
 import { ManagedTranscriber } from "@azx/ribo-transcriber-managed";
 import { RiboProvider } from "@azx/ribo-ui-react";
@@ -182,6 +185,22 @@ async function run() {
       normalize: normalizeFields,
     });
     checks.extractorHasExtractFn = typeof extractor.extract === "function";
+
+    // ribo-extractor-ondevice: constructed across the tarball boundary, no model touched.
+    // \`capability()\` reads globalThis.LanguageModel and never downloads, so this is safe in a
+    // headless build; the point is that the package RESOLVES and its zod dependency came along.
+    // threePhaseExtractor calls z.toJSONSchema() on the target at construction time, so a
+    // dropped \`zod\` dependency or a broken exports path fails right here rather than in a
+    // consumer's app months later — the exact defect class this tier exists for.
+    const onDeviceChat = new OnDeviceChat({});
+    checks.onDeviceEngineId = onDeviceChat.engine === ONDEVICE_CHAT_ENGINE;
+    const onDeviceCapability = await onDeviceChat.capability();
+    checks.onDeviceCapabilityShape = typeof onDeviceCapability.status === "string";
+    const onDeviceExtractor = threePhaseExtractor({
+      target: snuggProAdapter,
+      chat: onDeviceChat,
+    });
+    checks.onDeviceExtractorHasExtractFn = typeof onDeviceExtractor.extract === "function";
 
     // ribo-transcriber-managed: real capability logic across the tarball boundary, and no
     // network — capability() never fetches. Both directions, because the interesting bug

@@ -1,0 +1,71 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>On-device extraction — corpus run</title>
+<style>
+  body {
+    font:
+      14px/1.6 ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      monospace;
+    margin: 2rem;
+    max-width: 68rem;
+  }
+  button {
+    font: inherit;
+    padding: 0.7rem 1.2rem;
+    cursor: pointer;
+    margin-right: 0.5rem;
+  }
+  button[disabled] {
+    cursor: default;
+    opacity: 0.5;
+  }
+  pre {
+    background: #f4f4f4;
+    padding: 1rem;
+    white-space: pre-wrap;
+    max-height: 34rem;
+    overflow-y: auto;
+  }
+  .warn {
+    color: #a06000;
+  }
+</style>
+<h1>On-device extraction — corpus run</h1>
+<p>
+  Three strategies, each writing to its own results directory. <code>score.mjs</code> reads all
+  three unchanged.
+</p>
+<ul>
+  <li>
+    <strong>Per-group</strong> — the production wiring: seven calls, each constrained to a nested
+    object of envelopes.
+  </li>
+  <li>
+    <strong>Two-phase</strong> — a spike: one call per group for verbatim spans, then one call per
+    non-null span for the leaf value. The hypothesis is that the narrower constraint removes the
+    whitespace loop.
+  </li>
+  <li>
+    <strong>Three-phase</strong> — a spike: one call per group for a boolean presence gate, then the
+    two-phase span+classify pipeline only for the leaves the gate admits. The hypothesis is that a
+    boolean is easier to answer truthfully than a nullable span, so the model fabricates fewer
+    quotes.
+  </li>
+</ul>
+<p class="warn">
+  Must be opened in <strong>real Chrome</strong>. Chromium's Prompt API is a stub that answers with
+  fixed text, so a run there would grade nothing. This page checks and refuses.
+</p>
+<p>
+  Leave the tab focused — a background tab gets throttled. The two-phase and three-phase strategies
+  make many more calls than the per-group one, so they take longer.
+</p>
+<button id="go-per-group">Run per-group strategy</button>
+<button id="go-two-phase">Run two-phase strategy</button>
+<button id="go-production">Run PRODUCTION extractor (package)</button>
+<button id="go-grounded">Run three-phase + span grounding</button>
+<button id="go-three-phase">Run three-phase strategy</button>
+<pre id="out">idle</pre>
+<script type="module" src="./main.ts"></script>
