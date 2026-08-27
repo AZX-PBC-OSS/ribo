@@ -5,7 +5,8 @@
 The chat transport seam gains a capability contract, and a composite extractor that selects
 between transports per extraction.
 
-`ChatCapability` (`ready` / `needs-download` / `unavailable`) and `CapableChatClient` are declared
+`ChatCapability` (`ready` / `needs-download` / `unavailable`, the last carrying a
+`ChatUnavailableReason` and a required human-readable `detail`) and `CapableChatClient` are declared
 beside `ChatClient`, at the layer both transports implement. They live here rather than in the
 on-device package because `helixChat` and the composite are here, and putting the contract in a
 package that depends on this one would invert the dependency.

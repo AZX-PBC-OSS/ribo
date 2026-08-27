@@ -112,24 +112,32 @@ export interface ChatClient {
 /**
  * Why a chat engine cannot run.
  *
- * A closed set on purpose: a UI has to branch on this, and free-text reasons
- * make that impossible. The human-readable part lives in `detail`, which is
- * required precisely so a reason code never has to carry nuance it cannot express.
+ * A closed set on purpose: a UI has to branch on this, and free-text reasons make that
+ * impossible. The human-readable part lives in `detail`, which is required precisely so a reason
+ * code never has to carry nuance it cannot express.
+ *
+ * **A plain union, not the `as const` array + `(typeof X)[number]` shape** that
+ * `TranscriberUnavailableReason` uses in `ribo-core`. That shape exists to produce a *runtime*
+ * array, and it earns that there: `PERMANENT_TRANSCRIBER_UNAVAILABLE_REASONS` is a subset the
+ * code iterates with `.includes()` to decide whether a verdict is permanent. Nothing here needs
+ * the list at runtime, so the array would be an unused constant on a published package's API
+ * surface and the indirection would buy nothing.
+ *
+ * If a permanence predicate ever arrives — a composite caching an `unavailable` forever rather
+ * than on the capability TTL, which is exactly what `firstCapable` does — reintroduce the array
+ * then, when it has a caller.
  */
-export const CHAT_UNAVAILABLE_REASONS = [
+export type ChatUnavailableReason =
   /** The device or browser cannot run this engine at all — e.g. no Prompt API. */
-  "unsupported-platform",
+  | "unsupported-platform"
   /** It needs the network and there is none. The managed path's normal failure. */
-  "offline",
+  | "offline"
   /** Missing endpoint, key or user consent. Nothing is wrong with the device. */
-  "not-configured",
+  | "not-configured"
   /** Weights or runtime binaries are not on the device and could not be fetched. */
-  "model-unavailable",
+  | "model-unavailable"
   /** The probe itself failed in a way this vocabulary does not describe. */
-  "unknown",
-] as const;
-
-export type ChatUnavailableReason = (typeof CHAT_UNAVAILABLE_REASONS)[number];
+  | "unknown";
 
 /**
  * What a chat engine can do **right now**.

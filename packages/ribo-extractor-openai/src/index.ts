@@ -46,7 +46,7 @@ export type { CompositeExtractor, CompositeExtractorEntry } from "./composite-ex
 // The chat transport seam: the interface an extractor calls, its request/response
 // types, its call options, and the typed error its implementations throw.
 // `ChatError` is a VALUE export (a class); the rest are types.
-export { ChatError, CHAT_UNAVAILABLE_REASONS } from "./chat-client.js";
+export { ChatError } from "./chat-client.js";
 export type {
   ChatCallOptions,
   ChatCapability,
