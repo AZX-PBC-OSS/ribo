@@ -23,17 +23,20 @@ export type ExtractionOutcome<F> =
   | { readonly candidate: string; readonly result: ExtractionResult<F>; readonly error?: never }
   | { readonly candidate: string; readonly error: unknown; readonly result?: never };
 
-type ResultOutcome<F> = Extract<ExtractionOutcome<F>, { result: ExtractionResult<F> }>;
-type ErrorOutcome<F> = Extract<ExtractionOutcome<F>, { error: unknown }>;
+/** The success branch of {@link ExtractionOutcome}. */
+export type ResultOutcome<F> = Extract<ExtractionOutcome<F>, { result: ExtractionResult<F> }>;
+/** The failure branch of {@link ExtractionOutcome}. */
+export type ErrorOutcome<F> = Extract<ExtractionOutcome<F>, { error: unknown }>;
 
 /**
  * Construct a result outcome. Prefer this over inline objects so the union
  * stays genuinely exclusive.
+ *
+ * Returns the narrowed branch rather than the union: a caller that builds one
+ * of these knows which branch it built, and widening here would throw that away
+ * at the point it is cheapest to keep.
  */
-export function resultOutcome<F>(
-  candidate: string,
-  result: ExtractionResult<F>,
-): ExtractionOutcome<F> {
+export function resultOutcome<F>(candidate: string, result: ExtractionResult<F>): ResultOutcome<F> {
   return { candidate, result };
 }
 
@@ -41,7 +44,7 @@ export function resultOutcome<F>(
  * Construct an error outcome. Prefer this over inline objects so the union
  * stays genuinely exclusive.
  */
-export function errorOutcome<F>(candidate: string, error: unknown): ExtractionOutcome<F> {
+export function errorOutcome<F>(candidate: string, error: unknown): ErrorOutcome<F> {
   return { candidate, error };
 }
 
@@ -65,19 +68,34 @@ export interface ArbiterInput<F> {
  * throw an error. The three discriminants are named so a mistyped verdict is a
  * compile-time error rather than a silent `continue`.
  */
-export type ExtractionArbiter<F> = (
-  input: ArbiterInput<F>,
-) =>
+export type ArbiterVerdict<F> =
   | { readonly accept: ExtractionResult<F> }
   | { readonly continue: true }
   | { readonly giveUp: unknown };
 
+export type ExtractionArbiter<F> = (input: ArbiterInput<F>) => ArbiterVerdict<F>;
+
+/**
+ * Discriminate on the `result` VALUE, never on key presence.
+ *
+ * `result?: never` permits an explicit `result: undefined`, so an error outcome
+ * written as `{ candidate, error, result: undefined }` type-checks — and under a
+ * `"result" in outcome` test it read as a SUCCESS. `terminalFallsThrough` then
+ * returned `{ accept: undefined }`: it accepted a result that does not exist and
+ * swallowed the error. Verified in a REPL against the first implementation of
+ * this file, and pinned by a test below.
+ *
+ * The two guards are exact complements, which is what makes the union genuinely
+ * exclusive at runtime as well as in the type. `result` is the discriminant
+ * rather than `error` because `throw undefined` is legal, so an error outcome
+ * can carry `error: undefined` — but an `ExtractionResult` is always an object.
+ */
 function isResultOutcome<F>(outcome: ExtractionOutcome<F>): outcome is ResultOutcome<F> {
-  return "result" in outcome;
+  return outcome.result !== undefined;
 }
 
 function isErrorOutcome<F>(outcome: ExtractionOutcome<F>): outcome is ErrorOutcome<F> {
-  return "error" in outcome;
+  return outcome.result === undefined;
 }
 
 /**
@@ -92,12 +110,7 @@ function isErrorOutcome<F>(outcome: ExtractionOutcome<F>): outcome is ErrorOutco
  * engine shares that transport, so retrying the whole extraction later is better
  * than burning a worse strategy now.
  */
-export function terminalFallsThrough<F>(
-  input: ArbiterInput<F>,
-):
-  | { readonly accept: ExtractionResult<F> }
-  | { readonly continue: true }
-  | { readonly giveUp: unknown } {
+export function terminalFallsThrough<F>(input: ArbiterInput<F>): ArbiterVerdict<F> {
   const firstResult = input.outcomes.find(isResultOutcome);
   if (firstResult) {
     return { accept: firstResult.result };
@@ -131,12 +144,7 @@ export function terminalFallsThrough<F>(
  * Naming this separately from `terminalFallsThrough` is how a deployment opts into
  * degradation deliberately rather than by omission.
  */
-export function acceptAnySuccess<F>(
-  input: ArbiterInput<F>,
-):
-  | { readonly accept: ExtractionResult<F> }
-  | { readonly continue: true }
-  | { readonly giveUp: unknown } {
+export function acceptAnySuccess<F>(input: ArbiterInput<F>): ArbiterVerdict<F> {
   const firstResult = input.outcomes.find(isResultOutcome);
   if (firstResult) {
     return { accept: firstResult.result };

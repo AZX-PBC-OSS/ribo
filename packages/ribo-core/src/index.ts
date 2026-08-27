@@ -179,7 +179,14 @@ export {
   resultOutcome,
   terminalFallsThrough,
 } from "./arbitration.js";
-export type { ArbiterInput, ExtractionArbiter, ExtractionOutcome } from "./arbitration.js";
+export type {
+  ArbiterInput,
+  ArbiterVerdict,
+  ErrorOutcome,
+  ExtractionArbiter,
+  ExtractionOutcome,
+  ResultOutcome,
+} from "./arbitration.js";
 
 // Work safety: the one honest "is my work safe?" answer, derived purely from the
 // outbox, the storage persistence grant and connectivity — so every presenter

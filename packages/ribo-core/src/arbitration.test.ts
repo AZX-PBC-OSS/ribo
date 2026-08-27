@@ -46,6 +46,28 @@ const _anySuccessCheck: ExtractionArbiter<{ value: number }> = acceptAnySuccess;
 void _arbiterCheck;
 void _anySuccessCheck;
 
+describe("outcome discrimination", () => {
+  // An earlier implementation discriminated on key presence (`"result" in outcome`).
+  // `result?: never` permits an explicit `undefined`, so this error outcome read as a
+  // SUCCESS and the arbiter returned `{ accept: undefined }` — accepting a result that
+  // does not exist while swallowing the error. Guards now test the VALUE.
+  test("an error outcome carrying an explicit result: undefined is not a success", () => {
+    const boom = Object.assign(new Error("service unavailable"), { status: 503 });
+    const outcome = { candidate: "a", error: boom, result: undefined };
+
+    expectGiveUp(terminalFallsThrough(makeInput([outcome], true)), boom);
+    expectGiveUp(acceptAnySuccess(makeInput([outcome], true)), boom);
+  });
+
+  // `throw undefined` is legal, so an error outcome may carry no error value at all.
+  // It must still be an error, never a success.
+  test("an error outcome whose error is undefined is still an error", () => {
+    const outcome = { candidate: "a", error: undefined };
+
+    expectGiveUp(terminalFallsThrough(makeInput([outcome], true)), undefined);
+  });
+});
+
 describe("terminalFallsThrough", () => {
   test("falls through on a terminal error and gives up on a transient 503", () => {
     const terminal = new TerminalQueueError("truncated");
