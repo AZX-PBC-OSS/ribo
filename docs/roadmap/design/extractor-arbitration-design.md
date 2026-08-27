@@ -108,9 +108,9 @@ type ExtractionOutcome<F> =
   | { readonly candidate: string; readonly error: unknown };
 
 interface ArbiterInput<F> {
-  /** Every outcome so far, in the order the candidates were attempted. */
+  /** Every outcome so far, in the order they SETTLED — not the order candidates were started. */
   readonly outcomes: readonly ExtractionOutcome<F>[];
-  /** True when no candidate remains. The arbiter must accept or give up. */
+  /** True when every candidate has settled. The arbiter must accept or give up. */
   readonly exhausted: boolean;
 }
 
@@ -118,6 +118,13 @@ type ExtractionArbiter<F> = (
   input: ArbiterInput<F>,
 ) => { accept: ExtractionResult<F> } | { continue: true } | { giveUp: unknown };
 ```
+
+**Both fields mean settlement, not dispatch, and under sequential scheduling the distinction is
+invisible** — candidates settle in the order they start. Under `raceExtractor` it is load-bearing in
+two places, so it is pinned here rather than left to each constructor. If `outcomes` were dispatch-
+ordered, `terminalFallsThrough`'s "give up with the first error" would name a different error
+depending on scheduling. And if `exhausted` meant "no candidate left to **start**", it would be true
+on a race's very first call, making `continue` illegal every time and a race unbuildable.
 
 Three verdicts, and the third is not the same as the second at exhaustion:
 
@@ -158,13 +165,27 @@ it now is futile: give up and let the relay's backoff retry the whole extraction
 network may be back. Continuing on transient would burn the degraded strategy at the worst possible
 moment and cache its worse result.
 
-**A consequence that lands on the strategies, not on this file.** `isTransientFailure` defaults an
-unrecognised error to retryable — deliberately, since a wrongly-`dead` transient failure loses a
-recording. A zod parse failure carries no HTTP status, so it classifies as transient and
-`terminalFallsThrough` would **not** fall through, contradicting §4.3. For a schema-parse failure to
-reach the next strategy, the strategy must throw it as a `TerminalQueueError`, the way
-`assertStopFinishReason` already does for truncation. That is a change to the strategies, and the
-plan carries it as its own task.
+**A consequence that lands on the strategies, not on this file — and the obvious fix for it is
+wrong.** `isTransientFailure` defaults an unrecognised error to retryable, deliberately, since a
+wrongly-`dead` transient failure loses a recording. A zod parse failure carries no HTTP status, so it
+classifies as transient and `terminalFallsThrough` would **not** fall through, contradicting §4.3.
+
+The obvious fix is to throw parse failures as `TerminalQueueError`, the way `assertStopFinishReason`
+already does for truncation. **Do not do that.** Truncation at a fixed `maxTokens` is deterministic —
+re-sending reproduces it exactly, which is what makes it terminal. A schema miss is **sampled**: the
+same request can fail zod once and pass on re-send. `parseWithSchema`'s own doc comment already makes
+this argument, and it is right. Worse, the cost is asymmetric by path: strict structured outputs make
+a schema miss rare on the managed path, but the on-device path — the one this whole design exists to
+rescue — has no server-side `strict`, so an occasional one-off miss is its **expected** failure mode.
+Terminalising would remove both the per-group retry and the relay's backoff for exactly the offline
+recording that has no second chance.
+
+The conflation to avoid is this: **we want the ladder to fall through, not the queue to stop
+retrying.** Those got fused only because the arbiter's sole signal is the error. So give the parse
+failure its own error type that `isTransientFailure` still classifies as **transient**, and let the
+arbiter recognise the type directly. The queue keeps retrying, `parseWithSchema`'s argument stays
+true, the tests asserting transience stay green, and §4.3's third row is satisfied. A default arbiter
+falls through on a not-retryable error **or** a schema-parse error.
 
 A host that wants a quality judgement — _did this actually segment anything_ — writes its own. That
 is the case `r1.6-instance-extraction-design.md` needs, and it is why the input carries results and
@@ -278,6 +299,15 @@ The must-fail tests, stated as the behaviours that would be broken:
   reimplementation, and it is the reason rule 5 can be claimed to survive rather than asserted to.
 
 ## 8. Out of scope, recorded so it is not rediscovered
+
+- **`usage.strategy` stops at the `ExtractionResult` and never reaches review.** Stated here because
+  §5's own motivating scenario is a reviewer trusting a degraded card less, and this increment does
+  not deliver that. `toExtractStep` forwards only `fields` and `usage.engine`, so every production
+  extraction drops the strategy label at the relay boundary — it reaches no outbox column, no relay,
+  no card. Closing it means widening `ExtractStep` and the outbox schema the way `engine` was widened
+  for the on-device work, which is a relay change and does not belong in a combinator increment.
+  **The R1.6 consumer must not assume the label reaches review**; if it needs that, it owes the
+  widening.
 
 - **Cross-seam unification.** Making the engine generic over the delegate operation so `firstCapable`
   and `hedged` share it. Real, and worth doing against a passing transcriber suite once the extractor
