@@ -94,6 +94,23 @@ describe("terminalFallsThrough", () => {
     expectContinue(terminalFallsThrough(makeInput([errorOutcome("a", schemaError)])));
   });
 
+  // `continue` is illegal at exhaustion — the engine rejects it as a caller bug. An
+  // earlier version checked the schema-parse branch before the exhaustion branch, so a
+  // ladder whose candidates ALL sampled badly returned `continue` on the last call and
+  // died with a TypeError instead of surfacing the parse error. This is the primary
+  // case the arbiter exists for, so it is pinned rather than left to the engine.
+  test("gives up, not continues, when every candidate failed schema parse and the ladder is exhausted", () => {
+    const first = new SchemaParseError("tier1 did not match the schema");
+    const second = new SchemaParseError("tier2 did not match the schema");
+
+    expectGiveUp(
+      terminalFallsThrough(
+        makeInput([errorOutcome("tier1", first), errorOutcome("tier2", second)], true),
+      ),
+      first,
+    );
+  });
+
   test("gives up on a bare Error with no status", () => {
     const error = new Error("network down");
     expect(isTransientFailure(error)).toBe(true);

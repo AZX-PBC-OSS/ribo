@@ -122,6 +122,21 @@ export function terminalFallsThrough<F>(input: ArbiterInput<F>): ArbiterVerdict<
     return { accept: firstResult.result };
   }
 
+  // EXHAUSTION IS CHECKED FIRST, and the ordering is load-bearing. `continue` is
+  // illegal once every candidate has settled — the engine rejects it as a caller
+  // bug — so every "keep going" branch below must be unreachable at exhaustion.
+  // An earlier version tested the schema-parse branch before this one, which made
+  // a ladder whose candidates ALL failed zod (tier 1 and tier 2 both sampling
+  // badly — the primary case this arbiter exists for) return `continue` on the
+  // last call and die with a TypeError instead of the parse error. Verified by
+  // running it, then pinned below.
+  if (input.exhausted) {
+    const firstError = input.outcomes.find(isErrorOutcome);
+    if (firstError) {
+      return { giveUp: firstError.error };
+    }
+  }
+
   // A schema miss is sampled, not deterministic. The queue should still retry it,
   // but the ladder should also fall through to a different strategy rather than
   // wedging on the same shape. Continue now and let the next candidate try.
@@ -142,13 +157,6 @@ export function terminalFallsThrough<F>(input: ArbiterInput<F>): ArbiterVerdict<
   );
   if (firstTransient) {
     return { giveUp: firstTransient.error };
-  }
-
-  if (input.exhausted) {
-    const firstError = input.outcomes.find(isErrorOutcome);
-    if (firstError) {
-      return { giveUp: firstError.error };
-    }
   }
 
   return { continue: true };
