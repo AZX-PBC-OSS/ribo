@@ -178,11 +178,13 @@ export type {
 // strategy outcomes. The core accumulates outcomes in settlement order; the host
 // decides whether to accept, continue, or give up. The two defaults are the
 // conservative policy (terminal errors fall through, transient ones stop) and the
-// degraded-experience policy (any success is accepted). The shared sequential
-// engine underpins `fallbackExtractor` and the reimplemented `compositeExtractor`;
-// it is exported because Task 3's `compositeExtractor` consumes it directly.
+// degraded-experience policy (any success is accepted). The shared engine
+// underpins `fallbackExtractor`, the reimplemented `compositeExtractor`, and
+// `raceExtractor`; it is exported because Task 3's `compositeExtractor` consumes
+// the sequential engine directly.
 export {
   acceptAnySuccess,
+  createConcurrentExtractor,
   createSequentialExtractor,
   errorOutcome,
   resultOutcome,
@@ -192,6 +194,8 @@ export type {
   AdmissionVerdict,
   ArbiterInput,
   ArbiterVerdict,
+  ConcurrentExtractorCandidate,
+  ConcurrentExtractorOptions,
   ErrorOutcome,
   ExtractionArbiter,
   ExtractionOutcome,
@@ -206,6 +210,12 @@ export type {
 // Extractor seam and the arbiter vocabulary, not any model or transport.
 export { fallbackExtractor } from "./fallback-extractor.js";
 export type { FallbackCandidate } from "./fallback-extractor.js";
+
+// Strategy race: start every strategy at once and let an arbiter accept an
+// outcome as it settles, wait for more, or give up. A separate constructor from
+// `fallbackExtractor` so concurrency is opt-in by name, not a scheduling flag.
+export { raceExtractor } from "./race-extractor.js";
+export type { RaceCandidate } from "./race-extractor.js";
 
 // Work safety: the one honest "is my work safe?" answer, derived purely from the
 // outbox, the storage persistence grant and connectivity — so every presenter

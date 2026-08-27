@@ -185,13 +185,13 @@ export function acceptAnySuccess<F>(input: ArbiterInput<F>): ArbiterVerdict<F> {
   return { continue: true };
 }
 
-// --- Sequential extraction engine -----------------------------------------------------------
+// --- Shared extraction engine ----------------------------------------------------------------
 //
-// The shared scheduler for `fallbackExtractor` and the reimplemented `compositeExtractor`.
+// The shared scheduler for `fallbackExtractor`, `compositeExtractor` and `raceExtractor`.
 // It owns candidate iteration, verdict validation and result stamping; it owns no policy.
 // Policy lives in the caller-supplied arbiter, admission in the caller-supplied probe, and
-// the provenance key in the caller-supplied stamp. Keeping the engine dumb is what lets the
-// three combinators (fallback, composite, and later race) share one path while keeping their
+// the provenance key in the caller-chosen stamp. Keeping the engine dumb is what lets the
+// three combinators (fallback, composite, and race) share one path while keeping their
 // public guarantees structural: no scheduling flag, no capability vocabulary, no admission
 // semantics leak across constructors.
 
@@ -208,9 +208,72 @@ export interface ExtractorEngineCandidate<F> {
   readonly probe?: () => Promise<AdmissionVerdict>;
 }
 
+/** A candidate with no admission probe, used by the concurrent scheduling mode. */
+export interface ConcurrentExtractorCandidate<F> {
+  readonly id: string;
+  readonly extractor: Extractor<F>;
+}
+
 /** Two-state admission answer: admitted, or refused with an opaque detail for the caller. */
 export type AdmissionVerdict =
   { readonly admitted: true } | { readonly admitted: false; readonly detail: unknown };
+
+function validateCandidates<C extends { readonly id: string }>(candidates: readonly C[]): void {
+  if (candidates.length === 0) {
+    throw new TypeError("extraction engine requires at least one candidate");
+  }
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    if (seen.has(candidate.id)) {
+      throw new TypeError(`extraction engine: duplicate candidate id "${candidate.id}"`);
+    }
+    seen.add(candidate.id);
+  }
+}
+
+/**
+ * Apply an arbiter's verdict, validating it and stamping the accepted result.
+ *
+ * `isResultOutcome` first is load-bearing. Comparing `outcome.result === verdict.accept`
+ * alone matches an ERROR outcome against an arbiter that accepted `undefined`, because both
+ * sides are `undefined` — the guard is bypassed and the engine crashes reading `.usage` off
+ * nothing, reporting "Cannot read properties of undefined" instead of naming the arbiter that
+ * misbehaved. Verified by running it. Narrowing to result outcomes first makes an `undefined`
+ * accept match nothing, which is the intended verdict.
+ */
+function applyVerdict<F>(
+  verdict: ArbiterVerdict<F>,
+  input: ArbiterInput<F>,
+  arbiter: ExtractionArbiter<F>,
+  stampKey: string,
+): ExtractionResult<F> | "continue" {
+  if ("accept" in verdict) {
+    const acceptedOutcome = input.outcomes.find(
+      (outcome): outcome is ResultOutcome<F> =>
+        isResultOutcome(outcome) && outcome.result === verdict.accept,
+    );
+    if (!acceptedOutcome) {
+      throw new TypeError(
+        `arbiter ${arbiter.name || "(anonymous)"} returned a result not produced by any candidate`,
+      );
+    }
+    const accepted = acceptedOutcome.result;
+    return {
+      ...accepted,
+      usage: { ...accepted.usage, [stampKey]: acceptedOutcome.candidate },
+    };
+  }
+
+  if ("giveUp" in verdict) {
+    throw verdict.giveUp;
+  }
+
+  if (input.exhausted) {
+    throw new TypeError(`arbiter ${arbiter.name || "(anonymous)"} returned continue at exhaustion`);
+  }
+
+  return "continue";
+}
 
 /** What the caller supplies to {@link createSequentialExtractor}. */
 export interface SequentialExtractorOptions<F> {
@@ -222,19 +285,6 @@ export interface SequentialExtractorOptions<F> {
   readonly buildNoAdmissionError: (
     rejected: readonly { readonly id: string; readonly detail: unknown }[],
   ) => Error;
-}
-
-function validateCandidates<F>(candidates: readonly ExtractorEngineCandidate<F>[]): void {
-  if (candidates.length === 0) {
-    throw new TypeError("sequential extraction engine requires at least one candidate");
-  }
-  const seen = new Set<string>();
-  for (const candidate of candidates) {
-    if (seen.has(candidate.id)) {
-      throw new TypeError(`sequential extraction engine: duplicate candidate id "${candidate.id}"`);
-    }
-    seen.add(candidate.id);
-  }
 }
 
 /**
@@ -259,47 +309,6 @@ export function createSequentialExtractor<F>(options: SequentialExtractorOptions
       const rejected: { readonly id: string; readonly detail: unknown }[] = [];
       const outcomes: ExtractionOutcome<F>[] = [];
 
-      function applyVerdict(
-        verdict: ArbiterVerdict<F>,
-        input: ArbiterInput<F>,
-      ): ExtractionResult<F> | "continue" {
-        if ("accept" in verdict) {
-          // `isResultOutcome` first, and it is load-bearing rather than tidy. Comparing
-          // `outcome.result === verdict.accept` alone matches an ERROR outcome against an
-          // arbiter that accepted `undefined`, because both sides are `undefined` — the
-          // guard is bypassed and the engine then crashes reading `.usage` off nothing,
-          // reporting "Cannot read properties of undefined" instead of naming the arbiter
-          // that misbehaved. Verified by running it. Narrowing to result outcomes first
-          // makes an `undefined` accept match nothing, which is the intended verdict.
-          const acceptedOutcome = input.outcomes.find(
-            (outcome): outcome is ResultOutcome<F> =>
-              isResultOutcome(outcome) && outcome.result === verdict.accept,
-          );
-          if (!acceptedOutcome) {
-            throw new TypeError(
-              `arbiter ${arbiter.name || "(anonymous)"} returned a result not produced by any candidate`,
-            );
-          }
-          const accepted = acceptedOutcome.result;
-          return {
-            ...accepted,
-            usage: { ...accepted.usage, [stampKey]: acceptedOutcome.candidate },
-          };
-        }
-
-        if ("giveUp" in verdict) {
-          throw verdict.giveUp;
-        }
-
-        if (input.exhausted) {
-          throw new TypeError(
-            `arbiter ${arbiter.name || "(anonymous)"} returned continue at exhaustion`,
-          );
-        }
-
-        return "continue";
-      }
-
       let index = 0;
       for (const candidate of candidates) {
         const isLast = index === candidates.length - 1;
@@ -311,7 +320,7 @@ export function createSequentialExtractor<F>(options: SequentialExtractorOptions
             rejected.push({ id: candidate.id, detail: verdict.detail });
             if (isLast && outcomes.length > 0) {
               const input = { outcomes, exhausted: true };
-              const result = applyVerdict(arbiter(input), input);
+              const result = applyVerdict(arbiter(input), input, arbiter, stampKey);
               if (result !== "continue") return result;
             }
             continue;
@@ -326,7 +335,7 @@ export function createSequentialExtractor<F>(options: SequentialExtractorOptions
         }
 
         const input = { outcomes, exhausted: isLast };
-        const result = applyVerdict(arbiter(input), input);
+        const result = applyVerdict(arbiter(input), input, arbiter, stampKey);
         if (result !== "continue") return result;
       }
 
@@ -338,11 +347,104 @@ export function createSequentialExtractor<F>(options: SequentialExtractorOptions
       // arbiter that returned `continue` at the last call without being caught above — which
       // should not happen, but naming the arbiter here keeps the failure diagnosable.
       const input = { outcomes, exhausted: true };
-      const result = applyVerdict(arbiter(input), input);
+      const result = applyVerdict(arbiter(input), input, arbiter, stampKey);
       if (result !== "continue") return result;
       throw new TypeError(
         `arbiter ${arbiter.name || "(anonymous)"} returned continue at exhaustion`,
       );
     },
   };
+}
+
+/** What the caller supplies to {@link createConcurrentExtractor}. */
+export interface ConcurrentExtractorOptions<F> {
+  readonly candidates: readonly ConcurrentExtractorCandidate<F>[];
+  readonly arbiter: ExtractionArbiter<F>;
+  /** Key the engine stamps with the accepted candidate's id on success, e.g. `"strategy"`. */
+  readonly stampKey: string;
+}
+
+/**
+ * Build a concurrent {@link Extractor} from candidates, an arbiter, and a stamp key.
+ *
+ * Starts every candidate at once. As each extraction settles, the arbiter is called with every
+ * outcome so far in **settlement** order and an `exhausted` flag that is true only once every
+ * candidate has settled. On `accept` the result is stamped with the winning candidate's id under
+ * `stampKey`; on `giveUp` the supplied error is thrown unchanged; on `continue` the engine waits
+ * for the next outcome if any candidate is still in flight.
+ *
+ * Every candidate's extract promise has a rejection handler attached, so a losing candidate that
+ * rejects after another has been accepted never surfaces as an unhandled rejection.
+ *
+ * This is the engine only: no scheduling mode parameter, no admission semantics. Those are pinned
+ * by the public `raceExtractor` constructor that uses it.
+ */
+export function createConcurrentExtractor<F>(options: ConcurrentExtractorOptions<F>): Extractor<F> {
+  const { candidates, arbiter, stampKey } = options;
+  validateCandidates(candidates);
+
+  return {
+    extract: async (transcript: string): Promise<ExtractionResult<F>> => {
+      const outcomes: ExtractionOutcome<F>[] = [];
+      let wake = makeWake();
+      let settledCount = 0;
+      const total = candidates.length;
+
+      for (const candidate of candidates) {
+        // Attach both branches immediately so a late rejection is never unhandled, even if we
+        // return early on another candidate's success. `hedged.ts` documents the same discipline
+        // for transcribers; the same hazard exists here for any race.
+        candidate.extractor.extract(transcript).then(
+          (result) => {
+            outcomes.push(resultOutcome(candidate.id, result));
+            settledCount += 1;
+            wake.resolve();
+          },
+          (error) => {
+            outcomes.push(errorOutcome(candidate.id, error));
+            settledCount += 1;
+            wake.resolve();
+          },
+        );
+      }
+
+      let reported = 0;
+      while (reported < total) {
+        if (reported === settledCount) {
+          await wake.promise;
+        }
+
+        while (reported < settledCount) {
+          reported += 1;
+          const input = { outcomes, exhausted: reported === total };
+          const result = applyVerdict(arbiter(input), input, arbiter, stampKey);
+          if (result !== "continue") return result;
+        }
+
+        wake = makeWake();
+      }
+
+      // Every candidate is settled, but the loop did not return. This is a safety net for an
+      // arbiter that returned `continue` at the last call, naming the arbiter in the failure.
+      const input = { outcomes, exhausted: true };
+      const result = applyVerdict(arbiter(input), input, arbiter, stampKey);
+      if (result !== "continue") return result;
+      throw new TypeError(
+        `arbiter ${arbiter.name || "(anonymous)"} returned continue at exhaustion`,
+      );
+    },
+  };
+}
+
+interface Wake {
+  promise: Promise<void>;
+  resolve: () => void;
+}
+
+function makeWake(): Wake {
+  let resolve: () => void;
+  const promise = new Promise<void>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve: resolve! };
 }
