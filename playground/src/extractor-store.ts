@@ -1,18 +1,23 @@
-import { FakeExtractor, toExtractStep, type Connectivity, type ExtractStep } from "@azx/ribo-core";
+import {
+  compositeExtractor,
+  FakeExtractor,
+  toExtractStep,
+  type CompositeExtractor,
+  type CompositeExtractorEntry,
+  type Connectivity,
+  type ExtractStep,
+} from "@azx/ribo-core";
 import {
   OnDeviceChat,
   threePhaseExtractor,
   type LanguageModel,
 } from "@azx/ribo-extractor-ondevice";
 import {
-  compositeExtractor,
   openAiChat,
   perGroupExtractor,
   singleShotExtractor,
   type CapableChatClient,
   type ChatClient,
-  type CompositeExtractor,
-  type CompositeExtractorEntry,
 } from "@azx/ribo-extractor-openai";
 import {
   normalizeFields,
@@ -216,8 +221,8 @@ export function buildExtractorWiring(options: BuildExtractorOptions): ExtractorW
   });
 
   const entries: readonly CompositeExtractorEntry<ExtractedShape>[] = [
-    { chat: managedChat, extractor: managed },
-    { chat: onDeviceChat, extractor: onDevice },
+    { source: managedChat, extractor: managed },
+    { source: onDeviceChat, extractor: onDevice },
   ];
 
   const composite = compositeExtractor(entries);

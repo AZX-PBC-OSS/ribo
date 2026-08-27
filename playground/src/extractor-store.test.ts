@@ -221,8 +221,8 @@ test("composite order is managed-first, on-device-second", () => {
     model: "m",
   });
   expect(entries).toHaveLength(2);
-  expect(entries[0]!.chat.engine).toBe("openai");
-  expect(entries[1]!.chat.engine).toBe(ONDEVICE_CHAT_ENGINE);
+  expect(entries[0]!.source.engine).toBe("openai");
+  expect(entries[1]!.source.engine).toBe(ONDEVICE_CHAT_ENGINE);
 });
 
 // ---------------------------------------------------------------------------
@@ -258,8 +258,8 @@ test("the on-device delegate resolves from globalThis.LanguageModel", async () =
       model: "m",
     });
     const onDevice = entries[1]!;
-    expect(onDevice.chat.engine).toBe(ONDEVICE_CHAT_ENGINE);
-    expect(await onDevice.chat.capability()).toEqual({ status: "ready" });
+    expect(onDevice.source.engine).toBe(ONDEVICE_CHAT_ENGINE);
+    expect(await onDevice.source.capability()).toEqual({ status: "ready" });
   } finally {
     if (hadLanguageModel) globals.LanguageModel = previousLanguageModel;
     else delete globals.LanguageModel;

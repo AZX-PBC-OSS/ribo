@@ -1,8 +1,8 @@
-import { DEFAULT_CAPABILITY_TTL_MS } from "@azx/ribo-core";
-import type { Extractor, ExtractionResult } from "@azx/ribo-core";
+import { DEFAULT_CAPABILITY_TTL_MS } from "./first-capable.js";
+import type { Extractor, ExtractionResult } from "./extractor.js";
 import { describe, expect, test } from "vitest";
 
-import type { CapableChatClient, ChatCapability } from "./chat-client.js";
+import type { CapabilitySource, SelectableCapability } from "./composite-extractor.js";
 import { compositeExtractor } from "./composite-extractor.js";
 
 /**
@@ -30,16 +30,13 @@ function makeClock(): MutableClock {
   };
 }
 
-function fakeChatClient(
+function fakeSource(
   engine: string,
-  capability: ChatCapability,
-): CapableChatClient & { probeCount: number } {
+  capability: SelectableCapability,
+): CapabilitySource & { probeCount: number } {
   let probeCount = 0;
   return {
     engine,
-    complete: async () => {
-      throw new Error("composite extractor must not call chat.complete directly");
-    },
     capability: async () => {
       probeCount += 1;
       return capability;
@@ -69,25 +66,25 @@ function fakeExtractor<F>(
   };
 }
 
-const ready = (): ChatCapability => ({ status: "ready" });
-const unavailable = (detail: string): ChatCapability => ({
+const ready = (): SelectableCapability => ({ status: "ready" });
+const unavailable = (detail: string): SelectableCapability => ({
   status: "unavailable",
   reason: "offline",
   detail,
 });
-const needsDownload = (): ChatCapability => ({ status: "needs-download" });
+const needsDownload = (): SelectableCapability => ({ status: "needs-download" });
 
 describe("compositeExtractor", () => {
   test("first entry ready -> first extractor runs and engine is stamped", async () => {
     const fields = { a: 1 };
-    const managedChat = fakeChatClient("managed", ready());
+    const managedSource = fakeSource("managed", ready());
     const managedExtractor = fakeExtractor(fields, { calls: 7, engine: "managed" });
-    const onDeviceChat = fakeChatClient("on-device", ready());
+    const onDeviceSource = fakeSource("on-device", ready());
     const onDeviceExtractor = fakeExtractor(fields, { calls: 7, engine: "on-device" });
 
     const extractor = compositeExtractor([
-      { chat: managedChat, extractor: managedExtractor },
-      { chat: onDeviceChat, extractor: onDeviceExtractor },
+      { source: managedSource, extractor: managedExtractor },
+      { source: onDeviceSource, extractor: onDeviceExtractor },
     ]);
 
     const result = await extractor.extract("the transcript");
@@ -95,19 +92,19 @@ describe("compositeExtractor", () => {
     expect(result.usage).toEqual({ calls: 7, engine: "managed" });
     expect(managedExtractor.calls).toEqual(["the transcript"]);
     expect(onDeviceExtractor.calls).toEqual([]);
-    expect(managedChat.probeCount).toBe(1);
+    expect(managedSource.probeCount).toBe(1);
   });
 
   test("first unavailable, second ready -> second extractor runs and engine is stamped", async () => {
     const fields = { b: 2 };
-    const managedChat = fakeChatClient("managed", unavailable("uplink is down"));
+    const managedSource = fakeSource("managed", unavailable("uplink is down"));
     const managedExtractor = fakeExtractor(fields, { engine: "managed" });
-    const onDeviceChat = fakeChatClient("on-device", ready());
+    const onDeviceSource = fakeSource("on-device", ready());
     const onDeviceExtractor = fakeExtractor(fields, { engine: "on-device" });
 
     const extractor = compositeExtractor([
-      { chat: managedChat, extractor: managedExtractor },
-      { chat: onDeviceChat, extractor: onDeviceExtractor },
+      { source: managedSource, extractor: managedExtractor },
+      { source: onDeviceSource, extractor: onDeviceExtractor },
     ]);
 
     const result = await extractor.extract("the transcript");
@@ -115,69 +112,69 @@ describe("compositeExtractor", () => {
     expect(result.usage).toEqual({ calls: 1, engine: "on-device" });
     expect(managedExtractor.calls).toEqual([]);
     expect(onDeviceExtractor.calls).toEqual(["the transcript"]);
-    expect(managedChat.probeCount).toBe(1);
-    expect(onDeviceChat.probeCount).toBe(1);
+    expect(managedSource.probeCount).toBe(1);
+    expect(onDeviceSource.probeCount).toBe(1);
   });
 
   test("a needs-download entry is never selected, even as the only entry", async () => {
-    const onlyChat = fakeChatClient("on-device", needsDownload());
+    const onlyChat = fakeSource("on-device", needsDownload());
     const onlyExtractor = fakeExtractor({});
 
-    const only = compositeExtractor([{ chat: onlyChat, extractor: onlyExtractor }]);
+    const only = compositeExtractor([{ source: onlyChat, extractor: onlyExtractor }]);
     await expect(only.extract("x")).rejects.toThrow("on-device: needs-download");
     expect(onlyExtractor.calls).toEqual([]);
     expect(onlyChat.probeCount).toBe(1);
 
-    const managedChat = fakeChatClient("managed", unavailable("offline"));
+    const managedSource = fakeSource("managed", unavailable("offline"));
     const managedExtractor = fakeExtractor({});
-    const onDeviceChat = fakeChatClient("on-device", needsDownload());
+    const onDeviceSource = fakeSource("on-device", needsDownload());
     const onDeviceExtractor = fakeExtractor({});
 
     const paired = compositeExtractor([
-      { chat: managedChat, extractor: managedExtractor },
-      { chat: onDeviceChat, extractor: onDeviceExtractor },
+      { source: managedSource, extractor: managedExtractor },
+      { source: onDeviceSource, extractor: onDeviceExtractor },
     ]);
     await expect(paired.extract("x")).rejects.toThrow();
     expect(managedExtractor.calls).toEqual([]);
     expect(onDeviceExtractor.calls).toEqual([]);
-    expect(onDeviceChat.probeCount).toBe(1);
+    expect(onDeviceSource.probeCount).toBe(1);
   });
 
   test("capability is probed once per extraction even though the chosen extractor makes many calls", async () => {
-    const chat = fakeChatClient("managed", ready());
+    const source = fakeSource("managed", ready());
     const inner = fakeExtractor({ fields: true }, { calls: 7 });
 
-    const extractor = compositeExtractor([{ chat, extractor: inner }]);
+    const extractor = compositeExtractor([{ source, extractor: inner }]);
     const result = await extractor.extract("t");
 
     expect(result.usage.calls).toBe(7);
-    expect(chat.probeCount).toBe(1);
+    expect(source.probeCount).toBe(1);
     expect(inner.calls).toHaveLength(1);
   });
 
   test("invalidate() makes the next extraction re-probe", async () => {
     const clock = makeClock();
-    const chat = fakeChatClient("managed", ready());
+    const source = fakeSource("managed", ready());
     const inner = fakeExtractor({});
 
-    const extractor = compositeExtractor([{ chat, extractor: inner }], {
+    const extractor = compositeExtractor([{ source, extractor: inner }], {
       now: clock.now,
     });
 
     await extractor.extract("a");
-    expect(chat.probeCount).toBe(1);
+    expect(source.probeCount).toBe(1);
 
     extractor.invalidate();
     await extractor.extract("b");
-    expect(chat.probeCount).toBe(2);
+    expect(source.probeCount).toBe(2);
   });
 
   test("within the TTL and without invalidate(), a second extraction does not re-probe", async () => {
     const clock = makeClock();
-    const chat = fakeChatClient("managed", ready());
+    const source = fakeSource("managed", ready());
     const inner = fakeExtractor({});
 
-    const extractor = compositeExtractor([{ chat, extractor: inner }], {
+    const extractor = compositeExtractor([{ source, extractor: inner }], {
       now: clock.now,
     });
 
@@ -185,14 +182,14 @@ describe("compositeExtractor", () => {
     clock.advance(DEFAULT_CAPABILITY_TTL_MS - 1);
     await extractor.extract("b");
 
-    expect(chat.probeCount).toBe(1);
+    expect(source.probeCount).toBe(1);
   });
 
   test("when no entry is selectable, the error names each engine and its status", async () => {
-    const chat = fakeChatClient("managed", unavailable("offline"));
+    const source = fakeSource("managed", unavailable("offline"));
     const inner = fakeExtractor({});
 
-    const extractor = compositeExtractor([{ chat, extractor: inner }]);
+    const extractor = compositeExtractor([{ source, extractor: inner }]);
     await expect(extractor.extract("x")).rejects.toThrow(
       "managed: unavailable (offline) — offline",
     );

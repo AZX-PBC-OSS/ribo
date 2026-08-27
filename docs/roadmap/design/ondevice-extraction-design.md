@@ -212,8 +212,15 @@ Public surface of `@azx/ribo-extractor-ondevice`:
   `OnDeviceTranscriber`, including its "no background or automatic download" rule.
 - **A stable engine id**, mirroring `ONDEVICE_WHISPER_ENGINE`.
 
-The **composite `Extractor`** goes beside `perGroupExtractor` in `ribo-extractor-openai`; the
-**provenance plumbing** (§3.6) goes in `ribo-core`.
+The **composite `Extractor`** and the **provenance plumbing** (§3.6) both go in `ribo-core`.
+
+An earlier revision put the composite in `ribo-extractor-openai`, reasoning that it needed
+`CapableChatClient`. It does not: it reads an engine id and a `capability()` from each entry and
+never sends a request, so it takes a structural `CapabilitySource` and carries no transport
+concept at all. It belongs beside the `Extractor` seam it composes, for the same reason
+`firstCapable` sits beside `Transcriber` — it is a combinator over a core contract. Requiring a
+transport was the same over-specification as typing an extractor against a concrete client rather
+than the seam.
 
 ### 3.3 Capability and priming
 

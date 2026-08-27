@@ -13,6 +13,18 @@
 // Provenance — the envelope every extracted field arrives in, and the checkable
 // span-validity signal that replaces confidence for review flagging.
 export { extractedSchema, isSpanGrounded } from "./provenance.js";
+
+// The extraction sibling of `firstCapable`: choose between engines per extraction. Lives here,
+// beside the `Extractor` seam it composes, for the same reason `firstCapable` lives beside
+// `Transcriber` — it is a combinator over a core contract, not a transport concern.
+export { compositeExtractor } from "./composite-extractor.js";
+export type {
+  CapabilitySource,
+  CompositeExtractor,
+  CompositeExtractorEntry,
+  CompositeExtractorOptions,
+  SelectableCapability,
+} from "./composite-extractor.js";
 export type { Extracted } from "./provenance.js";
 
 // Deriving the extraction schema from a writable patch schema — every leaf

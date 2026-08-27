@@ -23,3 +23,19 @@ and the relay persists it as `extractedBy`.
 The outbox schema moves to **version 4** with an identity migration. Existing documents have no
 engine to name, which is the correct state for them; nothing reads `extractedBy` to decide
 behaviour, so its absence degrades a review badge rather than the state machine.
+
+---
+
+Also adds **`compositeExtractor`** — the extraction sibling of `firstCapable`. It takes an ordered
+list of `{ source, extractor }` entries, probes each source's capability, and runs the first
+`ready` one for a whole extraction, stamping its engine onto `usage.engine`.
+
+It lives here, beside the `Extractor` seam it composes, for the same reason `firstCapable` lives
+beside `Transcriber`. An earlier revision put it in `@azx/ribo-extractor-openai` on the grounds
+that it needed a `ChatClient`; it does not. It reads exactly two things from an entry — an engine
+id and a `capability()` — and never sends a request, so it takes a structural `CapabilitySource`
+and stays free of any transport concept. `CapableChatClient` satisfies that without declaring it.
+
+One deliberate difference from `firstCapable`: **the preference order is inverted.** Transcription
+puts on-device first because it is free and private; extraction puts the managed path first,
+because a small local model is worse and is accepted only when the alternative is nothing.
