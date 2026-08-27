@@ -391,11 +391,22 @@ and retry → fields plus engine reach the outbox → the review card badges a b
 - The engine reaches the outbox — guard against §3.6's original defect returning.
 - A capability change plus `invalidate()` flips the next selection without waiting out the TTL.
 
-**Browser (vitest browser mode).** Shape conformance and one real end-to-end extraction against
-a real `LanguageModel`, skipped rather than failed where the model is absent.
+**Browser (vitest browser mode).** Two probes only, and neither runs a real extraction:
+`prompt-api-availability` and `prompt-api-gesture` record what this browser's Prompt API actually
+is. The second asserts the Chromium **stub marker**, so it fails the day Chromium ships a working
+model — which is exactly when automating the real-model runs deserves another look.
 
-**Acceptance (quality).** `score.mjs` and `cli-chat.ts` are Node; the Prompt API is browser-only.
-The on-device acceptance run executes in browser mode and emits the **same result JSON**, so
+**There is deliberately no automated real-model test.** One was planned and dropped: Playwright's
+Chromium answers with canned text, so such a test could only skip everywhere, or pass against
+fixed strings and look like coverage. That trap has cost this project three times already.
+
+**Acceptance (quality) — the real verification, run by hand.** `score.mjs` is Node and the Prompt
+API is browser-only, so `spikes/ondevice-acceptance/` bridges them: a page drives the corpus
+through the production extractor in real Chrome and posts results back to disk. It refuses to run
+unless the model answers a behavioural stub check. This is more thorough than the automated test
+that was dropped — 14 transcripts scored against annotated ground truth rather than one assertion
+that a response parses — and its cost is that it needs a human and a click. It emits the **same
+result JSON**, so
 `score.mjs` grades it **untouched** — doc 16 §5's requirement, and the only way these numbers sit
 honestly beside the codex and claude baselines.
 

@@ -301,7 +301,24 @@ Spec §4 lists this and revision 1 had no task for it. Task 7 tests loop-kill in
 
 ---
 
-### Task 13: Browser proof against the real model
+### Task 13: Browser proof against the real model — **NOT DONE, deliberately**
+
+**Skipped, 2026-08-26.** Written for the per-group strategy, which no longer exists, and
+retargeting it at three-phase would produce a test that **can only ever skip in CI**: Playwright's
+Chromium ships a Prompt API stub that answers with canned text (spec §10.6), so the test would
+either skip everywhere or, worse, pass against fixed strings and look like coverage.
+
+Real-model verification is instead the corpus harness in `spikes/ondevice-acceptance/`, run
+manually against real Chrome. That is strictly more thorough than this task ever was — 14
+transcripts scored against annotated ground truth, versus one assertion that a response parses.
+What it gives up is unattended verification, and nothing available here provides that.
+
+The original task follows, unchanged, for whoever revisits this if Chromium ever ships a working
+model — the tripwire in `prompt-api-gesture.browser.test.ts` fails on the day it does.
+
+---
+
+#### Original task
 
 **Files:**
 
