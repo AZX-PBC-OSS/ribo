@@ -226,7 +226,7 @@ describe("singleShotExtractor — trust boundary", () => {
   });
 });
 
-describe("singleShotExtractor — failure is transient (queue retries)", () => {
+describe("singleShotExtractor — failure is transient (queue retries), and schema misses are recognisable", () => {
   test("a non-JSON response rejects, and the error is classified transient", async () => {
     const { chat } = fakeChat("Sorry, I can't help with that. {not json");
     const extractor = singleShotExtractor({ target: demoTarget, chat, model: "m" });
