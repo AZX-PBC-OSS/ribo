@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import type { Extractor, ExtractionResult } from "./extractor.js";
 import { TerminalQueueError, isTransientFailure } from "./queue/backoff.js";
+import type { ExtractionArbiter } from "./arbitration.js";
 import { acceptAnySuccess, terminalFallsThrough } from "./arbitration.js";
 import { fallbackExtractor } from "./fallback-extractor.js";
 
@@ -136,6 +137,35 @@ describe("fallbackExtractor", () => {
 
     await expect(extractor.extract("the transcript")).rejects.toThrow(TypeError);
     await expect(extractor.extract("the transcript")).rejects.toThrow(/result/);
+  });
+
+  // Also validation rule 2, and it used to slip past. Comparing
+  // `outcome.result === verdict.accept` matched an ERROR outcome when the arbiter
+  // accepted `undefined`, because both sides were `undefined` — the guard never fired
+  // and the engine crashed reading `.usage` off nothing, reporting "Cannot read
+  // properties of undefined" instead of naming the arbiter that misbehaved.
+  test("accept with undefined names the arbiter rather than crashing inside the engine", async () => {
+    const rogue = (() => ({ accept: undefined })) as unknown as ExtractionArbiter<{
+      value: number;
+    }>;
+    const extractor = fallbackExtractor<{ value: number }>(
+      [
+        {
+          strategy: "tier1",
+          extractor: makeExtractor(
+            "tier1",
+            { value: 1 },
+            { throws: new Error("candidate failed") },
+          ),
+        },
+      ],
+      rogue,
+    );
+
+    await expect(extractor.extract("the transcript")).rejects.toThrow(TypeError);
+    await expect(extractor.extract("the transcript")).rejects.toThrow(
+      /not produced by any candidate/,
+    );
   });
 
   test("later candidates are not invoked once one is accepted", async () => {

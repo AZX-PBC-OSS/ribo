@@ -264,8 +264,16 @@ export function createSequentialExtractor<F>(options: SequentialExtractorOptions
         input: ArbiterInput<F>,
       ): ExtractionResult<F> | "continue" {
         if ("accept" in verdict) {
+          // `isResultOutcome` first, and it is load-bearing rather than tidy. Comparing
+          // `outcome.result === verdict.accept` alone matches an ERROR outcome against an
+          // arbiter that accepted `undefined`, because both sides are `undefined` — the
+          // guard is bypassed and the engine then crashes reading `.usage` off nothing,
+          // reporting "Cannot read properties of undefined" instead of naming the arbiter
+          // that misbehaved. Verified by running it. Narrowing to result outcomes first
+          // makes an `undefined` accept match nothing, which is the intended verdict.
           const acceptedOutcome = input.outcomes.find(
-            (outcome): outcome is ResultOutcome<F> => outcome.result === verdict.accept,
+            (outcome): outcome is ResultOutcome<F> =>
+              isResultOutcome(outcome) && outcome.result === verdict.accept,
           );
           if (!acceptedOutcome) {
             throw new TypeError(
