@@ -168,6 +168,19 @@ export type {
   FakeExtractorOptions,
 } from "./extractor.js";
 
+// Arbitration: the decision vocabulary that lets a host classify extraction
+// strategy outcomes. The core accumulates outcomes in settlement order; the host
+// decides whether to accept, continue, or give up. The two defaults are the
+// conservative policy (terminal errors fall through, transient ones stop) and the
+// degraded-experience policy (any success is accepted).
+export {
+  acceptAnySuccess,
+  errorOutcome,
+  resultOutcome,
+  terminalFallsThrough,
+} from "./arbitration.js";
+export type { ArbiterInput, ExtractionArbiter, ExtractionOutcome } from "./arbitration.js";
+
 // Work safety: the one honest "is my work safe?" answer, derived purely from the
 // outbox, the storage persistence grant and connectivity — so every presenter
 // classifies identically. Only synced work is truly safe; the rest is a gradient.
