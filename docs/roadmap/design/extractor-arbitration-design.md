@@ -1,0 +1,282 @@
+# Extractor Arbitration — Design
+
+**Date:** 2026-08-27
+**Author:** AZX
+**Status:** Draft — ready for review
+**Task:** Prerequisite infrastructure for R1.6's instance-modeling extraction strategy
+(`r1.6-instance-extraction-design.md`), and independently useful on its own.
+**Authority it corrects:** [`composite-extractor.ts`](../../../packages/ribo-core/src/composite-extractor.ts)'s
+selection rule 5, which forbids exactly the behaviour this design adds — deliberately, and which
+therefore stays true of `compositeExtractor` itself.
+**Depends on:** R3 (the per-group extractor and its failure classification)
+**Blocks:** the tiered segmentation strategy in `r1.6-instance-extraction-design.md`
+
+---
+
+## 1. Goal
+
+**There is no way to say "try this extraction strategy, and if it cannot run, try a worse one."**
+
+`compositeExtractor` chooses an engine by probing its capability, then runs it to completion. Its
+rule 5 is explicit that an error propagates untouched and the composite does not fall back
+mid-extraction. That rule is correct for what it governs — a mid-extraction transport switch would
+invalidate the timing budget the delegate was configured for — but it means the only recovery
+available to a failing extraction is the relay's backoff and, eventually, `dead`.
+
+That is the right answer when the failure is transient. It is the wrong answer when the failure is
+_structural to the request we sent_ — a response that truncated, a response that would not parse
+against a schema the model has never been asked for before — because re-sending an identical request
+reproduces an identical failure. `assertStopFinishReason` already knows this and classifies
+truncation as `TerminalQueueError` for that exact reason. What is missing is somewhere for a
+terminal failure to go other than the floor.
+
+This design adds that: a combinator that selects among **strategies by outcome**, alongside the
+existing one that selects among **engines by capability**.
+
+## 2. Why this is not just "add a try/catch"
+
+Three things make it a contract rather than a helper.
+
+**The accept/reject judgement is domain knowledge, and the core does not have it.** Whether a result
+is good enough is not answerable from an `ExtractionResult` alone. "Did this segment the house
+acceptably" is a question about audit data. `ribo-core` deliberately does not know what a real-time
+factor is (`hedged`), and `SelectableCapability` is structurally typed precisely so a core combinator
+does not import any one engine's vocabulary. The same discipline applies here: **the core accumulates
+outcomes and calls out to an arbiter the host supplies.**
+
+**"Degraded is better than nothing" is a deployment policy, not an SDK opinion.** A field app whose
+auditor is standing in a basement with no connectivity is better served by a single-instance record
+than by no record. A batch importer is not. An earlier revision of this design tried to legislate
+that with an invariant forbidding strategies below a quality floor; that was the wrong layer. The
+arbiter is where the decision belongs, and the mechanism that makes it expressible is §4.3's
+exhaustion call.
+
+**Silent degradation is worse than the failure it replaces.** A fallback nobody can see is a quality
+collapse that reads as success. If a roster schema is subtly malformed and every extraction quietly
+runs the degraded strategy, the corpus measures the degraded strategy while we read the numbers as
+the primary one's. §5 is not optional polish; it is the thing that makes the mechanism safe to have.
+
+## 3. The shape these combinators share
+
+`compositeExtractor`, `hedged` and the fallback proposed here are one shape with four knobs.
+
+| Knob            | What it decides                     | `compositeExtractor` | `hedged`         | fallback           |
+| --------------- | ----------------------------------- | -------------------- | ---------------- | ------------------ |
+| **Candidates**  | what may run                        | engines              | two transcribers | strategies         |
+| **Admission**   | may this candidate be tried at all? | capability probe     | capability probe | none               |
+| **Scheduling**  | when does the next candidate start? | on demand            | after a delay    | on failure         |
+| **Arbitration** | given what is back, are we done?    | none                 | first to finish  | outcome classifier |
+
+The genuine difference is that **`compositeExtractor` gates before running and fallback gates after**.
+Neither currently has the other's gate, and a race has no equivalent on the extractor seam at all.
+
+### 3.1 What this design does _not_ unify, and why
+
+`hedged` and `firstCapable` are **`Transcriber`** combinators. `compositeExtractor` is the only
+extractor-side one. A single engine spanning both seams would have to be generic over the delegate
+operation (`Recording → Transcript` versus `string → ExtractionResult<F>`), which is possible but
+means refactoring shipped transcriber behaviour carrying eight documented resolution rules.
+
+One of those rules is not a convenience. `hedged`'s file header states:
+
+> A deployment that will not let audio leave the device simply never calls `hedged`; the default
+> composition stays privacy-preserving.
+
+That property is **structural today** — you cannot accidentally obtain concurrency, because the
+constructor you called has no parameter for it. A single configurable combinator with a scheduling
+knob converts a type-level fact into a boolean somebody can flip, and starts shipping audio off the
+device. `compositeExtractor`'s rule 5 is load-bearing in the same way.
+
+**So the resolution is: combinable in mechanism, separate in surface.** One internal engine
+implementing the four knobs; the public combinators stay thin, differently-typed constructors that
+each pin the knobs they must not expose. Duplication goes away; the guarantees stay structural.
+
+**This cut unifies the extractor seam only.** The transcriber combinators are left exactly as they
+are. Generalising the engine across both seams is recorded in §8 as a stated future, to be done
+against a passing transcriber suite rather than speculatively.
+
+## 4. Design
+
+### 4.1 The arbiter
+
+The host supplies a function. The core calls it each time an outcome lands, with every outcome so
+far in candidate order.
+
+```ts
+type ExtractionOutcome<F> =
+  | { readonly candidate: string; readonly result: ExtractionResult<F> }
+  | { readonly candidate: string; readonly error: unknown };
+
+interface ArbiterInput<F> {
+  /** Every outcome so far, in the order the candidates were attempted. */
+  readonly outcomes: readonly ExtractionOutcome<F>[];
+  /** True when no candidate remains. The arbiter must accept or give up. */
+  readonly exhausted: boolean;
+}
+
+type ExtractionArbiter<F> = (
+  input: ArbiterInput<F>,
+) => { accept: ExtractionResult<F> } | { continue: true } | { giveUp: unknown };
+```
+
+Three verdicts, and the third is not the same as the second at exhaustion:
+
+- **`accept`** — this result is good enough. The combinator returns it. The accepted result must be
+  one drawn from `outcomes`; returning a synthesised result is a validation error, because a result
+  that no candidate produced has no provenance and `usage` would be a lie.
+- **`continue`** — keep going. Legal only when `exhausted` is false; returning it at exhaustion is a
+  validation error rather than a silent throw, so an arbiter that forgot to handle the last call
+  fails loudly on its first run rather than intermittently in the field.
+- **`giveUp`** — stop and throw the supplied error. This is how an arbiter declines a degraded
+  result: at exhaustion it looks at what it has and decides a single-instance record is not worth
+  writing, so the item goes to the relay's backoff and `dead` handling exactly as today.
+
+**The exhaustion call is the load-bearing part of this contract.** It is what makes "allow a degraded
+experience" expressible without the SDK ranking strategies by quality. The last strategy on the
+ladder is not privileged and not forbidden — it is offered, and the host decides.
+
+### 4.2 Default arbiters
+
+A contract nobody can use correctly is not a contract. Two are supplied, and they are the ones we
+expect real callers to want:
+
+- **`retryableOnly`** — continue past a failure only when `isTransientFailure` says the error is
+  retryable _and_ the candidate has exhausted its own retry budget; accept the first successful
+  result; give up at exhaustion with the first error. This reproduces something close to today's
+  behaviour and is the conservative default.
+- **`acceptAnySuccess`** — accept the first successful result, continue past any error, and at
+  exhaustion accept the best result available or give up if there is none. This is the
+  degraded-experience arbiter, and naming it is how a deployment opts into degradation deliberately
+  rather than by omission.
+
+A host that wants a quality judgement — _did this actually segment anything_ — writes its own. That
+is the case `r1.6-instance-extraction-design.md` needs, and it is why the input carries results and
+not merely errors.
+
+### 4.3 What triggers moving on
+
+The combinator does not classify errors itself; the arbiter does, and the defaults above use the
+existing vocabulary. But the intended discipline is worth stating, because it is what the R1.6
+arbiter will implement and getting it backwards is expensive:
+
+| Failure                                             | Response                                                                                                                                                                                                                    |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Transient (network, 429, 5xx)                       | The candidate's **own** bounded retry runs first. Only an exhausted budget reaches the arbiter. Falling on the first blip would let one hiccup permanently downgrade an item's quality.                                     |
+| Terminal (`finishReason: "length"`, content filter) | Move on **immediately**, no retry. Re-sending is documented to truncate at the identical point, but the next strategy has a different request shape and may simply fit. This is the strongest case for the whole mechanism. |
+| Schema-parse failure                                | Move on. The likeliest failure for any strategy whose response shape is new, which is exactly the R1.6 roster.                                                                                                              |
+
+### 4.4 Placement in a composition
+
+The fallback goes **inside** each `compositeExtractor` entry, not around the composite:
+
+```
+compositeExtractor([
+  { source: managedCapability,  extractor: fallbackExtractor([tier1, tier2, tier3], arbiter) },
+  { source: onDeviceCapability, extractor: fallbackExtractor([tier2, tier3],        arbiter) },
+])
+```
+
+Each engine gets its own strategy ladder, and the composite keeps selecting engines by capability.
+Wrapping the outside instead would let a strategy failure silently jump from the managed model to
+the on-device one — conflating _this strategy failed_ with _this engine is unavailable_, which are
+the two axes the composite exists to keep apart. Note also that the ladders differ per engine:
+there is no requirement that every engine offer every strategy.
+
+Cascading is therefore composition, not a new combinator. `compositeExtractor` keeps rule 5 intact
+and untouched, because a `fallbackExtractor` that gives up throws, and the composite propagates that
+error exactly as it does today.
+
+### 4.5 `raceExtractor`
+
+Falls out of the same engine with the scheduling knob set to concurrent, and is included in this
+design because it is what makes the arbiter's accumulated-outcomes input worth having: an arbiter
+called as each result lands can accept early or wait for a better one, which is strictly more useful
+than "first to finish."
+
+It is a **separate constructor with no scheduling parameter**, per §3.1, and that separation is doing
+real work rather than mirroring `hedged` for symmetry's sake.
+
+The privacy exposure is smaller here than on the transcriber seam but it is **not zero**, and an
+earlier draft of this section wrongly said it was. A sequential ladder reaches a managed engine only
+when the ones before it failed; a race reaches every raced candidate every time. For extraction the
+default composition already prefers managed-first (`composite-extractor.ts` inverts the transcriber's
+preference on purpose), so racing usually reveals the transcript to nobody new — but a host that
+deliberately ordered an on-device engine first for privacy reasons would have that intent silently
+reversed by a scheduling flag. Keeping `raceExtractor` a distinct constructor means concurrency is
+always something a caller asked for by name, which is the same property `hedged` protects, obtained
+the same way.
+
+## 5. Observability
+
+The accepted candidate's identity lands on `ExtractionResult.usage`.
+
+`usage` is `{ calls: number; engine?: string }` today, and `engine`'s doc comment already states the
+rationale for an optional provenance field in the terms this needs:
+
+> It exists because a review card has to be able to say "this draft came from the on-device beta
+> model" — the reviewer's question is not which engine produced field 12, it is whether to trust this
+> card less than usual.
+
+A `strategy?: string` alongside it is the same field doing the same job for a different axis. It is
+additive and optional for the same documented reason `engine` is: `FakeExtractor` and the two
+existing extractors report `{ calls }` and nothing else, and requiring it would break every existing
+implementation for the benefit of one.
+
+Two consequences follow, and both matter more than the field does:
+
+- **A degraded result is labelled by construction**, not by anyone remembering to label it.
+- **Any measurement run must report strategy distribution**, or its headline number is not measuring
+  what its title says. A corpus run in which 40% of items fell to tier 2 is a different number from
+  one where none did, and the two are indistinguishable without this.
+
+## 6. What changes where
+
+| Package / file                            | Change                                                                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `ribo-core/extractor.ts`                  | `usage` gains optional `strategy`                                                                                        |
+| `ribo-core/arbitration.ts` _(new)_        | the four-knob engine, `ExtractionOutcome`, `ArbiterInput`, `ExtractionArbiter`, default arbiters                         |
+| `ribo-core/fallback-extractor.ts` _(new)_ | `fallbackExtractor(candidates, arbiter)` — sequential, no admission gate                                                 |
+| `ribo-core/race-extractor.ts` _(new)_     | `raceExtractor(candidates, arbiter)` — concurrent, no admission gate                                                     |
+| `ribo-core/composite-extractor.ts`        | reimplemented over the engine; **public behaviour and rule 5 unchanged**, proven by its existing suite passing untouched |
+| `ribo-core/index.ts`                      | exports                                                                                                                  |
+
+`hedged.ts`, `first-capable.ts` and every transcriber path: **no change**.
+
+## 7. Testing
+
+The must-fail tests, stated as the behaviours that would be broken:
+
+- A candidate list whose first entry throws a terminal error and whose second succeeds returns the
+  second's result, and makes exactly one call to the first.
+- A transient error does **not** reach the arbiter until the candidate's own retry budget is spent.
+- An arbiter returning `continue` at exhaustion raises a validation error naming the arbiter, not a
+  generic throw from inside the engine.
+- An arbiter returning an `accept` whose result is not in `outcomes` raises a validation error.
+- `giveUp` propagates the supplied error unchanged, so `isTransientFailure` and the relay's `dead`
+  handling classify it exactly as they would without the combinator in the path.
+- `usage.strategy` names the accepted candidate, including when the accepted candidate is the first.
+- Every discarded promise in `raceExtractor` has a rejection handler, so a losing failure never
+  surfaces as an unhandled rejection — the same guard `hedged` documents.
+- `compositeExtractor`'s existing suite passes with no edits. This is the regression gate for the
+  reimplementation, and it is the reason rule 5 can be claimed to survive rather than asserted to.
+
+## 8. Out of scope, recorded so it is not rediscovered
+
+- **Cross-seam unification.** Making the engine generic over the delegate operation so `firstCapable`
+  and `hedged` share it. Real, and worth doing against a passing transcriber suite once the extractor
+  side has proven the shape. Not done blind, and not done in the same change that introduces the
+  engine.
+- **A transcriber-side arbiter.** Same reasoning.
+- **Cost accounting across candidates.** A ladder that runs three strategies bills for three. `usage.calls`
+  currently reports the accepted candidate's calls; whether it should report the total is a real
+  question and is deliberately left as-is here rather than changed in passing.
+
+## 9. Open questions
+
+1. **Does `usage.calls` mean "calls that produced this result" or "calls this extraction cost"?**
+   They diverge the moment a ladder runs more than one candidate. Today the question does not arise.
+   Listed rather than answered because the answer belongs to whoever first needs the number for
+   billing, and guessing now sets a precedent for them.
+2. **Should the arbiter be async?** A quality judgement that needs to consult anything outside the
+   result would need it. Nothing in R1.6 does, and a synchronous callback is much harder to misuse
+   inside a retry loop. Proposed: synchronous, revisited on a real need.
