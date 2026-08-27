@@ -141,6 +141,12 @@ export type {
   ScheduleTimer,
 } from "./connectivity.js";
 
+// A model response that parsed as JSON but violated the extraction schema.
+// Thrown by the managed extractors and read by the default arbiter, so it lives
+// in core rather than in the extractor package — core cannot import from
+// `@azx/ribo-extractor-openai`.
+export { SchemaParseError } from "./schema-parse-error.js";
+
 // The durable outbox and its foreground relay. Forwarded wholesale through the
 // subsystem's own barrel (`queue/index.ts`) rather than reaching into
 // `queue/outbox.ts` & friends: the queue owns the list of names it publishes,
@@ -167,6 +173,49 @@ export type {
   ExtractionTarget,
   FakeExtractorOptions,
 } from "./extractor.js";
+
+// Arbitration: the decision vocabulary that lets a host classify extraction
+// strategy outcomes. The core accumulates outcomes in settlement order; the host
+// decides whether to accept, continue, or give up. The two defaults are the
+// conservative policy (terminal errors fall through, transient ones stop) and the
+// degraded-experience policy (any success is accepted). The shared engine
+// underpins `fallbackExtractor`, the reimplemented `compositeExtractor`, and
+// `raceExtractor`; it is exported because Task 3's `compositeExtractor` consumes
+// the sequential engine directly.
+export {
+  acceptAnySuccess,
+  createConcurrentExtractor,
+  createSequentialExtractor,
+  errorOutcome,
+  resultOutcome,
+  terminalFallsThrough,
+} from "./arbitration.js";
+export type {
+  AdmissionVerdict,
+  ArbiterInput,
+  ArbiterVerdict,
+  ConcurrentExtractorCandidate,
+  ConcurrentExtractorOptions,
+  ErrorOutcome,
+  ExtractionArbiter,
+  ExtractionOutcome,
+  ExtractorEngineCandidate,
+  ResultOutcome,
+  SequentialExtractorOptions,
+} from "./arbitration.js";
+
+// Strategy fallback: try extraction strategies in order and let an arbiter
+// decide whether each outcome is acceptable, continuing past failures the host
+// classifies as recoverable. Lives in core because it composes the core
+// Extractor seam and the arbiter vocabulary, not any model or transport.
+export { fallbackExtractor } from "./fallback-extractor.js";
+export type { FallbackCandidate } from "./fallback-extractor.js";
+
+// Strategy race: start every strategy at once and let an arbiter accept an
+// outcome as it settles, wait for more, or give up. A separate constructor from
+// `fallbackExtractor` so concurrency is opt-in by name, not a scheduling flag.
+export { raceExtractor } from "./race-extractor.js";
+export type { RaceCandidate } from "./race-extractor.js";
 
 // Work safety: the one honest "is my work safe?" answer, derived purely from the
 // outbox, the storage persistence grant and connectivity — so every presenter

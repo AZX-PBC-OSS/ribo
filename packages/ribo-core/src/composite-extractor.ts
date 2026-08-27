@@ -1,5 +1,13 @@
 import { DEFAULT_CAPABILITY_TTL_MS } from "./first-capable.js";
-import type { Extractor, ExtractionResult } from "./extractor.js";
+import type { Extractor } from "./extractor.js";
+import { createSequentialExtractor } from "./arbitration.js";
+import type {
+  ArbiterInput,
+  ArbiterVerdict,
+  ErrorOutcome,
+  ExtractionOutcome,
+  ResultOutcome,
+} from "./arbitration.js";
 
 /**
  * The capability shape this combinator selects on.
@@ -50,6 +58,12 @@ export interface CapabilitySource {
  * runs the whole extraction (all seven group calls for the per-group strategy). That
  * keeps the timing budget the delegate was configured for intact; switching transports
  * mid-extraction would invalidate that budget.
+ *
+ * The implementation is now a thin adapter over the shared
+ * {@link createSequentialExtractor} engine: the capability probe is the admission
+ * hook, the arbiter accepts the first result and propagates the first error, and the
+ * engine's `"engine"` stamp reproduces the previous provenance. The TTL cache and
+ * `invalidate()` stay in this file because the engine has no clock.
  */
 
 /** One entry in the composite roster: a capability source and the extractor built over it. */
@@ -101,68 +115,79 @@ export function compositeExtractor<F>(
   entries: readonly CompositeExtractorEntry<F>[],
   options: CompositeExtractorOptions = {},
 ): CompositeExtractor<F> {
-  return new CompositeExtractorImpl(entries, options);
+  const ttlMs = options.ttlMs ?? DEFAULT_CAPABILITY_TTL_MS;
+  const now = options.now ?? (() => Date.now());
+  const cache = new Map<string, CachedCapability>();
+
+  const engine = createSequentialExtractor<F>({
+    candidates: entries.map((entry) => ({
+      id: entry.source.engine,
+      extractor: entry.extractor,
+      probe: async () => {
+        const capability = await capabilityOf(entry.source, cache, now, ttlMs);
+        if (capability.status === "ready") {
+          return { admitted: true };
+        }
+        return { admitted: false, detail: capability };
+      },
+    })),
+    arbiter: compositeArbiter,
+    stampKey: "engine",
+    buildNoAdmissionError: (rejected) =>
+      new Error(
+        `no extractor is ready — ${rejected
+          .map((entry) => describe(entry.id, entry.detail as SelectableCapability))
+          .join("; ")}`,
+      ),
+  });
+
+  return {
+    ...engine,
+    invalidate: () => {
+      cache.clear();
+    },
+  };
 }
 
-class CompositeExtractorImpl<F> implements CompositeExtractor<F> {
-  readonly #entries: readonly CompositeExtractorEntry<F>[];
-  readonly #ttlMs: number;
-  readonly #now: () => number;
-  readonly #cache = new Map<string, CachedCapability>();
-
-  constructor(entries: readonly CompositeExtractorEntry<F>[], options: CompositeExtractorOptions) {
-    if (entries.length === 0) {
-      throw new TypeError("compositeExtractor requires at least one entry");
-    }
-    for (const entry of entries) {
-      const duplicates = entries.filter((other) => other.source.engine === entry.source.engine);
-      if (duplicates.length > 1) {
-        // The capability cache is keyed by engine id, so duplicates would share one
-        // entry and demote each other. Cheaper to refuse than to debug.
-        throw new TypeError(`compositeExtractor: duplicate engine id "${entry.source.engine}"`);
-      }
-    }
-
-    this.#entries = entries;
-    this.#ttlMs = options.ttlMs ?? DEFAULT_CAPABILITY_TTL_MS;
-    this.#now = options.now ?? (() => Date.now());
+/** The arbiter for a composite: accept the first result, or give up with the first error. */
+function compositeArbiter<F>(input: ArbiterInput<F>): ArbiterVerdict<F> {
+  const firstResult = input.outcomes.find(isResultOutcome);
+  if (firstResult) {
+    return { accept: firstResult.result };
   }
 
-  async extract(transcript: string): Promise<ExtractionResult<F>> {
-    const skipped: { readonly engine: string; readonly capability: SelectableCapability }[] = [];
-
-    for (const entry of this.#entries) {
-      const capability = await this.#capabilityOf(entry.source);
-      if (capability.status !== "ready") {
-        skipped.push({ engine: entry.source.engine, capability });
-        continue;
-      }
-
-      const result = await entry.extractor.extract(transcript);
-      return {
-        ...result,
-        usage: { ...result.usage, engine: entry.source.engine },
-      };
-    }
-
-    throw new Error(`no extractor is ready — ${skipped.map(describe).join("; ")}`);
+  const firstError = input.outcomes.find(isErrorOutcome);
+  if (firstError) {
+    return { giveUp: firstError.error };
   }
 
-  invalidate(): void {
-    this.#cache.clear();
-  }
+  return { continue: true };
+}
 
-  async #capabilityOf(source: CapabilitySource): Promise<SelectableCapability> {
-    const cached = this.#cache.get(source.engine);
-    if (cached && this.#now() < cached.expiresAt) return cached.capability;
+function isResultOutcome<F>(outcome: ExtractionOutcome<F>): outcome is ResultOutcome<F> {
+  return outcome.result !== undefined;
+}
 
-    const capability = await probe(source);
-    this.#cache.set(source.engine, {
-      capability,
-      expiresAt: this.#now() + this.#ttlMs,
-    });
-    return capability;
-  }
+function isErrorOutcome<F>(outcome: ExtractionOutcome<F>): outcome is ErrorOutcome<F> {
+  return outcome.result === undefined;
+}
+
+/** Fetch a capability from the cache or probe and cache the answer. */
+async function capabilityOf(
+  source: CapabilitySource,
+  cache: Map<string, CachedCapability>,
+  now: () => number,
+  ttlMs: number,
+): Promise<SelectableCapability> {
+  const cached = cache.get(source.engine);
+  if (cached && now() < cached.expiresAt) return cached.capability;
+
+  const capability = await probe(source);
+  cache.set(source.engine, {
+    capability,
+    expiresAt: now() + ttlMs,
+  });
+  return capability;
 }
 
 /** A probe is not permitted to take the caller down; a thrown probe is an unavailable engine. */
@@ -178,13 +203,12 @@ async function probe(source: CapabilitySource): Promise<SelectableCapability> {
   }
 }
 
-function describe(entry: { engine: string; capability: SelectableCapability }): string {
-  const { engine, capability } = entry;
+function describe(id: string, capability: SelectableCapability): string {
   if (capability.status === "needs-download") {
-    return `${engine}: needs-download${capability.detail ? ` — ${capability.detail}` : ""}`;
+    return `${id}: needs-download${capability.detail ? ` — ${capability.detail}` : ""}`;
   }
   if (capability.status === "unavailable") {
-    return `${engine}: unavailable (${capability.reason}) — ${capability.detail}`;
+    return `${id}: unavailable (${capability.reason}) — ${capability.detail}`;
   }
-  return `${engine}: ready`;
+  return `${id}: ready`;
 }

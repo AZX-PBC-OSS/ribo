@@ -14,8 +14,12 @@ adapter. The first target is home-energy audits in Snugg Pro.
 pipeline, with a headless React hook layer over it.** `@azx/ribo-core` holds the contracts and the
 engine: the provenance envelope (`extractedSchema`, `isSpanGrounded`), `Recording` / `Transcript`,
 the `Transcriber` contract (capability reporting, `firstCapable` selection, a `FakeTranscriber`
-double), the `Extractor<F>` seam (`toExtractStep`, `FakeExtractor`), `ToolAdapter<F, C>`, the review
-contract (`buildReviewRequest`, `resolveReview`), and the offline-first outbox/relay state machine
+double), the `Extractor<F>` seam (`toExtractStep`, `FakeExtractor`), the extraction-arbitration
+engine for composing strategies (`fallbackExtractor`, `raceExtractor`, the `ExtractionArbiter`
+contract and defaults `terminalFallsThrough` / `acceptAnySuccess`, a `SchemaParseError` that stays
+retryable while being recognisable to the arbiter, and an optional `usage.strategy` provenance
+field), `ToolAdapter<F, C>`, the review contract (`buildReviewRequest`, `resolveReview`), and the
+offline-first outbox/relay state machine
 (`queued → transcribing → extracting → awaiting-review → writing → done`) with connectivity and
 work-safety. `@azx/ribo-transcriber-ondevice` runs real WASM Whisper on-device and measures the
 device's real-time factor at `prime()` time, which is what lets `capability()` report `too-slow`;

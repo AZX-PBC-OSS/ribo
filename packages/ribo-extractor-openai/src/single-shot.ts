@@ -80,12 +80,14 @@ export interface SingleShotOptions<V extends Record<string, unknown>> {
  *      reach the zod parse would misreport it as "invalid JSON" rather than the
  *      real cause. The `"length"` message names `maxTokens`, the knob that fixes it.
  *   3. **Trust boundary.** Parse the response with `target.extractionSchema`, then
- *      run `normalize`. A response that is not JSON, or does not satisfy the
- *      schema, throws a plain `Error` — which `ribo-core`'s `isTransientFailure`
- *      classifies as **transient/retryable** (its default for an unrecognised
- *      error), so the queue retries rather than losing a recording someone drove
- *      to a house to make. Nothing here is thrown as a `TerminalQueueError`: a bad
- *      response is more likely a truncation or a blip than a permanent condition.
+ *      run `normalize`. A response that is not JSON throws a plain `Error` (still
+ *      transient/retryable); a response that parses as JSON but violates the schema
+ *      throws a {@link SchemaParseError}. Both are classified as transient by
+ *      `ribo-core`'s `isTransientFailure`, so the queue retries rather than losing a
+ *      recording someone drove to a house to make. The schema failure is also
+ *      recognisable, so a strategy ladder can fall through to a different shape. The
+ *      terminal cases (truncation, content filtering) are caught earlier by
+ *      `assertStopFinishReason`.
  *
  * Steps 2 and 3 use the shared helpers in {@link file://./extraction-common.ts},
  * where the full reasoning behind each is documented.

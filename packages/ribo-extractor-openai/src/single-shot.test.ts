@@ -1,4 +1,4 @@
-import { enveloped, isTransientFailure } from "@azx/ribo-core";
+import { enveloped, isTransientFailure, SchemaParseError } from "@azx/ribo-core";
 import type { Enveloped, ExtractionTarget, ToolAdapterExample } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
@@ -226,7 +226,7 @@ describe("singleShotExtractor — trust boundary", () => {
   });
 });
 
-describe("singleShotExtractor — failure is transient (queue retries)", () => {
+describe("singleShotExtractor — failure is transient (queue retries), and schema misses are recognisable", () => {
   test("a non-JSON response rejects, and the error is classified transient", async () => {
     const { chat } = fakeChat("Sorry, I can't help with that. {not json");
     const extractor = singleShotExtractor({ target: demoTarget, chat, model: "m" });
@@ -243,11 +243,26 @@ describe("singleShotExtractor — failure is transient (queue retries)", () => {
     expect((error as Error).message).toContain("was not valid JSON");
     // The queue's classifier must retry this, not mark the recording dead.
     expect(isTransientFailure(error)).toBe(true);
+    expect(error).not.toBeInstanceOf(SchemaParseError);
   });
 
-  test("a schema-invalid response rejects, and the error is classified transient", async () => {
+  test("a schema-invalid response rejects with a sampled parse failure, which is transient and retried", async () => {
     // Valid JSON, wrong shape: a bare string where an envelope object is required.
-    const { chat } = fakeChat(JSON.stringify({ equipment: "boiler" }));
+    // The failure is a SchemaParseError (recognisable by a strategy ladder) and
+    // is still transient (the queue retries). The chat returns invalid once, then
+    // valid, simulating the retry that the queue will perform.
+    let calls = 0;
+    const requests: ChatRequest[] = [];
+    const chat: ChatClient = {
+      complete: (request) => {
+        requests.push(request);
+        calls++;
+        if (calls === 1) {
+          return Promise.resolve({ content: JSON.stringify({ equipment: "boiler" }) });
+        }
+        return Promise.resolve({ content: JSON.stringify(wellFormed) });
+      },
+    };
     const extractor = singleShotExtractor({ target: demoTarget, chat, model: "m" });
 
     let error: unknown;
@@ -258,9 +273,16 @@ describe("singleShotExtractor — failure is transient (queue retries)", () => {
       error = caught;
     }
 
-    expect(error).toBeInstanceOf(Error);
+    expect(error).toBeInstanceOf(SchemaParseError);
     expect((error as Error).message).toContain("did not match the schema");
+    expect((error as Error).message).toContain("equipment");
     expect(isTransientFailure(error)).toBe(true);
+    expect(requests).toHaveLength(1);
+
+    // A retry (simulating the queue) succeeds with a different sample.
+    const result = await extractor.extract("t");
+    expect(result.fields.equipment.value).toBe("boiler");
+    expect(requests).toHaveLength(2);
   });
 });
 

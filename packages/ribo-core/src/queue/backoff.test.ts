@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 
+import { SchemaParseError } from "../schema-parse-error.js";
 import {
   DEFAULT_BACKOFF_BASE_MS,
   DEFAULT_BACKOFF_CAP_MS,
@@ -96,5 +97,12 @@ describe("isTransientFailure", () => {
     expect(isTransientFailure(Object.assign(new TerminalQueueError("nope"), { status: 503 }))).toBe(
       false,
     );
+  });
+
+  test("treats a SchemaParseError as transient — a sampled miss can pass on re-send", () => {
+    // A schema parse error is deliberately not a TerminalQueueError. The same
+    // request can fail zod once and pass on re-send, so the queue must keep
+    // retrying it rather than marking the recording dead.
+    expect(isTransientFailure(new SchemaParseError("did not match the schema"))).toBe(true);
   });
 });
