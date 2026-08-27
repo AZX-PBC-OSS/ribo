@@ -32,8 +32,13 @@ Every task inherits these.
 
 - ESM-only; `.js` extensions on relative TypeScript imports; `import type` for type-only imports
   (lint-enforced).
-- `pnpm typecheck`, `pnpm lint`, `pnpm format:check` must pass. Run `./check.sh` before the final
-  commit of each task. The suite is green; **any** failure is yours to explain.
+- **Verification is light per task and full at the end.** Per task, run `pnpm typecheck`, `pnpm lint`,
+  `pnpm format:check` and the **unit tests for the files you touched** — not the whole suite, and
+  never a real extraction. Nothing in this plan needs a model, a network call, or a transcript: every
+  task is testable with fakes, and a task that reaches for a real extraction has misread its scope.
+  `./check.sh` runs **once, after the last task**, and the pack-and-consume tier and the acceptance
+  gate are not part of this work at all.
+- The suite is green on this base; **any** failure is yours to explain.
 - Comments explain **why**, not what. A comment describing behaviour the code no longer has is a
   defect.
 - No new dependencies.
@@ -224,18 +229,22 @@ and check whether any existing test asserts the current retrying.
 
 ---
 
-## Task 5 — `raceExtractor` — optional, and separable
+## Task 5 — `raceExtractor`
 
 **Files:** create `packages/ribo-core/src/race-extractor.ts` and its test; modify `index.ts`.
 **Depends on Task 2.**
 
-**YAGNI check, stated honestly: R1.6 does not need this.** The extraction design composes only
-`fallbackExtractor`. Design §4.5 argues a race is what makes the accumulated-outcomes input worth
-having, which is true, but nothing on the roadmap consumes it today. **Recommend deferring this task
-until a caller exists.** It is written up here so the decision is deliberate, and so the engine's
-scheduling knob is not designed around a single consumer.
+**Built, not deferred — and the reason is worth stating, because a YAGNI argument against it looks
+strong until you account for what this repo is.** R1.6 composes only `fallbackExtractor`, so an
+internal-product reading says defer until a caller exists. This is a published open-source SDK, and
+its consumers are not on this roadmap. Shipping two of the three schedulings the engine already
+supports, with the third withheld because our own first consumer does not happen to need it, leaves a
+visible hole in the surface and makes the engine's generality unverified by anything except
+`compositeExtractor`. Design §4.5's argument stands on its own: a race is what makes the
+accumulated-outcomes input meaningfully more expressive than "first to finish", and building it is
+what proves the scheduling knob was not designed around a single consumer.
 
-**Intent, if built.** The same engine with concurrent scheduling: start every candidate, call the
+**Intent.** The same engine with concurrent scheduling: start every candidate, call the
 arbiter as each outcome lands with everything accumulated so far, and let it accept early or wait.
 
 **Interfaces.** `raceExtractor(candidates, arbiter)`, a separate constructor with **no scheduling
@@ -276,7 +285,8 @@ sentence.
 ## Sequencing and review points
 
 Tasks 1 → 2 → 3 are strictly ordered; each is independently reviewable and independently revertible.
-Task 4 is independent and can run in parallel with any of them. Task 5 is deferred pending a caller.
+Task 4 is independent and can run in parallel with any of them. Task 5 depends only on Task 2, so it
+can run alongside Task 3 rather than after it.
 
 **Task 3 is the risk.** It is the only task that touches shipped, exercised behaviour, and its gate is
 an unedited test file. Review it before starting Task 4 if they are running concurrently, so a
