@@ -208,10 +208,22 @@ export interface ExtractorEngineCandidate<F> {
   readonly probe?: () => Promise<AdmissionVerdict>;
 }
 
-/** A candidate with no admission probe, used by the concurrent scheduling mode. */
+/**
+ * A candidate for the concurrent scheduling mode, which has **no admission gate** — see the design's
+ * §4.5 for why a race has no laziness for a probe to buy, and why the hazard admission would guard
+ * is already handled one layer down in the extractor itself.
+ *
+ * `probe?: never` is load-bearing rather than decorative. Without it this interface is structurally
+ * satisfied by {@link ExtractorEngineCandidate}, whose `probe` is optional — so a caller could hand
+ * the concurrent engine a candidate carrying an admission probe, get no error, and never learn the
+ * probe was silently dropped (this engine never reads it). A field that LOOKS refused and is not is
+ * worse than an absent one: an absent field invites you to check, a fake guard invites you to trust
+ * it.
+ */
 export interface ConcurrentExtractorCandidate<F> {
   readonly id: string;
   readonly extractor: Extractor<F>;
+  readonly probe?: never;
 }
 
 /** Two-state admission answer: admitted, or refused with an opaque detail for the caller. */
