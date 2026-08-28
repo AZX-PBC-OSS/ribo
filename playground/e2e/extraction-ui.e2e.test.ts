@@ -168,8 +168,8 @@ test("a recording drains through extraction and its fields show with provenance"
   const card = page.locator('[data-testid="review-card"]').first();
   await card.waitFor({ timeout: 30_000 });
 
-  // The item is parked at `awaiting-review`, not `done` — `ReviewPanel` only
-  // ever shows items in this status (`useOutboxItems({ status: "awaiting-review" })`),
+  // The session is parked at `awaiting-review`, not `done` — `ReviewPanel`
+  // only ever shows sessions in this status (`useSessions({ status: "awaiting-review" })`),
   // so the card being visible already proves it; the badge is read directly too,
   // so this would fail if that filter were ever loosened to show more.
   await card.getByText("awaiting-review", { exact: true }).waitFor({ state: "visible" });
@@ -238,13 +238,14 @@ test("a recording drains through extraction and its fields show with provenance"
   // so a second manual "sync now" is what actually runs the write step.
   await page.getByRole("button", { name: /sync now/ }).click();
 
-  // The item drained all the way to `done` — extraction and review did not
-  // strand it. Read off the queue row's own status-badge span, not off text
-  // that also contains the muted "queued …" line.
+  // The recording stays `transcribed` — the session owns `done`. The review
+  // card disappeared (above) and this second drain completed, which together
+  // prove the pipeline ran end to end. Read off the queue row's own status-badge
+  // span, not off text that also contains the muted "queued …" line.
   const queueRow = page.locator('[data-testid="queue-item"]').first();
   await expect
     .poll(async () => (await queueRow.locator("span").first().textContent())?.trim(), {
       timeout: 15_000,
     })
-    .toBe("done");
+    .toBe("transcribed");
 }, 180_000);

@@ -265,11 +265,12 @@ test("the manual drain runs to completion while offline — the stub steps do no
   await proveOfflineIsReal(page);
 
   // Drive the queue with the link down. A real network step would fail and park
-  // the item under backoff; the stub reaches `awaiting-review` regardless — the
-  // review gate stops the relay on purpose, which is a different thing from a
-  // network failure parking it under backoff.
+  // the item under backoff; the stub transcribes the recording and — with the
+  // playground's stub relay closing open sessions — extracts at session level
+  // and parks the session for review. The recording reaches `transcribed`;
+  // the review card appearing (below) is the real proof the session parked.
   await page.getByRole("button", { name: /sync now/ }).click();
-  await expect.poll(() => statusOf(page), { timeout: 30_000 }).toBe("awaiting-review");
+  await expect.poll(() => statusOf(page), { timeout: 30_000 }).toBe("transcribed");
 
   // Drive the review card to a decision on every leaf — still fully offline.
   // Every leaf here is the FakeExtractor's fixed fixture output, which this
@@ -312,11 +313,10 @@ test("the manual drain runs to completion while offline — the stub steps do no
   // watches the gate open and continues automatically.
   await page.getByRole("button", { name: /sync now/ }).click();
 
-  // The status badge reaches `done`, i.e. the drain ran the whole pipeline —
-  // extraction, review, and the write step — with the link down throughout.
-  // `statusOf` reads the badge element's own text, not the always
-  // "queued <time>" muted line.
-  await expect.poll(() => statusOf(page), { timeout: 30_000 }).toBe("done");
+  // The recording stays `transcribed` — the session owns `done`. The review
+  // card detaching (above) and this second drain completing are the real
+  // proofs the pipeline ran end to end with the link down throughout.
+  await expect.poll(() => statusOf(page), { timeout: 30_000 }).toBe("transcribed");
   expect(await item.first().innerText()).toContain("transcript:");
 
   // Still exactly one item, still the same one: draining is not duplicating.

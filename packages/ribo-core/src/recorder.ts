@@ -446,10 +446,10 @@ export class Recorder<C = EmptyContext> {
     }
 
     if (this.#captureSessionFactory !== undefined && sessionId === undefined) {
-      throw new RecorderError(
-        "capture-failed",
-        "Durable capture requires a sessionId — the recording must belong to a session. Pass one to start(sessionId).",
-      );
+      // Durable capture: the factory opens its own session, so sessionId is
+      // optional here. It is passed through to the factory for hosts that want
+      // to control session identity, but the factory in recorder-handle.ts
+      // creates one when it is not provided.
     }
 
     // Acquire the capture lock BEFORE the microphone: a second tab must be told

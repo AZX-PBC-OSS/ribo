@@ -124,7 +124,7 @@ test("records, and enqueues the capture on stop by default", async () => {
   const recorder = new Recorder();
   let api: ReturnType<typeof useRecorder> | undefined;
   function Probe() {
-    api = useRecorder({ recorder, outbox });
+    api = useRecorder({ recorder, outbox, sessionId: "test-session" });
     return <p>phase {api.phase}</p>;
   }
   const screen = await render(<Probe />);

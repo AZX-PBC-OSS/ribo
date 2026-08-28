@@ -627,7 +627,7 @@ describe("Recorder durable capture", () => {
         }),
     });
 
-    await recorder.start();
+    await recorder.start("test-session");
     expect(recorder.phase).toBe("recording");
     // A real timeslice must elapse or there is no chunk to commit.
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -686,7 +686,7 @@ describe("Recorder durable capture", () => {
     });
 
     try {
-      await expect(recorder.start()).rejects.toThrow(/another tab|busy/i);
+      await expect(recorder.start("test-session")).rejects.toThrow(/another tab|busy/i);
       expect(getUserMedia).not.toHaveBeenCalled();
     } finally {
       // Release the lock even if the assertion fails, so later tests are not poisoned.
@@ -726,7 +726,7 @@ describe("Recorder durable capture", () => {
       },
     });
 
-    await expect(recorder.start()).rejects.toThrow();
+    await expect(recorder.start("test-session")).rejects.toThrow();
     await vi.waitFor(async () => {
       expect(await isLockFree(CAPTURE_LOCK)).toBe(true);
     });
