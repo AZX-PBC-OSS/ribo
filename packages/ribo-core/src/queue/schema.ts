@@ -211,6 +211,21 @@ export const outboxDocumentSchema = z
     /** Step output — whatever the tool adapter returned from the write. */
     writeResult: z.record(z.string(), z.unknown()).optional(),
     /**
+     * Per-instance write progress: which collection instances have already been
+     * written successfully in the current attempt cycle. Keys are top-level group
+     * names (e.g. `"hvac"`), values are boolean arrays where index `i` is `true`
+     * when instance `i` of that group has been written. Reset on every fresh review
+     * submission by `Outbox.submitReview`, and persisted incrementally by the
+     * per-instance write step so a retry resumes after the instances that already
+     * succeeded rather than replaying them.
+     *
+     * This narrows the ambiguous-success window (request landed, response lost), but
+     * it does not close it: if the vendor ignores `Idempotency-Key`, a crash between
+     * the API creating a record and our persisting this marker can still duplicate on
+     * retry. Server-side idempotency is required to eliminate that window entirely.
+     */
+    writtenInstances: z.record(z.string(), z.array(z.boolean())).optional(),
+    /**
      * What the human decided. Present once review has been submitted; absent means
      * this item has not been reviewed, which `relay.ts` treats as a hard error at
      * write time rather than a default-accept.
@@ -357,7 +372,7 @@ export type OutboxPatch = Partial<
  * claiming to persist something it does not.
  */
 export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
-  version: 4,
+  version: 5,
   primaryKey: "id",
   type: "object",
   properties: {
@@ -379,6 +394,7 @@ export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
     // has to encode as sortable index keys.
     extractedBy: { type: "string" },
     writeResult: { type: "object" },
+    writtenInstances: { type: "object" },
     reviewOutcome: { type: "object" },
     capture: { type: "object" },
     preview: { type: "object" },

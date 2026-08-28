@@ -567,7 +567,7 @@ export class Outbox {
     const patch: OutboxPatch =
       parsed.status === "discarded"
         ? { reviewOutcome: parsed, status: "discarded" }
-        : { reviewOutcome: parsed, status: "writing", attempts: 0 };
+        : { reviewOutcome: parsed, status: "writing", attempts: 0, writtenInstances: {} };
 
     const updated = await doc.incrementalModify((current) => {
       if (current.status !== "awaiting-review") {
@@ -780,6 +780,10 @@ export class Outbox {
       // applied to RxDB's own metadata.
       const merged = { ...current, status: "awaiting-review" as const, attempts: 0 };
       delete merged.reviewOutcome;
+      // The previous write attempt's per-instance progress is for a different
+      // review submission; delete it so a fresh submission starts resumability
+      // from nothing rather than carrying stale markers.
+      delete merged.writtenInstances;
 
       outboxDocumentSchema.parse(persistedFieldsOf(merged));
       return merged;

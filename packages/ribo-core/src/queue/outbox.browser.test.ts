@@ -253,7 +253,7 @@ test("step outputs written before a close are readable after a reopen", async ()
 
 /** The outbox's RxDB schema exactly as it was before this task's version bump. */
 const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<
-  Omit<OutboxDocument, "reviewOutcome" | "capture" | "preview" | "extractedBy">
+  Omit<OutboxDocument, "reviewOutcome" | "capture" | "preview" | "extractedBy" | "writtenInstances">
 > = {
   version: 0,
   primaryKey: "id",
@@ -287,7 +287,7 @@ const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<
 };
 
 /** The v0 document shape: everything the current schema has, minus `reviewOutcome`. */
-function v0Document(): Omit<OutboxDocument, "reviewOutcome" | "capture"> {
+function v0Document(): Omit<OutboxDocument, "reviewOutcome" | "capture" | "writtenInstances"> {
   return {
     id: "a",
     seq: 0,
@@ -313,11 +313,11 @@ function v0Document(): Omit<OutboxDocument, "reviewOutcome" | "capture"> {
  */
 async function seedVersionZeroOutbox(
   name: string,
-  document: Omit<OutboxDocument, "reviewOutcome" | "capture">,
+  document: Omit<OutboxDocument, "reviewOutcome" | "capture" | "writtenInstances">,
 ): Promise<void> {
   addRxPlugin(RxDBAttachmentsPlugin);
   const database: RxDatabase<{
-    outbox: RxCollection<Omit<OutboxDocument, "reviewOutcome" | "capture">>;
+    outbox: RxCollection<Omit<OutboxDocument, "reviewOutcome" | "capture" | "writtenInstances">>;
   }> = await createRxDatabase({
     name,
     storage: getRxStorageDexie(),

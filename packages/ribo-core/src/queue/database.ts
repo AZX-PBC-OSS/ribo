@@ -46,6 +46,11 @@ export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
  * to decide behaviour — it is a trust signal shown at review — so its absence
  * degrades a badge, not the state machine.
  *
+ * v4 → v5 added `writtenInstances` (optional) — identity, same reasoning again.
+ * A document written before per-instance resumability existed has no per-instance
+ * progress, which is the correct state for it: the next write attempt will treat
+ * every collection instance as unwritten.
+ *
  * Note this entry is not optional bookkeeping: RxDB calls into the migration
  * plugin for every version above 0, and a bumped schema with no strategy for the
  * new version makes the outbox **fail to open**, not fail to migrate. The error
@@ -59,6 +64,7 @@ export const OUTBOX_MIGRATION_STRATEGIES = {
   2: (doc: OutboxDocument) => doc,
   3: (doc: OutboxDocument) => doc,
   4: (doc: OutboxDocument) => doc,
+  5: (doc: OutboxDocument) => doc,
 };
 
 /**

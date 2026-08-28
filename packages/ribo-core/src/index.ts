@@ -169,6 +169,12 @@ export type {
 // `recording.ctx`, so two queued recordings from two jobs write to two places.
 export { toWriteStep } from "./write-step.js";
 
+// Per-instance write-back: a sibling of `toWriteStep` that writes each collection
+// instance separately with a derived idempotency key, and persists per-instance
+// progress in the outbox so a retry resumes after the instances already written.
+export { deriveInstanceIdempotencyKey, toInstanceWriteStep } from "./instance-write-step.js";
+export type { ToInstanceWriteStepOptions } from "./instance-write-step.js";
+
 // Extraction: the pluggable seam a transcript becomes structured fields through,
 // the function that collapses any extractor onto the relay's injected step, and
 // the fake that drives the pipeline with no model. Strategies live in adapters.
