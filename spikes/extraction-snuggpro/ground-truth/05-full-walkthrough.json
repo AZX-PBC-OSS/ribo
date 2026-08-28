@@ -17,9 +17,7 @@
             "sourceSpan": "The heating system is a propane furnace, forced air",
             "member": "Furnace with standalone ducts",
             "arguable": {
-              "acceptableAlternatives": [
-                "Central AC with standalone ducts"
-              ],
+              "acceptableAlternatives": ["Central AC with standalone ducts"],
               "note": "SCHEMA CARDINALITY COLLISION, a different shape than the worked example's axis conflation (not marking symmetric: this is not a same-phrase tie-break). The transcript narrates TWO fully independent, standalone-duct systems in full detail: 'The heating system is a propane furnace...' (make/model/year/capacity), AND 'Cooling is central AC, it's got a standalone air handler up in the attic with its own duct runs... So central AC, standalone ducts.' hvac.hvacSystemEquipmentType has only one write slot -- schema.ts's own file header admits this cardinality gap ('a single dictation... A second system dictated today lands on the same leaves as the first and the reviewer sees the collision.'). Because the auditor explicitly states the AC's ducts are standalone (not shared with the furnace), 'Furnace / Central AC (shared ducts)' is actually RULED OUT here, not merely unaddressed. 'Furnace with standalone ducts' is chosen as member because the furnace is the system given full equipment detail AND the auditor's own words single it out as 'the system' ('The working system, the one that heats this house today, is the propane Carrier in the closet'); the central AC is a real, independently-detailed competing system, not a wrong answer, hence acceptableAlternatives. hvac.hvacDuctLocation/hvacDuctLeakage/hvacDuctLeakageValue/hvacDuctInsulation below describe the AC's attic ductwork specifically, not the furnace's -- this file's hvac.* leaves, taken together, describe two different physical systems, which the schema's single-instance shape cannot avoid. Schema finding, not a resolvable transcript ambiguity -- see RECONCILIATION.md."
             }
           },
@@ -196,9 +194,7 @@
             "status": "declared_absent",
             "sourceSpan": "no age tag I could find on it, it's newer though.",
             "arguable": {
-              "acceptableAlternatives": [
-                "0-5"
-              ],
+              "acceptableAlternatives": ["0-5"],
               "note": "The auditor explicitly addresses the absence of an age tag ('no age tag I could find on it'), a clean declared_absent per rule 1's own example ('I'm leaving the year blank'). But they immediately add 'it's newer though' -- a gesture toward a young age without committing to a specific band, matching rule 3's 'gestured at one without committing is NOT a stated value.' No band is asserted, but '0-5' is flagged as a tolerated alternative since a model that reads 'newer' as the youngest band would be a defensible, not hallucinated, answer."
             }
           },
@@ -207,9 +203,7 @@
             "sourceSpan": "mounted on the wall in the closet",
             "member": "Indoors and within heated area",
             "arguable": {
-              "acceptableAlternatives": [
-                "Don't Know"
-              ],
+              "acceptableAlternatives": ["Don't Know"],
               "acceptableMiss": true,
               "note": "Requires two inferential steps the auditor never states outright in this sentence: (1) that 'the closet' here is the same 'mechanical closet off the kitchen' named earlier for the furnace, and (2) that a mechanical closet counts as 'within heated area' rather than an unconditioned utility space. Per THE ONE RULE, something WAS said about location, so omission alone is not the intended default -- but the mapping is genuinely contested: a model answering 'Don't Know' is a defensible caution, and a model leaving the leaf null entirely (declining the cross-paragraph inference) is likewise a defensible, non-penalized miss."
             }

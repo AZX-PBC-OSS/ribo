@@ -26,9 +26,7 @@
             "sourceSpan": "it's a furnace, natural gas",
             "member": "Furnace with standalone ducts",
             "arguable": {
-              "acceptableAlternatives": [
-                "Furnace / Central AC (shared ducts)"
-              ],
+              "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
               "symmetric": true,
               "note": "SCHEMA FINDING, not a transcript ambiguity. The auditor states the equipment's identity and fuel after independently reading the plate (\"it's a furnace, natural gas\") but says nothing about cooling either way, so the ducts-sharing-with-AC axis hvacSystemEquipmentType conflates onto the same enum is left completely unaddressed. Per ANNOTATOR_GUIDE.md rule 6's mechanical tie-break, `member` is \"Furnace with standalone ducts\" because it appears first in schema.ts's enum-list order (index 2 of 17 vs. \"Furnace / Central AC (shared ducts)\" at index 16), not because it is a more likely reading."
             }

@@ -17,9 +17,7 @@
             "sourceSpan": "a gas furnace",
             "member": "Furnace with standalone ducts",
             "arguable": {
-              "acceptableAlternatives": [
-                "Furnace / Central AC (shared ducts)"
-              ],
+              "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
               "symmetric": true,
               "note": "SCHEMA FINDING, same as the worked example's furnace case, not a transcript ambiguity. The auditor states only the equipment's identity ('a gas furnace') and never addresses whether it shares ducts with a central AC unit -- cooling is not mentioned anywhere in this transcript. `member` is 'Furnace with standalone ducts' because it is FIRST in schema.ts's enum-list order (index 2 of 17 vs. index 16 for the shared-ducts member), per ANNOTATOR_GUIDE.md rule 6's deterministic tie-break, not because it is a better reading."
             }

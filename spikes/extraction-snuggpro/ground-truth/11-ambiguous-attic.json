@@ -48,9 +48,7 @@
               }
             ],
             "arguable": {
-              "acceptableAlternatives": [
-                "Furnace / Central AC (shared ducts)"
-              ],
+              "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
               "symmetric": true,
               "note": "SCHEMA FINDING, not a transcript ambiguity — escalated in the report rather than resolved by annotator preference. schema.ts's hvacSystemEquipmentType conflates a furnace's IDENTITY with an unrelated fact (whether it shares ducts with a central AC unit) into one enum axis. This utterance states only the identity (\"it's a furnace\") and says nothing about cooling either way, so NEITHER the standalone-ducts member nor the shared-ducts-with-AC member is more supportable than the other. `member` holds \"Furnace with standalone ducts\" because ANNOTATOR_GUIDE.md rule 6's deterministic tie-break says so (the member appearing FIRST in schema.ts's own enum-list order for this leaf — index 2 of 17, vs. \"Furnace / Central AC (shared ducts)\" at index 16) — a mechanical rule with no annotator discretion, precisely so two independent annotators hitting this same pattern write the identical `member`, not merely equivalent-scoring but textually different files. `symmetric: true` is what makes this MECHANICALLY checkable (validate-ground-truth.mjs asserts member's schema-order index is earliest among itself and every listed alternative) rather than resting on prose alone. `acceptableAlternatives` proves the SCORING symmetry structurally: a model landing on either member scores identically (correct/sanctioned, never wrong), and only a member from a genuinely DIFFERENT equipment family (Boiler, Electric Resistance, a heat pump, ...) is a hard wrong answer."
             }

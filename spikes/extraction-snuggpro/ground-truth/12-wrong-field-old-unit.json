@@ -26,9 +26,7 @@
             "sourceSpan": "The new one is a gas furnace",
             "member": "Furnace with standalone ducts",
             "arguable": {
-              "acceptableAlternatives": [
-                "Furnace / Central AC (shared ducts)"
-              ],
+              "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
               "symmetric": true,
               "note": "SCHEMA FINDING, same pattern as the worked example: hvacSystemEquipmentType conflates the furnace's identity with an unrelated fact (whether it shares ducts with a central AC unit). The auditor says 'a gas furnace' and never mentions cooling/AC at all, so neither the standalone-ducts member nor the shared-ducts-with-AC member is more supportable. `member` is 'Furnace with standalone ducts' only because it is FIRST in schema.ts's enum-list order (index 2 of 17 vs. index 16) -- the mechanical tie-break, not a preferred reading. SEPARATELY (see notes._general and RECONCILIATION.md finding 5): this leaf also carries the OLD-BOILER exclusion -- the auditor narrates a second, real, disconnected HVAC unit in the same breath ('the OLD boiler... an old Burnham... probably from the eighties, eighty thousand BTU') and explicitly instructs 'Do not log the old boiler.' Because the old unit is decommissioned (not a second CURRENT system, unlike transcript 08), this resolves cleanly: the furnace occupies the one hvac slot and none of the boiler's attributes (Boiler/Fuel Oil/Burnham/80000 BTU/1980s) appear on any leaf. Not recorded as `retracted` (rule 5) -- the auditor never asserted the boiler AS the current system before withdrawing it; it is a distinct real unit explicitly excluded, not a self-correction about the same entity."
             }

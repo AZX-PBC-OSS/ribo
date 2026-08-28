@@ -26,9 +26,7 @@
             "sourceSpan": "a gas furnace",
             "member": "Furnace with standalone ducts",
             "arguable": {
-              "acceptableAlternatives": [
-                "Furnace / Central AC (shared ducts)"
-              ],
+              "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
               "symmetric": true,
               "note": "SCHEMA FINDING, not a transcript ambiguity -- the same conflated-axis pattern as ANNOTATOR_GUIDE.md rule 6 / the worked example. 'Heat's a gas furnace ... forced hot air' states the equipment identity and fuel but says nothing about whether it shares ducts with a central AC unit (no AC is mentioned anywhere in this transcript). Neither 'Furnace with standalone ducts' nor 'Furnace / Central AC (shared ducts)' is more supportable than the other. `member` holds 'Furnace with standalone ducts' purely because it is FIRST in schema.ts's own enum-list order for this leaf (index 2 of 17, vs. index 16) -- the deterministic, no-discretion tie-break, not a preference."
             }

@@ -45,9 +45,7 @@
             "sourceSpan": "Windows from outside look like double pane",
             "member": "Double pane",
             "arguable": {
-              "acceptableAlternatives": [
-                "Don't Know"
-              ],
+              "acceptableAlternatives": ["Don't Know"],
               "acceptableMiss": true,
               "note": "Not a retraction -- no second value is ever offered -- but the auditor immediately qualifies the observation with 'I couldn't get up close on all of them so I'm not certain,' an explicit self-rated low-confidence hedge on the very fact just stated. 'Double pane' is still the best-supported reading (the only value ever stated), so per THE ONE RULE it is asserted rather than omitted -- but two things are true at once: WindowType has a real 'Don't Know' member that exists for exactly this stated-but-unconfirmed situation (a model landing there is defensible, not a symmetric schema-forced tie-break -- this is an ordinary asymmetric lesser alternative, so `symmetric` is not set), AND a model that declines to commit at all and leaves this leaf null is also a defensible caution given the auditor's own words, not a careless miss. Both non-penalized outs are recorded."
             }
