@@ -345,7 +345,13 @@ Return a **single JSON object** with exactly one top-level key: \`${key}\`.
   JSON object and nothing else.`;
 }
 
-const TRANSCRIPT_SECTION = `
+/**
+ * The transcript injection boundary, shared by every Snugg Pro prompt. The
+ * transcript stays last so everything after this line is data, never
+ * instructions. Exported so the inventory-pass instructions (Task 9) can reuse
+ * the exact wording rather than accidentally drift.
+ */
+export const TRANSCRIPT_SECTION = `
 
 ### Transcript
 

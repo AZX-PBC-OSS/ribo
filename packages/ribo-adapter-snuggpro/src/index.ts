@@ -74,6 +74,16 @@ export {
 export type { SnuggRule } from "./instructions.js";
 export { snuggExamples } from "./examples.js";
 
+// The Task 9 inventory-pass roster: the schema that parses the house-wide
+// instance list, and the instructions that constrain the inventory model.
+export {
+  RosterEligibility,
+  rosterCandidateSchema,
+  rosterSchema,
+  snuggInventoryInstructions,
+} from "./inventory.js";
+export type { Roster, RosterCandidate } from "./inventory.js";
+
 // The deterministic, model-free normalization pass and its transforms.
 export {
   clampConfidence,

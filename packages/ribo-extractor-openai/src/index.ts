@@ -28,6 +28,12 @@ export type { PerGroupOptions } from "./per-group.js";
 // a few-shot example to a single group's key. Exported for testing (R3 Task 4).
 export { buildGroupMessages, projectExample } from "./extraction-common.js";
 
+// The Task 9 inventory-pass extraction phase: one house-wide call that returns a
+// roster of candidate instances per collection group, parsed through a supplied
+// roster schema.
+export { extractInventory } from "./inventory.js";
+export type { InventoryOptions } from "./inventory.js";
+
 // The OpenAI-compatible chat transport and its options.
 export { openAiChat } from "./openai-chat.js";
 export type { OpenAiChatOptions } from "./openai-chat.js";
