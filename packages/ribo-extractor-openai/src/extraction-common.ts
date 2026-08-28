@@ -84,6 +84,29 @@ export function projectExample<F extends Record<string, unknown>>(
 }
 
 /**
+ * Project a few-shot example to a single group in **singleton** mode.
+ *
+ * When the group is a collection, the example's value is an array; the projected
+ * assistant turn carries only the **first element** so the model imitates a
+ * single-instance response. If the group is already a singleton, this behaves
+ * identically to {@link projectExample}. Returns `null` when the group key is
+ * absent or the collection is empty.
+ */
+export function projectSingletonExample<F extends Record<string, unknown>>(
+  example: { readonly transcript: string; readonly fields: F },
+  groupKey: string,
+): { readonly transcript: string; readonly fields: Record<string, unknown> } | null {
+  const projected = projectExample(example, groupKey);
+  if (projected === null) return null;
+  const value = projected.fields[groupKey];
+  if (Array.isArray(value)) {
+    if (value.length === 0) return null;
+    return { transcript: projected.transcript, fields: { [groupKey]: value[0] } };
+  }
+  return projected;
+}
+
+/**
  * Assemble per-group chat messages — the per-group counterpart of
  * {@link buildMessages}.
  *
@@ -101,19 +124,27 @@ export function projectExample<F extends Record<string, unknown>>(
  *
  * The transcript stays last for the same injection-boundary reason as
  * {@link buildMessages}.
+ *
+ * @param singleton - When true and the group is a collection, project each
+ *   example to a single element (via {@link projectSingletonExample}) so the
+ *   assistant turn imitates the singleton response the model is asked for. The
+ *   default (`false`) keeps the array shape.
  */
 export function buildGroupMessages<V extends Record<string, unknown>>(
   target: ExtractionTarget<V>,
   groupKey: string,
   transcript: string,
   groupInstructions?: (key: string) => string,
+  singleton?: boolean,
 ): ChatMessage[] {
   const perGroup = groupInstructions !== undefined && groupKey !== "";
   const instructions = perGroup ? groupInstructions!(groupKey) : target.instructions;
   const messages: ChatMessage[] = [{ role: "system", content: instructions }];
   for (const example of target.examples ?? []) {
     if (perGroup) {
-      const projected = projectExample(example, groupKey);
+      const projected = singleton
+        ? projectSingletonExample(example, groupKey)
+        : projectExample(example, groupKey);
       if (projected === null) continue;
       messages.push({ role: "user", content: projected.transcript });
       messages.push({ role: "assistant", content: JSON.stringify(projected.fields) });

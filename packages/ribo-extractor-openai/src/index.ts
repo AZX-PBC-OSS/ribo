@@ -20,8 +20,18 @@ export type { ExtractionGroup } from "./split-schema.js";
 // The per-group managed-LLM extractor (R3 Task 2) — one chat call per top-level
 // group, concurrently with a bounded pool, assembled into one result. The
 // sibling of `singleShotExtractor`; same `Extractor` seam.
-export { perGroupExtractor } from "./per-group.js";
+export {
+  perGroupArrayExtractor,
+  perGroupExtractor,
+  perGroupSingletonExtractor,
+} from "./per-group.js";
 export type { PerGroupOptions } from "./per-group.js";
+
+// Task 16 — the R1.6 instance-modeling strategy ladder: three tiers composed
+// through `fallbackExtractor` so that the strongest strategy can fall back to
+// weaker ones, with the accepted tier stamped on `usage.strategy`.
+export { instanceLadder } from "./instance-ladder.js";
+export type { InstanceLadderOptions } from "./instance-ladder.js";
 
 // Per-group prompt assembly: `buildGroupMessages` builds per-group chat messages
 // (instructions + projected examples + transcript), and `projectExample` narrows

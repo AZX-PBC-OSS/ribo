@@ -164,6 +164,15 @@ export interface PerGroupOptions<V extends Record<string, unknown>> extends Back
    * calls it mechanically.
    */
   readonly groupInstructions?: (groupKey: string) => string;
+  /**
+   * If true, collection groups are constrained to a **single element** per group
+   * call. The response is parsed as a singleton object and then wrapped back into a
+   * one-element array before the full-schema parse, so the final result still
+   * matches the original extraction schema. This is the Tier 3 degraded strategy:
+   * it cannot represent a second instance per group. Defaults to `false` (array
+   * responses, Tier 2).
+   */
+  readonly singleton?: boolean;
 }
 
 /**
@@ -287,14 +296,25 @@ async function mapWithPool<T, R>(
 
 /** A group with its JSON Schema and error-context pre-computed at construction time. */
 interface PreparedGroup {
-  /** The original group — its zod schema is used for the first trust-boundary parse. */
+  /** The original group key and schema from {@link splitExtractionSchema}. */
   readonly group: { readonly key: string; readonly schema: z.ZodType };
+  /**
+   * The schema this call is parsed against. Under singleton mode this may be a
+   * narrowed single-element schema; otherwise it is the same as `group.schema`.
+   */
+  readonly schema: z.ZodType;
   /** The JSON Schema sent to the model in `response_format`. */
   readonly jsonSchema: Record<string, unknown>;
   /** The `response_format.json_schema.name` — identifies the group in the request. */
   readonly name: string;
   /** The descriptive prefix for error messages from this group's call. */
   readonly context: string;
+  /**
+   * True when the original group is a collection but singleton mode narrowed the
+   * request to one element; the parsed response must be wrapped back into a
+   * one-element array before the full schema sees it.
+   */
+  readonly wrapToArray: boolean;
 }
 
 /**
@@ -347,6 +367,7 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
   capMs,
   random,
   groupInstructions,
+  singleton = false,
 }: PerGroupOptions<V>): Extractor<Enveloped<V>> {
   // Split at construction time — the group list is a pure function of the schema
   // and does not depend on the transcript. A non-grouped schema yields one entry
@@ -357,7 +378,23 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
   // The JSON Schema generation (`z.toJSONSchema`) is not cheap, and the schema
   // does not change between calls.
   const prepared: readonly PreparedGroup[] = groups.map((group) => {
-    const jsonSchema = z.toJSONSchema(group.schema, { target: "draft-2020-12" }) as Record<
+    let schema: z.ZodType = group.schema;
+    let wrapToArray = false;
+
+    // Singleton mode: a collection group is narrowed to one element per call. The
+    // model emits a single object and the response is wrapped back into an array
+    // before the full schema sees it — so the result still validates against the
+    // original collection schema while being unable to represent a second instance.
+    if (singleton && group.key !== "" && group.schema instanceof z.ZodObject) {
+      const shape = (group.schema as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodType>;
+      const value = shape[group.key];
+      if (value instanceof z.ZodArray) {
+        schema = z.strictObject({ [group.key]: value.element });
+        wrapToArray = true;
+      }
+    }
+
+    const jsonSchema = z.toJSONSchema(schema, { target: "draft-2020-12" }) as Record<
       string,
       unknown
     >;
@@ -370,7 +407,7 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
     const context = group.key
       ? `perGroupExtractor: model response for "${target.name}" group "${group.key}"`
       : `perGroupExtractor: model response for "${target.name}"`;
-    return { group, jsonSchema, name, context };
+    return { group, schema, jsonSchema, name, context, wrapToArray };
   });
 
   // The relay wraps extract() in withTimeout(stepTimeoutMs). All group calls
@@ -435,6 +472,7 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
             entry.group.key,
             transcript,
             groupInstructions,
+            singleton,
           );
           const request = {
             model,
@@ -468,8 +506,10 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
 
               // First trust-boundary parse: validate against this group's own
               // schema. A response carrying another group's key is rejected
-              // here — the split narrows rather than merely relabels.
-              return parseWithSchema(entry.group.schema, raw, entry.context);
+              // here — the split narrows rather than merely relabels. Under
+              // singleton mode this is the narrowed single-element schema, so a
+              // multi-instance response is rejected before it can be wrapped.
+              return parseWithSchema(entry.schema, raw, entry.context);
             } catch (cause) {
               lastError = cause;
               // Terminal failures are never retried —
@@ -504,9 +544,19 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
 
       // Merge by shallow assignment — each response has exactly one top-level
       // key, so assigning in sequence produces the whole without re-keying.
+      // In singleton mode, collection-group responses are wrapped back into a
+      // one-element array so the merged shape still validates against the original
+      // extraction schema.
       const merged: Record<string, unknown> = {};
       for (const response of responses) {
-        Object.assign(merged, response);
+        // Each response parsed against a strict object schema is a record with
+        // string keys. The cast is safe because the first trust-boundary parse
+        // already validated the shape.
+        const record = response as Record<string, unknown>;
+        for (const [key, value] of Object.entries(record)) {
+          const entry = prepared.find((e) => e.group.key === key);
+          merged[key] = entry?.wrapToArray ? [value] : value;
+        }
       }
 
       // Second trust-boundary parse: validate the merged whole against the full
@@ -525,4 +575,29 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
       };
     },
   };
+}
+
+/**
+ * Tier 2 of the instance-modeling ladder: per-group calls where the model emits
+ * the full array for each collection group. This is the default {@link perGroupExtractor}
+ * behaviour, exposed as a named strategy so the ladder and the tests can refer
+ * to it unambiguously.
+ */
+export function perGroupArrayExtractor<V extends Record<string, unknown>>(
+  options: PerGroupOptions<V>,
+): Extractor<Enveloped<V>> {
+  return perGroupExtractor({ ...options, singleton: false });
+}
+
+/**
+ * Tier 3 of the instance-modeling ladder: a degraded per-group strategy where
+ * each collection group is constrained to a single element per call. The parsed
+ * singleton is wrapped back into a one-element array so the result still matches
+ * the original extraction schema, but the model cannot represent a second
+ * instance per group.
+ */
+export function perGroupSingletonExtractor<V extends Record<string, unknown>>(
+  options: PerGroupOptions<V>,
+): Extractor<Enveloped<V>> {
+  return perGroupExtractor({ ...options, singleton: true });
 }
