@@ -59,7 +59,14 @@ import {
   LEAF_PATHS,
   resolveEnumMember,
 } from "./schema-leaves.mjs";
-import { isNewFormat, resolveGroundTruth, validateGroundTruth } from "./ground-truth.mjs";
+import {
+  COLLECTION_GROUPS,
+  isNewFormat,
+  LEAVES_BY_GROUP,
+  resolveGroundTruth,
+  SINGLETON_GROUPS,
+  validateGroundTruth,
+} from "./ground-truth.mjs";
 
 export { HEALTH_TEST_PATHS };
 
@@ -450,20 +457,10 @@ export function loadResult(dir, slug) {
   return { data: out.data, repaired: out.repaired ?? null, problem: null };
 }
 
-/** Navigate a dotted leaf path into the nested model output and read its envelope defensively. */
-function readLeaf(model, path) {
-  const parts = path.split(".");
-  const groupKey = parts[0];
-  const leafKey = parts[1];
+/** Read one envelope cell from a container object (a singleton group or a collection instance). */
+function readEnvelope(container, leafKey, path) {
   const envErrors = [];
-  const group = model?.[groupKey];
-  if (group === undefined)
-    return { value: null, confidence: null, span: null, missing: true, envErrors };
-  if (typeof group !== "object" || group === null || Array.isArray(group)) {
-    envErrors.push(`${groupKey}: not an object`);
-    return { value: null, confidence: null, span: null, envErrors };
-  }
-  const cell = group[leafKey];
+  const cell = container?.[leafKey];
   if (cell === undefined)
     return { value: null, confidence: null, span: null, missing: true, envErrors };
   if (cell === null || typeof cell !== "object" || Array.isArray(cell)) {
@@ -483,6 +480,45 @@ function readLeaf(model, path) {
     envErrors.push(`${path}: sourceSpan is not a string or null`);
   }
   return { value, confidence, span, envErrors };
+}
+
+/**
+ * Navigate a dotted leaf path into the nested model output and read its envelope defensively.
+ * Paths are either 2-segment singleton paths (`basedata.yearBuilt`) or 3-segment collection
+ * instance paths (`hvac.0.hvacSystemEquipmentType`). The middle segment identifies the instance.
+ */
+function readLeaf(model, path) {
+  const parts = path.split(".");
+  const groupKey = parts[0];
+  const envErrors = [];
+  const group = model?.[groupKey];
+  if (group === undefined)
+    return { value: null, confidence: null, span: null, missing: true, envErrors };
+
+  if (parts.length === 2) {
+    if (typeof group !== "object" || group === null || Array.isArray(group)) {
+      envErrors.push(`${groupKey}: not an object`);
+      return { value: null, confidence: null, span: null, envErrors };
+    }
+    return readEnvelope(group, parts[1], path);
+  }
+
+  // 3-segment collection instance path
+  if (!Array.isArray(group)) {
+    envErrors.push(`${groupKey}: not an array of instances`);
+    return { value: null, confidence: null, span: null, envErrors };
+  }
+  const index = Number(parts[1]);
+  if (!Number.isInteger(index) || index < 0 || index >= group.length) {
+    envErrors.push(`${path}: instance index ${parts[1]} is out of range`);
+    return { value: null, confidence: null, span: null, envErrors };
+  }
+  const instance = group[index];
+  if (typeof instance !== "object" || instance === null || Array.isArray(instance)) {
+    envErrors.push(`${path}: instance ${index} is not an object`);
+    return { value: null, confidence: null, span: null, envErrors };
+  }
+  return readEnvelope(instance, parts[2], path);
 }
 
 // ---------------------------------------------------------------------------
@@ -538,6 +574,495 @@ function emptyCounts() {
 }
 
 /**
+ * Score one leaf location (a singleton leaf or a leaf inside a collection instance). The caller
+ * supplies the ground-truth leaf truth, the model leaf value, and whether this leaf is a health
+ * test. All leaf-level counters on `r` are updated, including hallucination, miss, wrong,
+ * sourceSpan validity, and confidence separation.
+ *
+ * `path` is the full address used for reporting (`basedata.yearBuilt` or `hvac.0.systemType`).
+ * `leafPath` is the schema leaf path (`basedata.yearBuilt` or `hvac.systemType`) used to look up
+ * the leaf's kind and enum options.
+ */
+function scoreLeaf(path, leafPath, leafTruth, modelLeaf, isHealth, rvalueOnly, transcript, r) {
+  const gtc = gtCanonical(leafPath, leafTruth);
+  const { arguable, retracted } = gtExtras(leafTruth);
+  r.conformance.envelopeErrors.push(...modelLeaf.envErrors);
+  const { value: mv, confidence, span } = modelLeaf;
+  const isSanctioned = (raw) =>
+    matchesAlternative(leafPath, gtc.kind, raw, arguable?.acceptableAlternatives);
+
+  // Counted ONCE here, unconditionally on GT alone — never inside a branch keyed on what the
+  // model emitted. The denominator for "N of GT-passed dropped/kept" must count every GT-passed
+  // leaf regardless of whether the model missed it, got it wrong, or got it right; counting it
+  // only in the both-non-null branch (as a previous version did) meant a MISSED "Passed" bumped
+  // the numerator (hCleanDropped, in the miss branch below) without ever bumping this
+  // denominator — the denominator could end up smaller than the numerator it's supposed to bound.
+  if (isHealth && gtc.member === "Passed") r.counts.hGtPassed++;
+
+  if (gtc.isNull && mv === null) {
+    r.counts.correctNull++;
+    if (isHealth) r.counts.hCorrectNull++;
+    if (confidence !== null) r.confidences.correctNull.push(confidence);
+  } else if (gtc.isNull && mv !== null) {
+    // GT null, model asserted something: a hallucination, unless the leaf's own `arguable`
+    // sanctions this exact value, OR (health only) the value is the matrix's own mild
+    // "explicitly not tested" member asserted on total silence — a real overreach, but a much
+    // smaller one than inventing a Passed/Failed/Warning result (mirrors the old scorer's
+    // `silentNotTested` bucket).
+    const isRvalueConv = path.endsWith(".atticInsulationDepth") && rvalueOnly;
+    if (isRvalueConv) r.counts.rvalueConversion++;
+    if (isSanctioned(mv)) {
+      r.counts.hallucinationSoft++;
+      r.softAlternatives.push({ field: path, value: mv, confidence, note: arguable.note });
+    } else if (isHealth && resolveEnumMember(leafPath, mv).member === "Not Tested") {
+      r.counts.hSilentNotTested++;
+    } else if (isHealth) {
+      const resolved = resolveEnumMember(leafPath, mv);
+      const category = resolved.member === "Passed" ? "hallucinatedPass" : "hallucinatedProblem";
+      r.counts[category === "hallucinatedPass" ? "hHallucinatedPass" : "hHallucinatedProblem"]++;
+      r.health.push({ test: path, gt: null, got: resolved.member ?? mv, category });
+    } else {
+      r.counts.hallucinationHard++;
+      r.hallucinations.push({
+        field: path,
+        value: mv,
+        confidence,
+        sourceSpan: span,
+        rvalueConversion: isRvalueConv,
+      });
+      if (confidence !== null) r.confidences.hallucinated.push(confidence);
+    }
+  } else if (!gtc.isNull && mv === null) {
+    const excused = arguable?.acceptableMiss === true;
+    if (excused) {
+      if (isHealth) r.counts.hMissExcused++;
+      else r.counts.missExcused++;
+      r.excused.push({ field: path, note: arguable.note });
+    } else if (isHealth) {
+      r.counts.hMiss++;
+      const wasPassed = gtc.member === "Passed";
+      if (wasPassed) r.counts.hCleanDropped++;
+      r.health.push({
+        test: path,
+        gt: gtc.member,
+        got: null,
+        category: wasPassed ? "cleanDropped" : "miss",
+      });
+    } else {
+      r.counts.miss++;
+      r.misses.push({
+        field: path,
+        expected: gtc.kind === "enum" ? gtc.member : gtc.value,
+        span,
+      });
+      if (gtc.kind === "enum") r.counts.enumMiss++;
+      if (BAND_LEAVES.has(leafPath)) r.counts.bandMiss++;
+    }
+  } else {
+    // both non-null
+    r.counts.bothNonNull++;
+    const cmp = compareValue(leafPath, gtc, mv);
+    const sanctioned = cmp.verdict !== "correct" && isSanctioned(mv);
+    if (cmp.verdict === "unscorable" && !sanctioned) {
+      r.counts.unscorable++;
+      r.unscorableRows.push({ field: path, got: mv, detail: cmp.detail });
+    } else {
+      const ok = cmp.verdict === "correct" || sanctioned;
+      // Vocabulary attribution is ONLY meaningful for a TRUE match against GT's own canonical
+      // member — gated strictly on cmp.verdict === "correct", never on `ok` (which also folds in
+      // `sanctioned`). Getting this gate wrong is exactly how a wrong answer ends up counted as a
+      // "CORRECT match": cmp.vocabulary is set by compareValue whenever the raw value resolves to
+      // ANY real member, correct or not, so counting on `ok`/`sanctioned` or on "vocabulary is
+      // non-null" rather than on the verdict itself corrupts the one measurement this whole format
+      // exists to make possible. See score.test.mjs's EITHER-VOCABULARY gate for the mutation that
+      // proves a wrong slug-spelled value is excluded.
+      if (cmp.verdict === "correct") {
+        if (cmp.vocabulary === "api") r.counts.vocabApi++;
+        else if (cmp.vocabulary === "slug") r.counts.vocabSlug++;
+      }
+
+      if (sanctioned) {
+        // GT is NON-NULL here (this whole branch is "both non-null") — nothing was hallucinated;
+        // the schema itself forced an arbitrary pick between two (or more) equally-fitting
+        // members (the worked example's furnace/cooling axis is the standing case) and the model
+        // landed on the OTHER lobe of that same forced choice. This is categorically different
+        // from the GT-null "sanctioned" branch above (a real soft hallucination, tolerated) and
+        // must not share its counter/bucket or its HALLUCINATION-section reporting — see
+        // IMPORTANT 9 in the fix-round-2 review. Reported under ENUM-MAPPING instead.
+        r.counts.enumSanctioned++;
+        r.sanctionedRows.push({ field: path, value: mv, confidence, note: arguable.note });
+      } else if (isHealth) {
+        if (ok) {
+          r.counts.hCorrectState++;
+          if (gtc.member === "Passed") r.counts.hGtPassedCorrect++;
+        } else {
+          const resolved = resolveEnumMember(leafPath, mv);
+          const category = resolved.member === "Passed" ? "hallucinatedPass" : "wrongState";
+          r.counts[
+            category === "hallucinatedPass" ? "hHallucinatedPass" : "hHallucinatedProblem"
+          ]++;
+          r.health.push({ test: path, gt: gtc.member, got: resolved.member ?? mv, category });
+        }
+      } else {
+        if (ok) {
+          r.counts.correct++;
+          if (confidence !== null) r.confidences.correct.push(confidence);
+        } else {
+          const isRetracted = matchesRetracted(leafPath, gtc.kind, mv, retracted);
+          r.counts.wrong++;
+          r.wrong.push({
+            field: path,
+            expected: gtc.kind === "enum" ? gtc.member : gtc.value,
+            got: mv,
+            tag: isRetracted ? "retracted" : cmp.tag,
+            detail: cmp.detail,
+            confidence,
+          });
+          if (confidence !== null) r.confidences.wrong.push(confidence);
+        }
+        if (gtc.kind === "enum") {
+          r.counts.enumGtMember++;
+          if (ok) r.counts.enumCorrect++;
+          else if (cmp.tag === "invalid-enum") r.counts.enumInvalid++;
+          else if (cmp.tag !== "boundary") r.counts.enumWrongMember++;
+        }
+        if (BAND_LEAVES.has(leafPath)) {
+          r.counts.bandGt++;
+          if (ok) r.counts.bandCorrect++;
+          else if (cmp.tag === "boundary") r.counts.bandBoundary++;
+          else r.counts.bandWrong++;
+        }
+      }
+    }
+  }
+
+  // span validity for any non-null model value, or a fabricated span on a null decline
+  if (span !== null) {
+    const c = classifySpan(span, transcript);
+    if (mv !== null) {
+      r.counts.spanChecked++;
+      if (c.status === "verbatim") r.counts.spanVerbatim++;
+      else {
+        if (c.status === "near-miss") r.counts.spanNearMiss++;
+        else r.counts.spanFabricated++;
+        r.badSpans.push({ field: path, value: mv, span, status: c.status, detail: c.detail });
+      }
+    } else if (c.status === "fabricated") {
+      r.badSpans.push({
+        field: path,
+        value: null,
+        span,
+        status: "fabricated-decline",
+        detail: c.detail,
+      });
+    }
+  } else if (mv !== null) {
+    r.counts.spanChecked++;
+    r.counts.spanMissing++;
+    r.badSpans.push({
+      field: path,
+      value: mv,
+      span: null,
+      status: "missing",
+      detail: "non-null value with no sourceSpan",
+    });
+  }
+}
+
+function isEmptyInstance(instance) {
+  if (typeof instance !== "object" || instance === null || Array.isArray(instance)) return true;
+  for (const k of Object.keys(instance)) {
+    const cell = instance[k];
+    if (cell !== null && typeof cell === "object" && cell.value !== null) return false;
+  }
+  return true;
+}
+
+function maximumWeightMatching(weights) {
+  const n = weights.length;
+  const m = weights[0]?.length ?? 0;
+  if (n === 0 || m === 0) return [];
+  let best = { total: -Infinity, pairs: [] };
+
+  function backtrack(i, usedPred, currentPairs, total) {
+    if (i === n) {
+      const zeroPairs = currentPairs.filter(([ti, pj]) => weights[ti][pj] === 0).length;
+      const bestZeroPairs = best.pairs.filter(([ti, pj]) => weights[ti][pj] === 0).length;
+      if (
+        total > best.total ||
+        (total === best.total && total > 0 && zeroPairs < bestZeroPairs) ||
+        (total === best.total && total === 0 && currentPairs.length > best.pairs.length)
+      ) {
+        best = { total, pairs: [...currentPairs] };
+      }
+      return;
+    }
+    // leave true i unmatched
+    backtrack(i + 1, usedPred, currentPairs, total);
+    // match true i to any unused predicted j
+    for (let j = 0; j < m; j++) {
+      if (!usedPred[j]) {
+        usedPred[j] = true;
+        currentPairs.push([i, j]);
+        backtrack(i + 1, usedPred, currentPairs, total + weights[i][j]);
+        currentPairs.pop();
+        usedPred[j] = false;
+      }
+    }
+  }
+
+  backtrack(0, new Array(m).fill(false), [], 0);
+  return best.pairs;
+}
+
+function scoreAxisInstance(pair, trueInstance, predictedInstance, group, _transcript) {
+  const eqLeafKey = pair.equipment.split(".")[1];
+  const fuelLeafKey = pair.fuel.split(".")[1];
+  const eqTruth = trueInstance.leaves[eqLeafKey];
+  const fuelTruth = trueInstance.leaves[fuelLeafKey];
+  const eqGt = gtCanonical(pair.equipment, eqTruth);
+  if (eqGt.isNull) return null;
+  const fuelGt = gtCanonical(pair.fuel, fuelTruth);
+  const eqLeaf = readEnvelope(predictedInstance, eqLeafKey, `${group}.${eqLeafKey}`);
+  const fuelLeaf = readEnvelope(predictedInstance, fuelLeafKey, `${group}.${fuelLeafKey}`);
+
+  // "correct" here means "the ordinary comparison says correct, OR the leaf's own `arguable`
+  // sanctions this exact value" — the SAME rule scoreLeaf applies, so a leaf whose equipment
+  // member is a symmetric noFittingMember (see the worked example) is not falsely reported as
+  // axis-wrong just because compareValue alone can never call it "correct".
+  const eqArguable = gtExtras(eqTruth).arguable;
+  const eqCmp = eqLeaf.value !== null ? compareValue(pair.equipment, eqGt, eqLeaf.value) : null;
+  const eqCorrect =
+    eqCmp?.verdict === "correct" ||
+    (eqCmp !== null &&
+      eqCmp.verdict !== "correct" &&
+      matchesAlternative(
+        pair.equipment,
+        eqGt.kind,
+        eqLeaf.value,
+        eqArguable?.acceptableAlternatives,
+      ));
+  const fuelArguable = gtExtras(fuelTruth).arguable;
+  const fuelCmp =
+    !fuelGt.isNull && fuelLeaf.value !== null
+      ? compareValue(pair.fuel, fuelGt, fuelLeaf.value)
+      : null;
+  const fuelCorrect =
+    fuelCmp?.verdict === "correct" ||
+    (fuelCmp !== null &&
+      fuelCmp.verdict !== "correct" &&
+      matchesAlternative(
+        pair.fuel,
+        fuelGt.kind,
+        fuelLeaf.value,
+        fuelArguable?.acceptableAlternatives,
+      ));
+
+  let category;
+  if (fuelGt.isNull) {
+    category =
+      fuelLeaf.value === null
+        ? eqCorrect
+          ? "silentDropRespected"
+          : "silentDropEqWrong"
+        : "fuelInvented";
+  } else if (eqCorrect && fuelCorrect) {
+    category = "bothCorrect";
+  } else if (eqCorrect && fuelLeaf.value === null) {
+    category = "fuelDropped";
+  } else if (eqCorrect && !fuelCorrect) {
+    category = "fuelWrongMember";
+  } else {
+    category = "eqWrongMember";
+  }
+  return {
+    pair: `${group}.${eqLeafKey} / ${group}.${fuelLeafKey}`,
+    eqGt: eqGt.member,
+    fuelGt: fuelGt.isNull ? null : fuelGt.member,
+    eqM: eqLeaf.value,
+    fuelM: fuelLeaf.value,
+    eqCorrect,
+    fuelCorrect,
+    category,
+  };
+}
+
+function countGtLeaf(r, path, leafTruth, isHealth) {
+  const leafPath = path.replace(/\.\d+\./, ".");
+  if (isHealth) {
+    if (gtCanonical(leafPath, leafTruth).isNull) r.counts.hGtNull++;
+    else r.counts.hGtState++;
+  } else {
+    if (gtCanonical(leafPath, leafTruth).isNull) r.counts.gtNull++;
+    else r.counts.gtNonNull++;
+  }
+}
+
+function scoreCollectionGroup(group, gt, model, transcript, r) {
+  const trueInstances = gt.instances[group] ?? [];
+  const predInstances = Array.isArray(model?.[group]) ? model[group] : [];
+  const localLeaves = LEAVES_BY_GROUP[group] ?? [];
+  const isHealth = false;
+
+  // GT-side counts for every leaf of every true instance
+  for (let i = 0; i < trueInstances.length; i++) {
+    const trueInst = trueInstances[i];
+    for (const leafKey of localLeaves) {
+      const path = `${group}.${i}.${leafKey}`;
+      countGtLeaf(r, path, trueInst.leaves[leafKey], isHealth);
+    }
+  }
+
+  const currentTrue = trueInstances.filter((inst) => inst.eligibility === "current");
+  const excludedTrue = trueInstances.filter((inst) => inst.eligibility !== "current");
+  const predictedCount = predInstances.length;
+  const over = Math.max(0, predictedCount - currentTrue.length);
+  const under = Math.max(0, currentTrue.length - predictedCount);
+  const direction = over > 0 ? "over" : under > 0 ? "under" : "match";
+
+  const eligibility = { excluded: excludedTrue.length, correct: 0, falseCurrent: 0, reasons: [] };
+
+  function agreement(trueInst, predInst) {
+    let correct = 0;
+    for (const leafKey of localLeaves) {
+      const leafPath = `${group}.${leafKey}`;
+      const leafTruth = trueInst.leaves[leafKey];
+      const gtc = gtCanonical(leafPath, leafTruth);
+      if (gtc.isNull) continue;
+      const modelLeaf = readEnvelope(predInst, leafKey, leafPath);
+      if (modelLeaf.value === null) continue;
+      const cmp = compareValue(leafPath, gtc, modelLeaf.value);
+      const alt = gtExtras(leafTruth).arguable?.acceptableAlternatives;
+      if (
+        cmp.verdict === "correct" ||
+        matchesAlternative(leafPath, gtc.kind, modelLeaf.value, alt)
+      ) {
+        correct++;
+      }
+    }
+    return correct;
+  }
+
+  // Stage 1: match current true instances to predicted instances by leaf agreement.
+  const currentWeights = currentTrue.map((trueInst) =>
+    predInstances.map((predInst) => agreement(trueInst, predInst)),
+  );
+  const currentMatching = maximumWeightMatching(currentWeights);
+  const matchedTrue = new Set();
+  const matchedPred = new Set();
+  const matched = [];
+
+  for (const [i, j] of currentMatching) {
+    const trueInst = currentTrue[i];
+    const predInst = predInstances[j];
+    const trueIndex = trueInstances.indexOf(trueInst);
+    matched.push({ trueIndex, predictedIndex: j });
+    matchedTrue.add(i);
+    matchedPred.add(j);
+
+    // Score leaves for this matched current instance
+    for (const leafKey of localLeaves) {
+      const leafPath = `${group}.${leafKey}`;
+      const instancePath = `${group}.${trueIndex}.${leafKey}`;
+      const leafTruth = trueInst.leaves[leafKey];
+      const rvalueOnly =
+        leafKey === "atticInsulationDepth" &&
+        gtCanonical(leafPath, leafTruth).isNull &&
+        !gtCanonical(`${group}.atticInsulation`, trueInst.leaves["atticInsulation"]).isNull;
+      scoreLeaf(
+        instancePath,
+        leafPath,
+        leafTruth,
+        readEnvelope(predInst, leafKey, leafPath),
+        isHealth,
+        rvalueOnly,
+        transcript,
+        r,
+      );
+    }
+
+    // Score any equipment/fuel axis pair for this instance
+    for (const pair of AXIS_PAIRS) {
+      if (pair.equipment.startsWith(`${group}.`)) {
+        const axis = scoreAxisInstance(pair, trueInst, predInst, group, transcript);
+        if (axis) r.axis.push(axis);
+      }
+    }
+  }
+
+  // Unmatched current true instances are misses.
+  const missed = [];
+  for (let i = 0; i < currentTrue.length; i++) {
+    if (matchedTrue.has(i)) continue;
+    const trueInst = currentTrue[i];
+    const trueIndex = trueInstances.indexOf(trueInst);
+    missed.push({ trueIndex });
+    for (const leafKey of localLeaves) {
+      const leafPath = `${group}.${leafKey}`;
+      const instancePath = `${group}.${trueIndex}.${leafKey}`;
+      const leafTruth = trueInst.leaves[leafKey];
+      const rvalueOnly =
+        leafKey === "atticInsulationDepth" &&
+        gtCanonical(leafPath, leafTruth).isNull &&
+        !gtCanonical(`${group}.atticInsulation`, trueInst.leaves["atticInsulation"]).isNull;
+      scoreLeaf(
+        instancePath,
+        leafPath,
+        leafTruth,
+        { value: null, confidence: null, span: null, missing: true, envErrors: [] },
+        isHealth,
+        rvalueOnly,
+        transcript,
+        r,
+      );
+    }
+  }
+
+  // Stage 2: remaining non-empty predicted instances are either promotions of excluded true
+  // instances (false-current) or fabrications.
+  const fabricated = [];
+  let excludedCursor = 0;
+  for (let j = 0; j < predInstances.length; j++) {
+    if (matchedPred.has(j)) continue;
+    const predInst = predInstances[j];
+    if (isEmptyInstance(predInst)) continue;
+    if (excludedCursor < excludedTrue.length) {
+      const excl = excludedTrue[excludedCursor++];
+      const trueIndex = trueInstances.indexOf(excl);
+      eligibility.falseCurrent++;
+      eligibility.reasons.push({
+        trueIndex,
+        reason: excl.eligibility,
+        span: excl.eligibilitySpan,
+      });
+    } else {
+      fabricated.push({ predictedIndex: j });
+      for (const leafKey of localLeaves) {
+        const leafPath = `${group}.${leafKey}`;
+        const instancePath = `${group}.${j}.${leafKey}`;
+        scoreLeaf(
+          instancePath,
+          leafPath,
+          { status: "unmentioned", sourceSpan: null },
+          readEnvelope(predInst, leafKey, leafPath),
+          isHealth,
+          false,
+          transcript,
+          r,
+        );
+      }
+    }
+  }
+  eligibility.correct = excludedTrue.length - eligibility.falseCurrent;
+
+  r.instances[group] = {
+    enumeration: { true: currentTrue.length, predicted: predictedCount, over, under, direction },
+    eligibility,
+    attribution: { matched, missed, fabricated },
+  };
+}
+
+/**
  * Score one transcript against its new-format ground truth.
  * @param slug transcript slug
  * @param rawGt the parsed, VALIDATED new-format ground-truth object — RAW, i.e. `leaves` may be
@@ -572,17 +1097,51 @@ export function scoreTranscript(slug, rawGt, transcript, model, loadProblem = nu
     badSpans: [],
     axis: [],
     health: [],
+    instances: {},
     confidences: { correct: [], wrong: [], correctNull: [], hallucinated: [] },
   };
 
-  // GT-side counts always available (even for unscored, so denominators are honest).
-  for (const path of GENERIC_LEAF_PATHS) {
-    if (gtCanonical(path, gt.leaves[path]).isNull) r.counts.gtNull++;
-    else r.counts.gtNonNull++;
+  const modelOrEmpty = model ?? {};
+
+  // ---- conformance: groups, then leaves within present groups ----
+  r.conformance.missingGroups = GROUPS.filter((g) => !(g in modelOrEmpty));
+  r.conformance.extraGroups = Object.keys(modelOrEmpty).filter((g) => !GROUPS.includes(g));
+  for (const group of SINGLETON_GROUPS) {
+    const groupLeaves = LEAF_PATHS.filter((p) => p.startsWith(`${group}.`));
+    const localKeys = groupLeaves.map((p) => p.slice(group.length + 1));
+    const groupObj = modelOrEmpty[group];
+    if (
+      groupObj === undefined ||
+      typeof groupObj !== "object" ||
+      groupObj === null ||
+      Array.isArray(groupObj)
+    ) {
+      continue;
+    }
+    for (const k of localKeys)
+      if (!(k in groupObj)) r.conformance.missingLeaves.push(`${group}.${k}`);
+    for (const k of Object.keys(groupObj))
+      if (!localKeys.includes(k)) r.conformance.extraLeaves.push(`${group}.${k}`);
   }
-  for (const path of HEALTH_TEST_PATHS) {
-    if (gtCanonical(path, gt.leaves[path]).isNull) r.counts.hGtNull++;
-    else r.counts.hGtState++;
+  for (const group of COLLECTION_GROUPS) {
+    const localKeys = LEAVES_BY_GROUP[group] ?? [];
+    const groupArr = modelOrEmpty[group];
+    if (groupArr === undefined) continue;
+    if (!Array.isArray(groupArr)) {
+      r.conformance.envelopeErrors.push(`${group}: not an array of instances`);
+      continue;
+    }
+    for (let i = 0; i < groupArr.length; i++) {
+      const inst = groupArr[i];
+      if (typeof inst !== "object" || inst === null || Array.isArray(inst)) {
+        r.conformance.envelopeErrors.push(`${group}[${i}]: not an object`);
+        continue;
+      }
+      for (const k of localKeys)
+        if (!(k in inst)) r.conformance.missingLeaves.push(`${group}.${k}`);
+      for (const k of Object.keys(inst))
+        if (!localKeys.includes(k)) r.conformance.extraLeaves.push(`${group}.${k}`);
+    }
   }
 
   // A missing/unparseable result is NOT "nothing to score" — it is scored EXACTLY as if the
@@ -596,288 +1155,37 @@ export function scoreTranscript(slug, rawGt, transcript, model, loadProblem = nu
   // good as one that returns all-nulls, never better. This is the fix for the specific property:
   // before it, a missing result scored miss=0 on every leaf, so "return nothing" beat "try and get
   // some wrong" — see score.test.mjs's ROBUSTNESS gate for the mutation that proves it.
-  const modelOrEmpty = model ?? {};
 
-  // ---- conformance: groups, then leaves within present groups ----
-  r.conformance.missingGroups = GROUPS.filter((g) => !(g in modelOrEmpty));
-  r.conformance.extraGroups = Object.keys(modelOrEmpty).filter((g) => !GROUPS.includes(g));
-  for (const group of GROUPS) {
-    const groupLeaves = LEAF_PATHS.filter((p) => p.startsWith(`${group}.`));
-    const localKeys = groupLeaves.map((p) => p.slice(group.length + 1));
-    const groupObj = modelOrEmpty[group];
-    if (groupObj === undefined || typeof groupObj !== "object" || groupObj === null) continue;
-    for (const k of localKeys)
-      if (!(k in groupObj)) r.conformance.missingLeaves.push(`${group}.${k}`);
-    for (const k of Object.keys(groupObj))
-      if (!localKeys.includes(k)) r.conformance.extraLeaves.push(`${group}.${k}`);
+  // ---- score singleton groups (basedata, health) ----
+  for (const group of SINGLETON_GROUPS) {
+    const isHealth = group === "health";
+    for (const path of LEAF_PATHS) {
+      if (!path.startsWith(`${group}.`)) continue;
+      const leafTruth = gt.leaves[path];
+      countGtLeaf(r, path, leafTruth, isHealth);
+      const rvalueOnly =
+        path === "attic.atticInsulationDepth" &&
+        gtCanonical(path, leafTruth).isNull &&
+        !gtCanonical("attic.atticInsulation", gt.leaves["attic.atticInsulation"]).isNull;
+      scoreLeaf(
+        path,
+        path,
+        leafTruth,
+        readLeaf(modelOrEmpty, path),
+        isHealth,
+        rvalueOnly,
+        transcript,
+        r,
+      );
+    }
   }
 
-  const rvalueOnly =
-    gtCanonical("attic.atticInsulationDepth", gt.leaves["attic.atticInsulationDepth"]).isNull &&
-    !gtCanonical("attic.atticInsulation", gt.leaves["attic.atticInsulation"]).isNull;
-
-  const scoreOneLeaf = (path, { isHealth }) => {
-    const leafTruth = gt.leaves[path];
-    const gtc = gtCanonical(path, leafTruth);
-    const { arguable, retracted } = gtExtras(leafTruth);
-    const leaf = readLeaf(modelOrEmpty, path);
-    r.conformance.envelopeErrors.push(...leaf.envErrors);
-    const { value: mv, confidence, span } = leaf;
-    const isSanctioned = (raw) =>
-      matchesAlternative(path, gtc.kind, raw, arguable?.acceptableAlternatives);
-
-    // Counted ONCE here, unconditionally on GT alone — never inside a branch keyed on what the
-    // model emitted. The denominator for "N of GT-passed dropped/kept" must count every GT-passed
-    // leaf regardless of whether the model missed it, got it wrong, or got it right; counting it
-    // only in the both-non-null branch (as a previous version did) meant a MISSED "Passed" bumped
-    // the numerator (hCleanDropped, in the miss branch below) without ever bumping this
-    // denominator — the denominator could end up smaller than the numerator it's supposed to bound.
-    if (isHealth && gtc.member === "Passed") r.counts.hGtPassed++;
-
-    if (gtc.isNull && mv === null) {
-      r.counts.correctNull++;
-      if (isHealth) r.counts.hCorrectNull++;
-      if (confidence !== null) r.confidences.correctNull.push(confidence);
-    } else if (gtc.isNull && mv !== null) {
-      // GT null, model asserted something: a hallucination, unless the leaf's own `arguable`
-      // sanctions this exact value, OR (health only) the value is the matrix's own mild
-      // "explicitly not tested" member asserted on total silence — a real overreach, but a much
-      // smaller one than inventing a Passed/Failed/Warning result (mirrors the old scorer's
-      // `silentNotTested` bucket).
-      const isRvalueConv = path === "attic.atticInsulationDepth" && rvalueOnly;
-      if (isRvalueConv) r.counts.rvalueConversion++;
-      if (isSanctioned(mv)) {
-        r.counts.hallucinationSoft++;
-        r.softAlternatives.push({ field: path, value: mv, confidence, note: arguable.note });
-      } else if (isHealth && resolveEnumMember(path, mv).member === "Not Tested") {
-        r.counts.hSilentNotTested++;
-      } else if (isHealth) {
-        const resolved = resolveEnumMember(path, mv);
-        const category = resolved.member === "Passed" ? "hallucinatedPass" : "hallucinatedProblem";
-        r.counts[category === "hallucinatedPass" ? "hHallucinatedPass" : "hHallucinatedProblem"]++;
-        r.health.push({ test: path, gt: null, got: resolved.member ?? mv, category });
-      } else {
-        r.counts.hallucinationHard++;
-        r.hallucinations.push({
-          field: path,
-          value: mv,
-          confidence,
-          sourceSpan: span,
-          rvalueConversion: isRvalueConv,
-        });
-        if (confidence !== null) r.confidences.hallucinated.push(confidence);
-      }
-    } else if (!gtc.isNull && mv === null) {
-      const excused = arguable?.acceptableMiss === true;
-      if (excused) {
-        if (isHealth) r.counts.hMissExcused++;
-        else r.counts.missExcused++;
-        r.excused.push({ field: path, note: arguable.note });
-      } else if (isHealth) {
-        r.counts.hMiss++;
-        const wasPassed = gtc.member === "Passed";
-        if (wasPassed) r.counts.hCleanDropped++;
-        r.health.push({
-          test: path,
-          gt: gtc.member,
-          got: null,
-          category: wasPassed ? "cleanDropped" : "miss",
-        });
-      } else {
-        r.counts.miss++;
-        r.misses.push({
-          field: path,
-          expected: gtc.kind === "enum" ? gtc.member : gtc.value,
-          span,
-        });
-        if (gtc.kind === "enum") r.counts.enumMiss++;
-        if (BAND_LEAVES.has(path)) r.counts.bandMiss++;
-      }
-    } else {
-      // both non-null
-      r.counts.bothNonNull++;
-      const cmp = compareValue(path, gtc, mv);
-      const sanctioned = cmp.verdict !== "correct" && isSanctioned(mv);
-      if (cmp.verdict === "unscorable" && !sanctioned) {
-        r.counts.unscorable++;
-        r.unscorableRows.push({ field: path, got: mv, detail: cmp.detail });
-      } else {
-        const ok = cmp.verdict === "correct" || sanctioned;
-        // Vocabulary attribution is ONLY meaningful for a TRUE match against GT's own canonical
-        // member — gated strictly on cmp.verdict === "correct", never on `ok` (which also folds in
-        // `sanctioned`). Getting this gate wrong is exactly how a wrong answer ends up counted as a
-        // "CORRECT match": cmp.vocabulary is set by compareValue whenever the raw value resolves to
-        // ANY real member, correct or not, so counting on `ok`/`sanctioned` or on "vocabulary is
-        // non-null" rather than on the verdict itself corrupts the one measurement this whole format
-        // exists to make possible. See score.test.mjs's EITHER-VOCABULARY gate for the mutation that
-        // proves a wrong slug-spelled value is excluded.
-        if (cmp.verdict === "correct") {
-          if (cmp.vocabulary === "api") r.counts.vocabApi++;
-          else if (cmp.vocabulary === "slug") r.counts.vocabSlug++;
-        }
-
-        if (sanctioned) {
-          // GT is NON-NULL here (this whole branch is "both non-null") — nothing was hallucinated;
-          // the schema itself forced an arbitrary pick between two (or more) equally-fitting
-          // members (the worked example's furnace/cooling axis is the standing case) and the model
-          // landed on the OTHER lobe of that same forced choice. This is categorically different
-          // from the GT-null "sanctioned" branch above (a real soft hallucination, tolerated) and
-          // must not share its counter/bucket or its HALLUCINATION-section reporting — see
-          // IMPORTANT 9 in the fix-round-2 review. Reported under ENUM-MAPPING instead.
-          r.counts.enumSanctioned++;
-          r.sanctionedRows.push({ field: path, value: mv, confidence, note: arguable.note });
-        } else if (isHealth) {
-          if (ok) {
-            r.counts.hCorrectState++;
-            if (gtc.member === "Passed") r.counts.hGtPassedCorrect++;
-          } else {
-            const resolved = resolveEnumMember(path, mv);
-            const category = resolved.member === "Passed" ? "hallucinatedPass" : "wrongState";
-            r.counts[category === "hallucinatedPass" ? "hHallucinatedPass" : "hWrongState"]++;
-            r.health.push({ test: path, gt: gtc.member, got: resolved.member ?? mv, category });
-          }
-        } else {
-          if (ok) {
-            r.counts.correct++;
-            if (confidence !== null) r.confidences.correct.push(confidence);
-          } else {
-            const isRetracted = matchesRetracted(path, gtc.kind, mv, retracted);
-            r.counts.wrong++;
-            r.wrong.push({
-              field: path,
-              expected: gtc.kind === "enum" ? gtc.member : gtc.value,
-              got: mv,
-              tag: isRetracted ? "retracted" : cmp.tag,
-              detail: cmp.detail,
-              confidence,
-            });
-            if (confidence !== null) r.confidences.wrong.push(confidence);
-          }
-          if (gtc.kind === "enum") {
-            r.counts.enumGtMember++;
-            if (ok) r.counts.enumCorrect++;
-            else if (cmp.tag === "invalid-enum") r.counts.enumInvalid++;
-            else if (cmp.tag !== "boundary") r.counts.enumWrongMember++;
-          }
-          if (BAND_LEAVES.has(path)) {
-            r.counts.bandGt++;
-            if (ok) r.counts.bandCorrect++;
-            else if (cmp.tag === "boundary") r.counts.bandBoundary++;
-            else r.counts.bandWrong++;
-          }
-        }
-      }
-    }
-
-    // span validity for any non-null model value, or a fabricated span on a null decline
-    if (span !== null) {
-      const c = classifySpan(span, transcript);
-      if (mv !== null) {
-        r.counts.spanChecked++;
-        if (c.status === "verbatim") r.counts.spanVerbatim++;
-        else {
-          if (c.status === "near-miss") r.counts.spanNearMiss++;
-          else r.counts.spanFabricated++;
-          r.badSpans.push({ field: path, value: mv, span, status: c.status, detail: c.detail });
-        }
-      } else if (c.status === "fabricated") {
-        r.badSpans.push({
-          field: path,
-          value: null,
-          span,
-          status: "fabricated-decline",
-          detail: c.detail,
-        });
-      }
-    } else if (mv !== null) {
-      r.counts.spanChecked++;
-      r.counts.spanMissing++;
-      r.badSpans.push({
-        field: path,
-        value: mv,
-        span: null,
-        status: "missing",
-        detail: "non-null value with no sourceSpan",
-      });
-    }
-  };
-
-  for (const path of GENERIC_LEAF_PATHS) scoreOneLeaf(path, { isHealth: false });
-  for (const path of HEALTH_TEST_PATHS) scoreOneLeaf(path, { isHealth: true });
-
-  // ---- axis-split (equipment vs fuel, per AXIS_PAIRS) ----
-  for (const pair of AXIS_PAIRS) r.axis.push(scoreAxis(pair, gt, modelOrEmpty));
+  // ---- score collection groups (hvac, attic, wall, window, dhw) ----
+  for (const group of COLLECTION_GROUPS) {
+    scoreCollectionGroup(group, gt, modelOrEmpty, transcript, r);
+  }
 
   return r;
-}
-
-/** Axis-split confusion for one equipment/fuel pair. */
-function scoreAxis(pair, gt, model) {
-  const eqGt = gtCanonical(pair.equipment, gt.leaves[pair.equipment]);
-  if (eqGt.isNull) return null; // no system stated on this axis pair
-  const fuelGt = gtCanonical(pair.fuel, gt.leaves[pair.fuel]);
-  const eqLeaf = readLeaf(model, pair.equipment);
-  const fuelLeaf = readLeaf(model, pair.fuel);
-
-  // "correct" here means "the ordinary comparison says correct, OR the leaf's own `arguable`
-  // sanctions this exact value" — the SAME rule scoreOneLeaf applies, so a leaf whose equipment
-  // member is a symmetric noFittingMember (see the worked example) is not falsely reported as
-  // axis-wrong just because compareValue alone can never call it "correct".
-  const eqArguable = gtExtras(gt.leaves[pair.equipment]).arguable;
-  const eqCmp = eqLeaf.value !== null ? compareValue(pair.equipment, eqGt, eqLeaf.value) : null;
-  const eqCorrect =
-    eqCmp?.verdict === "correct" ||
-    (eqCmp !== null &&
-      eqCmp.verdict !== "correct" &&
-      matchesAlternative(
-        pair.equipment,
-        eqGt.kind,
-        eqLeaf.value,
-        eqArguable?.acceptableAlternatives,
-      ));
-  const fuelArguable = gtExtras(gt.leaves[pair.fuel]).arguable;
-  const fuelCmp =
-    !fuelGt.isNull && fuelLeaf.value !== null
-      ? compareValue(pair.fuel, fuelGt, fuelLeaf.value)
-      : null;
-  const fuelCorrect =
-    fuelCmp?.verdict === "correct" ||
-    (fuelCmp !== null &&
-      fuelCmp.verdict !== "correct" &&
-      matchesAlternative(
-        pair.fuel,
-        fuelGt.kind,
-        fuelLeaf.value,
-        fuelArguable?.acceptableAlternatives,
-      ));
-
-  let category;
-  if (fuelGt.isNull) {
-    category =
-      fuelLeaf.value === null
-        ? eqCorrect
-          ? "silentDropRespected"
-          : "silentDropEqWrong"
-        : "fuelInvented";
-  } else if (eqCorrect && fuelCorrect) {
-    category = "bothCorrect";
-  } else if (eqCorrect && fuelLeaf.value === null) {
-    category = "fuelDropped";
-  } else if (eqCorrect && !fuelCorrect) {
-    category = "fuelWrongMember";
-  } else {
-    category = "eqWrongMember";
-  }
-  return {
-    pair: `${pair.equipment} / ${pair.fuel}`,
-    eqGt: eqGt.member,
-    fuelGt: fuelGt.isNull ? null : fuelGt.member,
-    eqM: eqLeaf.value,
-    fuelM: fuelLeaf.value,
-    eqCorrect,
-    fuelCorrect,
-    category,
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -888,22 +1196,51 @@ function scoreAxis(pair, gt, model) {
 export function buildPerfectModel(rawGt, confidence = 0.9) {
   const gt = resolveGroundTruth(rawGt);
   const out = {};
-  for (const group of GROUPS) out[group] = {};
-  for (const path of LEAF_PATHS) {
-    const [group, leafKey] = path.split(".");
-    const leafTruth = gt.leaves[path];
-    const gtc = gtCanonical(path, leafTruth);
-    // A `noFittingMember` leaf has no single canonical value to copy — score a "perfect" run as
-    // emitting the first sanctioned alternative, since that is what "scores clean" means for a
-    // leaf the ground truth itself says has no one right answer (see the worked example).
-    const value = gtc.isNull
-      ? null
-      : gtc.kind !== "enum"
-        ? gtc.value
-        : (gtc.member ?? gtExtras(leafTruth).arguable?.acceptableAlternatives?.[0] ?? null);
-    const sourceSpan = leafTruth?.sourceSpan ?? null;
-    out[group][leafKey] = { value, confidence, sourceSpan };
+
+  // Singleton groups stay flat objects.
+  for (const group of SINGLETON_GROUPS) {
+    out[group] = {};
+    for (const path of LEAF_PATHS) {
+      if (!path.startsWith(`${group}.`)) continue;
+      const leafKey = path.slice(group.length + 1);
+      const leafTruth = gt.leaves[path];
+      const gtc = gtCanonical(path, leafTruth);
+      // A `noFittingMember` leaf has no single canonical value to copy — score a "perfect" run as
+      // emitting the first sanctioned alternative, since that is what "scores clean" means for a
+      // leaf the ground truth itself says has no one right answer (see the worked example).
+      const value = gtc.isNull
+        ? null
+        : gtc.kind !== "enum"
+          ? gtc.value
+          : (gtc.member ?? gtExtras(leafTruth).arguable?.acceptableAlternatives?.[0] ?? null);
+      const sourceSpan = leafTruth?.sourceSpan ?? null;
+      out[group][leafKey] = { value, confidence, sourceSpan };
+    }
   }
+
+  // Collection groups are arrays of instances. Only `current` instances are emitted — excluded
+  // candidates are intentionally omitted, and the eligibility metric grades whether they were left
+  // out rather than promoted to a current record.
+  for (const group of COLLECTION_GROUPS) {
+    const current = (gt.instances[group] ?? []).filter((inst) => inst.eligibility === "current");
+    out[group] = current.map((inst) => {
+      const instance = {};
+      for (const leafKey of LEAVES_BY_GROUP[group] ?? []) {
+        const path = `${group}.${leafKey}`;
+        const leafTruth = inst.leaves[leafKey];
+        const gtc = gtCanonical(path, leafTruth);
+        const value = gtc.isNull
+          ? null
+          : gtc.kind !== "enum"
+            ? gtc.value
+            : (gtc.member ?? gtExtras(leafTruth).arguable?.acceptableAlternatives?.[0] ?? null);
+        const sourceSpan = leafTruth?.sourceSpan ?? null;
+        instance[leafKey] = { value, confidence, sourceSpan };
+      }
+      return instance;
+    });
+  }
+
   return out;
 }
 
