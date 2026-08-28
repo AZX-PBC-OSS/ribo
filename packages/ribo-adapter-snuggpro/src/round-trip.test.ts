@@ -162,12 +162,14 @@ const flatten = (value: Record<string, unknown>, prefix = ""): string[] =>
 
 // --- The round trip ---------------------------------------------------------
 
-// Blocked on Tasks 6-7: review.ts's collectFields only walks ZodObject and does not
-// enumerate array instances. With hvac/attic/wall/window/dhw now arrays, these tests
-// fail during buildReviewRequest with "expected array, received null" because the leaf
-// paths are no longer generated. Re-enable once review.ts understands array groups.
+// The resolved patch is positional (arrays), while review paths are keyed (`k1`, `k2`).
+// Flatten the written fields to positional dotted paths to compare against the expected
+// leaf set.
 
-test.skip("the real field set round-trips: schema → extraction → review → write", async () => {
+const positionalPath = (keyedPath: string): string =>
+  keyedPath.replace(/\[k(\d+)\]/g, (_, n) => `.${Number(n) - 1}`);
+
+test("the real field set round-trips: schema → extraction → review → write", async () => {
   const written: Write[] = [];
   const adapter = stubAdapter(written);
 
@@ -235,15 +237,17 @@ test.skip("the real field set round-trips: schema → extraction → review → 
   expect(write.fields.attic?.[0]?.atticInsulationDepth).toBe("4-6");
   expect(write.fields.dhw?.[0]?.dhwType2).toBe("Sidearm Tank");
 
-  // Nothing is missing: accepting all 51 leaves writes all 51.
-  expect(flatten(write.fields).sort()).toEqual([...paths].sort());
+  // Nothing is missing: accepting all 51 leaves writes all 51. The resolved patch is
+  // positional, so compare the flattened field paths against positional versions of the
+  // keyed review paths.
+  expect(flatten(write.fields).sort()).toEqual([...paths].map(positionalPath).sort());
 
   // The destination came off THIS item's recording, and the idempotency key off the queue.
   expect(write.ctx).toEqual(ctx);
   expect(write.meta).toEqual({ idempotencyKey: "idem-item-1" });
 });
 
-test.skip("one rejected leaf of the 51 still writes the other 50", async () => {
+test("one rejected leaf of the 51 still writes the other 50", async () => {
   // The test that proves patch semantics, and the one an earlier revision of this design
   // would have failed outright: rejecting a leaf must leave that field alone in Snugg
   // Pro, not fail the write and not blank the field.
@@ -278,7 +282,12 @@ test.skip("one rejected leaf of the 51 still writes the other 50", async () => {
   // `fields.healthSafety?.asbestos` reads `undefined` either way.
   expect("healthAsbestos" in fields.health!).toBe(false);
   // Every other leaf is present, including the thirteen surviving health fields.
-  expect(flatten(fields).sort()).toEqual(paths.filter((path) => path !== rejected).sort());
+  expect(flatten(fields).sort()).toEqual(
+    paths
+      .filter((path) => path !== rejected)
+      .map(positionalPath)
+      .sort(),
+  );
   expect(Object.keys(fields.health!)).toHaveLength(13);
 
   // The neighbouring case, in the same patch: an accepted `null` is PRESENT and null.

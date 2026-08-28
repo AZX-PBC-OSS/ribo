@@ -32,18 +32,6 @@ const REVIEW_NEEDS_ARRAYS = "review.ts cannot address an instance until Tasks 6�
 /** Each row: the skipped test, the plan task that owes its removal, and why it is blocked. */
 const INVENTORY = [
   {
-    file: "packages/ribo-adapter-snuggpro/src/round-trip.test.ts",
-    title: "the real field set round-trips: schema → extraction → review → write",
-    unskippedBy: "Task 7",
-    because: REVIEW_NEEDS_ARRAYS,
-  },
-  {
-    file: "packages/ribo-adapter-snuggpro/src/round-trip.test.ts",
-    title: "one rejected leaf of the 51 still writes the other 50",
-    unskippedBy: "Task 7",
-    because: REVIEW_NEEDS_ARRAYS,
-  },
-  {
     file: "playground/src/ReviewPanel.browser.test.tsx",
     title:
       "the submit gate blocks while an ungrounded leaf is untouched, and releases once it is actioned",

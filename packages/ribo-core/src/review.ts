@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { buildFieldPath, stripOptionalNullable } from "./field-path.js";
+import { buildFieldPath, parseFieldPath, stripOptionalNullable } from "./field-path.js";
 import type { FieldPath, FieldPathSegment } from "./field-path.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 import { isSpanGrounded } from "./provenance.js";
@@ -552,19 +552,112 @@ const invalidValueMessage = (status: "accepted" | "edited", error: z.ZodError): 
         "as it stands; edit it, or reject the leaf to leave the field untouched";
 };
 
-/** Write `value` at a dotted path, creating the objects on the way down. */
-const setAtPath = (target: Record<string, unknown>, path: FieldPath, value: unknown): void => {
-  const segments = path.split(".");
-  const leaf = segments.pop() as string;
-  let node = target;
-  for (const segment of segments) {
-    // A nested group only materializes when one of its leaves survives review, so
-    // rejecting every one of Snugg Pro's `health` group's 14 tests leaves no
-    // `health` key at all — which is what a patch means by "leave this alone".
-    node[segment] ??= {};
-    node = node[segment] as Record<string, unknown>;
+/**
+ * Record the positional index for every instance key that survives review.
+ *
+ * Review paths address instances by a stable key (`k1`, `k2`, …) so a UI can
+ * remove one without reattaching the remaining decisions to a different physical
+ * instance. The vendor patch is positional, so this named remap is the step that
+ * converts keyed decisions into array indices, preserving first-mention order.
+ */
+const buildInstancePositions = (
+  acceptedPaths: readonly FieldPath[],
+): Map<string, Map<string, number>> => {
+  const positions = new Map<string, Map<string, number>>();
+  for (const path of acceptedPaths) {
+    const segments = parseFieldPath(path);
+    let parentPath = "";
+    for (const segment of segments) {
+      if (segment.kind === "instanceKey") {
+        let indexMap = positions.get(parentPath);
+        if (indexMap === undefined) {
+          indexMap = new Map();
+          positions.set(parentPath, indexMap);
+        }
+        if (!indexMap.has(segment.key)) {
+          indexMap.set(segment.key, indexMap.size);
+        }
+      }
+      parentPath =
+        parentPath === ""
+          ? segment.kind === "objectKey"
+            ? segment.key
+            : `[${segment.key}]`
+          : segment.kind === "objectKey"
+            ? `${parentPath}.${segment.key}`
+            : `${parentPath}[${segment.key}]`;
+    }
   }
-  node[leaf] = value;
+  return positions;
+};
+
+/**
+ * Write `value` at a parsed path, creating nested objects and arrays on the way
+ * down.
+ *
+ * Uses {@link parseFieldPath} so bracketed instance keys become array elements
+ * rather than object keys whose name is the literal text `hvac[k1]`. The
+ * `positions` map supplies the keyed-to-positional remap for each array group.
+ */
+const setAtPath = (
+  target: Record<string, unknown>,
+  path: FieldPath,
+  value: unknown,
+  positions: Map<string, Map<string, number>>,
+): void => {
+  const segments = parseFieldPath(path);
+  if (segments.length === 0) {
+    throw new Error(`field path "${path}" is empty`);
+  }
+  const leaf = segments[segments.length - 1] as FieldPathSegment;
+  if (leaf.kind !== "objectKey") {
+    throw new Error(`field path "${path}" must end with an object-key segment`);
+  }
+
+  let node: Record<string, unknown> | unknown[] = target;
+  let parentPath = "";
+  for (let i = 0; i < segments.length - 1; i++) {
+    const segment = segments[i] as FieldPathSegment;
+    if (segment.kind === "objectKey") {
+      const nextSegment = segments[i + 1];
+      const isArrayParent = nextSegment?.kind === "instanceKey";
+      const objectNode = node as Record<string, unknown>;
+      if (objectNode[segment.key] === undefined) {
+        if (isArrayParent) {
+          const indexMap = positions.get(
+            parentPath === "" ? segment.key : `${parentPath}.${segment.key}`,
+          );
+          objectNode[segment.key] = new Array(indexMap?.size ?? 0);
+        } else {
+          objectNode[segment.key] = {};
+        }
+      }
+      node = objectNode[segment.key] as Record<string, unknown> | unknown[];
+      parentPath = parentPath === "" ? segment.key : `${parentPath}.${segment.key}`;
+    } else {
+      const indexMap = positions.get(parentPath);
+      if (indexMap === undefined) {
+        throw new Error(
+          `field path "${path}" references an unexpected instance key "${segment.key}"`,
+        );
+      }
+      const index = indexMap.get(segment.key);
+      if (index === undefined) {
+        throw new Error(
+          `field path "${path}" references an unexpected instance key "${segment.key}"`,
+        );
+      }
+      const arrayNode = node as unknown[];
+      let child = arrayNode[index] as Record<string, unknown> | undefined;
+      if (child === undefined) {
+        child = {};
+        arrayNode[index] = child;
+      }
+      node = child;
+      parentPath = `${parentPath}[${segment.key}]`;
+    }
+  }
+  (node as Record<string, unknown>)[leaf.key] = value;
 };
 
 /**
@@ -620,7 +713,7 @@ export const resolveReview = (
   const structural = completenessIssues(paths, submission.decisions);
   if (structural.length > 0) throw new ReviewValidationError(structural);
 
-  const fields: Record<string, unknown> = {};
+  const accepted: { path: FieldPath; value: unknown }[] = [];
   const editedFields: FieldPath[] = [];
   const rejectedFields: FieldPath[] = [];
   const invalid: ReviewIssue[] = [];
@@ -685,12 +778,30 @@ export const resolveReview = (
       continue;
     }
 
-    // The PARSED value, not the raw one: the leaf's schema is the authority on what
-    // a legal value for it is, so what gets persisted is what it accepted.
-    setAtPath(fields, path, parsed.data);
+    // Defer reassembly until every accepted leaf is known, so the keyed-to-positional
+    // remap can be built as a named step rather than happening as a side effect of
+    // iteration order.
+    accepted.push({ path, value: parsed.data });
   }
 
   if (invalid.length > 0) throw new ReviewValidationError(invalid);
+
+  const positions = buildInstancePositions(accepted.map((entry) => entry.path));
+  const fields: Record<string, unknown> = {};
+  for (const { path, value } of accepted) {
+    // The PARSED value, not the raw one: the leaf's schema is the authority on what
+    // a legal value for it is, so what gets persisted is what it accepted.
+    setAtPath(fields, path, value, positions);
+  }
+
+  // A group that was present-but-empty in the extraction means "there are none of these",
+  // which is the opposite of "touch nothing". Record it as an empty array when no instance
+  // survived review.
+  for (const groupPath of request.presentButEmpty) {
+    if (!Object.hasOwn(fields, groupPath)) {
+      fields[groupPath] = [];
+    }
+  }
 
   if (editedFields.length === 0 && rejectedFields.length === 0) {
     return { status: "accepted", fields };
