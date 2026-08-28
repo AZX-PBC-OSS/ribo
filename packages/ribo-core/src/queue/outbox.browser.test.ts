@@ -329,10 +329,101 @@ test("an outbox stored at schema version 0 opens and migrates to version 6", asy
   const items = await outbox.list({});
 
   expect(items).toHaveLength(1);
-  // v5 → v6 migration: `sessionId` is added (placeholder), and the old
+  // v5 → v6 migration: `sessionId` is added, and the old
   // session-level fields (`extracted`, `reviewOutcome`, etc.) are dropped.
   expect(items[0]?.sessionId).toBeDefined();
   expect(items[0]?.status).toBe("queued");
+  await outbox.close();
+});
+
+test("v5 recordings with extracted/reviewOutcome migrate to sessions", async () => {
+  // Seed a v0 outbox with two recordings sharing an assessmentId.
+  const name = uniqueName();
+  addRxPlugin(RxDBAttachmentsPlugin);
+  const db0 = await createRxDatabase({
+    name,
+    storage: getRxStorageDexie(),
+    multiInstance: true,
+    eventReduce: true,
+    cleanupPolicy: {},
+  });
+  await db0.addCollections({ [OUTBOX_COLLECTION_NAME]: { schema: OUTBOX_RX_SCHEMA_V0 } });
+  const outboxCol = db0.collections.outbox!;
+  const baseRec = {
+    id: "r",
+    capturedAt: "2026-07-23T10:00:00.000Z",
+    durationMs: 1,
+    mimeType: "audio/webm",
+    ctx: { assessmentId: "job-42" },
+  };
+  await outboxCol.insert({
+    id: "a",
+    seq: 0,
+    status: "awaiting-review",
+    idempotencyKey: "k",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: baseRec,
+  });
+  await outboxCol.insert({
+    id: "b",
+    seq: 1,
+    status: "queued",
+    idempotencyKey: "k2",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: { ...baseRec, id: "r2" },
+  });
+  await db0.close();
+
+  const outbox = await open(name);
+  const items = await outbox.list({});
+  expect(items).toHaveLength(2);
+
+  // Both recordings have a sessionId derived from their assessmentId.
+  const sessionIds = new Set(items.map((r) => r.sessionId));
+  expect(sessionIds.size).toBe(1); // same session — same assessmentId
+
+  // A session was created by the post-migration step.
+  const sessionId = items[0]!.sessionId;
+  const session = await outbox.getSession(sessionId);
+  expect(session).toBeDefined();
+  // The recording statuses were mapped: "awaiting-review" → "transcribed",
+  // "queued" stays "queued".
+  expect(items.find((r) => r.id === "a")?.status).toBe("transcribed");
+  expect(items.find((r) => r.id === "b")?.status).toBe("queued");
+  await outbox.close();
+});
+
+test("v5 recordings with no assessmentId get singleton sessions", async () => {
+  const name = uniqueName();
+  await seedVersionZeroOutbox(name, {
+    id: "solo",
+    seq: 0,
+    status: "queued",
+    idempotencyKey: "k",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: {
+      id: "r",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      durationMs: 1,
+      mimeType: "audio/webm",
+      ctx: {}, // no assessmentId
+    },
+  } as V0OutboxDocument);
+
+  const outbox = await open(name);
+  const items = await outbox.list({});
+  expect(items).toHaveLength(1);
+  // A session was created — a singleton.
+  const session = await outbox.getSession(items[0]!.sessionId);
+  expect(session).toBeDefined();
+  expect(session?.status).toBe("done"); // no extraction → done
+  await outbox.close();
 });
 
 // ---------------------------------------------------------------------------
