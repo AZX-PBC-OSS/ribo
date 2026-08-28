@@ -249,9 +249,7 @@ test("flapping the link around a queued item neither duplicates it, loses it, no
 // context still offline is exactly as informative about "no network I/O" as the
 // original, gate-free version was.
 //
-// Skipped for R1.6 Task 5: it drives the review card, which cannot enumerate array
-// groups until review.ts is updated (Tasks 6-7). Re-enable then.
-test.skip("the manual drain runs to completion while offline — the stub steps do no network I/O", async () => {
+test("the manual drain runs to completion while offline — the stub steps do no network I/O", async () => {
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(baseUrl);
@@ -363,9 +361,8 @@ function unwrapGroup(field: z.ZodType): z.ZodType {
  * order — computed from the schema itself rather than hard-coded, so a future
  * field-set change changes what this test expects instead of silently under-
  * or over-covering it. Same walk as `extraction-ui.e2e.test.ts`'s helper of the
- * same name. Collection groups are arrays; their element leaves are reported as
- * `group.leaf` without an array index, because the path is a schema-time
- * diagnostic and indices do not exist until data arrives.
+ * same name. Collection groups are arrays; the fake fixture emits one instance per
+ * collection, so their element leaves are addressed by key (`k1`).
  */
 function allLeafPaths(): readonly string[] {
   const paths: string[] = [];
@@ -374,7 +371,7 @@ function allLeafPaths(): readonly string[] {
     if (groupSchema instanceof z.ZodArray) {
       const elementSchema = groupSchema.element as unknown as z.ZodObject;
       for (const leafKey of Object.keys(elementSchema.shape)) {
-        paths.push(`${groupKey}.${leafKey}`);
+        paths.push(`${groupKey}[k1].${leafKey}`);
       }
     } else if (groupSchema instanceof z.ZodObject) {
       for (const leafKey of Object.keys(groupSchema.shape)) {

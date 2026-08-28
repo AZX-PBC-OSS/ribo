@@ -91,8 +91,8 @@ function unwrapGroup(field: z.ZodType): z.ZodType {
  * Every dotted leaf path the real `snuggValuesSchema` declares, in schema
  * order — computed from the schema itself rather than hard-coded, so a future
  * field-set change changes what this test expects instead of silently under-
- * or over-covering it. Collection groups are arrays; their element leaves are
- * reported as `group.leaf` without an array index.
+ * or over-covering it. Collection groups are arrays; the fake fixture emits one
+ * instance per collection, so their element leaves are addressed by key (`k1`).
  */
 function allLeafPaths(): readonly string[] {
   const paths: string[] = [];
@@ -101,7 +101,7 @@ function allLeafPaths(): readonly string[] {
     if (groupSchema instanceof z.ZodArray) {
       const elementSchema = groupSchema.element as unknown as z.ZodObject;
       for (const leafKey of Object.keys(elementSchema.shape)) {
-        paths.push(`${groupKey}.${leafKey}`);
+        paths.push(`${groupKey}[k1].${leafKey}`);
       }
     } else if (groupSchema instanceof z.ZodObject) {
       for (const leafKey of Object.keys(groupSchema.shape)) {
@@ -122,9 +122,7 @@ function allLeafPaths(): readonly string[] {
 // blocked leaf, submit, then drain the resulting `writing` step too. The path is
 // one human step longer, not shorter.
 //
-// Skipped for R1.6 Task 5: review.ts does not yet enumerate array instances, so
-// `buildReviewRequest` fails for hvac/attic/wall/window/dhw. Re-enable in Tasks 6-7.
-test.skip("a recording drains through extraction and its fields show with provenance", async () => {
+test("a recording drains through extraction and its fields show with provenance", async () => {
   const page: Page = await (await browser.newContext()).newPage();
   await page.goto(baseUrl);
 

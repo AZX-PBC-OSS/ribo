@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useSyncExternalStore, type ChangeEvent } from "react";
 import { z } from "zod";
-import { stripOptionalNullable } from "@azx/ribo-core";
+import { parseFieldPath, stripOptionalNullable } from "@azx/ribo-core";
 import type {
   FieldDecision,
   FieldPath,
@@ -67,13 +67,15 @@ import {
  * the schema, not here. This is what lets the field set change (51 leaves under
  * seven resource groups today, and counting) without a UI edit.
  *
- * ## Grouping is generic
+ * ## Grouping is generic and instance-aware
  *
- * A card's leaves are grouped by the **first segment of the dotted path** —
- * `"hvac.hvacDuctLeakage"` groups under `"hvac"` — computed by splitting on the
- * first `.`, not by naming Snugg Pro's seven resource groups. A leaf path with no
- * dot (a flat adapter) has no group segment at all, so every such leaf falls into
- * one shared, unnamed group instead of each becoming a one-leaf group of its own.
+ * A card's leaves are grouped by the **first segment of the path** and then by the
+ * bracketed instance key (`"hvac[k1]"`), derived from {@link parseFieldPath} rather
+ * than by naming Snugg Pro's seven resource groups. A leaf path with no group
+ * segment (a flat adapter) falls into one shared, unnamed group. Collection groups
+ * render each instance as a subsection with an add/remove affordance; an empty-but-
+ * present collection renders the group with an add affordance so the auditor can
+ * still notice it was missed.
  *
  * ## The gate
  *
@@ -100,25 +102,86 @@ function humanize(path: string): string {
     .join(" · ");
 }
 
-/** The dotted path's first segment, or `undefined` for a path with no dot at all. */
-function groupOf(path: FieldPath): string | undefined {
-  const dot = path.indexOf(".");
-  return dot === -1 ? undefined : path.slice(0, dot);
+/** The last path segment, humanized for the row label inside its group/instance. */
+function leafLabel(path: FieldPath): string {
+  const dot = path.lastIndexOf(".");
+  return humanize(dot === -1 ? path : path.slice(dot + 1));
 }
 
-/** One group of leaves: the group's name (from {@link groupOf}), or `undefined` when unnamed. */
-type FieldGroupEntry = readonly [name: string | undefined, paths: FieldPath[]];
+/** One instance within a collection group: its path and the leaf paths it owns. */
+interface InstanceGroup {
+  readonly path: string;
+  readonly key: string;
+  readonly label: string;
+  readonly paths: readonly FieldPath[];
+}
 
-/** `fields`, grouped by {@link groupOf}, preserving `fields`' own (schema-declaration) order. */
-function groupFields(fields: ReviewFields): readonly FieldGroupEntry[] {
-  const groups = new Map<string | undefined, FieldPath[]>();
+/** One resource group: singletons have one unnamed instance; collections may have many. */
+interface ResourceGroup {
+  readonly name: string | undefined;
+  readonly instances: readonly InstanceGroup[];
+  readonly isEmpty: boolean;
+}
+
+/** Derive resource groups and instances from the leaf paths, never by naming a group. */
+function groupFields(
+  fields: ReviewFields,
+  presentButEmpty: readonly string[] = [],
+): readonly ResourceGroup[] {
+  const groups = new Map<string | undefined, Map<string, FieldPath[]>>();
+  const groupOrder: (string | undefined)[] = [];
+
   for (const path of Object.keys(fields)) {
-    const key = groupOf(path);
-    const bucket = groups.get(key);
-    if (bucket) bucket.push(path);
-    else groups.set(key, [path]);
+    const segments = parseFieldPath(path);
+    const groupName = segments[0]?.key;
+    // The instance key is the bracketed segment that follows the group, if any.
+    const instanceKey = segments[1]?.kind === "instanceKey" ? segments[1].key : undefined;
+    // The map key is the bare instance key ("k1") for collections, or "" for singleton groups.
+    const mapKey = instanceKey ?? "";
+
+    if (!groups.has(groupName)) {
+      groups.set(groupName, new Map());
+      groupOrder.push(groupName);
+    }
+    const instances = groups.get(groupName)!;
+    if (!instances.has(mapKey)) {
+      instances.set(mapKey, []);
+    }
+    instances.get(mapKey)!.push(path);
   }
-  return [...groups.entries()];
+
+  const result: ResourceGroup[] = groupOrder.map((name) => {
+    const instances = groups.get(name)!;
+    const entries = [...instances.entries()];
+    const hasUnnamedSingleton = entries.length === 1 && entries[0]![0] === "";
+    if (hasUnnamedSingleton) {
+      return {
+        name,
+        instances: [{ path: name ?? "", key: "", label: "", paths: entries[0]![1] }],
+        isEmpty: false,
+      };
+    }
+    return {
+      name,
+      instances: entries
+        .filter(([key]) => key !== "")
+        .map(([key, paths], index) => ({
+          path: `${name}[${key}]`,
+          key,
+          label: `${humanize(name ?? "")} ${index + 1}`,
+          paths,
+        })),
+      isEmpty: false,
+    };
+  });
+
+  for (const groupName of presentButEmpty) {
+    if (!groups.has(groupName)) {
+      result.push({ name: groupName, instances: [], isEmpty: true });
+    }
+  }
+
+  return result;
 }
 
 export function ReviewPanel() {
@@ -325,6 +388,9 @@ function ReviewCard({ item }: { item: OutboxItem }) {
     reject,
     untouched,
     errors,
+    presentButEmpty,
+    addInstance,
+    removeInstance,
     submit,
     discard,
     submitting,
@@ -342,7 +408,10 @@ function ReviewCard({ item }: { item: OutboxItem }) {
   );
   const blocked = blockedPaths.length > 0;
 
-  const groups = useMemo(() => (fields === undefined ? [] : groupFields(fields)), [fields]);
+  const groups = useMemo(
+    () => (fields === undefined ? [] : groupFields(fields, presentButEmpty)),
+    [fields, presentButEmpty],
+  );
 
   // Re-derived from the envelope itself, not from what a flatten walk happened to
   // find — see the `@file` note. `stated` / `silent` are purely informational: the
@@ -403,11 +472,10 @@ function ReviewCard({ item }: { item: OutboxItem }) {
         </span>
       </div>
 
-      {groups.map(([groupName, paths]) => (
-        <FieldGroup
-          key={groupName ?? ""}
-          name={groupName}
-          paths={paths}
+      {groups.map((group) => (
+        <ResourceGroup
+          key={group.name ?? ""}
+          group={group}
           fields={fields}
           decisionOf={decisionOf}
           untouchedSet={untouchedSet}
@@ -415,6 +483,8 @@ function ReviewCard({ item }: { item: OutboxItem }) {
           onAccept={accept}
           onEdit={edit}
           onReject={reject}
+          onAddInstance={addInstance}
+          onRemoveInstance={removeInstance}
         />
       ))}
 
@@ -445,9 +515,8 @@ function ReviewCard({ item }: { item: OutboxItem }) {
   );
 }
 
-function FieldGroup({
-  name,
-  paths,
+function ResourceGroup({
+  group,
   fields,
   decisionOf,
   untouchedSet,
@@ -455,9 +524,10 @@ function FieldGroup({
   onAccept,
   onEdit,
   onReject,
+  onAddInstance,
+  onRemoveInstance,
 }: {
-  readonly name: string | undefined;
-  readonly paths: readonly FieldPath[];
+  readonly group: ResourceGroup;
   readonly fields: ReviewFields;
   readonly decisionOf: (path: FieldPath) => FieldDecision | undefined;
   readonly untouchedSet: ReadonlySet<FieldPath>;
@@ -465,17 +535,103 @@ function FieldGroup({
   readonly onAccept: (path: FieldPath) => void;
   readonly onEdit: (path: FieldPath, value: unknown) => void;
   readonly onReject: (path: FieldPath) => void;
+  readonly onAddInstance: (group: string) => void;
+  readonly onRemoveInstance: (instancePath: string) => void;
 }) {
+  const { name, instances, isEmpty } = group;
   return (
-    <div style={{ marginTop: "0.75rem" }}>
+    <div style={{ marginTop: "0.75rem" }} data-testid={`review-group-${name ?? "unnamed"}`}>
       {name !== undefined && (
         <h3 style={{ fontSize: "0.9rem", margin: "0 0 0.35rem" }}>{humanize(name)}</h3>
       )}
+      {isEmpty ? (
+        <div>
+          <p style={muted}>none described</p>
+          <button
+            type="button"
+            style={button}
+            data-testid={`add-instance-${name}`}
+            onClick={() => name !== undefined && onAddInstance(name)}
+          >
+            Add one
+          </button>
+        </div>
+      ) : (
+        <>
+          {instances.map((instance) => (
+            <InstanceSection
+              key={instance.path}
+              instance={instance}
+              fields={fields}
+              decisionOf={decisionOf}
+              untouchedSet={untouchedSet}
+              errors={errors}
+              onAccept={onAccept}
+              onEdit={onEdit}
+              onReject={onReject}
+              onRemoveInstance={onRemoveInstance}
+            />
+          ))}
+          {name !== undefined && (
+            <button
+              type="button"
+              style={button}
+              data-testid={`add-instance-${name}`}
+              onClick={() => onAddInstance(name)}
+            >
+              Add another
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function InstanceSection({
+  instance,
+  fields,
+  decisionOf,
+  untouchedSet,
+  errors,
+  onAccept,
+  onEdit,
+  onReject,
+  onRemoveInstance,
+}: {
+  readonly instance: InstanceGroup;
+  readonly fields: ReviewFields;
+  readonly decisionOf: (path: FieldPath) => FieldDecision | undefined;
+  readonly untouchedSet: ReadonlySet<FieldPath>;
+  readonly errors: Readonly<Record<FieldPath, string>>;
+  readonly onAccept: (path: FieldPath) => void;
+  readonly onEdit: (path: FieldPath, value: unknown) => void;
+  readonly onReject: (path: FieldPath) => void;
+  readonly onRemoveInstance: (instancePath: string) => void;
+}) {
+  return (
+    <div style={{ margin: "0.5rem 0 0.75rem" }} data-testid={`review-instance-${instance.path}`}>
+      <div
+        style={{ alignItems: "center", display: "flex", gap: "0.5rem", marginBottom: "0.35rem" }}
+      >
+        <h4 style={{ fontSize: "0.85rem", margin: 0 }}>{instance.label}</h4>
+        {instance.key !== "" && (
+          <button
+            type="button"
+            style={{ ...button, fontSize: "0.75rem", padding: "0.1rem 0.4rem" }}
+            data-testid={`remove-instance-${instance.path}`}
+            onClick={() => onRemoveInstance(instance.path)}
+          >
+            Remove
+          </button>
+        )}
+      </div>
       <dl style={{ margin: 0 }}>
-        {paths.map((path) => (
+        {instance.paths.map((path) => (
           <FieldRow
             key={path}
             path={path}
+            label={leafLabel(path)}
             field={fields[path]!}
             decision={decisionOf(path)}
             isUntouched={untouchedSet.has(path)}
@@ -492,6 +648,7 @@ function FieldGroup({
 
 function FieldRow({
   path,
+  label,
   field,
   decision,
   isUntouched,
@@ -501,6 +658,8 @@ function FieldRow({
   onReject,
 }: {
   readonly path: FieldPath;
+  /** Display label, already stripped of the group/instance prefix. */
+  readonly label: string;
   readonly field: ReviewField;
   readonly decision: FieldDecision | undefined;
   /** From `useReview`'s own `untouched`, not from `decision` — see the note below. */
@@ -533,7 +692,7 @@ function FieldRow({
     >
       <div style={{ alignItems: "baseline", display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
         <span style={{ fontWeight: 600 }}>
-          {humanize(path)}
+          {label}
           {field.required && <span title="required by the host tool"> *</span>}
         </span>
         <DecisionBadge status={status} />
@@ -573,6 +732,7 @@ function FieldRow({
         <FieldEditor
           key={status}
           path={path}
+          label={label}
           schema={field.schema}
           value={currentValue}
           onEdit={onEdit}
@@ -643,11 +803,13 @@ function DecisionBadge({ status }: { status: "accepted" | "edited" | "rejected" 
  */
 function FieldEditor({
   path,
+  label,
   schema,
   value,
   onEdit,
 }: {
   readonly path: FieldPath;
+  readonly label: string;
   readonly schema: z.ZodType<unknown>;
   readonly value: unknown;
   readonly onEdit: (path: FieldPath, value: unknown) => void;
@@ -667,7 +829,7 @@ function FieldEditor({
     const current = typeof value === "string" ? value : "";
     return (
       <select
-        aria-label={humanize(path)}
+        aria-label={label}
         data-testid="field-editor"
         value={current}
         onChange={(event: ChangeEvent<HTMLSelectElement>) => {
@@ -688,7 +850,7 @@ function FieldEditor({
     const current = typeof value === "number" ? String(value) : "";
     return (
       <input
-        aria-label={humanize(path)}
+        aria-label={label}
         data-testid="field-editor"
         type="number"
         defaultValue={current}
@@ -704,7 +866,7 @@ function FieldEditor({
     const current = value === true ? "true" : value === false ? "false" : "";
     return (
       <select
-        aria-label={humanize(path)}
+        aria-label={label}
         data-testid="field-editor"
         value={current}
         onChange={(event: ChangeEvent<HTMLSelectElement>) => {
@@ -745,7 +907,7 @@ function FieldEditor({
           : String(value);
     return (
       <input
-        aria-label={humanize(path)}
+        aria-label={label}
         data-testid="field-editor"
         type="text"
         defaultValue={current}
@@ -770,7 +932,7 @@ function FieldEditor({
         : JSON.stringify(value);
   return (
     <input
-      aria-label={humanize(path)}
+      aria-label={label}
       data-testid="field-editor"
       type="text"
       defaultValue={current}

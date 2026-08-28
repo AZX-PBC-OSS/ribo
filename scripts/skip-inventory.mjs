@@ -27,43 +27,8 @@
 
 import { execFileSync } from "node:child_process";
 
-const REVIEW_NEEDS_ARRAYS = "review.ts cannot address an instance until Tasks 6–7";
-
 /** Each row: the skipped test, the plan task that owes its removal, and why it is blocked. */
 const INVENTORY = [
-  {
-    file: "playground/src/ReviewPanel.browser.test.tsx",
-    title:
-      "the submit gate blocks while an ungrounded leaf is untouched, and releases once it is actioned",
-    unskippedBy: "Task 15",
-    because: REVIEW_NEEDS_ARRAYS,
-  },
-  {
-    file: "playground/src/ReviewPanel.browser.test.tsx",
-    title:
-      "a leaf named in requiredOnCreate renders the required marker, and an ordinary leaf does not",
-    unskippedBy: "Task 15",
-    because: `${REVIEW_NEEDS_ARRAYS}; requiredOnCreate also becomes per-group in Task 8`,
-  },
-  {
-    file: "playground/src/ReviewPanel.browser.test.tsx",
-    title:
-      "Accept, Edit and Reject each record the decision they claim, and reach submitReview correctly",
-    unskippedBy: "Task 15",
-    because: REVIEW_NEEDS_ARRAYS,
-  },
-  {
-    file: "playground/e2e/extraction-ui.e2e.test.ts",
-    title: "a recording drains through extraction and its fields show with provenance",
-    unskippedBy: "Task 15",
-    because: REVIEW_NEEDS_ARRAYS,
-  },
-  {
-    file: "playground/e2e/network-transition.e2e.test.ts",
-    title: "the manual drain runs to completion while offline — the stub steps do no network I/O",
-    unskippedBy: "Task 15",
-    because: REVIEW_NEEDS_ARRAYS,
-  },
   {
     file: "playground/src/ondevice-extractor-store.test.ts",
     title: "an item extracted on-device is tagged so review can badge it",
