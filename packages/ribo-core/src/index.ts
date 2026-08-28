@@ -229,6 +229,16 @@ export type { RaceCandidate } from "./race-extractor.js";
 export { summarizeWork, workSafety } from "./work-safety.js";
 export type { StoragePersistence, WorkOnDevice, WorkSafety } from "./work-safety.js";
 
+// Instance identity: existing records enter at review, and a human decides whether to
+// link each dictated instance to one or create a new record.
+export type {
+  ExistingRecord,
+  InstanceLinkDecision,
+  LinkTarget,
+  LinkTargets,
+  RankedCandidate,
+} from "./instance-identity.js";
+
 // Human review, one leaf at a time: the values schema enumerates the leaves as flat
 // dotted paths, each carrying its own schema so a UI can render and validate an edit.
 export {

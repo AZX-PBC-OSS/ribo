@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
 import type { enveloped } from "./enveloped.js";
+import type { Extractor } from "./extractor.js";
+import type { ExistingRecord } from "./instance-identity.js";
 import {
   buildReviewRequest,
   resolveReview,
@@ -799,8 +801,11 @@ const withCollectionsSchema = z.object({
   dhw: z.array(dhwElementSchema).optional(),
 });
 
-const collectionRequestFor = (extracted: Record<string, unknown>): ReviewRequest =>
-  buildReviewRequest(extracted, transcript, withCollectionsSchema);
+const collectionRequestFor = (
+  extracted: Record<string, unknown>,
+  existingRecords?: Record<string, readonly ExistingRecord[]>,
+): ReviewRequest =>
+  buildReviewRequest(extracted, transcript, withCollectionsSchema, { existingRecords });
 
 describe("buildReviewRequest — collections: data counts instances, schema counts leaves", () => {
   test("two HVAC instances produce two full sets of HVAC leaf paths, each addressing a distinct key", () => {
@@ -963,6 +968,7 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
     ]);
     expect("hvac[k1]" in outcome.fields).toBe(false);
     expect(Array.isArray(outcome.fields.hvac)).toBe(true);
+    expect(outcome.linkTargets).toEqual({ hvac: [null] });
   });
 
   test("an instance whose every leaf was rejected is absent from the patch, not an empty record", () => {
@@ -1018,6 +1024,7 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
     if (outcome.status !== "accepted") throw new Error("unreachable");
     expect(outcome.fields.hvac).toEqual([]);
     expect(outcome.fields.dhw).toEqual([{ dhwType2: "Tank Water Heater" }]);
+    expect(outcome.linkTargets).toEqual({ dhw: [null] });
   });
 
   test("a group absent from extraction yields no key, distinct from present-but-empty []", () => {
@@ -1036,6 +1043,7 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
     if (outcome.status !== "accepted") throw new Error("unreachable");
     expect("hvac" in outcome.fields).toBe(false);
     expect(outcome.fields.dhw).toEqual([{ dhwType2: "Tank Water Heater" }]);
+    expect(outcome.linkTargets).toEqual({ dhw: [null] });
   });
 
   test("removing the first instance does not reattach the remaining decisions to shifted positions", () => {
@@ -1084,6 +1092,7 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
       hvacHeatingEnergySource: "Fuel Oil",
       hvacUpgradeAction: "Remove",
     });
+    expect(outcome.linkTargets).toEqual({ hvac: [null, null] });
   });
 
   test("two instances resolve to array positions in first-mention order", () => {
@@ -1120,6 +1129,7 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
       hvacHeatingEnergySource: "Natural Gas",
       hvacUpgradeAction: "Replace",
     });
+    expect(outcome.linkTargets).toEqual({ hvac: [null, null] });
   });
 
   test("rejecting every leaf of every instance leaves the group key absent", () => {
@@ -1142,4 +1152,131 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
     expect("hvac" in outcome.fields).toBe(false);
     expect(outcome.fields).toEqual({});
   });
+});
+
+describe("resolveReview — instance identity: link only when the human decides", () => {
+  const oneExistingRecord: readonly ExistingRecord[] = [
+    { uuid: "hvac-existing-1", fields: { hvacSystemEquipmentType: "Boiler" } },
+  ];
+
+  test("exactly one existing record and a perfect match still creates without a link decision", () => {
+    // This is the anti-regression test for the rejected auto-link draft: even when every
+    // captured identifying field matches, the absence of a human decision means create.
+    const request = collectionRequestFor(
+      {
+        hvac: [
+          {
+            hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+            hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+            hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+          },
+        ],
+      },
+      { hvac: oneExistingRecord },
+    );
+    const paths = Object.keys(request.fields);
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(paths),
+    });
+
+    if (outcome.status !== "accepted") throw new Error("unreachable");
+    expect(outcome.linkTargets).toEqual({ hvac: [null] });
+  });
+
+  test("a link decision survives resolveReview and reaches the patch as an update target", () => {
+    const request = collectionRequestFor(
+      {
+        hvac: [
+          {
+            hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+            hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+            hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+          },
+        ],
+      },
+      { hvac: oneExistingRecord },
+    );
+    const paths = Object.keys(request.fields);
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(paths),
+      instanceLinks: { "hvac[k1]": { kind: "link", uuid: "hvac-existing-1" } },
+    });
+
+    if (outcome.status !== "accepted") throw new Error("unreachable");
+    expect(outcome.linkTargets).toEqual({ hvac: ["hvac-existing-1"] });
+    expect(outcome.fields.hvac).toEqual([
+      {
+        hvacSystemEquipmentType: "Boiler",
+        hvacHeatingEnergySource: "Fuel Oil",
+        hvacUpgradeAction: "Keep",
+      },
+    ]);
+  });
+
+  test("a link decision for an unknown instance path is rejected", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+      ],
+    });
+    const paths = Object.keys(request.fields);
+
+    expect(() =>
+      resolveReview(request, {
+        status: "submitted",
+        decisions: decisionsFor(paths),
+        instanceLinks: { "hvac[k9]": { kind: "link", uuid: "does-not-matter" } },
+      }),
+    ).toThrow(ReviewValidationError);
+  });
+
+  test("rejecting every leaf of a linked instance removes the link target", () => {
+    // A link decision on an instance that is removed from the patch must not leave a
+    // dangling update target, or the write step would target a record with no fields.
+    const request = collectionRequestFor(
+      {
+        hvac: [
+          {
+            hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+            hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+            hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+          },
+        ],
+      },
+      { hvac: oneExistingRecord },
+    );
+    const paths = Object.keys(request.fields);
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(paths, "rejected"),
+      instanceLinks: { "hvac[k1]": { kind: "link", uuid: "hvac-existing-1" } },
+    });
+
+    if (outcome.status !== "edited") throw new Error("unreachable");
+    expect("hvac" in outcome.fields).toBe(false);
+    expect(outcome.linkTargets).toBeUndefined();
+  });
+});
+
+// --- Type-level tests continue below ---------------------------------------
+
+test("the Extractor seam has no structural parameter for existing records", () => {
+  // Existing records enter at review, never at extraction. The public Extractor<F> contract
+  // has exactly one parameter: the transcript. A caller can still smuggle records in a
+  // closure, but they cannot do it by changing the signature — this structural check catches
+  // the obvious call-site leak. The residual is honest: a closure can capture anything.
+  type Params = Parameters<Extractor<unknown>["extract"]>;
+  type ExactlyOneString = [string] extends Params
+    ? Params extends [string]
+      ? true
+      : false
+    : false;
+  const _assert: ExactlyOneString = true;
+  void _assert;
 });

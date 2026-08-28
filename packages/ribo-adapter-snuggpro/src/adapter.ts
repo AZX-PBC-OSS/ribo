@@ -14,7 +14,7 @@
  * `schema.ts` for the Snugg-specific shape of each.
  */
 
-import type { ToolAdapter, WriteMetadata } from "@azx/ribo-core";
+import type { ExistingRecord, RankedCandidate, ToolAdapter, WriteMetadata } from "@azx/ribo-core";
 import { snuggCtxSchema, type SnuggWriteContext } from "./context.js";
 import { snuggExamples } from "./examples.js";
 import { snuggProInstructions } from "./instructions.js";
@@ -84,3 +84,74 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
     );
   },
 };
+
+/**
+ * Fields that identify an HVAC record well enough for the contradiction check.
+ *
+ * The auto-link draft used these four; a disagreement on any one of them, when both sides
+ * have a captured value, demotes the candidate. Duct leakage, insulation, location and
+ * capacities are intentionally excluded — they describe the wrong-record problem the plan
+ * documents (furnace identity with AC duct data) and must not be allowed to override it.
+ */
+export const HVAC_IDENTIFYING_FIELDS = [
+  "hvacSystemEquipmentType",
+  "hvacHeatingSystemManufacturer",
+  "hvacHeatingSystemModel",
+  "hvacHeatingSystemModelYear",
+] as const;
+
+const IDENTIFYING_FIELDS: Record<string, readonly string[]> = {
+  hvac: HVAC_IDENTIFYING_FIELDS,
+};
+
+/**
+ * Order existing records of a collection group by how strongly they match a dictated instance.
+ *
+ * A candidate is demoted to the "contradicts" tier if any captured identifying field
+ * disagrees with the instance. Within each tier the original order is preserved so the host
+ * tool's own ordering (e.g., creation order) survives. The strongest non-contradicting
+ * candidate may be pre-highlighted, but it is never linked automatically.
+ */
+export function rankCandidates(
+  group: string,
+  instance: Record<string, unknown>,
+  existing: readonly ExistingRecord[],
+): RankedCandidate[] {
+  const identifying = IDENTIFYING_FIELDS[group] ?? [];
+  const scored = existing.map((record): RankedCandidate => {
+    let contradicts = false;
+    for (const field of identifying) {
+      const extractedValue = instance[field];
+      const existingValue = record.fields[field];
+      // A captured identifying field on both sides that disagrees is a veto. Null or
+      // undefined on either side is not a disagreement — it is missing information.
+      if (
+        extractedValue !== null &&
+        extractedValue !== undefined &&
+        existingValue !== null &&
+        existingValue !== undefined &&
+        extractedValue !== existingValue
+      ) {
+        contradicts = true;
+        break;
+      }
+    }
+    return { ...record, contradicts };
+  });
+  return [
+    ...scored.filter((candidate) => !candidate.contradicts),
+    ...scored.filter((candidate) => candidate.contradicts),
+  ];
+}
+
+/**
+ * Produce an empty reader for existing records.
+ *
+ * The real read of `GET /jobs/{jobId}/<group>` is host transport code that lives outside the
+ * SDK (it needs the session and HMAC signing). This stub is the adapter-side seam: it
+ * declares the Snugg Pro shape a host must return, so `rankCandidates` can be tested against
+ * injected records without a network call.
+ */
+export function readExistingRecords(_ctx: SnuggWriteContext, _group: string): ExistingRecord[] {
+  return [];
+}

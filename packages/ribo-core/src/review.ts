@@ -7,6 +7,7 @@ import { describeLocated, zodIssues } from "./zod-issues.js";
 import { isSpanGrounded } from "./provenance.js";
 import type { Extracted } from "./provenance.js";
 import type { Transcript } from "./transcript.js";
+import type { ExistingRecord, InstanceLinkDecision, LinkTargets } from "./instance-identity.js";
 
 // `FieldPath` moved to `field-path.js` so `adapter.ts` can use it without the
 // adapter contract depending on the review contract. Re-exported here so the
@@ -187,6 +188,14 @@ export interface ReviewRequest {
    * here. Task 7 consumes this list to emit `[]` for exactly these groups on submit.
    */
   readonly presentButEmpty: readonly FieldPath[];
+  /**
+   * Existing records of each collection group, keyed by the group path (e.g. `"hvac"`).
+   *
+   * These enter at the review boundary, after extraction, so a model can never be handed
+   * them at extraction time. They are surfaced for a human to link against, and the safe
+   * default is always to create a new record.
+   */
+  readonly existingRecords: Readonly<Record<string, readonly ExistingRecord[]>>;
 }
 
 /**
@@ -223,7 +232,18 @@ export type FieldDecisions = Readonly<Record<FieldPath, FieldDecision>>;
 
 /** What a human reviewer reports back. */
 export type ReviewSubmission =
-  | { readonly status: "submitted"; readonly decisions: FieldDecisions }
+  | {
+      readonly status: "submitted";
+      readonly decisions: FieldDecisions;
+      /**
+       * Per-instance link decisions, keyed by the instance path (e.g. `"hvac[k1]"`).
+       *
+       * Absent means the safe default: create a new record. A link is only valid when
+       * the human explicitly made the decision; {@link resolveReview} rejects an
+       * unknown instance path, and a missing decision always resolves to a create.
+       */
+      readonly instanceLinks?: Readonly<Record<string, InstanceLinkDecision>>;
+    }
   | { readonly status: "discarded"; readonly reason?: string };
 
 /**
@@ -246,7 +266,16 @@ export type ReviewSubmission =
  * mismatch anywhere reports against the whole tree.
  */
 export type ReviewOutcome =
-  | { readonly status: "accepted"; readonly fields: Record<string, unknown> }
+  | {
+      readonly status: "accepted";
+      readonly fields: Record<string, unknown>;
+      /**
+       * Which resolved collection instances update an existing record (`string` uuid)
+       * and which create a new one (`null`). Absent when no collection groups survived
+       * review, so callers can treat it as optional rather than an empty object.
+       */
+      readonly linkTargets?: LinkTargets;
+    }
   | {
       readonly status: "edited";
       /** Accepted and edited values, nested. Rejected leaves are absent, not `null`. */
@@ -255,6 +284,12 @@ export type ReviewOutcome =
       readonly editedFields: readonly FieldPath[];
       /** Leaf paths the human dropped, in schema-declaration order. */
       readonly rejectedFields: readonly FieldPath[];
+      /**
+       * Which resolved collection instances update an existing record (`string` uuid)
+       * and which create a new one (`null`). Absent when no collection groups survived
+       * review.
+       */
+      readonly linkTargets?: LinkTargets;
     }
   | { readonly status: "discarded"; readonly reason?: string };
 
@@ -458,7 +493,7 @@ export const buildReviewRequest = (
   const presentButEmpty: FieldPath[] = [];
   const requiredOnCreate = options.requiredOnCreate ?? {};
   collectFields(valuesSchema, [], extracted, transcript, requiredOnCreate, fields, presentButEmpty);
-  return { transcript, fields, presentButEmpty };
+  return { transcript, fields, presentButEmpty, existingRecords: options.existingRecords ?? {} };
 };
 
 /**
@@ -477,6 +512,13 @@ export interface BuildReviewRequestOptions {
    * and `ToolAdapter.requiredOnCreate` says how to guard that.
    */
   readonly requiredOnCreate?: RequiredOnCreate;
+  /**
+   * Existing records of each collection group, keyed by the group path (e.g. `"hvac"`).
+   *
+   * These are not shown to the extractor; they are surfaced at review for a human to
+   * link against, with a default of creating a new record.
+   */
+  readonly existingRecords?: Readonly<Record<string, readonly ExistingRecord[]>>;
 }
 
 /**
@@ -595,6 +637,87 @@ const buildInstancePositions = (
     }
   }
   return positions;
+};
+
+/**
+ * All collection instance paths present in a review request, derived from its leaf paths.
+ *
+ * An instance path is the group key plus the instance key — `"hvac[k1]"` — and is what
+ * a human links-or-creates against. It is not itself a leaf, so it is not in
+ * `request.fields`, but it is recoverable from the leaf paths that pass through it.
+ */
+const instancePathsFromFields = (fields: ReviewFields): ReadonlySet<string> => {
+  const paths = new Set<string>();
+  for (const path of Object.keys(fields)) {
+    const segments = parseFieldPath(path);
+    let currentPath = "";
+    for (const segment of segments) {
+      currentPath =
+        currentPath === ""
+          ? segment.kind === "objectKey"
+            ? segment.key
+            : `[${segment.key}]`
+          : segment.kind === "objectKey"
+            ? `${currentPath}.${segment.key}`
+            : `${currentPath}[${segment.key}]`;
+      if (segment.kind === "instanceKey") {
+        paths.add(currentPath);
+      }
+    }
+  }
+  return paths;
+};
+
+/**
+ * Validate that every provided link decision names a real collection instance.
+ *
+ * A link decision is a human act; an unknown path is a stale or mistyped decision and
+ * must be refused rather than silently dropped, or it could mask a UI bug that attaches
+ * a link to the wrong instance.
+ */
+const instanceLinkIssues = (
+  instanceLinks: Readonly<Record<string, InstanceLinkDecision>> | undefined,
+  validInstancePaths: ReadonlySet<string>,
+): ReviewIssue[] => {
+  if (instanceLinks === undefined) return [];
+  const issues: ReviewIssue[] = [];
+  for (const [path, decision] of Object.entries(instanceLinks)) {
+    if (!validInstancePaths.has(path)) {
+      issues.push({ path, message: "not a collection instance of this review request" });
+      continue;
+    }
+    if (decision.kind === "link" && typeof decision.uuid !== "string") {
+      issues.push({ path, message: "a link decision must carry a string uuid" });
+    }
+  }
+  return issues;
+};
+
+/**
+ * Build the link-target map for every collection group that survives review.
+ *
+ * The array length matches the resolved instance count for the group, and indices follow
+ * first-mention order. The default for every instance is `null` (create a new record);
+ * a human link decision overrides it with the target uuid.
+ */
+const buildLinkTargets = (
+  positions: Map<string, Map<string, number>>,
+  instanceLinks: Readonly<Record<string, InstanceLinkDecision>> | undefined,
+): LinkTargets => {
+  const linkTargets: Record<string, ReadonlyArray<string | null>> = {};
+  for (const [groupPath, indexMap] of positions) {
+    const groupTargets = new Array<string | null>(indexMap.size);
+    for (const [key, index] of indexMap) {
+      const instancePath = buildFieldPath([
+        { kind: "objectKey", key: groupPath },
+        { kind: "instanceKey", key },
+      ]);
+      const decision = instanceLinks?.[instancePath];
+      groupTargets[index] = decision?.kind === "link" ? decision.uuid : null;
+    }
+    linkTargets[groupPath] = groupTargets;
+  }
+  return linkTargets;
 };
 
 /**
@@ -717,7 +840,11 @@ export const resolveReview = (
 
   const paths = Object.keys(request.fields);
   const structural = completenessIssues(paths, submission.decisions);
-  if (structural.length > 0) throw new ReviewValidationError(structural);
+  const validInstancePaths = instancePathsFromFields(request.fields);
+  const instanceLinkInvalid = instanceLinkIssues(submission.instanceLinks, validInstancePaths);
+  if (structural.length > 0 || instanceLinkInvalid.length > 0) {
+    throw new ReviewValidationError([...structural, ...instanceLinkInvalid]);
+  }
 
   const accepted: { path: FieldPath; value: unknown }[] = [];
   const editedFields: FieldPath[] = [];
@@ -809,10 +936,20 @@ export const resolveReview = (
     }
   }
 
+  // Link targets are only meaningful when at least one collection instance survived review.
+  // For non-collection field sets the map is empty and is omitted, keeping the outcome shape
+  // backward-compatible for callers that only deal with singleton groups.
+  const linkTargets = buildLinkTargets(positions, submission.instanceLinks);
+  const hasLinkTargets = Object.keys(linkTargets).length > 0;
+
   if (editedFields.length === 0 && rejectedFields.length === 0) {
-    return { status: "accepted", fields };
+    return hasLinkTargets
+      ? { status: "accepted", fields, linkTargets }
+      : { status: "accepted", fields };
   }
-  return { status: "edited", fields, editedFields, rejectedFields };
+  return hasLinkTargets
+    ? { status: "edited", fields, editedFields, rejectedFields, linkTargets }
+    : { status: "edited", fields, editedFields, rejectedFields };
 };
 
 /**
@@ -838,12 +975,14 @@ export const reviewOutcomeSchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("accepted"),
     fields: z.record(z.string(), z.unknown()),
+    linkTargets: z.record(z.string(), z.array(z.string().nullable())).optional(),
   }),
   z.strictObject({
     status: z.literal("edited"),
     fields: z.record(z.string(), z.unknown()),
     editedFields: z.array(z.string()),
     rejectedFields: z.array(z.string()),
+    linkTargets: z.record(z.string(), z.array(z.string().nullable())).optional(),
   }),
   z.strictObject({
     status: z.literal("discarded"),

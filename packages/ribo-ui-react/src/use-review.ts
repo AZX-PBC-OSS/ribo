@@ -1,19 +1,28 @@
 import type { z } from "zod";
 import type {
+  ExistingRecord,
   FieldDecision,
   FieldDecisions,
   FieldPath,
+  InstanceLinkDecision,
   Outbox,
   OutboxItem,
   PersistedReviewOutcome,
+  RankedCandidate,
   RequiredOnCreate,
   ReviewFields,
   ReviewIssue,
   ReviewOutcome,
   ReviewRequest,
+  ReviewSubmission,
   Transcript,
 } from "@azx/ribo-core";
-import { buildReviewRequest, resolveReview, ReviewValidationError } from "@azx/ribo-core";
+import {
+  buildReviewRequest,
+  parseFieldPath,
+  resolveReview,
+  ReviewValidationError,
+} from "@azx/ribo-core";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useRiboInstance } from "./use-ribo-instance.js";
@@ -52,6 +61,26 @@ export interface UseReviewOptions {
    * every render along with it.
    */
   readonly requiredOnCreate?: RequiredOnCreate;
+  /**
+   * Existing records of each collection group, keyed by the group path (e.g. `"hvac"`).
+   *
+   * These are surfaced at review for a human to link a dictated instance against. They
+   * never enter the extraction step; the host supplies them after extraction has produced
+   * its grounded values. Absent groups mean no existing records.
+   */
+  readonly existingRecords?: Readonly<Record<string, readonly ExistingRecord[]>>;
+  /**
+   * Tool-specific ordering of existing records for one instance.
+   *
+   * A candidate with a contradicting captured identifying field is demoted to the end of
+   * the list; the strongest non-contradicting candidate may be pre-highlighted. The hook
+   * never links automatically — this is only for display order.
+   */
+  readonly rankCandidates?: (
+    group: string,
+    instance: Record<string, unknown>,
+    existing: readonly ExistingRecord[],
+  ) => readonly RankedCandidate[];
   /** Bypasses the provider. What the tests inject through. */
   readonly outbox?: Outbox;
 }
@@ -81,6 +110,16 @@ export interface UseReviewResult {
    * {@link UseReviewResult.error}`.issues`.
    */
   readonly errors: Readonly<Record<FieldPath, string>>;
+  /** Existing records of each collection group, if any were supplied. */
+  readonly existingRecords: Readonly<Record<string, readonly ExistingRecord[]>> | undefined;
+  /** The current link-or-create decision for an instance path, or `undefined` if the path is not a known instance. */
+  readonly linkDecisionOf: (instancePath: string) => InstanceLinkDecision | undefined;
+  /** Decide to link an instance to an existing record. */
+  readonly linkInstance: (instancePath: string, uuid: string) => void;
+  /** Decide to create a new record for an instance. */
+  readonly createInstance: (instancePath: string) => void;
+  /** Existing records ordered by the tool-specific contradiction check for an instance, or `undefined` if none. */
+  readonly rankedCandidatesOf: (instancePath: string) => readonly RankedCandidate[] | undefined;
   readonly submit: () => Promise<ReviewOutcome>;
   readonly discard: (reason?: string) => Promise<ReviewOutcome>;
   readonly submitting: boolean;
@@ -108,6 +147,7 @@ export interface UseReviewResult {
 interface ReviewState {
   readonly forItem: string | undefined;
   readonly decisions: Readonly<Record<FieldPath, FieldDecision>>;
+  readonly instanceLinks: Readonly<Record<string, InstanceLinkDecision>>;
   readonly errors: Readonly<Record<FieldPath, string>>;
   readonly submitting: boolean;
   readonly error: Error | undefined;
@@ -118,6 +158,7 @@ interface ReviewState {
 const NOTHING: ReviewState = {
   forItem: undefined,
   decisions: {},
+  instanceLinks: {},
   errors: {},
   submitting: false,
   error: undefined,
@@ -158,14 +199,27 @@ const withoutPath = (
  * 51 leaves and keeps this boundary a real value conversion rather than a type
  * assertion papering over it.
  */
-const toPersisted = (outcome: ReviewOutcome): PersistedReviewOutcome =>
-  outcome.status === "edited"
-    ? {
-        ...outcome,
-        editedFields: [...outcome.editedFields],
-        rejectedFields: [...outcome.rejectedFields],
-      }
-    : outcome;
+const toPersisted = (outcome: ReviewOutcome): PersistedReviewOutcome => {
+  if (outcome.status === "discarded") return outcome;
+  const mutable =
+    outcome.status === "accepted"
+      ? { status: "accepted" as const, fields: { ...outcome.fields } }
+      : {
+          status: "edited" as const,
+          fields: { ...outcome.fields },
+          editedFields: [...outcome.editedFields],
+          rejectedFields: [...outcome.rejectedFields],
+        };
+  if (outcome.linkTargets) {
+    return {
+      ...mutable,
+      linkTargets: Object.fromEntries(
+        Object.entries(outcome.linkTargets).map(([group, targets]) => [group, [...targets]]),
+      ),
+    };
+  }
+  return mutable;
+};
 
 /**
  * Field-by-field review of one parked item.
@@ -219,12 +273,13 @@ export function useReview(
   item: OutboxItem | undefined,
   options: UseReviewOptions,
 ): UseReviewResult {
-  const { valuesSchema, requiredOnCreate } = options;
+  const { valuesSchema, requiredOnCreate, existingRecords, rankCandidates } = options;
   const outbox = useRiboInstance("outbox", options.outbox);
 
   const [state, setState] = useState<ReviewState>({
     forItem: item?.id,
     decisions: {},
+    instanceLinks: {},
     errors: {},
     submitting: false,
     error: undefined,
@@ -246,19 +301,73 @@ export function useReview(
   // in this hook — the guard only reads `state`/`item`, and every updater below
   // is a plain function of its `prior` argument — so calling either twice
   // produces the same result and StrictMode's double-invocation is a no-op.
-  const { decisions, errors, submitting, error } = state.forItem === item?.id ? state : NOTHING;
+  const { decisions, instanceLinks, errors, submitting, error } =
+    state.forItem === item?.id ? state : NOTHING;
 
   const request = useMemo<ReviewRequest | undefined>(() => {
     if (item?.extracted === undefined || item.transcript === undefined) return undefined;
     // No cast on the way in: `extracted` is persisted as `Record<string, unknown>`
     // and that is exactly what `buildReviewRequest` takes.
-    return buildReviewRequest(item.extracted, item.transcript, valuesSchema, { requiredOnCreate });
-  }, [item?.extracted, item?.transcript, valuesSchema, requiredOnCreate]);
+    return buildReviewRequest(item.extracted, item.transcript, valuesSchema, {
+      requiredOnCreate,
+      existingRecords,
+    });
+  }, [item?.extracted, item?.transcript, valuesSchema, requiredOnCreate, existingRecords]);
 
   const paths = useMemo<readonly FieldPath[]>(
     () => (request === undefined ? [] : Object.keys(request.fields)),
     [request],
   );
+
+  const instancePaths = useMemo<ReadonlySet<string>>(() => {
+    if (request === undefined) return new Set();
+    const paths = new Set<string>();
+    for (const leafPath of Object.keys(request.fields)) {
+      const segments = parseFieldPath(leafPath);
+      let currentPath = "";
+      for (const segment of segments) {
+        currentPath =
+          currentPath === ""
+            ? segment.kind === "objectKey"
+              ? segment.key
+              : `[${segment.key}]`
+            : segment.kind === "objectKey"
+              ? `${currentPath}.${segment.key}`
+              : `${currentPath}[${segment.key}]`;
+        if (segment.kind === "instanceKey") {
+          paths.add(currentPath);
+        }
+      }
+    }
+    return paths;
+  }, [request]);
+
+  const instanceDetails = useMemo<
+    ReadonlyMap<
+      string,
+      { readonly group: string; readonly key: string; readonly fields: Record<string, unknown> }
+    >
+  >(() => {
+    if (request === undefined) return new Map();
+    const details = new Map<
+      string,
+      { readonly group: string; readonly key: string; readonly fields: Record<string, unknown> }
+    >();
+    for (const path of instancePaths) {
+      const segments = parseFieldPath(path);
+      const group = segments[0]?.key ?? "";
+      const key = segments[1]?.key ?? "";
+      const prefix = `${path}.`;
+      const fields: Record<string, unknown> = {};
+      for (const [leafPath, field] of Object.entries(request.fields)) {
+        if (leafPath.startsWith(prefix)) {
+          fields[leafPath.slice(prefix.length)] = field.extracted.value;
+        }
+      }
+      details.set(path, { group, key, fields });
+    }
+    return details;
+  }, [instancePaths, request]);
 
   const setDecision = useCallback(
     (path: FieldPath, decision: FieldDecision) => {
@@ -329,6 +438,62 @@ export function useReview(
     [setDecision],
   );
 
+  const setInstanceLink = useCallback(
+    (instancePath: string, decision: InstanceLinkDecision) => {
+      // A stale or mistyped instance path must not silently attach a link to a
+      // different instance. Throwing at the call site keeps the error local to the UI
+      // control that produced it.
+      if (!instancePaths.has(instancePath)) {
+        throw new Error(
+          `ribo: "${instancePath}" is not a collection instance of this review request.`,
+        );
+      }
+      const id = item?.id;
+      setState((prior) => {
+        const base = prior.forItem === id ? prior : NOTHING;
+        return {
+          ...base,
+          forItem: id,
+          instanceLinks: { ...base.instanceLinks, [instancePath]: decision },
+          // A decision answers whatever the last submit said about this instance;
+          // errors are per-leaf, not per-instance, so leave them alone.
+          errors: base.errors,
+        };
+      });
+    },
+    [item?.id, instancePaths],
+  );
+
+  const linkInstance = useCallback(
+    (instancePath: string, uuid: string) => setInstanceLink(instancePath, { kind: "link", uuid }),
+    [setInstanceLink],
+  );
+
+  const createInstance = useCallback(
+    (instancePath: string) => setInstanceLink(instancePath, { kind: "create" }),
+    [setInstanceLink],
+  );
+
+  const linkDecisionOf = useCallback(
+    (instancePath: string): InstanceLinkDecision | undefined => {
+      if (!instancePaths.has(instancePath)) return undefined;
+      return instanceLinks[instancePath] ?? { kind: "create" };
+    },
+    [instanceLinks, instancePaths],
+  );
+
+  const rankedCandidatesOf = useCallback(
+    (instancePath: string): readonly RankedCandidate[] | undefined => {
+      if (rankCandidates === undefined || request === undefined) return undefined;
+      const detail = instanceDetails.get(instancePath);
+      if (detail === undefined) return undefined;
+      const existing = request.existingRecords[detail.group] ?? [];
+      if (existing.length === 0) return undefined;
+      return rankCandidates(detail.group, detail.fields, existing);
+    },
+    [instanceDetails, rankCandidates, request],
+  );
+
   const untouched = useMemo(
     () => paths.filter((path) => decisions[path] === undefined),
     [decisions, paths],
@@ -382,9 +547,22 @@ export function useReview(
       paths.map((path) => [path, decisions[path] ?? { status: "accepted" }]),
     );
 
+    // Drop any link decisions that refer to instances that no longer exist in the
+    // current request (e.g., after a remove). The safe default is create, so omitting
+    // a stale decision lets it fall back rather than leak a link to a removed instance.
+    const submissionInstanceLinks: Record<string, InstanceLinkDecision> = Object.fromEntries(
+      Object.entries(instanceLinks).filter(([path]) => instancePaths.has(path)),
+    );
+    const hasInstanceLinks = Object.keys(submissionInstanceLinks).length > 0;
+    const submission: ReviewSubmission = {
+      status: "submitted",
+      decisions: complete,
+      ...(hasInstanceLinks ? { instanceLinks: submissionInstanceLinks } : {}),
+    };
+
     let outcome: ReviewOutcome;
     try {
-      outcome = resolveReview(request, { status: "submitted", decisions: complete });
+      outcome = resolveReview(request, submission);
     } catch (cause) {
       const failure = cause instanceof Error ? cause : new Error(String(cause));
       // A new token even though this failure never reaches `settle()`'s network
@@ -426,7 +604,7 @@ export function useReview(
     // shape and fails without this line.
     setState((prior) => (prior.forItem === id ? { ...prior, errors: {} } : prior));
     return await settle(outcome);
-  }, [decisions, item?.id, paths, request, settle]);
+  }, [decisions, instanceLinks, instancePaths, item?.id, paths, request, settle]);
 
   const discard = useCallback(
     async (reason?: string): Promise<ReviewOutcome> =>
@@ -446,6 +624,11 @@ export function useReview(
     reject,
     untouched,
     errors,
+    existingRecords: request?.existingRecords,
+    linkDecisionOf,
+    linkInstance,
+    createInstance,
+    rankedCandidatesOf,
     submit,
     discard,
     submitting,

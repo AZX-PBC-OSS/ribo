@@ -1,7 +1,8 @@
 import { isSpanGrounded, stripOptionalNullable } from "@azx/ribo-core";
-import { expect, test } from "vitest";
+import type { ExistingRecord } from "@azx/ribo-core";
+import { describe, expect, test } from "vitest";
 import { z } from "zod";
-import { SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
+import { rankCandidates, SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
 import type { SnuggWriteContext } from "./context.js";
 import { snuggValuesSchema } from "./schema.js";
 import type { SnuggValues } from "./schema.js";
@@ -213,4 +214,76 @@ test("no other group declares a required leaf — a partial dictation writes cle
   // so an auditor who only did the basement is never blocked on the attic.
   const groups = Object.keys(snuggProAdapter.requiredOnCreate ?? {});
   expect(groups.filter((g) => g !== "hvac")).toEqual([]);
+});
+
+describe("rankCandidates — contradiction check orders existing records", () => {
+  const existing: ExistingRecord[] = [
+    {
+      uuid: "a",
+      fields: { hvacSystemEquipmentType: "Boiler", hvacHeatingSystemManufacturer: "Burnham" },
+    },
+    {
+      uuid: "b",
+      fields: { hvacSystemEquipmentType: "Furnace", hvacHeatingSystemManufacturer: "Carrier" },
+    },
+    {
+      uuid: "c",
+      fields: { hvacSystemEquipmentType: "Boiler", hvacHeatingSystemManufacturer: "Burnham" },
+    },
+  ];
+
+  test("a perfect match does not auto-link — it only ranks first", () => {
+    // The single existing record matches the dictated instance on every identifying field.
+    // The ranking must still produce a create default; the first candidate is just pre-highlighted.
+    const instance = {
+      hvacSystemEquipmentType: "Boiler",
+      hvacHeatingSystemManufacturer: "Burnham",
+    };
+    const ranked = rankCandidates("hvac", instance, [existing[0]!]);
+    expect(ranked).toHaveLength(1);
+    expect(ranked[0]).toMatchObject({ uuid: "a", contradicts: false });
+  });
+
+  test("a contradicting field demotes a candidate in the ordering", () => {
+    // The dictated instance is a Burnham boiler. Record b is a Carrier furnace, so it contradicts
+    // on both identifying fields and must appear after the non-contradicting candidates.
+    const instance = {
+      hvacSystemEquipmentType: "Boiler",
+      hvacHeatingSystemManufacturer: "Burnham",
+    };
+    const ranked = rankCandidates("hvac", instance, existing);
+    expect(ranked.map((c) => c.uuid)).toEqual(["a", "c", "b"]);
+    expect(ranked[0]?.contradicts).toBe(false);
+    expect(ranked[1]?.contradicts).toBe(false);
+    expect(ranked[2]?.contradicts).toBe(true);
+  });
+
+  test("a missing identifying field on one side does not count as a contradiction", () => {
+    // The dictated instance matches both records on type. One record has no manufacturer and the
+    // other has a different one; because the instance does not state a manufacturer, neither
+    // side has a captured value there and no contradiction can be claimed.
+    const instance = { hvacSystemEquipmentType: "Boiler" };
+    const partialExisting: ExistingRecord[] = [
+      {
+        uuid: "a",
+        fields: { hvacSystemEquipmentType: "Boiler", hvacHeatingSystemManufacturer: "Burnham" },
+      },
+      { uuid: "b", fields: { hvacSystemEquipmentType: "Boiler" } },
+    ];
+    const ranked = rankCandidates("hvac", instance, partialExisting);
+    expect(ranked.map((c) => c.uuid)).toEqual(["a", "b"]);
+    expect(ranked.every((c) => !c.contradicts)).toBe(true);
+  });
+
+  test("a group with no identifying fields leaves every record non-contradicted", () => {
+    // Attic has no identifying-field declaration, so nothing can contradict it. The order is
+    // preserved exactly as the host returned it.
+    const atticExisting: ExistingRecord[] = [
+      { uuid: "attic-1", fields: { atticInsulation: 30 } },
+      { uuid: "attic-2", fields: { atticInsulation: 19 } },
+    ];
+    const ranked = rankCandidates("attic", { atticInsulation: 19 }, atticExisting);
+    expect(ranked.map((c) => c.uuid)).toEqual(["attic-1", "attic-2"]);
+    expect(ranked.every((c) => !c.contradicts)).toBe(true);
+  });
 });
