@@ -29,7 +29,13 @@ export {
 export type { OutboxCollection, OutboxDatabase, SessionCollection } from "./database.js";
 
 export { openOutbox, Outbox } from "./outbox.js";
-export type { EnqueueInput, OpenOutboxOptions, OutboxQuery } from "./outbox.js";
+export type {
+  EnqueueInput,
+  OpenOutboxOptions,
+  OpenSessionInput,
+  OutboxQuery,
+  SessionQuery,
+} from "./outbox.js";
 
 export { createRelay } from "./relay.js";
 export type {

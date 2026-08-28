@@ -8,7 +8,12 @@ import type { PersistedReviewOutcome } from "../review.js";
 import { reviewOutcomeSchema } from "../review.js";
 import type { Transcript } from "../transcript.js";
 import { isChunkOf } from "./chunk-names.js";
-import { openOutboxDatabase, type OutboxCollection, type OutboxDatabase } from "./database.js";
+import {
+  openOutboxDatabase,
+  type OutboxCollection,
+  type OutboxDatabase,
+  type SessionCollection,
+} from "./database.js";
 import { commitRegion, handoffTranscript, writeTail } from "./preview.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
@@ -20,6 +25,15 @@ import {
   type OutboxPatch,
   type OutboxStatus,
 } from "./schema.js";
+import {
+  ACTIVE_SESSION_STATUSES,
+  sessionDocumentSchema,
+  sessionItemSchema,
+  type SessionDocument,
+  type SessionItem,
+  type SessionPatch,
+  type SessionStatus,
+} from "./session-schema.js";
 
 /** What a caller hands the queue: capture metadata plus the bytes. */
 export interface EnqueueInput {
@@ -44,6 +58,23 @@ export interface OutboxQuery {
    */
   status?: OutboxStatus | readonly OutboxStatus[];
   /** At most this many items, still lowest-`seq` first. */
+  limit?: number;
+}
+
+/** What a caller hands to open a session. */
+export interface OpenSessionInput {
+  /** Stable id for the session. Generated if omitted. */
+  readonly id?: string;
+  /** Idempotency key for the vendor write. Generated if omitted. */
+  readonly idempotencyKey?: string;
+}
+
+/**
+ * Which sessions a read is interested in. Every field is optional, and the
+ * empty query means "everything, `openedAt`-ascending".
+ */
+export interface SessionQuery {
+  status?: SessionStatus | readonly SessionStatus[];
   limit?: number;
 }
 
@@ -107,6 +138,7 @@ export async function openOutbox(options: OpenOutboxOptions = {}): Promise<Outbo
 export class Outbox {
   readonly #database: OutboxDatabase;
   readonly #collection: OutboxCollection;
+  readonly #sessionsCollection: SessionCollection;
   readonly #now: () => number;
   readonly #createId: () => string;
   readonly #createIdempotencyKey: () => string;
@@ -122,6 +154,7 @@ export class Outbox {
   constructor(database: OutboxDatabase, options: OpenOutboxOptions = {}) {
     this.#database = database;
     this.#collection = database.collections.outbox;
+    this.#sessionsCollection = database.collections.sessions;
     this.#now = options.now ?? (() => Date.now());
     this.#createId = options.createId ?? (() => crypto.randomUUID());
     this.#createIdempotencyKey = options.createIdempotencyKey ?? (() => crypto.randomUUID());
@@ -861,6 +894,199 @@ export class Outbox {
     await this.#database.close();
   }
 
+  // -----------------------------------------------------------------------
+  // Session lifecycle
+  // -----------------------------------------------------------------------
+
+  /**
+   * Open a session: the auditor is starting a job. The session owns extraction,
+   * review and write state for a set of recordings captured together.
+   *
+   * The id and idempotency key are generated if not supplied, so the common
+   * call is `outbox.openSession()` with no arguments.
+   */
+  async openSession(options: OpenSessionInput = {}): Promise<SessionItem> {
+    const doc = await this.#sessionsCollection.insert(
+      sessionDocumentSchema.parse({
+        id: options.id ?? this.#createId(),
+        status: "open",
+        openedAt: this.#nowIso(),
+        attempts: 0,
+        nextAttemptAt: this.#nowIso(),
+        idempotencyKey: options.idempotencyKey ?? this.#createIdempotencyKey(),
+      } satisfies SessionDocument),
+    );
+    return this.#toSession(doc);
+  }
+
+  /**
+   * Close a session: the auditor is done walking the house.
+   *
+   * Transitions `open → extracting` so the relay picks it up on its next drain
+   * and runs session-level extraction. Sets `closedAt`.
+   *
+   * Refuses a session that is not `open`: closing an already-closed or
+   * finished session would either double-write `closedAt` or jump the state
+   * machine backwards, and either is a bug the caller should hear about.
+   */
+  async closeSession(id: string): Promise<SessionItem> {
+    const doc = await this.#sessionsCollection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no session with id "${id}"`);
+    const updated = await doc.incrementalModify((current) => {
+      if (current.status !== "open") {
+        throw new Error(
+          `outbox: session ${id} is "${current.status}", not "open", so it cannot be closed.`,
+        );
+      }
+      const merged = {
+        ...current,
+        status: "extracting" as const,
+        closedAt: this.#nowIso(),
+      };
+      sessionDocumentSchema.parse(persistedSessionFieldsOf(merged));
+      return merged;
+    });
+    return this.#toSession(updated);
+  }
+
+  /** One session by id, or `undefined` if it is not there. */
+  async getSession(id: string): Promise<SessionItem | undefined> {
+    const doc = await this.#sessionsCollection.findOne(id).exec();
+    return doc ? this.#toSession(doc) : undefined;
+  }
+
+  /** Every session, `openedAt`-ascending — or just the ones matching `query`. */
+  async listSessions(query: SessionQuery = {}): Promise<SessionItem[]> {
+    const docs = await this.#sessionsCollection.find(sessionMangoQuery(query)).exec();
+    return docs.map((doc) => this.#toSession(doc));
+  }
+
+  /**
+   * Sessions as a live stream, `openedAt`-ascending. Same shape as
+   * {@link watch} for recordings: RxDB pushes a new array on every write,
+   * including writes from another tab.
+   */
+  watchSessions(query: SessionQuery = {}): Observable<SessionItem[]> {
+    return this.#sessionsCollection
+      .find(sessionMangoQuery(query))
+      .$.pipe(map((docs) => docs.map((doc) => this.#toSession(doc))));
+  }
+
+  /**
+   * The lowest-`openedAt` session the relay has not finished with — regardless
+   * of whether its backoff has elapsed. Readiness is the relay's decision, not
+   * storage's, for the same reason as {@link nextPending} on recordings.
+   */
+  async nextPendingSession(): Promise<SessionItem | undefined> {
+    const [session] = await this.listSessions({
+      status: ACTIVE_SESSION_STATUSES,
+      limit: 1,
+    });
+    return session;
+  }
+
+  /**
+   * Apply a partial update to a session. The merged document is validated
+   * **before** the write, so a bad status or a malformed field fails here
+   * rather than at the next reload.
+   */
+  async patchSession(id: string, patch: SessionPatch): Promise<SessionItem> {
+    const doc = await this.#sessionsCollection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no session with id "${id}"`);
+    sessionItemSchema.parse({ ...this.#toSession(doc), ...patch });
+    const updated = await doc.incrementalPatch(patch);
+    return this.#toSession(updated);
+  }
+
+  /**
+   * Record what a human decided about a parked session, and move it forward.
+   *
+   * The only way out of `awaiting-review` on a session, and it **only** works
+   * from `awaiting-review`. Same guard, same `incrementalModify` pattern, and
+   * the same ABA-race analysis as {@link submitReview} on recordings — see
+   * that method's doc comment for the mechanism; it applies here unchanged.
+   *
+   * - `accepted` / `edited` → `writing`, with `attempts` reset so the write
+   *   gets a clean backoff budget. The relay picks the session up on its next
+   *   drain and passes `outcome.fields` to the write step.
+   * - `discarded` → `done`. Unlike the recording's discard (which drops audio),
+   *   there is no audio on the session to drop — the recordings stay in the
+   *   outbox. The session is finished; the `reviewOutcome` records why.
+   */
+  async submitSessionReview(id: string, outcome: PersistedReviewOutcome): Promise<SessionItem> {
+    const parsed = reviewOutcomeSchema.parse(outcome);
+    const doc = await this.#sessionsCollection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no session with id "${id}"`);
+
+    const patch: SessionPatch =
+      parsed.status === "discarded"
+        ? { reviewOutcome: parsed, status: "done" }
+        : { reviewOutcome: parsed, status: "writing", attempts: 0 };
+
+    const updated = await doc.incrementalModify((current) => {
+      if (current.status !== "awaiting-review") {
+        throw new Error(
+          `outbox: session ${id} is "${current.status}", not "awaiting-review", so a review ` +
+            "cannot be submitted for it. Another tab or an earlier submission has already moved it on.",
+        );
+      }
+      const merged = { ...current, ...patch };
+      sessionDocumentSchema.parse(persistedSessionFieldsOf(merged));
+      return merged;
+    });
+    return this.#toSession(updated);
+  }
+
+  /**
+   * Move a `dead` session back to `awaiting-review`, so a human can correct
+   * whatever killed it and resubmit.
+   *
+   * **`dead` is the only legal source status**, for the same reasons as
+   * {@link reopenForReview} on recordings: `done` means the write reached the
+   * host tool (reopening would double-write), and any active status would race
+   * the relay.
+   *
+   * Also refused: a `dead` session missing `extracted` OR missing
+   * `extractedFromRecordingIds`. Both are needed to re-present the extraction
+   * for review — `extracted` is the draft, and `extractedFromRecordingIds`
+   * names the recordings whose transcripts produced it (the grounding source).
+   *
+   * Clears the stale `reviewOutcome` and resets `attempts` to `0`, same as
+   * the recording side. `lastError` is deliberately left — it explains why the
+   * session needed reopening.
+   */
+  async reopenSessionForReview(id: string): Promise<SessionItem> {
+    const doc = await this.#sessionsCollection.findOne(id).exec();
+    if (!doc) throw new Error(`outbox: no session with id "${id}"`);
+
+    const updated = await doc.incrementalModify((current) => {
+      if (current.status !== "dead") {
+        throw new Error(
+          `outbox: session ${id} is "${current.status}", not "dead", so it cannot be reopened ` +
+            "for review. Only a dead session may be re-parked this way.",
+        );
+      }
+      if (current.extracted === undefined) {
+        throw new Error(
+          `outbox: session ${id} has no extracted data to review — it never reached extraction, ` +
+            "so there is nothing to re-park it with.",
+        );
+      }
+      if (current.extractedFromRecordingIds === undefined) {
+        throw new Error(
+          `outbox: session ${id} has extracted data but no recording ids, so the extraction's ` +
+            "provenance is lost — there is nothing to ground the extracted values against.",
+        );
+      }
+
+      const merged = { ...current, status: "awaiting-review" as const, attempts: 0 };
+      delete merged.reviewOutcome;
+      sessionDocumentSchema.parse(persistedSessionFieldsOf(merged));
+      return merged;
+    });
+    return this.#toSession(updated);
+  }
+
   async #highestSeq(): Promise<number> {
     const docs = await this.#collection.find({ sort: [{ seq: "desc" }], limit: 1 }).exec();
     // -1 so the first item is seq 0.
@@ -892,6 +1118,13 @@ export class Outbox {
       audioReady: canonical !== null,
       audioBytes,
     });
+  }
+
+  #toSession(doc: RxDocument<SessionDocument>): SessionItem {
+    // Same `toJSON()` rationale as `#toItem`: strips RxDB meta fields so the
+    // `strictObject` parse survives. No attachment facts to compute — the
+    // session has no attachments today.
+    return sessionItemSchema.parse(doc.toJSON());
   }
 
   async #serialized<T>(work: () => Promise<T>): Promise<T> {
@@ -961,4 +1194,35 @@ function sumChunkBytes(doc: RxDocument<OutboxDocument>, sourceId: string): numbe
     if (isChunkOf(attachment.id, sourceId)) total += attachment.length;
   }
   return total;
+}
+
+/**
+ * The persisted fields of a session document, with RxDB's own metadata left
+ * behind. Same rationale as {@link persistedFieldsOf}: `incrementalModify`
+ * passes the internal document, which carries `_rev`, `_meta`, `_deleted` and
+ * `_attachments`, and `sessionDocumentSchema` is a `strictObject` — so parsing
+ * the whole thing fails with `unrecognized_keys`.
+ */
+function persistedSessionFieldsOf(data: Record<string, unknown>): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
+  for (const key of Object.keys(sessionDocumentSchema.shape)) {
+    if (key in data) fields[key] = data[key];
+  }
+  return fields;
+}
+
+/**
+ * {@link SessionQuery} → RxDB's Mango query.
+ *
+ * Same pattern as {@link mangoQuery}: one function so `listSessions`,
+ * `watchSessions` and `nextPendingSession` cannot disagree about what a query
+ * means — in particular about the `openedAt`-ascending sort.
+ */
+function sessionMangoQuery({ status, limit }: SessionQuery): MangoQuery<SessionDocument> {
+  const statuses = status === undefined ? undefined : [status].flat();
+  return {
+    ...(statuses ? { selector: { status: { $in: statuses } } } : {}),
+    sort: [{ openedAt: "asc" }],
+    ...(limit === undefined ? {} : { limit }),
+  };
 }
