@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { buildFieldPath, parseFieldPath, stripOptionalNullable } from "./field-path.js";
 import type { FieldPath, FieldPathSegment } from "./field-path.js";
+import type { RequiredOnCreate } from "./adapter.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 import { isSpanGrounded } from "./provenance.js";
 import type { Extracted } from "./provenance.js";
@@ -139,11 +140,13 @@ export interface ReviewField {
    * auditor can answer while they are still on site, instead of a dead queue row
    * discovered that evening.
    *
-   * Comes from {@link ToolAdapter.requiredOnCreate}, which is a list on the
-   * adapter rather than metadata on the schema. That is deliberate: zod `.meta()`
+   * Comes from {@link ToolAdapter.requiredOnCreate}, declared per group on the
+   * adapter rather than as metadata on the schema. That is deliberate: zod `.meta()`
    * propagates through `enveloped()` into the derived extraction schema and lands
    * in the JSON Schema sent to the model, and an unknown keyword is exactly what
-   * strict structured-output mode rejects.
+   * strict structured-output mode rejects. A per-group shape also expresses N
+   * instances: the same leaf is required on every instance of its collection group
+   * without the adapter enumerating keyed paths it cannot know before extraction.
    *
    * `false` when the adapter declares nothing — absence of a claim, not a claim
    * of absence.
@@ -357,7 +360,7 @@ const collectFields = (
   prefixSegments: readonly FieldPathSegment[],
   node: unknown,
   transcript: Transcript,
-  required: ReadonlySet<FieldPath>,
+  requiredOnCreate: RequiredOnCreate,
   out: Record<FieldPath, ReviewField>,
   presentButEmpty: FieldPath[],
 ): void => {
@@ -375,7 +378,7 @@ const collectFields = (
         pathSegments,
         readChild(node, key),
         transcript,
-        required,
+        requiredOnCreate,
         out,
         presentButEmpty,
       );
@@ -408,7 +411,7 @@ const collectFields = (
           instanceSegments,
           elements[i],
           transcript,
-          required,
+          requiredOnCreate,
           out,
           presentButEmpty,
         );
@@ -416,13 +419,15 @@ const collectFields = (
       continue;
     }
 
+    const groupPath = pathSegments[0]?.key ?? "";
     const extracted = readEnvelope(readChild(node, key));
+    const requiredLeaves = requiredOnCreate[groupPath];
     out[path] = {
       extracted,
       isGrounded: isSpanGrounded(extracted.sourceSpan, transcript.text),
       // The DECLARED schema, wrappers and all — see `ReviewField.schema`.
       schema: declared,
-      required: required.has(path),
+      required: Array.isArray(requiredLeaves) && requiredLeaves.includes(key),
     };
   }
 };
@@ -451,8 +456,8 @@ export const buildReviewRequest = (
 ): ReviewRequest => {
   const fields: Record<FieldPath, ReviewField> = {};
   const presentButEmpty: FieldPath[] = [];
-  const required = new Set(options.requiredOnCreate ?? []);
-  collectFields(valuesSchema, [], extracted, transcript, required, fields, presentButEmpty);
+  const requiredOnCreate = options.requiredOnCreate ?? {};
+  collectFields(valuesSchema, [], extracted, transcript, requiredOnCreate, fields, presentButEmpty);
   return { transcript, fields, presentButEmpty };
 };
 
@@ -466,11 +471,12 @@ export const buildReviewRequest = (
  */
 export interface BuildReviewRequestOptions {
   /**
-   * Leaf paths the host tool requires in order to CREATE the record. Unknown
-   * paths are ignored here — an adapter is responsible for keeping its own list
-   * honest, and `ToolAdapter.requiredOnCreate` says how to guard that.
+   * Leaf names, grouped by the group that owns the create endpoint, that the host
+   * tool requires in order to CREATE the record. Unknown groups and leaves are
+   * ignored here — an adapter is responsible for keeping its own declaration honest,
+   * and `ToolAdapter.requiredOnCreate` says how to guard that.
    */
-  readonly requiredOnCreate?: readonly FieldPath[];
+  readonly requiredOnCreate?: RequiredOnCreate;
 }
 
 /**

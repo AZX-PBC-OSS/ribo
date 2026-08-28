@@ -6,6 +6,7 @@ import type {
   Outbox,
   OutboxItem,
   PersistedReviewOutcome,
+  RequiredOnCreate,
   ReviewFields,
   ReviewIssue,
   ReviewOutcome,
@@ -35,22 +36,22 @@ export interface UseReviewOptions {
    */
   readonly valuesSchema: z.ZodObject;
   /**
-   * Leaf paths the host tool refuses to CREATE the record without — passed straight
-   * through to `buildReviewRequest`'s `requiredOnCreate`, so each named leaf's own
-   * `ReviewField.required` is `true` and a card can mark it and refuse a submit
-   * that leaves it empty.
+   * Leaf names grouped by the group that owns the create endpoint — passed straight
+   * through to `buildReviewRequest`'s `requiredOnCreate`, so each named leaf on every
+   * instance of its group has `ReviewField.required` set to `true`. A card can mark
+   * it and refuse a submit that leaves it empty.
    *
    * Hosts pass `adapter.requiredOnCreate` (`ToolAdapter.requiredOnCreate`) here — the
    * same reason `valuesSchema` above takes the schema and not the adapter: this hook
-   * needs the one list, not the whole `ToolAdapter`. Omitted paths are simply never
-   * required, which is what "the adapter declares nothing" already means on the core
-   * side.
+   * needs the one declaration, not the whole `ToolAdapter`. Omitted groups and leaves
+   * are simply never required, which is what "the adapter declares nothing" already
+   * means on the core side.
    *
    * **Hold it still, like `valuesSchema`.** It is also a `useMemo` dependency; an
-   * inline array literal is a new reference every render and rebuilds `fields` on
+   * inline object literal is a new reference every render and rebuilds `fields` on
    * every render along with it.
    */
-  readonly requiredOnCreate?: readonly FieldPath[];
+  readonly requiredOnCreate?: RequiredOnCreate;
   /** Bypasses the provider. What the tests inject through. */
   readonly outbox?: Outbox;
 }

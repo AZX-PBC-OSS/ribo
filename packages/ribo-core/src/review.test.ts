@@ -753,23 +753,23 @@ test("an edited decision must actually carry a value", () => {
   expect(decisions.rValue?.status).toBe("edited");
 });
 
-test("a leaf is marked required only when the adapter says so", () => {
+test("a leaf is marked required only when its group declares it", () => {
   const plain = buildReviewRequest({}, transcript, atticSchema);
   for (const field of Object.values(plain.fields)) expect(field.required).toBe(false);
 
   const marked = buildReviewRequest({}, transcript, atticSchema, {
-    requiredOnCreate: ["rValue"],
+    requiredOnCreate: { rValue: ["rValue"] },
   });
   expect(marked.fields.rValue?.required).toBe(true);
-  // Every OTHER leaf stays false — a required list must not leak across leaves.
+  // Every OTHER leaf stays false — a required declaration must not leak across leaves.
   for (const [path, field] of Object.entries(marked.fields)) {
     if (path !== "rValue") expect(field.required).toBe(false);
   }
 });
 
-test("a nested leaf can be required, addressed by its dotted path", () => {
+test("a nested leaf can be required when its group declares it", () => {
   const marked = buildReviewRequest({}, transcript, atticSchema, {
-    requiredOnCreate: ["healthSafety.ambientCo"],
+    requiredOnCreate: { healthSafety: ["ambientCo"] },
   });
   expect(marked.fields["healthSafety.ambientCo"]?.required).toBe(true);
   expect(marked.fields.rValue?.required).toBe(false);
@@ -892,6 +892,46 @@ describe("buildReviewRequest — collections: data counts instances, schema coun
     );
     expect(request.fields["hvac[k1].hvacSystemEquipmentType"]?.extracted.value).toBe("First");
     expect(request.fields["hvac[k2].hvacSystemEquipmentType"]?.extracted.value).toBe("Second");
+  });
+
+  test("requiredOnCreate per group marks every required leaf on every instance of a collection", () => {
+    const extracted = {
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+        {
+          hvacSystemEquipmentType: { value: "Furnace", confidence: 1, sourceSpan: "furnace" },
+          hvacHeatingEnergySource: { value: "Natural Gas", confidence: 1, sourceSpan: "gas" },
+          hvacUpgradeAction: { value: "Replace", confidence: 1, sourceSpan: "replace" },
+        },
+      ],
+    };
+
+    const request = buildReviewRequest(extracted, transcript, withCollectionsSchema, {
+      requiredOnCreate: { hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"] },
+    });
+
+    expect(request.fields["hvac[k1].hvacSystemEquipmentType"]?.required).toBe(true);
+    expect(request.fields["hvac[k1].hvacUpgradeAction"]?.required).toBe(true);
+    expect(request.fields["hvac[k2].hvacSystemEquipmentType"]?.required).toBe(true);
+    expect(request.fields["hvac[k2].hvacUpgradeAction"]?.required).toBe(true);
+    // A non-required leaf in the same group stays false, and a leaf from another group is untouched.
+    expect(request.fields["hvac[k1].hvacHeatingEnergySource"]?.required).toBe(false);
+  });
+
+  test("requiredOnCreate per group leaves singleton group leaves unmarked unless declared", () => {
+    // `withCollectionsSchema` has no singleton groups; `atticSchema` does. Reusing the same
+    // per-group logic for a non-collection group proves singletons are unaffected.
+    const request = buildReviewRequest({}, transcript, atticSchema, {
+      requiredOnCreate: { healthSafety: ["ambientCo"] },
+    });
+
+    expect(request.fields["healthSafety.ambientCo"]?.required).toBe(true);
+    expect(request.fields.rValue?.required).toBe(false);
+    expect(request.fields.notes?.required).toBe(false);
   });
 });
 

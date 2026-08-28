@@ -30,14 +30,19 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
   ctxSchema: snuggCtxSchema,
 
   /**
-   * What Snugg Pro refuses to create an HVAC system without — as dotted leaf
-   * paths, matching how review addresses fields.
+   * What Snugg Pro refuses to create an HVAC system without — declared per group
+   * so the same leaves apply to every emitted instance.
    *
    * `POST /jobs/{jobId}/hvac` is the **only** component endpoint with required
    * capture fields — every other component (attic, wall, window, DHW, health,
    * and the base-data singleton) has none, which is why a partial dictation
    * writes cleanly (doc 17 §"The required-field surface"). It requires exactly
    * two, and both are now extracted.
+   *
+   * Declared per group rather than as full paths because `hvac` is a collection:
+   * a house with N systems has N × 2 required fields, and the instance keys
+   * (`hvac[k1]`, `hvac[k2]`, …) are not known until extraction. Core applies this
+   * declaration to every instance of the group as it builds the review request.
    *
    * `hvacUpgradeAction` is here rather than hard-coded. Doc 15 ranks it blocking
    * (B2) and recommends a write-layer constant, but that recommendation is
@@ -50,7 +55,9 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
    * asked while they are still standing in the basement, rather than the write
    * failing at the API hours later.
    */
-  requiredOnCreate: ["hvac.hvacSystemEquipmentType", "hvac.hvacUpgradeAction"],
+  requiredOnCreate: {
+    hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
+  },
 
   instructions: snuggProInstructions,
   examples: snuggExamples,

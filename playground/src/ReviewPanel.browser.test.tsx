@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { openOutbox, type Outbox } from "@azx/ribo-core";
-import { snuggProAdapter, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
+import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import { z } from "zod";
 
@@ -182,7 +182,10 @@ test.skip("a leaf named in requiredOnCreate renders the required marker, and an 
   // comment). This is the join `ReviewPanel` -> `useReview` -> `buildReviewRequest`
   // is responsible for keeping wired: if any link drops the option, every
   // `field.required` on the card is `false` and the marker below never renders.
-  const [requiredPath, otherRequiredPath] = snuggProAdapter.requiredOnCreate!;
+  // With `requiredOnCreate` per group, the two HVAC leaves surface on every
+  // instance as keyed paths. Task 15 owns the un-skip and the full assertions.
+  const requiredPath = "hvac[k1].hvacSystemEquipmentType";
+  const otherRequiredPath = "hvac[k1].hvacUpgradeAction";
   const ordinaryPath = "basedata.yearBuilt";
 
   const outbox = await openTestOutbox();

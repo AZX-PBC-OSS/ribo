@@ -158,7 +158,7 @@ test("requiredOnCreate marks the named leaf required and leaves every other leaf
   // it every leaf's `required` is `false`, silently, because
   // `BuildReviewRequestOptions.requiredOnCreate` defaults to `undefined` there too.
   const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox, { requiredOnCreate: ["healthSafety.ambientCo"] });
+  const { seen } = await probe(item, outbox, { requiredOnCreate: { healthSafety: ["ambientCo"] } });
 
   expect(seen.current!.fields!["healthSafety.ambientCo"]!.required).toBe(true);
   // Not named -> not required. An adapter's silence is not a claim of absence,

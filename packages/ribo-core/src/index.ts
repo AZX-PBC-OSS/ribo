@@ -156,7 +156,13 @@ export * from "./queue/index.js";
 // Write-back: the only tool-specific surface, with a typed host context, both
 // field shapes (the writable patch and the derived extraction schema) and the
 // per-attempt write metadata that carries the idempotency key.
-export type { ToolAdapter, ToolAdapterExample, ValuesSchema, WriteMetadata } from "./adapter.js";
+export type {
+  RequiredOnCreate,
+  ToolAdapter,
+  ToolAdapterExample,
+  ValuesSchema,
+  WriteMetadata,
+} from "./adapter.js";
 
 // The composition that hands a reviewed patch to an adapter, and the only place
 // `schema.parse` runs before a write. Resolves the destination per item off

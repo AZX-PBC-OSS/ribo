@@ -1,4 +1,4 @@
-import { isSpanGrounded } from "@azx/ribo-core";
+import { isSpanGrounded, stripOptionalNullable } from "@azx/ribo-core";
 import { expect, test } from "vitest";
 import { z } from "zod";
 import { SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
@@ -22,22 +22,38 @@ test("carries a stable name, instructions and a parsing schema", () => {
 const example = snuggProAdapter.examples?.[0];
 if (!example) throw new Error("expected the Snugg Pro adapter to carry a few-shot example");
 
-/** Collect dotted leaf paths from `snuggValuesSchema`, recursing into arrays and stripping wrappers. */
-function valuesLeaves(schema: z.ZodType, prefix = ""): string[] {
-  if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable) {
-    return valuesLeaves(schema.unwrap() as unknown as z.ZodType, prefix);
+/** Collect the leaf names inside one group's schema, recursing into arrays and nested objects. */
+function leafNames(schema: z.ZodType): string[] {
+  const stripped = stripOptionalNullable(schema);
+  if (stripped instanceof z.ZodArray) {
+    return leafNames(stripped.element as z.ZodType);
   }
-  if (schema instanceof z.ZodArray) {
-    return valuesLeaves(schema.element as unknown as z.ZodType, prefix);
+  if (stripped instanceof z.ZodObject) {
+    const names: string[] = [];
+    for (const [key, child] of Object.entries(stripped.shape)) {
+      const childNames = leafNames(child);
+      if (childNames.length === 0) {
+        names.push(key);
+      } else {
+        for (const leaf of childNames) {
+          names.push(`${key}.${leaf}`);
+        }
+      }
+    }
+    return names;
   }
-  if (!(schema instanceof z.ZodObject)) {
-    return prefix ? [prefix] : [];
+  return [];
+}
+
+/** Map each top-level group of `snuggValuesSchema` to the leaf names declared inside it. */
+function groupLeafNames(schema: z.ZodType): Record<string, string[]> {
+  const stripped = stripOptionalNullable(schema);
+  if (!(stripped instanceof z.ZodObject)) return {};
+  const result: Record<string, string[]> = {};
+  for (const [key, child] of Object.entries(stripped.shape)) {
+    result[key] = leafNames(child);
   }
-  const leaves: string[] = [];
-  for (const [key, child] of Object.entries(schema.shape)) {
-    leaves.push(...valuesLeaves(child, prefix ? `${prefix}.${key}` : key));
-  }
-  return leaves;
+  return result;
 }
 
 test("the EXTRACTION schema parses the adapter's own few-shot examples", () => {
@@ -164,33 +180,37 @@ function _ctxIsReadonly(ctx: SnuggWriteContext): void {
   ctx.assessmentId = "somewhere-else";
 }
 
-test("every requiredOnCreate path is a real leaf of the values schema", () => {
-  // The drift guard, and the reason a parallel list is acceptable at all rather
-  // than metadata on the schema. A typo or a renamed field must fail HERE, loudly,
-  // instead of silently marking nothing required and letting a write die at the
-  // host that evening. Walking the values schema directly rather than going through
-  // buildReviewRequest, because review.ts does not enumerate array groups yet (Task 6-7).
-  const leaves = valuesLeaves(snuggValuesSchema);
-  for (const path of snuggProAdapter.requiredOnCreate ?? []) {
-    expect(leaves).toContain(path);
+test("every requiredOnCreate group and leaf is declared in the values schema", () => {
+  // The drift guard, and the reason a parallel declaration is acceptable at all
+  // rather than metadata on the schema. A typo in a group, a renamed field, or a leaf
+  // moved to another group must fail HERE, loudly, instead of silently marking nothing
+  // required and letting a write die at the host that evening. Walking the values
+  // schema directly rather than through `buildReviewRequest` keeps the test independent
+  // of the per-instance path logic it exists to pin.
+  const groupLeaves = groupLeafNames(snuggValuesSchema);
+  for (const [group, leaves] of Object.entries(snuggProAdapter.requiredOnCreate ?? {})) {
+    const available = groupLeaves[group];
+    expect(available, `group "${group}" is not in the values schema`).toBeDefined();
+    for (const leaf of leaves) {
+      expect(available, `leaf "${leaf}" not in group "${group}"`).toContain(leaf);
+    }
   }
 });
 
-test("the required leaves are exactly HVAC's two, as dotted paths", () => {
+test("the required leaves are exactly HVAC's two, declared per group", () => {
   // Snugg Pro's ONLY component endpoint with required capture fields is
   // POST /jobs/{jobId}/hvac, and it wants two. Both are extracted now, so a third
-  // entry here — or a leaf from any other group — means someone read the spec's
+  // leaf here — or a leaf from any other group — means someone read the spec's
   // `required` flags wrong.
-  expect(snuggProAdapter.requiredOnCreate).toEqual([
-    "hvac.hvacSystemEquipmentType",
-    "hvac.hvacUpgradeAction",
-  ]);
+  expect(snuggProAdapter.requiredOnCreate).toEqual({
+    hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
+  });
 });
 
 test("no other group declares a required leaf — a partial dictation writes cleanly", () => {
   // The claim that makes review-time requiredness cheap: every other endpoint
   // (basedata, attic, wall, window, dhw, health) accepts a create with nothing set,
   // so an auditor who only did the basement is never blocked on the attic.
-  const required = snuggProAdapter.requiredOnCreate ?? [];
-  expect(required.filter((path) => !path.startsWith("hvac."))).toEqual([]);
+  const groups = Object.keys(snuggProAdapter.requiredOnCreate ?? {});
+  expect(groups.filter((g) => g !== "hvac")).toEqual([]);
 });
