@@ -165,4 +165,69 @@ describe("normalizeFields", () => {
     // which is the point — the pass has no values-shaped signature to have.
     expect(() => snuggExtractionSchema.parse(normalizeFields(base()))).not.toThrow();
   });
+
+  // R1.6 Task 4 — `clampDeep` must preserve arrays. The current schema is still
+  // singleton groups, so these inputs are cast to the extraction shape; the cast
+  // is only to satisfy the type system — the pass is a structural walk and does
+  // not validate against the schema.
+  describe("array preservation (R1.6 Task 4)", () => {
+    const makeArrayExtraction = (): SnuggExtraction =>
+      ({
+        hvac: [
+          {
+            hvacSystemEquipmentType: {
+              value: "Boiler",
+              confidence: 1.4,
+              sourceSpan: "it's an oil boiler",
+            },
+            hvacHeatingEnergySource: { value: "Fuel Oil", confidence: -0.1, sourceSpan: "oil" },
+          },
+          {
+            hvacSystemEquipmentType: {
+              value: "Furnace",
+              confidence: 2.0,
+              sourceSpan: "upstairs furnace",
+            },
+          },
+        ],
+      }) as unknown as SnuggExtraction;
+
+    test("an array survives as an array with element order intact", () => {
+      const input = makeArrayExtraction();
+      const inputHvac = (input as unknown as { hvac: unknown[] }).hvac;
+      const out = normalizeFields(input) as unknown as {
+        hvac: Array<{ hvacSystemEquipmentType: { value: string } }>;
+      };
+      expect(Array.isArray(out.hvac)).toBe(true);
+      expect(out.hvac).toHaveLength(2);
+      expect(out.hvac[0]!.hvacSystemEquipmentType.value).toBe("Boiler");
+      expect(out.hvac[1]!.hvacSystemEquipmentType.value).toBe("Furnace");
+      // The pass is pure: it returns a new array rather than mutating the input.
+      expect(out.hvac).not.toBe(inputHvac);
+    });
+
+    test("confidence clamping reaches inside every array element", () => {
+      const out = normalizeFields(makeArrayExtraction()) as unknown as {
+        hvac: Array<{
+          hvacSystemEquipmentType: { confidence: number };
+          hvacHeatingEnergySource?: { confidence: number };
+        }>;
+      };
+      expect(out.hvac[0]!.hvacSystemEquipmentType.confidence).toBe(1);
+      expect(out.hvac[0]!.hvacHeatingEnergySource?.confidence).toBe(0);
+      expect(out.hvac[1]!.hvacSystemEquipmentType.confidence).toBe(1);
+    });
+
+    test("an empty collection stays an empty array and gains no element", () => {
+      const input = { hvac: [] } as unknown as SnuggExtraction;
+      const inputHvac = (input as unknown as { hvac: unknown[] }).hvac;
+      const out = normalizeFields(input) as unknown as { hvac: unknown[] };
+      expect(Array.isArray(out.hvac)).toBe(true);
+      expect(out.hvac).toHaveLength(0);
+      // The broken Object.fromEntries(Object.entries(node)) rebuild turned an
+      // empty array into `{}`, which is still an Object but no longer an array.
+      expect(JSON.stringify(out.hvac)).toBe("[]");
+      expect(out.hvac).not.toBe(inputHvac);
+    });
+  });
 });
