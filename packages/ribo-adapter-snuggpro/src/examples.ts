@@ -51,6 +51,8 @@ Draft on the boiler flue — I got good draft, nice steady pull up the chimney, 
 
 Up in the attic earlier I measured the insulation, it's cellulose, gray blown-in, and I got about six inches of it across most of the attic. Six inches of cellulose.
 
+Upstairs is a separate system, a Carrier Infinity heat pump on electricity with its own air handler in the attic. It was installed in twenty fifteen and we'll keep it as is.
+
 No blower door today, I'll come back with the fan, ran out of time. Ending for now.`;
 
 /** Provenance envelope, literal-preserving so enum values keep their narrow type. */
@@ -94,6 +96,25 @@ const fields: SnuggExtraction = {
         null,
         "I don't see an output on the plate that I can read, it's painted over, so no BTU number from me",
       ),
+      hvacCoolingCapacity: env(null, null),
+      hvacDuctLocation: env(null, null),
+      hvacDuctLeakage: env(null, null),
+      hvacDuctLeakageValue: env(null, null),
+      hvacDuctInsulation: env(null, null),
+    },
+    {
+      // A second system demonstrates the array shape Task 10 exists to capture.
+      hvacSystemEquipmentType: env(
+        "Central Heat Pump (shared ducts)",
+        "a Carrier Infinity heat pump on electricity with its own air handler in the attic",
+        0.9,
+      ),
+      hvacUpgradeAction: env("Keep an existing system as is", "we'll keep it as is"),
+      hvacHeatingEnergySource: env("Electricity", "heat pump on electricity"),
+      hvacHeatingSystemManufacturer: env("Carrier", "Carrier"),
+      hvacHeatingSystemModel: env("Infinity", "Infinity"),
+      hvacHeatingSystemModelYear: env(2015, "twenty fifteen"),
+      hvacHeatingCapacity: env(null, null),
       hvacCoolingCapacity: env(null, null),
       hvacDuctLocation: env(null, null),
       hvacDuctLeakage: env(null, null),

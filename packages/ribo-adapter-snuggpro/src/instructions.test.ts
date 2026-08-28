@@ -7,9 +7,12 @@ import { snuggExamples } from "./examples.js";
 import {
   SNUGG_GROUP_KEYS,
   SNUGG_RULES,
+  snuggGroupFillInstructions,
   snuggGroupInstructions,
   snuggProInstructions,
+  TRANSCRIPT_SECTION,
 } from "./instructions.js";
+import type { FillScope } from "./instructions.js";
 import type { SnuggValues } from "./schema.js";
 
 /**
@@ -204,5 +207,73 @@ describe("per-group instructions — no rule is lost", () => {
     // needs to identify which one.
     expect(SNUGG_RULES).toHaveLength(13);
     expect(SNUGG_RULES.map((r) => r.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+  });
+});
+
+// --- Task 10 — scoped per-instance fill instructions ------------------------
+
+describe("snuggGroupFillInstructions", () => {
+  const fillScope = (positiveIndex = 0): FillScope => ({
+    groupKey: "hvac",
+    positive: {
+      mentionSpan: "the basement furnace",
+      discriminator: "the basement furnace",
+      distinguishedBy: positiveIndex === 0 ? null : "the basement furnace",
+      eligibility: "current",
+      eligibilitySpan: null,
+    },
+    positiveIndex,
+    siblings: [
+      {
+        mentionSpan: "the attic heat pump",
+        discriminator: "the attic heat pump",
+        distinguishedBy: "the attic heat pump",
+        eligibility: "current",
+        eligibilitySpan: null,
+      },
+    ],
+    excluded: [
+      {
+        mentionSpan: "the old boiler",
+        discriminator: "the old boiler",
+        distinguishedBy: null,
+        eligibility: "decommissioned",
+        eligibilitySpan: "the old boiler is decommissioned and capped off",
+      },
+    ],
+  });
+
+  test("the scope block names the positive record, siblings, and excluded candidates", () => {
+    const prompt = snuggGroupFillInstructions("hvac", fillScope(0));
+
+    expect(prompt).toContain("the basement furnace");
+    expect(prompt).toContain("the attic heat pump");
+    expect(prompt).toContain("the old boiler");
+    expect(prompt).toContain("the old boiler is decommissioned and capped off");
+  });
+
+  test("the scope block is inserted before the transcript section", () => {
+    const prompt = snuggGroupFillInstructions("hvac", fillScope(0));
+
+    expect(prompt.endsWith(TRANSCRIPT_SECTION)).toBe(true);
+    const transcriptIdx = prompt.indexOf(TRANSCRIPT_SECTION);
+    const scopeIdx = prompt.indexOf("## Scope");
+    expect(scopeIdx).toBeGreaterThanOrEqual(0);
+    expect(scopeIdx).toBeLessThan(transcriptIdx);
+  });
+
+  test("the fill prompt still carries the per-group rules and output section", () => {
+    const prompt = snuggGroupFillInstructions("hvac", fillScope(0));
+
+    // A group-specific rule (rule 10) and the one-key output section survive.
+    expect(prompt).toContain("Efficiency (AFUE / SEER / HSPF) has NO field");
+    expect(prompt).toContain("exactly one top-level key");
+    expect(prompt).toContain("`hvac`");
+  });
+
+  test("a second instance distinguishes itself with a non-null span", () => {
+    const prompt = snuggGroupFillInstructions("hvac", fillScope(1));
+
+    expect(prompt).toContain('Distinguished from earlier instances by: "the basement furnace"');
   });
 });

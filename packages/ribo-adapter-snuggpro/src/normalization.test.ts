@@ -96,7 +96,7 @@ describe("yearsToDhwAgeBand", () => {
 describe("normalizeFields", () => {
   // The adapter's own few-shot example, with out-of-range confidences poked into
   // three envelopes in three DIFFERENT resource groups. Derived from the fixture
-  // rather than hand-written so it cannot drift from the schema's 51 leaves — and
+  // rather than hand-written so it cannot drift from the schema's 63 leaves — and
   // spread across groups because a pass that only recursed one level deep, or that
   // special-cased one group by name, would still pass a single-group probe.
   //
@@ -142,7 +142,7 @@ describe("normalizeFields", () => {
       for (const child of Object.values(node)) walk(child);
     };
     walk(normalizeFields(base()));
-    expect(seen).toBe(51);
+    expect(seen).toBe(63);
   });
 
   test("leaves value and sourceSpan untouched — it never converts or invents", () => {

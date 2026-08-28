@@ -399,3 +399,108 @@ export function snuggGroupInstructions(key: string): string {
   const rules = SNUGG_RULES.filter((r) => r.groups === undefined || r.groups.includes(key));
   return assembleInstructions(rules, groupOutputSection(key));
 }
+
+// --- Scoped per-instance fill instructions (Task 10) -------------------------
+
+/**
+ * The scope block passed to {@link snuggGroupFillInstructions}. This is the same
+ * shape as the generic `FillScope` in `@azx/ribo-extractor-openai` — duplicated
+ * here so the adapter does not depend on the extractor package.
+ */
+export interface FillScope {
+  readonly groupKey: string;
+  readonly positive: {
+    readonly mentionSpan: string;
+    readonly discriminator: string;
+    readonly distinguishedBy: string | null;
+    readonly eligibility: string;
+    readonly eligibilitySpan: string | null;
+  };
+  readonly positiveIndex: number;
+  readonly siblings: readonly {
+    readonly mentionSpan: string;
+    readonly discriminator: string;
+    readonly distinguishedBy: string | null;
+    readonly eligibility: string;
+    readonly eligibilitySpan: string | null;
+  }[];
+  readonly excluded: readonly {
+    readonly mentionSpan: string;
+    readonly discriminator: string;
+    readonly distinguishedBy: string | null;
+    readonly eligibility: string;
+    readonly eligibilitySpan: string | null;
+  }[];
+}
+
+function renderSiblings(siblings: FillScope["siblings"]): string {
+  if (siblings.length === 0) return "None.";
+  return siblings
+    .map(
+      (s) =>
+        `- ${s.discriminator} — introduced by "${s.mentionSpan}"` +
+        (s.distinguishedBy ? `; distinguished by "${s.distinguishedBy}"` : ""),
+    )
+    .join("\n");
+}
+
+function renderExcluded(excluded: FillScope["excluded"]): string {
+  if (excluded.length === 0) return "None.";
+  return excluded
+    .map(
+      (e) =>
+        `- ${e.discriminator} — introduced by "${e.mentionSpan}"; excluded as ` +
+        `"${e.eligibility}" at "${e.eligibilitySpan}"`,
+    )
+    .join("\n");
+}
+
+/**
+ * Build the scope block inserted between the per-group rules and the transcript.
+ *
+ * The negative-sibling block is the load-bearing part of the prompt: it tells the
+ * model that the other `current` instances are being filled on their own records,
+ * so a fact that belongs to a sibling can be `null` here rather than forced onto
+ * the wrong record.
+ */
+function buildScopeBlock(scope: FillScope): string {
+  const distinguished =
+    scope.positive.distinguishedBy === null
+      ? `This is the first ${scope.groupKey} instance in the roster.`
+      : `Distinguished from earlier instances by: "${scope.positive.distinguishedBy}"`;
+
+  return `## Scope
+
+You are filling exactly one record in this call. Do not add or remove instances.
+
+**Record being filled:** ${scope.groupKey} — ${scope.positive.discriminator}
+- Introduced by: "${scope.positive.mentionSpan}"
+- ${distinguished}
+
+**Other instances of this type (out of scope — their facts are captured on their own records):**
+${renderSiblings(scope.siblings)}
+
+**Excluded from this group (recorded nowhere):**
+${renderExcluded(scope.excluded)}
+`;
+}
+
+/**
+ * Per-group fill instructions for a single instance: the per-group rules, a scope
+ * block that names the positive record, its siblings and any excluded candidates,
+ * and the transcript last.
+ *
+ * The transcript stays last — the same injection boundary as
+ * {@link snuggGroupInstructions}. The scope block is instructions, not data, so it
+ * lives before the transcript section.
+ */
+export function snuggGroupFillInstructions(groupKey: string, scope: FillScope): string {
+  const base = snuggGroupInstructions(groupKey);
+  if (!base.endsWith(TRANSCRIPT_SECTION)) {
+    throw new Error(
+      "snuggGroupFillInstructions: per-group instructions must end with the transcript section",
+    );
+  }
+  const prefix = base.slice(0, -TRANSCRIPT_SECTION.length);
+  return prefix + "\n\n" + buildScopeBlock(scope) + TRANSCRIPT_SECTION;
+}

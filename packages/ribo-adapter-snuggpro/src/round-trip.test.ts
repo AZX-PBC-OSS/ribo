@@ -179,8 +179,8 @@ test("the real field set round-trips: schema → extraction → review → write
   const request = buildReviewRequest(extracted, transcript, adapter.schema);
   const paths = Object.keys(request.fields);
 
-  // 51 leaves across seven resource groups, each independently reviewable.
-  expect(paths).toHaveLength(51);
+  // 63 leaves across seven resource groups, each independently reviewable.
+  expect(paths).toHaveLength(63);
   expect(paths).toContain(EDITED_LEAF);
   expect(request.fields[EDITED_LEAF]?.extracted.value).toBe(MODEL_VALUE);
 
@@ -234,10 +234,13 @@ test("the real field set round-trips: schema → extraction → review → write
   expect(write.fields.hvac?.[0]?.hvacSystemEquipmentType).toBe("Boiler");
   expect(write.fields.hvac?.[0]?.hvacHeatingEnergySource).toBe("Fuel Oil");
   expect(write.fields.hvac?.[0]?.hvacHeatingSystemModelYear).toBe(2004);
+  expect(write.fields.hvac?.[1]?.hvacSystemEquipmentType).toBe("Central Heat Pump (shared ducts)");
+  expect(write.fields.hvac?.[1]?.hvacHeatingEnergySource).toBe("Electricity");
+  expect(write.fields.hvac?.[1]?.hvacHeatingSystemModelYear).toBe(2015);
   expect(write.fields.attic?.[0]?.atticInsulationDepth).toBe("4-6");
   expect(write.fields.dhw?.[0]?.dhwType2).toBe("Sidearm Tank");
 
-  // Nothing is missing: accepting all 51 leaves writes all 51. The resolved patch is
+  // Nothing is missing: accepting all 63 leaves writes all 63. The resolved patch is
   // positional, so compare the flattened field paths against positional versions of the
   // keyed review paths.
   expect(flatten(write.fields).sort()).toEqual([...paths].map(positionalPath).sort());
@@ -247,7 +250,7 @@ test("the real field set round-trips: schema → extraction → review → write
   expect(write.meta).toEqual({ idempotencyKey: "idem-item-1" });
 });
 
-test("one rejected leaf of the 51 still writes the other 50", async () => {
+test("one rejected leaf of the 63 still writes the other 62", async () => {
   // The test that proves patch semantics, and the one an earlier revision of this design
   // would have failed outright: rejecting a leaf must leave that field alone in Snugg
   // Pro, not fail the write and not blank the field.
@@ -273,7 +276,7 @@ test("one rejected leaf of the 51 still writes the other 50", async () => {
     idempotencyKey: item.idempotencyKey,
   });
 
-  // The write SUCCEEDED — the rejection did not take the other 50 leaves down with it.
+  // The write SUCCEEDED — the rejection did not take the other 62 leaves down with it.
   expect(written).toHaveLength(1);
   const fields = written[0]!.fields;
 

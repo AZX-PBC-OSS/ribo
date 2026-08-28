@@ -68,10 +68,11 @@ export type { SnuggWriteContext } from "./context.js";
 export {
   SNUGG_GROUP_KEYS,
   SNUGG_RULES,
+  snuggGroupFillInstructions,
   snuggGroupInstructions,
   snuggProInstructions,
 } from "./instructions.js";
-export type { SnuggRule } from "./instructions.js";
+export type { FillScope, SnuggRule } from "./instructions.js";
 export { snuggExamples } from "./examples.js";
 
 // The Task 9 inventory-pass roster: the schema that parses the house-wide

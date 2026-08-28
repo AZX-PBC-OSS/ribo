@@ -34,6 +34,13 @@ export { buildGroupMessages, projectExample } from "./extraction-common.js";
 export { extractInventory } from "./inventory.js";
 export type { InventoryOptions } from "./inventory.js";
 
+// Task 10 — scoped per-instance fills and assembly: one inventory call followed by
+// one fill call per current instance, with a scope block that names siblings and
+// excluded candidates. Exports the extractor, prompt assembly helpers, and the
+// generic roster/fill-scope types that the adapter's `buildFillInstructions` consumes.
+export { buildFillMessages, projectFillExample, scopedInstanceExtractor } from "./instance-fill.js";
+export type { FillScope, Roster, RosterCandidate, ScopedFillOptions } from "./instance-fill.js";
+
 // The OpenAI-compatible chat transport and its options.
 export { openAiChat } from "./openai-chat.js";
 export type { OpenAiChatOptions } from "./openai-chat.js";
