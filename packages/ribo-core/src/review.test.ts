@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
 import type { enveloped } from "./enveloped.js";
+import type { Extractor } from "./extractor.js";
+import type { ExistingRecord } from "./instance-identity.js";
 import {
   buildReviewRequest,
   resolveReview,
@@ -753,24 +755,528 @@ test("an edited decision must actually carry a value", () => {
   expect(decisions.rValue?.status).toBe("edited");
 });
 
-test("a leaf is marked required only when the adapter says so", () => {
+test("a leaf is marked required only when its group declares it", () => {
   const plain = buildReviewRequest({}, transcript, atticSchema);
   for (const field of Object.values(plain.fields)) expect(field.required).toBe(false);
 
   const marked = buildReviewRequest({}, transcript, atticSchema, {
-    requiredOnCreate: ["rValue"],
+    requiredOnCreate: { rValue: ["rValue"] },
   });
   expect(marked.fields.rValue?.required).toBe(true);
-  // Every OTHER leaf stays false — a required list must not leak across leaves.
+  // Every OTHER leaf stays false — a required declaration must not leak across leaves.
   for (const [path, field] of Object.entries(marked.fields)) {
     if (path !== "rValue") expect(field.required).toBe(false);
   }
 });
 
-test("a nested leaf can be required, addressed by its dotted path", () => {
+test("a nested leaf can be required when its group declares it", () => {
   const marked = buildReviewRequest({}, transcript, atticSchema, {
-    requiredOnCreate: ["healthSafety.ambientCo"],
+    requiredOnCreate: { healthSafety: ["ambientCo"] },
   });
   expect(marked.fields["healthSafety.ambientCo"]?.required).toBe(true);
   expect(marked.fields.rValue?.required).toBe(false);
+});
+
+/* R1.6 Task 6 — review enumerates instances from data, leaves from schema.
+ *
+ * The invariant, restated: the data determines how many instances exist; the schema
+ * determines every leaf within each instance. A leaf the model omitted from a present
+ * instance still appears with the sentinel envelope, so no leaf of a reviewed instance
+ * can silently vanish. Empty collections have no leaves, so they are recorded separately
+ * in {@link ReviewRequest.presentButEmpty}.
+ */
+
+const hvacElementSchema = z.object({
+  hvacSystemEquipmentType: z.string().nullable().optional(),
+  hvacHeatingEnergySource: z.string().nullable().optional(),
+  hvacUpgradeAction: z.string().nullable().optional(),
+});
+
+const dhwElementSchema = z.object({
+  dhwType2: z.string().nullable().optional(),
+});
+
+const withCollectionsSchema = z.object({
+  hvac: z.array(hvacElementSchema).optional(),
+  dhw: z.array(dhwElementSchema).optional(),
+});
+
+const collectionRequestFor = (
+  extracted: Record<string, unknown>,
+  existingRecords?: Record<string, readonly ExistingRecord[]>,
+): ReviewRequest =>
+  buildReviewRequest(extracted, transcript, withCollectionsSchema, { existingRecords });
+
+describe("buildReviewRequest — collections: data counts instances, schema counts leaves", () => {
+  test("two HVAC instances produce two full sets of HVAC leaf paths, each addressing a distinct key", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+        {
+          hvacSystemEquipmentType: { value: "Furnace", confidence: 1, sourceSpan: "furnace" },
+          hvacHeatingEnergySource: { value: "Natural Gas", confidence: 1, sourceSpan: "gas" },
+          hvacUpgradeAction: { value: "Replace", confidence: 1, sourceSpan: "replace" },
+        },
+      ],
+    });
+
+    expect(Object.keys(request.fields)).toEqual([
+      "hvac[k1].hvacSystemEquipmentType",
+      "hvac[k1].hvacHeatingEnergySource",
+      "hvac[k1].hvacUpgradeAction",
+      "hvac[k2].hvacSystemEquipmentType",
+      "hvac[k2].hvacHeatingEnergySource",
+      "hvac[k2].hvacUpgradeAction",
+    ]);
+    expect(request.fields["hvac[k1].hvacSystemEquipmentType"]?.extracted.value).toBe("Boiler");
+    expect(request.fields["hvac[k2].hvacSystemEquipmentType"]?.extracted.value).toBe("Furnace");
+  });
+
+  test("every leaf of every present instance appears, including leaves the model left null", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          // `hvacHeatingEnergySource` and `hvacUpgradeAction` are omitted.
+        },
+      ],
+    });
+
+    expect(Object.keys(request.fields)).toEqual([
+      "hvac[k1].hvacSystemEquipmentType",
+      "hvac[k1].hvacHeatingEnergySource",
+      "hvac[k1].hvacUpgradeAction",
+    ]);
+    expect(request.fields["hvac[k1].hvacHeatingEnergySource"]?.extracted).toEqual({
+      value: null,
+      confidence: 0,
+      sourceSpan: null,
+    });
+  });
+
+  test("an empty collection produces no leaf paths and is recorded as present-but-empty", () => {
+    const request = collectionRequestFor({
+      hvac: [],
+      dhw: [{ dhwType2: { value: "Tank Water Heater", confidence: 1, sourceSpan: "tank" } }],
+    });
+
+    expect(Object.keys(request.fields)).toEqual(["dhw[k1].dhwType2"]);
+    expect(request.presentButEmpty).toEqual(["hvac"]);
+  });
+
+  test("a group absent from the extraction output is not recorded as present-but-empty", () => {
+    const request = collectionRequestFor({});
+
+    expect(Object.keys(request.fields)).toHaveLength(0);
+    expect(request.presentButEmpty).toEqual([]);
+  });
+
+  test("instance order in the request follows the emitted array order", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "First", confidence: 1, sourceSpan: "first" },
+          hvacHeatingEnergySource: { value: "Electricity", confidence: 1, sourceSpan: "elec" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+        {
+          hvacSystemEquipmentType: { value: "Second", confidence: 1, sourceSpan: "second" },
+          hvacHeatingEnergySource: { value: "Natural Gas", confidence: 1, sourceSpan: "gas" },
+          hvacUpgradeAction: { value: "Replace", confidence: 1, sourceSpan: "replace" },
+        },
+      ],
+    });
+
+    const keys = Object.keys(request.fields);
+    expect(keys.indexOf("hvac[k1].hvacSystemEquipmentType")).toBeLessThan(
+      keys.indexOf("hvac[k2].hvacSystemEquipmentType"),
+    );
+    expect(request.fields["hvac[k1].hvacSystemEquipmentType"]?.extracted.value).toBe("First");
+    expect(request.fields["hvac[k2].hvacSystemEquipmentType"]?.extracted.value).toBe("Second");
+  });
+
+  test("requiredOnCreate per group marks every required leaf on every instance of a collection", () => {
+    const extracted = {
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+        {
+          hvacSystemEquipmentType: { value: "Furnace", confidence: 1, sourceSpan: "furnace" },
+          hvacHeatingEnergySource: { value: "Natural Gas", confidence: 1, sourceSpan: "gas" },
+          hvacUpgradeAction: { value: "Replace", confidence: 1, sourceSpan: "replace" },
+        },
+      ],
+    };
+
+    const request = buildReviewRequest(extracted, transcript, withCollectionsSchema, {
+      requiredOnCreate: { hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"] },
+    });
+
+    expect(request.fields["hvac[k1].hvacSystemEquipmentType"]?.required).toBe(true);
+    expect(request.fields["hvac[k1].hvacUpgradeAction"]?.required).toBe(true);
+    expect(request.fields["hvac[k2].hvacSystemEquipmentType"]?.required).toBe(true);
+    expect(request.fields["hvac[k2].hvacUpgradeAction"]?.required).toBe(true);
+    // A non-required leaf in the same group stays false, and a leaf from another group is untouched.
+    expect(request.fields["hvac[k1].hvacHeatingEnergySource"]?.required).toBe(false);
+  });
+
+  test("requiredOnCreate per group leaves singleton group leaves unmarked unless declared", () => {
+    // `withCollectionsSchema` has no singleton groups; `atticSchema` does. Reusing the same
+    // per-group logic for a non-collection group proves singletons are unaffected.
+    const request = buildReviewRequest({}, transcript, atticSchema, {
+      requiredOnCreate: { healthSafety: ["ambientCo"] },
+    });
+
+    expect(request.fields["healthSafety.ambientCo"]?.required).toBe(true);
+    expect(request.fields.rValue?.required).toBe(false);
+    expect(request.fields.notes?.required).toBe(false);
+  });
+});
+
+describe("resolveReview — keyed instance paths reassemble into positional arrays", () => {
+  test("a keyed path rebuilds as an array, not an object whose key is the literal bracket text", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+      ],
+    });
+    const paths = Object.keys(request.fields);
+
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(paths),
+    });
+
+    if (outcome.status !== "accepted") throw new Error("unreachable");
+    expect(outcome.fields.hvac).toEqual([
+      {
+        hvacSystemEquipmentType: "Boiler",
+        hvacHeatingEnergySource: "Fuel Oil",
+        hvacUpgradeAction: "Keep",
+      },
+    ]);
+    expect("hvac[k1]" in outcome.fields).toBe(false);
+    expect(Array.isArray(outcome.fields.hvac)).toBe(true);
+    expect(outcome.linkTargets).toEqual({ hvac: [null] });
+  });
+
+  test("an instance whose every leaf was rejected is absent from the patch, not an empty record", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+        {
+          hvacSystemEquipmentType: { value: "Furnace", confidence: 1, sourceSpan: "furnace" },
+          hvacHeatingEnergySource: { value: "Natural Gas", confidence: 1, sourceSpan: "gas" },
+          hvacUpgradeAction: { value: "Replace", confidence: 1, sourceSpan: "replace" },
+        },
+      ],
+    });
+    const paths = Object.keys(request.fields);
+    const decisions: FieldDecisions = Object.fromEntries(
+      paths.map((path): [string, FieldDecision] => {
+        if (path.startsWith("hvac[k1].")) {
+          return [path, { status: "rejected" as const }];
+        }
+        return [path, { status: "accepted" as const }];
+      }),
+    );
+
+    const outcome = resolveReview(request, { status: "submitted", decisions });
+
+    if (outcome.status !== "edited") throw new Error("unreachable");
+    expect(outcome.rejectedFields).toHaveLength(3);
+    const firstSurvivor = outcome.fields.hvac as unknown as Record<string, unknown>[];
+    expect(firstSurvivor).toHaveLength(1);
+    expect(firstSurvivor[0]).toEqual({
+      hvacSystemEquipmentType: "Furnace",
+      hvacHeatingEnergySource: "Natural Gas",
+      hvacUpgradeAction: "Replace",
+    });
+  });
+
+  test("a present-but-empty collection resolves to an empty array", () => {
+    const request = collectionRequestFor({
+      hvac: [],
+      dhw: [{ dhwType2: { value: "Tank Water Heater", confidence: 1, sourceSpan: "tank" } }],
+    });
+    const paths = Object.keys(request.fields);
+
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(paths),
+    });
+
+    if (outcome.status !== "accepted") throw new Error("unreachable");
+    expect(outcome.fields.hvac).toEqual([]);
+    expect(outcome.fields.dhw).toEqual([{ dhwType2: "Tank Water Heater" }]);
+    expect(outcome.linkTargets).toEqual({ dhw: [null] });
+  });
+
+  test("a group absent from extraction yields no key, distinct from present-but-empty []", () => {
+    const request = collectionRequestFor({
+      dhw: [{ dhwType2: { value: "Tank Water Heater", confidence: 1, sourceSpan: "tank" } }],
+    });
+
+    expect(request.presentButEmpty).toEqual([]);
+
+    const paths = Object.keys(request.fields);
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(paths),
+    });
+
+    if (outcome.status !== "accepted") throw new Error("unreachable");
+    expect("hvac" in outcome.fields).toBe(false);
+    expect(outcome.fields.dhw).toEqual([{ dhwType2: "Tank Water Heater" }]);
+    expect(outcome.linkTargets).toEqual({ dhw: [null] });
+  });
+
+  test("removing the first instance does not reattach the remaining decisions to shifted positions", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "First", confidence: 1, sourceSpan: "first" },
+          hvacHeatingEnergySource: { value: "Electricity", confidence: 1, sourceSpan: "elec1" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep1" },
+        },
+        {
+          hvacSystemEquipmentType: { value: "Second", confidence: 1, sourceSpan: "second" },
+          hvacHeatingEnergySource: { value: "Natural Gas", confidence: 1, sourceSpan: "gas2" },
+          hvacUpgradeAction: { value: "Replace", confidence: 1, sourceSpan: "replace2" },
+        },
+        {
+          hvacSystemEquipmentType: { value: "Third", confidence: 1, sourceSpan: "third" },
+          hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil3" },
+          hvacUpgradeAction: { value: "Remove", confidence: 1, sourceSpan: "remove3" },
+        },
+      ],
+    });
+    const paths = Object.keys(request.fields);
+    const decisions: FieldDecisions = Object.fromEntries(
+      paths.map((path): [string, FieldDecision] => {
+        if (path.startsWith("hvac[k1].")) {
+          return [path, { status: "rejected" as const }];
+        }
+        return [path, { status: "accepted" as const }];
+      }),
+    );
+
+    const outcome = resolveReview(request, { status: "submitted", decisions });
+
+    if (outcome.status !== "edited") throw new Error("unreachable");
+    const afterRemoval = outcome.fields.hvac as unknown as Record<string, unknown>[];
+    expect(afterRemoval).toHaveLength(2);
+    // First-mention order among the surviving keys is k2, then k3.
+    expect(afterRemoval[0]).toEqual({
+      hvacSystemEquipmentType: "Second",
+      hvacHeatingEnergySource: "Natural Gas",
+      hvacUpgradeAction: "Replace",
+    });
+    expect(afterRemoval[1]).toEqual({
+      hvacSystemEquipmentType: "Third",
+      hvacHeatingEnergySource: "Fuel Oil",
+      hvacUpgradeAction: "Remove",
+    });
+    expect(outcome.linkTargets).toEqual({ hvac: [null, null] });
+  });
+
+  test("two instances resolve to array positions in first-mention order", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "First", confidence: 1, sourceSpan: "first" },
+          hvacHeatingEnergySource: { value: "Electricity", confidence: 1, sourceSpan: "elec" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+        {
+          hvacSystemEquipmentType: { value: "Second", confidence: 1, sourceSpan: "second" },
+          hvacHeatingEnergySource: { value: "Natural Gas", confidence: 1, sourceSpan: "gas" },
+          hvacUpgradeAction: { value: "Replace", confidence: 1, sourceSpan: "replace" },
+        },
+      ],
+    });
+    const paths = Object.keys(request.fields);
+
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(paths),
+    });
+
+    if (outcome.status !== "accepted") throw new Error("unreachable");
+    const orderedHvac = outcome.fields.hvac as unknown as Record<string, unknown>[];
+    expect(orderedHvac[0]).toEqual({
+      hvacSystemEquipmentType: "First",
+      hvacHeatingEnergySource: "Electricity",
+      hvacUpgradeAction: "Keep",
+    });
+    expect(orderedHvac[1]).toEqual({
+      hvacSystemEquipmentType: "Second",
+      hvacHeatingEnergySource: "Natural Gas",
+      hvacUpgradeAction: "Replace",
+    });
+    expect(outcome.linkTargets).toEqual({ hvac: [null, null] });
+  });
+
+  test("rejecting every leaf of every instance leaves the group key absent", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+      ],
+    });
+
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(Object.keys(request.fields), "rejected"),
+    });
+
+    if (outcome.status !== "edited") throw new Error("unreachable");
+    expect("hvac" in outcome.fields).toBe(false);
+    expect(outcome.fields).toEqual({});
+  });
+});
+
+describe("resolveReview — instance identity: link only when the human decides", () => {
+  const oneExistingRecord: readonly ExistingRecord[] = [
+    { uuid: "hvac-existing-1", fields: { hvacSystemEquipmentType: "Boiler" } },
+  ];
+
+  test("exactly one existing record and a perfect match still creates without a link decision", () => {
+    // This is the anti-regression test for the rejected auto-link draft: even when every
+    // captured identifying field matches, the absence of a human decision means create.
+    const request = collectionRequestFor(
+      {
+        hvac: [
+          {
+            hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+            hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+            hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+          },
+        ],
+      },
+      { hvac: oneExistingRecord },
+    );
+    const paths = Object.keys(request.fields);
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(paths),
+    });
+
+    if (outcome.status !== "accepted") throw new Error("unreachable");
+    expect(outcome.linkTargets).toEqual({ hvac: [null] });
+  });
+
+  test("a link decision survives resolveReview and reaches the patch as an update target", () => {
+    const request = collectionRequestFor(
+      {
+        hvac: [
+          {
+            hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+            hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+            hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+          },
+        ],
+      },
+      { hvac: oneExistingRecord },
+    );
+    const paths = Object.keys(request.fields);
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(paths),
+      instanceLinks: { "hvac[k1]": { kind: "link", uuid: "hvac-existing-1" } },
+    });
+
+    if (outcome.status !== "accepted") throw new Error("unreachable");
+    expect(outcome.linkTargets).toEqual({ hvac: ["hvac-existing-1"] });
+    expect(outcome.fields.hvac).toEqual([
+      {
+        hvacSystemEquipmentType: "Boiler",
+        hvacHeatingEnergySource: "Fuel Oil",
+        hvacUpgradeAction: "Keep",
+      },
+    ]);
+  });
+
+  test("a link decision for an unknown instance path is rejected", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+      ],
+    });
+    const paths = Object.keys(request.fields);
+
+    expect(() =>
+      resolveReview(request, {
+        status: "submitted",
+        decisions: decisionsFor(paths),
+        instanceLinks: { "hvac[k9]": { kind: "link", uuid: "does-not-matter" } },
+      }),
+    ).toThrow(ReviewValidationError);
+  });
+
+  test("rejecting every leaf of a linked instance removes the link target", () => {
+    // A link decision on an instance that is removed from the patch must not leave a
+    // dangling update target, or the write step would target a record with no fields.
+    const request = collectionRequestFor(
+      {
+        hvac: [
+          {
+            hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+            hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+            hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+          },
+        ],
+      },
+      { hvac: oneExistingRecord },
+    );
+    const paths = Object.keys(request.fields);
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(paths, "rejected"),
+      instanceLinks: { "hvac[k1]": { kind: "link", uuid: "hvac-existing-1" } },
+    });
+
+    if (outcome.status !== "edited") throw new Error("unreachable");
+    expect("hvac" in outcome.fields).toBe(false);
+    expect(outcome.linkTargets).toBeUndefined();
+  });
+});
+
+// --- Type-level tests continue below ---------------------------------------
+
+test("the Extractor seam has no structural parameter for existing records", () => {
+  // Existing records enter at review, never at extraction. The public Extractor<F> contract
+  // has exactly one parameter: the transcript. A caller can still smuggle records in a
+  // closure, but they cannot do it by changing the signature — this structural check catches
+  // the obvious call-site leak. The residual is honest: a closure can capture anything.
+  type Params = Parameters<Extractor<unknown>["extract"]>;
+  type ExactlyOneString = [string] extends Params
+    ? Params extends [string]
+      ? true
+      : false
+    : false;
+  const _assert: ExactlyOneString = true;
+  void _assert;
 });

@@ -80,3 +80,46 @@ test("every per-group schema nests within the depth cap", () => {
     );
   }
 });
+
+/**
+ * R1.6 Task 5 made the five per-instance groups (`hvac`, `attic`, `wall`,
+ * `window`, `dhw`) arrays of instances. The real `snuggExtractionSchema` now carries
+ * that shape, so the first two tests above already exercise the cap against the
+ * array-wrapped groups. This test asserts the split still produces one entry per
+ * group, and that the collection groups are actually arrays in the derived schema.
+ */
+test("the real derived schema splits collection groups as arrays and stays under the caps", () => {
+  const groups = splitExtractionSchema(snuggExtractionSchema);
+  expect(groups.map((g) => g.key)).toEqual([
+    "basedata",
+    "hvac",
+    "attic",
+    "wall",
+    "window",
+    "dhw",
+    "health",
+  ]);
+
+  const collectionKeys = new Set(["hvac", "attic", "wall", "window", "dhw"]);
+  for (const group of groups) {
+    const shape = (group.schema as z.ZodObject).shape;
+    const inner = shape[group.key];
+    if (collectionKeys.has(group.key)) {
+      expect(inner, `group "${group.key}" must be a ZodArray`).toBeInstanceOf(z.ZodArray);
+    } else {
+      expect(inner, `group "${group.key}" must remain a ZodObject`).toBeInstanceOf(z.ZodObject);
+    }
+
+    const jsonSchema = z.toJSONSchema(group.schema, { target: "draft-2020-12" });
+    const serialized = JSON.stringify(jsonSchema);
+    expect(
+      serialized.length,
+      `group "${group.key}" serialized schema is ${serialized.length} characters`,
+    ).toBeLessThan(SCHEMA_SERIALIZED_CHAR_CAP);
+
+    const depth = maxNestingDepth(jsonSchema, 0);
+    expect(depth, `group "${group.key}" nests ${depth} levels`).toBeLessThanOrEqual(
+      SCHEMA_NESTING_DEPTH_CAP,
+    );
+  }
+});

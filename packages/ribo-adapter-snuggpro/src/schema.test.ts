@@ -35,6 +35,7 @@ const valid = (): SnuggExtraction => structuredClone(fixture.fields);
  * shapes as code.
  */
 const unwrap = (node: unknown): unknown => {
+  if (Array.isArray(node)) return node.map(unwrap);
   if (typeof node === "object" && node !== null && "value" in node) {
     return (node as { value: unknown }).value;
   }
@@ -57,7 +58,7 @@ describe("snuggExtractionSchema — what the model is asked to produce", () => {
     // EXTRACTION property: `confidence` is an envelope field and the patch has no
     // such key, so there is nowhere else this could be asserted.
     const fields = valid();
-    fields.hvac.hvacSystemEquipmentType.confidence = 1.5;
+    fields.hvac![0]!.hvacSystemEquipmentType.confidence = 1.5;
     expect(() => snuggExtractionSchema.parse(fields)).not.toThrow();
   });
 
@@ -67,7 +68,7 @@ describe("snuggExtractionSchema — what the model is asked to produce", () => {
     // is `hvacHeatingEnergySource`, never part of the equipment name. The enum is
     // declared on the PATCH; this asserts the derivation carries it through rather
     // than widening the leaf on the way into the envelope.
-    (fields.hvac.hvacSystemEquipmentType as { value: unknown }).value = "Oil Boiler";
+    (fields.hvac![0]!.hvacSystemEquipmentType as { value: unknown }).value = "Oil Boiler";
     expect(() => snuggExtractionSchema.parse(fields)).toThrow();
   });
 
@@ -77,7 +78,7 @@ describe("snuggExtractionSchema — what the model is asked to produce", () => {
     // if the schema tolerated it, every enum leaf would need a normalization pass
     // that this design deliberately does not have.
     const fields = valid();
-    (fields.hvac.hvacDuctLeakage as { value: unknown }).value = "6% - well sealed";
+    (fields.hvac![0]!.hvacDuctLeakage as { value: unknown }).value = "6% - well sealed";
     expect(() => snuggExtractionSchema.parse(fields)).toThrow();
   });
 
@@ -103,7 +104,7 @@ describe("snuggExtractionSchema — what the model is asked to produce", () => {
     // below — the two shapes differ in optionality by construction, and that is
     // the design rather than a leak.
     const fields = valid();
-    delete (fields.wall as unknown as Record<string, unknown>).wallsInsulated;
+    delete (fields.attic[0] as unknown as Record<string, unknown>).atticInsulationDepth;
     expect(() => snuggExtractionSchema.parse(fields)).toThrow();
   });
 
@@ -138,7 +139,7 @@ describe("snuggExtractionSchema — what the model is asked to produce", () => {
   test("a leaf envelope must carry all three keys", () => {
     const fields = valid();
     // missing `confidence`
-    (fields.hvac as unknown as Record<string, unknown>).hvacHeatingEnergySource = {
+    (fields.hvac![0]! as unknown as Record<string, unknown>).hvacHeatingEnergySource = {
       value: "Fuel Oil",
       sourceSpan: "it's an oil boiler",
     };
@@ -156,10 +157,10 @@ describe("snuggValuesSchema — the writable patch", () => {
     // that makes field-level review possible at all: rejecting one leaf of 51 must
     // still write the other 50 rather than fail the whole write (design §2.1).
     const fields = validValues();
-    delete (fields.hvac as Record<string, unknown>).hvacHeatingSystemModel;
+    delete (fields.hvac![0]! as Record<string, unknown>).hvacHeatingSystemModel;
     const parsed = snuggValuesSchema.parse(fields);
-    expect("hvacHeatingSystemModel" in (parsed.hvac ?? {})).toBe(false);
-    expect(parsed.hvac?.hvacSystemEquipmentType).toBe("Boiler");
+    expect("hvacHeatingSystemModel" in (parsed.hvac?.[0] ?? {})).toBe(false);
+    expect(parsed.hvac?.[0]?.hvacSystemEquipmentType).toBe("Boiler");
   });
 
   test("the empty patch parses — a review that rejected everything writes nothing", () => {
@@ -171,9 +172,9 @@ describe("snuggValuesSchema — the writable patch", () => {
     // a present `null` means "write it as empty" — Snugg Pro's `"Not Tested"`. The
     // patch must be able to say both, so `.nullable()` and `.optional()` are two
     // separate load-bearing halves, not a redundant pair.
-    const parsed = snuggValuesSchema.parse({ hvac: { hvacHeatingEnergySource: null } });
-    expect("hvacHeatingEnergySource" in (parsed.hvac ?? {})).toBe(true);
-    expect(parsed.hvac?.hvacHeatingEnergySource).toBeNull();
+    const parsed = snuggValuesSchema.parse({ hvac: [{ hvacHeatingEnergySource: null }] });
+    expect("hvacHeatingEnergySource" in (parsed.hvac?.[0] ?? {})).toBe(true);
+    expect(parsed.hvac?.[0]?.hvacHeatingEnergySource).toBeNull();
   });
 
   test("each resource group is optional as a whole, and nullable per leaf", () => {
@@ -190,13 +191,13 @@ describe("snuggValuesSchema — the writable patch", () => {
     // The split-axis rule is declared HERE, on the values; the extraction schema
     // inherits it. Asserting it on both is what shows the derivation preserved it.
     expect(() =>
-      snuggValuesSchema.parse({ hvac: { hvacSystemEquipmentType: "Oil Boiler" } }),
+      snuggValuesSchema.parse({ hvac: [{ hvacSystemEquipmentType: "Oil Boiler" }] }),
     ).toThrow();
   });
 
   test("leaf types are still checked — a patch is optional, not untyped", () => {
     expect(() =>
-      snuggValuesSchema.parse({ hvac: { hvacHeatingSystemModelYear: "two thousand four" } }),
+      snuggValuesSchema.parse({ hvac: [{ hvacHeatingSystemModelYear: "two thousand four" }] }),
     ).toThrow();
   });
 
@@ -223,5 +224,60 @@ describe("snuggValuesSchema — the writable patch", () => {
     // interchangeable and the split would be decoration.
     expect(snuggValuesSchema.safeParse(valid()).success).toBe(false);
     expect(snuggExtractionSchema.safeParse(validValues()).success).toBe(false);
+  });
+
+  test("accepts multiple instances per collection group", () => {
+    const twoHvac = {
+      hvac: [
+        { hvacSystemEquipmentType: "Boiler", hvacUpgradeAction: "Keep an existing system as is" },
+        {
+          hvacSystemEquipmentType: "Central Heat Pump (shared ducts)",
+          hvacUpgradeAction: "Replace with a newer model",
+        },
+      ],
+    };
+    const parsed = snuggValuesSchema.parse(twoHvac);
+    expect(parsed.hvac).toHaveLength(2);
+    expect(parsed.hvac?.[0]?.hvacSystemEquipmentType).toBe("Boiler");
+    expect(parsed.hvac?.[1]?.hvacSystemEquipmentType).toBe("Central Heat Pump (shared ducts)");
+  });
+
+  test("rejects a bare object where a collection group expects an array", () => {
+    expect(() =>
+      snuggValuesSchema.parse({
+        hvac: {
+          hvacSystemEquipmentType: "Boiler",
+          hvacUpgradeAction: "Keep an existing system as is",
+        },
+      }),
+    ).toThrow();
+  });
+
+  test("singleton groups still reject arrays", () => {
+    // `basedata` and `health` are genuine API singletons. A dictation cannot describe
+    // two houses or two health matrices for the same job, so the patch shape must
+    // refuse an array for them.
+    expect(() => snuggValuesSchema.parse({ basedata: [{ yearBuilt: 2000 }] })).toThrow();
+    expect(() =>
+      snuggValuesSchema.parse({ health: [{ healthAmbientCarbonMonoxide: "Passed" }] }),
+    ).toThrow();
+  });
+
+  test("round-trips a patch with two HVAC instances unchanged", () => {
+    const original = {
+      hvac: [
+        {
+          hvacSystemEquipmentType: "Boiler",
+          hvacUpgradeAction: "Keep an existing system as is",
+          hvacHeatingEnergySource: "Fuel Oil",
+        },
+        {
+          hvacSystemEquipmentType: "Central Heat Pump (shared ducts)",
+          hvacUpgradeAction: "Replace with a newer model",
+          hvacHeatingEnergySource: "Electricity",
+        },
+      ],
+    };
+    expect(snuggValuesSchema.parse(original)).toEqual(original);
   });
 });

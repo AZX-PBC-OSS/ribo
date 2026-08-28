@@ -20,13 +20,36 @@ export type { ExtractionGroup } from "./split-schema.js";
 // The per-group managed-LLM extractor (R3 Task 2) — one chat call per top-level
 // group, concurrently with a bounded pool, assembled into one result. The
 // sibling of `singleShotExtractor`; same `Extractor` seam.
-export { perGroupExtractor } from "./per-group.js";
+export {
+  perGroupArrayExtractor,
+  perGroupExtractor,
+  perGroupSingletonExtractor,
+} from "./per-group.js";
 export type { PerGroupOptions } from "./per-group.js";
+
+// Task 16 — the R1.6 instance-modeling strategy ladder: three tiers composed
+// through `fallbackExtractor` so that the strongest strategy can fall back to
+// weaker ones, with the accepted tier stamped on `usage.strategy`.
+export { instanceLadder } from "./instance-ladder.js";
+export type { InstanceLadderOptions } from "./instance-ladder.js";
 
 // Per-group prompt assembly: `buildGroupMessages` builds per-group chat messages
 // (instructions + projected examples + transcript), and `projectExample` narrows
 // a few-shot example to a single group's key. Exported for testing (R3 Task 4).
 export { buildGroupMessages, projectExample } from "./extraction-common.js";
+
+// The Task 9 inventory-pass extraction phase: one house-wide call that returns a
+// roster of candidate instances per collection group, parsed through a supplied
+// roster schema.
+export { extractInventory } from "./inventory.js";
+export type { InventoryOptions } from "./inventory.js";
+
+// Task 10 — scoped per-instance fills and assembly: one inventory call followed by
+// one fill call per current instance, with a scope block that names siblings and
+// excluded candidates. Exports the extractor, prompt assembly helpers, and the
+// generic roster/fill-scope types that the adapter's `buildFillInstructions` consumes.
+export { buildFillMessages, projectFillExample, scopedInstanceExtractor } from "./instance-fill.js";
+export type { FillScope, Roster, RosterCandidate, ScopedFillOptions } from "./instance-fill.js";
 
 // The OpenAI-compatible chat transport and its options.
 export { openAiChat } from "./openai-chat.js";

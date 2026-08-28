@@ -1,35 +1,120 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/10-crawlspace-loose-units.txt",
   "stresses": "A multi-house scoping preamble and an explicit off-topic digression about a neighboring house's DIFFERENT system (an oil boiler) that the auditor pointedly disclaims applies here -- a distractor that must not leak into this house's HVAC leaves, and is not a rule-5 retraction (never asserted for THIS house in the first place). Three distinct numeric readings requiring careful disambiguation by pressure/purpose (CFM25 duct-blaster at 25 Pa = 210, CFM50 blower door at 50 Pa = 3600, and a derived ACH50 = 8 that has no write target at all), which the auditor themselves is careful to keep straight ('I always get asked which is which'). A schema-directed override on hvac.hvacDuctLeakage: a qualitative 'somewhat leaky' impression is superseded by 'Measured (CFM25)' once an actual duct-blaster number is read, per schema.ts's own explicit per-leaf instruction (mechanical, not an annotator judgment call or a rule-5 retraction -- no 'no wait' language was used). A cleanly-stated, non-conflated hvacSystemEquipmentType ('central heat pump on the shared ducts' -- both axes explicit, unlike the worked example's furnace case). A coreference-dependent DHW location ('sitting in the crawl too') whose 'unconditioned' status is only established three sentences earlier for the ducts, not restated for the water heater itself. A single blanket 'No attic' disclaimer. Total silence on wall, window, and all 14 health leaves.",
   "disclaimers": [
     {
       "span": "No attic on this one",
       "topic": "the attic",
-      "scope": { "kind": "group", "group": "attic" }
+      "scope": {
+        "kind": "group",
+        "group": "attic"
+      }
     }
   ],
+  "instances": {
+    "hvac": [
+      {
+        "discriminator": "the Bosch central heat pump on shared ducts, air handler in the crawl",
+        "mentionSpan": "Heating down here is a heat pump, it's a central heat pump on the shared ducts",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacDuctLocation": {
+            "status": "asserted",
+            "sourceSpan": "the crawlspace, unconditioned crawl, dirt floor down there",
+            "value": "the crawlspace, unconditioned crawl, dirt floor down there"
+          },
+          "hvacDuctInsulation": {
+            "status": "asserted",
+            "sourceSpan": "fiberglass wrap, the two-inch stuff",
+            "member": "Fiberglass 2 inch"
+          },
+          "hvacDuctLeakage": {
+            "status": "asserted",
+            "sourceSpan": "The duct leakage, that's the duct blaster at twenty-five pascals, read two hundred and ten.",
+            "member": "Measured (CFM25)"
+          },
+          "hvacDuctLeakageValue": {
+            "status": "asserted",
+            "sourceSpan": "Two-ten CFM25 on the ducts.",
+            "value": 210
+          },
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "it's a central heat pump on the shared ducts",
+            "member": "Central Heat Pump (shared ducts)"
+          },
+          "hvacHeatingEnergySource": {
+            "status": "asserted",
+            "sourceSpan": "Electric, obviously, it's a heat pump.",
+            "member": "Electricity"
+          },
+          "hvacHeatingSystemManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "A Bosch",
+            "member": "Bosch"
+          },
+          "hvacHeatingSystemModel": {
+            "status": "declared_absent",
+            "sourceSpan": "no model or year I could get to"
+          },
+          "hvacHeatingSystemModelYear": {
+            "status": "declared_absent",
+            "sourceSpan": "no model or year I could get to"
+          }
+        }
+      },
+      {
+        "discriminator": "the neighbour's oil boiler in the mirror-image house next door",
+        "mentionSpan": "The neighbor's unit, that mirror-image house, theirs is an oil boiler",
+        "distinguishedBy": "that mirror-image house",
+        "eligibility": "off-property",
+        "eligibilitySpan": "that's got nothing to do with this house, ignore that",
+        "leaves": {}
+      }
+    ],
+    "attic": [],
+    "wall": [],
+    "window": [],
+    "dhw": [
+      {
+        "discriminator": "the hybrid heat-pump water heater in the crawl",
+        "mentionSpan": "Water heater's a heat pump water heater, actually, a hybrid",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "dhwType2": {
+            "status": "asserted",
+            "sourceSpan": "a heat pump water heater",
+            "member": "Heat Pump"
+          },
+          "dhwFuel2": {
+            "status": "asserted",
+            "sourceSpan": "electric, that's a nice find",
+            "member": "Electricity"
+          },
+          "dhwAge": {
+            "status": "asserted",
+            "sourceSpan": "It's maybe six or seven years old.",
+            "member": "6-10"
+          },
+          "dhwLocation": {
+            "status": "asserted",
+            "sourceSpan": "sitting in the crawl too",
+            "member": "Garage or Unconditioned Space",
+            "arguable": {
+              "acceptableMiss": true,
+              "note": "The water heater is placed 'in the crawl too' -- the same crawlspace already characterized, three sentences earlier while discussing the ducts, as an 'unconditioned crawl, dirt floor down there.' The word 'too' ties it back to that same space, which supports reading this as an unconditioned location, but the DHW sentence itself never restates 'unconditioned,' so this requires connecting two non-adjacent statements rather than one self-contained clause. A model (or annotator) that leaves this leaf null instead of asserting 'Garage or Unconditioned Space' is a defensible, milder miss, not a wrong answer."
+            }
+          }
+        }
+      }
+    ]
+  },
   "leaves": {
-    "hvac.hvacDuctLocation": {
-      "status": "asserted",
-      "sourceSpan": "the crawlspace, unconditioned crawl, dirt floor down there",
-      "value": "the crawlspace, unconditioned crawl, dirt floor down there"
-    },
-    "hvac.hvacDuctInsulation": {
-      "status": "asserted",
-      "sourceSpan": "fiberglass wrap, the two-inch stuff",
-      "member": "Fiberglass 2 inch"
-    },
-    "hvac.hvacDuctLeakage": {
-      "status": "asserted",
-      "sourceSpan": "The duct leakage, that's the duct blaster at twenty-five pascals, read two hundred and ten.",
-      "member": "Measured (CFM25)"
-    },
-    "hvac.hvacDuctLeakageValue": {
-      "status": "asserted",
-      "sourceSpan": "Two-ten CFM25 on the ducts.",
-      "value": 210
-    },
     "basedata.blowerDoorReading": {
       "status": "asserted",
       "sourceSpan": "the number you write down for the blower door is the thirty-six hundred",
@@ -39,53 +124,6 @@
       "status": "asserted",
       "sourceSpan": "the blower door, the whole-house one at fifty pascals, that came in at thirty-six hundred CFM50",
       "member": "Tested"
-    },
-    "hvac.hvacSystemEquipmentType": {
-      "status": "asserted",
-      "sourceSpan": "it's a central heat pump on the shared ducts",
-      "member": "Central Heat Pump (shared ducts)"
-    },
-    "hvac.hvacHeatingEnergySource": {
-      "status": "asserted",
-      "sourceSpan": "Electric, obviously, it's a heat pump.",
-      "member": "Electricity"
-    },
-    "hvac.hvacHeatingSystemManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "A Bosch",
-      "member": "Bosch"
-    },
-    "hvac.hvacHeatingSystemModel": {
-      "status": "declared_absent",
-      "sourceSpan": "no model or year I could get to"
-    },
-    "hvac.hvacHeatingSystemModelYear": {
-      "status": "declared_absent",
-      "sourceSpan": "no model or year I could get to"
-    },
-    "dhw.dhwType2": {
-      "status": "asserted",
-      "sourceSpan": "a heat pump water heater",
-      "member": "Heat Pump"
-    },
-    "dhw.dhwFuel2": {
-      "status": "asserted",
-      "sourceSpan": "electric, that's a nice find",
-      "member": "Electricity"
-    },
-    "dhw.dhwAge": {
-      "status": "asserted",
-      "sourceSpan": "It's maybe six or seven years old.",
-      "member": "6-10"
-    },
-    "dhw.dhwLocation": {
-      "status": "asserted",
-      "sourceSpan": "sitting in the crawl too",
-      "member": "Garage or Unconditioned Space",
-      "arguable": {
-        "acceptableMiss": true,
-        "note": "The water heater is placed 'in the crawl too' -- the same crawlspace already characterized, three sentences earlier while discussing the ducts, as an 'unconditioned crawl, dirt floor down there.' The word 'too' ties it back to that same space, which supports reading this as an unconditioned location, but the DHW sentence itself never restates 'unconditioned,' so this requires connecting two non-adjacent statements rather than one self-contained clause. A model (or annotator) that leaves this leaf null instead of asserting 'Garage or Unconditioned Space' is a defensible, milder miss, not a wrong answer."
-      }
     }
   },
   "notes": {
@@ -93,6 +131,7 @@
     "hvac.hvacDuctLeakage": "The auditor first characterizes the ducts qualitatively ('somewhat leaky') before duct-blasting them, but schema.ts's own comment on hvacDuctLeakage says to pick 'Measured (CFM25)' specifically 'when the auditor read a duct-blaster number' -- which they explicitly did (210 CFM25). This is a mechanical rule from the schema's own per-leaf documentation, not a per-transcript judgment call and not a rule-5 retraction (no 'no wait'/'scratch that'), so 'Measured (CFM25)' is asserted cleanly with no `arguable` block -- consistent with how the same pattern is resolved on transcript 05.",
     "basedata.blowerDoorReading": "The auditor explicitly rejects deriving/reporting an ACH50 instead of the CFM50 reading ('if you want air changes, that works out to about eight ACH50, but the number you write down for the blower door is the thirty-six hundred') -- a textbook instance of rule 3's 'do not derive an ACH50 from a CFM50' trap, correctly resisted by not recording the 8 ACH50 anywhere in this file.",
     "hvac.hvacHeatingCapacity": "No BTU/tonnage is ever stated for this heat pump; genuinely unmentioned, not a dropped value.",
-    "_general": "Walls, windows, and all 14 health-endpoint leaves (13 tests plus healthRoofCondition) are never mentioned at all in this transcript, not even by a blanket dismissal -- so no disclaimer was written for them; they resolve to 'unmentioned' by the ordinary default. 'the air handler's in the crawl' and 'it's crammed up in a tight spot' have no dedicated leaf (no air-handler-location/accessibility field in hvac) and are excluded per rule 9."
+    "_general": "Walls, windows, and all 14 health-endpoint leaves (13 tests plus healthRoofCondition) are never mentioned at all in this transcript, not even by a blanket dismissal -- so no disclaimer was written for them; they resolve to 'unmentioned' by the ordinary default. 'the air handler's in the crawl' and 'it's crammed up in a tight spot' have no dedicated leaf (no air-handler-location/accessibility field in hvac) and are excluded per rule 9.",
+    "instances.hvac[1]": "THE DECOY, now recorded as data. The neighbour's oil boiler is described in real detail and then disclaimed -- and it is off-PROPERTY rather than decommissioned, which is a different exclusion reason and graded as such. An eager segmenter promotes it to a second current instance, which is the over-segmentation failure the extraction design's merge-by-default rule exists to make expensive. Empty `leaves` for the same reason as 12: an excluded instance is never written."
   }
 }

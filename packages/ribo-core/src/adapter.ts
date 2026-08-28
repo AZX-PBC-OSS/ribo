@@ -1,7 +1,22 @@
 import type { core, ZodObject, ZodType } from "zod";
 
 import type { Enveloped } from "./enveloped.js";
-import type { FieldPath } from "./field-path.js";
+/**
+ * Required-on-create declarations per group.
+ *
+ * Keys are the group path (e.g. `"hvac"`), and values are the leaf names within
+ * that group (e.g. `["hvacSystemEquipmentType", "hvacUpgradeAction"]`). A record is
+ * used instead of a flat list of full paths because a collection group has N
+ * instances, and the same two leaves are required for every one of them; full
+ * paths with instance keys are not known until the data arrives. This shape lets
+ * {@link buildReviewRequest} mark the matching leaves on every emitted instance
+ * without the adapter having to enumerate keyed paths.
+ *
+ * The leaf names are local to the group, not full dotted paths, because the group
+ * is the create-end boundary: Snugg Pro requires these two fields to create an
+ * HVAC record, not to create any record anywhere.
+ */
+export type RequiredOnCreate = Readonly<Record<string, readonly string[]>>;
 
 /**
  * An object schema that is both **walkable** and **binding**: it has a `shape`, so
@@ -186,27 +201,28 @@ export interface ToolAdapter<V extends Record<string, unknown>, C> {
   readonly ctxSchema: ZodType<C>;
   /** Natural-language guidance for the extractor: what each field means. */
   /**
-   * Leaf paths the host tool refuses to CREATE the record without.
+   * Leaf names, grouped by the group that owns the create endpoint, that the host
+   * tool refuses to CREATE the record without.
    *
    * Surfaced to a human during review (`ReviewField.required`), so a write that
    * would be rejected by the host becomes a question asked while the auditor is
    * still on site rather than a dead queue row found that evening.
    *
-   * **A list here rather than metadata on `schema`.** zod `.meta()` propagates
-   * through `enveloped()` into the derived extraction schema and lands in the
-   * JSON Schema sent to the model, where an unknown keyword is what strict
-   * structured-output mode rejects. The cost of a parallel list is drift, so an
-   * adapter must pin it: assert every path here appears in
-   * `buildReviewRequest(...).fields`, which fails loudly on a typo or a rename
-   * instead of silently marking nothing required.
+   * **A parallel declaration here rather than metadata on `schema`.** zod `.meta()`
+   * propagates through `enveloped()` into the derived extraction schema and lands
+   * in the JSON Schema sent to the model, where an unknown keyword is what strict
+   * structured-output mode rejects. The cost of a parallel declaration is drift, so
+   * an adapter must pin it: assert every group and every leaf named here appears in
+   * `schema`, which fails loudly on a typo or a rename instead of silently marking
+   * nothing required.
    *
-   * **Interim shape.** Requiredness is really a property of *(leaf, create
-   * endpoint)* — a host tool typically requires different fields to create a
-   * heating system than to create an attic — and nothing here models endpoints
-   * yet. A flat list is honest for a single-component pilot and gets regenerated
-   * once components are modeled; see the roadmap's instance-modeling item.
+   * Declared per group, not per instance path, because a collection group has N
+   * instances and the same leaves are required for every one of them. A flat list
+   * of full paths would need to know instance keys (`hvac[k1].hvacSystemEquipmentType`)
+   * that only exist after extraction; this shape marks the leaves on every instance
+   * as review builds the request.
    */
-  readonly requiredOnCreate?: readonly FieldPath[];
+  readonly requiredOnCreate?: RequiredOnCreate;
   readonly instructions: string;
   /** Optional few-shot examples, in the enveloped shape the model emits. */
   readonly examples?: readonly ToolAdapterExample<Enveloped<V>>[];

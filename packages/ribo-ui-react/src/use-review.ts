@@ -1,18 +1,29 @@
-import type { z } from "zod";
+import { z } from "zod";
 import type {
+  ExistingRecord,
   FieldDecision,
   FieldDecisions,
   FieldPath,
+  InstanceLinkDecision,
   Outbox,
   OutboxItem,
   PersistedReviewOutcome,
+  RankedCandidate,
+  RequiredOnCreate,
   ReviewFields,
   ReviewIssue,
   ReviewOutcome,
   ReviewRequest,
+  ReviewSubmission,
   Transcript,
 } from "@azx/ribo-core";
-import { buildReviewRequest, resolveReview, ReviewValidationError } from "@azx/ribo-core";
+import {
+  buildReviewRequest,
+  parseFieldPath,
+  resolveReview,
+  ReviewValidationError,
+  stripOptionalNullable,
+} from "@azx/ribo-core";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useRiboInstance } from "./use-ribo-instance.js";
@@ -35,22 +46,42 @@ export interface UseReviewOptions {
    */
   readonly valuesSchema: z.ZodObject;
   /**
-   * Leaf paths the host tool refuses to CREATE the record without — passed straight
-   * through to `buildReviewRequest`'s `requiredOnCreate`, so each named leaf's own
-   * `ReviewField.required` is `true` and a card can mark it and refuse a submit
-   * that leaves it empty.
+   * Leaf names grouped by the group that owns the create endpoint — passed straight
+   * through to `buildReviewRequest`'s `requiredOnCreate`, so each named leaf on every
+   * instance of its group has `ReviewField.required` set to `true`. A card can mark
+   * it and refuse a submit that leaves it empty.
    *
    * Hosts pass `adapter.requiredOnCreate` (`ToolAdapter.requiredOnCreate`) here — the
    * same reason `valuesSchema` above takes the schema and not the adapter: this hook
-   * needs the one list, not the whole `ToolAdapter`. Omitted paths are simply never
-   * required, which is what "the adapter declares nothing" already means on the core
-   * side.
+   * needs the one declaration, not the whole `ToolAdapter`. Omitted groups and leaves
+   * are simply never required, which is what "the adapter declares nothing" already
+   * means on the core side.
    *
    * **Hold it still, like `valuesSchema`.** It is also a `useMemo` dependency; an
-   * inline array literal is a new reference every render and rebuilds `fields` on
+   * inline object literal is a new reference every render and rebuilds `fields` on
    * every render along with it.
    */
-  readonly requiredOnCreate?: readonly FieldPath[];
+  readonly requiredOnCreate?: RequiredOnCreate;
+  /**
+   * Existing records of each collection group, keyed by the group path (e.g. `"hvac"`).
+   *
+   * These are surfaced at review for a human to link a dictated instance against. They
+   * never enter the extraction step; the host supplies them after extraction has produced
+   * its grounded values. Absent groups mean no existing records.
+   */
+  readonly existingRecords?: Readonly<Record<string, readonly ExistingRecord[]>>;
+  /**
+   * Tool-specific ordering of existing records for one instance.
+   *
+   * A candidate with a contradicting captured identifying field is demoted to the end of
+   * the list; the strongest non-contradicting candidate may be pre-highlighted. The hook
+   * never links automatically — this is only for display order.
+   */
+  readonly rankCandidates?: (
+    group: string,
+    instance: Record<string, unknown>,
+    existing: readonly ExistingRecord[],
+  ) => readonly RankedCandidate[];
   /** Bypasses the provider. What the tests inject through. */
   readonly outbox?: Outbox;
 }
@@ -80,6 +111,22 @@ export interface UseReviewResult {
    * {@link UseReviewResult.error}`.issues`.
    */
   readonly errors: Readonly<Record<FieldPath, string>>;
+  /** Existing records of each collection group, if any were supplied. */
+  readonly existingRecords: Readonly<Record<string, readonly ExistingRecord[]>> | undefined;
+  /** Groups that appeared in the extracted data as empty arrays, so the card can offer an add affordance. */
+  readonly presentButEmpty: readonly string[] | undefined;
+  /** The current link-or-create decision for an instance path, or `undefined` if the path is not a known instance. */
+  readonly linkDecisionOf: (instancePath: string) => InstanceLinkDecision | undefined;
+  /** Decide to link an instance to an existing record. */
+  readonly linkInstance: (instancePath: string, uuid: string) => void;
+  /** Decide to create a new record for an instance. */
+  readonly createInstance: (instancePath: string) => void;
+  /** Existing records ordered by the tool-specific contradiction check for an instance, or `undefined` if none. */
+  readonly rankedCandidatesOf: (instancePath: string) => readonly RankedCandidate[] | undefined;
+  /** Add a new, all-empty instance to a collection group. */
+  readonly addInstance: (group: string) => void;
+  /** Remove a collection instance and remap the remaining instances' decisions to their new keys. */
+  readonly removeInstance: (instancePath: string) => void;
   readonly submit: () => Promise<ReviewOutcome>;
   readonly discard: (reason?: string) => Promise<ReviewOutcome>;
   readonly submitting: boolean;
@@ -106,7 +153,10 @@ export interface UseReviewResult {
  */
 interface ReviewState {
   readonly forItem: string | undefined;
+  /** A local copy of `item.extracted` that may have instances added or removed by the reviewer. */
+  readonly extractedSnapshot: Record<string, unknown> | undefined;
   readonly decisions: Readonly<Record<FieldPath, FieldDecision>>;
+  readonly instanceLinks: Readonly<Record<string, InstanceLinkDecision>>;
   readonly errors: Readonly<Record<FieldPath, string>>;
   readonly submitting: boolean;
   readonly error: Error | undefined;
@@ -116,7 +166,9 @@ interface ReviewState {
 /** What a card shows for an item it holds nothing about — including a different one. */
 const NOTHING: ReviewState = {
   forItem: undefined,
+  extractedSnapshot: undefined,
   decisions: {},
+  instanceLinks: {},
   errors: {},
   submitting: false,
   error: undefined,
@@ -157,14 +209,109 @@ const withoutPath = (
  * 51 leaves and keeps this boundary a real value conversion rather than a type
  * assertion papering over it.
  */
-const toPersisted = (outcome: ReviewOutcome): PersistedReviewOutcome =>
-  outcome.status === "edited"
-    ? {
-        ...outcome,
-        editedFields: [...outcome.editedFields],
-        rejectedFields: [...outcome.rejectedFields],
-      }
-    : outcome;
+const toPersisted = (outcome: ReviewOutcome): PersistedReviewOutcome => {
+  if (outcome.status === "discarded") return outcome;
+  const mutable =
+    outcome.status === "accepted"
+      ? { status: "accepted" as const, fields: { ...outcome.fields } }
+      : {
+          status: "edited" as const,
+          fields: { ...outcome.fields },
+          editedFields: [...outcome.editedFields],
+          rejectedFields: [...outcome.rejectedFields],
+        };
+  if (outcome.linkTargets) {
+    return {
+      ...mutable,
+      linkTargets: Object.fromEntries(
+        Object.entries(outcome.linkTargets).map(([group, targets]) => [group, [...targets]]),
+      ),
+    };
+  }
+  return mutable;
+};
+
+// ---------------------------------------------------------------------------
+// Instance add/remove helpers
+// ---------------------------------------------------------------------------
+
+/** Deep clone a plain-JSON extraction so the local snapshot can be mutated safely. */
+const cloneExtracted = (extracted: Record<string, unknown>): Record<string, unknown> =>
+  JSON.parse(JSON.stringify(extracted)) as Record<string, unknown>;
+
+/** Append an all-empty instance to `extracted[group]`, creating the array if absent. */
+const addInstanceToSnapshot = (
+  extracted: Record<string, unknown>,
+  group: string,
+): Record<string, unknown> => {
+  const clone = cloneExtracted(extracted);
+  const current = clone[group];
+  clone[group] = Array.isArray(current) ? [...current, {}] : [{}];
+  return clone;
+};
+
+/** Remove the instance at `index` from `extracted[group]`. */
+const removeInstanceFromSnapshot = (
+  extracted: Record<string, unknown>,
+  group: string,
+  index: number,
+): Record<string, unknown> => {
+  const clone = cloneExtracted(extracted);
+  const current = clone[group];
+  if (Array.isArray(current)) {
+    clone[group] = current.filter((_, i) => i !== index);
+  }
+  return clone;
+};
+
+const INSTANCE_KEY_RE = /^k(\d+)$/;
+
+const instanceKeyToIndex = (key: string): number | undefined => {
+  const match = INSTANCE_KEY_RE.exec(key);
+  return match === null || match[1] === undefined ? undefined : Number.parseInt(match[1], 10) - 1;
+};
+
+const indexToInstanceKey = (index: number): string => `k${index + 1}`;
+
+/**
+ * After removing the instance at `removedIndex` from a collection group, re-key
+ * any stored decisions/errors/links that addressed later instances so they still
+ * attach to the same physical instance. Decisions for the removed instance are
+ * dropped.
+ */
+const remapAfterInstanceRemove = <T>(
+  map: Readonly<Record<string, T>>,
+  group: string,
+  removedIndex: number,
+): Record<string, T> => {
+  const remapped: Record<string, T> = {};
+  const prefix = `${group}[`;
+  for (const [key, value] of Object.entries(map)) {
+    if (!key.startsWith(prefix)) {
+      remapped[key] = value;
+      continue;
+    }
+    const closeBracket = key.indexOf("]", prefix.length);
+    if (closeBracket === -1) {
+      remapped[key] = value;
+      continue;
+    }
+    const keyPart = key.slice(prefix.length, closeBracket);
+    const index = instanceKeyToIndex(keyPart);
+    if (index === undefined) {
+      remapped[key] = value;
+      continue;
+    }
+    if (index === removedIndex) {
+      // Drop anything that belonged to the removed instance.
+      continue;
+    }
+    const newIndex = index > removedIndex ? index - 1 : index;
+    const newKey = `${prefix}${indexToInstanceKey(newIndex)}${key.slice(closeBracket)}`;
+    remapped[newKey] = value;
+  }
+  return remapped;
+};
 
 /**
  * Field-by-field review of one parked item.
@@ -218,12 +365,14 @@ export function useReview(
   item: OutboxItem | undefined,
   options: UseReviewOptions,
 ): UseReviewResult {
-  const { valuesSchema, requiredOnCreate } = options;
+  const { valuesSchema, requiredOnCreate, existingRecords, rankCandidates } = options;
   const outbox = useRiboInstance("outbox", options.outbox);
 
   const [state, setState] = useState<ReviewState>({
     forItem: item?.id,
+    extractedSnapshot: undefined,
     decisions: {},
+    instanceLinks: {},
     errors: {},
     submitting: false,
     error: undefined,
@@ -245,19 +394,82 @@ export function useReview(
   // in this hook — the guard only reads `state`/`item`, and every updater below
   // is a plain function of its `prior` argument — so calling either twice
   // produces the same result and StrictMode's double-invocation is a no-op.
-  const { decisions, errors, submitting, error } = state.forItem === item?.id ? state : NOTHING;
+  const { extractedSnapshot, decisions, instanceLinks, errors, submitting, error } =
+    state.forItem === item?.id ? state : NOTHING;
 
   const request = useMemo<ReviewRequest | undefined>(() => {
     if (item?.extracted === undefined || item.transcript === undefined) return undefined;
-    // No cast on the way in: `extracted` is persisted as `Record<string, unknown>`
-    // and that is exactly what `buildReviewRequest` takes.
-    return buildReviewRequest(item.extracted, item.transcript, valuesSchema, { requiredOnCreate });
-  }, [item?.extracted, item?.transcript, valuesSchema, requiredOnCreate]);
+    // Use the local snapshot if the reviewer has added or removed instances;
+    // otherwise fall back to the persisted extraction. The snapshot is kept in
+    // per-item state and resets when the item changes.
+    const extracted = extractedSnapshot ?? item.extracted;
+    return buildReviewRequest(extracted, item.transcript, valuesSchema, {
+      requiredOnCreate,
+      existingRecords,
+    });
+  }, [
+    extractedSnapshot,
+    item?.extracted,
+    item?.transcript,
+    valuesSchema,
+    requiredOnCreate,
+    existingRecords,
+  ]);
 
   const paths = useMemo<readonly FieldPath[]>(
     () => (request === undefined ? [] : Object.keys(request.fields)),
     [request],
   );
+
+  const instancePaths = useMemo<ReadonlySet<string>>(() => {
+    if (request === undefined) return new Set();
+    const paths = new Set<string>();
+    for (const leafPath of Object.keys(request.fields)) {
+      const segments = parseFieldPath(leafPath);
+      let currentPath = "";
+      for (const segment of segments) {
+        currentPath =
+          currentPath === ""
+            ? segment.kind === "objectKey"
+              ? segment.key
+              : `[${segment.key}]`
+            : segment.kind === "objectKey"
+              ? `${currentPath}.${segment.key}`
+              : `${currentPath}[${segment.key}]`;
+        if (segment.kind === "instanceKey") {
+          paths.add(currentPath);
+        }
+      }
+    }
+    return paths;
+  }, [request]);
+
+  const instanceDetails = useMemo<
+    ReadonlyMap<
+      string,
+      { readonly group: string; readonly key: string; readonly fields: Record<string, unknown> }
+    >
+  >(() => {
+    if (request === undefined) return new Map();
+    const details = new Map<
+      string,
+      { readonly group: string; readonly key: string; readonly fields: Record<string, unknown> }
+    >();
+    for (const path of instancePaths) {
+      const segments = parseFieldPath(path);
+      const group = segments[0]?.key ?? "";
+      const key = segments[1]?.key ?? "";
+      const prefix = `${path}.`;
+      const fields: Record<string, unknown> = {};
+      for (const [leafPath, field] of Object.entries(request.fields)) {
+        if (leafPath.startsWith(prefix)) {
+          fields[leafPath.slice(prefix.length)] = field.extracted.value;
+        }
+      }
+      details.set(path, { group, key, fields });
+    }
+    return details;
+  }, [instancePaths, request]);
 
   const setDecision = useCallback(
     (path: FieldPath, decision: FieldDecision) => {
@@ -328,6 +540,142 @@ export function useReview(
     [setDecision],
   );
 
+  const setInstanceLink = useCallback(
+    (instancePath: string, decision: InstanceLinkDecision) => {
+      // A stale or mistyped instance path must not silently attach a link to a
+      // different instance. Throwing at the call site keeps the error local to the UI
+      // control that produced it.
+      if (!instancePaths.has(instancePath)) {
+        throw new Error(
+          `ribo: "${instancePath}" is not a collection instance of this review request.`,
+        );
+      }
+      const id = item?.id;
+      setState((prior) => {
+        const base = prior.forItem === id ? prior : NOTHING;
+        return {
+          ...base,
+          forItem: id,
+          instanceLinks: { ...base.instanceLinks, [instancePath]: decision },
+          // A decision answers whatever the last submit said about this instance;
+          // errors are per-leaf, not per-instance, so leave them alone.
+          errors: base.errors,
+        };
+      });
+    },
+    [item?.id, instancePaths],
+  );
+
+  const linkInstance = useCallback(
+    (instancePath: string, uuid: string) => setInstanceLink(instancePath, { kind: "link", uuid }),
+    [setInstanceLink],
+  );
+
+  const createInstance = useCallback(
+    (instancePath: string) => setInstanceLink(instancePath, { kind: "create" }),
+    [setInstanceLink],
+  );
+
+  const linkDecisionOf = useCallback(
+    (instancePath: string): InstanceLinkDecision | undefined => {
+      if (!instancePaths.has(instancePath)) return undefined;
+      return instanceLinks[instancePath] ?? { kind: "create" };
+    },
+    [instanceLinks, instancePaths],
+  );
+
+  const rankedCandidatesOf = useCallback(
+    (instancePath: string): readonly RankedCandidate[] | undefined => {
+      if (rankCandidates === undefined || request === undefined) return undefined;
+      const detail = instanceDetails.get(instancePath);
+      if (detail === undefined) return undefined;
+      const existing = request.existingRecords[detail.group] ?? [];
+      if (existing.length === 0) return undefined;
+      return rankCandidates(detail.group, detail.fields, existing);
+    },
+    [instanceDetails, rankCandidates, request],
+  );
+
+  const addInstance = useCallback(
+    (group: string) => {
+      if (request === undefined) {
+        throw new Error("ribo: cannot add an instance to a review that is not ready.");
+      }
+      const groupField = valuesSchema.shape[group];
+      if (groupField === undefined) {
+        throw new Error(`ribo: "${group}" is not a group of this review schema.`);
+      }
+      const stripped = stripOptionalNullable(groupField);
+      if (!(stripped instanceof z.ZodArray)) {
+        throw new Error(
+          `ribo: "${group}" is not a collection group and cannot have instances added.`,
+        );
+      }
+      const id = item?.id;
+      setState((prior) => {
+        const base = prior.forItem === id ? prior : NOTHING;
+        const snapshot = base.extractedSnapshot ?? item?.extracted;
+        if (snapshot === undefined) {
+          throw new Error("ribo: cannot add an instance to a review with no extracted data.");
+        }
+        return {
+          ...base,
+          forItem: id,
+          extractedSnapshot: addInstanceToSnapshot(snapshot, group),
+        };
+      });
+    },
+    [item?.id, item?.extracted, request, valuesSchema],
+  );
+
+  const removeInstance = useCallback(
+    (instancePath: string) => {
+      if (!instancePaths.has(instancePath)) {
+        throw new Error(
+          `ribo: "${instancePath}" is not a collection instance of this review request.`,
+        );
+      }
+      const segments = parseFieldPath(instancePath);
+      const [first, second] = segments;
+      if (
+        segments.length !== 2 ||
+        first === undefined ||
+        first.kind !== "objectKey" ||
+        second === undefined ||
+        second.kind !== "instanceKey"
+      ) {
+        throw new Error(`ribo: "${instancePath}" is not a valid instance path.`);
+      }
+      const group = first.key;
+      const key = second.key;
+      const index = instanceKeyToIndex(key);
+      if (index === undefined) {
+        throw new Error(`ribo: instance key "${key}" is not a positional key.`);
+      }
+      const id = item?.id;
+      setState((prior) => {
+        const base = prior.forItem === id ? prior : NOTHING;
+        const snapshot = base.extractedSnapshot ?? item?.extracted;
+        if (snapshot === undefined) {
+          throw new Error("ribo: cannot remove an instance from a review with no extracted data.");
+        }
+        const groupArray = snapshot[group];
+        if (!Array.isArray(groupArray) || index < 0 || index >= groupArray.length) {
+          throw new Error(`ribo: cannot remove instance "${instancePath}" — it no longer exists.`);
+        }
+        return {
+          ...base,
+          forItem: id,
+          extractedSnapshot: removeInstanceFromSnapshot(snapshot, group, index),
+          decisions: remapAfterInstanceRemove(base.decisions, group, index),
+          instanceLinks: remapAfterInstanceRemove(base.instanceLinks, group, index),
+          errors: remapAfterInstanceRemove(base.errors, group, index),
+        };
+      });
+    },
+    [instancePaths, item?.id, item?.extracted],
+  );
+
   const untouched = useMemo(
     () => paths.filter((path) => decisions[path] === undefined),
     [decisions, paths],
@@ -381,9 +729,22 @@ export function useReview(
       paths.map((path) => [path, decisions[path] ?? { status: "accepted" }]),
     );
 
+    // Drop any link decisions that refer to instances that no longer exist in the
+    // current request (e.g., after a remove). The safe default is create, so omitting
+    // a stale decision lets it fall back rather than leak a link to a removed instance.
+    const submissionInstanceLinks: Record<string, InstanceLinkDecision> = Object.fromEntries(
+      Object.entries(instanceLinks).filter(([path]) => instancePaths.has(path)),
+    );
+    const hasInstanceLinks = Object.keys(submissionInstanceLinks).length > 0;
+    const submission: ReviewSubmission = {
+      status: "submitted",
+      decisions: complete,
+      ...(hasInstanceLinks ? { instanceLinks: submissionInstanceLinks } : {}),
+    };
+
     let outcome: ReviewOutcome;
     try {
-      outcome = resolveReview(request, { status: "submitted", decisions: complete });
+      outcome = resolveReview(request, submission);
     } catch (cause) {
       const failure = cause instanceof Error ? cause : new Error(String(cause));
       // A new token even though this failure never reaches `settle()`'s network
@@ -425,7 +786,7 @@ export function useReview(
     // shape and fails without this line.
     setState((prior) => (prior.forItem === id ? { ...prior, errors: {} } : prior));
     return await settle(outcome);
-  }, [decisions, item?.id, paths, request, settle]);
+  }, [decisions, instanceLinks, instancePaths, item?.id, paths, request, settle]);
 
   const discard = useCallback(
     async (reason?: string): Promise<ReviewOutcome> =>
@@ -445,6 +806,14 @@ export function useReview(
     reject,
     untouched,
     errors,
+    existingRecords: request?.existingRecords,
+    presentButEmpty: request?.presentButEmpty,
+    linkDecisionOf,
+    linkInstance,
+    createInstance,
+    rankedCandidatesOf,
+    addInstance,
+    removeInstance,
     submit,
     discard,
     submitting,

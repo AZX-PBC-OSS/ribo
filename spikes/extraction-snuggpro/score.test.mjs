@@ -39,6 +39,33 @@ import {
   classifySpan,
 } from "./score.mjs";
 
+/**
+ * Reach a leaf's truth object by its `group.leaf` path, whichever side of the v3 split it lives on.
+ *
+ * v3 moved the five collection groups out of the flat `leaves` map into `instances[group][n].leaves`
+ * keyed by LOCAL leaf name. These tests mutate individual leaves to prove the validator catches each
+ * malformation, and they should keep naming leaves the way the schema does rather than encoding the
+ * storage split at fourteen call sites.
+ */
+const COLLECTION_GROUPS_T = ["hvac", "attic", "wall", "window", "dhw"];
+const leafHome = (doc, path) => {
+  const [group, leaf] = path.split(".");
+  return COLLECTION_GROUPS_T.includes(group)
+    ? [doc.instances[group][0].leaves, leaf]
+    : [doc.leaves, path];
+};
+/** The truth object itself, for reading or mutating a property on it. */
+const leafAt = (doc, path) => {
+  const [home, key] = leafHome(doc, path);
+  return home[key];
+};
+/** Replace or delete a whole leaf entry. */
+const setLeaf = (doc, path, value) => {
+  const [home, key] = leafHome(doc, path);
+  if (value === undefined) delete home[key];
+  else home[key] = value;
+};
+
 const HERE = import.meta.dirname;
 const GT_DIR = join(HERE, "ground-truth");
 const TRANSCRIPT_DIR = join(HERE, "transcripts");
@@ -69,6 +96,12 @@ function loadWorkedExample() {
   return { gt, transcript };
 }
 
+function loadFixture(slug) {
+  const gt = JSON.parse(readFileSync(join(GT_DIR, `${slug}.json`), "utf8"));
+  const transcript = readFileSync(join(TRANSCRIPT_DIR, `${slug}.txt`), "utf8");
+  return { gt, transcript };
+}
+
 /** Score the worked example with a model produced by mutating the perfect copy. */
 function run(mutate) {
   const { gt, transcript } = loadWorkedExample();
@@ -77,13 +110,36 @@ function run(mutate) {
   return scoreTranscript("11-ambiguous-attic", gt, transcript, model);
 }
 
+/** Score an arbitrary fixture by slug, optionally mutating the perfect model. */
+function runFixture(slug, mutate) {
+  const { gt, transcript } = loadFixture(slug);
+  const model = buildPerfectModel(gt);
+  if (mutate) mutate(model, gt);
+  return scoreTranscript(slug, gt, transcript, model);
+}
+
 /** A synthetic, fully "unmentioned" ground truth over all 51 real leaves — no file, no transcript
- * dependency. `overrides` is `{ [path]: partialLeafTruth }`, merged onto the "unmentioned" default. */
+ * dependency. `overrides` is `{ [path]: partialLeafTruth }`, merged onto the "unmentioned" default.
+ * Collection-group overrides are lifted into a single current instance so the synthetic shape matches
+ * the v3 instance format. */
 function emptyGroundTruth(overrides = {}) {
   const leaves = {};
   for (const path of LEAF_PATHS) leaves[path] = { status: "unmentioned", sourceSpan: null };
   for (const [path, partial] of Object.entries(overrides)) leaves[path] = partial;
-  return { transcript: "synthetic", leaves };
+
+  const instances = {};
+  for (const group of COLLECTION_GROUPS_T) {
+    const groupLeaves = {};
+    for (const path of Object.keys(overrides)) {
+      const [g, key] = path.split(".");
+      if (g === group && key) groupLeaves[key] = overrides[path];
+    }
+    if (Object.keys(groupLeaves).length > 0) {
+      instances[group] = [{ eligibility: "current", eligibilitySpan: null, leaves: groupLeaves }];
+    }
+  }
+
+  return { transcript: "synthetic", leaves, instances };
 }
 
 // ---------------------------------------------------------------------------
@@ -214,29 +270,29 @@ heading("1b. DISCLAIMER / SCHEMA-SHAPE VALIDATION (fix-round-2)");
   }
   {
     const bad = clone();
-    bad.leaves["hvac.hvacHeatingEnergySource"].value = "Natural Gas"; // enum leaf carrying a stray `value`
+    leafAt(bad, "hvac.hvacHeatingEnergySource").value = "Natural Gas"; // enum leaf carrying a stray `value`
     const res = validateGroundTruth(bad, transcript);
     check(
       "an enum leaf carrying a stray `value` is caught (IMPORTANT 7)",
       !res.ok &&
         res.errors.some(
-          (e) => e.includes("hvac.hvacHeatingEnergySource") && e.includes("must not carry"),
+          (e) => e.includes("hvacHeatingEnergySource") && e.includes("must not carry"),
         ),
     );
   }
   {
     const bad = clone();
-    bad.leaves["attic.atticInsulation"].member = "Fiberglass or Rockwool (batts or blown)"; // number leaf carrying a stray `member`
+    leafAt(bad, "attic.atticInsulation").member = "Fiberglass or Rockwool (batts or blown)"; // number leaf carrying a stray `member`
     const res = validateGroundTruth(bad, transcript);
     check(
       "a number leaf carrying a stray `member` is caught (IMPORTANT 7)",
       !res.ok &&
-        res.errors.some((e) => e.includes("attic.atticInsulation") && e.includes("must not carry")),
+        res.errors.some((e) => e.includes("atticInsulation") && e.includes("must not carry")),
     );
   }
   {
     const bad = clone();
-    bad.leaves["attic.atticInsulation"].retracted = [{ value: { nested: "object" }, note: "x" }];
+    leafAt(bad, "attic.atticInsulation").retracted = [{ value: { nested: "object" }, note: "x" }];
     const res = validateGroundTruth(bad, transcript);
     check(
       "an object-valued retracted.value is caught, not silently accepted (IMPORTANT 7)",
@@ -245,7 +301,7 @@ heading("1b. DISCLAIMER / SCHEMA-SHAPE VALIDATION (fix-round-2)");
   }
   {
     const bad = clone();
-    bad.leaves["attic.atticInsulation"].arguable = "oops"; // a primitive where an object is required
+    leafAt(bad, "attic.atticInsulation").arguable = "oops"; // a primitive where an object is required
     let threw = false;
     let res;
     try {
@@ -331,7 +387,7 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
 
   check(
     "the worked example's furnace leaf is marked symmetric: true",
-    gt.leaves["hvac.hvacSystemEquipmentType"].arguable.symmetric === true,
+    leafAt(gt, "hvac.hvacSystemEquipmentType").arguable.symmetric === true,
   );
 
   {
@@ -339,7 +395,7 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
     // `acceptableAlternatives`, keeping `symmetric: true`. Before this fix, this validated clean —
     // an annotator who wrote the pair in the wrong order would never find out.
     const bad = clone();
-    const leaf = bad.leaves["hvac.hvacSystemEquipmentType"];
+    const leaf = leafAt(bad, "hvac.hvacSystemEquipmentType");
     const original = leaf.member;
     leaf.member = leaf.arguable.acceptableAlternatives[0]; // "Furnace / Central AC (shared ducts)" — index 16
     leaf.arguable.acceptableAlternatives = [original]; // "Furnace with standalone ducts" — index 2, now demoted
@@ -349,7 +405,7 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
       "swapping which conflated member sits in `member` (now NOT the earliest) is REJECTED",
       !res.ok &&
         res.errors.some(
-          (e) => e.includes("hvac.hvacSystemEquipmentType") && e.includes("NOT the earliest"),
+          (e) => e.includes("hvacSystemEquipmentType") && e.includes("NOT the earliest"),
         ),
     );
   }
@@ -363,19 +419,19 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
     // symmetric: true requires an enum leaf with a real `member` — not noFittingMember, and not a
     // number/string leaf, since schema order has no meaning there.
     const bad = clone();
-    bad.leaves["attic.atticInsulation"].arguable = {
+    leafAt(bad, "attic.atticInsulation").arguable = {
       symmetric: true,
       note: "nonsensical: atticInsulation is a NUMBER leaf, not an enum",
     };
     const res = validateGroundTruth(bad, transcript);
     check(
       "arguable.symmetric on a NUMBER leaf is rejected (schema order has no meaning there)",
-      !res.ok && res.errors.some((e) => e.includes("attic.atticInsulation")),
+      !res.ok && res.errors.some((e) => e.includes("atticInsulation")),
     );
   }
   {
     const bad = clone();
-    bad.leaves["hvac.hvacSystemEquipmentType"].arguable.acceptableAlternatives = []; // nothing to be symmetric WITH
+    leafAt(bad, "hvac.hvacSystemEquipmentType").arguable.acceptableAlternatives = []; // nothing to be symmetric WITH
     const res = validateGroundTruth(bad, transcript);
     check(
       "arguable.symmetric with an empty acceptableAlternatives is rejected",
@@ -384,7 +440,7 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
   }
   {
     const bad = clone();
-    bad.leaves["hvac.hvacSystemEquipmentType"].arguable.symmetric = "yes"; // not a boolean
+    leafAt(bad, "hvac.hvacSystemEquipmentType").arguable.symmetric = "yes"; // not a boolean
     const res = validateGroundTruth(bad, transcript);
     check(
       "a non-boolean arguable.symmetric is rejected",
@@ -396,7 +452,7 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
     // this is the guard against the check firing on the genuinely different, asymmetric "lesser but
     // tolerated alternative" pattern, where schema order carries no meaning at all.
     const bad = clone();
-    const leaf = bad.leaves["hvac.hvacSystemEquipmentType"];
+    const leaf = leafAt(bad, "hvac.hvacSystemEquipmentType");
     const original = leaf.member;
     leaf.member = leaf.arguable.acceptableAlternatives[0];
     leaf.arguable.acceptableAlternatives = [original];
@@ -447,7 +503,7 @@ heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
     // error — it resolves to "unmentioned". This is the whole point of moving disclaimers out of
     // annotator judgment: the annotator only writes what they can address specifically.
     const sparse = clone();
-    delete sparse.leaves["attic.atticInsulationType"]; // not covered by any of the 3 disclaimers
+    setLeaf(sparse, "attic.atticInsulationType", undefined); // not covered by any of the 3 disclaimers
     const res = validateGroundTruth(sparse, transcript);
     check(
       "removing an explicit, disclaimer-uncovered leaf entry is VALID (defaults to unmentioned)",
@@ -456,7 +512,7 @@ heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
   }
   {
     const bad = clone();
-    bad.leaves["hvac.hvacHeatingEnergySource"].member = "Some Fuel Nobody Publishes";
+    leafAt(bad, "hvac.hvacHeatingEnergySource").member = "Some Fuel Nobody Publishes";
     const res = validateGroundTruth(bad, transcript);
     check(
       "a member not in schema.ts's list is caught",
@@ -478,16 +534,16 @@ heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
   }
   {
     const bad = clone();
-    bad.leaves["hvac.hvacUpgradeAction"] = { status: "unmentioned", sourceSpan: "should be null" };
+    setLeaf(bad, "hvac.hvacUpgradeAction", { status: "unmentioned", sourceSpan: "should be null" });
     const res = validateGroundTruth(bad, transcript);
     check(
       "a non-null sourceSpan on an unmentioned leaf is caught",
-      !res.ok && res.errors.some((e) => e.includes("hvac.hvacUpgradeAction")),
+      !res.ok && res.errors.some((e) => e.includes("hvacUpgradeAction")),
     );
   }
   {
     const bad = clone();
-    bad.leaves["hvac.hvacUpgradeAction"] = { status: "asserted", sourceSpan: "x" }; // neither member nor noFittingMember
+    setLeaf(bad, "hvac.hvacUpgradeAction", { status: "asserted", sourceSpan: "x" }); // neither member nor noFittingMember
     const res = validateGroundTruth(bad, transcript);
     check("asserted enum leaf missing both member and noFittingMember is caught", !res.ok);
   }
@@ -605,11 +661,15 @@ heading("3. HALLUCINATION gate");
 {
   const before = run();
   const after = run((m) => {
-    m.wall.wallsInsulated = {
-      value: "Well",
-      confidence: 0.9,
-      sourceSpan: "fiberglass batts between the joists",
-    };
+    m.wall = [
+      {
+        wallsInsulated: {
+          value: "Well",
+          confidence: 0.9,
+          sourceSpan: "fiberglass batts between the joists",
+        },
+      },
+    ];
   });
   console.log(
     `   before hallucinationHard=${before.counts.hallucinationHard}   after=${after.counts.hallucinationHard}`,
@@ -620,7 +680,7 @@ heading("3. HALLUCINATION gate");
   );
   check(
     "the fabricated field is listed",
-    after.hallucinations.some((h) => h.field === "wall.wallsInsulated"),
+    after.hallucinations.some((h) => h.field === "wall.0.wallsInsulated"),
   );
 }
 
@@ -631,7 +691,7 @@ heading("4. FABRICATED-SPAN gate");
 {
   const before = run();
   const after = run((m) => {
-    m.hvac.hvacHeatingEnergySource.sourceSpan = "the plate clearly said Frobozz Magic Gas Corp";
+    m.hvac[0].hvacHeatingEnergySource.sourceSpan = "the plate clearly said Frobozz Magic Gas Corp";
   });
   console.log(
     `   before spanFabricated=${before.counts.spanFabricated}   after=${after.counts.spanFabricated}`,
@@ -667,7 +727,7 @@ heading(
     classifySpan("", "literally any transcript text at all").status === "fabricated",
   );
   const after = run((m) => {
-    m.hvac.hvacHeatingEnergySource.sourceSpan = "";
+    m.hvac[0].hvacHeatingEnergySource.sourceSpan = "";
   });
   console.log(
     `   empty span in a real run: spanFabricated=${after.counts.spanFabricated} spanVerbatim=${after.counts.spanVerbatim}`,
@@ -687,10 +747,10 @@ heading(
 {
   const apiRun = run(); // ground truth already stores the API literal; buildPerfectModel copies it verbatim
   const slugRun = run((m) => {
-    m.hvac.hvacHeatingEnergySource.value = "natural_gas"; // the derived slug, not the API string
+    m.hvac[0].hvacHeatingEnergySource.value = "natural_gas"; // the derived slug, not the API string
   });
   const wrongVocabRun = run((m) => {
-    m.hvac.hvacHeatingEnergySource.value = "fuel_oil"; // wrong value, spelled in slug vocabulary
+    m.hvac[0].hvacHeatingEnergySource.value = "fuel_oil"; // wrong value, spelled in slug vocabulary
   });
   console.log(
     `   api: correct=${apiRun.counts.correct} vocabApi=${apiRun.counts.vocabApi} vocabSlug=${apiRun.counts.vocabSlug}`,
@@ -730,7 +790,7 @@ heading(
   });
   const isolatedTranscript = "it's a furnace, a gas furnace";
   const isolatedModel = buildPerfectModel(isolatedGt);
-  isolatedModel.hvac.hvacHeatingEnergySource.value = "fuel_oil"; // wrong, slug-spelled
+  isolatedModel.hvac[0].hvacHeatingEnergySource.value = "fuel_oil"; // wrong, slug-spelled
   const isolated = scoreTranscript("synthetic", isolatedGt, isolatedTranscript, isolatedModel);
   console.log(
     `   isolated wrong-in-slug: wrong=${isolated.counts.wrong} vocabApi=${isolated.counts.vocabApi} vocabSlug=${isolated.counts.vocabSlug}`,
@@ -750,7 +810,7 @@ heading("6. R-VALUE -> BAND INVENTION gate");
 {
   const before = run();
   const after = run((m) => {
-    m.attic.atticInsulationDepth = {
+    m.attic[0].atticInsulationDepth = {
       value: "10-12",
       confidence: 0.9,
       sourceSpan: "R-13, final answer.",
@@ -880,10 +940,10 @@ heading(
 {
   const before = run();
   const after = run((m) => {
-    m.hvac.hvacSystemEquipmentType.value = "Furnace / Central AC (shared ducts)"; // sanctioned alternative
+    m.hvac[0].hvacSystemEquipmentType.value = "Furnace / Central AC (shared ducts)"; // sanctioned alternative
   });
   const hardWrong = run((m) => {
-    m.hvac.hvacSystemEquipmentType.value = "Boiler"; // NOT sanctioned — also the retracted value
+    m.hvac[0].hvacSystemEquipmentType.value = "Boiler"; // NOT sanctioned — also the retracted value
   });
   console.log(
     `   sanctioned: wrong=${after.counts.wrong} enumSanctioned=${after.counts.enumSanctioned} hallucinationSoft=${after.counts.hallucinationSoft}`,
@@ -931,8 +991,8 @@ heading("9a. MISS gate");
 {
   const before = run();
   const after = run((m) => {
-    m.hvac.hvacHeatingEnergySource.value = null;
-    m.hvac.hvacHeatingEnergySource.sourceSpan = null;
+    m.hvac[0].hvacHeatingEnergySource.value = null;
+    m.hvac[0].hvacHeatingEnergySource.sourceSpan = null;
   });
   console.log(`   before miss=${before.counts.miss}   after=${after.counts.miss}`);
   check(
@@ -962,8 +1022,8 @@ heading("10. AXIS-SPLIT gate — fuel dropped where stated");
 {
   const before = run();
   const after = run((m) => {
-    m.hvac.hvacHeatingEnergySource.value = null;
-    m.hvac.hvacHeatingEnergySource.sourceSpan = null;
+    m.hvac[0].hvacHeatingEnergySource.value = null;
+    m.hvac[0].hvacHeatingEnergySource.sourceSpan = null;
   });
   const beforeHvac = before.axis.find((a) => a.pair.startsWith("hvac"));
   const afterHvac = after.axis.find((a) => a.pair.startsWith("hvac"));
@@ -995,9 +1055,9 @@ heading("11. BAND-BOUNDARY gate (synthetic: dhw.dhwAge)");
   const transcript = "about twelve years";
   const perfect = buildPerfectModel(gt);
   const boundary = buildPerfectModel(gt);
-  boundary.dhw.dhwAge.value = "16-20"; // adjacent band
+  boundary.dhw[0].dhwAge.value = "16-20"; // adjacent band
   const farWrong = buildPerfectModel(gt);
-  farWrong.dhw.dhwAge.value = "36+"; // far band
+  farWrong.dhw[0].dhwAge.value = "36+"; // far band
 
   const rPerfect = scoreTranscript("synthetic", gt, transcript, perfect);
   const rBoundary = scoreTranscript("synthetic", gt, transcript, boundary);
@@ -1040,9 +1100,9 @@ heading("12. NO-FITTING-MEMBER gate (synthetic: hvac.hvacSystemEquipmentType)");
   });
   const transcript = "a pellet stove insert";
   const modelSanctioned = buildPerfectModel(gt);
-  modelSanctioned.hvac.hvacSystemEquipmentType.value = "Stove or Insert";
+  modelSanctioned.hvac[0].hvacSystemEquipmentType.value = "Stove or Insert";
   const modelOther = buildPerfectModel(gt);
-  modelOther.hvac.hvacSystemEquipmentType.value = "Boiler";
+  modelOther.hvac[0].hvacSystemEquipmentType.value = "Boiler";
 
   const rSanctioned = scoreTranscript("synthetic", gt, transcript, modelSanctioned);
   const rOther = scoreTranscript("synthetic", gt, transcript, modelOther);
@@ -1096,7 +1156,7 @@ heading("13. ROBUSTNESS");
     "an extractor that TRIES and gets things wrong now scores WORSE than one returning nothing",
     (() => {
       const tried = run((m) => {
-        m.hvac.hvacHeatingEnergySource.value = "Fuel Oil"; // wrong, on top of everything else correct
+        m.hvac[0].hvacHeatingEnergySource.value = "Fuel Oil"; // wrong, on top of everything else correct
       });
       // "worse" = strictly more penalized signal than the missing-result case on the SAME leaf set:
       // the missing case has miss=4 and wrong=0; a run that emits a wrong answer for one leaf and
@@ -1108,7 +1168,7 @@ heading("13. ROBUSTNESS");
   );
 
   const missingKey = run((m) => {
-    delete m.hvac.hvacHeatingEnergySource; // GT non-null
+    delete m.hvac[0].hvacHeatingEnergySource; // GT non-null
   });
   console.log(
     `   missing leaf: missingLeaves=[${missingKey.conformance.missingLeaves}] miss=${missingKey.counts.miss}`,
@@ -1125,7 +1185,7 @@ heading("13. ROBUSTNESS");
   check("a missing GROUP is reported", missingGroup.conformance.missingGroups.includes("hvac"));
 
   const extraKey = run((m) => {
-    m.hvac.someBogusField = { value: 1, confidence: 1, sourceSpan: null };
+    m.hvac[0].someBogusField = { value: 1, confidence: 1, sourceSpan: null };
   });
   console.log(`   extra leaf: extraLeaves=[${extraKey.conformance.extraLeaves}]`);
   check(
@@ -1134,7 +1194,7 @@ heading("13. ROBUSTNESS");
   );
 
   const malformed = run((m) => {
-    m.hvac.hvacHeatingEnergySource = "Natural Gas"; // a bare string, not an envelope
+    m.hvac[0].hvacHeatingEnergySource = "Natural Gas"; // a bare string, not an envelope
   });
   console.log(
     `   malformed envelope: envelopeErrors=${malformed.conformance.envelopeErrors.length}`,
@@ -1165,6 +1225,164 @@ heading("14. AGGREGATE roll-up");
     "aggregate doubles the single-fixture correct count",
     agg.totals.correct === 2 * run().counts.correct,
   );
+}
+
+// ---------------------------------------------------------------------------
+// 15. INSTANCE-AWARE SCORERS (Task 14) — enumeration, eligibility, attribution
+// ---------------------------------------------------------------------------
+heading("15. INSTANCE-AWARE SCORERS (Task 14)");
+{
+  // Fixture 08 has two distinct current HVAC systems; it is the corpus's primary attribution test.
+  heading("15a. Enumeration — predicted vs true instance count per group, with direction");
+  {
+    const perfect = runFixture("08-no-fuel-silent-drop");
+    const under = runFixture("08-no-fuel-silent-drop", (m) => {
+      m.hvac.pop();
+    });
+    const over = runFixture("08-no-fuel-silent-drop", (m) => {
+      m.hvac.push({ ...m.hvac[0] });
+    });
+
+    console.log(`   perfect hvac enum=${JSON.stringify(perfect.instances.hvac.enumeration)}`);
+    console.log(`   under   hvac enum=${JSON.stringify(under.instances.hvac.enumeration)}`);
+    console.log(`   over    hvac enum=${JSON.stringify(over.instances.hvac.enumeration)}`);
+
+    check(
+      "perfect run: hvac enumeration matches (2 true, 2 predicted)",
+      perfect.instances.hvac.enumeration.true === 2 &&
+        perfect.instances.hvac.enumeration.predicted === 2 &&
+        perfect.instances.hvac.enumeration.direction === "match",
+    );
+    check(
+      "under-segmentation: hvac direction is 'under' with under=1",
+      under.instances.hvac.enumeration.direction === "under" &&
+        under.instances.hvac.enumeration.under === 1,
+    );
+    check(
+      "over-segmentation: hvac direction is 'over' with over=1",
+      over.instances.hvac.enumeration.direction === "over" &&
+        over.instances.hvac.enumeration.over === 1,
+    );
+    check(
+      "enumeration is independent: the single attic and wall instances still match",
+      perfect.instances.attic.enumeration.direction === "match" &&
+        perfect.instances.wall.enumeration.direction === "match" &&
+        under.instances.attic.enumeration.direction === "match" &&
+        under.instances.wall.enumeration.direction === "match",
+    );
+  }
+
+  heading("15b. Eligibility — excluded true instances must not be promoted to current");
+  {
+    // Fixture 10 has one current heat pump and one off-property neighbour's oil boiler.
+    const perfect = runFixture("10-crawlspace-loose-units");
+    const promoted = runFixture("10-crawlspace-loose-units", (m) => {
+      // Add a non-empty predicted instance representing the excluded neighbour system.
+      m.hvac.push({
+        hvacSystemEquipmentType: {
+          value: "Boiler",
+          confidence: 0.9,
+          sourceSpan: "The neighbor's unit, that mirror-image house, theirs is an oil boiler",
+        },
+        hvacHeatingEnergySource: {
+          value: "Fuel Oil",
+          confidence: 0.9,
+          sourceSpan: "theirs is an oil boiler",
+        },
+      });
+    });
+
+    console.log(
+      `   perfect hvac eligibility=${JSON.stringify(perfect.instances.hvac.eligibility)}`,
+    );
+    console.log(
+      `   promoted hvac eligibility=${JSON.stringify(promoted.instances.hvac.eligibility)}`,
+    );
+
+    check(
+      "perfect run: one excluded instance is correctly omitted (falseCurrent=0, correct=1)",
+      perfect.instances.hvac.eligibility.excluded === 1 &&
+        perfect.instances.hvac.eligibility.falseCurrent === 0 &&
+        perfect.instances.hvac.eligibility.correct === 1,
+    );
+    check(
+      "promoting the excluded instance to current flips falseCurrent 0 -> 1",
+      promoted.instances.hvac.eligibility.falseCurrent === 1 &&
+        promoted.instances.hvac.eligibility.correct === 0,
+    );
+    check(
+      "the false-current reason includes the original eligibility span",
+      promoted.instances.hvac.eligibility.reasons.some(
+        (reason) => reason.reason === "off-property" && typeof reason.span === "string",
+      ),
+    );
+  }
+
+  heading("15c. Attribution — matched/missed/fabricated, and permutation invariance");
+  {
+    const perfect = runFixture("08-no-fuel-silent-drop");
+    const swapped = runFixture("08-no-fuel-silent-drop", (m) => {
+      // Swap the equipment-type values between the two predicted instances. Other identifying
+      // leaves stay with their original instances, so each instance is now partially wrong but the
+      // count is still right.
+      const tmp = m.hvac[0].hvacSystemEquipmentType;
+      m.hvac[0].hvacSystemEquipmentType = m.hvac[1].hvacSystemEquipmentType;
+      m.hvac[1].hvacSystemEquipmentType = tmp;
+    });
+    const permuted = runFixture("08-no-fuel-silent-drop", (m) => {
+      m.hvac = [m.hvac[1], m.hvac[0]];
+    });
+    const mixed = runFixture("08-no-fuel-silent-drop", (m) => {
+      // Drop the furnace and invent a boiler in its place: one true instance missed, one fabricated.
+      m.hvac.pop();
+      m.hvac.push({
+        hvacSystemEquipmentType: {
+          value: "Boiler",
+          confidence: 0.9,
+          sourceSpan: "I see a boiler",
+        },
+      });
+    });
+
+    console.log(
+      `   perfect  hvac attr=${JSON.stringify(perfect.instances.hvac.attribution)} wrong=${perfect.counts.wrong}`,
+    );
+    console.log(
+      `   swapped  hvac attr=${JSON.stringify(swapped.instances.hvac.attribution)} wrong=${swapped.counts.wrong}`,
+    );
+    console.log(
+      `   permuted hvac attr=${JSON.stringify(permuted.instances.hvac.attribution)} wrong=${permuted.counts.wrong}`,
+    );
+    console.log(
+      `   mixed    hvac attr=${JSON.stringify(mixed.instances.hvac.attribution)} wrong=${mixed.counts.wrong}`,
+    );
+
+    check(
+      "perfect run: two matched, zero missed, zero fabricated",
+      perfect.instances.hvac.attribution.matched.length === 2 &&
+        perfect.instances.hvac.attribution.missed.length === 0 &&
+        perfect.instances.hvac.attribution.fabricated.length === 0,
+    );
+    check(
+      "swapped fields keep correct enumeration but produce attribution errors (wrong > 0)",
+      swapped.instances.hvac.enumeration.direction === "match" &&
+        swapped.counts.wrong > 0 &&
+        swapped.instances.hvac.attribution.matched.length === 2,
+    );
+    check(
+      "reordering predicted instances is attribution-invariant (same perfect score)",
+      permuted.instances.hvac.enumeration.direction === "match" &&
+        permuted.counts.wrong === 0 &&
+        permuted.instances.hvac.attribution.matched.length === 2,
+    );
+    check(
+      "mixed run reports one missed and one fabricated instance while enumeration stays matched",
+      mixed.instances.hvac.enumeration.direction === "match" &&
+        mixed.instances.hvac.attribution.matched.length === 1 &&
+        mixed.instances.hvac.attribution.missed.length === 1 &&
+        mixed.instances.hvac.attribution.fabricated.length === 1,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

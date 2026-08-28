@@ -1,48 +1,75 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/07-combustion-safety.txt",
   "stresses": "A combustion-safety-only recording (shell was captured on a separate file, explicitly not negated here -- a REDIRECTION, not a rule-4 disclaimer). THE clearest corpus instance of the ambient-vs-undiluted-flue-CO confusability (RECONCILIATION.md ruling 4): 'The furnace flue itself was fine but ambient CO in the room climbed to thirty-five ppm' contrasts a flue-side reading against a room-side reading in one sentence -- the annotators split on this outright, one asserting healthUndilutedFlueCo: Passed, the other leaving it unmentioned on the theory that 'fine' might describe the flue's physical condition rather than a CO reading; resolved per ruling 4 to healthUndilutedFlueCo: Passed because the flue is explicitly named. Six of the 13 health-matrix tests get explicit, distinct verdicts and three MORE are individually named and declared not-in-scope ('Mold, asbestos, lead ... none of that was in scope') -- rule 8's 'name the specific test' pattern, not a blanket disclaimer. The furnace mention reproduces the hvacSystemEquipmentType/shared-ducts schema conflation. A dhwLocation ('the utility room') names a real, specific location without stating its conditioning status, fitting no DhwLocation member cleanly -- noFittingMember, per THE ONE RULE (something was said; omission is not the answer just because the mapping is unclear). The worst-case-depressurization procedure states a pressure reading that sets up the worst-case-spillage verdict, but the auditor never renders a pass/fail/warning verdict for the depressurization test itself as its own leaf -- genuinely unmentioned, not a schema gap.",
   "disclaimers": [],
+  "instances": {
+    "hvac": [
+      {
+        "discriminator": "the hvac described in this transcript",
+        "mentionSpan": "a gas furnace",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "a gas furnace",
+            "member": "Furnace with standalone ducts",
+            "arguable": {
+              "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
+              "symmetric": true,
+              "note": "SCHEMA FINDING, same as the worked example's furnace case, not a transcript ambiguity. The auditor states only the equipment's identity ('a gas furnace') and never addresses whether it shares ducts with a central AC unit -- cooling is not mentioned anywhere in this transcript. `member` is 'Furnace with standalone ducts' because it is FIRST in schema.ts's enum-list order (index 2 of 17 vs. index 16 for the shared-ducts member), per ANNOTATOR_GUIDE.md rule 6's deterministic tie-break, not because it is a better reading."
+            }
+          },
+          "hvacHeatingEnergySource": {
+            "status": "asserted",
+            "sourceSpan": "a gas furnace",
+            "member": "Natural Gas"
+          }
+        }
+      }
+    ],
+    "attic": [],
+    "wall": [],
+    "window": [],
+    "dhw": [
+      {
+        "discriminator": "the dhw described in this transcript",
+        "mentionSpan": "a gas storage water heater",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "dhwType2": {
+            "status": "asserted",
+            "sourceSpan": "a gas storage water heater",
+            "member": "Tank Water Heater"
+          },
+          "dhwFuel2": {
+            "status": "asserted",
+            "sourceSpan": "a gas storage water heater",
+            "member": "Natural Gas"
+          },
+          "dhwLocation": {
+            "status": "asserted",
+            "sourceSpan": "both in the utility room",
+            "noFittingMember": {
+              "auditorMeaning": "the water heater is in the utility room (a real, specific location the auditor names directly), but the auditor never states whether that utility room is within the conditioned/heated envelope or not"
+            },
+            "arguable": {
+              "acceptableAlternatives": [
+                "Indoors and within heated area",
+                "Garage or Unconditioned Space"
+              ],
+              "note": "'The utility room' is squarely on-topic for dhwLocation (schema.ts: 'where the tank lives, which drives its standby losses') but doesn't map cleanly to any of the 4 members: it isn't 'Outbuilding', and it isn't genuinely 'Don't Know' either (the auditor DOES know the location, by name, they just never say whether it's conditioned). It could plausibly be either 'Indoors and within heated area' or 'Garage or Unconditioned Space', and nothing in the transcript resolves which. Per THE ONE RULE, something WAS said, so omission is not the answer merely because the exact mapping is unclear -- noFittingMember (not a symmetric tie-break: these two members are both genuine guesses, not two equally-textually-supported readings of one stated fact)."
+            }
+          }
+        }
+      }
+    ]
+  },
   "leaves": {
-    "hvac.hvacSystemEquipmentType": {
-      "status": "asserted",
-      "sourceSpan": "a gas furnace",
-      "member": "Furnace with standalone ducts",
-      "arguable": {
-        "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
-        "symmetric": true,
-        "note": "SCHEMA FINDING, same as the worked example's furnace case, not a transcript ambiguity. The auditor states only the equipment's identity ('a gas furnace') and never addresses whether it shares ducts with a central AC unit -- cooling is not mentioned anywhere in this transcript. `member` is 'Furnace with standalone ducts' because it is FIRST in schema.ts's enum-list order (index 2 of 17 vs. index 16 for the shared-ducts member), per ANNOTATOR_GUIDE.md rule 6's deterministic tie-break, not because it is a better reading."
-      }
-    },
-    "hvac.hvacHeatingEnergySource": {
-      "status": "asserted",
-      "sourceSpan": "a gas furnace",
-      "member": "Natural Gas"
-    },
-    "dhw.dhwType2": {
-      "status": "asserted",
-      "sourceSpan": "a gas storage water heater",
-      "member": "Tank Water Heater"
-    },
-    "dhw.dhwFuel2": {
-      "status": "asserted",
-      "sourceSpan": "a gas storage water heater",
-      "member": "Natural Gas"
-    },
-    "dhw.dhwLocation": {
-      "status": "asserted",
-      "sourceSpan": "both in the utility room",
-      "noFittingMember": {
-        "auditorMeaning": "the water heater is in the utility room (a real, specific location the auditor names directly), but the auditor never states whether that utility room is within the conditioned/heated envelope or not"
-      },
-      "arguable": {
-        "acceptableAlternatives": [
-          "Indoors and within heated area",
-          "Garage or Unconditioned Space"
-        ],
-        "note": "'The utility room' is squarely on-topic for dhwLocation (schema.ts: 'where the tank lives, which drives its standby losses') but doesn't map cleanly to any of the 4 members: it isn't 'Outbuilding', and it isn't genuinely 'Don't Know' either (the auditor DOES know the location, by name, they just never say whether it's conditioned). It could plausibly be either 'Indoors and within heated area' or 'Garage or Unconditioned Space', and nothing in the transcript resolves which. Per THE ONE RULE, something WAS said, so omission is not the answer merely because the exact mapping is unclear -- noFittingMember (not a symmetric tie-break: these two members are both genuine guesses, not two equally-textually-supported readings of one stated fact)."
-      }
-    },
     "health.healthAmbientCarbonMonoxide": {
       "status": "asserted",
       "sourceSpan": "I'm calling that a fail on ambient CO",

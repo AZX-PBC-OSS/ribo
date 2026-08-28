@@ -1,11 +1,13 @@
-import { expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import {
   openOutbox,
   ReviewValidationError,
+  type ExistingRecord,
   type FieldDecision,
   type Outbox,
   type OutboxItem,
+  type RankedCandidate,
 } from "@azx/ribo-core";
 import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 import { z } from "zod";
@@ -158,7 +160,7 @@ test("requiredOnCreate marks the named leaf required and leaves every other leaf
   // it every leaf's `required` is `false`, silently, because
   // `BuildReviewRequestOptions.requiredOnCreate` defaults to `undefined` there too.
   const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox, { requiredOnCreate: ["healthSafety.ambientCo"] });
+  const { seen } = await probe(item, outbox, { requiredOnCreate: { healthSafety: ["ambientCo"] } });
 
   expect(seen.current!.fields!["healthSafety.ambientCo"]!.required).toBe(true);
   // Not named -> not required. An adapter's silence is not a claim of absence,
@@ -653,4 +655,181 @@ test("discarding is terminal and drops the audio", async () => {
   expect(persisted?.status).toBe("discarded");
   expect(persisted?.audioReady).toBe(false);
   await outbox.close();
+});
+
+describe("useReview — instance identity: link-or-create decision", () => {
+  const collectionValuesSchema = z.object({
+    hvac: z
+      .array(
+        z
+          .object({
+            hvacSystemEquipmentType: z.string().nullable().optional(),
+            hvacHeatingSystemManufacturer: z.string().nullable().optional(),
+          })
+          .strict(),
+      )
+      .optional(),
+  });
+
+  const collectionTranscript = {
+    recordingId: "rec-hvac",
+    text: "Boiler by Burnham.",
+    engine: "fake",
+  } as const;
+
+  async function collectionParkedItem() {
+    const outbox = await openOutbox({
+      name: `t-${crypto.randomUUID()}`,
+      storage: getRxStorageMemory(),
+    });
+    const item = await outbox.enqueue({
+      recording: recording(),
+      audio: new Blob(["x"], { type: "audio/webm" }),
+    });
+    const parked = await outbox.patch(item.id, {
+      status: "awaiting-review",
+      transcript: collectionTranscript,
+      extracted: {
+        hvac: [
+          {
+            hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "Boiler" },
+            hvacHeatingSystemManufacturer: {
+              value: "Burnham",
+              confidence: 1,
+              sourceSpan: "Burnham",
+            },
+          },
+        ],
+      },
+    });
+    return { outbox, item: parked };
+  }
+
+  async function collectionProbe(
+    item: OutboxItem | undefined,
+    outbox: Outbox,
+    extra: Partial<UseReviewOptions> = {},
+  ) {
+    const seen: { current: UseReviewResult | undefined } = { current: undefined };
+    function Probe({ subject }: { subject: OutboxItem | undefined }) {
+      seen.current = useReview(subject, {
+        valuesSchema: collectionValuesSchema,
+        outbox,
+        ...extra,
+      });
+      return null;
+    }
+    const screen = await render(<Probe subject={item} />);
+    return { seen, screen, Probe };
+  }
+
+  const existingRecords: Record<string, readonly ExistingRecord[]> = {
+    hvac: [
+      {
+        uuid: "hvac-1",
+        fields: { hvacSystemEquipmentType: "Boiler", hvacHeatingSystemManufacturer: "Burnham" },
+      },
+    ],
+  };
+
+  const rankCandidates: (
+    group: string,
+    instance: Record<string, unknown>,
+    existing: readonly ExistingRecord[],
+  ) => readonly RankedCandidate[] = (_group, instance, existing) =>
+    existing.map((record) => ({
+      ...record,
+      contradicts: instance.hvacSystemEquipmentType !== record.fields.hvacSystemEquipmentType,
+    }));
+
+  test("exposes existing records and the default create decision", async () => {
+    const { outbox, item } = await collectionParkedItem();
+    const { seen } = await collectionProbe(item, outbox, {
+      existingRecords,
+      rankCandidates,
+    });
+
+    expect(seen.current!.existingRecords).toEqual(existingRecords);
+    expect(seen.current!.linkDecisionOf("hvac[k1]")).toEqual({ kind: "create" });
+    expect(seen.current!.rankedCandidatesOf("hvac[k1]")).toHaveLength(1);
+    await outbox.close();
+  });
+
+  test("linking an instance survives submit and reaches the outcome as an update target", async () => {
+    const { outbox, item } = await collectionParkedItem();
+    const { seen } = await collectionProbe(item, outbox, {
+      existingRecords,
+      rankCandidates,
+    });
+
+    seen.current!.linkInstance("hvac[k1]", "hvac-1");
+    await vi.waitFor(() =>
+      expect(seen.current!.linkDecisionOf("hvac[k1]")).toEqual({ kind: "link", uuid: "hvac-1" }),
+    );
+    const outcome = await seen.current!.submit();
+
+    expect(outcome).toMatchObject({
+      status: "accepted",
+      fields: {
+        hvac: [{ hvacSystemEquipmentType: "Boiler", hvacHeatingSystemManufacturer: "Burnham" }],
+      },
+      linkTargets: { hvac: ["hvac-1"] },
+    });
+
+    const persisted = await outbox.get(item.id);
+    expect(persisted?.reviewOutcome).toMatchObject({
+      status: "accepted",
+      linkTargets: { hvac: ["hvac-1"] },
+    });
+    await outbox.close();
+  });
+
+  test("without a link decision, one perfect existing record still creates", async () => {
+    const { outbox, item } = await collectionParkedItem();
+    const { seen } = await collectionProbe(item, outbox, {
+      existingRecords,
+      rankCandidates,
+    });
+
+    const outcome = await seen.current!.submit();
+
+    expect(outcome).toMatchObject({
+      status: "accepted",
+      linkTargets: { hvac: [null] },
+    });
+    await outbox.close();
+  });
+
+  test("createInstance resets a previous link decision", async () => {
+    const { outbox, item } = await collectionParkedItem();
+    const { seen } = await collectionProbe(item, outbox, {
+      existingRecords,
+      rankCandidates,
+    });
+
+    seen.current!.linkInstance("hvac[k1]", "hvac-1");
+    await vi.waitFor(() =>
+      expect(seen.current!.linkDecisionOf("hvac[k1]")).toEqual({ kind: "link", uuid: "hvac-1" }),
+    );
+    seen.current!.createInstance("hvac[k1]");
+    await vi.waitFor(() =>
+      expect(seen.current!.linkDecisionOf("hvac[k1]")).toEqual({ kind: "create" }),
+    );
+    const outcome = await seen.current!.submit();
+    expect(outcome).toMatchObject({ linkTargets: { hvac: [null] } });
+    await outbox.close();
+  });
+
+  test("an unknown instance path is rejected when linking", async () => {
+    const { outbox, item } = await collectionParkedItem();
+    const { seen } = await collectionProbe(item, outbox, {
+      existingRecords,
+      rankCandidates,
+    });
+
+    expect(() => seen.current!.linkInstance("hvac[k9]", "hvac-1")).toThrow(
+      /not a collection instance/,
+    );
+    await outbox.close();
+  });
 });

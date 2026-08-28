@@ -1,87 +1,134 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/13-enum-paraphrase.txt",
   "stresses": "ENUM-VOCABULARY PARAPHRASE cluster: colloquial phrasings that must resolve to exact schema.ts members without inventing or dropping a value ('what we call clad' -> 'Wood or metal clad', 'the inch-and-a-half board' -> 'Duct Board 1.5\"', 'well sealed' -> '6% - Well sealed', 'block with a stucco skim' -> 'Stucco', 'a gas storage tank' -> 'Tank Water Heater' + 'Natural Gas'). Also exercises the hvacSystemEquipmentType conflated axis from a DIFFERENT angle than the worked example: here BOTH halves of the conflated axis (furnace identity, shared-ducts-with-AC) are explicitly stated across two sentences, so the leaf resolves cleanly to 'Furnace / Central AC (shared ducts)' with no tie-break needed -- looks superficially like the conflation trap and isn't. THE OTHER textually-exact instance of the ambient-vs-undiluted-flue-CO confusability (RECONCILIATION.md ruling 4) -- 'CO at both appliances was clean, zero ppm' is the corpus's most literal match to the ruling's own illustrative phrasing; annotators split on it outright, resolved here to healthAmbientCarbonMonoxide because neither the flue nor a probe nor combustion gas is named. No blanket disclaimers anywhere: every skip (wall insulation not callable, HVAC output capacity unread, worst-case + natural spillage not done) is individually named rather than generic, so `disclaimers` is empty by design.",
   "disclaimers": [],
+  "instances": {
+    "hvac": [
+      {
+        "discriminator": "the hvac described in this transcript",
+        "mentionSpan": "Central AC on the same ducts as the furnace, shared",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "Central AC on the same ducts as the furnace, shared",
+            "member": "Furnace / Central AC (shared ducts)"
+          },
+          "hvacHeatingEnergySource": {
+            "status": "asserted",
+            "sourceSpan": "Heating is a furnace, natural gas",
+            "member": "Natural Gas"
+          },
+          "hvacHeatingSystemManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "a Carrier",
+            "member": "Carrier"
+          },
+          "hvacHeatingSystemModel": {
+            "status": "asserted",
+            "sourceSpan": "it's 58STA",
+            "value": "58STA"
+          },
+          "hvacHeatingSystemModelYear": {
+            "status": "asserted",
+            "sourceSpan": "the year reads twenty-thirteen",
+            "value": 2013
+          },
+          "hvacHeatingCapacity": {
+            "status": "declared_absent",
+            "sourceSpan": "Didn't get an output number, the plate's tucked behind the ductwork where I can't see it"
+          },
+          "hvacDuctLocation": {
+            "status": "asserted",
+            "sourceSpan": "The ducts run through the basement, which is unconditioned down there",
+            "value": "the basement, which is unconditioned down there"
+          },
+          "hvacDuctLeakage": {
+            "status": "asserted",
+            "sourceSpan": "I'd call that well sealed",
+            "member": "6% - Well sealed"
+          },
+          "hvacDuctInsulation": {
+            "status": "asserted",
+            "sourceSpan": "that rigid duct board, the inch-and-a-half board",
+            "member": "Duct Board 1.5 inch"
+          }
+        }
+      }
+    ],
+    "attic": [],
+    "wall": [
+      {
+        "discriminator": "the wall described in this transcript",
+        "mentionSpan": "block with a stucco skim on the outside",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "wallExteriorWallSiding": {
+            "status": "asserted",
+            "sourceSpan": "block with a stucco skim on the outside",
+            "member": "Stucco"
+          },
+          "wallsInsulated": {
+            "status": "declared_absent",
+            "sourceSpan": "I'm not calling the wall insulation either way, leaving it"
+          }
+        }
+      }
+    ],
+    "window": [
+      {
+        "discriminator": "the window described in this transcript",
+        "mentionSpan": "Clad, double pane.",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "windowFrame": {
+            "status": "asserted",
+            "sourceSpan": "Clad, double pane.",
+            "member": "Wood or metal clad"
+          },
+          "windowType": {
+            "status": "asserted",
+            "sourceSpan": "Clad, double pane.",
+            "member": "Double pane"
+          }
+        }
+      }
+    ],
+    "dhw": [
+      {
+        "discriminator": "the dhw described in this transcript",
+        "mentionSpan": "Water heater is a gas storage tank",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "dhwType2": {
+            "status": "asserted",
+            "sourceSpan": "Water heater is a gas storage tank",
+            "member": "Tank Water Heater"
+          },
+          "dhwFuel2": {
+            "status": "asserted",
+            "sourceSpan": "Water heater is a gas storage tank",
+            "member": "Natural Gas"
+          },
+          "dhwAge": {
+            "status": "asserted",
+            "sourceSpan": "About fifteen years old",
+            "member": "11-15"
+          }
+        }
+      }
+    ]
+  },
   "leaves": {
-    "wall.wallExteriorWallSiding": {
-      "status": "asserted",
-      "sourceSpan": "block with a stucco skim on the outside",
-      "member": "Stucco"
-    },
-    "wall.wallsInsulated": {
-      "status": "declared_absent",
-      "sourceSpan": "I'm not calling the wall insulation either way, leaving it"
-    },
-    "window.windowFrame": {
-      "status": "asserted",
-      "sourceSpan": "Clad, double pane.",
-      "member": "Wood or metal clad"
-    },
-    "window.windowType": {
-      "status": "asserted",
-      "sourceSpan": "Clad, double pane.",
-      "member": "Double pane"
-    },
-    "hvac.hvacSystemEquipmentType": {
-      "status": "asserted",
-      "sourceSpan": "Central AC on the same ducts as the furnace, shared",
-      "member": "Furnace / Central AC (shared ducts)"
-    },
-    "hvac.hvacHeatingEnergySource": {
-      "status": "asserted",
-      "sourceSpan": "Heating is a furnace, natural gas",
-      "member": "Natural Gas"
-    },
-    "hvac.hvacHeatingSystemManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "a Carrier",
-      "member": "Carrier"
-    },
-    "hvac.hvacHeatingSystemModel": {
-      "status": "asserted",
-      "sourceSpan": "it's 58STA",
-      "value": "58STA"
-    },
-    "hvac.hvacHeatingSystemModelYear": {
-      "status": "asserted",
-      "sourceSpan": "the year reads twenty-thirteen",
-      "value": 2013
-    },
-    "hvac.hvacHeatingCapacity": {
-      "status": "declared_absent",
-      "sourceSpan": "Didn't get an output number, the plate's tucked behind the ductwork where I can't see it"
-    },
-    "hvac.hvacDuctLocation": {
-      "status": "asserted",
-      "sourceSpan": "The ducts run through the basement, which is unconditioned down there",
-      "value": "the basement, which is unconditioned down there"
-    },
-    "hvac.hvacDuctLeakage": {
-      "status": "asserted",
-      "sourceSpan": "I'd call that well sealed",
-      "member": "6% - Well sealed"
-    },
-    "hvac.hvacDuctInsulation": {
-      "status": "asserted",
-      "sourceSpan": "that rigid duct board, the inch-and-a-half board",
-      "member": "Duct Board 1.5 inch"
-    },
-    "dhw.dhwType2": {
-      "status": "asserted",
-      "sourceSpan": "Water heater is a gas storage tank",
-      "member": "Tank Water Heater"
-    },
-    "dhw.dhwFuel2": {
-      "status": "asserted",
-      "sourceSpan": "Water heater is a gas storage tank",
-      "member": "Natural Gas"
-    },
-    "dhw.dhwAge": {
-      "status": "asserted",
-      "sourceSpan": "About fifteen years old",
-      "member": "11-15"
-    },
     "basedata.blowerDoorReading": {
       "status": "asserted",
       "sourceSpan": "Blower door came in at twenty-nine hundred CFM50.",

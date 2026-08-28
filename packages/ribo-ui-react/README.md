@@ -36,7 +36,7 @@ pnpm add @azx/ribo-ui-react @azx/ribo-core react react-dom
 - **`useReview`** — field-by-field review of one parked item: `buildReviewRequest` /
   `resolveReview` from core, wired to per-item React state (`decisionOf`, `accept`, `edit`,
   `reject`, `untouched`, `submit`, `discard`). Takes the adapter's `valuesSchema` and, optionally,
-  its `requiredOnCreate` list — no `ToolAdapter` import needed.
+  its per-group `requiredOnCreate` declaration — no `ToolAdapter` import needed.
 - **`useConnectivity`** — the `offline`/`probing`/`online` model as React state.
 - **`useWorkSafety`** — the one honest "is my work safe?" verdict, composed from the outbox,
   connectivity and storage-persistence hooks so every host renders the same answer.

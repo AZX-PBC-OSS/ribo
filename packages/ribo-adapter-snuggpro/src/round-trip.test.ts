@@ -162,6 +162,13 @@ const flatten = (value: Record<string, unknown>, prefix = ""): string[] =>
 
 // --- The round trip ---------------------------------------------------------
 
+// The resolved patch is positional (arrays), while review paths are keyed (`k1`, `k2`).
+// Flatten the written fields to positional dotted paths to compare against the expected
+// leaf set.
+
+const positionalPath = (keyedPath: string): string =>
+  keyedPath.replace(/\[k(\d+)\]/g, (_, n) => `.${Number(n) - 1}`);
+
 test("the real field set round-trips: schema → extraction → review → write", async () => {
   const written: Write[] = [];
   const adapter = stubAdapter(written);
@@ -172,8 +179,8 @@ test("the real field set round-trips: schema → extraction → review → write
   const request = buildReviewRequest(extracted, transcript, adapter.schema);
   const paths = Object.keys(request.fields);
 
-  // 51 leaves across seven resource groups, each independently reviewable.
-  expect(paths).toHaveLength(51);
+  // 63 leaves across seven resource groups, each independently reviewable.
+  expect(paths).toHaveLength(63);
   expect(paths).toContain(EDITED_LEAF);
   expect(request.fields[EDITED_LEAF]?.extracted.value).toBe(MODEL_VALUE);
 
@@ -217,28 +224,33 @@ test("the real field set round-trips: schema → extraction → review → write
   // The honest nulls the fixture is full of survive as WRITTEN nulls — Snugg Pro's
   // `Not Tested` — because the human accepted them. This is the path an earlier revision
   // of this design got wrong.
-  expect("hvacCoolingCapacity" in (write.fields.hvac ?? {})).toBe(true);
-  expect(write.fields.hvac?.hvacCoolingCapacity).toBeNull();
-  expect(write.fields.hvac?.hvacDuctLocation).toBeNull();
-  expect(write.fields.hvac?.hvacDuctLeakage).toBeNull();
+  expect("hvacCoolingCapacity" in (write.fields.hvac?.[0] ?? {})).toBe(true);
+  expect(write.fields.hvac?.[0]?.hvacCoolingCapacity).toBeNull();
+  expect(write.fields.hvac?.[0]?.hvacDuctLocation).toBeNull();
+  expect(write.fields.hvac?.[0]?.hvacDuctLeakage).toBeNull();
 
   // Values the model did extract come through as themselves, parsed — the fuel axis
   // split across two fields, and every enum member a literal Snugg Pro wire string.
-  expect(write.fields.hvac?.hvacSystemEquipmentType).toBe("Boiler");
-  expect(write.fields.hvac?.hvacHeatingEnergySource).toBe("Fuel Oil");
-  expect(write.fields.hvac?.hvacHeatingSystemModelYear).toBe(2004);
-  expect(write.fields.attic?.atticInsulationDepth).toBe("4-6");
-  expect(write.fields.dhw?.dhwType2).toBe("Sidearm Tank");
+  expect(write.fields.hvac?.[0]?.hvacSystemEquipmentType).toBe("Boiler");
+  expect(write.fields.hvac?.[0]?.hvacHeatingEnergySource).toBe("Fuel Oil");
+  expect(write.fields.hvac?.[0]?.hvacHeatingSystemModelYear).toBe(2004);
+  expect(write.fields.hvac?.[1]?.hvacSystemEquipmentType).toBe("Central Heat Pump (shared ducts)");
+  expect(write.fields.hvac?.[1]?.hvacHeatingEnergySource).toBe("Electricity");
+  expect(write.fields.hvac?.[1]?.hvacHeatingSystemModelYear).toBe(2015);
+  expect(write.fields.attic?.[0]?.atticInsulationDepth).toBe("4-6");
+  expect(write.fields.dhw?.[0]?.dhwType2).toBe("Sidearm Tank");
 
-  // Nothing is missing: accepting all 51 leaves writes all 51.
-  expect(flatten(write.fields).sort()).toEqual([...paths].sort());
+  // Nothing is missing: accepting all 63 leaves writes all 63. The resolved patch is
+  // positional, so compare the flattened field paths against positional versions of the
+  // keyed review paths.
+  expect(flatten(write.fields).sort()).toEqual([...paths].map(positionalPath).sort());
 
   // The destination came off THIS item's recording, and the idempotency key off the queue.
   expect(write.ctx).toEqual(ctx);
   expect(write.meta).toEqual({ idempotencyKey: "idem-item-1" });
 });
 
-test("one rejected leaf of the 51 still writes the other 50", async () => {
+test("one rejected leaf of the 63 still writes the other 62", async () => {
   // The test that proves patch semantics, and the one an earlier revision of this design
   // would have failed outright: rejecting a leaf must leave that field alone in Snugg
   // Pro, not fail the write and not blank the field.
@@ -264,7 +276,7 @@ test("one rejected leaf of the 51 still writes the other 50", async () => {
     idempotencyKey: item.idempotencyKey,
   });
 
-  // The write SUCCEEDED — the rejection did not take the other 50 leaves down with it.
+  // The write SUCCEEDED — the rejection did not take the other 62 leaves down with it.
   expect(written).toHaveLength(1);
   const fields = written[0]!.fields;
 
@@ -273,7 +285,12 @@ test("one rejected leaf of the 51 still writes the other 50", async () => {
   // `fields.healthSafety?.asbestos` reads `undefined` either way.
   expect("healthAsbestos" in fields.health!).toBe(false);
   // Every other leaf is present, including the thirteen surviving health fields.
-  expect(flatten(fields).sort()).toEqual(paths.filter((path) => path !== rejected).sort());
+  expect(flatten(fields).sort()).toEqual(
+    paths
+      .filter((path) => path !== rejected)
+      .map(positionalPath)
+      .sort(),
+  );
   expect(Object.keys(fields.health!)).toHaveLength(13);
 
   // The neighbouring case, in the same patch: an accepted `null` is PRESENT and null.
@@ -283,6 +300,6 @@ test("one rejected leaf of the 51 still writes the other 50", async () => {
   // touch.
   expect("healthLead" in fields.health!).toBe(true);
   expect(fields.health!.healthLead).toBeNull();
-  expect("hvacCoolingCapacity" in fields.hvac!).toBe(true);
-  expect(fields.hvac!.hvacCoolingCapacity).toBeNull();
+  expect("hvacCoolingCapacity" in fields.hvac![0]!).toBe(true);
+  expect(fields.hvac![0]!.hvacCoolingCapacity).toBeNull();
 });

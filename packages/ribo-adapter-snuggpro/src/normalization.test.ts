@@ -96,7 +96,7 @@ describe("yearsToDhwAgeBand", () => {
 describe("normalizeFields", () => {
   // The adapter's own few-shot example, with out-of-range confidences poked into
   // three envelopes in three DIFFERENT resource groups. Derived from the fixture
-  // rather than hand-written so it cannot drift from the schema's 51 leaves — and
+  // rather than hand-written so it cannot drift from the schema's 63 leaves — and
   // spread across groups because a pass that only recursed one level deep, or that
   // special-cased one group by name, would still pass a single-group probe.
   //
@@ -108,16 +108,16 @@ describe("normalizeFields", () => {
 
   const base = (): SnuggExtraction => {
     const fields = structuredClone(fixture.fields) as SnuggExtraction;
-    fields.hvac.hvacSystemEquipmentType.confidence = 1.4;
-    fields.dhw.dhwAge.confidence = -0.5;
+    fields.hvac![0]!.hvacSystemEquipmentType.confidence = 1.4;
+    fields.dhw[0]!.dhwAge.confidence = -0.5;
     fields.health.healthDraftPressure.confidence = 2;
     return fields;
   };
 
   test("clamps confidence on envelopes in every resource group, at any depth", () => {
     const out = normalizeFields(base());
-    expect(out.hvac.hvacSystemEquipmentType.confidence).toBe(1);
-    expect(out.dhw.dhwAge.confidence).toBe(0);
+    expect(out.hvac[0]!.hvacSystemEquipmentType.confidence).toBe(1);
+    expect(out.dhw[0]!.dhwAge.confidence).toBe(0);
     expect(out.health.healthDraftPressure.confidence).toBe(1);
   });
 
@@ -128,6 +128,10 @@ describe("normalizeFields", () => {
     let seen = 0;
     const walk = (node: unknown): void => {
       if (typeof node !== "object" || node === null) return;
+      if (Array.isArray(node)) {
+        for (const item of node) walk(item);
+        return;
+      }
       if ("confidence" in node) {
         const { confidence } = node as { confidence: number };
         seen += 1;
@@ -138,24 +142,24 @@ describe("normalizeFields", () => {
       for (const child of Object.values(node)) walk(child);
     };
     walk(normalizeFields(base()));
-    expect(seen).toBe(51);
+    expect(seen).toBe(63);
   });
 
   test("leaves value and sourceSpan untouched — it never converts or invents", () => {
     const out = normalizeFields(base());
-    expect(out.hvac.hvacSystemEquipmentType.value).toBe("Boiler");
-    expect(out.hvac.hvacSystemEquipmentType.sourceSpan).toBe("it's an oil boiler");
-    expect(out.attic.atticInsulationDepth.value).toBe("4-6");
+    expect(out.hvac[0]!.hvacSystemEquipmentType.value).toBe("Boiler");
+    expect(out.hvac[0]!.hvacSystemEquipmentType.sourceSpan).toBe("it's an oil boiler");
+    expect(out.attic[0]!.atticInsulationDepth.value).toBe("4-6");
     // The R-value field stays null: nothing converts a depth into one, or back.
-    expect(out.attic.atticInsulation.value).toBeNull();
+    expect(out.attic[0]!.atticInsulation.value).toBeNull();
   });
 
   test("is pure — it returns a new object and does not mutate its input", () => {
     const input = base();
     const out = normalizeFields(input);
-    expect(input.hvac.hvacSystemEquipmentType.confidence).toBe(1.4); // input unchanged
+    expect(input.hvac[0]!.hvacSystemEquipmentType.confidence).toBe(1.4); // input unchanged
     expect(out).not.toBe(input);
-    expect(out.hvac).not.toBe(input.hvac); // the groups are new objects too
+    expect(out.hvac).not.toBe(input.hvac); // the groups are new arrays too
   });
 
   test("output still satisfies the EXTRACTION schema", () => {
@@ -164,5 +168,70 @@ describe("normalizeFields", () => {
     // the model emits. A patch-shaped assertion here would not even type-check,
     // which is the point — the pass has no values-shaped signature to have.
     expect(() => snuggExtractionSchema.parse(normalizeFields(base()))).not.toThrow();
+  });
+
+  // R1.6 Task 4 — `clampDeep` must preserve arrays. The current schema is still
+  // singleton groups, so these inputs are cast to the extraction shape; the cast
+  // is only to satisfy the type system — the pass is a structural walk and does
+  // not validate against the schema.
+  describe("array preservation (R1.6 Task 4)", () => {
+    const makeArrayExtraction = (): SnuggExtraction =>
+      ({
+        hvac: [
+          {
+            hvacSystemEquipmentType: {
+              value: "Boiler",
+              confidence: 1.4,
+              sourceSpan: "it's an oil boiler",
+            },
+            hvacHeatingEnergySource: { value: "Fuel Oil", confidence: -0.1, sourceSpan: "oil" },
+          },
+          {
+            hvacSystemEquipmentType: {
+              value: "Furnace",
+              confidence: 2.0,
+              sourceSpan: "upstairs furnace",
+            },
+          },
+        ],
+      }) as unknown as SnuggExtraction;
+
+    test("an array survives as an array with element order intact", () => {
+      const input = makeArrayExtraction();
+      const inputHvac = (input as unknown as { hvac: unknown[] }).hvac;
+      const out = normalizeFields(input) as unknown as {
+        hvac: Array<{ hvacSystemEquipmentType: { value: string } }>;
+      };
+      expect(Array.isArray(out.hvac)).toBe(true);
+      expect(out.hvac).toHaveLength(2);
+      expect(out.hvac[0]!.hvacSystemEquipmentType.value).toBe("Boiler");
+      expect(out.hvac[1]!.hvacSystemEquipmentType.value).toBe("Furnace");
+      // The pass is pure: it returns a new array rather than mutating the input.
+      expect(out.hvac).not.toBe(inputHvac);
+    });
+
+    test("confidence clamping reaches inside every array element", () => {
+      const out = normalizeFields(makeArrayExtraction()) as unknown as {
+        hvac: Array<{
+          hvacSystemEquipmentType: { confidence: number };
+          hvacHeatingEnergySource?: { confidence: number };
+        }>;
+      };
+      expect(out.hvac[0]!.hvacSystemEquipmentType.confidence).toBe(1);
+      expect(out.hvac[0]!.hvacHeatingEnergySource?.confidence).toBe(0);
+      expect(out.hvac[1]!.hvacSystemEquipmentType.confidence).toBe(1);
+    });
+
+    test("an empty collection stays an empty array and gains no element", () => {
+      const input = { hvac: [] } as unknown as SnuggExtraction;
+      const inputHvac = (input as unknown as { hvac: unknown[] }).hvac;
+      const out = normalizeFields(input) as unknown as { hvac: unknown[] };
+      expect(Array.isArray(out.hvac)).toBe(true);
+      expect(out.hvac).toHaveLength(0);
+      // The broken Object.fromEntries(Object.entries(node)) rebuild turned an
+      // empty array into `{}`, which is still an Object but no longer an array.
+      expect(JSON.stringify(out.hvac)).toBe("[]");
+      expect(out.hvac).not.toBe(inputHvac);
+    });
   });
 });

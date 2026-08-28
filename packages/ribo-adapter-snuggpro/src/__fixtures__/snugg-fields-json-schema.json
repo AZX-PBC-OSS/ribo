@@ -245,1177 +245,1192 @@
       "additionalProperties": false
     },
     "hvac": {
-      "type": "object",
-      "properties": {
-        "hvacSystemEquipmentType": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Boiler",
-                    "Steam Boiler",
-                    "Furnace with standalone ducts",
-                    "Electric Resistance",
-                    "Direct Heater",
-                    "Stove or Insert",
-                    "Solar Thermal",
-                    "Central AC with standalone ducts",
-                    "Room AC",
-                    "Evaporative Cooler - Direct",
-                    "Evaporative Cooler - Ducted",
-                    "Ductless Heat Pump",
-                    "Central Heat Pump (shared ducts)",
-                    "Deep Loop Ground Source Heat Pump (shared ducts)",
-                    "Open Loop Ground Source Heat Pump (shared ducts)",
-                    "Shallow Loop Ground Source Heat Pump (shared ducts)",
-                    "Furnace / Central AC (shared ducts)"
-                  ],
-                  "description": "Select which type of HVAC system you'd like to describe. This list shows every possible type of heating or cooling system (or combination thereof) that is available in our software. Pay attention to the “shared ducts” vs. “standalone ducts” component. Note: this is very similar to the “Both” option that was available in version 4. Heating and cooling equipment in one field; fuel is a separate field, so decompose \"oil boiler\" into \"Boiler\" here and \"Fuel Oil\" in hvacHeatingEnergySource — never a fused token."
-                },
-                {
-                  "type": "null"
-                }
-              ]
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "hvacSystemEquipmentType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Boiler",
+                      "Steam Boiler",
+                      "Furnace with standalone ducts",
+                      "Electric Resistance",
+                      "Direct Heater",
+                      "Stove or Insert",
+                      "Solar Thermal",
+                      "Central AC with standalone ducts",
+                      "Room AC",
+                      "Evaporative Cooler - Direct",
+                      "Evaporative Cooler - Ducted",
+                      "Ductless Heat Pump",
+                      "Central Heat Pump (shared ducts)",
+                      "Deep Loop Ground Source Heat Pump (shared ducts)",
+                      "Open Loop Ground Source Heat Pump (shared ducts)",
+                      "Shallow Loop Ground Source Heat Pump (shared ducts)",
+                      "Furnace / Central AC (shared ducts)"
+                    ],
+                    "description": "Select which type of HVAC system you'd like to describe. This list shows every possible type of heating or cooling system (or combination thereof) that is available in our software. Pay attention to the “shared ducts” vs. “standalone ducts” component. Note: this is very similar to the “Both” option that was available in version 4. Heating and cooling equipment in one field; fuel is a separate field, so decompose \"oil boiler\" into \"Boiler\" here and \"Fuel Oil\" in hvacHeatingEnergySource — never a fused token."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
             },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
           },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
+          "hvacUpgradeAction": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Replace with a newer model",
+                      "Keep an existing system as is",
+                      "Remove a system permanently",
+                      "Install a new non-existing system"
+                    ],
+                    "description": "Choose an action that you plan to take for this HVAC system.**Replace with a newer model:** Replace the existing equipment with a new version of the same thing. Eg. replace a 78 AFUE furnace with a new 98 AFUE furnace **Keep an existing system as is:** Do nothing to a system or just change the percent of total load that that old system covers in the house. **Remove a system permanently:** Rip out an entire system and replace it with something completely new, like going from a direct heater and room AC to a central heat pump. In this instance you will have a system that is described on the base side, and the improved side will be blank. **Install a new non-existing system:** A brand new system that replaces the system that was removed when you chose: Remove a system permanently."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingEnergySource": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Electricity",
+                      "Natural Gas",
+                      "Fuel Oil",
+                      "Propane",
+                      "Pellets",
+                      "Wood",
+                      "Solar",
+                      "None"
+                    ],
+                    "description": "This is the primary fuel source. It is used to set prices and energy content."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemManufacturer": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Unknown",
+                      "AirEase",
+                      "Amana",
+                      "American Standard",
+                      "Bosch",
+                      "Bryant",
+                      "Carrier",
+                      "Coleman",
+                      "Comfort Master",
+                      "Daikin",
+                      "Day & Night",
+                      "Fujitsu",
+                      "General Electric",
+                      "Goodman",
+                      "Janitrol",
+                      "Lennox",
+                      "LG",
+                      "Luxaire",
+                      "Mitsubishi",
+                      "Navien",
+                      "New Yorker",
+                      "Payne",
+                      "Panasonic",
+                      "Peerless",
+                      "Rheem",
+                      "RUUD",
+                      "Samsung",
+                      "Sears Kenmore",
+                      "Tappan",
+                      "Trane",
+                      "Triangle Tube",
+                      "Utica",
+                      "York",
+                      "Other"
+                    ],
+                    "description": "Enter the Manufacturer of the Heating Equipment. Manufacturer from this closed list. Use \"Other\" when the auditor named a make that is not on it, and \"Unknown\" only when they did not state one."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Model # of the Heating Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemModelYear": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Year the Heating Equipment was built. The heating unit's model year — never the home's year built, which is a separate field."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingCapacity": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the output capacity of the heating equipment in (Btu/hr). **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000. Rated heating output in BTU per hour, not efficiency — a spoken \"ninety-two percent furnace\" has no field here; only a stated BTU number goes in."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingCapacity": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the output capacity of the cooling equipment in (Btu/hr). Reminder: cooling systems are often rated in tons. 1 ton = 12,000 Btu/hr. **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000. Rated cooling output in BTU per hour."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacDuctLocation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Select the location of the duct work for this system."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacDuctLeakage": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "30% - Very leaky",
+                      "15% - Somewhat leaky",
+                      "6% - Well sealed",
+                      "3% - Very tight",
+                      "Measured (CFM25)"
+                    ],
+                    "description": "Choose the estimated leakage to the outside through the duct system as a percentage of the total air handler flow. If you actually performed a duct blaster test, choose Measured (CFM25) and enter a value in the field below. Qualitative duct tightness, or \"Measured (CFM25)\" when a duct-blaster number was read — that number goes in hvacDuctLeakageValue, not here."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacDuctLeakageValue": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "If you perform a duct blaster test, please enter the tested leakage to outside at 25 Pa per RESNET Standard Section 803.7. Duct leakage in CFM at 25 pascals from a duct blaster — not a blower-door CFM50, and only meaningful when hvacDuctLeakage is \"Measured (CFM25)\"."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacDuctInsulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "No Insulation",
+                      "Duct Board 1 inch",
+                      "Duct Board 1.5 inch",
+                      "Duct Board 2 inch",
+                      "Fiberglass 1.25 inch",
+                      "Fiberglass 2 inch",
+                      "Fiberglass 2.5 inch",
+                      "Reflective bubble wrap",
+                      "Measured (R Value)"
+                    ],
+                    "description": "Select the type of insulation installed over the duct work for this system. Note: If ducts are covered wholly or partially by incidental insulation present in the cavity in which they are installed, then select the insulation type that most closely matches the average R-value of the insulation. If you know the actual duct insulation R-value, choose Measured (R-Value) and enter the data in the field below."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
         },
-        "hvacUpgradeAction": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Replace with a newer model",
-                    "Keep an existing system as is",
-                    "Remove a system permanently",
-                    "Install a new non-existing system"
-                  ],
-                  "description": "Choose an action that you plan to take for this HVAC system.**Replace with a newer model:** Replace the existing equipment with a new version of the same thing. Eg. replace a 78 AFUE furnace with a new 98 AFUE furnace **Keep an existing system as is:** Do nothing to a system or just change the percent of total load that that old system covers in the house. **Remove a system permanently:** Rip out an entire system and replace it with something completely new, like going from a direct heater and room AC to a central heat pump. In this instance you will have a system that is described on the base side, and the improved side will be blank. **Install a new non-existing system:** A brand new system that replaces the system that was removed when you chose: Remove a system permanently."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "hvacHeatingEnergySource": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Electricity",
-                    "Natural Gas",
-                    "Fuel Oil",
-                    "Propane",
-                    "Pellets",
-                    "Wood",
-                    "Solar",
-                    "None"
-                  ],
-                  "description": "This is the primary fuel source. It is used to set prices and energy content."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "hvacHeatingSystemManufacturer": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Unknown",
-                    "AirEase",
-                    "Amana",
-                    "American Standard",
-                    "Bosch",
-                    "Bryant",
-                    "Carrier",
-                    "Coleman",
-                    "Comfort Master",
-                    "Daikin",
-                    "Day & Night",
-                    "Fujitsu",
-                    "General Electric",
-                    "Goodman",
-                    "Janitrol",
-                    "Lennox",
-                    "LG",
-                    "Luxaire",
-                    "Mitsubishi",
-                    "Navien",
-                    "New Yorker",
-                    "Payne",
-                    "Panasonic",
-                    "Peerless",
-                    "Rheem",
-                    "RUUD",
-                    "Samsung",
-                    "Sears Kenmore",
-                    "Tappan",
-                    "Trane",
-                    "Triangle Tube",
-                    "Utica",
-                    "York",
-                    "Other"
-                  ],
-                  "description": "Enter the Manufacturer of the Heating Equipment. Manufacturer from this closed list. Use \"Other\" when the auditor named a make that is not on it, and \"Unknown\" only when they did not state one."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "hvacHeatingSystemModel": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "description": "Enter the Model # of the Heating Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "hvacHeatingSystemModelYear": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number",
-                  "description": "Enter the Year the Heating Equipment was built. The heating unit's model year — never the home's year built, which is a separate field."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "hvacHeatingCapacity": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number",
-                  "description": "Enter the output capacity of the heating equipment in (Btu/hr). **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000. Rated heating output in BTU per hour, not efficiency — a spoken \"ninety-two percent furnace\" has no field here; only a stated BTU number goes in."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "hvacCoolingCapacity": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number",
-                  "description": "Enter the output capacity of the cooling equipment in (Btu/hr). Reminder: cooling systems are often rated in tons. 1 ton = 12,000 Btu/hr. **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000. Rated cooling output in BTU per hour."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "hvacDuctLocation": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "description": "Select the location of the duct work for this system."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "hvacDuctLeakage": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "30% - Very leaky",
-                    "15% - Somewhat leaky",
-                    "6% - Well sealed",
-                    "3% - Very tight",
-                    "Measured (CFM25)"
-                  ],
-                  "description": "Choose the estimated leakage to the outside through the duct system as a percentage of the total air handler flow. If you actually performed a duct blaster test, choose Measured (CFM25) and enter a value in the field below. Qualitative duct tightness, or \"Measured (CFM25)\" when a duct-blaster number was read — that number goes in hvacDuctLeakageValue, not here."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "hvacDuctLeakageValue": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number",
-                  "description": "If you perform a duct blaster test, please enter the tested leakage to outside at 25 Pa per RESNET Standard Section 803.7. Duct leakage in CFM at 25 pascals from a duct blaster — not a blower-door CFM50, and only meaningful when hvacDuctLeakage is \"Measured (CFM25)\"."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "hvacDuctInsulation": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "No Insulation",
-                    "Duct Board 1 inch",
-                    "Duct Board 1.5 inch",
-                    "Duct Board 2 inch",
-                    "Fiberglass 1.25 inch",
-                    "Fiberglass 2 inch",
-                    "Fiberglass 2.5 inch",
-                    "Reflective bubble wrap",
-                    "Measured (R Value)"
-                  ],
-                  "description": "Select the type of insulation installed over the duct work for this system. Note: If ducts are covered wholly or partially by incidental insulation present in the cavity in which they are installed, then select the insulation type that most closely matches the average R-value of the insulation. If you know the actual duct insulation R-value, choose Measured (R-Value) and enter the data in the field below."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        }
-      },
-      "required": [
-        "hvacSystemEquipmentType",
-        "hvacUpgradeAction",
-        "hvacHeatingEnergySource",
-        "hvacHeatingSystemManufacturer",
-        "hvacHeatingSystemModel",
-        "hvacHeatingSystemModelYear",
-        "hvacHeatingCapacity",
-        "hvacCoolingCapacity",
-        "hvacDuctLocation",
-        "hvacDuctLeakage",
-        "hvacDuctLeakageValue",
-        "hvacDuctInsulation"
-      ],
-      "additionalProperties": false
+        "required": [
+          "hvacSystemEquipmentType",
+          "hvacUpgradeAction",
+          "hvacHeatingEnergySource",
+          "hvacHeatingSystemManufacturer",
+          "hvacHeatingSystemModel",
+          "hvacHeatingSystemModelYear",
+          "hvacHeatingCapacity",
+          "hvacCoolingCapacity",
+          "hvacDuctLocation",
+          "hvacDuctLeakage",
+          "hvacDuctLeakageValue",
+          "hvacDuctInsulation"
+        ],
+        "additionalProperties": false
+      }
     },
     "attic": {
-      "type": "object",
-      "properties": {
-        "atticInsulationDepth": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": ["0", "1-3", "4-6", "7-9", "10-12", "13-15", "16+", "Don't Know"],
-                  "description": "Enter the depth of all installed attic or ceiling insulation. If the insulation is not evenly distributed, estimate an average depth for the area. If the insulation is evenly distributed but has different depths installed in different area, use the depth of insulation that covers the largest area. If there is no attic and instead vaulted ceilings, enter an estimate of the thickness of insulation in the vaulted cavity. Depth band in inches, set from a stated depth or thickness and never converted from an R-value — a stated R-value goes in atticInsulation instead, and this stays null."
-                },
-                {
-                  "type": "null"
-                }
-              ]
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "atticInsulationDepth": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["0", "1-3", "4-6", "7-9", "10-12", "13-15", "16+", "Don't Know"],
+                    "description": "Enter the depth of all installed attic or ceiling insulation. If the insulation is not evenly distributed, estimate an average depth for the area. If the insulation is evenly distributed but has different depths installed in different area, use the depth of insulation that covers the largest area. If there is no attic and instead vaulted ceilings, enter an estimate of the thickness of insulation in the vaulted cavity. Depth band in inches, set from a stated depth or thickness and never converted from an R-value — a stated R-value goes in atticInsulation instead, and this stays null."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
             },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
           },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
+          "atticInsulationType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool (batts or blown)",
+                      "Cellulose",
+                      "Spray Foam",
+                      "Don't Know"
+                    ],
+                    "description": "Select the type of insulation that is installed in the attic or ceiling. If more than one type of insulation is installed, select the type that covers that largest area. Insulation material — there is no \"None\" member; an uninsulated attic is atticInsulationDepth: \"0\", not a material here."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticInsulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Attic. Framing factors have already been taken into account, so specify the R-value of the insulation within the cavity. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Total installed R-value as a number (\"R-38\" → 38) — never converted into a depth band, which is a separate field."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticHasKneeWall": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Choose Yes if there is a knee wall in this attic space."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRoofType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Composition Shingles",
+                      "Concrete Tile",
+                      "Wood Shakes",
+                      "Tar and Gravel"
+                    ],
+                    "description": "Select the type of roofing material for this roof section."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
         },
-        "atticInsulationType": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Fiberglass or Rockwool (batts or blown)",
-                    "Cellulose",
-                    "Spray Foam",
-                    "Don't Know"
-                  ],
-                  "description": "Select the type of insulation that is installed in the attic or ceiling. If more than one type of insulation is installed, select the type that covers that largest area. Insulation material — there is no \"None\" member; an uninsulated attic is atticInsulationDepth: \"0\", not a material here."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "atticInsulation": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number",
-                  "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Attic. Framing factors have already been taken into account, so specify the R-value of the insulation within the cavity. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Total installed R-value as a number (\"R-38\" → 38) — never converted into a depth band, which is a separate field."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "atticHasKneeWall": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": ["Yes", "No"],
-                  "description": "Choose Yes if there is a knee wall in this attic space."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "atticRoofType": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Composition Shingles",
-                    "Concrete Tile",
-                    "Wood Shakes",
-                    "Tar and Gravel"
-                  ],
-                  "description": "Select the type of roofing material for this roof section."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        }
-      },
-      "required": [
-        "atticInsulationDepth",
-        "atticInsulationType",
-        "atticInsulation",
-        "atticHasKneeWall",
-        "atticRoofType"
-      ],
-      "additionalProperties": false
+        "required": [
+          "atticInsulationDepth",
+          "atticInsulationType",
+          "atticInsulation",
+          "atticHasKneeWall",
+          "atticRoofType"
+        ],
+        "additionalProperties": false
+      }
     },
     "wall": {
-      "type": "object",
-      "properties": {
-        "wallsInsulated": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": ["Well", "Poorly", "Yes", "No"],
-                  "description": "Is there insulation in the wall cavities of this home? If so, how good is it? If unsure, please leave blank. **Well**: All cavities contain insulation at full or near full depth with gaps and voids not exceeding 5%. **Poor**: Majority of cavities contain insulation, but one or more of the following is suspected: low density, low depth, poor installation. **Yes**: You can confirm that insulation exists, but are unsure of the installation quality. **No** - No insulation value is applied to cavities. Four states, not boolean: \"Well\" means insulated and done properly, \"Poorly\" means some but thin, and \"Yes\" means there is insulation of unknown quality — they are not interchangeable."
-                },
-                {
-                  "type": "null"
-                }
-              ]
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "wallsInsulated": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Well", "Poorly", "Yes", "No"],
+                    "description": "Is there insulation in the wall cavities of this home? If so, how good is it? If unsure, please leave blank. **Well**: All cavities contain insulation at full or near full depth with gaps and voids not exceeding 5%. **Poor**: Majority of cavities contain insulation, but one or more of the following is suspected: low density, low depth, poor installation. **Yes**: You can confirm that insulation exists, but are unsure of the installation quality. **No** - No insulation value is applied to cavities. Four states, not boolean: \"Well\" means insulated and done properly, \"Poorly\" means some but thin, and \"Yes\" means there is insulation of unknown quality — they are not interchangeable."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
             },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
           },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
+          "wallExteriorWallSiding": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Brick Veneer",
+                      "Metal/vinyl siding",
+                      "Shingle/Composition",
+                      "Stone veneer",
+                      "Stucco",
+                      "Wood/Fiber Cement siding",
+                      "Other",
+                      "None",
+                      "Don't Know"
+                    ],
+                    "description": "Select the type of exterior finish material that covers the outside of this home."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "wallCavityInsulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Wall System. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Cavity insulation R-value as a number; the material is a separate field."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "wallCavityInsulationType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool Batt",
+                      "Blown Fiberglass or Rockwool",
+                      "Cellulose",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of insulation that is installed in the wall cavity. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
         },
-        "wallExteriorWallSiding": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Brick Veneer",
-                    "Metal/vinyl siding",
-                    "Shingle/Composition",
-                    "Stone veneer",
-                    "Stucco",
-                    "Wood/Fiber Cement siding",
-                    "Other",
-                    "None",
-                    "Don't Know"
-                  ],
-                  "description": "Select the type of exterior finish material that covers the outside of this home."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "wallCavityInsulation": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number",
-                  "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Wall System. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Cavity insulation R-value as a number; the material is a separate field."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "wallCavityInsulationType": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Fiberglass or Rockwool Batt",
-                    "Blown Fiberglass or Rockwool",
-                    "Cellulose",
-                    "Open Cell Spray Foam",
-                    "Closed Cell Spray Foam",
-                    "Other"
-                  ],
-                  "description": "Select the type of insulation that is installed in the wall cavity. If more than one type of insulation is installed, select the type that covers that largest area."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        }
-      },
-      "required": [
-        "wallsInsulated",
-        "wallExteriorWallSiding",
-        "wallCavityInsulation",
-        "wallCavityInsulationType"
-      ],
-      "additionalProperties": false
+        "required": [
+          "wallsInsulated",
+          "wallExteriorWallSiding",
+          "wallCavityInsulation",
+          "wallCavityInsulationType"
+        ],
+        "additionalProperties": false
+      }
     },
     "window": {
-      "type": "object",
-      "properties": {
-        "windowType": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Single pane",
-                    "Single pane + storm",
-                    "Double pane",
-                    "Double pane + low e",
-                    "Triple pane + low e",
-                    "Don't Know"
-                  ],
-                  "description": "Select the type of windows that are installed in the home. If more than one type of window is installed, add a second window system."
-                },
-                {
-                  "type": "null"
-                }
-              ]
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "windowType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Single pane",
+                      "Single pane + storm",
+                      "Double pane",
+                      "Double pane + low e",
+                      "Triple pane + low e",
+                      "Don't Know"
+                    ],
+                    "description": "Select the type of windows that are installed in the home. If more than one type of window is installed, add a second window system."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
             },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
           },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
+          "windowFrame": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Metal", "Vinyl", "Wood or metal clad", "Don't Know"],
+                    "description": "Select the type of window frame material that is used for the windows installed in the home. If more than one type of window is installed, add a second window system."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowEnergyStar": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if this window system is ENERGY STAR Certified."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
         },
-        "windowFrame": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": ["Metal", "Vinyl", "Wood or metal clad", "Don't Know"],
-                  "description": "Select the type of window frame material that is used for the windows installed in the home. If more than one type of window is installed, add a second window system."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "windowEnergyStar": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": ["Yes", "No"],
-                  "description": "Select Yes if this window system is ENERGY STAR Certified."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        }
-      },
-      "required": ["windowType", "windowFrame", "windowEnergyStar"],
-      "additionalProperties": false
+        "required": ["windowType", "windowFrame", "windowEnergyStar"],
+        "additionalProperties": false
+      }
     },
     "dhw": {
-      "type": "object",
-      "properties": {
-        "dhwType2": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Tank Water Heater",
-                    "Tankless Water Heater",
-                    "Heat Pump",
-                    "Sidearm Tank"
-                  ],
-                  "description": "Enter the type of water heater installed (BASE) or to be installed (IMPROVED). Water heater type — an indirect tank off the boiler is \"Sidearm Tank\", and fuel is a separate field, so \"gas water heater\" decomposes into a type here and \"Natural Gas\" in dhwFuel2."
-                },
-                {
-                  "type": "null"
-                }
-              ]
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "dhwType2": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Tank Water Heater",
+                      "Tankless Water Heater",
+                      "Heat Pump",
+                      "Sidearm Tank"
+                    ],
+                    "description": "Enter the type of water heater installed (BASE) or to be installed (IMPROVED). Water heater type — an indirect tank off the boiler is \"Sidearm Tank\", and fuel is a separate field, so \"gas water heater\" decomposes into a type here and \"Natural Gas\" in dhwFuel2."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
             },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
           },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
+          "dhwFuel2": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Electricity",
+                      "Natural Gas",
+                      "Fuel Oil",
+                      "Propane",
+                      "Pellets",
+                      "Wood",
+                      "Solar",
+                      "None"
+                    ],
+                    "description": "Select the type of energy source used to provide domestic hot water for the home. Domestic hot water is typically the hot water that comes from the faucets, showers, bathtubs, washing machines and dishwashers in the home. If more than one type of energy source is used to provide hot water, select the type that provides the most gallons of hot water."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwAge": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["0-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36+"],
+                    "description": "Select the age in years of the hot water system that stores or delivers the domestic hot water for the home. If more than one type of system is used for hot water in the home, select the age for the one that delivers the most gallons of hot water to the home."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwLocation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Indoors and within heated area",
+                      "Garage or Unconditioned Space",
+                      "Outbuilding",
+                      "Don't Know"
+                    ],
+                    "description": "Select the where the hot water system that stores or delivers the domestic hot water for the home is located. If more than one type of system is used for hot water in the home, select the location for the one that delivers the most gallons of hot water to the home."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwTankSize": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the tank size the water heater in gallons. Nominal tank capacity in gallons; a tankless water heater has no tank, so leave it null."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwManufacturer": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Unknown",
+                      "A.O. Smith",
+                      "American",
+                      "Bosch",
+                      "Bradford White",
+                      "Bryant",
+                      "Comfort Maker",
+                      "GE",
+                      "LG",
+                      "Navien",
+                      "Noritz",
+                      "Rinnai",
+                      "Sears",
+                      "Rheem",
+                      "State Industries",
+                      "Stiebel Eltron",
+                      "Takaji",
+                      "Triangle Tube",
+                      "Other"
+                    ],
+                    "description": "Enter the Manufacturer of the water heater. Manufacturer from this closed list. Use \"Other\" when the auditor named a make that is not on it, and \"Unknown\" only when they did not state one."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
         },
-        "dhwFuel2": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Electricity",
-                    "Natural Gas",
-                    "Fuel Oil",
-                    "Propane",
-                    "Pellets",
-                    "Wood",
-                    "Solar",
-                    "None"
-                  ],
-                  "description": "Select the type of energy source used to provide domestic hot water for the home. Domestic hot water is typically the hot water that comes from the faucets, showers, bathtubs, washing machines and dishwashers in the home. If more than one type of energy source is used to provide hot water, select the type that provides the most gallons of hot water."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "dhwAge": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": ["0-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36+"],
-                  "description": "Select the age in years of the hot water system that stores or delivers the domestic hot water for the home. If more than one type of system is used for hot water in the home, select the age for the one that delivers the most gallons of hot water to the home."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "dhwLocation": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Indoors and within heated area",
-                    "Garage or Unconditioned Space",
-                    "Outbuilding",
-                    "Don't Know"
-                  ],
-                  "description": "Select the where the hot water system that stores or delivers the domestic hot water for the home is located. If more than one type of system is used for hot water in the home, select the location for the one that delivers the most gallons of hot water to the home."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "dhwTankSize": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number",
-                  "description": "Enter the tank size the water heater in gallons. Nominal tank capacity in gallons; a tankless water heater has no tank, so leave it null."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        },
-        "dhwManufacturer": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "Unknown",
-                    "A.O. Smith",
-                    "American",
-                    "Bosch",
-                    "Bradford White",
-                    "Bryant",
-                    "Comfort Maker",
-                    "GE",
-                    "LG",
-                    "Navien",
-                    "Noritz",
-                    "Rinnai",
-                    "Sears",
-                    "Rheem",
-                    "State Industries",
-                    "Stiebel Eltron",
-                    "Takaji",
-                    "Triangle Tube",
-                    "Other"
-                  ],
-                  "description": "Enter the Manufacturer of the water heater. Manufacturer from this closed list. Use \"Other\" when the auditor named a make that is not on it, and \"Unknown\" only when they did not state one."
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "confidence": {
-              "type": "number"
-            },
-            "sourceSpan": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": ["value", "confidence", "sourceSpan"],
-          "additionalProperties": false
-        }
-      },
-      "required": [
-        "dhwType2",
-        "dhwFuel2",
-        "dhwAge",
-        "dhwLocation",
-        "dhwTankSize",
-        "dhwManufacturer"
-      ],
-      "additionalProperties": false
+        "required": [
+          "dhwType2",
+          "dhwFuel2",
+          "dhwAge",
+          "dhwLocation",
+          "dhwTankSize",
+          "dhwManufacturer"
+        ],
+        "additionalProperties": false
+      }
     },
     "health": {
       "type": "object",

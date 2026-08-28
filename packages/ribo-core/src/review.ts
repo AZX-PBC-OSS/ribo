@@ -1,11 +1,13 @@
 import { z } from "zod";
 
-import { childPath, stripOptionalNullable } from "./field-path.js";
-import type { FieldPath } from "./field-path.js";
+import { buildFieldPath, parseFieldPath, stripOptionalNullable } from "./field-path.js";
+import type { FieldPath, FieldPathSegment } from "./field-path.js";
+import type { RequiredOnCreate } from "./adapter.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 import { isSpanGrounded } from "./provenance.js";
 import type { Extracted } from "./provenance.js";
 import type { Transcript } from "./transcript.js";
+import type { ExistingRecord, InstanceLinkDecision, LinkTargets } from "./instance-identity.js";
 
 // `FieldPath` moved to `field-path.js` so `adapter.ts` can use it without the
 // adapter contract depending on the review contract. Re-exported here so the
@@ -56,13 +58,15 @@ export type { FieldPath } from "./field-path.js";
  *
  * Three consequences, each of which is a property this file establishes:
  *
- *   - **The schema enumerates the leaves, not the data.** {@link buildReviewRequest}
- *     walks the adapter's *values* schema and looks each leaf up in the extracted
- *     data — never the reverse. A leaf the model omitted entirely is still presented,
- *     carrying the sentinel envelope `{ value: null, confidence: 0, sourceSpan: null }`.
- *     Enumerating the data instead would make an omitted field vanish from the review
- *     card, which is indistinguishable to the auditor from a field that was extracted
- *     correctly and is exactly the silence the provenance envelope exists to forbid.
+ *   - **The data determines how many instances exist; the schema determines every leaf
+ *     within each instance.** A schema cannot know how many HVAC systems a transcript
+ *     described, so instance count is necessarily data-driven. {@link buildReviewRequest}
+ *     enumerates the adapter's *values* schema once per instance the data contains, and a leaf
+ *     the model omitted from a present instance is still shown with the sentinel envelope
+ *     `{ value: null, confidence: 0, sourceSpan: null }`. That preserves the property that
+ *     matters: no leaf of a reviewed instance can silently vanish from the card. Only empty
+ *     collections themselves have no leaves, and they are recorded separately so a submit
+ *     can still distinguish "there are none" from "touch nothing".
  *   - **Each leaf carries its own value schema** ({@link ReviewField.schema}), so a UI
  *     can render an editor and validate an edit knowing nothing about any adapter. A
  *     TypeScript type cannot tell a UI an enum's members at runtime; a zod schema can,
@@ -137,11 +141,13 @@ export interface ReviewField {
    * auditor can answer while they are still on site, instead of a dead queue row
    * discovered that evening.
    *
-   * Comes from {@link ToolAdapter.requiredOnCreate}, which is a list on the
-   * adapter rather than metadata on the schema. That is deliberate: zod `.meta()`
+   * Comes from {@link ToolAdapter.requiredOnCreate}, declared per group on the
+   * adapter rather than as metadata on the schema. That is deliberate: zod `.meta()`
    * propagates through `enveloped()` into the derived extraction schema and lands
    * in the JSON Schema sent to the model, and an unknown keyword is exactly what
-   * strict structured-output mode rejects.
+   * strict structured-output mode rejects. A per-group shape also expresses N
+   * instances: the same leaf is required on every instance of its collection group
+   * without the adapter enumerating keyed paths it cannot know before extraction.
    *
    * `false` when the adapter declares nothing — absence of a claim, not a claim
    * of absence.
@@ -150,15 +156,18 @@ export interface ReviewField {
 }
 
 /**
- * Every leaf of the adapter's values schema, prepared for review, keyed by dotted path.
+ * Every leaf of the adapter's values schema, prepared for review, keyed by path.
+ * Paths are dotted for nested objects (`health.healthGasLeak`) and bracketed for
+ * array instances (`hvac[k1].hvacSystemEquipmentType`), constructed by
+ * {@link buildFieldPath} so construction and parsing never diverge.
  *
- * **Insertion order is schema-declaration order, and is part of the contract.** The
- * walk visits the shape's keys in declaration order and recurses into a nested object
- * at the position of its own key, so Snugg Pro's `health` group's 14 tests appear
- * together, where the schema author put them. A UI that maps over `Object.keys(fields)`
+ * **Insertion order is schema-declaration order within each instance, and is part of the
+ * contract.** The walk visits the shape's keys in declaration order and recurses into a
+ * nested object at the position of its own key, so Snugg Pro's `health` group's 14 tests
+ * appear together, where the schema author put them. A UI that maps over `Object.keys(fields)`
  * therefore renders the same order on every mount, and {@link resolveReview}'s
  * `editedFields` / `rejectedFields` follow the same order. This is deliberately *not*
- * sorted: sorting would discard the grouping the adapter author chose, and 51 fields in
+ * sorted: sorting would discard the grouping the schema author chose, and 51 fields in
  * an order nobody picked is worse than 51 fields in theirs. `field-path.ts` refuses the
  * one key shape that would break the guarantee.
  */
@@ -168,8 +177,25 @@ export type ReviewFields = Readonly<Record<FieldPath, ReviewField>>;
 export interface ReviewRequest {
   /** The transcript the draft came from — the auditor's own words, for context. */
   readonly transcript: Transcript;
-  /** Every leaf, by dotted path, with its provenance, grounded flag and schema. */
+  /** Every leaf, by path, with its provenance, grounded flag and schema. */
   readonly fields: ReviewFields;
+  /**
+   * Array paths that appeared in the extracted data as empty arrays.
+   *
+   * `hvac: []` and an absent `hvac` are opposite write instructions, but that distinction
+   * is gone once the per-leaf decisions are collected. {@link buildReviewRequest} is the one
+   * place that still sees the raw extraction, so it records the empty-but-present groups
+   * here. Task 7 consumes this list to emit `[]` for exactly these groups on submit.
+   */
+  readonly presentButEmpty: readonly FieldPath[];
+  /**
+   * Existing records of each collection group, keyed by the group path (e.g. `"hvac"`).
+   *
+   * These enter at the review boundary, after extraction, so a model can never be handed
+   * them at extraction time. They are surfaced for a human to link against, and the safe
+   * default is always to create a new record.
+   */
+  readonly existingRecords: Readonly<Record<string, readonly ExistingRecord[]>>;
 }
 
 /**
@@ -206,7 +232,18 @@ export type FieldDecisions = Readonly<Record<FieldPath, FieldDecision>>;
 
 /** What a human reviewer reports back. */
 export type ReviewSubmission =
-  | { readonly status: "submitted"; readonly decisions: FieldDecisions }
+  | {
+      readonly status: "submitted";
+      readonly decisions: FieldDecisions;
+      /**
+       * Per-instance link decisions, keyed by the instance path (e.g. `"hvac[k1]"`).
+       *
+       * Absent means the safe default: create a new record. A link is only valid when
+       * the human explicitly made the decision; {@link resolveReview} rejects an
+       * unknown instance path, and a missing decision always resolves to a create.
+       */
+      readonly instanceLinks?: Readonly<Record<string, InstanceLinkDecision>>;
+    }
   | { readonly status: "discarded"; readonly reason?: string };
 
 /**
@@ -229,7 +266,16 @@ export type ReviewSubmission =
  * mismatch anywhere reports against the whole tree.
  */
 export type ReviewOutcome =
-  | { readonly status: "accepted"; readonly fields: Record<string, unknown> }
+  | {
+      readonly status: "accepted";
+      readonly fields: Record<string, unknown>;
+      /**
+       * Which resolved collection instances update an existing record (`string` uuid)
+       * and which create a new one (`null`). Absent when no collection groups survived
+       * review, so callers can treat it as optional rather than an empty object.
+       */
+      readonly linkTargets?: LinkTargets;
+    }
   | {
       readonly status: "edited";
       /** Accepted and edited values, nested. Rejected leaves are absent, not `null`. */
@@ -238,6 +284,12 @@ export type ReviewOutcome =
       readonly editedFields: readonly FieldPath[];
       /** Leaf paths the human dropped, in schema-declaration order. */
       readonly rejectedFields: readonly FieldPath[];
+      /**
+       * Which resolved collection instances update an existing record (`string` uuid)
+       * and which create a new one (`null`). Absent when no collection groups survived
+       * review.
+       */
+      readonly linkTargets?: LinkTargets;
     }
   | { readonly status: "discarded"; readonly reason?: string };
 
@@ -330,33 +382,87 @@ const readEnvelope = (node: unknown): Extracted<unknown> => {
  * Walk one level of the values schema, appending a {@link ReviewField} per leaf.
  *
  * Recursion is on the schema and the data in lockstep, but only the schema decides
- * what exists — `readChild` may hand back `undefined` the whole way down and the
- * leaves still get presented.
+ * what leaves exist — `readChild` may hand back `undefined` the whole way down and
+ * the leaves still get presented. For array groups the data decides how many
+ * instances exist: each element is assigned a stable key (`k1`, `k2`, …) and the
+ * element schema is walked once per instance, producing bracketed paths like
+ * `hvac[k1].hvacSystemEquipmentType`. Order is the order the data emits the
+ * instances in; the key is what keeps a decision attached to the same instance if
+ * the UI removes one later.
  */
 const collectFields = (
   values: z.ZodObject,
-  prefix: string,
+  prefixSegments: readonly FieldPathSegment[],
   node: unknown,
   transcript: Transcript,
-  required: ReadonlySet<FieldPath>,
+  requiredOnCreate: RequiredOnCreate,
   out: Record<FieldPath, ReviewField>,
+  presentButEmpty: FieldPath[],
 ): void => {
   for (const [key, declared] of Object.entries(values.shape) as [string, z.ZodType][]) {
-    const path = childPath(prefix, key);
+    const pathSegments: readonly FieldPathSegment[] = [
+      ...prefixSegments,
+      { kind: "objectKey", key },
+    ];
+    const path = buildFieldPath(pathSegments);
     const stripped = stripOptionalNullable(declared);
 
     if (stripped instanceof z.ZodObject) {
-      collectFields(stripped, path, readChild(node, key), transcript, required, out);
+      collectFields(
+        stripped,
+        pathSegments,
+        readChild(node, key),
+        transcript,
+        requiredOnCreate,
+        out,
+        presentButEmpty,
+      );
       continue;
     }
 
+    if (stripped instanceof z.ZodArray) {
+      // zod 4's `ZodArray.element` is typed as the core `$ZodType`; every schema in this
+      // codebase is built through the classic API, so the cast reflects the actual value.
+      const elementSchema = stripOptionalNullable(stripped.element as z.ZodType);
+      if (!(elementSchema instanceof z.ZodObject)) {
+        throw new Error(
+          `review cannot walk array at "${path}" — its element is not a plain object, ` +
+            "so there are no leaf fields to review per instance.",
+        );
+      }
+      const arrayNode = readChild(node, key);
+      if (arrayNode !== undefined && Array.isArray(arrayNode) && arrayNode.length === 0) {
+        presentButEmpty.push(path);
+      }
+      const elements = Array.isArray(arrayNode) ? arrayNode : [];
+      for (let i = 0; i < elements.length; i++) {
+        const instanceKey = `k${i + 1}`;
+        const instanceSegments: readonly FieldPathSegment[] = [
+          ...pathSegments,
+          { kind: "instanceKey", key: instanceKey },
+        ];
+        collectFields(
+          elementSchema,
+          instanceSegments,
+          elements[i],
+          transcript,
+          requiredOnCreate,
+          out,
+          presentButEmpty,
+        );
+      }
+      continue;
+    }
+
+    const groupPath = pathSegments[0]?.key ?? "";
     const extracted = readEnvelope(readChild(node, key));
+    const requiredLeaves = requiredOnCreate[groupPath];
     out[path] = {
       extracted,
       isGrounded: isSpanGrounded(extracted.sourceSpan, transcript.text),
       // The DECLARED schema, wrappers and all — see `ReviewField.schema`.
       schema: declared,
-      required: required.has(path),
+      required: Array.isArray(requiredLeaves) && requiredLeaves.includes(key),
     };
   }
 };
@@ -372,7 +478,10 @@ const collectFields = (
  * extraction schema, and it is what decides which leaves exist. `extracted` is the
  * model's output, looked up path by path. That direction is the point: a leaf the
  * model never emitted is still shown, with the sentinel envelope, rather than
- * silently missing from the card.
+ * silently missing from the card. For collection groups, the data determines how
+ * many instances exist and the schema determines every leaf within each instance;
+ * empty-but-present collections are recorded in {@link ReviewRequest.presentButEmpty}
+ * so the submit path can still distinguish "there are none" from "touch nothing".
  */
 export const buildReviewRequest = (
   extracted: Record<string, unknown>,
@@ -381,9 +490,10 @@ export const buildReviewRequest = (
   options: BuildReviewRequestOptions = {},
 ): ReviewRequest => {
   const fields: Record<FieldPath, ReviewField> = {};
-  const required = new Set(options.requiredOnCreate ?? []);
-  collectFields(valuesSchema, "", extracted, transcript, required, fields);
-  return { transcript, fields };
+  const presentButEmpty: FieldPath[] = [];
+  const requiredOnCreate = options.requiredOnCreate ?? {};
+  collectFields(valuesSchema, [], extracted, transcript, requiredOnCreate, fields, presentButEmpty);
+  return { transcript, fields, presentButEmpty, existingRecords: options.existingRecords ?? {} };
 };
 
 /**
@@ -396,11 +506,19 @@ export const buildReviewRequest = (
  */
 export interface BuildReviewRequestOptions {
   /**
-   * Leaf paths the host tool requires in order to CREATE the record. Unknown
-   * paths are ignored here — an adapter is responsible for keeping its own list
-   * honest, and `ToolAdapter.requiredOnCreate` says how to guard that.
+   * Leaf names, grouped by the group that owns the create endpoint, that the host
+   * tool requires in order to CREATE the record. Unknown groups and leaves are
+   * ignored here — an adapter is responsible for keeping its own declaration honest,
+   * and `ToolAdapter.requiredOnCreate` says how to guard that.
    */
-  readonly requiredOnCreate?: readonly FieldPath[];
+  readonly requiredOnCreate?: RequiredOnCreate;
+  /**
+   * Existing records of each collection group, keyed by the group path (e.g. `"hvac"`).
+   *
+   * These are not shown to the extractor; they are surfaced at review for a human to
+   * link against, with a default of creating a new record.
+   */
+  readonly existingRecords?: Readonly<Record<string, readonly ExistingRecord[]>>;
 }
 
 /**
@@ -482,19 +600,193 @@ const invalidValueMessage = (status: "accepted" | "edited", error: z.ZodError): 
         "as it stands; edit it, or reject the leaf to leave the field untouched";
 };
 
-/** Write `value` at a dotted path, creating the objects on the way down. */
-const setAtPath = (target: Record<string, unknown>, path: FieldPath, value: unknown): void => {
-  const segments = path.split(".");
-  const leaf = segments.pop() as string;
-  let node = target;
-  for (const segment of segments) {
-    // A nested group only materializes when one of its leaves survives review, so
-    // rejecting every one of Snugg Pro's `health` group's 14 tests leaves no
-    // `health` key at all — which is what a patch means by "leave this alone".
-    node[segment] ??= {};
-    node = node[segment] as Record<string, unknown>;
+/**
+ * Record the positional index for every instance key that survives review.
+ *
+ * Review paths address instances by a stable key (`k1`, `k2`, …) so a UI can
+ * remove one without reattaching the remaining decisions to a different physical
+ * instance. The vendor patch is positional, so this named remap is the step that
+ * converts keyed decisions into array indices, preserving first-mention order.
+ */
+const buildInstancePositions = (
+  acceptedPaths: readonly FieldPath[],
+): Map<string, Map<string, number>> => {
+  const positions = new Map<string, Map<string, number>>();
+  for (const path of acceptedPaths) {
+    const segments = parseFieldPath(path);
+    let parentPath = "";
+    for (const segment of segments) {
+      if (segment.kind === "instanceKey") {
+        let indexMap = positions.get(parentPath);
+        if (indexMap === undefined) {
+          indexMap = new Map();
+          positions.set(parentPath, indexMap);
+        }
+        if (!indexMap.has(segment.key)) {
+          indexMap.set(segment.key, indexMap.size);
+        }
+      }
+      parentPath =
+        parentPath === ""
+          ? segment.kind === "objectKey"
+            ? segment.key
+            : `[${segment.key}]`
+          : segment.kind === "objectKey"
+            ? `${parentPath}.${segment.key}`
+            : `${parentPath}[${segment.key}]`;
+    }
   }
-  node[leaf] = value;
+  return positions;
+};
+
+/**
+ * All collection instance paths present in a review request, derived from its leaf paths.
+ *
+ * An instance path is the group key plus the instance key — `"hvac[k1]"` — and is what
+ * a human links-or-creates against. It is not itself a leaf, so it is not in
+ * `request.fields`, but it is recoverable from the leaf paths that pass through it.
+ */
+const instancePathsFromFields = (fields: ReviewFields): ReadonlySet<string> => {
+  const paths = new Set<string>();
+  for (const path of Object.keys(fields)) {
+    const segments = parseFieldPath(path);
+    let currentPath = "";
+    for (const segment of segments) {
+      currentPath =
+        currentPath === ""
+          ? segment.kind === "objectKey"
+            ? segment.key
+            : `[${segment.key}]`
+          : segment.kind === "objectKey"
+            ? `${currentPath}.${segment.key}`
+            : `${currentPath}[${segment.key}]`;
+      if (segment.kind === "instanceKey") {
+        paths.add(currentPath);
+      }
+    }
+  }
+  return paths;
+};
+
+/**
+ * Validate that every provided link decision names a real collection instance.
+ *
+ * A link decision is a human act; an unknown path is a stale or mistyped decision and
+ * must be refused rather than silently dropped, or it could mask a UI bug that attaches
+ * a link to the wrong instance.
+ */
+const instanceLinkIssues = (
+  instanceLinks: Readonly<Record<string, InstanceLinkDecision>> | undefined,
+  validInstancePaths: ReadonlySet<string>,
+): ReviewIssue[] => {
+  if (instanceLinks === undefined) return [];
+  const issues: ReviewIssue[] = [];
+  for (const [path, decision] of Object.entries(instanceLinks)) {
+    if (!validInstancePaths.has(path)) {
+      issues.push({ path, message: "not a collection instance of this review request" });
+      continue;
+    }
+    if (decision.kind === "link" && typeof decision.uuid !== "string") {
+      issues.push({ path, message: "a link decision must carry a string uuid" });
+    }
+  }
+  return issues;
+};
+
+/**
+ * Build the link-target map for every collection group that survives review.
+ *
+ * The array length matches the resolved instance count for the group, and indices follow
+ * first-mention order. The default for every instance is `null` (create a new record);
+ * a human link decision overrides it with the target uuid.
+ */
+const buildLinkTargets = (
+  positions: Map<string, Map<string, number>>,
+  instanceLinks: Readonly<Record<string, InstanceLinkDecision>> | undefined,
+): LinkTargets => {
+  const linkTargets: Record<string, ReadonlyArray<string | null>> = {};
+  for (const [groupPath, indexMap] of positions) {
+    const groupTargets = new Array<string | null>(indexMap.size);
+    for (const [key, index] of indexMap) {
+      const instancePath = buildFieldPath([
+        { kind: "objectKey", key: groupPath },
+        { kind: "instanceKey", key },
+      ]);
+      const decision = instanceLinks?.[instancePath];
+      groupTargets[index] = decision?.kind === "link" ? decision.uuid : null;
+    }
+    linkTargets[groupPath] = groupTargets;
+  }
+  return linkTargets;
+};
+
+/**
+ * Write `value` at a parsed path, creating nested objects and arrays on the way
+ * down.
+ *
+ * Uses {@link parseFieldPath} so bracketed instance keys become array elements
+ * rather than object keys whose name is the literal text `hvac[k1]`. The
+ * `positions` map supplies the keyed-to-positional remap for each array group.
+ */
+const setAtPath = (
+  target: Record<string, unknown>,
+  path: FieldPath,
+  value: unknown,
+  positions: Map<string, Map<string, number>>,
+): void => {
+  const segments = parseFieldPath(path);
+  if (segments.length === 0) {
+    throw new Error(`field path "${path}" is empty`);
+  }
+  const leaf = segments[segments.length - 1] as FieldPathSegment;
+  if (leaf.kind !== "objectKey") {
+    throw new Error(`field path "${path}" must end with an object-key segment`);
+  }
+
+  let node: Record<string, unknown> | unknown[] = target;
+  let parentPath = "";
+  for (let i = 0; i < segments.length - 1; i++) {
+    const segment = segments[i] as FieldPathSegment;
+    if (segment.kind === "objectKey") {
+      const nextSegment = segments[i + 1];
+      const isArrayParent = nextSegment?.kind === "instanceKey";
+      const objectNode = node as Record<string, unknown>;
+      if (objectNode[segment.key] === undefined) {
+        if (isArrayParent) {
+          const indexMap = positions.get(
+            parentPath === "" ? segment.key : `${parentPath}.${segment.key}`,
+          );
+          objectNode[segment.key] = new Array(indexMap?.size ?? 0);
+        } else {
+          objectNode[segment.key] = {};
+        }
+      }
+      node = objectNode[segment.key] as Record<string, unknown> | unknown[];
+      parentPath = parentPath === "" ? segment.key : `${parentPath}.${segment.key}`;
+    } else {
+      const indexMap = positions.get(parentPath);
+      if (indexMap === undefined) {
+        throw new Error(
+          `field path "${path}" references an unexpected instance key "${segment.key}"`,
+        );
+      }
+      const index = indexMap.get(segment.key);
+      if (index === undefined) {
+        throw new Error(
+          `field path "${path}" references an unexpected instance key "${segment.key}"`,
+        );
+      }
+      const arrayNode = node as unknown[];
+      let child = arrayNode[index] as Record<string, unknown> | undefined;
+      if (child === undefined) {
+        child = {};
+        arrayNode[index] = child;
+      }
+      node = child;
+      parentPath = `${parentPath}[${segment.key}]`;
+    }
+  }
+  (node as Record<string, unknown>)[leaf.key] = value;
 };
 
 /**
@@ -548,9 +840,13 @@ export const resolveReview = (
 
   const paths = Object.keys(request.fields);
   const structural = completenessIssues(paths, submission.decisions);
-  if (structural.length > 0) throw new ReviewValidationError(structural);
+  const validInstancePaths = instancePathsFromFields(request.fields);
+  const instanceLinkInvalid = instanceLinkIssues(submission.instanceLinks, validInstancePaths);
+  if (structural.length > 0 || instanceLinkInvalid.length > 0) {
+    throw new ReviewValidationError([...structural, ...instanceLinkInvalid]);
+  }
 
-  const fields: Record<string, unknown> = {};
+  const accepted: { path: FieldPath; value: unknown }[] = [];
   const editedFields: FieldPath[] = [];
   const rejectedFields: FieldPath[] = [];
   const invalid: ReviewIssue[] = [];
@@ -615,17 +911,45 @@ export const resolveReview = (
       continue;
     }
 
-    // The PARSED value, not the raw one: the leaf's schema is the authority on what
-    // a legal value for it is, so what gets persisted is what it accepted.
-    setAtPath(fields, path, parsed.data);
+    // Defer reassembly until every accepted leaf is known, so the keyed-to-positional
+    // remap can be built as a named step rather than happening as a side effect of
+    // iteration order.
+    accepted.push({ path, value: parsed.data });
   }
 
   if (invalid.length > 0) throw new ReviewValidationError(invalid);
 
-  if (editedFields.length === 0 && rejectedFields.length === 0) {
-    return { status: "accepted", fields };
+  const positions = buildInstancePositions(accepted.map((entry) => entry.path));
+  const fields: Record<string, unknown> = {};
+  for (const { path, value } of accepted) {
+    // The PARSED value, not the raw one: the leaf's schema is the authority on what
+    // a legal value for it is, so what gets persisted is what it accepted.
+    setAtPath(fields, path, value, positions);
   }
-  return { status: "edited", fields, editedFields, rejectedFields };
+
+  // A group that was present-but-empty in the extraction means "there are none of these",
+  // which is the opposite of "touch nothing". Record it as an empty array when no instance
+  // survived review.
+  for (const groupPath of request.presentButEmpty) {
+    if (!Object.hasOwn(fields, groupPath)) {
+      fields[groupPath] = [];
+    }
+  }
+
+  // Link targets are only meaningful when at least one collection instance survived review.
+  // For non-collection field sets the map is empty and is omitted, keeping the outcome shape
+  // backward-compatible for callers that only deal with singleton groups.
+  const linkTargets = buildLinkTargets(positions, submission.instanceLinks);
+  const hasLinkTargets = Object.keys(linkTargets).length > 0;
+
+  if (editedFields.length === 0 && rejectedFields.length === 0) {
+    return hasLinkTargets
+      ? { status: "accepted", fields, linkTargets }
+      : { status: "accepted", fields };
+  }
+  return hasLinkTargets
+    ? { status: "edited", fields, editedFields, rejectedFields, linkTargets }
+    : { status: "edited", fields, editedFields, rejectedFields };
 };
 
 /**
@@ -651,12 +975,14 @@ export const reviewOutcomeSchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("accepted"),
     fields: z.record(z.string(), z.unknown()),
+    linkTargets: z.record(z.string(), z.array(z.string().nullable())).optional(),
   }),
   z.strictObject({
     status: z.literal("edited"),
     fields: z.record(z.string(), z.unknown()),
     editedFields: z.array(z.string()),
     rejectedFields: z.array(z.string()),
+    linkTargets: z.record(z.string(), z.array(z.string().nullable())).optional(),
   }),
   z.strictObject({
     status: z.literal("discarded"),

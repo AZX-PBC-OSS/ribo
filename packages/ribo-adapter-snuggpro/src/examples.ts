@@ -51,6 +51,8 @@ Draft on the boiler flue — I got good draft, nice steady pull up the chimney, 
 
 Up in the attic earlier I measured the insulation, it's cellulose, gray blown-in, and I got about six inches of it across most of the attic. Six inches of cellulose.
 
+Upstairs is a separate system, a Carrier Infinity heat pump on electricity with its own air handler in the attic. It was installed in twenty fifteen and we'll keep it as is.
+
 No blower door today, I'll come back with the fan, ran out of time. Ending for now.`;
 
 /** Provenance envelope, literal-preserving so enum values keep their narrow type. */
@@ -75,64 +77,94 @@ const fields: SnuggExtraction = {
     blowerDoorTestPerformed: env(null, null),
   },
 
-  hvac: {
-    // The fuel axis-split: one fused span, two independent fields.
-    hvacSystemEquipmentType: env("Boiler", "it's an oil boiler"),
-    // Nothing in this transcript recommends doing anything with the boiler. The
-    // API requires this field; the model must still say `null` rather than pick.
-    hvacUpgradeAction: env(null, null),
-    hvacHeatingEnergySource: env("Fuel Oil", "it's an oil boiler"),
-    // "Burnham" is a real make and not a member of Snugg's closed list, so the
-    // stored value is `"Other"` while the span preserves what was actually said.
-    hvacHeatingSystemManufacturer: env("Other", "it's an oil boiler, Burnham", 0.8),
-    hvacHeatingSystemModel: env("V8", "Model plate says V8", 0.9),
-    hvacHeatingSystemModelYear: env(2004, "the tag year is two thousand four"),
-    // BTU explicitly unreadable: null value, but a span proves it was addressed.
-    hvacHeatingCapacity: env(
-      null,
-      "I don't see an output on the plate that I can read, it's painted over, so no BTU number from me",
-    ),
-    hvacCoolingCapacity: env(null, null),
-    hvacDuctLocation: env(null, null),
-    hvacDuctLeakage: env(null, null),
-    hvacDuctLeakageValue: env(null, null),
-    hvacDuctInsulation: env(null, null),
-  },
+  hvac: [
+    {
+      // The fuel axis-split: one fused span, two independent fields.
+      hvacSystemEquipmentType: env("Boiler", "it's an oil boiler"),
+      // Nothing in this transcript recommends doing anything with the boiler. The
+      // API requires this field; the model must still say `null` rather than pick.
+      hvacUpgradeAction: env(null, null),
+      hvacHeatingEnergySource: env("Fuel Oil", "it's an oil boiler"),
+      // "Burnham" is a real make and not a member of Snugg's closed list, so the
+      // stored value is `"Other"` while the span preserves what was actually said.
+      hvacHeatingSystemManufacturer: env("Other", "it's an oil boiler, Burnham", 0.8),
+      hvacHeatingSystemModel: env("V8", "Model plate says V8", 0.9),
+      // The UNIT's model year, e.g. 2011 — never the home's year. Stringified at write.
+      hvacHeatingSystemModelYear: env(2004, "the tag year is two thousand four"),
+      // BTU explicitly unreadable: null value, but a span proves it was addressed.
+      hvacHeatingCapacity: env(
+        null,
+        "I don't see an output on the plate that I can read, it's painted over, so no BTU number from me",
+      ),
+      hvacCoolingCapacity: env(null, null),
+      hvacDuctLocation: env(null, null),
+      hvacDuctLeakage: env(null, null),
+      hvacDuctLeakageValue: env(null, null),
+      hvacDuctInsulation: env(null, null),
+    },
+    {
+      // A second system demonstrates the array shape Task 10 exists to capture.
+      hvacSystemEquipmentType: env(
+        "Central Heat Pump (shared ducts)",
+        "a Carrier Infinity heat pump on electricity with its own air handler in the attic",
+        0.9,
+      ),
+      hvacUpgradeAction: env("Keep an existing system as is", "we'll keep it as is"),
+      hvacHeatingEnergySource: env("Electricity", "heat pump on electricity"),
+      hvacHeatingSystemManufacturer: env("Carrier", "Carrier"),
+      hvacHeatingSystemModel: env("Infinity", "Infinity"),
+      hvacHeatingSystemModelYear: env(2015, "twenty fifteen"),
+      hvacHeatingCapacity: env(null, null),
+      hvacCoolingCapacity: env(null, null),
+      hvacDuctLocation: env(null, null),
+      hvacDuctLeakage: env(null, null),
+      hvacDuctLeakageValue: env(null, null),
+      hvacDuctInsulation: env(null, null),
+    },
+  ],
 
-  attic: {
-    // A stated DEPTH ("six inches") bands to 4-6. No R-value was spoken, so the
-    // independent R-value field stays null — it is not derived from the depth.
-    atticInsulationDepth: env("4-6", "I got about six inches of it", 0.9),
-    atticInsulationType: env("Cellulose", "it's cellulose, gray blown-in"),
-    atticInsulation: env(null, null),
-    atticHasKneeWall: env(null, null),
-    atticRoofType: env(null, null),
-  },
+  attic: [
+    {
+      // A stated DEPTH ("six inches") bands to 4-6. No R-value was spoken, so the
+      // independent R-value field stays null — it is not derived from the depth.
+      atticInsulationDepth: env("4-6", "I got about six inches of it", 0.9),
+      atticInsulationType: env("Cellulose", "it's cellulose, gray blown-in"),
+      atticInsulation: env(null, null),
+      atticHasKneeWall: env(null, null),
+      atticRoofType: env(null, null),
+    },
+  ],
 
-  wall: {
-    wallsInsulated: env(null, null),
-    wallExteriorWallSiding: env(null, null),
-    wallCavityInsulation: env(null, null),
-    wallCavityInsulationType: env(null, null),
-  },
+  wall: [
+    {
+      wallsInsulated: env(null, null),
+      wallExteriorWallSiding: env(null, null),
+      wallCavityInsulation: env(null, null),
+      wallCavityInsulationType: env(null, null),
+    },
+  ],
 
-  window: {
-    windowType: env(null, null),
-    windowFrame: env(null, null),
-    windowEnergyStar: env(null, null),
-  },
+  window: [
+    {
+      windowType: env(null, null),
+      windowFrame: env(null, null),
+      windowEnergyStar: env(null, null),
+    },
+  ],
 
-  dhw: {
-    // Indirect off the boiler — Snugg's name for that is "Sidearm Tank".
-    dhwType2: env("Sidearm Tank", "Hot water's made right off the boiler, it's an indirect tank"),
-    dhwFuel2: env("Fuel Oil", "So that runs on the oil too, same as the boiler"),
-    dhwAge: env("6-10", "that tank's about eight years old", 0.9),
-    // The tank is in the basement, which is not obviously any of Snugg's three
-    // locations — an unforced `null` beats a guess between them.
-    dhwLocation: env(null, null),
-    dhwTankSize: env(40, "a forty-gallon Amtrol"),
-    dhwManufacturer: env("Other", "a forty-gallon Amtrol", 0.8),
-  },
+  dhw: [
+    {
+      // Indirect off the boiler — Snugg's name for that is "Sidearm Tank".
+      dhwType2: env("Sidearm Tank", "Hot water's made right off the boiler, it's an indirect tank"),
+      dhwFuel2: env("Fuel Oil", "So that runs on the oil too, same as the boiler"),
+      dhwAge: env("6-10", "that tank's about eight years old", 0.9),
+      // The tank is in the basement, which is not obviously any of Snugg's three
+      // locations — an unforced `null` beats a guess between them.
+      dhwLocation: env(null, null),
+      dhwTankSize: env(40, "a forty-gallon Amtrol"),
+      dhwManufacturer: env("Other", "a forty-gallon Amtrol", 0.8),
+    },
+  ],
 
   health: {
     // Two affirmative clean results are `"Passed"`, not dropped; every unmentioned

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { build, preview, type PreviewServer } from "vite";
 import { chromium, type Browser, type Page } from "playwright";
 import { z } from "zod";
-import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
+import { snuggExamples, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 
 /**
  * @file Phase 4 Task 4: extraction is visible end to end, on the default
@@ -79,30 +79,46 @@ afterAll(async () => {
  * e2e file carrying its own helpers (see `captureOneRecording`, duplicated
  * rather than imported, in `eviction.e2e.test.ts` and `network-transition.e2e.test.ts`).
  */
-function unwrapGroup(field: z.ZodType): z.ZodObject {
+function unwrapGroup(field: z.ZodType): z.ZodType {
   let current = field;
   while (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
     current = current.unwrap() as z.ZodType;
-  }
-  if (!(current instanceof z.ZodObject)) {
-    throw new Error("snuggValuesSchema's own groups are expected to be z.ZodObject");
   }
   return current;
 }
 
 /**
- * Every dotted leaf path the real `snuggValuesSchema` declares, in schema
- * order — computed from the schema itself (two levels: group, then leaf; the
- * schema's own file header says the seven groups are flat) rather than
- * hard-coded, so a future field-set change changes what this test expects
- * instead of silently under- or over-covering it.
+ * Every dotted leaf path the review card should render, in schema order.
+ *
+ * **The schema says how many LEAVES; the fixture says how many INSTANCES.** That
+ * split is the invariant R1.6 established for review itself, and this helper has
+ * to honour it or it measures the wrong thing. An earlier version assumed one
+ * instance per collection group and hard-coded `k1`; the moment the shipped
+ * few-shot example gained a second HVAC system the card correctly rendered 63
+ * rows and this expected 51, failing a test that was right about the product and
+ * wrong about itself.
+ *
+ * Both sides still come from real artifacts rather than a literal, so a field-set
+ * change or an example change moves the expectation with it.
  */
 function allLeafPaths(): readonly string[] {
+  const fixture = snuggExamples[0]?.fields as Record<string, unknown> | undefined;
   const paths: string[] = [];
   for (const [groupKey, groupField] of Object.entries(snuggValuesSchema.shape)) {
     const groupSchema = unwrapGroup(groupField as z.ZodType);
-    for (const leafKey of Object.keys(groupSchema.shape)) {
-      paths.push(`${groupKey}.${leafKey}`);
+    if (groupSchema instanceof z.ZodArray) {
+      const elementSchema = groupSchema.element as unknown as z.ZodObject;
+      const emitted = fixture?.[groupKey];
+      const count = Array.isArray(emitted) ? emitted.length : 0;
+      for (let i = 0; i < count; i += 1) {
+        for (const leafKey of Object.keys(elementSchema.shape)) {
+          paths.push(`${groupKey}[k${i + 1}].${leafKey}`);
+        }
+      }
+    } else if (groupSchema instanceof z.ZodObject) {
+      for (const leafKey of Object.keys(groupSchema.shape)) {
+        paths.push(`${groupKey}.${leafKey}`);
+      }
     }
   }
   return paths;
@@ -117,6 +133,7 @@ function allLeafPaths(): readonly string[] {
 // review card (Task 17's `ReviewPanel`) the way a human would: action every
 // blocked leaf, submit, then drain the resulting `writing` step too. The path is
 // one human step longer, not shorter.
+//
 test("a recording drains through extraction and its fields show with provenance", async () => {
   const page: Page = await (await browser.newContext()).newPage();
   await page.goto(baseUrl);

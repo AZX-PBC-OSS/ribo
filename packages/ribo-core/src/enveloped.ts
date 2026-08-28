@@ -27,12 +27,15 @@ import { extractedSchema, type Extracted } from "./provenance.js";
  *   - a nested `z.ZodObject` → recurse, producing a closed, fully-required object of its own. This
  *     is NOT the same as wrapping the whole nested object in one envelope — a matrix of 11 named
  *     tests must stay 11 independently-reviewable envelopes, not one envelope over an object.
+ *   - a `z.ZodArray` → recurse into its element schema, producing `z.array(envelopedElement)`. One
+ *     `items` schema describes every element, so the property count does not grow with the number
+ *     of instances. The array itself is NOT wrapped in one envelope — that would make the whole
+ *     group a single un-reviewable field.
  *   - `z.ZodEnum`, `z.ZodLiteral`, `z.ZodString`, `z.ZodNumber`, `z.ZodBoolean` → `extractedSchema(leaf)`.
- *   - anything else — arrays, records, unions (including discriminated unions, and including a
- *     union of objects) — **throw**, naming the field path. These shapes become the JSON Schema
- *     sent in OpenAI strict structured-output mode, where an unsupported shape surfaces as an
- *     opaque API error far from its cause; throwing here, with the path, is strictly more useful
- *     than that.
+ *   - anything else — records, unions (including discriminated unions, and including a union of
+ *     objects) — **throw**, naming the field path. These shapes become the JSON Schema sent in
+ *     OpenAI strict structured-output mode, where an unsupported shape surfaces as an opaque API
+ *     error far from its cause; throwing here, with the path, is strictly more useful than that.
  *
  * The two primitives of the walk — stripping the patch wrappers, and building the dotted path —
  * live in `field-path.ts` because `review.ts` walks the SAME patch schema to enumerate the leaves
@@ -46,9 +49,9 @@ type RawShape = Record<string, z.ZodType>;
 
 /**
  * The leaf types `enveloped()` knows how to wrap. Matches design §3's decision table exactly —
- * this is an allowlist, not a denylist, so a zod type this table doesn't name (array, record,
- * union, or anything added to zod after this was written) falls through to the throw below rather
- * than being silently accepted.
+ * this is an allowlist, not a denylist, so a zod type this table doesn't name (record, union, or
+ * anything added to zod after this was written) falls through to the throw below rather than being
+ * silently accepted.
  *
  * Known edge, not fixed here because design §3's table names KINDS, not constraint-free kinds:
  * `z.number().min(0)` is still `instanceof z.ZodNumber`, and `z.string().regex(...)` is still
@@ -68,12 +71,27 @@ const isSupportedLeaf = (field: z.ZodType): boolean =>
   field instanceof z.ZodNumber ||
   field instanceof z.ZodBoolean;
 
-/** Envelope one field: a nested object recurses, a supported leaf is wrapped, anything else throws. */
+/**
+ * Envelope one field: a nested object recurses, an array recurses into its element, a supported
+ * leaf is wrapped, anything else throws.
+ */
 const envelopeField = (field: z.ZodType, path: string): z.ZodType => {
   const stripped = stripOptionalNullable(field);
 
   if (stripped instanceof z.ZodObject) {
     return envelopeObject(stripped, path);
+  }
+
+  if (stripped instanceof z.ZodArray) {
+    // The element schema is the same for every array element, so one recursive call covers the
+    // whole group. Passing the same `path` is intentional: the path is a schema-time diagnostic,
+    // and array indices do not exist until data arrives. `envelopeObject` will still build dotted
+    // leaf paths like `hvac.systemType` from this parent.
+    //
+    // zod 4's `ZodArray.element` is typed as the core `$ZodType`; every schema in this codebase is
+    // built through the classic API, so the cast to `z.ZodType` is a narrowing that reflects the
+    // actual runtime value, not a loss of checking.
+    return z.array(envelopeField(stripped.element as z.ZodType, path));
   }
 
   if (isSupportedLeaf(stripped)) {
@@ -82,8 +100,8 @@ const envelopeField = (field: z.ZodType, path: string): z.ZodType => {
 
   throw new Error(
     `enveloped(): unsupported shape at "${path}" (${stripped.constructor.name}). ` +
-      "Only enum, literal, string, number, boolean and nested objects can be enveloped — " +
-      "arrays, records and unions (including a union of objects) cannot be expressed in " +
+      "Only enum, literal, string, number, boolean, nested objects and arrays can be enveloped — " +
+      "records and unions (including a union of objects) cannot be expressed in " +
       "OpenAI strict structured-output mode.",
   );
 };
@@ -116,17 +134,21 @@ type StripWrapper<X extends z.ZodType> =
       : X;
 
 /**
- * The type-level mirror of {@link envelopeObject} / {@link envelopeField}: given a patch's raw
- * shape, compute the raw shape of the derived extraction schema, recursing into nested objects
- * and wrapping every other field with `extractedSchema`'s inferred return type. This is what
- * makes `enveloped()`'s return type shape-preserving — see the file header and the task report's
- * discrimination probe for why a bare `z.ZodObject` return would silently stop type-checking every
- * field.
+ * The type-level mirror of {@link envelopeField}: one field of the patch (after stripping wrappers)
+ * becomes either a closed required envelope object, an array of enveloped elements, or a single leaf
+ * envelope. This is what makes `enveloped()`'s return type shape-preserving — see the file header
+ * and the task report's discrimination probe for why a bare `z.ZodObject` return would silently stop
+ * type-checking every field.
  */
-type EnvelopedShape<S extends RawShape> = {
-  [K in keyof S]: StripWrapper<S[K]> extends z.ZodObject<infer Inner extends RawShape>
+type EnvelopedField<T extends z.ZodType> =
+  StripWrapper<T> extends z.ZodObject<infer Inner extends RawShape>
     ? z.ZodObject<EnvelopedShape<Inner>, z.core.$strict>
-    : ReturnType<typeof extractedSchema<StripWrapper<S[K]>>>;
+    : StripWrapper<T> extends z.ZodArray<infer E extends z.ZodType>
+      ? z.ZodArray<EnvelopedField<E>>
+      : ReturnType<typeof extractedSchema<StripWrapper<T>>>;
+
+type EnvelopedShape<S extends RawShape> = {
+  [K in keyof S]: EnvelopedField<S[K]>;
 };
 
 /**
@@ -190,8 +212,14 @@ export const enveloped = <T extends z.ZodObject>(
  * assertion — a `@ts-expect-error` on an attempted property reassignment — that exists purely to
  * pin `readonly` itself, since nothing else in this file's test suite can.
  */
+
+/** The element type of a readonly or mutable array, used by {@link Enveloped}. */
+type ArrayElement<A> = A extends readonly (infer E)[] ? E : never;
+
 export type Enveloped<V> = {
-  readonly [K in keyof V]-?: [NonNullable<V[K]>] extends [object]
-    ? Enveloped<NonNullable<V[K]>>
-    : Extracted<NonNullable<V[K]>>;
+  readonly [K in keyof V]-?: [NonNullable<V[K]>] extends [readonly unknown[]]
+    ? Enveloped<ArrayElement<NonNullable<V[K]>>>[]
+    : [NonNullable<V[K]>] extends [object]
+      ? Enveloped<NonNullable<V[K]>>
+      : Extracted<NonNullable<V[K]>>;
 };

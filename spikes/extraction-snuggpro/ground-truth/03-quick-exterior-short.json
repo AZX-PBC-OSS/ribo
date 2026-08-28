@@ -1,45 +1,70 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/03-quick-exterior-short.txt",
   "stresses": "A short, deliberately incomplete exterior-only visit -- the headline hallucination probe: almost every leaf is genuinely absent. Two whole-group blanket disclaimers (attic, hvac) plus a broader, topic-naming-but-unresolvable trailing statement ('nothing on the inside today') recorded as `unresolved` rather than guessed at. A hedged visual read on window glazing ('looks like double pane ... I'm not certain') set against an immediately confident frame read ('Vinyl frames though, that I'm sure of') -- THE ONE RULE's core test: something WAS said, so the leaf is asserted (not omitted), but the auditor's own hedge is recorded via `arguable`, licensing both a null miss and the enum's own 'Don't Know' escape hatch as non-penalized alternatives. A wall-framing detail ('two-by-six frame') and an architectural-style word ('ranch') both have no home in the 51 leaves -- schema findings, not misses (rule 9).",
   "disclaimers": [
     {
       "span": "Didn't get into the attic",
       "topic": "the attic",
-      "scope": { "kind": "group", "group": "attic" }
+      "scope": {
+        "kind": "group",
+        "group": "attic"
+      }
     },
     {
       "span": "didn't see the heating",
       "topic": "the heating system",
-      "scope": { "kind": "group", "group": "hvac" }
+      "scope": {
+        "kind": "group",
+        "group": "hvac"
+      }
     },
     {
       "span": "nothing on the inside today",
       "topic": "anything else that required going inside the house (beyond the attic and heating already covered above)",
-      "scope": { "kind": "unresolved" },
+      "scope": {
+        "kind": "unresolved"
+      },
       "note": "Broader than the two preceding, already-disclaimed items (attic, heating) in the same sentence, but does not name a specific resource or either of the other two closed NAMED_SETS. It most plausibly extends to the dhw and health groups (both indoor-only assessments) and possibly interior-only wall/basedata details, but the auditor names none of them specifically -- picking dhw, health, or both myself would be exactly the annotator judgment call rule 4 exists to avoid. Not `shell` either: the window and (partially) wall/basedata facts in this transcript were explicitly gathered from OUTSIDE, so `shell`'s attic+wall+window+blowerDoor bundle is not what this phrase is negating. Recorded as unresolved rather than forced into the nearest group; reaches no leaf today, but is worth keeping as data per rule 4.3."
     }
   ],
+  "instances": {
+    "hvac": [],
+    "attic": [],
+    "wall": [],
+    "window": [
+      {
+        "discriminator": "the window described in this transcript",
+        "mentionSpan": "Windows from outside look like double pane",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "windowType": {
+            "status": "asserted",
+            "sourceSpan": "Windows from outside look like double pane",
+            "member": "Double pane",
+            "arguable": {
+              "acceptableAlternatives": ["Don't Know"],
+              "acceptableMiss": true,
+              "note": "Not a retraction -- no second value is ever offered -- but the auditor immediately qualifies the observation with 'I couldn't get up close on all of them so I'm not certain,' an explicit self-rated low-confidence hedge on the very fact just stated. 'Double pane' is still the best-supported reading (the only value ever stated), so per THE ONE RULE it is asserted rather than omitted -- but two things are true at once: WindowType has a real 'Don't Know' member that exists for exactly this stated-but-unconfirmed situation (a model landing there is defensible, not a symmetric schema-forced tie-break -- this is an ordinary asymmetric lesser alternative, so `symmetric` is not set), AND a model that declines to commit at all and leaves this leaf null is also a defensible caution given the auditor's own words, not a careless miss. Both non-penalized outs are recorded."
+            }
+          },
+          "windowFrame": {
+            "status": "asserted",
+            "sourceSpan": "Vinyl frames",
+            "member": "Vinyl"
+          }
+        }
+      }
+    ],
+    "dhw": []
+  },
   "leaves": {
     "basedata.floorsAboveGrade": {
       "status": "asserted",
       "sourceSpan": "a single story ranch",
       "value": 1
-    },
-    "window.windowType": {
-      "status": "asserted",
-      "sourceSpan": "Windows from outside look like double pane",
-      "member": "Double pane",
-      "arguable": {
-        "acceptableAlternatives": ["Don't Know"],
-        "acceptableMiss": true,
-        "note": "Not a retraction -- no second value is ever offered -- but the auditor immediately qualifies the observation with 'I couldn't get up close on all of them so I'm not certain,' an explicit self-rated low-confidence hedge on the very fact just stated. 'Double pane' is still the best-supported reading (the only value ever stated), so per THE ONE RULE it is asserted rather than omitted -- but two things are true at once: WindowType has a real 'Don't Know' member that exists for exactly this stated-but-unconfirmed situation (a model landing there is defensible, not a symmetric schema-forced tie-break -- this is an ordinary asymmetric lesser alternative, so `symmetric` is not set), AND a model that declines to commit at all and leaves this leaf null is also a defensible caution given the auditor's own words, not a careless miss. Both non-penalized outs are recorded."
-      }
-    },
-    "window.windowFrame": {
-      "status": "asserted",
-      "sourceSpan": "Vinyl frames",
-      "member": "Vinyl"
     }
   },
   "notes": {

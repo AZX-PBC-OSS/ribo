@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { openOutbox, type Outbox } from "@azx/ribo-core";
-import { snuggProAdapter, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
+import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import { z } from "zod";
 
@@ -61,7 +61,7 @@ interface Envelope {
 
 const FILLER_ENVELOPE: Envelope = { value: null, confidence: 1, sourceSpan: FILLER_SPAN };
 
-function unwrapGroup(field: z.ZodType): z.ZodObject {
+function unwrapGroup(field: z.ZodType): z.ZodType {
   let current = field;
   while (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
     // Same cast `field-path.ts`'s `stripOptionalNullable` makes: `.unwrap()`'s
@@ -70,27 +70,53 @@ function unwrapGroup(field: z.ZodType): z.ZodObject {
     // `z.ZodType`.
     current = current.unwrap() as z.ZodType;
   }
-  if (!(current instanceof z.ZodObject)) {
-    throw new Error("snuggValuesSchema's own groups are expected to be z.ZodObject");
-  }
   return current;
 }
 
 /**
  * Every leaf of the real `snuggValuesSchema`, as an extraction envelope map —
  * `FILLER_ENVELOPE` (grounded, so it never blocks the submit gate) everywhere
- * except the dotted paths named in `overrides`.
+ * except the dotted paths named in `overrides`. Collection groups are arrays,
+ * and their overrides use keyed paths (`hvac[k1].hvacSystemEquipmentType`).
+ *
+ * `instances` overrides the default one-instance-per-collection count, which is
+ * what lets the tests exercise two-instance groups and empty-but-present groups.
  */
-function fullExtraction(overrides: Readonly<Record<string, Envelope>>): Record<string, unknown> {
+function fullExtraction(
+  overrides: Readonly<Record<string, Envelope>>,
+  instances: Readonly<Record<string, number>> = {},
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [groupKey, groupField] of Object.entries(snuggValuesSchema.shape)) {
     const groupSchema = unwrapGroup(groupField as z.ZodType);
-    const leaves: Record<string, unknown> = {};
-    for (const leafKey of Object.keys(groupSchema.shape)) {
-      const path = `${groupKey}.${leafKey}`;
-      leaves[leafKey] = overrides[path] ?? FILLER_ENVELOPE;
+    if (groupSchema instanceof z.ZodArray) {
+      const elementSchema = groupSchema.element as unknown as z.ZodObject;
+      const count = instances[groupKey] ?? 1;
+      if (count === 0) {
+        result[groupKey] = [];
+        continue;
+      }
+      const groupInstances: Record<string, unknown>[] = [];
+      for (let i = 0; i < count; i++) {
+        const instanceKey = `k${i + 1}`;
+        const leaves: Record<string, unknown> = {};
+        for (const leafKey of Object.keys(elementSchema.shape)) {
+          const path = `${groupKey}[${instanceKey}].${leafKey}`;
+          leaves[leafKey] = overrides[path] ?? FILLER_ENVELOPE;
+        }
+        groupInstances.push(leaves);
+      }
+      result[groupKey] = groupInstances;
+    } else if (groupSchema instanceof z.ZodObject) {
+      const leaves: Record<string, unknown> = {};
+      for (const leafKey of Object.keys(groupSchema.shape)) {
+        const path = `${groupKey}.${leafKey}`;
+        leaves[leafKey] = overrides[path] ?? FILLER_ENVELOPE;
+      }
+      result[groupKey] = leaves;
+    } else {
+      throw new Error(`unexpected group schema for ${groupKey}`);
     }
-    result[groupKey] = leaves;
   }
   return result;
 }
@@ -114,6 +140,7 @@ async function openTestOutbox(): Promise<Outbox> {
 async function parkedItem(
   outbox: Outbox,
   overrides: Readonly<Record<string, Envelope>>,
+  instances: Readonly<Record<string, number>> = {},
 ): Promise<string> {
   const item = await outbox.enqueue({
     recording: recording(),
@@ -126,7 +153,7 @@ async function parkedItem(
       text: `${FILLER_SPAN}. ${FILLER_SPAN}. ${FILLER_SPAN}.`,
       engine: "fake",
     },
-    extracted: fullExtraction(overrides),
+    extracted: fullExtraction(overrides, instances),
   });
   return item.id;
 }
@@ -141,7 +168,7 @@ async function renderReviewPanel(outbox: Outbox) {
 
 test("the submit gate blocks while an ungrounded leaf is untouched, and releases once it is actioned", async () => {
   const outbox = await openTestOutbox();
-  const targetPath = "hvac.hvacSystemEquipmentType";
+  const targetPath = "hvac[k1].hvacSystemEquipmentType";
   await parkedItem(outbox, {
     [targetPath]: { value: "Boiler", confidence: 1, sourceSpan: "definitely not said aloud" },
   });
@@ -170,7 +197,10 @@ test("a leaf named in requiredOnCreate renders the required marker, and an ordin
   // comment). This is the join `ReviewPanel` -> `useReview` -> `buildReviewRequest`
   // is responsible for keeping wired: if any link drops the option, every
   // `field.required` on the card is `false` and the marker below never renders.
-  const [requiredPath, otherRequiredPath] = snuggProAdapter.requiredOnCreate!;
+  // With `requiredOnCreate` per group, the two HVAC leaves surface on every
+  // instance as keyed paths. Task 15 owns the un-skip and the full assertions.
+  const requiredPath = "hvac[k1].hvacSystemEquipmentType";
+  const otherRequiredPath = "hvac[k1].hvacUpgradeAction";
   const ordinaryPath = "basedata.yearBuilt";
 
   const outbox = await openTestOutbox();
@@ -202,10 +232,10 @@ test("a leaf named in requiredOnCreate renders the required marker, and an ordin
 test("Accept, Edit and Reject each record the decision they claim, and reach submitReview correctly", async () => {
   const outbox = await openTestOutbox();
 
-  const acceptPath = "hvac.hvacSystemEquipmentType";
+  const acceptPath = "hvac[k1].hvacSystemEquipmentType";
   const editPath = "basedata.yearBuilt";
-  const rejectPath = "attic.atticInsulationType";
-  const acceptNullPath = "wall.wallCavityInsulation";
+  const rejectPath = "attic[k1].atticInsulationType";
+  const acceptNullPath = "wall[k1].wallCavityInsulation";
 
   await parkedItem(outbox, {
     // Ungrounded, so each also participates in the gate test above's property
@@ -247,24 +277,191 @@ test("Accept, Edit and Reject each record the decision they claim, and reach sub
   if (outcome.status !== "edited") {
     throw new Error(`expected an "edited" outcome (a leaf was rejected), got "${outcome.status}"`);
   }
-  const fields = outcome.fields as Record<string, Record<string, unknown>>;
+  const fields = outcome.fields as Record<string, unknown>;
+  const hvac = fields.hvac as Record<string, unknown>[] | undefined;
+  const attic = fields.attic as Record<string, unknown>[] | undefined;
+  const wall = fields.wall as Record<string, unknown>[] | undefined;
 
-  // Accept: the extracted value, unchanged, reached the write.
-  expect(fields.hvac?.hvacSystemEquipmentType).toBe("Boiler");
+  // Accept: the extracted value, unchanged, reached the first HVAC instance.
+  expect(hvac?.[0]?.hvacSystemEquipmentType).toBe("Boiler");
 
   // Edit: the TYPED value, not the original extracted one, reached the write.
-  expect(fields.basedata?.yearBuilt).toBe(1975);
+  expect(fields.basedata).toMatchObject({ yearBuilt: 1975 });
 
-  // Reject: the leaf is ABSENT from its group entirely, not present as `null`
+  // Reject: the leaf is ABSENT from its attic instance, not present as `null`
   // — the distinction `resolveReview` draws between "dropped" and "written
   // empty".
-  expect(Object.hasOwn(fields.attic ?? {}, "atticInsulationType")).toBe(false);
+  expect(Object.hasOwn(attic?.[0] ?? {}, "atticInsulationType")).toBe(false);
 
   // Accepted null: the leaf IS present, with its value written as `null` — the
   // opposite of the rejected leaf just above, and the property a rejected/
   // accepted-null mix-up would erase.
-  expect(Object.hasOwn(fields.wall ?? {}, "wallCavityInsulation")).toBe(true);
-  expect(fields.wall?.wallCavityInsulation).toBeNull();
+  expect(Object.hasOwn(wall?.[0] ?? {}, "wallCavityInsulation")).toBe(true);
+  expect(wall?.[0]?.wallCavityInsulation).toBeNull();
 
+  await outbox.close();
+});
+
+test("a two-instance group renders two labelled instance sections, and a leaf edit in the second lands on the second", async () => {
+  const outbox = await openTestOutbox();
+  await parkedItem(
+    outbox,
+    {
+      "hvac[k2].hvacHeatingSystemModel": {
+        value: "Furnace model",
+        confidence: 1,
+        sourceSpan: "not in the transcript",
+      },
+    },
+    { hvac: 2 },
+  );
+
+  const screen = await renderReviewPanel(outbox);
+  const submitReviewSpy = vi.spyOn(outbox, "submitReview");
+
+  await expect.element(screen.getByTestId("review-instance-hvac[k1]")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("review-instance-hvac[k2]")).toBeInTheDocument();
+
+  // Edit the second instance's model, leaving the first untouched.
+  await screen
+    .getByTestId("review-instance-hvac[k2]")
+    .getByTestId("review-field-hvac[k2].hvacHeatingSystemModel")
+    .getByTestId("field-editor")
+    .fill("Heat Pump model");
+
+  const submit = screen.getByRole("button", { name: "Accept all and queue" });
+  await expect.element(submit).toBeEnabled();
+  await submit.click();
+
+  await vi.waitFor(() => expect(submitReviewSpy).toHaveBeenCalled());
+  const [, outcome] = submitReviewSpy.mock.calls[0]!;
+  if (outcome.status !== "edited") {
+    throw new Error(`expected an "edited" outcome, got "${outcome.status}"`);
+  }
+  const hvac = outcome.fields.hvac as Record<string, unknown>[] | undefined;
+  expect(hvac).toHaveLength(2);
+  expect(hvac?.[0]?.hvacHeatingSystemModel).toBeNull();
+  expect(hvac?.[1]?.hvacHeatingSystemModel).toBe("Heat Pump model");
+
+  await outbox.close();
+});
+
+test("a present-but-empty collection renders the group with an add affordance, not nothing", async () => {
+  const outbox = await openTestOutbox();
+  await parkedItem(outbox, {}, { hvac: 0 });
+
+  const screen = await renderReviewPanel(outbox);
+  const group = screen.getByTestId("review-group-hvac");
+  await expect.element(group).toBeInTheDocument();
+  await expect.element(group.getByText("none described")).toBeInTheDocument();
+
+  const add = screen.getByTestId("add-instance-hvac");
+  await expect.element(add).toBeInTheDocument();
+  await add.click();
+
+  // Adding creates one reviewable instance with the usual sentinel leaves.
+  await expect.element(screen.getByTestId("review-instance-hvac[k1]")).toBeInTheDocument();
+  await expect
+    .element(screen.getByTestId("review-field-hvac[k1].hvacSystemEquipmentType"))
+    .toBeInTheDocument();
+
+  await outbox.close();
+});
+
+test("removing the first instance leaves the second instance's entered value intact", async () => {
+  const outbox = await openTestOutbox();
+  await parkedItem(
+    outbox,
+    {
+      "hvac[k2].hvacHeatingSystemModel": {
+        value: "Furnace model",
+        confidence: 1,
+        sourceSpan: "not in the transcript",
+      },
+    },
+    { hvac: 2 },
+  );
+
+  const screen = await renderReviewPanel(outbox);
+  const submitReviewSpy = vi.spyOn(outbox, "submitReview");
+
+  // Edit the second instance before removing the first.
+  await screen
+    .getByTestId("review-instance-hvac[k2]")
+    .getByTestId("review-field-hvac[k2].hvacHeatingSystemModel")
+    .getByTestId("field-editor")
+    .fill("Heat Pump model");
+
+  await screen.getByTestId("remove-instance-hvac[k1]").click();
+
+  // After removal, the second instance is re-keyed to k1 but keeps its edited value.
+  await expect.element(screen.getByTestId("review-instance-hvac[k1]")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("review-instance-hvac[k2]")).not.toBeInTheDocument();
+
+  const submit = screen.getByRole("button", { name: "Accept all and queue" });
+  await expect.element(submit).toBeEnabled();
+  await submit.click();
+
+  await vi.waitFor(() => expect(submitReviewSpy).toHaveBeenCalled());
+  const [, outcome] = submitReviewSpy.mock.calls[0]!;
+  if (outcome.status !== "edited") {
+    throw new Error(`expected an "edited" outcome, got "${outcome.status}"`);
+  }
+  const hvac = outcome.fields.hvac as Record<string, unknown>[] | undefined;
+  expect(hvac).toHaveLength(1);
+  expect(hvac?.[0]?.hvacHeatingSystemModel).toBe("Heat Pump model");
+
+  await outbox.close();
+});
+
+test("the submit gate blocks on an unactioned required leaf in the second instance", async () => {
+  const outbox = await openTestOutbox();
+  await parkedItem(
+    outbox,
+    {
+      "hvac[k2].hvacUpgradeAction": { value: null, confidence: 0, sourceSpan: null },
+    },
+    { hvac: 2 },
+  );
+
+  const screen = await renderReviewPanel(outbox);
+  const submit = screen.getByRole("button", { name: "Accept all and queue" });
+  await expect.element(submit).toBeDisabled();
+
+  await screen
+    .getByTestId("review-instance-hvac[k2]")
+    .getByTestId("review-field-hvac[k2].hvacUpgradeAction")
+    .getByTestId("accept-field")
+    .click();
+
+  await expect.element(submit).toBeEnabled();
+  await outbox.close();
+});
+
+test("the submit gate blocks on an ungrounded leaf in the second instance, not just the first", async () => {
+  const outbox = await openTestOutbox();
+  await parkedItem(
+    outbox,
+    {
+      "hvac[k2].hvacDuctLocation": {
+        value: "basement",
+        confidence: 1,
+        sourceSpan: "definitely not said aloud",
+      },
+    },
+    { hvac: 2 },
+  );
+
+  const screen = await renderReviewPanel(outbox);
+  const submit = screen.getByRole("button", { name: "Accept all and queue" });
+  await expect.element(submit).toBeDisabled();
+
+  await screen
+    .getByTestId("review-instance-hvac[k2]")
+    .getByTestId("review-field-hvac[k2].hvacDuctLocation")
+    .getByTestId("accept-field")
+    .click();
+
+  await expect.element(submit).toBeEnabled();
   await outbox.close();
 });

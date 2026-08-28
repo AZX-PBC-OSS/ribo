@@ -68,11 +68,22 @@ export type { SnuggWriteContext } from "./context.js";
 export {
   SNUGG_GROUP_KEYS,
   SNUGG_RULES,
+  snuggGroupFillInstructions,
   snuggGroupInstructions,
   snuggProInstructions,
 } from "./instructions.js";
-export type { SnuggRule } from "./instructions.js";
+export type { FillScope, SnuggRule } from "./instructions.js";
 export { snuggExamples } from "./examples.js";
+
+// The Task 9 inventory-pass roster: the schema that parses the house-wide
+// instance list, and the instructions that constrain the inventory model.
+export {
+  RosterEligibility,
+  rosterCandidateSchema,
+  rosterSchema,
+  snuggInventoryInstructions,
+} from "./inventory.js";
+export type { Roster, RosterCandidate } from "./inventory.js";
 
 // The deterministic, model-free normalization pass and its transforms.
 export {

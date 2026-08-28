@@ -3,7 +3,7 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { build, preview, type PreviewServer } from "vite";
 import { chromium, type Browser, type Page } from "playwright";
 import { z } from "zod";
-import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
+import { snuggExamples, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 
 /**
  * @file Network **transitions**, not network states.
@@ -248,6 +248,7 @@ test("flapping the link around a queued item neither duplicates it, loses it, no
 // a local DOM/IndexedDB operation with no network I/O, so doing it with the
 // context still offline is exactly as informative about "no network I/O" as the
 // original, gate-free version was.
+//
 test("the manual drain runs to completion while offline — the stub steps do no network I/O", async () => {
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -342,19 +343,15 @@ async function captureOneRecording(target: Page): Promise<void> {
 }
 
 /**
- * `field`, stripped of leading `.optional()`/`.nullable()` wrappers, asserted to
- * be a `z.ZodObject` — the same shape `snuggValuesSchema`'s own seven groups
- * take. Mirrors `ReviewPanel.browser.test.tsx`'s `unwrapGroup` exactly; kept
- * local rather than shared, matching this file's own convention of duplicating
- * helpers rather than importing them from a sibling e2e file.
+ * `field`, stripped of leading `.optional()`/`.nullable()` wrappers. Mirrors
+ * `ReviewPanel.browser.test.tsx`'s `unwrapGroup` exactly; kept local rather than
+ * shared, matching this file's own convention of duplicating helpers rather than
+ * importing them from a sibling e2e file.
  */
-function unwrapGroup(field: z.ZodType): z.ZodObject {
+function unwrapGroup(field: z.ZodType): z.ZodType {
   let current = field;
   while (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
     current = current.unwrap() as z.ZodType;
-  }
-  if (!(current instanceof z.ZodObject)) {
-    throw new Error("snuggValuesSchema's own groups are expected to be z.ZodObject");
   }
   return current;
 }
@@ -364,14 +361,28 @@ function unwrapGroup(field: z.ZodType): z.ZodObject {
  * order — computed from the schema itself rather than hard-coded, so a future
  * field-set change changes what this test expects instead of silently under-
  * or over-covering it. Same walk as `extraction-ui.e2e.test.ts`'s helper of the
- * same name.
+ * same name, and it carries the same correction: **the schema says how many
+ * LEAVES, the fixture says how many INSTANCES.** Assuming one instance per group
+ * broke the moment the shipped few-shot example gained a second HVAC system.
  */
 function allLeafPaths(): readonly string[] {
+  const fixture = snuggExamples[0]?.fields as Record<string, unknown> | undefined;
   const paths: string[] = [];
   for (const [groupKey, groupField] of Object.entries(snuggValuesSchema.shape)) {
     const groupSchema = unwrapGroup(groupField as z.ZodType);
-    for (const leafKey of Object.keys(groupSchema.shape)) {
-      paths.push(`${groupKey}.${leafKey}`);
+    if (groupSchema instanceof z.ZodArray) {
+      const elementSchema = groupSchema.element as unknown as z.ZodObject;
+      const emitted = fixture?.[groupKey];
+      const count = Array.isArray(emitted) ? emitted.length : 0;
+      for (let i = 0; i < count; i += 1) {
+        for (const leafKey of Object.keys(elementSchema.shape)) {
+          paths.push(`${groupKey}[k${i + 1}].${leafKey}`);
+        }
+      }
+    } else if (groupSchema instanceof z.ZodObject) {
+      for (const leafKey of Object.keys(groupSchema.shape)) {
+        paths.push(`${groupKey}.${leafKey}`);
+      }
     }
   }
   return paths;

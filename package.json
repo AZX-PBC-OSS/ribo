@@ -30,7 +30,8 @@
     "docs:deploy": "pnpm run docs:build && helix deploy",
     "target:refresh": "node scripts/refresh-target.mjs",
     "snugg:refresh": "node scripts/snugg-descriptions.mjs --refresh",
-    "snugg:check": "node scripts/snugg-descriptions.mjs --check"
+    "snugg:check": "node scripts/snugg-descriptions.mjs --check",
+    "skips:check": "node scripts/skip-inventory.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",

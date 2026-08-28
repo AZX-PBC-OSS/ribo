@@ -44,6 +44,17 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  * the byte-for-byte record of what leaves for the model, and any *future*
  * unexplained movement is a regression.
  *
+ * ## Provenance: the Task 5 move (R1.6 instance modeling)
+ *
+ * The fixture was re-captured again when R1.6 Task 5 made the five per-instance
+ * resource groups (`hvac`, `attic`, `wall`, `window`, `dhw`) into arrays, leaving
+ * the two genuine singletons (`basedata`, `health`) as objects. This is a
+ * deliberate field-shape change, not a derivation change: `enveloped()` recurses
+ * through arrays into the same per-leaf envelopes, and the per-group cap test
+ * (per-group-cap.test.ts) confirms the serialized schema still fits. The move
+ * is named here so a future diff that does not recognize it has to explain why it
+ * is undoing a documented task.
+ *
  * Why capture it this way, not by calling `z.toJSONSchema(snuggExtractionSchema, ...)`
  * inline: `singleShotExtractor` (packages/ribo-extractor-openai/src/single-shot.ts)
  * is the ONLY code path that produces the object that actually lands in
@@ -253,9 +264,19 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
  */
 function collectLeafDescriptions(schema: Record<string, unknown>): Map<string, string> {
   const found = new Map<string, string>();
-  const groups = schema.properties as Record<string, { properties: Record<string, unknown> }>;
+  const groups = schema.properties as Record<
+    string,
+    {
+      type?: string;
+      items?: { properties: Record<string, unknown> };
+      properties?: Record<string, unknown>;
+    }
+  >;
   for (const [group, groupSchema] of Object.entries(groups)) {
-    for (const [leaf, leafSchema] of Object.entries(groupSchema.properties)) {
+    // Collection groups are arrays; the per-leaf schema is under `items.properties`.
+    const leafContainer = groupSchema.type === "array" ? groupSchema.items : groupSchema;
+    if (!leafContainer?.properties) continue;
+    for (const [leaf, leafSchema] of Object.entries(leafContainer.properties)) {
       const value = (
         leafSchema as { properties: { value: { anyOf?: { description?: string }[] } } }
       ).properties.value;

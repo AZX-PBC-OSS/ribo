@@ -98,6 +98,7 @@ run_stage "pkg:gates" pnpm check:pkg
 # unreachable: a build that fails on someone else's downtime teaches people to ignore it.
 run_stage "snugg:drift" pnpm snugg:check
 
+run_stage "skips:tracked" pnpm skips:check
 run_stage "score:mutations" node spikes/extraction-snuggpro/score.test.mjs
 
 run_stage "test" pnpm test
@@ -105,7 +106,7 @@ run_stage "test" pnpm test
 printf '\n----------------------------------------\n'
 
 if [ -z "$failed" ]; then
-  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, pkg:gates, snugg:drift, score:mutations, test\n'
+  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, pkg:gates, snugg:drift, skips:tracked, score:mutations, test\n'
   exit 0
 fi
 

@@ -178,8 +178,13 @@ const isEnvelope = (node: unknown): node is { confidence: number } =>
 
 /** Clamp every envelope's `confidence` at any depth, leaving `value`/`sourceSpan`. */
 const clampDeep = (node: unknown): unknown => {
+  if (Array.isArray(node)) return node.map(clampDeep);
   if (isEnvelope(node)) return { ...node, confidence: clampConfidence(node.confidence) };
   if (typeof node === "object" && node !== null) {
+    // Arrays must be handled before this branch. `Object.fromEntries(Object.entries(arr))`
+    // silently rebuilds an array as an object whose keys are numeric strings — `[{x}]`
+    // becomes `{"0": {x}}`. That would corrupt every collection on the first normalization
+    // pass, and because the result is still an object nothing throws until much later.
     return Object.fromEntries(Object.entries(node).map(([key, child]) => [key, clampDeep(child)]));
   }
   return node;

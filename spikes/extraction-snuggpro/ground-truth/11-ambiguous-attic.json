@@ -1,69 +1,105 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/11-ambiguous-attic.txt",
   "stresses": "THE WORKED EXAMPLE (see ANNOTATOR_GUIDE.md). SELF-CORRECTION / last-value-wins on two leaves: the attic R-value (\"R-11, no wait ... R-13\" -> 13, 11 retracted) and the heating equipment (\"I thought boiler at first ... no, it's a furnace\" -> furnace, boiler retracted). A health-matrix trap: a personal CO monitor that \"never went off\" is explicitly NOT a real test -> healthAmbientCarbonMonoxide is asserted 'Not Tested', and a model that reads the clean monitor as 'Passed' is a hallucinated pass, not a correct clean. Three blanket disclaimers, recorded as DATA (span + mechanical scope) rather than resolved by annotator judgment — see `disclaimers` below and disclaimer-policy.mjs. And a genuinely new ambiguity the SCHEMA ITSELF introduces, not the transcript: hvacSystemEquipmentType conflates a furnace's identity with an unrelated shared-ducts-with-AC fact this auditor never addresses — recorded as member (the FIRST of the two conflated members in schema.ts's own enum-list order, per ANNOTATOR_GUIDE.md rule 6's deterministic tie-break — never a free personal choice) plus the other member as a symmetric arguable.acceptableAlternatives entry, not noFittingMember (that is reserved for when NO real member fits at all, a different problem — see rule 6).",
   "disclaimers": [
     {
       "span": "no water heater",
       "topic": "the water heater",
-      "scope": { "kind": "group", "group": "dhw" }
+      "scope": {
+        "kind": "group",
+        "group": "dhw"
+      }
     },
     {
       "span": "no blower door",
       "topic": "the blower-door test",
-      "scope": { "kind": "namedSet", "set": "blowerDoor" }
+      "scope": {
+        "kind": "namedSet",
+        "set": "blowerDoor"
+      }
     },
     {
       "span": "No tests",
       "topic": "the health & safety test battery",
-      "scope": { "kind": "namedSet", "set": "healthTests" }
+      "scope": {
+        "kind": "namedSet",
+        "set": "healthTests"
+      }
     }
   ],
+  "instances": {
+    "hvac": [
+      {
+        "discriminator": "the hvac described in this transcript",
+        "mentionSpan": "Definitely a furnace, scratch the boiler.",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "Definitely a furnace, scratch the boiler.",
+            "member": "Furnace with standalone ducts",
+            "retracted": [
+              {
+                "value": "Boiler",
+                "note": "\"I thought boiler at first because of all the pipes\" is withdrawn by \"no, it's a furnace ... those pipes were just the old abandoned hydronic ... scratch the boiler.\" Last assertion wins (annotator guide rule 5)."
+              }
+            ],
+            "arguable": {
+              "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
+              "symmetric": true,
+              "note": "SCHEMA FINDING, not a transcript ambiguity — escalated in the report rather than resolved by annotator preference. schema.ts's hvacSystemEquipmentType conflates a furnace's IDENTITY with an unrelated fact (whether it shares ducts with a central AC unit) into one enum axis. This utterance states only the identity (\"it's a furnace\") and says nothing about cooling either way, so NEITHER the standalone-ducts member nor the shared-ducts-with-AC member is more supportable than the other. `member` holds \"Furnace with standalone ducts\" because ANNOTATOR_GUIDE.md rule 6's deterministic tie-break says so (the member appearing FIRST in schema.ts's own enum-list order for this leaf — index 2 of 17, vs. \"Furnace / Central AC (shared ducts)\" at index 16) — a mechanical rule with no annotator discretion, precisely so two independent annotators hitting this same pattern write the identical `member`, not merely equivalent-scoring but textually different files. `symmetric: true` is what makes this MECHANICALLY checkable (validate-ground-truth.mjs asserts member's schema-order index is earliest among itself and every listed alternative) rather than resting on prose alone. `acceptableAlternatives` proves the SCORING symmetry structurally: a model landing on either member scores identically (correct/sanctioned, never wrong), and only a member from a genuinely DIFFERENT equipment family (Boiler, Electric Resistance, a heat pump, ...) is a hard wrong answer."
+            }
+          },
+          "hvacHeatingEnergySource": {
+            "status": "asserted",
+            "sourceSpan": "it's a furnace, a gas furnace",
+            "member": "Natural Gas"
+          }
+        }
+      }
+    ],
+    "attic": [
+      {
+        "discriminator": "the attic described in this transcript",
+        "mentionSpan": "I'm giving you the R-value, not a depth",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "atticInsulationDepth": {
+            "status": "declared_absent",
+            "sourceSpan": "I'm giving you the R-value, not a depth"
+          },
+          "atticInsulationType": {
+            "status": "asserted",
+            "sourceSpan": "fiberglass batts between the joists",
+            "member": "Fiberglass or Rockwool (batts or blown)"
+          },
+          "atticInsulation": {
+            "status": "asserted",
+            "sourceSpan": "R-13, final answer.",
+            "value": 13,
+            "retracted": [
+              {
+                "value": 11,
+                "note": "\"I want to say R-11\" is retracted by \"no wait, these are the thicker ones, R-13 ... R-13, final answer.\" Last assertion wins."
+              }
+            ],
+            "arguable": {
+              "note": "Schema-rebuild note, not a corpus ambiguity: the pre-rebuild field set had no attic R-value write target at all and parked a spoken R-value in a fake `atticInsulationSpokenRValue` holding pen. The rebuilt schema.ts has a REAL `atticInsulation` field (a genuine write target, not a holding pen) — see schema.ts's HAZARD 2b note. This leaf is therefore asserted, not merely captured-for-later."
+            }
+          }
+        }
+      }
+    ],
+    "wall": [],
+    "window": [],
+    "dhw": []
+  },
   "leaves": {
-    "hvac.hvacSystemEquipmentType": {
-      "status": "asserted",
-      "sourceSpan": "Definitely a furnace, scratch the boiler.",
-      "member": "Furnace with standalone ducts",
-      "retracted": [
-        {
-          "value": "Boiler",
-          "note": "\"I thought boiler at first because of all the pipes\" is withdrawn by \"no, it's a furnace ... those pipes were just the old abandoned hydronic ... scratch the boiler.\" Last assertion wins (annotator guide rule 5)."
-        }
-      ],
-      "arguable": {
-        "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
-        "symmetric": true,
-        "note": "SCHEMA FINDING, not a transcript ambiguity — escalated in the report rather than resolved by annotator preference. schema.ts's hvacSystemEquipmentType conflates a furnace's IDENTITY with an unrelated fact (whether it shares ducts with a central AC unit) into one enum axis. This utterance states only the identity (\"it's a furnace\") and says nothing about cooling either way, so NEITHER the standalone-ducts member nor the shared-ducts-with-AC member is more supportable than the other. `member` holds \"Furnace with standalone ducts\" because ANNOTATOR_GUIDE.md rule 6's deterministic tie-break says so (the member appearing FIRST in schema.ts's own enum-list order for this leaf — index 2 of 17, vs. \"Furnace / Central AC (shared ducts)\" at index 16) — a mechanical rule with no annotator discretion, precisely so two independent annotators hitting this same pattern write the identical `member`, not merely equivalent-scoring but textually different files. `symmetric: true` is what makes this MECHANICALLY checkable (validate-ground-truth.mjs asserts member's schema-order index is earliest among itself and every listed alternative) rather than resting on prose alone. `acceptableAlternatives` proves the SCORING symmetry structurally: a model landing on either member scores identically (correct/sanctioned, never wrong), and only a member from a genuinely DIFFERENT equipment family (Boiler, Electric Resistance, a heat pump, ...) is a hard wrong answer."
-      }
-    },
-    "hvac.hvacHeatingEnergySource": {
-      "status": "asserted",
-      "sourceSpan": "it's a furnace, a gas furnace",
-      "member": "Natural Gas"
-    },
-    "attic.atticInsulationDepth": {
-      "status": "declared_absent",
-      "sourceSpan": "I'm giving you the R-value, not a depth"
-    },
-    "attic.atticInsulationType": {
-      "status": "asserted",
-      "sourceSpan": "fiberglass batts between the joists",
-      "member": "Fiberglass or Rockwool (batts or blown)"
-    },
-    "attic.atticInsulation": {
-      "status": "asserted",
-      "sourceSpan": "R-13, final answer.",
-      "value": 13,
-      "retracted": [
-        {
-          "value": 11,
-          "note": "\"I want to say R-11\" is retracted by \"no wait, these are the thicker ones, R-13 ... R-13, final answer.\" Last assertion wins."
-        }
-      ],
-      "arguable": {
-        "note": "Schema-rebuild note, not a corpus ambiguity: the pre-rebuild field set had no attic R-value write target at all and parked a spoken R-value in a fake `atticInsulationSpokenRValue` holding pen. The rebuilt schema.ts has a REAL `atticInsulation` field (a genuine write target, not a holding pen) — see schema.ts's HAZARD 2b note. This leaf is therefore asserted, not merely captured-for-later."
-      }
-    },
     "health.healthAmbientCarbonMonoxide": {
       "status": "asserted",
       "sourceSpan": "I did not do an actual ambient CO measurement at the appliance, so don't log that as a CO test",

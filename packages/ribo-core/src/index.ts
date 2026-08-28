@@ -156,12 +156,24 @@ export * from "./queue/index.js";
 // Write-back: the only tool-specific surface, with a typed host context, both
 // field shapes (the writable patch and the derived extraction schema) and the
 // per-attempt write metadata that carries the idempotency key.
-export type { ToolAdapter, ToolAdapterExample, ValuesSchema, WriteMetadata } from "./adapter.js";
+export type {
+  RequiredOnCreate,
+  ToolAdapter,
+  ToolAdapterExample,
+  ValuesSchema,
+  WriteMetadata,
+} from "./adapter.js";
 
 // The composition that hands a reviewed patch to an adapter, and the only place
 // `schema.parse` runs before a write. Resolves the destination per item off
 // `recording.ctx`, so two queued recordings from two jobs write to two places.
 export { toWriteStep } from "./write-step.js";
+
+// Per-instance write-back: a sibling of `toWriteStep` that writes each collection
+// instance separately with a derived idempotency key, and persists per-instance
+// progress in the outbox so a retry resumes after the instances already written.
+export { deriveInstanceIdempotencyKey, toInstanceWriteStep } from "./instance-write-step.js";
+export type { ToInstanceWriteStepOptions } from "./instance-write-step.js";
 
 // Extraction: the pluggable seam a transcript becomes structured fields through,
 // the function that collapses any extractor onto the relay's injected step, and
@@ -223,6 +235,16 @@ export type { RaceCandidate } from "./race-extractor.js";
 export { summarizeWork, workSafety } from "./work-safety.js";
 export type { StoragePersistence, WorkOnDevice, WorkSafety } from "./work-safety.js";
 
+// Instance identity: existing records enter at review, and a human decides whether to
+// link each dictated instance to one or create a new record.
+export type {
+  ExistingRecord,
+  InstanceLinkDecision,
+  LinkTarget,
+  LinkTargets,
+  RankedCandidate,
+} from "./instance-identity.js";
+
 // Human review, one leaf at a time: the values schema enumerates the leaves as flat
 // dotted paths, each carrying its own schema so a UI can render and validate an edit.
 export {
@@ -255,3 +277,10 @@ export type {
 // re-implemented it independently would risk the two walks disagreeing about
 // what counts as a wrapper.
 export { stripOptionalNullable } from "./field-path.js";
+
+// Field-path grammar: one shared implementation for building and parsing dotted
+// and bracketed paths. Object-key and instance-key segments are distinct at the
+// type level so `resolveReview` cannot silently rebuild `hvac[k3].leaf` as an
+// object whose key is the literal text `hvac[k3]`.
+export { buildFieldPath, parseFieldPath } from "./field-path.js";
+export type { FieldPathSegment } from "./field-path.js";

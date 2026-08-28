@@ -161,15 +161,135 @@ describe("enveloped() — output is fully required and closed, even though the i
   });
 });
 
+describe("enveloped() — arrays recurse into elements, not one envelope for the whole array", () => {
+  const elementSchema = z.object({
+    systemType: z.string().nullable().optional(),
+    capacity: z.number().nullable().optional(),
+  });
+  const patch = z.object({
+    hvac: z.array(elementSchema).optional(),
+  });
+
+  test("array element leaves are individually enveloped, not wrapped as one array envelope", () => {
+    const schema = enveloped(patch);
+    const jsonSchema = z.toJSONSchema(schema);
+
+    const hvac = jsonSchema.properties?.hvac as {
+      type: "array";
+      items: { properties: Record<string, unknown>; required: string[] };
+    };
+    expect(hvac.type).toBe("array");
+    expect(Object.keys(hvac.items.properties).sort()).toEqual(["capacity", "systemType"]);
+    expect(hvac.items.required.sort()).toEqual(["capacity", "systemType"]);
+
+    // A whole-array envelope would have `value`/`confidence`/`sourceSpan` at the top of `hvac`,
+    // and no `items.properties`. Instead each leaf carries its own envelope.
+    for (const leaf of Object.values(hvac.items.properties)) {
+      const envelope = leaf as { properties: Record<string, unknown>; required: string[] };
+      expect(Object.keys(envelope.properties).sort()).toEqual([
+        "confidence",
+        "sourceSpan",
+        "value",
+      ]);
+      expect(envelope.required.sort()).toEqual(["confidence", "sourceSpan", "value"]);
+    }
+
+    // Two instances parse with per-leaf envelopes.
+    const parsed = schema.parse({
+      hvac: [
+        {
+          systemType: { value: "furnace", confidence: 1, sourceSpan: "furnace" },
+          capacity: { value: null, confidence: 1, sourceSpan: null },
+        },
+        {
+          systemType: { value: "ac", confidence: 1, sourceSpan: "ac" },
+          capacity: { value: 3, confidence: 1, sourceSpan: "3 tons" },
+        },
+      ],
+    });
+    expect(parsed.hvac).toHaveLength(2);
+    const first = parsed.hvac[0];
+    const second = parsed.hvac[1];
+    if (first === undefined || second === undefined) {
+      throw new Error("expected two HVAC elements from the schema parse");
+    }
+    expect(first.systemType.value).toBe("furnace");
+    expect(second.capacity.value).toBe(3);
+  });
+
+  test("property count does not grow with instance count", () => {
+    const schema = enveloped(patch);
+    const jsonSchema = z.toJSONSchema(schema);
+
+    // Count the total number of `properties` maps across the schema. An array of objects adds one
+    // `items` object with the same leaf count as a single element; expanding the array into N
+    // named properties would multiply it.
+    const countProperties = (node: unknown): number => {
+      if (typeof node !== "object" || node === null) return 0;
+      if (Array.isArray(node)) return node.reduce((sum, n) => sum + countProperties(n), 0);
+      const obj = node as Record<string, unknown>;
+      let sum = 0;
+      if (typeof obj.properties === "object" && obj.properties !== null) {
+        sum += Object.keys(obj.properties).length;
+      }
+      for (const value of Object.values(obj)) {
+        sum += countProperties(value);
+      }
+      return sum;
+    };
+
+    const before = countProperties(jsonSchema);
+
+    // The static schema is the same regardless of how many elements the data contains.
+    schema.parse({ hvac: [] });
+    schema.parse({
+      hvac: [
+        {
+          systemType: { value: "furnace", confidence: 1, sourceSpan: "furnace" },
+          capacity: { value: null, confidence: 1, sourceSpan: null },
+        },
+      ],
+    });
+    schema.parse({
+      hvac: Array.from({ length: 100 }, (_, i) => ({
+        systemType: { value: String(i), confidence: 1, sourceSpan: null },
+        capacity: { value: i, confidence: 1, sourceSpan: null },
+      })),
+    });
+
+    expect(countProperties(z.toJSONSchema(schema))).toBe(before);
+  });
+
+  test("nested arrays recurse uniformly through their element schemas", () => {
+    const nestedPatch = z.object({
+      matrix: z.array(z.array(z.string())).optional(),
+    });
+    const schema = enveloped(nestedPatch);
+
+    const parsed = schema.parse({
+      matrix: [
+        [
+          { value: "a", confidence: 1, sourceSpan: "a" },
+          { value: "b", confidence: 1, sourceSpan: "b" },
+        ],
+        [{ value: "c", confidence: 1, sourceSpan: "c" }],
+      ],
+    });
+
+    expect(parsed.matrix).toEqual([
+      [
+        { value: "a", confidence: 1, sourceSpan: "a" },
+        { value: "b", confidence: 1, sourceSpan: "b" },
+      ],
+      [{ value: "c", confidence: 1, sourceSpan: "c" }],
+    ]);
+  });
+});
+
 describe("enveloped() — throws on shapes strict structured-output mode cannot express", () => {
   // Every case below pins BOTH halves of the message: the path (what a caller needs to find the
   // field) and the zod constructor name (the diagnostic half — real in 4.4.3, and worth pinning so
   // a future edit to the message can't quietly drop it while the path-only regex keeps passing).
-  test("array — throws naming the field path and the constructor name", () => {
-    const patch = z.object({ tags: z.array(z.string()) });
-    expect(() => enveloped(patch)).toThrowError(/"tags".*\(ZodArray\)/);
-  });
-
   test("record — throws naming the field path and the constructor name", () => {
     const patch = z.object({ notes: z.record(z.string(), z.string()) });
     expect(() => enveloped(patch)).toThrowError(/"notes".*\(ZodRecord\)/);
@@ -184,9 +304,9 @@ describe("enveloped() — throws on shapes strict structured-output mode cannot 
 
   test("the path is the DOTTED path for a shape nested inside an object", () => {
     const patch = z.object({
-      healthSafety: z.object({ tests: z.array(z.string()) }),
+      healthSafety: z.object({ notes: z.record(z.string(), z.string()) }),
     });
-    expect(() => enveloped(patch)).toThrowError(/"healthSafety\.tests".*\(ZodArray\)/);
+    expect(() => enveloped(patch)).toThrowError(/"healthSafety\.notes".*\(ZodRecord\)/);
   });
 });
 
@@ -255,5 +375,35 @@ describe("enveloped() — return type is shape-preserving", () => {
     // both vanish from emitted JS; the assertion lives entirely in `pnpm typecheck`. A fresh object,
     // not `value.rValue` itself, so the assignment isn't also flagged as a no-op self-assignment.)
     value.rValue = { value: 20, confidence: 1, sourceSpan: null };
+  });
+});
+
+describe("enveloped() — return type is shape-preserving for arrays", () => {
+  const _patch = z.object({
+    hvac: z
+      .array(
+        z.object({
+          systemType: z.string().nullable().optional(),
+          capacity: z.number().nullable().optional(),
+        }),
+      )
+      .optional(),
+  });
+
+  type Actual = z.infer<ReturnType<typeof enveloped<typeof _patch>>>;
+  type Expected = {
+    hvac: { systemType: Extracted<string>; capacity: Extracted<number> }[];
+  };
+
+  test("z.infer of the derived array schema is an array of per-leaf envelopes (type-level only)", () => {
+    expectTypeOf<Actual>().toEqualTypeOf<Expected>();
+  });
+
+  // The same mutual-`extends` and `readonly` probe as the non-array shape-preserving block:
+  // `Enveloped<V>` and `z.infer<ReturnType<typeof enveloped<...>>>` are computed by two different
+  // type mechanisms, so they must be checked against each other, not against a hand-written shape.
+  test("Enveloped<V> is mutually assignable with the function's actual return type for arrays", () => {
+    expectTypeOf<Enveloped<z.infer<typeof _patch>>>().toExtend<Actual>();
+    expectTypeOf<Actual>().toExtend<Enveloped<z.infer<typeof _patch>>>();
   });
 });

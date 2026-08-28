@@ -67,8 +67,11 @@ the primary one's. §5 is not optional polish; it is the thing that makes the me
 | **Scheduling**  | when does the next candidate start? | on demand            | after a delay    | on failure         |
 | **Arbitration** | given what is back, are we done?    | none                 | first to finish  | outcome classifier |
 
-The genuine difference is that **`compositeExtractor` gates before running and fallback gates after**.
-Neither currently has the other's gate, and a race has no equivalent on the extractor seam at all.
+`raceExtractor` is a fourth setting of the same knobs — no admission, concurrent scheduling, an
+arbiter over accumulated outcomes. It is discussed in §4.5, including why it has no admission gate.
+
+The genuine difference is that **`compositeExtractor` gates before running and fallback gates after**,
+and neither has the other's gate.
 
 ### 3.1 What this design does _not_ unify, and why
 
@@ -253,6 +256,44 @@ deliberately ordered an on-device engine first for privacy reasons would have th
 reversed by a scheduling flag. Keeping `raceExtractor` a distinct constructor means concurrency is
 always something a caller asked for by name, which is the same property `hedged` protects, obtained
 the same way.
+
+**`raceExtractor` has no admission gate, and that is a decision rather than an omission.** The
+four-knob table in §3 lists admission for `compositeExtractor` and `hedged` and omits race entirely,
+which left the asymmetry looking accidental — it was asked about, the answer had to be reconstructed
+from the code, and the likely "fix" from a reader who reconstructs it differently is to add a probe.
+So it is written down here.
+
+**A probe buys laziness, and a race has no laziness to buy.** Sequential admission is worth its cost
+because it lets the engine probe candidate N only after N−1 is refused, and probe nothing once one
+is admitted. A race starts every candidate immediately, so there is nothing behind a winner to skip.
+Adding admission means either probing all candidates up front — paying the latency in full — or
+gating each before starting it, which serialises the start and stops it being a race. Both trade
+away the round-trip a race exists to remove.
+
+**And the hazard admission would guard against is already handled, one layer down.** For the
+on-device path, `SessionHolder` probes availability before `LanguageModel.create()` and throws a
+typed `SessionCapabilityError` rather than proceeding; Chrome independently refuses to begin a model
+download from a background context, because that needs user activation. So an unadmitted candidate
+in a race produces a safe, typed, diagnosable error outcome — which the arbiter already handles and
+can fall through from. Defence in depth belongs in the extractor, which is the only component that
+knows what "ready" means for itself, rather than replicated into every combinator that might compose
+it.
+
+**The known limit, stated rather than discovered.** `compositeExtractor`'s rule 2 — never select a
+`needs-download` engine, because that fetch needs a human's consent and a background drain cannot
+obtain one — is a **policy the concurrent path cannot express**. A race will attempt such an engine
+and get a clean failure instead of skipping it. The behaviour is correct and the cost is a wasted
+call plus a worse first error; it is only reachable by a consumer who races an on-device engine, and
+nothing in this repo does. If that changes, this is the paragraph to revisit.
+
+**What a probe actually costs, since the asymmetry only makes sense with the number.** On the managed
+path `capability()` reads an in-memory `connectivityStatus` kept current by a subscription — a
+boolean comparison, no I/O. On the on-device path it is a local `availability()` lookup. Both are
+effectively free, which is why sequential admission is worth having at all: it turns a `fetch` that
+hangs to timeout on every item of an offline queue drain into a boolean read. **The probe is
+advisory, not authoritative** — it is TTL-cached and connectivity can drop between probe and extract
+— so failure handling is required regardless. It avoids the predictable case; it does not replace
+the error path.
 
 ## 5. Observability
 
