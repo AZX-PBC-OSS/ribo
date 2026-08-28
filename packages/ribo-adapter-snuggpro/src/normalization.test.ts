@@ -108,16 +108,16 @@ describe("normalizeFields", () => {
 
   const base = (): SnuggExtraction => {
     const fields = structuredClone(fixture.fields) as SnuggExtraction;
-    fields.hvac.hvacSystemEquipmentType.confidence = 1.4;
-    fields.dhw.dhwAge.confidence = -0.5;
+    fields.hvac![0]!.hvacSystemEquipmentType.confidence = 1.4;
+    fields.dhw[0]!.dhwAge.confidence = -0.5;
     fields.health.healthDraftPressure.confidence = 2;
     return fields;
   };
 
   test("clamps confidence on envelopes in every resource group, at any depth", () => {
     const out = normalizeFields(base());
-    expect(out.hvac.hvacSystemEquipmentType.confidence).toBe(1);
-    expect(out.dhw.dhwAge.confidence).toBe(0);
+    expect(out.hvac[0]!.hvacSystemEquipmentType.confidence).toBe(1);
+    expect(out.dhw[0]!.dhwAge.confidence).toBe(0);
     expect(out.health.healthDraftPressure.confidence).toBe(1);
   });
 
@@ -128,6 +128,10 @@ describe("normalizeFields", () => {
     let seen = 0;
     const walk = (node: unknown): void => {
       if (typeof node !== "object" || node === null) return;
+      if (Array.isArray(node)) {
+        for (const item of node) walk(item);
+        return;
+      }
       if ("confidence" in node) {
         const { confidence } = node as { confidence: number };
         seen += 1;
@@ -143,19 +147,19 @@ describe("normalizeFields", () => {
 
   test("leaves value and sourceSpan untouched — it never converts or invents", () => {
     const out = normalizeFields(base());
-    expect(out.hvac.hvacSystemEquipmentType.value).toBe("Boiler");
-    expect(out.hvac.hvacSystemEquipmentType.sourceSpan).toBe("it's an oil boiler");
-    expect(out.attic.atticInsulationDepth.value).toBe("4-6");
+    expect(out.hvac[0]!.hvacSystemEquipmentType.value).toBe("Boiler");
+    expect(out.hvac[0]!.hvacSystemEquipmentType.sourceSpan).toBe("it's an oil boiler");
+    expect(out.attic[0]!.atticInsulationDepth.value).toBe("4-6");
     // The R-value field stays null: nothing converts a depth into one, or back.
-    expect(out.attic.atticInsulation.value).toBeNull();
+    expect(out.attic[0]!.atticInsulation.value).toBeNull();
   });
 
   test("is pure — it returns a new object and does not mutate its input", () => {
     const input = base();
     const out = normalizeFields(input);
-    expect(input.hvac.hvacSystemEquipmentType.confidence).toBe(1.4); // input unchanged
+    expect(input.hvac[0]!.hvacSystemEquipmentType.confidence).toBe(1.4); // input unchanged
     expect(out).not.toBe(input);
-    expect(out.hvac).not.toBe(input.hvac); // the groups are new objects too
+    expect(out.hvac).not.toBe(input.hvac); // the groups are new arrays too
   });
 
   test("output still satisfies the EXTRACTION schema", () => {

@@ -82,25 +82,14 @@ test("every per-group schema nests within the depth cap", () => {
 });
 
 /**
- * The five collection groups (`hvac`, `attic`, `wall`, `window`, `dhw`) will be
- * arrays of instances in Task 5. The split must still produce one entry per group,
- * and each per-group schema — including the array-wrapped ones — must fit under the
- * route's cap. This is the only test that exercises the cap against the real Snugg
- * leaf set with the array wrapper in place.
+ * R1.6 Task 5 made the five per-instance groups (`hvac`, `attic`, `wall`,
+ * `window`, `dhw`) arrays of instances. The real `snuggExtractionSchema` now carries
+ * that shape, so the first two tests above already exercise the cap against the
+ * array-wrapped groups. This test asserts the split still produces one entry per
+ * group, and that the collection groups are actually arrays in the derived schema.
  */
-test("array-wrapped collection groups split and stay under the caps", () => {
-  const shape = snuggExtractionSchema.shape;
-  const arraySchema = z.strictObject({
-    basedata: shape.basedata,
-    hvac: z.array(shape.hvac),
-    attic: z.array(shape.attic),
-    wall: z.array(shape.wall),
-    window: z.array(shape.window),
-    dhw: z.array(shape.dhw),
-    health: shape.health,
-  });
-
-  const groups = splitExtractionSchema(arraySchema);
+test("the real derived schema splits collection groups as arrays and stays under the caps", () => {
+  const groups = splitExtractionSchema(snuggExtractionSchema);
   expect(groups.map((g) => g.key)).toEqual([
     "basedata",
     "hvac",
@@ -111,7 +100,16 @@ test("array-wrapped collection groups split and stay under the caps", () => {
     "health",
   ]);
 
+  const collectionKeys = new Set(["hvac", "attic", "wall", "window", "dhw"]);
   for (const group of groups) {
+    const shape = (group.schema as z.ZodObject).shape;
+    const inner = shape[group.key];
+    if (collectionKeys.has(group.key)) {
+      expect(inner, `group "${group.key}" must be a ZodArray`).toBeInstanceOf(z.ZodArray);
+    } else {
+      expect(inner, `group "${group.key}" must remain a ZodObject`).toBeInstanceOf(z.ZodObject);
+    }
+
     const jsonSchema = z.toJSONSchema(group.schema, { target: "draft-2020-12" });
     const serialized = JSON.stringify(jsonSchema);
     expect(

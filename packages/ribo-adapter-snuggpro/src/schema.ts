@@ -123,16 +123,8 @@
  *
  * ---
  *
- * TWO KNOWN DIVERGENCES from the spec, both recorded rather than hidden:
+ * ONE KNOWN DIVERGENCE from the spec, recorded rather than hidden:
  *
- *   - **Cardinality.** The component resources are per-instance: a job may have
- *     three HVAC systems, four wall assemblies, six window groups, each its own
- *     record with its own uuid. This schema models exactly ONE instance of each,
- *     because a single dictation about "the boiler" has no way to say which of
- *     three boilers it means. Multi-instance capture is a real gap, not an
- *     oversight — see doc 17 §5 on the first-write identity problem — and is
- *     parked in the roadmap. A second system dictated today lands on the same
- *     leaves as the first and the reviewer sees the collision.
  *   - **Numeric year/size fields.** The spec types `yearBuilt`,
  *     `hvacHeatingSystemModelYear` and friends as `string` (they are form inputs).
  *     They are modelled as `z.number()` here because that is what they mean and
@@ -641,7 +633,9 @@ export const BasedataFields = z
   .strict();
 
 /**
- * `POST /jobs/{jobId}/hvac` — one heating/cooling system. 12 of its 73 fields.
+ * `POST /jobs/{jobId}/hvac` — one heating/cooling system record. 12 of its 73
+ * fields. The writable surface carries this as an array because a job may have
+ * several systems; each element is one record.
  *
  * The two `required` fields in the whole capture surface are both here; see
  * `adapter.ts`'s `requiredOnCreate`.
@@ -720,7 +714,7 @@ export const HvacFields = z
   )
   .strict();
 
-/** `POST /jobs/{jobId}/attic` — one attic. 5 of its 35 fields. */
+/** `POST /jobs/{jobId}/attic` — one attic record. 5 of its 35 fields. */
 export const AtticFields = z
   .object(
     withVendorDescriptions({
@@ -752,7 +746,7 @@ export const AtticFields = z
   )
   .strict();
 
-/** `POST /jobs/{jobId}/wall` — one wall assembly. 4 of its 17 fields. */
+/** `POST /jobs/{jobId}/wall` — one wall assembly record. 4 of its 17 fields. */
 export const WallFields = z
   .object(
     withVendorDescriptions({
@@ -775,7 +769,7 @@ export const WallFields = z
   )
   .strict();
 
-/** `POST /jobs/{jobId}/window` — one window group. 3 of its 34 fields. */
+/** `POST /jobs/{jobId}/window` — one window group record. 3 of its 34 fields. */
 export const WindowFields = z
   .object(
     withVendorDescriptions({
@@ -791,7 +785,7 @@ export const WindowFields = z
   )
   .strict();
 
-/** `POST /jobs/{jobId}/dhw` — one water heater. 6 of its 48 fields. */
+/** `POST /jobs/{jobId}/dhw` — one water heater record. 6 of its 48 fields. */
 export const DhwFields = z
   .object(
     withVendorDescriptions({
@@ -858,15 +852,19 @@ export const HealthFields = z
 // 51 leaves across 7 resource groups. Every leaf is `X.nullable().optional()` and
 // every object is `.strict()`; see the file header for why both halves of that are
 // load-bearing.
+//
+// Five groups are per-instance child resources (API creates one record per element
+// with `POST /jobs/{jobId}/<type>`), so they are `z.array(...).optional()`.
+// `basedata` and `health` are genuine singletons and stay objects.
 
 export const snuggValuesSchema = z
   .object({
     basedata: BasedataFields.optional(),
-    hvac: HvacFields.optional(),
-    attic: AtticFields.optional(),
-    wall: WallFields.optional(),
-    window: WindowFields.optional(),
-    dhw: DhwFields.optional(),
+    hvac: z.array(HvacFields).optional(),
+    attic: z.array(AtticFields).optional(),
+    wall: z.array(WallFields).optional(),
+    window: z.array(WindowFields).optional(),
+    dhw: z.array(DhwFields).optional(),
     health: HealthFields.optional(),
   })
   .strict();

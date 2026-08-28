@@ -1,7 +1,9 @@
-import { buildReviewRequest, isSpanGrounded } from "@azx/ribo-core";
+import { isSpanGrounded } from "@azx/ribo-core";
 import { expect, test } from "vitest";
+import { z } from "zod";
 import { SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
 import type { SnuggWriteContext } from "./context.js";
+import { snuggValuesSchema } from "./schema.js";
 import type { SnuggValues } from "./schema.js";
 
 test("carries a stable name, instructions and a parsing schema", () => {
@@ -19,6 +21,24 @@ test("carries a stable name, instructions and a parsing schema", () => {
 // Throwing at module scope fails the whole file loudly instead.
 const example = snuggProAdapter.examples?.[0];
 if (!example) throw new Error("expected the Snugg Pro adapter to carry a few-shot example");
+
+/** Collect dotted leaf paths from `snuggValuesSchema`, recursing into arrays and stripping wrappers. */
+function valuesLeaves(schema: z.ZodType, prefix = ""): string[] {
+  if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable) {
+    return valuesLeaves(schema.unwrap() as unknown as z.ZodType, prefix);
+  }
+  if (schema instanceof z.ZodArray) {
+    return valuesLeaves(schema.element as unknown as z.ZodType, prefix);
+  }
+  if (!(schema instanceof z.ZodObject)) {
+    return prefix ? [prefix] : [];
+  }
+  const leaves: string[] = [];
+  for (const [key, child] of Object.entries(schema.shape)) {
+    leaves.push(...valuesLeaves(child, prefix ? `${prefix}.${key}` : key));
+  }
+  return leaves;
+}
 
 test("the EXTRACTION schema parses the adapter's own few-shot examples", () => {
   // A few-shot example's `fields` become the ASSISTANT turn the model imitates,
@@ -46,6 +66,10 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
     let checked = 0;
     const walk = (node: unknown): void => {
       if (typeof node !== "object" || node === null) return;
+      if (Array.isArray(node)) {
+        for (const item of node) walk(item);
+        return;
+      }
       if ("sourceSpan" in node) {
         const { sourceSpan } = node as { sourceSpan: string | null };
         checked += 1;
@@ -100,7 +124,7 @@ test("write is scaffolded, not faked: it rejects rather than silently succeeding
   // `write` takes the PATCH now, not the enveloped example — a rejected leaf is
   // absent, an accepted null is present.
   const fields: SnuggValues = {
-    hvac: { hvacSystemEquipmentType: "Boiler", hvacHeatingEnergySource: null },
+    hvac: [{ hvacSystemEquipmentType: "Boiler", hvacHeatingEnergySource: null }],
   };
   const ctx = snuggProAdapter.ctxSchema.parse(validCtx);
   await expect(snuggProAdapter.write(fields, ctx, { idempotencyKey: "write-1" })).rejects.toThrow(
@@ -144,12 +168,9 @@ test("every requiredOnCreate path is a real leaf of the values schema", () => {
   // The drift guard, and the reason a parallel list is acceptable at all rather
   // than metadata on the schema. A typo or a renamed field must fail HERE, loudly,
   // instead of silently marking nothing required and letting a write die at the
-  // host that evening. Uses the same walk a review card sees, so it cannot drift
-  // from what buildReviewRequest actually enumerates.
-  const leaves = Object.keys(
-    buildReviewRequest({}, { recordingId: "r", text: "", engine: "fake" }, snuggProAdapter.schema)
-      .fields,
-  );
+  // host that evening. Walking the values schema directly rather than going through
+  // buildReviewRequest, because review.ts does not enumerate array groups yet (Task 6-7).
+  const leaves = valuesLeaves(snuggValuesSchema);
   for (const path of snuggProAdapter.requiredOnCreate ?? []) {
     expect(leaves).toContain(path);
   }

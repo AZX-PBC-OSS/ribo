@@ -27,6 +27,9 @@ const ENVELOPE_KEYS = new Set(["value", "confidence", "sourceSpan"]);
  * split implementation's own group-detection heuristic.
  */
 function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
+  if (schema instanceof z.ZodArray) {
+    return enumerateLeaves(schema.element as unknown as z.ZodType, prefix);
+  }
   if (!(schema instanceof z.ZodObject)) return [];
   const shape = schema.shape;
   const keys = Object.keys(shape);
@@ -38,9 +41,7 @@ function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
   const leaves: string[] = [];
   for (const key of keys) {
     const child = shape[key];
-    if (child instanceof z.ZodObject) {
-      leaves.push(...enumerateLeaves(child, prefix ? `${prefix}.${key}` : key));
-    }
+    leaves.push(...enumerateLeaves(child, prefix ? `${prefix}.${key}` : key));
   }
   return leaves;
 }

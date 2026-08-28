@@ -85,6 +85,13 @@ function walk(node, path) {
     for (const [key, child] of Object.entries(bare.shape)) walk(child, [...path, key]);
     return;
   }
+  if (def.type === "array") {
+    // The five per-instance groups are arrays of instance records. One `items`
+    // schema describes every element, so the leaf set is the same regardless of how
+    // many instances a transcript describes.
+    walk(bare.element, path);
+    return;
+  }
   if (def.type === "enum") {
     leaves.push({ path: path.join("."), kind: "enum", options: [...bare.options] });
     return;
