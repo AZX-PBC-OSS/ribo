@@ -6,11 +6,13 @@ import { afterEach, expect, test } from "vitest";
 
 import type { Recording } from "../recording.js";
 import type { Transcript } from "../transcript.js";
+import { SESSION_COLLECTION_NAME, sessionRxSchema } from "./session-schema.js";
 import {
   OUTBOX_MIGRATION_STRATEGIES,
   removeOutboxDatabase,
   type OutboxCollection,
   type OutboxDatabase,
+  type SessionCollection,
 } from "./database.js";
 import { openOutbox, Outbox } from "./outbox.js";
 import { OUTBOX_COLLECTION_NAME, outboxRxSchema } from "./schema.js";
@@ -89,7 +91,10 @@ afterEach(async () => {
  * one JS heap, not a knob a host should be able to reach for.
  */
 async function openSecondConnection(name: string): Promise<Outbox> {
-  const database: OutboxDatabase = await createRxDatabase<{ outbox: OutboxCollection }>({
+  const database: OutboxDatabase = await createRxDatabase<{
+    outbox: OutboxCollection;
+    sessions: SessionCollection;
+  }>({
     name,
     storage: wrappedValidateAjvStorage({ storage: getRxStorageDexie() }),
     multiInstance: true,
@@ -101,6 +106,9 @@ async function openSecondConnection(name: string): Promise<Outbox> {
     [OUTBOX_COLLECTION_NAME]: {
       schema: outboxRxSchema,
       migrationStrategies: OUTBOX_MIGRATION_STRATEGIES,
+    },
+    [SESSION_COLLECTION_NAME]: {
+      schema: sessionRxSchema,
     },
   });
   const outbox = new Outbox(database);

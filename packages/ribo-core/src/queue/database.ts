@@ -4,6 +4,11 @@ import { RxDBAttachmentsPlugin } from "rxdb/plugins/attachments";
 import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 
+import {
+  SESSION_COLLECTION_NAME,
+  sessionRxSchema,
+  type SessionDocument,
+} from "./session-schema.js";
 import { OUTBOX_COLLECTION_NAME, outboxRxSchema, type OutboxDocument } from "./schema.js";
 
 /**
@@ -15,8 +20,17 @@ import { OUTBOX_COLLECTION_NAME, outboxRxSchema, type OutboxDocument } from "./s
  */
 export type OutboxCollection = RxCollection<OutboxDocument>;
 
-/** The RxDB database this package owns. One collection today; more later. */
-export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
+/**
+ * The RxDB collection holding session documents.
+ *
+ * Parameterised by `SessionDocument` — the persisted shape, not `SessionItem`
+ * (which is the same today, but the split mirrors the recording's
+ * document/item pair so a future derived field has a place to land).
+ */
+export type SessionCollection = RxCollection<SessionDocument>;
+
+/** The RxDB database this package owns. Two collections: recordings and sessions. */
+export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection; sessions: SessionCollection }>;
 
 /**
  * Schema-migration strategies for the outbox collection, keyed by the schema
@@ -132,7 +146,10 @@ export async function openOutboxDatabase(
   storage: RxStorage<unknown, unknown> = defaultStorage(),
 ): Promise<OutboxDatabase> {
   registerPlugins();
-  const database = await createRxDatabase<{ outbox: OutboxCollection }>({
+  const database = await createRxDatabase<{
+    outbox: OutboxCollection;
+    sessions: SessionCollection;
+  }>({
     name,
     storage,
     // Leave RxDB's cross-tab machinery on. The field app is a browser app and a
@@ -149,6 +166,9 @@ export async function openOutboxDatabase(
     [OUTBOX_COLLECTION_NAME]: {
       schema: outboxRxSchema,
       migrationStrategies: OUTBOX_MIGRATION_STRATEGIES,
+    },
+    [SESSION_COLLECTION_NAME]: {
+      schema: sessionRxSchema,
     },
   });
   return database;

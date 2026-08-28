@@ -26,7 +26,7 @@ export {
   openOutboxDatabase,
   removeOutboxDatabase,
 } from "./database.js";
-export type { OutboxCollection, OutboxDatabase } from "./database.js";
+export type { OutboxCollection, OutboxDatabase, SessionCollection } from "./database.js";
 
 export { openOutbox, Outbox } from "./outbox.js";
 export type { EnqueueInput, OpenOutboxOptions, OutboxQuery } from "./outbox.js";
@@ -56,6 +56,22 @@ export {
   outboxRxSchema,
 } from "./schema.js";
 export type { OutboxDocument, OutboxItem, OutboxPatch, OutboxStatus } from "./schema.js";
+
+export {
+  ACTIVE_SESSION_STATUSES,
+  FINISHED_SESSION_STATUSES,
+  SESSION_COLLECTION_NAME,
+  SESSION_STATUSES,
+  sessionDocumentSchema,
+  sessionItemSchema,
+  sessionRxSchema,
+} from "./session-schema.js";
+export type {
+  SessionDocument,
+  SessionItem,
+  SessionPatch,
+  SessionStatus,
+} from "./session-schema.js";
 
 export {
   chunkName,
