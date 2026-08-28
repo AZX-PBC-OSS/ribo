@@ -3,7 +3,7 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { build, preview, type PreviewServer } from "vite";
 import { chromium, type Browser, type Page } from "playwright";
 import { z } from "zod";
-import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
+import { snuggExamples, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 
 /**
  * @file Phase 4 Task 4: extraction is visible end to end, on the default
@@ -88,20 +88,32 @@ function unwrapGroup(field: z.ZodType): z.ZodType {
 }
 
 /**
- * Every dotted leaf path the real `snuggValuesSchema` declares, in schema
- * order — computed from the schema itself rather than hard-coded, so a future
- * field-set change changes what this test expects instead of silently under-
- * or over-covering it. Collection groups are arrays; the fake fixture emits one
- * instance per collection, so their element leaves are addressed by key (`k1`).
+ * Every dotted leaf path the review card should render, in schema order.
+ *
+ * **The schema says how many LEAVES; the fixture says how many INSTANCES.** That
+ * split is the invariant R1.6 established for review itself, and this helper has
+ * to honour it or it measures the wrong thing. An earlier version assumed one
+ * instance per collection group and hard-coded `k1`; the moment the shipped
+ * few-shot example gained a second HVAC system the card correctly rendered 63
+ * rows and this expected 51, failing a test that was right about the product and
+ * wrong about itself.
+ *
+ * Both sides still come from real artifacts rather than a literal, so a field-set
+ * change or an example change moves the expectation with it.
  */
 function allLeafPaths(): readonly string[] {
+  const fixture = snuggExamples[0]?.fields as Record<string, unknown> | undefined;
   const paths: string[] = [];
   for (const [groupKey, groupField] of Object.entries(snuggValuesSchema.shape)) {
     const groupSchema = unwrapGroup(groupField as z.ZodType);
     if (groupSchema instanceof z.ZodArray) {
       const elementSchema = groupSchema.element as unknown as z.ZodObject;
-      for (const leafKey of Object.keys(elementSchema.shape)) {
-        paths.push(`${groupKey}[k1].${leafKey}`);
+      const emitted = fixture?.[groupKey];
+      const count = Array.isArray(emitted) ? emitted.length : 0;
+      for (let i = 0; i < count; i += 1) {
+        for (const leafKey of Object.keys(elementSchema.shape)) {
+          paths.push(`${groupKey}[k${i + 1}].${leafKey}`);
+        }
       }
     } else if (groupSchema instanceof z.ZodObject) {
       for (const leafKey of Object.keys(groupSchema.shape)) {
