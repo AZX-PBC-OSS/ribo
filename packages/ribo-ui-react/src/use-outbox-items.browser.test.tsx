@@ -28,6 +28,7 @@ const aRecording = () => ({
     ctx: {},
   },
   audio: new Blob(["x"], { type: "audio/webm" }),
+  sessionId: crypto.randomUUID(),
 });
 
 test("loading is a real state, distinct from empty", async () => {
@@ -63,11 +64,11 @@ test("updates live when an item is enqueued", async () => {
 test("honours a status filter", async () => {
   const outbox = await freshOutbox();
   const item = await outbox.enqueue(aRecording());
-  await outbox.patch(item.id, { status: "awaiting-review" });
+  await outbox.patch(item.id, { status: "transcribed" });
   await outbox.enqueue(aRecording());
 
   function Probe() {
-    return <p>parked {useOutboxItems({ status: "awaiting-review" }, outbox).items.length}</p>;
+    return <p>parked {useOutboxItems({ status: "transcribed" }, outbox).items.length}</p>;
   }
   const screen = await render(<Probe />);
   await expect.element(screen.getByText("parked 1")).toBeInTheDocument();

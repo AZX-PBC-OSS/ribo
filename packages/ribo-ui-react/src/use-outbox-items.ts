@@ -43,7 +43,11 @@ export function useOutboxItems(query: OutboxQuery = {}, outbox?: Outbox): UseOut
   // dynamically-reordered one, so this has no observed impact; sorting the
   // array before serializing would fix it but was judged not worth the extra
   // branch for a case no caller hits.
-  const key = JSON.stringify({ status: query.status, limit: query.limit });
+  const key = JSON.stringify({
+    status: query.status,
+    sessionId: query.sessionId,
+    limit: query.limit,
+  });
 
   const stableQuery = useMemo<OutboxQuery>(() => JSON.parse(key) as OutboxQuery, [key]);
 

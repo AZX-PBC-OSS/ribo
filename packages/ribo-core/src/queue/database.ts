@@ -65,6 +65,17 @@ export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection; sessions: Se
  * progress, which is the correct state for it: the next write attempt will treat
  * every collection instance as unwritten.
  *
+ * v5 → v6 is the **session entity split**. The recording document loses
+ * `extracted`, `extractedBy`, `reviewOutcome`, `writeResult`, `writtenInstances`
+ * and `idempotencyKey` (those move to the session document), and gains
+ * `sessionId` (required — every recording belongs to a session). The recording
+ * state machine narrows to capture + transcription: `extracting`, `awaiting-review`,
+ * `writing` and `done` are gone; `transcribed` is new. The migration strategy
+ * drops the removed fields and sets `sessionId` to a placeholder — the real
+ * session documents are created by a post-migration step in `openOutbox`
+ * (Task 4), because RxDB migration strategies cannot write to other collections.
+ * `attempts` and `nextAttemptAt` are preserved for transcription retry.
+ *
  * Note this entry is not optional bookkeeping: RxDB calls into the migration
  * plugin for every version above 0, and a bumped schema with no strategy for the
  * new version makes the outbox **fail to open**, not fail to migrate. The error
@@ -79,6 +90,29 @@ export const OUTBOX_MIGRATION_STRATEGIES = {
   3: (doc: OutboxDocument) => doc,
   4: (doc: OutboxDocument) => doc,
   5: (doc: OutboxDocument) => doc,
+  6: (doc: Record<string, unknown>) => {
+    // v5 → v6: session entity split. Drop the fields that moved to the session
+    // document, and add `sessionId`. The session documents are created by a
+    // post-migration step (Task 4) — this strategy only transforms the recording.
+    const next: Record<string, unknown> = { ...doc };
+    delete next.extracted;
+    delete next.extractedBy;
+    delete next.reviewOutcome;
+    delete next.writeResult;
+    delete next.writtenInstances;
+    delete next.idempotencyKey;
+    // Map the old statuses to the new recording-only statuses.
+    const oldStatus = next.status as string;
+    if (oldStatus === "extracting" || oldStatus === "awaiting-review") {
+      next.status = "transcribed";
+    } else if (oldStatus === "writing" || oldStatus === "done") {
+      next.status = "transcribed";
+    }
+    // sessionId will be set by the Task 4 post-migration step; use a placeholder
+    // so the document parses against the v6 schema's required field.
+    next.sessionId = next.sessionId ?? "migrated-pending";
+    return next as OutboxDocument;
+  },
 };
 
 /**

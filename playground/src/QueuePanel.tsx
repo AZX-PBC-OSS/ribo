@@ -241,8 +241,8 @@ async function runStubRelay(outbox: Outbox): Promise<void> {
   const relay = createRelay({
     outbox,
     transcriber: new FakeTranscriber(),
-    extract: extractStep,
-    write: () => Promise.resolve({ writtenBy: "playground stub" }),
+    sessionExtract: extractStep,
+    sessionWrite: () => Promise.resolve({ writtenBy: "playground stub" }),
   });
   await relay.syncNow();
 }

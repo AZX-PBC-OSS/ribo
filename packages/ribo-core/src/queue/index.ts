@@ -41,12 +41,13 @@ export { createRelay } from "./relay.js";
 export type {
   ConnectivitySource,
   ExtractedFieldMap,
-  ExtractStep,
-  ExtractStepInput,
+  ExtractStepResult,
   Relay,
   RelayOptions,
-  WriteStep,
-  WriteStepInput,
+  SessionExtractInput,
+  SessionExtractStep,
+  SessionWriteInput,
+  SessionWriteStep,
 } from "./relay.js";
 
 export {
@@ -87,7 +88,13 @@ export {
   MAX_SLICE_INDEX,
   sliceOversized,
 } from "./chunk-names.js";
-export { CAPTURE_LOCK, holdLock, isLockFree } from "./capture-lock.js";
+export {
+  CAPTURE_LOCK,
+  holdLock,
+  isLockFree,
+  relayItemLock,
+  relaySessionLock,
+} from "./capture-lock.js";
 export type { HeldLock } from "./capture-lock.js";
 
 export { decodeAudioDuration, openCaptureSession } from "./capture-session.js";

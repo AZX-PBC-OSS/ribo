@@ -36,6 +36,14 @@ export interface UseRecorderOptions {
    * `recorder.start()`/`stop()` through the host's capture-session wiring.
    */
   readonly liveTranscriber?: LiveTranscriber;
+  /**
+   * The session this recording belongs to. Required when capture is durable
+   * (`enqueue: true`, the default) or when the recorder was constructed with a
+   * `captureSession` factory — `openCaptureSession` and `outbox.enqueue` both
+   * demand it, because every recording is owned by a session in the
+   * session-entity model.
+   */
+  readonly sessionId?: string;
 }
 
 export interface StopResult {
@@ -105,7 +113,7 @@ export interface UseRecorderResult {
  * alongside the throw for a UI that also wants to render the failure inline.
  */
 export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult {
-  const { enqueue = true } = options;
+  const { enqueue = true, sessionId } = options;
   const recorder = useRiboInstance("recorder", options.recorder);
   // Resolved unconditionally — a conditional hook call breaks the rules of hooks,
   // and `eslint-plugin-react-hooks` is configured for this package and will reject
@@ -144,7 +152,7 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
     setError(undefined);
     setBusy(true);
     try {
-      await recorder.start();
+      await recorder.start(sessionId);
       if (captureCoordinator && recorder.captureSession) {
         const unregister = captureCoordinator.register(recorder.captureSession);
         unregisterRef.current = unregister;
@@ -157,7 +165,7 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
     } finally {
       setBusy(false);
     }
-  }, [recorder, captureCoordinator]);
+  }, [recorder, captureCoordinator, sessionId]);
 
   const stop = useCallback(async (): Promise<StopResult> => {
     setError(undefined);
@@ -168,12 +176,22 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
       // again produced a second row and a second relay run for one dictation, and it
       // masked a worse bug: the durable row was being deleted during teardown, so the
       // duplicate quietly stood in for it.
-      const item =
-        capture.itemId !== undefined
-          ? await outbox?.get(capture.itemId)
-          : outbox === undefined
-            ? undefined
-            : await outbox.enqueue(capture);
+      let item: OutboxItem | undefined;
+      if (capture.itemId !== undefined) {
+        item = await outbox?.get(capture.itemId);
+      } else if (outbox !== undefined) {
+        if (sessionId === undefined) {
+          throw new RecorderError(
+            "capture-failed",
+            "useRecorder needs a sessionId to enqueue a stopped capture. Pass one to useRecorder({ sessionId }).",
+          );
+        }
+        item = await outbox.enqueue({
+          recording: capture.recording,
+          audio: capture.audio,
+          sessionId,
+        });
+      }
       return { capture, item };
     } catch (cause) {
       const failure = asRecorderError(cause);
@@ -185,7 +203,7 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
       unregisterRef.current = undefined;
       setBusy(false);
     }
-  }, [outbox, recorder]);
+  }, [outbox, recorder, sessionId]);
 
   const pause = useCallback(() => {
     try {

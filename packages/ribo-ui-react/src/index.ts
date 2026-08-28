@@ -17,6 +17,8 @@ export { useRecorder } from "./use-recorder.js";
 export type { StopResult, UseRecorderOptions, UseRecorderResult } from "./use-recorder.js";
 export { useReview } from "./use-review.js";
 export type { UseReviewOptions, UseReviewResult } from "./use-review.js";
+export { useSessions } from "./use-sessions.js";
+export type { UseSessionsResult } from "./use-sessions.js";
 export { useStoragePersistence } from "./use-storage-persistence.js";
 export type { UseStoragePersistenceResult } from "./use-storage-persistence.js";
 export { useWorkSafety } from "./use-work-safety.js";

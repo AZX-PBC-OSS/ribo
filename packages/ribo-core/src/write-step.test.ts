@@ -10,25 +10,25 @@ import { isTransientFailure, TerminalQueueError } from "./queue/backoff.js";
 import { removeOutboxDatabase } from "./queue/database.js";
 import { openOutbox, type Outbox } from "./queue/outbox.js";
 import { createRelay } from "./queue/relay.js";
-import { outboxItemSchema, type OutboxItem } from "./queue/schema.js";
+import { sessionItemSchema, type SessionItem } from "./queue/session-schema.js";
 import { toWriteStep } from "./write-step.js";
 
 /**
- * @file `toWriteStep` — the trust boundary, and the per-item context resolution.
+ * @file `toWriteStep` — the trust boundary, and the per-session context resolution.
  *
  * The composition under test is three lines long, and every one of them is here
  * because something else would have been silently wrong:
  *
- *   - `ctxSchema.parse(item.recording.ctx)` **per item**, because the outbox holds
+ *   - `ctxSchema.parse(input.ctx)` **per session**, because the outbox holds
  *     recordings from more than one job at a time. The two-contexts test below is the
  *     regression guard for a composition that captured one `ctx` at construction.
- *   - `schema.parse(reviewed)`, because `RelayOptions.write` is host-supplied and
+ *   - `schema.parse(reviewed)`, because `RelayOptions.sessionWrite` is host-supplied and
  *     nothing else in this package runs it — the "adapter's schema is the trust
  *     boundary" reasoning described a boundary that was not installed anywhere.
  *   - `TerminalQueueError` on either failure, because both are deterministic. The last
  *     test drives the REAL relay over an in-memory outbox rather than asserting the
- *     error class alone: what matters is the item landing at `dead` on the first
- *     attempt, and that is a claim about `isTransientFailure` and `#recordFailure`
+ *     error class alone: what matters is the session landing at `dead` on the first
+ *     attempt, and that is a claim about `isTransientFailure` and `#recordSessionFailure`
  *     together, not about the type of the throw.
  */
 
@@ -69,41 +69,32 @@ const makeAdapter = (sink: Write[]): ToolAdapter<AtticValues, JobContext> => ({
 // --- Fixtures ---------------------------------------------------------------
 
 /**
- * A realistic queue item, built through `outboxItemSchema` rather than cast, so a
+ * A realistic session, built through `sessionItemSchema` rather than cast, so a
  * change to the document shape breaks these tests instead of letting them drift into
  * asserting against something the queue no longer produces.
  */
-const itemAt = (id: string, ctx: unknown): OutboxItem =>
-  outboxItemSchema.parse({
+const sessionAt = (id: string): SessionItem =>
+  sessionItemSchema.parse({
     id,
-    seq: 0,
     status: "writing",
-    idempotencyKey: `key-${id}`,
+    openedAt: "2026-07-23T14:00:00.000Z",
     attempts: 0,
     nextAttemptAt: "2026-07-23T14:00:00.000Z",
-    enqueuedAt: "2026-07-23T14:00:00.000Z",
-    recording: {
-      id: `rec-${id}`,
-      capturedAt: "2026-07-23T14:02:00.000Z",
-      durationMs: 8_400,
-      mimeType: "audio/webm;codecs=opus",
-      ctx,
-    },
-    audioReady: false,
-    audioBytes: 0,
+    idempotencyKey: `key-${id}`,
   });
 
 // --- The happy path ---------------------------------------------------------
 
-test("the reviewed patch and the recording's ctx reach write, both parsed", async () => {
+test("the reviewed patch and the session's ctx reach write, both parsed", async () => {
   const written: Write[] = [];
   const step = toWriteStep(makeAdapter(written));
 
   await step({
-    item: itemAt("item-1", { jobId: "job-7", extra: "the host's own business" }),
+    session: sessionAt("session-1"),
     // A stray key a UI might have persisted alongside the real leaves.
     reviewed: { rValue: 19, area: 400, notADeclaredLeaf: "🙈" },
-    idempotencyKey: "key-item-1",
+    idempotencyKey: "key-session-1",
+    ctx: { jobId: "job-7", extra: "the host's own business" },
   });
 
   // Both sides are the PARSED values: the stray leaf and the host's extra ctx key are
@@ -113,7 +104,7 @@ test("the reviewed patch and the recording's ctx reach write, both parsed", asyn
     {
       fields: { rValue: 19, area: 400 },
       ctx: { jobId: "job-7" },
-      meta: { idempotencyKey: "key-item-1" },
+      meta: { idempotencyKey: "key-session-1" },
     },
   ]);
 });
@@ -123,10 +114,11 @@ test("a rejected leaf stays absent and an accepted null stays present through th
   const step = toWriteStep(makeAdapter(written));
 
   await step({
-    item: itemAt("item-1", { jobId: "job-7" }),
+    session: sessionAt("session-1"),
     // `rValue` accepted as null ("write it empty"); `area` rejected ("leave it alone").
     reviewed: { rValue: null },
-    idempotencyKey: "key-item-1",
+    idempotencyKey: "key-session-1",
+    ctx: { jobId: "job-7" },
   });
 
   const fields = written[0]?.fields;
@@ -136,44 +128,47 @@ test("a rejected leaf stays absent and an accepted null stays present through th
   expect("area" in fields!).toBe(false);
 });
 
-test("the idempotency key reaches write in meta, unchanged across a retry of the same item", async () => {
+test("the idempotency key reaches write in meta, unchanged across a retry of the same session", async () => {
   const written: Write[] = [];
   const step = toWriteStep(makeAdapter(written));
   const input = {
-    item: itemAt("item-1", { jobId: "job-7" }),
+    session: sessionAt("session-1"),
     reviewed: { rValue: 19 },
-    idempotencyKey: "key-item-1",
+    idempotencyKey: "key-session-1",
+    ctx: { jobId: "job-7" },
   };
 
-  // The relay hands the same item back after a transient failure; the key is the item's,
-  // not the attempt's, which is the only thing standing between an ambiguous success and
-  // a double-write.
+  // The relay hands the same session back after a transient failure; the key is the
+  // session's, not the attempt's, which is the only thing standing between an
+  // ambiguous success and a double-write.
   await step(input);
   await step(input);
 
-  expect(written.map((w) => w.meta.idempotencyKey)).toEqual(["key-item-1", "key-item-1"]);
+  expect(written.map((w) => w.meta.idempotencyKey)).toEqual(["key-session-1", "key-session-1"]);
 });
 
 // --- The per-item context ---------------------------------------------------
 
-test("two items from two jobs write to two destinations", async () => {
+test("two sessions from two jobs write to two destinations", async () => {
   // THE regression guard for the captured-ctx bug. `toWriteStep` takes no `ctx`: a
-  // composition that resolved one at construction (or memoized the first item's) would
-  // send the second recording's findings to the first recording's job — silently, with
-  // no failure anywhere. Both items go through ONE step instance, because a step built
-  // per item would not exercise the thing that breaks.
+  // composition that resolved one at construction (or memoized the first session's)
+  // would send the second session's findings to the first session's job — silently,
+  // with no failure anywhere. Both sessions go through ONE step instance, because a
+  // step built per session would not exercise the thing that breaks.
   const written: Write[] = [];
   const step = toWriteStep(makeAdapter(written));
 
   await step({
-    item: itemAt("item-1", { jobId: "job-7" }),
+    session: sessionAt("session-1"),
     reviewed: { rValue: 19 },
-    idempotencyKey: "key-item-1",
+    idempotencyKey: "key-session-1",
+    ctx: { jobId: "job-7" },
   });
   await step({
-    item: itemAt("item-2", { jobId: "job-8" }),
+    session: sessionAt("session-2"),
     reviewed: { rValue: 30 },
-    idempotencyKey: "key-item-2",
+    idempotencyKey: "key-session-2",
+    ctx: { jobId: "job-8" },
   });
 
   expect(written.map((w) => w.ctx.jobId)).toEqual(["job-7", "job-8"]);
@@ -192,16 +187,17 @@ test("a patch the adapter's schema rejects is terminal, and write is never calle
   const step = toWriteStep(makeAdapter(written));
 
   const thrown = await step({
-    item: itemAt("item-1", { jobId: "job-7" }),
+    session: sessionAt("session-1"),
     reviewed: { rValue: "thirty" },
-    idempotencyKey: "key-item-1",
+    idempotencyKey: "key-session-1",
+    ctx: { jobId: "job-7" },
   }).then(
     () => undefined,
     (error: unknown) => error,
   );
 
   expect(thrown).toBeInstanceOf(TerminalQueueError);
-  expect((thrown as Error).message).toContain("item-1");
+  expect((thrown as Error).message).toContain("session-1");
   // The failing leaf is named, so an operator reading a dead row knows which one.
   expect((thrown as Error).message).toContain("rValue");
   // Deterministic: it fails identically on retry, so retrying only delays telling a human.
@@ -210,16 +206,17 @@ test("a patch the adapter's schema rejects is terminal, and write is never calle
   expect(written).toEqual([]);
 });
 
-test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is never called", async () => {
+test("a session ctx the adapter's ctxSchema rejects is terminal, and write is never called", async () => {
   const written: Write[] = [];
   const step = toWriteStep(makeAdapter(written));
 
   const thrown = await step({
+    session: sessionAt("session-1"),
     // An empty `jobId` — a write with no destination, not a harmless default. The patch
     // below is perfectly valid, so the ctx is the only thing wrong.
-    item: itemAt("item-1", { jobId: "" }),
     reviewed: { rValue: 19 },
-    idempotencyKey: "key-item-1",
+    idempotencyKey: "key-session-1",
+    ctx: { jobId: "" },
   }).then(
     () => undefined,
     (error: unknown) => error,
@@ -232,18 +229,19 @@ test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is 
   expect(written).toEqual([]);
 });
 
-test("the ctx is parsed first: an item wrong in both ways reports the ctx", async () => {
-  // The file documents this ordering and gives a reason — an item whose destination is
+test("the ctx is parsed first: a session wrong in both ways reports the ctx", async () => {
+  // The file documents this ordering and gives a reason — a session whose destination is
   // unusable has a problem with the recording, not with the review — so it is pinned.
-  // Both failures are terminal, so the order cannot change the item's fate; it decides
+  // Both failures are terminal, so the order cannot change the session's fate; it decides
   // only which message an operator reads off a dead row, which is the whole point.
   const written: Write[] = [];
   const step = toWriteStep(makeAdapter(written));
 
   const thrown = await step({
-    item: itemAt("item-1", { jobId: "" }),
+    session: sessionAt("session-1"),
     reviewed: { rValue: "thirty" },
-    idempotencyKey: "key-item-1",
+    idempotencyKey: "key-session-1",
+    ctx: { jobId: "" },
   }).then(
     () => undefined,
     (error: unknown) => error,
@@ -268,9 +266,10 @@ test("a failing write propagates unchanged — the relay's retry contract is not
   };
 
   const thrown = await toWriteStep(adapter)({
-    item: itemAt("item-1", { jobId: "job-7" }),
+    session: sessionAt("session-1"),
     reviewed: { rValue: 19 },
-    idempotencyKey: "key-item-1",
+    idempotencyKey: "key-session-1",
+    ctx: { jobId: "job-7" },
   }).then(
     () => undefined,
     (error: unknown) => error,
@@ -304,13 +303,14 @@ const openMemoryOutbox = async (): Promise<Outbox> => {
 
 test("the relay records a terminal write failure as dead on the first attempt, not failed", async () => {
   // `TerminalQueueError` is only intent until something acts on it. This drives the real
-  // relay over an in-memory outbox: `isTransientFailure` returns false, `#recordFailure`
-  // takes the `dead` branch, and the item is out of the queue after ONE attempt rather
-  // than resting in `failed` for eight backoff windows. Asserting the error class alone
-  // would prove none of that.
+  // relay over an in-memory outbox: `isTransientFailure` returns false,
+  // `#recordSessionFailure` takes the `dead` branch, and the session is out of the queue
+  // after ONE attempt rather than resting in `failed` for eight backoff windows.
+  // Asserting the error class alone would prove none of that.
   const outbox = await openMemoryOutbox();
   const written: Write[] = [];
 
+  const session = await outbox.openSession();
   const enqueued = await outbox.enqueue({
     recording: {
       id: "rec-1",
@@ -320,17 +320,22 @@ test("the relay records a terminal write failure as dead on the first attempt, n
       ctx: { jobId: "job-7" },
     },
     audio: new Blob(["audio"], { type: "audio/webm;codecs=opus" }),
+    sessionId: session.id,
   });
 
-  // Straight to the write step: transcript and extraction are already done, and a human
-  // has reviewed. The reviewed patch is the invalid one — non-empty, so the relay's own
-  // empty-outcome guard is not what refuses it.
+  // Transcribe the recording, then set up the session for write: extracted +
+  // awaiting-review. The reviewed patch is the invalid one — non-empty, so the
+  // relay's own empty-outcome guard is not what refuses it.
   await outbox.patch(enqueued.id, {
     transcript: { recordingId: "rec-1", text: "the attic is R-19", engine: "fake" },
+    status: "transcribed",
+  });
+  await outbox.patchSession(session.id, {
     extracted: { rValue: { value: 19, confidence: 1, sourceSpan: "the attic is R-19" } },
+    extractedFromRecordingIds: [enqueued.id],
     status: "awaiting-review",
   });
-  await outbox.submitReview(enqueued.id, {
+  await outbox.submitSessionReview(session.id, {
     status: "edited",
     fields: { rValue: "thirty" },
     editedFields: ["rValue"],
@@ -340,12 +345,12 @@ test("the relay records a terminal write failure as dead on the first attempt, n
   const relay = createRelay({
     outbox,
     transcriber: new FakeTranscriber(),
-    extract: () => Promise.reject(new Error("extraction should not run")),
-    write: toWriteStep(makeAdapter(written)),
+    sessionExtract: () => Promise.reject(new Error("extraction should not run")),
+    sessionWrite: toWriteStep(makeAdapter(written)),
   });
   await relay.syncNow();
 
-  const dead = await outbox.get(enqueued.id);
+  const dead = await outbox.getSession(session.id);
   expect(dead?.status).toBe("dead");
   expect(dead?.attempts).toBe(1);
   expect(dead?.lastError).toContain("not a valid patch");

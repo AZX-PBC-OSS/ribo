@@ -16,17 +16,6 @@ type WatchObservable = ReturnType<Outbox["watch"]>;
 const freshOutbox = () =>
   openOutbox({ name: `t-${crypto.randomUUID()}`, storage: getRxStorageMemory() });
 
-const aRecording = () => ({
-  recording: {
-    id: crypto.randomUUID(),
-    capturedAt: new Date().toISOString(),
-    durationMs: 10,
-    mimeType: "audio/webm",
-    ctx: {},
-  },
-  audio: new Blob(["x"], { type: "audio/webm" }),
-});
-
 /**
  * A connectivity model over injected seams — no real network, no real events.
  * Same shape as use-connectivity.browser.test.tsx's helper.
@@ -41,11 +30,13 @@ function fakeConnectivity(online: boolean) {
 
 test("un-reviewed work is never reported as safe", async () => {
   // The hook-level assertion of the same regression work-safety.test.ts covers:
-  // an item parked for review is unsynced work on the device, and a UI built on
-  // this hook must not tell the auditor their work is safe.
+  // a session parked for review is unsynced work on the device, and a UI built on
+  // this hook must not tell the auditor their work is safe. "awaiting-review" is
+  // now a session status (not a recording status), so the test opens a session
+  // and patches it there directly.
   const outbox = await freshOutbox();
-  const item = await outbox.enqueue(aRecording());
-  await outbox.patch(item.id, { status: "awaiting-review" });
+  const session = await outbox.openSession();
+  await outbox.patchSession(session.id, { status: "awaiting-review" });
 
   function Probe() {
     const { safety, work, loading, error } = useWorkSafety();

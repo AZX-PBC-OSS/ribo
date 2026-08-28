@@ -10,7 +10,7 @@ import { isTransientFailure, TerminalQueueError } from "./queue/backoff.js";
 import { removeOutboxDatabase } from "./queue/database.js";
 import { openOutbox, type Outbox } from "./queue/outbox.js";
 import { createRelay } from "./queue/relay.js";
-import { type OutboxItem } from "./queue/schema.js";
+import type { SessionItem } from "./queue/session-schema.js";
 import { deriveInstanceIdempotencyKey, toInstanceWriteStep } from "./instance-write-step.js";
 
 /**
@@ -90,12 +90,13 @@ const openTestOutbox = async (clock?: TestClock): Promise<Outbox> => {
   return outbox;
 };
 
-const seedItem = async (
+const seedSession = async (
   outbox: Outbox,
   ctx: unknown,
   fields: Record<string, unknown>,
   writtenInstances?: Record<string, boolean[]>,
-): Promise<OutboxItem> => {
+): Promise<{ session: SessionItem; ctx: unknown }> => {
+  const session = await outbox.openSession();
   const enqueued = await outbox.enqueue({
     recording: {
       id: "rec-1",
@@ -105,27 +106,35 @@ const seedItem = async (
       ctx,
     },
     audio: new Blob(["audio"], { type: "audio/webm;codecs=opus" }),
+    sessionId: session.id,
   });
   await outbox.patch(enqueued.id, {
     transcript: { recordingId: "rec-1", text: "the house has systems", engine: "fake" },
+    status: "transcribed",
+  });
+  await outbox.patchSession(session.id, {
     extracted: {},
+    extractedFromRecordingIds: ["rec-1"],
     status: "awaiting-review",
   });
-  const item = await outbox.submitReview(enqueued.id, {
+  const reviewed = await outbox.submitSessionReview(session.id, {
     status: "accepted",
     fields,
   });
   if (writtenInstances) {
-    return await outbox.patch(item.id, { writtenInstances });
+    return {
+      session: await outbox.patchSession(session.id, { writtenInstances }),
+      ctx,
+    };
   }
-  return item;
+  return { session: reviewed, ctx };
 };
 
-function reviewFields(item: OutboxItem): Record<string, unknown> {
-  if (item.reviewOutcome?.status === "discarded") {
-    throw new Error("seeded item was discarded; tests expect accepted or edited outcomes");
+function reviewFields(session: SessionItem): Record<string, unknown> {
+  if (session.reviewOutcome?.status === "discarded") {
+    throw new Error("seeded session was discarded; tests expect accepted or edited outcomes");
   }
-  return item.reviewOutcome!.fields;
+  return session.reviewOutcome!.fields;
 }
 
 // --- The happy path and the key derivation --------------------------------
@@ -139,7 +148,7 @@ test("each instance's derived key is stable across retries and distinct between 
     collectionGroups: ["hvac"],
   });
 
-  const item = await seedItem(
+  const { session, ctx } = await seedSession(
     outbox,
     { jobId: "job-7" },
     {
@@ -148,9 +157,10 @@ test("each instance's derived key is stable across retries and distinct between 
   );
 
   const input = {
-    item,
-    reviewed: reviewFields(item),
-    idempotencyKey: item.idempotencyKey,
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
   };
 
   await step(input);
@@ -161,11 +171,11 @@ test("each instance's derived key is stable across retries and distinct between 
   expect(keys[0]).toBe(keys[2]); // instance 0, retry
   expect(keys[1]).toBe(keys[3]); // instance 1, retry
   expect(keys[0]).not.toBe(keys[1]);
-  expect(keys[0]).toBe(deriveInstanceIdempotencyKey(item.idempotencyKey, "hvac", 0));
-  expect(keys[1]).toBe(deriveInstanceIdempotencyKey(item.idempotencyKey, "hvac", 1));
+  expect(keys[0]).toBe(deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0));
+  expect(keys[1]).toBe(deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 1));
 });
 
-test("singleton groups are written once with the item's original idempotency key", async () => {
+test("singleton groups are written once with the session's original idempotency key", async () => {
   const outbox = await openTestOutbox();
   const written: Write[] = [];
   const step = toInstanceWriteStep({
@@ -174,7 +184,7 @@ test("singleton groups are written once with the item's original idempotency key
     collectionGroups: ["hvac"],
   });
 
-  const item = await seedItem(
+  const { session, ctx } = await seedSession(
     outbox,
     { jobId: "job-7" },
     {
@@ -184,17 +194,18 @@ test("singleton groups are written once with the item's original idempotency key
   );
 
   await step({
-    item,
-    reviewed: reviewFields(item),
-    idempotencyKey: item.idempotencyKey,
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
   });
 
   expect(written).toHaveLength(2);
   const singleton = written.find((w) => "basedata" in w.fields);
   const instance = written.find((w) => "hvac" in w.fields);
-  expect(singleton?.meta.idempotencyKey).toBe(item.idempotencyKey);
+  expect(singleton?.meta.idempotencyKey).toBe(session.idempotencyKey);
   expect(instance?.meta.idempotencyKey).toBe(
-    deriveInstanceIdempotencyKey(item.idempotencyKey, "hvac", 0),
+    deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0),
   );
 });
 
@@ -207,7 +218,7 @@ test("a patch with an empty collection group writes nothing for that group", asy
     collectionGroups: ["hvac"],
   });
 
-  const item = await seedItem(
+  const { session, ctx } = await seedSession(
     outbox,
     { jobId: "job-7" },
     {
@@ -217,9 +228,10 @@ test("a patch with an empty collection group writes nothing for that group", asy
   );
 
   await step({
-    item,
-    reviewed: reviewFields(item),
-    idempotencyKey: item.idempotencyKey,
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
   });
 
   expect(written).toHaveLength(1);
@@ -234,14 +246,14 @@ test("progress is persisted before the next instance is attempted, not batched a
     ...base,
     write: async (fields, ctx, meta) => {
       if (meta.idempotencyKey.endsWith(":instance:hvac:1")) {
-        const fromDisk = await outbox.get(item.id);
+        const fromDisk = await outbox.getSession(session.id);
         expect(fromDisk?.writtenInstances).toEqual({ hvac: [true] });
       }
       await base.write(fields, ctx, meta);
     },
   };
 
-  const item = await seedItem(
+  const { session, ctx } = await seedSession(
     outbox,
     { jobId: "job-7" },
     {
@@ -254,12 +266,13 @@ test("progress is persisted before the next instance is attempted, not batched a
     outbox,
     collectionGroups: ["hvac"],
   })({
-    item,
-    reviewed: reviewFields(item),
-    idempotencyKey: item.idempotencyKey,
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
   });
 
-  const fromDisk = await outbox.get(item.id);
+  const fromDisk = await outbox.getSession(session.id);
   expect(fromDisk?.writtenInstances).toEqual({ hvac: [true, true] });
 });
 
@@ -268,7 +281,7 @@ test("progress is persisted before the next instance is attempted, not batched a
 test("already-written instances are skipped when the step is retried", async () => {
   const outbox = await openTestOutbox();
   const written: Write[] = [];
-  const item = await seedItem(
+  const { session, ctx } = await seedSession(
     outbox,
     { jobId: "job-7" },
     {
@@ -286,15 +299,16 @@ test("already-written instances are skipped when the step is retried", async () 
     outbox,
     collectionGroups: ["hvac"],
   })({
-    item,
-    reviewed: reviewFields(item),
-    idempotencyKey: item.idempotencyKey,
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
   });
 
   expect(written).toHaveLength(2);
   expect(written.map((w) => w.meta.idempotencyKey)).toEqual([
-    deriveInstanceIdempotencyKey(item.idempotencyKey, "hvac", 1),
-    deriveInstanceIdempotencyKey(item.idempotencyKey, "hvac", 2),
+    deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 1),
+    deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 2),
   ]);
 });
 
@@ -321,6 +335,7 @@ test("a write failing on the second of three instances, then retrying, does not 
     },
   };
 
+  const session = await outbox.openSession();
   const enqueued = await outbox.enqueue({
     recording: {
       id: "rec-1",
@@ -330,13 +345,18 @@ test("a write failing on the second of three instances, then retrying, does not 
       ctx: { jobId: "job-7" },
     },
     audio: new Blob(["audio"], { type: "audio/webm;codecs=opus" }),
+    sessionId: session.id,
   });
   await outbox.patch(enqueued.id, {
     transcript: { recordingId: "rec-1", text: "the house has systems", engine: "fake" },
+    status: "transcribed",
+  });
+  await outbox.patchSession(session.id, {
     extracted: {},
+    extractedFromRecordingIds: ["rec-1"],
     status: "awaiting-review",
   });
-  const item = await outbox.submitReview(enqueued.id, {
+  await outbox.submitSessionReview(session.id, {
     status: "accepted",
     fields: {
       hvac: [
@@ -350,8 +370,8 @@ test("a write failing on the second of three instances, then retrying, does not 
   const relay = createRelay({
     outbox,
     transcriber: new FakeTranscriber(),
-    extract: () => Promise.reject(new Error("extraction should not run")),
-    write: toInstanceWriteStep({
+    sessionExtract: () => Promise.reject(new Error("session extraction should not run")),
+    sessionWrite: toInstanceWriteStep({
       adapter: failingAdapter,
       outbox,
       collectionGroups: ["hvac"],
@@ -362,19 +382,19 @@ test("a write failing on the second of three instances, then retrying, does not 
   });
 
   await relay.syncNow();
-  const failed = await outbox.get(enqueued.id);
+  const failed = await outbox.getSession(session.id);
   expect(failed?.status).toBe("failed");
   expect(failed?.writtenInstances).toEqual({ hvac: [true] });
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:0"))).toEqual([
-    { key: deriveInstanceIdempotencyKey(item.idempotencyKey, "hvac", 0), failed: false },
+    { key: deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0), failed: false },
   ]);
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:1"))).toEqual([
-    { key: deriveInstanceIdempotencyKey(item.idempotencyKey, "hvac", 1), failed: true },
+    { key: deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 1), failed: true },
   ]);
 
   clock.advance(501);
   await relay.syncNow();
-  const done = await outbox.get(enqueued.id);
+  const done = await outbox.getSession(session.id);
   expect(done?.status).toBe("done");
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:0"))).toHaveLength(1);
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:1"))).toHaveLength(2);
@@ -388,7 +408,7 @@ test("a write failing on the second of three instances, then retrying, does not 
 test("a patch the adapter's schema rejects is terminal, and write is never called", async () => {
   const outbox = await openTestOutbox();
   const written: Write[] = [];
-  const item = await seedItem(
+  const { session, ctx } = await seedSession(
     outbox,
     { jobId: "job-7" },
     {
@@ -401,9 +421,10 @@ test("a patch the adapter's schema rejects is terminal, and write is never calle
     outbox,
     collectionGroups: ["hvac"],
   })({
-    item,
-    reviewed: reviewFields(item),
-    idempotencyKey: item.idempotencyKey,
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
   }).then(
     () => undefined,
     (error: unknown) => error,
@@ -419,7 +440,7 @@ test("a patch the adapter's schema rejects is terminal, and write is never calle
 test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is never called", async () => {
   const outbox = await openTestOutbox();
   const written: Write[] = [];
-  const item = await seedItem(
+  const { session, ctx } = await seedSession(
     outbox,
     { jobId: "" },
     {
@@ -432,9 +453,10 @@ test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is 
     outbox,
     collectionGroups: ["hvac"],
   })({
-    item,
-    reviewed: reviewFields(item),
-    idempotencyKey: item.idempotencyKey,
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
   }).then(
     () => undefined,
     (error: unknown) => error,
@@ -453,7 +475,7 @@ test("a failing write propagates unchanged — the relay's retry contract is not
     ...makeAdapter([]),
     write: () => Promise.reject(failure),
   };
-  const item = await seedItem(
+  const { session, ctx } = await seedSession(
     outbox,
     { jobId: "job-7" },
     {
@@ -466,9 +488,10 @@ test("a failing write propagates unchanged — the relay's retry contract is not
     outbox,
     collectionGroups: ["hvac"],
   })({
-    item,
-    reviewed: reviewFields(item),
-    idempotencyKey: item.idempotencyKey,
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
   }).then(
     () => undefined,
     (error: unknown) => error,

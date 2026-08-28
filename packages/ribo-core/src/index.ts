@@ -178,7 +178,7 @@ export type { ToInstanceWriteStepOptions } from "./instance-write-step.js";
 // Extraction: the pluggable seam a transcript becomes structured fields through,
 // the function that collapses any extractor onto the relay's injected step, and
 // the fake that drives the pipeline with no model. Strategies live in adapters.
-export { FakeExtractor, toExtractStep } from "./extractor.js";
+export { FakeExtractor, toSessionExtractStep } from "./extractor.js";
 export type {
   Extractor,
   ExtractionResult,

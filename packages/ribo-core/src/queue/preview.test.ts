@@ -58,7 +58,11 @@ function freshOutbox(): Promise<Outbox> {
 test("a tail write replaces the previous tail rather than appending to it", async () => {
   const outbox = await freshOutbox();
 
-  const item = await outbox.beginRecording({ recording, sourceId: "s1" });
+  const item = await outbox.beginRecording({
+    recording,
+    sourceId: "s1",
+    sessionId: "test-session",
+  });
 
   await outbox.writePreviewTail(item.id, "first");
   const first = await outbox.get(item.id);
@@ -87,7 +91,11 @@ test("a tail write replaces the previous tail rather than appending to it", asyn
 test("a commit appends to committed and clears the tail in one modification", async () => {
   const outbox = await freshOutbox();
 
-  const item = await outbox.beginRecording({ recording, sourceId: "s1" });
+  const item = await outbox.beginRecording({
+    recording,
+    sourceId: "s1",
+    sessionId: "test-session",
+  });
   // Seed a tail so the commit has something to clear — a commit with no prior
   // tail would not exercise the "both" intermediate.
   await outbox.writePreviewTail(item.id, "alpha");
@@ -161,11 +169,15 @@ test("a commit appends to committed and clears the tail in one modification", as
 test("a stale live reply after the transcript is written does not restore preview", async () => {
   const outbox = await freshOutbox();
 
-  const item = await outbox.beginRecording({ recording, sourceId: "s1" });
+  const item = await outbox.beginRecording({
+    recording,
+    sourceId: "s1",
+    sessionId: "test-session",
+  });
   await outbox.writePreviewTail(item.id, "hello world");
 
   // The batch transcript lands — preview is deleted in the same modification.
-  await outbox.writeTranscript(item.id, transcript, { status: "extracting", attempts: 0 });
+  await outbox.writeTranscript(item.id, transcript, { status: "transcribed", attempts: 0 });
 
   const afterWrite = await outbox.get(item.id);
   expect(afterWrite?.transcript).toBeDefined();
@@ -189,7 +201,11 @@ test("a stale live reply after the transcript is written does not restore previe
 test("a live reply after the row leaves recording (but before any transcript) is refused", async () => {
   const outbox = await freshOutbox();
 
-  const item = await outbox.beginRecording({ recording, sourceId: "s1" });
+  const item = await outbox.beginRecording({
+    recording,
+    sourceId: "s1",
+    sessionId: "test-session",
+  });
   await outbox.writePreviewTail(item.id, "hello world");
 
   // Commit the durable recording: recording → queued. There is no transcript
@@ -230,7 +246,11 @@ test("a live reply after the row leaves recording (but before any transcript) is
 test("deleting preview and writing transcript is one revision — no half-applied state", async () => {
   const outbox = await freshOutbox();
 
-  const item = await outbox.beginRecording({ recording, sourceId: "s1" });
+  const item = await outbox.beginRecording({
+    recording,
+    sourceId: "s1",
+    sessionId: "test-session",
+  });
   await outbox.writePreviewTail(item.id, "hello world");
 
   // Collect every emission a subscriber sees for this item.
@@ -255,7 +275,7 @@ test("deleting preview and writing transcript is one revision — no half-applie
     const initialCount = emissions.length;
 
     // Write the transcript — this must delete preview in the SAME modification.
-    await outbox.writeTranscript(item.id, transcript, { status: "extracting", attempts: 0 });
+    await outbox.writeTranscript(item.id, transcript, { status: "transcribed", attempts: 0 });
 
     // Wait for the final state: no preview, transcript present.
     await vi.waitFor(() => {

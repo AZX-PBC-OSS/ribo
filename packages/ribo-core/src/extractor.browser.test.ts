@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
 
-import { FakeExtractor, toExtractStep } from "./extractor.js";
+import { FakeExtractor, toSessionExtractStep } from "./extractor.js";
 import { FakeTranscriber } from "./fake-transcriber.js";
 import { removeOutboxDatabase } from "./queue/database.js";
 import { openOutbox, type Outbox } from "./queue/outbox.js";
@@ -55,33 +55,43 @@ afterEach(async () => {
   for (const name of names.splice(0)) await removeOutboxDatabase(name);
 });
 
-test("a FakeExtractor substitutes into createRelay and its fields land on item.extracted", async () => {
+test("a FakeExtractor substitutes into createRelay and its fields land on session.extracted", async () => {
   const outbox = await openTestOutbox();
+  const session = await outbox.openSession();
 
   const fields: AtticFields = { atticInsulation: "fiberglass batts", rValue: 19 };
   const extractor = new FakeExtractor<AtticFields>(fields);
 
-  // The ONLY line that changed vs. any other relay wiring: `extract` is the seam's
-  // adapter over the fake. Nothing in `createRelay` or the relay itself is touched.
+  // The ONLY line that changed vs. any other relay wiring: `sessionExtract` is
+  // the seam's adapter over the fake. Nothing in `createRelay` or the relay
+  // itself is touched.
   const relay = createRelay({
     outbox,
     transcriber: new FakeTranscriber({ text: "the attic is R-19" }),
-    extract: toExtractStep(extractor),
-    write: async () => undefined,
+    sessionExtract: toSessionExtractStep(extractor),
+    sessionWrite: async () => undefined,
   });
 
-  const item = await outbox.enqueue({ recording, audio: audio() });
+  const item = await outbox.enqueue({ recording, audio: audio(), sessionId: session.id });
+
+  // Drain transcribes the recording to `transcribed`.
+  await relay.syncNow();
+  expect((await outbox.get(item.id))?.status).toBe("transcribed");
+
+  // Closing the session transitions it to `extracting`, and the next drain
+  // runs session-level extraction.
+  await outbox.closeSession(session.id);
   await relay.syncNow();
 
-  const extracted = await outbox.get(item.id);
-  // The item drained THROUGH the `extracting` step: the fake's exact fields are
-  // what the relay persisted as `extracted`.
-  expect(extracted?.extracted).toEqual(fields);
-  // And it stopped at the review gate, which is where a successful extraction now
-  // ends. `done` would mean the relay had written un-reviewed model output — see
-  // `queue/schema.ts`'s ACTIVE_OUTBOX_STATUSES.
-  expect(extracted?.status).toBe("awaiting-review");
+  // The session drained THROUGH the extracting step: the fake's exact fields
+  // are what the relay persisted as `extracted` on the session.
+  const parked = await outbox.getSession(session.id);
+  expect(parked?.extracted).toEqual(fields);
+  // And it stopped at the review gate, which is where a successful extraction
+  // ends.
+  expect(parked?.status).toBe("awaiting-review");
 
-  // And the extractor really was driven with the transcript's text, not bypassed.
+  // And the extractor really was driven with the joined transcript text, not
+  // bypassed.
   expect(extractor.calls).toEqual(["the attic is R-19"]);
 });

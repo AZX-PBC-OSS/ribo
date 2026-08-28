@@ -617,7 +617,14 @@ describe("Recorder durable capture", () => {
         sourceId: string;
         mimeType: string;
       }): Promise<CaptureSession> =>
-        openCaptureSession({ outbox, recording, sourceId, mimeType, decode: async () => 1234 }),
+        openCaptureSession({
+          outbox,
+          recording,
+          sourceId,
+          mimeType,
+          sessionId: "test-session",
+          decode: async () => 1234,
+        }),
     });
 
     await recorder.start();
@@ -671,7 +678,8 @@ describe("Recorder durable capture", () => {
       recording: Recording;
       sourceId: string;
       mimeType: string;
-    }): Promise<CaptureSession> => openCaptureSession({ outbox, recording, sourceId, mimeType });
+    }): Promise<CaptureSession> =>
+      openCaptureSession({ outbox, recording, sourceId, mimeType, sessionId: "test-session" });
     const recorder = new Recorder({
       getUserMedia,
       captureSession: factory,
@@ -704,7 +712,8 @@ describe("Recorder durable capture", () => {
       recording: Recording;
       sourceId: string;
       mimeType: string;
-    }): Promise<CaptureSession> => openCaptureSession({ outbox, recording, sourceId, mimeType });
+    }): Promise<CaptureSession> =>
+      openCaptureSession({ outbox, recording, sourceId, mimeType, sessionId: "test-session" });
     const recorder = new Recorder({
       captureSession: factory,
       createRecorder: (stream: MediaStream, options: MediaRecorderOptions) => {

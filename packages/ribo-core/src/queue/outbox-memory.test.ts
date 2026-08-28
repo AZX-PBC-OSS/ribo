@@ -52,7 +52,8 @@ test("an injected non-Dexie (memory) RxStorage drives the same Outbox API", asyn
   const outbox = await openOutbox({ name, storage });
   opened.push({ outbox, name, storage });
 
-  const enqueued = await outbox.enqueue({ recording, audio: audioBlob() });
+  const session = await outbox.openSession();
+  const enqueued = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
 
   // Same projection contract the Dexie-backed tests assert.
   expect(enqueued.status).toBe("queued");
@@ -73,23 +74,22 @@ test("an injected non-Dexie (memory) RxStorage drives the same Outbox API", asyn
 
 test("a nested review outcome with dotted paths round-trips storage with no migration", async () => {
   // R1.5 design §4 asserts that moving review to nested values and dotted leaf paths
-  // needs NO outbox document version bump: `reviewOutcomeSchema.fields` is
+  // needs NO document version bump: `reviewOutcomeSchema.fields` is
   // `z.record(z.string(), z.unknown())`, which accepts a nested object, and the
   // touched-field lists are `z.array(z.string())`, which accept a dotted path. That
   // claim is about PERSISTENCE, so checking it against the zod schema alone would not
   // settle it — the RxDB collection carries its own JSON schema and its own `version`.
-  // This drives the real thing: a nested outcome through `submitReview`, out to storage
-  // and back through `get`, on a collection at `version: 4` (bumped for the
-  // durable-capture fields, not for this — the R1.5 claim is that nesting needed no
-  // bump of its own, and it still does not).
+  // This drives the real thing: a nested outcome through `submitSessionReview`, out to
+  // storage and back through `getSession`, on the sessions collection.
   const storage = getRxStorageMemory();
   const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
 
   const outbox = await openOutbox({ name, storage });
   opened.push({ outbox, name, storage });
 
-  const enqueued = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(enqueued.id, { status: "awaiting-review" });
+  const session = await outbox.openSession();
+  await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
+  await outbox.patchSession(session.id, { status: "awaiting-review" });
 
   const outcome: PersistedReviewOutcome = {
     status: "edited",
@@ -101,10 +101,10 @@ test("a nested review outcome with dotted paths round-trips storage with no migr
     rejectedFields: ["healthSafety.asbestos"],
   };
 
-  const submitted = await outbox.submitReview(enqueued.id, outcome);
+  const submitted = await outbox.submitSessionReview(session.id, outcome);
   expect(submitted.status).toBe("writing");
 
-  const read = await outbox.get(enqueued.id);
+  const read = await outbox.getSession(session.id);
 
   // Nesting survives as nesting, not flattened or stringified, and the dotted paths
   // survive as the strings they are.

@@ -10,7 +10,7 @@ import {
   outboxItemSchema,
   outboxRxSchema,
 } from "./schema.js";
-import type { OutboxPatch, OutboxStatus } from "./schema.js";
+import type { OutboxPatch } from "./schema.js";
 
 // One document, described twice: once in zod (the read/write trust boundary) and
 // once in RxDB's JSON schema (which carries the primary key, indexes and
@@ -43,18 +43,8 @@ test("the RxDB required list is exactly zod's non-optional fields", () => {
   expect(required).toEqual(zodKeys.filter((key) => !optionalKeys.includes(key)));
 });
 
-test("the optional fields are the step outputs, the error message, capture, and preview", () => {
-  expect(optionalKeys).toEqual([
-    "capture",
-    "extracted",
-    "extractedBy",
-    "lastError",
-    "preview",
-    "reviewOutcome",
-    "transcript",
-    "writeResult",
-    "writtenInstances",
-  ]);
+test("the optional fields are the transcript, the error message, capture, and preview", () => {
+  expect(optionalKeys).toEqual(["capture", "lastError", "preview", "transcript"]);
 });
 
 test("the primary key is a required field, as RxDB demands", () => {
@@ -132,28 +122,13 @@ test("the projection's extra keys do not leak back into a document parse", () =>
   ).toBe(false);
 });
 
-test("every status is active, finished, recording, or explicitly parked for a human", () => {
-  // `awaiting-review` is in neither set on purpose — that omission is the review
-  // gate. It is named here rather than left as a hole, so a future status added
-  // to neither set fails this test instead of silently joining it.
-  const PARKED: readonly OutboxStatus[] = ["awaiting-review"];
+test("every status is active, finished, or recording", () => {
+  // With the session split, no outbox status is "parked for a human" —
+  // `awaiting-review` moved to the session. Every recording status is in
+  // exactly one of the three categories.
   expect(
-    [
-      ...ACTIVE_OUTBOX_STATUSES,
-      ...FINISHED_OUTBOX_STATUSES,
-      ...RECORDING_OUTBOX_STATUSES,
-      ...PARKED,
-    ].sort(),
+    [...ACTIVE_OUTBOX_STATUSES, ...FINISHED_OUTBOX_STATUSES, ...RECORDING_OUTBOX_STATUSES].sort(),
   ).toEqual([...OUTBOX_STATUSES].sort());
-});
-
-test("awaiting-review is a status but is deliberately not active", () => {
-  // The gate. `nextPending()` selects on ACTIVE_OUTBOX_STATUSES, so keeping
-  // awaiting-review out of it is the only thing that stops the relay writing an
-  // un-reviewed item — see the design §2.3 and §3.3.
-  expect(OUTBOX_STATUSES).toContain("awaiting-review");
-  expect(ACTIVE_OUTBOX_STATUSES as readonly string[]).not.toContain("awaiting-review");
-  expect(FINISHED_OUTBOX_STATUSES as readonly string[]).not.toContain("awaiting-review");
 });
 
 test("discarded is terminal and distinct from dead", () => {
@@ -168,34 +143,8 @@ test("every status fits the indexed maxLength the RxDB schema declares", () => {
   for (const status of OUTBOX_STATUSES) expect(status.length).toBeLessThanOrEqual(bound);
 });
 
-test("a document carries an optional review outcome", () => {
-  const base = {
-    id: "a",
-    seq: 0,
-    status: "awaiting-review",
-    idempotencyKey: "k",
-    attempts: 0,
-    nextAttemptAt: new Date(0).toISOString(),
-    enqueuedAt: new Date(0).toISOString(),
-    recording: {
-      id: "r",
-      capturedAt: new Date(0).toISOString(),
-      durationMs: 1,
-      mimeType: "audio/webm",
-      ctx: {},
-    },
-  };
-  expect(outboxDocumentSchema.parse(base).reviewOutcome).toBeUndefined();
-
-  const reviewed = outboxDocumentSchema.parse({
-    ...base,
-    reviewOutcome: { status: "accepted", fields: { atticRValue: 19 } },
-  });
-  expect(reviewed.reviewOutcome).toEqual({ status: "accepted", fields: { atticRValue: 19 } });
-});
-
-test("the RxDB schema is at version 5", () => {
-  expect(outboxRxSchema.version).toBe(5);
+test("the RxDB schema is at version 6", () => {
+  expect(outboxRxSchema.version).toBe(6);
 });
 
 /** A minimal document that parses, for the negative cases to mutate. */
@@ -204,7 +153,7 @@ function validDocument() {
     id: "a",
     seq: 0,
     status: "queued",
-    idempotencyKey: "k",
+    sessionId: "s1",
     attempts: 0,
     nextAttemptAt: "2026-07-23T10:00:00.000Z",
     enqueuedAt: "2026-07-23T10:00:00.000Z",
@@ -287,8 +236,8 @@ test("the fields decided once stay decided — none of them is patchable", () =>
   const id: OutboxPatch = { id: "other" };
   // @ts-expect-error `seq` is the queue's ordering key.
   const seq: OutboxPatch = { seq: 99 };
-  // @ts-expect-error `idempotencyKey` must survive every retry unchanged.
-  const key: OutboxPatch = { idempotencyKey: "regenerated" };
+  // @ts-expect-error `sessionId` is the session membership, decided at enqueue.
+  const sessionId: OutboxPatch = { sessionId: "other" };
   // @ts-expect-error `recording` is capture provenance, not queue state.
   const recording: OutboxPatch = { recording: undefined };
   // @ts-expect-error `enqueuedAt` is when it entered the queue, once.
@@ -301,5 +250,5 @@ test("the fields decided once stay decided — none of them is patchable", () =>
 
   // The values are irrelevant — the directives above are the test. Referencing them keeps
   // the linter from removing what looks like dead code and taking the assertions with it.
-  expect([capture, id, seq, key, recording, enqueuedAt, preview]).toHaveLength(7);
+  expect([capture, id, seq, sessionId, recording, enqueuedAt, preview]).toHaveLength(7);
 });

@@ -335,8 +335,8 @@ test("a preview segment appears during recording and is gone once the transcript
   const relay = createRelay({
     outbox,
     transcriber: new FakeTranscriber(),
-    extract: () => Promise.resolve({ fields: {} }),
-    write: () => Promise.resolve(),
+    sessionExtract: () => Promise.resolve({ fields: {} }),
+    sessionWrite: () => Promise.resolve(),
   });
   await relay.syncNow();
 
@@ -403,8 +403,8 @@ test("a tail appears in preview.tail, a second tail replaces it, a commit moves 
   const relay = createRelay({
     outbox,
     transcriber: new FakeTranscriber(),
-    extract: () => Promise.resolve({ fields: {} }),
-    write: () => Promise.resolve(),
+    sessionExtract: () => Promise.resolve({ fields: {} }),
+    sessionWrite: () => Promise.resolve(),
   });
   await relay.syncNow();
 

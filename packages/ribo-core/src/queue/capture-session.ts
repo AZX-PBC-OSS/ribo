@@ -28,6 +28,8 @@ export interface CaptureSessionOptions {
   recording: Recording;
   sourceId: string;
   mimeType: string;
+  /** The session this recording belongs to. */
+  sessionId: string;
   /** Injectable clock, in epoch milliseconds. Defaults to `Date.now`. */
   now?: () => number;
   /**
@@ -62,7 +64,11 @@ export async function openCaptureSession(options: CaptureSessionOptions): Promis
   const now = options.now ?? (() => Date.now());
   const decode = options.decode ?? decodeAudioDuration;
 
-  const item = await outbox.beginRecording({ recording: options.recording, sourceId });
+  const item = await outbox.beginRecording({
+    recording: options.recording,
+    sourceId,
+    sessionId: options.sessionId,
+  });
 
   // BehaviorSubject so a late subscriber immediately sees the current health —
   // `firstValueFrom(health$)` resolves with the present state rather than

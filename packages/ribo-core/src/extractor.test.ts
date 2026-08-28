@@ -1,8 +1,8 @@
 import { expect, test } from "vitest";
 
-import { FakeExtractor, toExtractStep } from "./extractor.js";
+import { FakeExtractor, toSessionExtractStep } from "./extractor.js";
 import type { Extractor, ExtractionResult } from "./extractor.js";
-import type { OutboxItem } from "./queue/schema.js";
+import type { SessionItem } from "./queue/session-schema.js";
 import type { Transcript } from "./transcript.js";
 
 interface AtticFields {
@@ -15,9 +15,10 @@ const transcript: Transcript = {
   engine: "fake",
 };
 
-// `toExtractStep` reads only `transcript` off its input, never `item`, so a bare
-// stub is honest here — a real item would just be noise the step ignores.
-const item = { id: "item-1" } as OutboxItem;
+// `toSessionExtractStep` reads only `transcript` off its input, never `session`
+// or `recordingIds`, so a bare stub is honest here — a real session would just be
+// noise the step ignores.
+const session = { id: "session-1" } as SessionItem;
 
 // ---------------------------------------------------------------------------
 // FakeExtractor — the shipped double
@@ -57,14 +58,14 @@ test("FakeExtractor records the transcript text of every call, in order", async 
 });
 
 // ---------------------------------------------------------------------------
-// toExtractStep — the collapse onto the relay's injected step
+// toSessionExtractStep — the collapse onto the relay's injected step
 // ---------------------------------------------------------------------------
 
-test("toExtractStep hands the extractor the transcript TEXT, and returns only its fields", async () => {
+test("toSessionExtractStep hands the extractor the transcript TEXT, and returns only its fields", async () => {
   const extractor = new FakeExtractor<AtticFields>({ atticInsulation: "R-19" });
-  const step = toExtractStep(extractor);
+  const step = toSessionExtractStep(extractor);
 
-  const result = await step({ item, transcript });
+  const result = await step({ session, transcript: transcript.text, recordingIds: ["rec-1"] });
 
   // The extractor was called with `transcript.text`, not the whole Transcript.
   expect(extractor.calls).toEqual(["the attic is R-19"]);
@@ -72,7 +73,7 @@ test("toExtractStep hands the extractor the transcript TEXT, and returns only it
   expect(result.fields).toEqual({ atticInsulation: "R-19" });
 });
 
-test("toExtractStep adapts any Extractor, not just the fake", async () => {
+test("toSessionExtractStep adapts any Extractor, not just the fake", async () => {
   const handRolled: Extractor<AtticFields> = {
     extract: (text): Promise<ExtractionResult<AtticFields>> =>
       Promise.resolve({
@@ -81,9 +82,9 @@ test("toExtractStep adapts any Extractor, not just the fake", async () => {
         usage: { calls: 3 },
       }),
   };
-  const step = toExtractStep(handRolled);
+  const step = toSessionExtractStep(handRolled);
 
-  const result = await step({ item, transcript });
+  const result = await step({ session, transcript: transcript.text, recordingIds: ["rec-1"] });
 
   expect(result.fields).toEqual({ atticInsulation: "THE ATTIC IS R-19" });
 });
@@ -92,13 +93,17 @@ test("toExtractStep adapts any Extractor, not just the fake", async () => {
 // Engine provenance — which engine drafted this, carried to where review can see it
 // ---------------------------------------------------------------------------
 
-test("toExtractStep passes the extractor's engine through beside the fields", async () => {
+test("toSessionExtractStep passes the extractor's engine through beside the fields", async () => {
   const extractor = new FakeExtractor<AtticFields>(
     { atticInsulation: "R-19" },
     { usage: { calls: 1, engine: "ondevice-prompt-api" } },
   );
 
-  const result = await toExtractStep(extractor)({ item, transcript });
+  const result = await toSessionExtractStep(extractor)({
+    session,
+    transcript: transcript.text,
+    recordingIds: ["rec-1"],
+  });
 
   expect(result).toEqual({
     fields: { atticInsulation: "R-19" },
@@ -106,13 +111,17 @@ test("toExtractStep passes the extractor's engine through beside the fields", as
   });
 });
 
-test("toExtractStep reports no engine when the extractor does not name one", async () => {
+test("toSessionExtractStep reports no engine when the extractor does not name one", async () => {
   // The common case, and the one that must keep working: every single-transport
   // extractor in this repo reports `{ calls }` and nothing more. `engine` being
   // optional is what keeps them all compiling.
   const extractor = new FakeExtractor<AtticFields>({ atticInsulation: "R-19" });
 
-  const result = await toExtractStep(extractor)({ item, transcript });
+  const result = await toSessionExtractStep(extractor)({
+    session,
+    transcript: transcript.text,
+    recordingIds: ["rec-1"],
+  });
 
   expect(result.fields).toEqual({ atticInsulation: "R-19" });
   expect(result.engine).toBeUndefined();

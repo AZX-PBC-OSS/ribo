@@ -7,8 +7,6 @@ import { firstValueFrom } from "rxjs";
 import { afterEach, expect, test, vi } from "vitest";
 
 import type { Recording } from "../recording.js";
-import type { PersistedReviewOutcome } from "../review.js";
-import type { Transcript } from "../transcript.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 import { OUTBOX_MIGRATION_STRATEGIES, removeOutboxDatabase } from "./database.js";
 import { chunkName } from "./chunk-names.js";
@@ -17,7 +15,6 @@ import {
   AUDIO_ATTACHMENT_ID,
   FINISHED_OUTBOX_STATUSES,
   OUTBOX_COLLECTION_NAME,
-  OUTBOX_STATUSES,
   outboxRxSchema,
   type OutboxDocument,
   type OutboxItem,
@@ -65,29 +62,14 @@ const recording: Recording = {
   ctx: { jobId: "job-7" },
 };
 
+const SESSION_ID = "test-session";
+
 /** Recognisable, non-trivial bytes: a zero-filled blob would compare equal to a bug. */
 const audioBytes = new Uint8Array(2048).map((_, i) => (i * 31 + 7) % 256);
 
 function audioBlob(): Blob {
   return new Blob([audioBytes], { type: "audio/webm;codecs=opus" });
 }
-
-/**
- * A transcript for the `reopenForReview` fixtures below.
- *
- * A genuine `dead` item that carries `extracted` data always has one too:
- * `relay.ts`'s `nextStep` never returns `"extract"` until a transcript is
- * already persisted, so extraction — and therefore a review-worthy `dead`
- * item — cannot exist without it. A fixture built with `extracted` but no
- * transcript would construct a state the real pipeline never produces, and
- * `reopenForReview` would then be asserted successful on exactly that
- * fiction rather than on anything reachable in production.
- */
-const dyingTranscript: Transcript = {
-  recordingId: recording.id,
-  text: "the attic is R-19",
-  engine: "fake",
-};
 
 // ---------------------------------------------------------------------------
 // Raw IndexedDB access — deliberately not going through RxDB.
@@ -145,7 +127,7 @@ test("an item and its audio survive being closed and reopened, and are physicall
   const name = uniqueName();
 
   const first = await open(name);
-  const enqueued = await first.enqueue({ recording, audio: audioBlob() });
+  const enqueued = await first.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
   // Closing is what turns this from a cache test into a durability test: the
   // RxDatabase, its collection, its document cache and Dexie's own connection
   // are all torn down here.
@@ -191,9 +173,9 @@ test("step outputs written before a close are readable after a reopen", async ()
   const name = uniqueName();
 
   const first = await open(name);
-  const enqueued = await first.enqueue({ recording, audio: audioBlob() });
+  const enqueued = await first.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
   await first.patch(enqueued.id, {
-    status: "extracting",
+    status: "transcribed",
     transcript: {
       recordingId: recording.id,
       text: "the attic is R-19",
@@ -208,7 +190,7 @@ test("step outputs written before a close are readable after a reopen", async ()
   const second = await open(name);
   const reloaded = await second.get(enqueued.id);
   expect(reloaded).toMatchObject({
-    status: "extracting",
+    status: "transcribed",
     transcript: {
       recordingId: "rec-1",
       text: "the attic is R-19",
@@ -217,17 +199,15 @@ test("step outputs written before a close are readable after a reopen", async ()
     attempts: 2,
     nextAttemptAt: "2026-07-23T10:05:00.000Z",
     lastError: "network unreachable",
-    // Unchanged by the patch, and specifically NOT regenerated on reopen.
-    idempotencyKey: enqueued.idempotencyKey,
     seq: enqueued.seq,
   });
 });
 
 // ---------------------------------------------------------------------------
-// The v0 → v3 schema migration.
+// The v0 → v6 schema migration.
 //
-// A reopen does not test this: `openOutbox` can only ever create a v3 store, so
-// two opens against the same name both see version 4, nothing migrates, and the
+// A reopen does not test this: `openOutbox` can only ever create a v6 store, so
+// two opens against the same name both see version 6, nothing migrates, and the
 // test would pass whether or not the migration plugin and strategy exist at all
 // — the exact "passes while production is broken" shape this file's own header
 // warns about for the durability test above.
@@ -240,21 +220,35 @@ test("step outputs written before a close are readable after a reopen", async ()
 // store (one per `<collection>-<version>`, holding that version's schema), not
 // from the presence of rows in the versioned physical database. A hand-written
 // `docs` row with no matching internal meta document is invisible to
-// `mustMigrate()` — RxDB just creates a fresh v3 collection and never looks at
+// `mustMigrate()` — RxDB just creates a fresh v6 collection and never looks at
 // the row, so the test would report a pass while testing nothing, which is a
 // worse failure mode than the reopen it was meant to replace.
 //
 // So the v0 store here is seeded through RxDB's own public API instead: a real
 // collection, created at `version: 0` with the schema this file *used* to have
 // before this change, populates that internal bookkeeping for real. Opening a
-// v2 database over the same name then runs the actual migration path, not an
+// v6 database over the same name then runs the actual migration path, not an
 // imitation of it.
 // ---------------------------------------------------------------------------
 
+/** The outbox document shape as it was at schema version 0, before the session split. */
+interface V0OutboxDocument {
+  id: string;
+  seq: number;
+  status: string;
+  idempotencyKey: string;
+  attempts: number;
+  nextAttemptAt: string;
+  enqueuedAt: string;
+  lastError?: string;
+  recording: Record<string, unknown>;
+  transcript?: Record<string, unknown>;
+  extracted?: Record<string, unknown>;
+  writeResult?: Record<string, unknown>;
+}
+
 /** The outbox's RxDB schema exactly as it was before this task's version bump. */
-const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<
-  Omit<OutboxDocument, "reviewOutcome" | "capture" | "preview" | "extractedBy" | "writtenInstances">
-> = {
+const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<V0OutboxDocument> = {
   version: 0,
   primaryKey: "id",
   type: "object",
@@ -286,8 +280,8 @@ const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<
   attachments: {},
 };
 
-/** The v0 document shape: everything the current schema has, minus `reviewOutcome`. */
-function v0Document(): Omit<OutboxDocument, "reviewOutcome" | "capture" | "writtenInstances"> {
+/** The v0 document shape: everything the original schema had, minimally populated. */
+function v0Document(): V0OutboxDocument {
   return {
     id: "a",
     seq: 0,
@@ -311,14 +305,9 @@ function v0Document(): Omit<OutboxDocument, "reviewOutcome" | "capture" | "writt
  * into it, through RxDB's own API rather than raw IndexedDB — see the note
  * above for why that is the part that makes this a genuine migration fixture.
  */
-async function seedVersionZeroOutbox(
-  name: string,
-  document: Omit<OutboxDocument, "reviewOutcome" | "capture" | "writtenInstances">,
-): Promise<void> {
+async function seedVersionZeroOutbox(name: string, document: V0OutboxDocument): Promise<void> {
   addRxPlugin(RxDBAttachmentsPlugin);
-  const database: RxDatabase<{
-    outbox: RxCollection<Omit<OutboxDocument, "reviewOutcome" | "capture" | "writtenInstances">>;
-  }> = await createRxDatabase({
+  const database: RxDatabase<{ outbox: RxCollection<V0OutboxDocument> }> = await createRxDatabase({
     name,
     storage: getRxStorageDexie(),
     multiInstance: true,
@@ -332,7 +321,7 @@ async function seedVersionZeroOutbox(
   await database.close();
 }
 
-test("an outbox stored at schema version 0 opens and migrates to version 4", async () => {
+test("an outbox stored at schema version 0 opens and migrates to version 6", async () => {
   const name = uniqueName();
   await seedVersionZeroOutbox(name, v0Document());
 
@@ -340,7 +329,9 @@ test("an outbox stored at schema version 0 opens and migrates to version 4", asy
   const items = await outbox.list({});
 
   expect(items).toHaveLength(1);
-  expect(items[0]?.reviewOutcome).toBeUndefined();
+  // v5 → v6 migration: `sessionId` is added (placeholder), and the old
+  // session-level fields (`extracted`, `reviewOutcome`, etc.) are dropped.
+  expect(items[0]?.sessionId).toBeDefined();
   expect(items[0]?.status).toBe("queued");
 });
 
@@ -352,13 +343,21 @@ test("enqueue assigns monotonically increasing seq values that continue across r
   const name = uniqueName();
 
   const first = await open(name);
-  const a = await first.enqueue({ recording, audio: audioBlob() });
-  const b = await first.enqueue({ recording: { ...recording, id: "rec-2" }, audio: audioBlob() });
+  const a = await first.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
+  const b = await first.enqueue({
+    recording: { ...recording, id: "rec-2" },
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
   expect(b.seq).toBeGreaterThan(a.seq);
   await first.close();
 
   const second = await open(name);
-  const c = await second.enqueue({ recording: { ...recording, id: "rec-3" }, audio: audioBlob() });
+  const c = await second.enqueue({
+    recording: { ...recording, id: "rec-3" },
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
   expect(c.seq).toBeGreaterThan(b.seq);
 });
 
@@ -366,7 +365,11 @@ test("concurrent enqueues never collide on seq", async () => {
   const outbox = await open(uniqueName());
   const items = await Promise.all(
     Array.from({ length: 8 }, (_, i) =>
-      outbox.enqueue({ recording: { ...recording, id: `rec-${i}` }, audio: audioBlob() }),
+      outbox.enqueue({
+        recording: { ...recording, id: `rec-${i}` },
+        audio: audioBlob(),
+        sessionId: SESSION_ID,
+      }),
     ),
   );
   const seqs = items.map((item) => item.seq).sort((a, b) => a - b);
@@ -374,29 +377,25 @@ test("concurrent enqueues never collide on seq", async () => {
   expect(seqs).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
 });
 
-test("enqueue starts an item queued, with zero attempts and an idempotency key", async () => {
+test("enqueue starts an item queued, with zero attempts and a session id", async () => {
   const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  const item = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
 
   expect(item.status).toBe("queued");
   expect(item.attempts).toBe(0);
-  expect(item.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
+  expect(item.sessionId).toBe(SESSION_ID);
   expect(item.recording).toEqual(recording);
   expect(item.transcript).toBeUndefined();
-  expect(item.extracted).toBeUndefined();
-});
-
-test("each enqueue gets its own idempotency key", async () => {
-  const outbox = await open(uniqueName());
-  const a = await outbox.enqueue({ recording, audio: audioBlob() });
-  const b = await outbox.enqueue({ recording: { ...recording, id: "rec-2" }, audio: audioBlob() });
-  expect(a.idempotencyKey).not.toBe(b.idempotencyKey);
 });
 
 test("list returns items in seq order", async () => {
   const outbox = await open(uniqueName());
   for (const id of ["a", "b", "c"]) {
-    await outbox.enqueue({ recording: { ...recording, id }, audio: audioBlob() });
+    await outbox.enqueue({
+      recording: { ...recording, id },
+      audio: audioBlob(),
+      sessionId: SESSION_ID,
+    });
   }
   const listed = await outbox.list();
   expect(listed.map((item) => item.recording.id)).toEqual(["a", "b", "c"]);
@@ -411,7 +410,7 @@ test("get returns undefined for an unknown id", async () => {
 test("audio can be dropped once it is no longer needed, leaving the item intact", async () => {
   const name = uniqueName();
   const first = await open(name);
-  const item = await first.enqueue({ recording, audio: audioBlob() });
+  const item = await first.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
 
   await first.dropAudio(item.id);
   expect(await first.getAudio(item.id)).toBeUndefined();
@@ -434,7 +433,7 @@ test("audio can be dropped once it is no longer needed, leaving the item intact"
 
 test("audioReady tracks the attachment, not a pointer", async () => {
   const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  const item = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
   expect(item.audioReady).toBe(true);
   await outbox.dropAudio(item.id);
   const after = await outbox.get(item.id);
@@ -444,7 +443,7 @@ test("audioReady tracks the attachment, not a pointer", async () => {
 
 test("audioReady is true from the moment of enqueue, with the attachment's size", async () => {
   const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
+  const item = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
 
   expect(item.audioReady).toBe(true);
   expect(item.audioBytes).toBe(audioBytes.byteLength);
@@ -464,7 +463,7 @@ test("audioReady goes false after dropAudio, and items$ re-emits to say so", asy
   });
 
   try {
-    const item = await outbox.enqueue({ recording, audio: audioBlob() });
+    const item = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
     await vi.waitFor(() => expect(seen.at(-1)?.audioReady).toBe(true));
 
     await outbox.dropAudio(item.id);
@@ -485,11 +484,15 @@ test("audioReady survives a close and reopen, and matches what is physically in 
   const droppedName = uniqueName();
 
   const withAudio = await open(keptName);
-  const kept = await withAudio.enqueue({ recording, audio: audioBlob() });
+  const kept = await withAudio.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
   await withAudio.close();
 
   const withoutAudio = await open(droppedName);
-  const dropped = await withoutAudio.enqueue({ recording, audio: audioBlob() });
+  const dropped = await withoutAudio.enqueue({
+    recording,
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
   await withoutAudio.dropAudio(dropped.id);
   await withoutAudio.close();
 
@@ -514,7 +517,7 @@ test("audioReady survives a close and reopen, and matches what is physically in 
 test("remove deletes the item and its attachment for good", async () => {
   const name = uniqueName();
   const first = await open(name);
-  const item = await first.enqueue({ recording, audio: audioBlob() });
+  const item = await first.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
   await first.remove(item.id);
   await first.close();
 
@@ -531,7 +534,11 @@ test("clear empties the queue, attachments included, in one pass", async () => {
   const name = uniqueName();
   const outbox = await open(name);
   for (const id of ["a", "b", "c"]) {
-    await outbox.enqueue({ recording: { ...recording, id }, audio: audioBlob() });
+    await outbox.enqueue({
+      recording: { ...recording, id },
+      audio: audioBlob(),
+      sessionId: SESSION_ID,
+    });
   }
 
   expect(await outbox.clear()).toBe(3);
@@ -544,9 +551,17 @@ test("clear empties the queue, attachments included, in one pass", async () => {
 
 test("clear can be scoped, leaving unfinished work alone", async () => {
   const outbox = await open(uniqueName());
-  const a = await outbox.enqueue({ recording: { ...recording, id: "a" }, audio: audioBlob() });
-  const b = await outbox.enqueue({ recording: { ...recording, id: "b" }, audio: audioBlob() });
-  await outbox.patch(a.id, { status: "done" });
+  const a = await outbox.enqueue({
+    recording: { ...recording, id: "a" },
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
+  const b = await outbox.enqueue({
+    recording: { ...recording, id: "b" },
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
+  await outbox.patch(a.id, { status: "transcribed" });
 
   // The "tidy up what has landed" gesture, as opposed to the device reset.
   expect(await outbox.clear({ status: FINISHED_OUTBOX_STATUSES })).toBe(1);
@@ -555,9 +570,21 @@ test("clear can be scoped, leaving unfinished work alone", async () => {
 
 test("removeMany deletes the named items and is idempotent", async () => {
   const outbox = await open(uniqueName());
-  const a = await outbox.enqueue({ recording: { ...recording, id: "a" }, audio: audioBlob() });
-  const b = await outbox.enqueue({ recording: { ...recording, id: "b" }, audio: audioBlob() });
-  const c = await outbox.enqueue({ recording: { ...recording, id: "c" }, audio: audioBlob() });
+  const a = await outbox.enqueue({
+    recording: { ...recording, id: "a" },
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
+  const b = await outbox.enqueue({
+    recording: { ...recording, id: "b" },
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
+  const c = await outbox.enqueue({
+    recording: { ...recording, id: "c" },
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
 
   expect(await outbox.removeMany([a.id, c.id])).toBe(2);
   expect((await outbox.list()).map((item) => item.id)).toEqual([b.id]);
@@ -571,470 +598,35 @@ test("removeMany deletes the named items and is idempotent", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// submitReview — the only way out of `awaiting-review`
-// ---------------------------------------------------------------------------
-
-test("an accepted review moves the item to writing and persists the outcome", async () => {
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(item.id, { status: "awaiting-review", extracted: { atticRValue: {} } });
-
-  const outcome = { status: "accepted", fields: { atticRValue: 19 } } as const;
-  const updated = await outbox.submitReview(item.id, outcome);
-
-  expect(updated.status).toBe("writing");
-  expect(updated.reviewOutcome).toEqual(outcome);
-  expect(updated.attempts).toBe(0);
-});
-
-test("an edited review moves the item to writing with the touched fields named", async () => {
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(item.id, { status: "awaiting-review" });
-
-  const updated = await outbox.submitReview(item.id, {
-    status: "edited",
-    fields: { atticRValue: 30 },
-    editedFields: ["atticRValue"],
-    rejectedFields: ["blowerDoorCfm50"],
-  });
-
-  expect(updated.status).toBe("writing");
-  expect(updated.reviewOutcome).toMatchObject({ editedFields: ["atticRValue"] });
-});
-
-test("a discarded review is terminal and drops the audio", async () => {
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  expect(await outbox.getAudio(item.id)).toBeDefined();
-  await outbox.patch(item.id, { status: "awaiting-review" });
-
-  const updated = await outbox.submitReview(item.id, {
-    status: "discarded",
-    reason: "misspoke",
-  });
-
-  expect(updated.status).toBe("discarded");
-  expect(updated.audioReady).toBe(false);
-  expect(await outbox.getAudio(item.id)).toBeUndefined();
-  expect(updated.reviewOutcome).toEqual({ status: "discarded", reason: "misspoke" });
-});
-
-test("a discard commits the status BEFORE it drops the audio", async () => {
-  // The end-state test above passes whichever order the two writes happen in, so on
-  // its own it guards nothing: the ordering is the thing at risk, because dropping
-  // first would remove the need for `submitReview`'s post-drop re-read and therefore
-  // reads like a tidy-up waiting to happen.
-  //
-  // It is not a tidy-up. A crash between the two steps in the reverse order leaves
-  // an `awaiting-review` row whose recording is already gone — it looks reviewable,
-  // the audio is unrecoverable, and nothing on the row says why. Committing the
-  // status first makes the worst case a `discarded` row that still holds its bytes,
-  // which is merely untidy.
-  //
-  // `items$` re-emits across an attachment change (that is what `audioReady` is for,
-  // proven in its own test above), so the emission sequence is the observable form
-  // of the ordering.
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(item.id, { status: "awaiting-review" });
-
-  const seen: [string, boolean][] = [];
-  const subscription = outbox.items$.subscribe((items) => {
-    const row = items.find((entry) => entry.id === item.id);
-    if (row) seen.push([row.status, row.audioReady]);
-  });
-
-  try {
-    await outbox.submitReview(item.id, { status: "discarded", reason: "misspoke" });
-    await vi.waitFor(() => expect(seen.at(-1)).toEqual(["discarded", false]));
-  } finally {
-    subscription.unsubscribe();
-  }
-
-  // The row was observably `discarded` while the audio was still there...
-  expect(seen).toContainEqual(["discarded", true]);
-  // ...and never `awaiting-review` with the audio already gone, which is exactly
-  // what the reverse order would publish.
-  expect(seen).not.toContainEqual(["awaiting-review", false]);
-});
-
-test("an edited review that rejected every field still goes to writing", async () => {
-  // resolveReview's rule: rejecting every field is a statement about the
-  // extraction, not the recording, so it must not be collapsed into a discard —
-  // which would also drop audio the human never asked to throw away. The refusal
-  // to *write* an empty field set lives in the relay's `#write`, which is where
-  // every other "may this reach the host tool?" question is already asked;
-  // `relay.browser.test.ts` pins it.
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(item.id, { status: "awaiting-review" });
-
-  const updated = await outbox.submitReview(item.id, {
-    status: "edited",
-    fields: {},
-    editedFields: [],
-    rejectedFields: ["atticRValue"],
-  });
-
-  expect(updated.status).toBe("writing");
-});
-
-test("a nested review outcome with dotted paths persists to IndexedDB with no migration", async () => {
-  // R1.5 design §4 claims moving review to nested values and dotted leaf paths needs
-  // NO outbox document version bump. `queue/outbox-memory.test.ts` drives the same
-  // round trip, but memory storage cannot settle it: as the durability test above
-  // records, it keeps a module-global map, so a close/reopen assertion passes there
-  // whether or not anything was written. The structured-clone step that could in
-  // principle flatten or drop a nested object exists only on the Dexie/IndexedDB path.
-  //
-  // So this closes the database and reads the raw store with no RxDB in the call
-  // stack — the same technique the durability test uses, for the same reason.
-  const name = uniqueName();
-  const outbox = await open(name);
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(item.id, { status: "awaiting-review" });
-
-  const outcome: PersistedReviewOutcome = {
-    status: "edited",
-    fields: {
-      atticRValue: 19,
-      healthSafety: { ambientCo: "passed", gasLeak: null },
-    },
-    editedFields: ["healthSafety.ambientCo"],
-    rejectedFields: ["healthSafety.asbestos"],
-  };
-
-  await outbox.submitReview(item.id, outcome);
-  await outbox.close();
-
-  const rawDocs = (await readRawStore(name, "docs")) as {
-    id: string;
-    reviewOutcome: unknown;
-  }[];
-
-  // The nesting is on disk AS nesting — not flattened to dotted keys, not stringified
-  // — and the dotted touched-field paths survived as the strings they are. At the
-  // unchanged `outboxRxSchema.version`, which `idbDatabaseName` reads off the schema:
-  // a version bump would send this read to a database that never existed, and throw.
-  expect(rawDocs.map((doc) => doc.id)).toEqual([item.id]);
-  expect(rawDocs[0]?.reviewOutcome).toEqual(outcome);
-});
-
-test("submitting a review for an unknown id rejects", async () => {
-  const outbox = await open(uniqueName());
-  await expect(outbox.submitReview("nope", { status: "accepted", fields: {} })).rejects.toThrow(
-    /nope/,
-  );
-});
-
-test("a second submission for the same item fails rather than rewriting it", async () => {
-  // Two tabs, or two clicks. The second must not patch a row that has moved on —
-  // most importantly it must not take a `done` item back to `writing`, which would
-  // cause a second write to the host tool.
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(item.id, { status: "awaiting-review" });
-
-  await outbox.submitReview(item.id, { status: "accepted", fields: { atticRValue: 19 } });
-  await expect(
-    outbox.submitReview(item.id, { status: "discarded", reason: "changed my mind" }),
-  ).rejects.toThrow(/awaiting-review/);
-
-  const settled = await outbox.get(item.id);
-  expect(settled?.status).toBe("writing");
-  expect(settled?.audioReady).toBe(true);
-});
-
-test("two submissions in flight at once settle as one winner and one refusal", async () => {
-  // The sequential test above cannot reach the case the guard is actually built
-  // for. These two are in flight together, and they take the **409-and-re-run**
-  // path — deterministically, not incidentally, which is the whole reason this test
-  // is worth its lines.
-  //
-  // Why it cannot be the cheaper "both folded into one batch, modifiers chained"
-  // route (rxdb 17's `incremental-write.ts`): `addWrite` calls `triggerRun()`
-  // synchronously inside its promise executor, and `triggerRun` swaps the pending
-  // map out synchronously too, before its first `await`. So by the time the first
-  // submission's `addWrite` returns, the batch is already closed, and the second
-  // always lands in a fresh one carrying a `lastKnownDocumentState` read before the
-  // first write committed — a genuinely stale revision. Nor is the ordering luck:
-  // both `submitReview` calls issue `findOne(id).exec()` in the same synchronous
-  // burst and RxDB caches the query, so their continuations run in one microtask
-  // drain, well inside the first write's IndexedDB transaction.
-  //
-  // What that buys: the second submission's modifier runs once against the stale
-  // revision (where the status still reads `awaiting-review`, so the guard passes),
-  // the write is rejected 409, and RxDB re-runs the modifier against the document
-  // actually in the database — where the status is `writing` and the guard finally
-  // refuses. The refusal therefore comes from the retry, which is the mechanism the
-  // cross-tab case depends on and the one no test can drive directly.
-  //
-  // Deleting the guard makes this fail as `['fulfilled', 'fulfilled']`: the discard
-  // lands on top of the accept and the accepted outcome the relay was about to write
-  // is simply gone. That is a lost update, not merely a missing rejection.
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(item.id, { status: "awaiting-review" });
-
-  const results = await Promise.allSettled([
-    outbox.submitReview(item.id, { status: "accepted", fields: { atticRValue: 19 } }),
-    outbox.submitReview(item.id, { status: "discarded", reason: "changed my mind" }),
-  ]);
-
-  expect(results.map((result) => result.status)).toEqual(["fulfilled", "rejected"]);
-  const settled = await outbox.get(item.id);
-  expect(settled?.status).toBe("writing");
-  // The discard lost, so the recording is still on the device: a refused
-  // submission must have no side effects at all, audio included.
-  expect(settled?.audioReady).toBe(true);
-  expect(await outbox.getAudio(item.id)).toBeDefined();
-});
-
-test("a review cannot be submitted for an item that was never parked", async () => {
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await expect(outbox.submitReview(item.id, { status: "accepted", fields: {} })).rejects.toThrow(
-    /queued/,
-  );
-});
-
-// The scenario the guard exists for, stated as itself. `submitReview`'s doc comment
-// names a stale tab submitting a review for an item that has since reached `done` —
-// which would patch a completed row back to `writing` and cause a second write to a
-// customer's audit — and the tests above only ever reach it via `queued` or via a
-// row this method itself moved on. Every finished status, driven from the constant,
-// so a status added to it is covered without anyone remembering to come back here.
-test.each([...FINISHED_OUTBOX_STATUSES])(
-  "a review cannot be submitted for a %s item",
-  async (status) => {
-    const outbox = await open(uniqueName());
-    const item = await outbox.enqueue({ recording, audio: audioBlob() });
-    await outbox.patch(item.id, { status });
-
-    await expect(
-      outbox.submitReview(item.id, { status: "accepted", fields: { atticRValue: 19 } }),
-    ).rejects.toThrow(new RegExp(`"${status}"`));
-
-    // Nothing moved. The row is the most important part: a finished item taken back
-    // to `writing` is the double-write this guard is here to prevent.
-    const settled = await outbox.get(item.id);
-    expect(settled?.status).toBe(status);
-    expect(settled?.reviewOutcome).toBeUndefined();
-  },
-);
-
-// ---------------------------------------------------------------------------
-// reopenForReview — the supported way back into `awaiting-review` from `dead`
-// ---------------------------------------------------------------------------
-
-test("a dead item is reopened for review with a clean slate", async () => {
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(item.id, {
-    status: "dead",
-    transcript: dyingTranscript,
-    extracted: { atticRValue: {} },
-    reviewOutcome: { status: "accepted", fields: { atticRValue: 19 } },
-    attempts: 3,
-    lastError: "the reviewed values are not a valid patch",
-  });
-
-  const reopened = await outbox.reopenForReview(item.id);
-
-  expect(reopened.status).toBe("awaiting-review");
-  expect(reopened.reviewOutcome).toBeUndefined();
-  expect(reopened.attempts).toBe(0);
-  // The diagnostic that explains why the item died is not what is being cleared,
-  // so it survives the reopen for whoever looks at the row next.
-  expect(reopened.lastError).toBe("the reviewed values are not a valid patch");
-  expect(reopened.extracted).toEqual({ atticRValue: {} });
-  expect(reopened.transcript).toEqual(dyingTranscript);
-});
-
-test("reopening drops the stale reviewOutcome from the STORED document, not merely from a live read", async () => {
-  // Two independent reads could each fail to catch a bug here on their own:
-  //
-  //   - `settled?.reviewOutcome` read through `get()` goes through this SAME
-  //     `Outbox`'s own RxDB connection and document cache. An implementation
-  //     that persisted `reviewOutcome: undefined` instead of deleting the key
-  //     would still read back as `undefined` through that live object model —
-  //     property access cannot tell "key absent" from "key present with value
-  //     `undefined`" apart, and neither read proves the WRITE actually dropped
-  //     the key rather than merely not showing it back.
-  //   - Even reading raw storage, `settled.reviewOutcome === undefined` is
-  //     STILL true either way, for the identical reason. Only `Object.hasOwn`
-  //     on the raw persisted object can tell the two cases apart.
-  //
-  // So this closes the outbox and reads the raw IndexedDB store with no RxDB in
-  // the call stack — the technique the nested-review-outcome test above uses,
-  // for the same underlying reason (structured clone is the only step in this
-  // whole path that could plausibly preserve an `undefined`-valued key) — and
-  // asserts key ABSENCE rather than value equality.
-  const name = uniqueName();
-  const outbox = await open(name);
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(item.id, {
-    status: "dead",
-    transcript: dyingTranscript,
-    extracted: { atticRValue: {} },
-    reviewOutcome: { status: "discarded", reason: "an earlier, unrelated discard" },
-  });
-
-  await outbox.reopenForReview(item.id);
-  await outbox.close();
-
-  const rawDocs = (await readRawStore(name, "docs")) as Record<string, unknown>[];
-  const raw = rawDocs.find((doc) => doc.id === item.id);
-  expect(raw).toBeDefined();
-  expect(Object.hasOwn(raw!, "reviewOutcome")).toBe(false);
-});
-
-test("a reopened item leaves nextPending's active set, exactly like any other parked item", async () => {
-  // Proves the interaction the finding named explicitly: ACTIVE_OUTBOX_STATUSES
-  // omits `awaiting-review` regardless of how an item got there, and this asserts
-  // it through the REAL reopenForReview path rather than through a hand-patch —
-  // which is the gap this method exists to close in the first place.
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  const other = await outbox.enqueue({
-    recording: { ...recording, id: "other" },
-    audio: audioBlob(),
-  });
-  await outbox.patch(item.id, {
-    status: "dead",
-    transcript: dyingTranscript,
-    extracted: { atticRValue: {} },
-  });
-
-  await outbox.reopenForReview(item.id);
-
-  // `item` has the lower seq, so if reopening it were active it would win here.
-  // It does not: `other` does, because a reopened item is parked, not active.
-  expect((await outbox.nextPending())?.id).toBe(other.id);
-});
-
-test("reopening an unknown id rejects", async () => {
-  const outbox = await open(uniqueName());
-  await expect(outbox.reopenForReview("nope")).rejects.toThrow(/nope/);
-});
-
-test("a dead item with nothing extracted refuses to be reopened", async () => {
-  // Died during transcribe, or during a host `extract` step, before anything
-  // reached review — reopening it to `awaiting-review` would hand a human a
-  // review card with nothing on it, which is not a state anything else in this
-  // package produces.
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(item.id, { status: "dead" });
-
-  await expect(outbox.reopenForReview(item.id)).rejects.toThrow(/no extracted data/);
-
-  const settled = await outbox.get(item.id);
-  expect(settled?.status).toBe("dead");
-});
-
-test("a dead item with extracted data but no transcript refuses to be reopened", async () => {
-  // The real pipeline cannot construct this combination on its own — extraction
-  // never runs before a transcript is persisted (`relay.ts`'s `nextStep`) — but
-  // `patch()` is public and unrestricted, so a document built by hand (or by a
-  // future migration, or another build) could still carry `extracted` without a
-  // `transcript`. Reopening it would park an item at `awaiting-review` that
-  // `buildReviewRequest` cannot build an honest review card for: there would be
-  // nothing to check an extracted span's groundedness against.
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(item.id, { status: "dead", extracted: { atticRValue: {} } });
-
-  await expect(outbox.reopenForReview(item.id)).rejects.toThrow(/no transcript/);
-
-  const settled = await outbox.get(item.id);
-  expect(settled?.status).toBe("dead");
-});
-
-// Every status but `dead`, driven from the constant so a status added later is
-// covered without anyone remembering to come back here — the same reasoning as
-// the FINISHED_OUTBOX_STATUSES table above, over the wider list this guard
-// actually has to refuse. `done` would risk a second write; `discarded` would
-// undo an audited human decision this method has no business reversing;
-// everything else is a status the relay still owns, where reopening would only
-// race it.
-// `recording` is excluded alongside `dead` for a different reason: this fixture
-// builds its row with `enqueue`, which by construction produces a `queued` row
-// with committed audio and no `capture`. A `recording` row must carry `capture`,
-// which this test cannot legally construct here. It gets covered once
-// `beginRecording` exists and can build one honestly — until then, asserting on
-// a row this test cannot legally create would prove nothing.
-test.each(OUTBOX_STATUSES.filter((status) => status !== "dead" && status !== "recording"))(
-  "a %s item cannot be reopened for review",
-  async (status) => {
-    const outbox = await open(uniqueName());
-    const item = await outbox.enqueue({ recording, audio: audioBlob() });
-    await outbox.patch(item.id, {
-      status,
-      transcript: dyingTranscript,
-      extracted: { atticRValue: {} },
-    });
-
-    await expect(outbox.reopenForReview(item.id)).rejects.toThrow(new RegExp(`"${status}"`));
-
-    const settled = await outbox.get(item.id);
-    expect(settled?.status).toBe(status);
-  },
-);
-
-test("two reopenForReview calls in flight at once, on ONE Outbox, settle as one winner and one refusal", async () => {
-  // The same genuinely-concurrent 409-and-re-run path `submitReview`'s own
-  // equivalent test drives, exercised here because `reopenForReview` shares the
-  // exposure `incrementalModify` closes: without it, two reopens racing could
-  // both read `status: "dead"` before either write lands and both "win", which
-  // is a lost update, not merely a missing rejection.
-  //
-  // This proves the guard survives two CALLS racing on one connection — it does
-  // NOT prove it survives two TABS, i.e. two independent `RxDatabase` connections
-  // over the same IndexedDB name: an implementation guarded only by an in-memory
-  // mutex scoped to this one `Outbox` instance would also make this test pass
-  // while doing nothing to stop a second, independent connection. That case is
-  // covered separately, in `outbox-reopen-cross-tab.browser.test.ts` — see that
-  // file's header for why it could not simply be added here.
-  const outbox = await open(uniqueName());
-  const item = await outbox.enqueue({ recording, audio: audioBlob() });
-  await outbox.patch(item.id, {
-    status: "dead",
-    transcript: dyingTranscript,
-    extracted: { atticRValue: {} },
-  });
-
-  const results = await Promise.allSettled([
-    outbox.reopenForReview(item.id),
-    outbox.reopenForReview(item.id),
-  ]);
-
-  expect(results.map((result) => result.status)).toEqual(["fulfilled", "rejected"]);
-  const settled = await outbox.get(item.id);
-  expect(settled?.status).toBe("awaiting-review");
-});
-
-// ---------------------------------------------------------------------------
 // Filtered reads
 // ---------------------------------------------------------------------------
 
 test("list and watch can filter by status and cap the result", async () => {
   const outbox = await open(uniqueName());
-  const a = await outbox.enqueue({ recording: { ...recording, id: "a" }, audio: audioBlob() });
-  const b = await outbox.enqueue({ recording: { ...recording, id: "b" }, audio: audioBlob() });
-  const c = await outbox.enqueue({ recording: { ...recording, id: "c" }, audio: audioBlob() });
-  await outbox.patch(b.id, { status: "done" });
+  const a = await outbox.enqueue({
+    recording: { ...recording, id: "a" },
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
+  const b = await outbox.enqueue({
+    recording: { ...recording, id: "b" },
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
+  const c = await outbox.enqueue({
+    recording: { ...recording, id: "c" },
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
+  await outbox.patch(b.id, { status: "transcribed" });
 
   // The no-argument calls keep their old meaning: every item, seq-ascending.
   expect((await outbox.list()).map((item) => item.id)).toEqual([a.id, b.id, c.id]);
 
-  expect((await outbox.list({ status: "done" })).map((item) => item.id)).toEqual([b.id]);
-  expect((await outbox.list({ status: ["queued", "done"] })).map((item) => item.id)).toEqual([
-    a.id,
-    b.id,
-    c.id,
-  ]);
+  expect((await outbox.list({ status: "transcribed" })).map((item) => item.id)).toEqual([b.id]);
+  expect((await outbox.list({ status: ["queued", "transcribed"] })).map((item) => item.id)).toEqual(
+    [a.id, b.id, c.id],
+  );
   expect((await outbox.list({ status: ACTIVE_OUTBOX_STATUSES })).map((item) => item.id)).toEqual([
     a.id,
     c.id,
@@ -1058,11 +650,19 @@ test("a filtered watch re-emits when an item moves in or out of the filter", asy
     .subscribe((items) => seen.push(items.map((item) => item.recording.id)));
 
   try {
-    const a = await outbox.enqueue({ recording: { ...recording, id: "a" }, audio: audioBlob() });
-    await outbox.enqueue({ recording: { ...recording, id: "b" }, audio: audioBlob() });
+    const a = await outbox.enqueue({
+      recording: { ...recording, id: "a" },
+      audio: audioBlob(),
+      sessionId: SESSION_ID,
+    });
+    await outbox.enqueue({
+      recording: { ...recording, id: "b" },
+      audio: audioBlob(),
+      sessionId: SESSION_ID,
+    });
     await vi.waitFor(() => expect(seen.at(-1)).toEqual(["a", "b"]));
 
-    await outbox.patch(a.id, { status: "done" });
+    await outbox.patch(a.id, { status: "transcribed" });
     await vi.waitFor(() => expect(seen.at(-1)).toEqual(["b"]));
   } finally {
     subscription.unsubscribe();
@@ -1075,11 +675,19 @@ test("a filtered watch re-emits when an item moves in or out of the filter", asy
 
 test("nextPending returns the lowest-seq item that is not finished", async () => {
   const outbox = await open(uniqueName());
-  const a = await outbox.enqueue({ recording: { ...recording, id: "a" }, audio: audioBlob() });
-  const b = await outbox.enqueue({ recording: { ...recording, id: "b" }, audio: audioBlob() });
+  const a = await outbox.enqueue({
+    recording: { ...recording, id: "a" },
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
+  const b = await outbox.enqueue({
+    recording: { ...recording, id: "b" },
+    audio: audioBlob(),
+    sessionId: SESSION_ID,
+  });
 
   expect((await outbox.nextPending())?.id).toBe(a.id);
-  await outbox.patch(a.id, { status: "done" });
+  await outbox.patch(a.id, { status: "transcribed" });
   expect((await outbox.nextPending())?.id).toBe(b.id);
   await outbox.patch(b.id, { status: "dead" });
   expect(await outbox.nextPending()).toBeUndefined();
@@ -1089,7 +697,7 @@ test("a persisted stream of documents is observable for the UI", async () => {
   const outbox = await open(uniqueName());
   const seen: number[] = [];
   const subscription = outbox.items$.subscribe((items) => seen.push(items.length));
-  await outbox.enqueue({ recording, audio: audioBlob() });
+  await outbox.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
   await vi.waitFor(() => expect(seen.at(-1)).toBe(1));
   subscription.unsubscribe();
 });
@@ -1117,7 +725,7 @@ test("the first items$ emission carrying a new item already has its audio", asyn
   });
 
   try {
-    await outbox.enqueue({ recording, audio: audioBlob() });
+    await outbox.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
     const { item, audio } = await atFirstSighting;
 
     expect(audio).toBeInstanceOf(Blob);
@@ -1186,6 +794,7 @@ test("beginRecording creates a recording row with capture.sourceId and no commit
   const item = await outbox.beginRecording({
     recording: { ...recording, durationMs: 0 },
     sourceId: "s1",
+    sessionId: SESSION_ID,
   });
   expect(item.status).toBe("recording");
   expect(item.capture).toEqual({ sourceId: "s1" });
@@ -1198,6 +807,7 @@ test("appendChunk writes a chunk attachment and audioBytes reflects it", async (
   const item = await outbox.beginRecording({
     recording: { ...recording, durationMs: 0 },
     sourceId: "s1",
+    sessionId: SESSION_ID,
   });
   await outbox.appendChunk(item.id, chunkName("s1", 0, 0), audioBlob());
   const after = await outbox.get(item.id);
@@ -1214,6 +824,7 @@ test("commitRecording writes canonical audio, transitions to queued, and sweeps 
   const item = await outbox.beginRecording({
     recording: { ...recording, durationMs: 0 },
     sourceId: "s1",
+    sessionId: SESSION_ID,
   });
   await outbox.appendChunk(item.id, chunkName("s1", 0, 0), audioBlob());
   const merged = await outbox.mergeChunks(item.id);
@@ -1240,6 +851,7 @@ test("mergeChunks concatenates chunk attachments in name order", async () => {
   const item = await outbox.beginRecording({
     recording: { ...recording, durationMs: 0 },
     sourceId: "s1",
+    sessionId: SESSION_ID,
   });
   const partA = new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" });
   const partB = new Blob([new Uint8Array([4, 5, 6])], { type: "audio/webm" });

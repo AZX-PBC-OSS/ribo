@@ -5,6 +5,7 @@ import { useCallback, useMemo } from "react";
 import { useConnectivity } from "./use-connectivity.js";
 import { useOptionalRiboInstance } from "./use-ribo-instance.js";
 import { useOutboxItems } from "./use-outbox-items.js";
+import { useSessions } from "./use-sessions.js";
 import { useStoragePersistence } from "./use-storage-persistence.js";
 import { useSubscribed } from "./use-subscribed.js";
 
@@ -50,7 +51,12 @@ export interface UseWorkSafetyResult {
  * (see its own doc comment), never bypassed the way a test can bypass the others.
  */
 export function useWorkSafety(): UseWorkSafetyResult {
-  const { items, loading, error } = useOutboxItems();
+  const {
+    items: recordings,
+    loading: recordingsLoading,
+    error: recordingsError,
+  } = useOutboxItems();
+  const { items: sessions, loading: sessionsLoading, error: sessionsError } = useSessions();
   const { persistence } = useStoragePersistence();
   const connectivity = useConnectivity();
   const captureCoordinator = useOptionalRiboInstance("captureCoordinator", undefined);
@@ -72,9 +78,14 @@ export function useWorkSafety(): UseWorkSafetyResult {
   // Withheld rather than defaulted whenever the inputs are not trustworthy. See
   // the note on `safety` above: an unreadable outbox looks exactly like an empty
   // one, and "empty" classifies as safe.
+  const loading = recordingsLoading || sessionsLoading;
+  const error = recordingsError ?? sessionsError;
   const usable = !loading && error === undefined;
 
-  const work = useMemo(() => (usable ? summarizeWork(items) : undefined), [items, usable]);
+  const work = useMemo(
+    () => (usable ? summarizeWork(recordings, sessions) : undefined),
+    [recordings, sessions, usable],
+  );
   const safety = useMemo(
     () =>
       work === undefined

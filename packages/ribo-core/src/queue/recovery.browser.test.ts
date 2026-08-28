@@ -22,7 +22,7 @@ async function plantInterrupted(
   chunks: number,
   truncateLast = false,
 ): Promise<string> {
-  const item = await outbox.beginRecording({ recording, sourceId });
+  const item = await outbox.beginRecording({ recording, sourceId, sessionId: "test-session" });
   for (let i = 0; i < chunks; i++) {
     const isLast = i === chunks - 1;
     const bytes =

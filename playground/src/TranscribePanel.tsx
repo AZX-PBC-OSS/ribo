@@ -342,8 +342,8 @@ async function runOnDeviceRelay(outbox: Outbox): Promise<void> {
     transcriber: firstCapable([getTranscriber(), getManagedTranscriber()], {
       onFallback: recordFallback,
     }),
-    extract: extractStep,
-    write: () => Promise.resolve({ writtenBy: "playground on-device demo" }),
+    sessionExtract: extractStep,
+    sessionWrite: () => Promise.resolve({ writtenBy: "playground on-device demo" }),
   });
   await relay.syncNow();
 }

@@ -6,8 +6,8 @@ import {
   type ExistingRecord,
   type FieldDecision,
   type Outbox,
-  type OutboxItem,
   type RankedCandidate,
+  type SessionItem,
 } from "@azx/ribo-core";
 import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 import { z } from "zod";
@@ -49,30 +49,41 @@ const recording = () => ({
 });
 
 /**
- * A parked item covering all three cases the schema walk has to handle: a grounded
+ * A parked session covering all three cases the schema walk has to handle: a grounded
  * leaf, an ungrounded one, and `healthSafety.asbestos`, which the model OMITTED —
  * present here only because the schema says it exists.
+ *
+ * After the schema split the session owns `extracted` and the recording owns its
+ * `transcript`, so the fixture opens a session, enqueues one recording into it,
+ * writes the transcript on the recording, then patches the session to
+ * `awaiting-review` with the extraction output.
  */
 async function parkedItem() {
   const outbox = await openOutbox({
     name: `t-${crypto.randomUUID()}`,
     storage: getRxStorageMemory(),
   });
-  const item = await outbox.enqueue({
+  const session = await outbox.openSession();
+  const rec = await outbox.enqueue({
     recording: recording(),
     audio: new Blob(["x"], { type: "audio/webm" }),
+    sessionId: session.id,
   });
-  const parked = await outbox.patch(item.id, {
+  await outbox.patch(rec.id, {
+    status: "transcribed",
+    transcript: transcriptFor(rec.recording.id),
+  });
+  const parked = await outbox.patchSession(session.id, {
     status: "awaiting-review",
-    transcript: transcriptFor(item.recording.id),
     extracted: {
       atticRValue: { value: 19, confidence: 1, sourceSpan: "R-19" },
       healthSafety: {
         ambientCo: { value: "passed", confidence: 1, sourceSpan: "the CO reading was fine" },
       },
     },
+    extractedFromRecordingIds: [rec.id],
   });
-  return { outbox, item: parked };
+  return { outbox, session: parked };
 }
 
 /**
@@ -80,30 +91,37 @@ async function parkedItem() {
  *
  * `extra` merges over the base `{ valuesSchema, outbox }` — the one caller that
  * needs `requiredOnCreate` is what it exists for, so most call sites pass nothing.
+ *
+ * When `session` is not `undefined`, waits for `ready` to become `true` before
+ * returning: `useOutboxItems` inside `useReview` loads the session's recordings
+ * asynchronously, so the first render after mount is not yet ready.
  */
 async function probe(
-  item: OutboxItem | undefined,
+  session: SessionItem | undefined,
   outbox: Outbox,
   extra: Partial<UseReviewOptions> = {},
 ) {
   const seen: { current: UseReviewResult | undefined } = { current: undefined };
-  function Probe({ subject }: { subject: OutboxItem | undefined }) {
+  function Probe({ subject }: { subject: SessionItem | undefined }) {
     seen.current = useReview(subject, { valuesSchema, outbox, ...extra });
     return null;
   }
-  const screen = await render(<Probe subject={item} />);
+  const screen = await render(<Probe subject={session} />);
+  if (session !== undefined) {
+    await vi.waitFor(() => expect(seen.current!.ready).toBe(true));
+  }
   return { seen, screen, Probe };
 }
 
-test("is not ready until the item has both a transcript and an extraction", async () => {
-  const { outbox, item } = await parkedItem();
+test("is not ready until the session has both a joined transcript and an extraction", async () => {
+  const { outbox, session } = await parkedItem();
   const { seen, screen, Probe } = await probe(undefined, outbox);
 
   expect(seen.current!.ready).toBe(false);
   expect(seen.current!.fields).toBeUndefined();
 
-  await screen.rerender(<Probe subject={item} />);
-  expect(seen.current!.ready).toBe(true);
+  await screen.rerender(<Probe subject={session} />);
+  await vi.waitFor(() => expect(seen.current!.ready).toBe(true));
   await outbox.close();
 });
 
@@ -112,8 +130,8 @@ test("fields are the schema's leaves, by dotted path, in declaration order", asy
   // here because the schema says it exists -- the model never emitted it, and a
   // field that vanishes from the card is indistinguishable to the auditor from one
   // that was extracted correctly.
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   expect(Object.keys(seen.current!.fields!)).toEqual([
     "atticRValue",
@@ -129,8 +147,8 @@ test("fields are the schema's leaves, by dotted path, in declaration order", asy
 });
 
 test("grounding comes from core, so every UI flags the same thing", async () => {
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   expect(seen.current!.fields!.atticRValue!.isGrounded).toBe(true);
   // "the CO reading was fine" was never said -- the model invented the quote.
@@ -144,8 +162,8 @@ test("each field carries its own leaf schema, so a UI can render an editor witho
   // The property AGENTS.md §4 now rests on: everything needed to render and
   // validate one editor is on the field, and a TypeScript type could not carry
   // the enum's members to runtime.
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   const leaf = seen.current!.fields!["healthSafety.ambientCo"]!.schema;
   expect(leaf.safeParse("passed").success).toBe(true);
@@ -159,8 +177,10 @@ test("requiredOnCreate marks the named leaf required and leaves every other leaf
   // `requiredOnCreate` list through `useReview` into the request it builds. Without
   // it every leaf's `required` is `false`, silently, because
   // `BuildReviewRequestOptions.requiredOnCreate` defaults to `undefined` there too.
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox, { requiredOnCreate: { healthSafety: ["ambientCo"] } });
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox, {
+    requiredOnCreate: { healthSafety: ["ambientCo"] },
+  });
 
   expect(seen.current!.fields!["healthSafety.ambientCo"]!.required).toBe(true);
   // Not named -> not required. An adapter's silence is not a claim of absence,
@@ -174,8 +194,8 @@ test("every leaf starts accepted, and untouched names what nobody looked at", as
   // Core's contract says a leaf with no decision is indistinguishable from one the
   // reviewer never saw, so decisions start complete and `untouched` is what lets a
   // host refuse to submit while an ungrounded leaf has not been visited.
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   expect(seen.current!.decisionOf("atticRValue")).toEqual({ status: "accepted" });
   expect(seen.current!.untouched).toEqual([
@@ -188,8 +208,8 @@ test("every leaf starts accepted, and untouched names what nobody looked at", as
 });
 
 test("submitting untouched leaves yields an accepted outcome with the nesting rebuilt", async () => {
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   const outcome = await seen.current!.submit();
 
@@ -200,7 +220,7 @@ test("submitting untouched leaves yields an accepted outcome with the nesting re
     fields: { atticRValue: 19, healthSafety: { ambientCo: "passed", asbestos: null } },
   });
 
-  const persisted = await outbox.get(item.id);
+  const persisted = await outbox.getSession(session.id);
   expect(persisted?.status).toBe("writing");
   expect(persisted?.reviewOutcome).toMatchObject({ status: "accepted" });
   await outbox.close();
@@ -210,8 +230,8 @@ test("an edit is reported as edited even when the value is unchanged", async () 
   // resolveReview's rule: the signal is what the human touched, not whether the
   // bytes changed. Comparing values would under-report review effort for exactly
   // the leaves someone stopped to check.
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   seen.current!.edit("atticRValue", 19);
   await vi.waitFor(() =>
@@ -226,8 +246,8 @@ test("an edit is reported as edited even when the value is unchanged", async () 
 test("rejecting the last leaf of a group drops the group entirely", async () => {
   // A nested group only materialises when one of its leaves survives review, and
   // an absent key is what a patch means by "leave this alone".
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   seen.current!.reject("healthSafety.ambientCo");
   seen.current!.reject("healthSafety.asbestos");
@@ -246,8 +266,8 @@ test("rejecting the last leaf of a group drops the group entirely", async () => 
 });
 
 test("editing to null is a positive assertion, not a rejection", async () => {
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   seen.current!.edit("healthSafety.ambientCo", null);
   await vi.waitFor(() =>
@@ -270,11 +290,11 @@ test("the absent-versus-null distinction is pinned on what's actually persisted,
   // implementation that computes a perfectly correct outcome but then persists
   // something else entirely -- an empty `{ fields: {} }`, a version with nulls
   // stripped, one that reinstates a rejected leaf -- would pass every one of
-  // them. `outbox.submitReview` is the actual trust boundary (`relay.ts` reads
+  // them. `outbox.submitSessionReview` is the actual trust boundary (`relay.ts` reads
   // straight off what lands there), so this spies on the call itself.
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
-  const submitReviewSpy = vi.spyOn(outbox, "submitReview");
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
+  const submitSessionReviewSpy = vi.spyOn(outbox, "submitSessionReview");
 
   seen.current!.reject("atticRValue"); // must end up ABSENT from what's persisted
   seen.current!.edit("healthSafety.ambientCo", null); // must end up PRESENT and null
@@ -287,10 +307,10 @@ test("the absent-versus-null distinction is pinned on what's actually persisted,
   const outcome = await seen.current!.submit();
   expect(outcome).toMatchObject({ status: "edited" });
 
-  expect(submitReviewSpy).toHaveBeenCalledTimes(1);
-  const persisted = submitReviewSpy.mock.calls[0]![1] as { fields: Record<string, unknown> };
+  expect(submitSessionReviewSpy).toHaveBeenCalledTimes(1);
+  const persisted = submitSessionReviewSpy.mock.calls[0]![1] as { fields: Record<string, unknown> };
   expect(Object.hasOwn(persisted.fields, "atticRValue")).toBe(false);
-  // The real NESTED shape `submitReview` actually receives, not a dotted one.
+  // The real NESTED shape `submitSessionReview` actually receives, not a dotted one.
   expect(persisted.fields.healthSafety).toEqual({ ambientCo: null, asbestos: null });
   await outbox.close();
 });
@@ -301,9 +321,9 @@ test("accept() explicitly re-accepts the extracted value -- including a sentinel
   // model extracted, even when that value is the omitted-leaf sentinel `null`
   // rather than a real answer -- and the persisted call must show it PRESENT,
   // not silently dropped the way a rejection would leave it.
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
-  const submitReviewSpy = vi.spyOn(outbox, "submitReview");
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
+  const submitSessionReviewSpy = vi.spyOn(outbox, "submitSessionReview");
 
   seen.current!.reject("healthSafety.asbestos");
   await vi.waitFor(() =>
@@ -320,8 +340,8 @@ test("accept() explicitly re-accepts the extracted value -- including a sentinel
     fields: { atticRValue: 19, healthSafety: { ambientCo: "passed", asbestos: null } },
   });
 
-  expect(submitReviewSpy).toHaveBeenCalledTimes(1);
-  const persisted = submitReviewSpy.mock.calls[0]![1] as unknown as {
+  expect(submitSessionReviewSpy).toHaveBeenCalledTimes(1);
+  const persisted = submitSessionReviewSpy.mock.calls[0]![1] as unknown as {
     fields: { healthSafety: Record<string, unknown> };
   };
   expect(Object.hasOwn(persisted.fields.healthSafety, "asbestos")).toBe(true);
@@ -336,8 +356,8 @@ test("editing to undefined is refused rather than normalised", async () => {
   // still names it as touched. Refused at the call site so the report lands on the
   // keystroke that caused it, and never rewritten to null, which would write an
   // empty value nobody asked for.
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   expect(() => seen.current!.edit("atticRValue", undefined)).toThrow(/undefined/);
   expect(() => seen.current!.edit("atticRValue", undefined)).toThrow(/reject/);
@@ -354,8 +374,8 @@ test("an unknown or mistyped path throws rather than silently flipping meaning",
   // "healthSafety.asbestos" defaulted to accepted -- turning an intended
   // rejection into an acceptance of whatever the model extracted, with no error
   // anywhere. This must be loud instead.
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   expect(() => seen.current!.reject("healthSafety.asbestoss")).toThrow(/not a field/i);
   expect(() => seen.current!.accept("attic_R_Value")).toThrow(/not a field/i);
@@ -376,8 +396,8 @@ test("a submit whose value fails its leaf schema throws AND reports the leaf", a
   // Both halves are the requirement. Throwing is what stops a caller proceeding as
   // though the review went in; `errors` is what lets the card show the message
   // beside the input while the auditor is still looking at it.
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   seen.current!.edit("atticRValue", "thirty");
   await vi.waitFor(() =>
@@ -387,14 +407,14 @@ test("a submit whose value fails its leaf schema throws AND reports the leaf", a
   await expect(seen.current!.submit()).rejects.toBeInstanceOf(ReviewValidationError);
   await vi.waitFor(() => expect(seen.current!.errors.atticRValue).toMatch(/not valid/i));
   expect(seen.current!.error).toBeInstanceOf(ReviewValidationError);
-  // Nothing was persisted, and the item did not move.
-  expect((await outbox.get(item.id))?.status).toBe("awaiting-review");
+  // Nothing was persisted, and the session did not move.
+  expect((await outbox.getSession(session.id))?.status).toBe("awaiting-review");
   await outbox.close();
 });
 
 test("an error clears for a leaf as soon as that leaf is decided again", async () => {
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   seen.current!.edit("atticRValue", "thirty");
   await vi.waitFor(() =>
@@ -412,8 +432,8 @@ test("an error clears for a leaf as soon as that leaf is decided again", async (
 });
 
 test("a successful submit clears every error left over from a failed one", async () => {
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   seen.current!.edit("atticRValue", "thirty");
   await vi.waitFor(() =>
@@ -445,20 +465,26 @@ test("a successful submit clears every error left over from a failed one", async
   await outbox.close();
 });
 
-test("decisions and errors do not leak between items in a reused component", async () => {
-  // A queue UI reuses one card for the next parked item, and leaf paths repeat
-  // across recordings. A correction made to recording A must not be submitted
-  // against recording B -- and it must be gone on the FIRST render after the swap,
+test("decisions and errors do not leak between sessions in a reused component", async () => {
+  // A queue UI reuses one card for the next parked session, and leaf paths repeat
+  // across recordings. A correction made to session A must not be submitted
+  // against session B -- and it must be gone on the FIRST render after the swap,
   // not one render later, because that render can submit.
-  const { outbox, item: first } = await parkedItem();
-  const second = await outbox.enqueue({
+  const { outbox, session: first } = await parkedItem();
+  const secondSession = await outbox.openSession();
+  const secondRec = await outbox.enqueue({
     recording: recording(),
     audio: new Blob(["x"], { type: "audio/webm" }),
+    sessionId: secondSession.id,
   });
-  const parkedSecond = await outbox.patch(second.id, {
+  await outbox.patch(secondRec.id, {
+    status: "transcribed",
+    transcript: transcriptFor(secondRec.recording.id),
+  });
+  const parkedSecond = await outbox.patchSession(secondSession.id, {
     status: "awaiting-review",
-    transcript: transcriptFor(second.recording.id),
     extracted: { atticRValue: { value: 11, confidence: 1, sourceSpan: "R-11" } },
+    extractedFromRecordingIds: [secondRec.id],
   });
 
   // A plain `probe()` cannot pin "not one render later": `rerender()` wraps
@@ -467,13 +493,13 @@ test("decisions and errors do not leak between items in a reused component", asy
   // a broken effect-based reset has already had its extra render and looks
   // identical to the correct synchronous guard. So this component instead
   // records the decision `useReview` reports on EVERY render for the second
-  // item -- the guard resets it on the very first one; an effect-based reset
+  // session -- the guard resets it on the very first one; an effect-based reset
   // would report the stale "edited" decision on that first entry and only fix
   // it on a second, which this history makes visible even after `act()` has
   // long since settled.
   const seen: { current: UseReviewResult | undefined } = { current: undefined };
   const seenForSecond: FieldDecision[] = [];
-  function Probe({ subject }: { subject: OutboxItem | undefined }) {
+  function Probe({ subject }: { subject: SessionItem | undefined }) {
     const result = useReview(subject, { valuesSchema, outbox });
     seen.current = result;
     if (subject?.id === parkedSecond.id) {
@@ -483,6 +509,7 @@ test("decisions and errors do not leak between items in a reused component", asy
   }
 
   const screen = await render(<Probe subject={first} />);
+  await vi.waitFor(() => expect(seen.current!.ready).toBe(true));
   seen.current!.edit("atticRValue", "thirty");
   await vi.waitFor(() =>
     expect(seen.current!.decisionOf("atticRValue")).toMatchObject({ status: "edited" }),
@@ -492,7 +519,7 @@ test("decisions and errors do not leak between items in a reused component", asy
 
   await screen.rerender(<Probe subject={parkedSecond} />);
 
-  // The FIRST render for the new item already saw the reset decision, not a
+  // The FIRST render for the new session already saw the reset decision, not a
   // stale one corrected one render later.
   expect(seenForSecond[0]).toEqual({ status: "accepted" });
   expect(seen.current!.decisionOf("atticRValue")).toEqual({ status: "accepted" });
@@ -501,31 +528,39 @@ test("decisions and errors do not leak between items in a reused component", asy
   await outbox.close();
 });
 
-test("switching items while a submit is pending does not leak submitting or error onto the next item", async () => {
-  // `decisions`/`errors` are not the only per-item state -- `submitting` and
-  // `error` used to live in their own, item-blind `useState`s. Reproduces both
-  // halves of that leak: (1) the SECOND item's very first render must already
-  // show a clean slate while the first item's write is still in flight, and (2)
+test("switching sessions while a submit is pending does not leak submitting or error onto the next session", async () => {
+  // `decisions`/`errors` are not the only per-session state -- `submitting` and
+  // `error` used to live in their own, session-blind `useState`s. Reproduces both
+  // halves of that leak: (1) the SECOND session's very first render must already
+  // show a clean slate while the first session's write is still in flight, and (2)
   // once that stale write finally settles, its completion must not resurrect
   // anything on a card that has since moved on.
-  const { outbox, item: first } = await parkedItem();
-  const second = await outbox.enqueue({
+  const { outbox, session: first } = await parkedItem();
+  const secondSession = await outbox.openSession();
+  const secondRec = await outbox.enqueue({
     recording: recording(),
     audio: new Blob(["x"], { type: "audio/webm" }),
+    sessionId: secondSession.id,
   });
-  const parkedSecond = await outbox.patch(second.id, {
+  await outbox.patch(secondRec.id, {
+    status: "transcribed",
+    transcript: transcriptFor(secondRec.recording.id),
+  });
+  const parkedSecond = await outbox.patchSession(secondSession.id, {
     status: "awaiting-review",
-    transcript: transcriptFor(second.recording.id),
     extracted: { atticRValue: { value: 11, confidence: 1, sourceSpan: "R-11" } },
+    extractedFromRecordingIds: [secondRec.id],
   });
 
-  // Held open until the test decides to fail it, so the first item's submit is
-  // genuinely still in flight when the card switches to the second item.
+  // Held open until the test decides to fail it, so the first session's submit is
+  // genuinely still in flight when the card switches to the second session.
   let rejectFirstWrite: (error: Error) => void = () => undefined;
-  const pendingWrite = new Promise<OutboxItem>((_, reject) => {
+  const pendingWrite = new Promise<SessionItem>((_, reject) => {
     rejectFirstWrite = reject;
   });
-  const submitReviewSpy = vi.spyOn(outbox, "submitReview").mockReturnValueOnce(pendingWrite);
+  const submitSessionReviewSpy = vi
+    .spyOn(outbox, "submitSessionReview")
+    .mockReturnValueOnce(pendingWrite);
 
   const { seen, screen, Probe } = await probe(first, outbox);
 
@@ -541,31 +576,33 @@ test("switching items while a submit is pending does not leak submitting or erro
 
   rejectFirstWrite(new Error("stale network failure"));
   await expect(submitPromise).rejects.toThrow("stale network failure");
-  // Give the (incorrect) cross-item write every chance to land before checking
+  // Give the (incorrect) cross-session write every chance to land before checking
   // it didn't.
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(seen.current!.submitting).toBe(false);
   expect(seen.current!.error).toBeUndefined();
 
-  submitReviewSpy.mockRestore();
+  submitSessionReviewSpy.mockRestore();
   await outbox.close();
 });
 
-test("a stale operation's completion cannot override a newer one on the same item", async () => {
-  // Two submits in flight together for ONE item: `forItem` alone cannot tell
+test("a stale operation's completion cannot override a newer one on the same session", async () => {
+  // Two submits in flight together for ONE session: `forSession` alone cannot tell
   // them apart, since neither ever changes it. Without a token, the first
   // attempt's completion -- arriving after the second has already succeeded --
   // would report `submitting: false` (masking that the second write, if it were
   // still running, hadn't finished) and, worse, resurrect an error over a review
   // that has already, successfully, gone in.
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   let rejectFirstWrite: (error: Error) => void = () => undefined;
-  const firstWrite = new Promise<OutboxItem>((_, reject) => {
+  const firstWrite = new Promise<SessionItem>((_, reject) => {
     rejectFirstWrite = reject;
   });
-  const submitReviewSpy = vi.spyOn(outbox, "submitReview").mockReturnValueOnce(firstWrite);
+  const submitSessionReviewSpy = vi
+    .spyOn(outbox, "submitSessionReview")
+    .mockReturnValueOnce(firstWrite);
 
   const firstSubmit = seen.current!.submit();
   await vi.waitFor(() => expect(seen.current!.submitting).toBe(true));
@@ -595,18 +632,18 @@ test("a stale operation's completion cannot override a newer one on the same ite
   expect(seen.current!.submitting).toBe(false);
   expect(seen.current!.error).toBeUndefined();
 
-  submitReviewSpy.mockRestore();
+  submitSessionReviewSpy.mockRestore();
   await outbox.close();
 });
 
-test("a schema change on the same item revalidates a stale error without re-deciding the leaf", async () => {
+test("a schema change on the same session revalidates a stale error without re-deciding the leaf", async () => {
   // The bulk `errors: {}` clear inside submit() is not redundant with
-  // per-decision clearing in every case: `decisions` is keyed by item, not by
+  // per-decision clearing in every case: `decisions` is keyed by session, not by
   // which `valuesSchema` produced `request`, so a leaf can go from invalid to
   // valid because the SCHEMA loosened between two submits, with its own decision
   // never touched. Per-decision clearing (`setDecision`'s `withoutPath`) never
   // fires in that case, so only the bulk clear can retire the stale message.
-  const { outbox, item } = await parkedItem();
+  const { outbox, session } = await parkedItem();
 
   const strictSchema = valuesSchema; // atticRValue: z.number().nullable().optional()
   const relaxedSchema = z.object({
@@ -621,11 +658,12 @@ test("a schema change on the same item revalidates a stale error without re-deci
 
   const seen: { current: UseReviewResult | undefined } = { current: undefined };
   function Probe({ schema }: { schema: z.ZodObject }) {
-    seen.current = useReview(item, { valuesSchema: schema, outbox });
+    seen.current = useReview(session, { valuesSchema: schema, outbox });
     return null;
   }
 
   const screen = await render(<Probe schema={strictSchema} />);
+  await vi.waitFor(() => expect(seen.current!.ready).toBe(true));
 
   seen.current!.edit("atticRValue", "thirty");
   await vi.waitFor(() =>
@@ -634,7 +672,7 @@ test("a schema change on the same item revalidates a stale error without re-deci
   await expect(seen.current!.submit()).rejects.toThrow();
   await vi.waitFor(() => expect(seen.current!.errors.atticRValue).toBeDefined());
 
-  // Same item, same decision ("thirty" is still what's recorded for
+  // Same session, same decision ("thirty" is still what's recorded for
   // atticRValue) -- only the field's own schema now accepts a string.
   await screen.rerender(<Probe schema={relaxedSchema} />);
 
@@ -644,16 +682,20 @@ test("a schema change on the same item revalidates a stale error without re-deci
   await outbox.close();
 });
 
-test("discarding is terminal and drops the audio", async () => {
-  const { outbox, item } = await parkedItem();
-  const { seen } = await probe(item, outbox);
+test("discarding is terminal", async () => {
+  // A discarded review outcome on a session means the human decided the whole
+  // session's extraction is not going anywhere. Unlike the recording's discard
+  // (which drops audio), there is no audio on the session to drop — the
+  // recordings stay. The session transitions to `done` with the outcome recorded.
+  const { outbox, session } = await parkedItem();
+  const { seen } = await probe(session, outbox);
 
   const outcome = await seen.current!.discard("misspoke");
   expect(outcome).toEqual({ status: "discarded", reason: "misspoke" });
 
-  const persisted = await outbox.get(item.id);
-  expect(persisted?.status).toBe("discarded");
-  expect(persisted?.audioReady).toBe(false);
+  const persisted = await outbox.getSession(session.id);
+  expect(persisted?.status).toBe("done");
+  expect(persisted?.reviewOutcome).toMatchObject({ status: "discarded", reason: "misspoke" });
   await outbox.close();
 });
 
@@ -682,13 +724,18 @@ describe("useReview — instance identity: link-or-create decision", () => {
       name: `t-${crypto.randomUUID()}`,
       storage: getRxStorageMemory(),
     });
-    const item = await outbox.enqueue({
+    const session = await outbox.openSession();
+    const rec = await outbox.enqueue({
       recording: recording(),
       audio: new Blob(["x"], { type: "audio/webm" }),
+      sessionId: session.id,
     });
-    const parked = await outbox.patch(item.id, {
-      status: "awaiting-review",
+    await outbox.patch(rec.id, {
+      status: "transcribed",
       transcript: collectionTranscript,
+    });
+    const parked = await outbox.patchSession(session.id, {
+      status: "awaiting-review",
       extracted: {
         hvac: [
           {
@@ -701,17 +748,18 @@ describe("useReview — instance identity: link-or-create decision", () => {
           },
         ],
       },
+      extractedFromRecordingIds: [rec.id],
     });
-    return { outbox, item: parked };
+    return { outbox, session: parked };
   }
 
   async function collectionProbe(
-    item: OutboxItem | undefined,
+    session: SessionItem | undefined,
     outbox: Outbox,
     extra: Partial<UseReviewOptions> = {},
   ) {
     const seen: { current: UseReviewResult | undefined } = { current: undefined };
-    function Probe({ subject }: { subject: OutboxItem | undefined }) {
+    function Probe({ subject }: { subject: SessionItem | undefined }) {
       seen.current = useReview(subject, {
         valuesSchema: collectionValuesSchema,
         outbox,
@@ -719,7 +767,10 @@ describe("useReview — instance identity: link-or-create decision", () => {
       });
       return null;
     }
-    const screen = await render(<Probe subject={item} />);
+    const screen = await render(<Probe subject={session} />);
+    if (session !== undefined) {
+      await vi.waitFor(() => expect(seen.current!.ready).toBe(true));
+    }
     return { seen, screen, Probe };
   }
 
@@ -743,8 +794,8 @@ describe("useReview — instance identity: link-or-create decision", () => {
     }));
 
   test("exposes existing records and the default create decision", async () => {
-    const { outbox, item } = await collectionParkedItem();
-    const { seen } = await collectionProbe(item, outbox, {
+    const { outbox, session } = await collectionParkedItem();
+    const { seen } = await collectionProbe(session, outbox, {
       existingRecords,
       rankCandidates,
     });
@@ -756,8 +807,8 @@ describe("useReview — instance identity: link-or-create decision", () => {
   });
 
   test("linking an instance survives submit and reaches the outcome as an update target", async () => {
-    const { outbox, item } = await collectionParkedItem();
-    const { seen } = await collectionProbe(item, outbox, {
+    const { outbox, session } = await collectionParkedItem();
+    const { seen } = await collectionProbe(session, outbox, {
       existingRecords,
       rankCandidates,
     });
@@ -776,7 +827,7 @@ describe("useReview — instance identity: link-or-create decision", () => {
       linkTargets: { hvac: ["hvac-1"] },
     });
 
-    const persisted = await outbox.get(item.id);
+    const persisted = await outbox.getSession(session.id);
     expect(persisted?.reviewOutcome).toMatchObject({
       status: "accepted",
       linkTargets: { hvac: ["hvac-1"] },
@@ -785,8 +836,8 @@ describe("useReview — instance identity: link-or-create decision", () => {
   });
 
   test("without a link decision, one perfect existing record still creates", async () => {
-    const { outbox, item } = await collectionParkedItem();
-    const { seen } = await collectionProbe(item, outbox, {
+    const { outbox, session } = await collectionParkedItem();
+    const { seen } = await collectionProbe(session, outbox, {
       existingRecords,
       rankCandidates,
     });
@@ -801,8 +852,8 @@ describe("useReview — instance identity: link-or-create decision", () => {
   });
 
   test("createInstance resets a previous link decision", async () => {
-    const { outbox, item } = await collectionParkedItem();
-    const { seen } = await collectionProbe(item, outbox, {
+    const { outbox, session } = await collectionParkedItem();
+    const { seen } = await collectionProbe(session, outbox, {
       existingRecords,
       rankCandidates,
     });
@@ -821,8 +872,8 @@ describe("useReview — instance identity: link-or-create decision", () => {
   });
 
   test("an unknown instance path is rejected when linking", async () => {
-    const { outbox, item } = await collectionParkedItem();
-    const { seen } = await collectionProbe(item, outbox, {
+    const { outbox, session } = await collectionParkedItem();
+    const { seen } = await collectionProbe(session, outbox, {
       existingRecords,
       rankCandidates,
     });

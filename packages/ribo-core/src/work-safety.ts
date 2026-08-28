@@ -1,7 +1,9 @@
 import type { ConnectivityStatus } from "./connectivity.js";
-import { ACTIVE_OUTBOX_STATUSES, RECORDING_OUTBOX_STATUSES } from "./queue/schema.js";
+import { ACTIVE_OUTBOX_STATUSES } from "./queue/schema.js";
+import { ACTIVE_SESSION_STATUSES } from "./queue/session-schema.js";
 import type { CaptureHealth } from "./queue/capture-session.js";
 import type { OutboxItem } from "./queue/schema.js";
+import type { SessionItem } from "./queue/session-schema.js";
 
 /**
  * @file `workSafety` — the one honest answer to "is my work safe?".
@@ -83,22 +85,22 @@ import type { OutboxItem } from "./queue/schema.js";
  * full {@link OutboxItem} shape and a caller can summarize once per render.
  */
 export interface WorkOnDevice {
-  /** Unsynced work still on the device: active, recoverable, not yet gone. */
+  /** Unsynced work still on the device: active recordings, open/extracting/writing sessions. */
   readonly pending: number;
   /** Items that failed permanently and will not move without a human. */
   readonly dead: number;
-  /** Items that have left the device — the only truly-safe state. */
+  /** Sessions that have left the device (write succeeded) — the only truly-safe state. */
   readonly synced: number;
   /**
-   * Of `pending`, how many are parked waiting for a human to review them.
+   * Of `pending`, how many are sessions parked waiting for a human to review them.
    *
-   * A **subset of `pending`**, not a fourth bucket: an un-reviewed recording is
-   * unsynced work on a device, and needing a human rather than a network does not
-   * make it safe. Exposed separately only so a UI can say "3 recordings need
-   * review" without re-querying the outbox, and it is deliberately not consulted
-   * by {@link workSafety}.
+   * A **subset of `pending`**, not a fourth bucket: an un-reviewed session is
+   * unsynced work on a device. Exposed separately only so a UI can say "N sessions
+   * need review" without re-querying.
    */
   readonly awaitingReview: number;
+  /** Sessions that are open — the auditor is still walking the house. */
+  readonly openSessions: number;
 }
 
 /**
@@ -147,44 +149,47 @@ export type WorkSafety =
     };
 
 /**
- * Reduce outbox items to a {@link WorkOnDevice} summary.
+ * Reduce recordings and sessions to a {@link WorkOnDevice} summary.
  *
- * Classifies on `status` only — see the note on `audioReady` in the file header.
- * `done` is the sole synced (off-device) state; `dead` is the sole terminal
- * failure; every {@link ACTIVE_OUTBOX_STATUSES} entry, plus `awaiting-review`,
- * is pending recoverable work — `awaiting-review` just also increments the
- * informational `awaitingReview` subset count. `discarded` is deliberately
- * counted nowhere.
+ * Sessions drive the `synced` (done), `awaitingReview`, and `openSessions`
+ * counts. Recordings in flight (queued/transcribing/failed/recording) are
+ * pending work that hasn't reached a session yet. `transcribed` recordings are
+ * counted through their session. `dead` recordings and sessions are both
+ * counted as `dead`. `discarded` recordings are counted nowhere.
  */
-export const summarizeWork = (items: readonly Pick<OutboxItem, "status">[]): WorkOnDevice => {
+export const summarizeWork = (
+  recordings: readonly Pick<OutboxItem, "status">[],
+  sessions: readonly Pick<SessionItem, "status">[] = [],
+): WorkOnDevice => {
   let pending = 0;
   let dead = 0;
   let synced = 0;
   let awaitingReview = 0;
+  let openSessions = 0;
 
-  for (const { status } of items) {
-    if (status === "dead") dead += 1;
-    else if (status === "done") synced += 1;
+  for (const { status } of sessions) {
+    if (status === "done") synced += 1;
+    else if (status === "dead") dead += 1;
     else if (status === "awaiting-review") {
-      // Parked for a human. Counted as pending because it is unsynced work sitting
-      // on a device — the review gate changes who unblocks it, not whether it is
-      // at risk. Omitting it here is the bug this branch exists to prevent: it
-      // would fall through every branch and be counted as nothing, making
-      // workSafety answer "safe" over an un-reviewed recording.
       pending += 1;
       awaitingReview += 1;
-    } else if ((RECORDING_OUTBOX_STATUSES as readonly string[]).includes(status)) {
-      // Pending, deliberately, even though the relay will not touch it: the audio
-      // exists only on this device, so reporting it as no work at all would let
-      // workSafety answer `safe` mid-recording — the one thing this module must
-      // never do.
+    } else if (status === "open") {
+      openSessions += 1;
       pending += 1;
-    } else if ((ACTIVE_OUTBOX_STATUSES as readonly string[]).includes(status)) pending += 1;
-    // `discarded` is counted nowhere, deliberately: work the human abandoned is
-    // not outstanding, has not synced, and did not fail.
+    } else if ((ACTIVE_SESSION_STATUSES as readonly string[]).includes(status)) pending += 1;
   }
 
-  return { pending, dead, synced, awaitingReview };
+  for (const { status } of recordings) {
+    if (status === "dead") dead += 1;
+    else if (
+      status === "recording" ||
+      (ACTIVE_OUTBOX_STATUSES as readonly string[]).includes(status)
+    )
+      pending += 1;
+    // transcribed and discarded are counted through their session or not at all
+  }
+
+  return { pending, dead, synced, awaitingReview, openSessions };
 };
 
 /**

@@ -6,7 +6,6 @@ import type {
   FieldPath,
   InstanceLinkDecision,
   Outbox,
-  OutboxItem,
   PersistedReviewOutcome,
   RankedCandidate,
   RequiredOnCreate,
@@ -15,6 +14,7 @@ import type {
   ReviewOutcome,
   ReviewRequest,
   ReviewSubmission,
+  SessionItem,
   Transcript,
 } from "@azx/ribo-core";
 import {
@@ -26,6 +26,7 @@ import {
 } from "@azx/ribo-core";
 import { useCallback, useMemo, useRef, useState } from "react";
 
+import { useOutboxItems } from "./use-outbox-items.js";
 import { useRiboInstance } from "./use-ribo-instance.js";
 
 export interface UseReviewOptions {
@@ -87,12 +88,12 @@ export interface UseReviewOptions {
 }
 
 export interface UseReviewResult {
-  /** The item has both a transcript and an extraction, so review can proceed. */
+  /** The session has both a joined transcript and an extraction, so review can proceed. */
   readonly ready: boolean;
   /** Every leaf of `valuesSchema`, by dotted path, in schema-declaration order. */
   readonly fields: ReviewFields | undefined;
   readonly transcript: Transcript | undefined;
-  /** `undefined` if the item is not ready, or the path is not a leaf of this review. */
+  /** `undefined` if the session is not ready, or the path is not a leaf of this review. */
   readonly decisionOf: (path: FieldPath) => FieldDecision | undefined;
   readonly accept: (path: FieldPath) => void;
   /** @throws if `value` is `undefined` — see the guard's note. */
@@ -134,26 +135,26 @@ export interface UseReviewResult {
 }
 
 /**
- * What this hook remembers, all of it scoped to one item.
+ * What this hook remembers, all of it scoped to one session.
  *
  * `submitting` and `error` live here too, alongside `decisions`/`errors`, and not
- * in their own `useState`s — that split is what let them leak across items in an
- * earlier version: they were read straight off their own hooks with no `forItem`
- * check at all, so switching from a failed item A to a fresh item B still showed
+ * in their own `useState`s — that split is what let them leak across sessions in an
+ * earlier version: they were read straight off their own hooks with no `forSession`
+ * check at all, so switching from a failed session A to a fresh session B still showed
  * A's error and A's in-flight `submitting: true` on B's card. Folding every piece
- * of per-item state into one object means one guard (below) protects all of it.
+ * of per-session state into one object means one guard (below) protects all of it.
  *
- * `opToken` is the second half of that fix. `forItem` alone tells two *items*
- * apart, but not two *operations* on the SAME item — two submits in flight
- * together, or a submit that outlives an item swap and a swap back. Every call
+ * `opToken` is the second half of that fix. `forSession` alone tells two *sessions*
+ * apart, but not two *operations* on the SAME session — two submits in flight
+ * together, or a submit that outlives a session swap and a swap back. Every call
  * that starts a network write (`settle`) or records a synchronous validation
  * failure (`submit`) mints a new token and stamps it on the state; a completion
  * only applies if the token it captured is still the one in state, so a slower,
  * now-superseded operation's result cannot overwrite a newer one's.
  */
 interface ReviewState {
-  readonly forItem: string | undefined;
-  /** A local copy of `item.extracted` that may have instances added or removed by the reviewer. */
+  readonly forSession: string | undefined;
+  /** A local copy of `session.extracted` that may have instances added or removed by the reviewer. */
   readonly extractedSnapshot: Record<string, unknown> | undefined;
   readonly decisions: Readonly<Record<FieldPath, FieldDecision>>;
   readonly instanceLinks: Readonly<Record<string, InstanceLinkDecision>>;
@@ -163,9 +164,9 @@ interface ReviewState {
   readonly opToken: number;
 }
 
-/** What a card shows for an item it holds nothing about — including a different one. */
+/** What a card shows for a session it holds nothing about — including a different one. */
 const NOTHING: ReviewState = {
-  forItem: undefined,
+  forSession: undefined,
   extractedSnapshot: undefined,
   decisions: {},
   instanceLinks: {},
@@ -314,10 +315,10 @@ const remapAfterInstanceRemove = <T>(
 };
 
 /**
- * Field-by-field review of one parked item.
+ * Field-by-field review of one parked session.
  *
  * ```tsx
- * const { fields, decisionOf, edit, reject, errors, submit } = useReview(item, {
+ * const { fields, decisionOf, edit, reject, errors, submit } = useReview(session, {
  *   valuesSchema: snuggValuesSchema,
  * });
  * ```
@@ -345,31 +346,47 @@ const remapAfterInstanceRemove = <T>(
  * {@link UseReviewResult.submit} below builds a decision for every leaf precisely so
  * that check passes; if it ever fires from here, this hook is wrong, not its caller.
  *
- * ## All per-item state is keyed by item id, read through a synchronous guard
+ * ## The transcript is joined from the session's recordings
  *
- * A queue UI reuses one mounted card for the next parked item, and leaf paths
+ * A session owns extraction; its recordings own their transcripts. The hook calls
+ * {@link useOutboxItems} with `sessionId` to fetch the session's recordings, joins
+ * their transcript text in capture order, and synthesises a single `Transcript`
+ * (`engine: "joined"`) for `buildReviewRequest`. `ready` is false until both the
+ * session's `extracted` and at least one recording's transcript are present.
+ *
+ * ## All per-session state is keyed by session id, read through a synchronous guard
+ *
+ * A queue UI reuses one mounted card for the next parked session, and leaf paths
  * repeat across recordings — so decisions carried over would submit silently,
- * attributing one auditor's correction to another recording. An effect-based
+ * attributing one auditor's correction to another session. An effect-based
  * reset still leaves one render where the stale decisions are live and
  * submittable, which is one render too many when submit is a click. So `state`
- * is read through a guard (`state.forItem === item?.id`) rather than reset in an
- * effect: the very first render after `item` changes sees `NOTHING`.
+ * is read through a guard (`state.forSession === session?.id`) rather than reset in an
+ * effect: the very first render after `session` changes sees `NOTHING`.
  *
  * `decisions` and `errors` are not the only things this protects — `submitting`
  * and `error` live in the same guarded object, for the same reason. A validation
- * failure or an in-flight write belongs to the item that caused it, and must stop
+ * failure or an in-flight write belongs to the session that caused it, and must stop
  * being visible the moment the card shows a different one, not linger because it
  * happened to be stored in a `useState` with no notion of "whose" it was.
  */
 export function useReview(
-  item: OutboxItem | undefined,
+  session: SessionItem | undefined,
   options: UseReviewOptions,
 ): UseReviewResult {
   const { valuesSchema, requiredOnCreate, existingRecords, rankCandidates } = options;
   const outbox = useRiboInstance("outbox", options.outbox);
 
+  // Fetch the session's recordings so the hook can join their transcripts. A
+  // sentinel sessionId ensures no recordings match when there is no session,
+  // rather than the empty-query default of "every recording in the outbox".
+  const { items: recordings } = useOutboxItems(
+    { sessionId: session?.id ?? "__no-session__" },
+    outbox,
+  );
+
   const [state, setState] = useState<ReviewState>({
-    forItem: item?.id,
+    forSession: session?.id,
     extractedSnapshot: undefined,
     decisions: {},
     instanceLinks: {},
@@ -384,33 +401,47 @@ export function useReview(
   // whether a *later* write should apply, never a value this hook renders.
   const nextOpToken = useRef(0);
 
-  // Synchronously empty whenever the state belongs to a different item. No effect,
+  // Synchronously empty whenever the state belongs to a different session. No effect,
   // no stale window.
   //
   // This hook has no `useEffect` anywhere in it — every derived value here,
   // including this guard, is a plain read computed during render. StrictMode
   // also double-invokes render calculations and `useState` updater functions
   // (not only effect cleanup), so that guarantee matters here too: both are pure
-  // in this hook — the guard only reads `state`/`item`, and every updater below
+  // in this hook — the guard only reads `state`/`session`, and every updater below
   // is a plain function of its `prior` argument — so calling either twice
   // produces the same result and StrictMode's double-invocation is a no-op.
   const { extractedSnapshot, decisions, instanceLinks, errors, submitting, error } =
-    state.forItem === item?.id ? state : NOTHING;
+    state.forSession === session?.id ? state : NOTHING;
+
+  // Join the transcript text of every transcribed recording belonging to this
+  // session, in capture order (seq-ascending). A synthetic `Transcript` carries
+  // the joined text into `buildReviewRequest`; `undefined` until at least one
+  // recording has a transcript, so `ready` stays false until the join has content.
+  const transcript = useMemo<Transcript | undefined>(() => {
+    if (session?.id === undefined) return undefined;
+    const withTranscripts = recordings
+      .filter((r) => r.transcript !== undefined)
+      .sort((a, b) => a.seq - b.seq);
+    if (withTranscripts.length === 0) return undefined;
+    const text = withTranscripts.map((r) => r.transcript!.text).join(" ");
+    return { recordingId: session.id, text, engine: "joined" };
+  }, [recordings, session?.id]);
 
   const request = useMemo<ReviewRequest | undefined>(() => {
-    if (item?.extracted === undefined || item.transcript === undefined) return undefined;
+    if (session?.extracted === undefined || transcript === undefined) return undefined;
     // Use the local snapshot if the reviewer has added or removed instances;
     // otherwise fall back to the persisted extraction. The snapshot is kept in
-    // per-item state and resets when the item changes.
-    const extracted = extractedSnapshot ?? item.extracted;
-    return buildReviewRequest(extracted, item.transcript, valuesSchema, {
+    // per-session state and resets when the session changes.
+    const extracted = extractedSnapshot ?? session.extracted;
+    return buildReviewRequest(extracted, transcript, valuesSchema, {
       requiredOnCreate,
       existingRecords,
     });
   }, [
     extractedSnapshot,
-    item?.extracted,
-    item?.transcript,
+    session?.extracted,
+    transcript,
     valuesSchema,
     requiredOnCreate,
     existingRecords,
@@ -482,12 +513,12 @@ export function useReview(
       if (request === undefined || !Object.hasOwn(request.fields, path)) {
         throw new Error(`ribo: "${path}" is not a field of this review request.`);
       }
-      const id = item?.id;
+      const id = session?.id;
       setState((prior) => {
-        const base = prior.forItem === id ? prior : NOTHING;
+        const base = prior.forSession === id ? prior : NOTHING;
         return {
           ...base,
-          forItem: id,
+          forSession: id,
           decisions: { ...base.decisions, [path]: decision },
           // Deciding a leaf answers whatever the last submit said about it —
           // including "reject it instead", which is the escape core's own message
@@ -496,7 +527,7 @@ export function useReview(
         };
       });
     },
-    [item?.id, request],
+    [session?.id, request],
   );
 
   const decisionOf = useCallback(
@@ -550,12 +581,12 @@ export function useReview(
           `ribo: "${instancePath}" is not a collection instance of this review request.`,
         );
       }
-      const id = item?.id;
+      const id = session?.id;
       setState((prior) => {
-        const base = prior.forItem === id ? prior : NOTHING;
+        const base = prior.forSession === id ? prior : NOTHING;
         return {
           ...base,
-          forItem: id,
+          forSession: id,
           instanceLinks: { ...base.instanceLinks, [instancePath]: decision },
           // A decision answers whatever the last submit said about this instance;
           // errors are per-leaf, not per-instance, so leave them alone.
@@ -563,7 +594,7 @@ export function useReview(
         };
       });
     },
-    [item?.id, instancePaths],
+    [session?.id, instancePaths],
   );
 
   const linkInstance = useCallback(
@@ -611,21 +642,21 @@ export function useReview(
           `ribo: "${group}" is not a collection group and cannot have instances added.`,
         );
       }
-      const id = item?.id;
+      const id = session?.id;
       setState((prior) => {
-        const base = prior.forItem === id ? prior : NOTHING;
-        const snapshot = base.extractedSnapshot ?? item?.extracted;
+        const base = prior.forSession === id ? prior : NOTHING;
+        const snapshot = base.extractedSnapshot ?? session?.extracted;
         if (snapshot === undefined) {
           throw new Error("ribo: cannot add an instance to a review with no extracted data.");
         }
         return {
           ...base,
-          forItem: id,
+          forSession: id,
           extractedSnapshot: addInstanceToSnapshot(snapshot, group),
         };
       });
     },
-    [item?.id, item?.extracted, request, valuesSchema],
+    [session?.id, session?.extracted, request, valuesSchema],
   );
 
   const removeInstance = useCallback(
@@ -652,10 +683,10 @@ export function useReview(
       if (index === undefined) {
         throw new Error(`ribo: instance key "${key}" is not a positional key.`);
       }
-      const id = item?.id;
+      const id = session?.id;
       setState((prior) => {
-        const base = prior.forItem === id ? prior : NOTHING;
-        const snapshot = base.extractedSnapshot ?? item?.extracted;
+        const base = prior.forSession === id ? prior : NOTHING;
+        const snapshot = base.extractedSnapshot ?? session?.extracted;
         if (snapshot === undefined) {
           throw new Error("ribo: cannot remove an instance from a review with no extracted data.");
         }
@@ -665,7 +696,7 @@ export function useReview(
         }
         return {
           ...base,
-          forItem: id,
+          forSession: id,
           extractedSnapshot: removeInstanceFromSnapshot(snapshot, group, index),
           decisions: remapAfterInstanceRemove(base.decisions, group, index),
           instanceLinks: remapAfterInstanceRemove(base.instanceLinks, group, index),
@@ -673,7 +704,7 @@ export function useReview(
         };
       });
     },
-    [instancePaths, item?.id, item?.extracted],
+    [instancePaths, session?.id, session?.extracted],
   );
 
   const untouched = useMemo(
@@ -683,31 +714,31 @@ export function useReview(
 
   const settle = useCallback(
     async (outcome: ReviewOutcome): Promise<ReviewOutcome> => {
-      if (item === undefined) throw new Error("ribo: cannot submit a review with no item.");
-      const id = item.id;
+      if (session === undefined) throw new Error("ribo: cannot submit a review with no session.");
+      const id = session.id;
       // Minted BEFORE the write starts, and stamped on `state` synchronously
       // below — see `ReviewState`'s note on `opToken`. Whichever of this
       // operation's two completions (success or catch) runs, it only applies if
-      // this is still the token in state: a second `settle()` on the same item
+      // this is still the token in state: a second `settle()` on the same session
       // (a resubmit, a discard after a failed submit) bumps the token again, so
       // this one's eventual result — arriving after the newer one has already
       // reported its own — is superseded rather than overwriting it.
       const token = ++nextOpToken.current;
       setState((prior) => {
-        const base = prior.forItem === id ? prior : NOTHING;
-        return { ...base, forItem: id, submitting: true, error: undefined, opToken: token };
+        const base = prior.forSession === id ? prior : NOTHING;
+        return { ...base, forSession: id, submitting: true, error: undefined, opToken: token };
       });
       // Applies the completion only if no newer operation has claimed `state`
-      // since — for this item or (via the `forItem` half) any other one.
+      // since — for this session or (via the `forSession` half) any other one.
       const applyIfCurrent = (patch: Partial<ReviewState>) =>
         setState((prior) =>
-          prior.forItem === id && prior.opToken === token ? { ...prior, ...patch } : prior,
+          prior.forSession === id && prior.opToken === token ? { ...prior, ...patch } : prior,
         );
       try {
         // `toPersisted` is a value conversion, not a cast — see its own note. What
         // gets sent is still structurally identical to `outcome`, and
-        // `submitReview` re-parses it regardless.
-        await outbox.submitReview(id, toPersisted(outcome));
+        // `submitSessionReview` re-parses it regardless.
+        await outbox.submitSessionReview(id, toPersisted(outcome));
         applyIfCurrent({ submitting: false });
         return outcome;
       } catch (cause) {
@@ -716,12 +747,12 @@ export function useReview(
         throw failure;
       }
     },
-    [item, outbox],
+    [session, outbox],
   );
 
   const submit = useCallback(async (): Promise<ReviewOutcome> => {
-    if (request === undefined) throw new Error("ribo: this item is not ready for review.");
-    const id = item?.id;
+    if (request === undefined) throw new Error("ribo: this session is not ready for review.");
+    const id = session?.id;
     // A decision for every leaf, defaulting to accepted. This is what makes
     // `resolveReview`'s completeness check pass; the check, not this line, is the
     // guarantee.
@@ -750,15 +781,15 @@ export function useReview(
       // A new token even though this failure never reaches `settle()`'s network
       // write: an EARLIER call's `settle()` may still be in flight (a slow
       // resubmit the human gave up waiting on), and this synchronous failure is a
-      // newer, more authoritative result for the same item. Bumping the token
+      // newer, more authoritative result for the same session. Bumping the token
       // here means that earlier call's eventual completion — success or another
       // failure — cannot overwrite the one reported right now.
       const token = ++nextOpToken.current;
       setState((prior) => {
-        const base = prior.forItem === id ? prior : NOTHING;
+        const base = prior.forSession === id ? prior : NOTHING;
         return {
           ...base,
-          forItem: id,
+          forSession: id,
           // REPLACED, not merged: each submit is a complete verdict over every
           // leaf, so a message carried over from an earlier attempt would flag a
           // leaf that is now fine.
@@ -774,19 +805,19 @@ export function useReview(
       throw failure;
     }
 
-    // Clears any error a PRIOR failed submit on this same item left behind.
+    // Clears any error a PRIOR failed submit on this same session left behind.
     // Per-decision clearing (`setDecision`'s `withoutPath`) cannot be the only
     // mechanism for this: it only fires when a leaf's OWN decision changes, but
     // a leaf can go from invalid to valid with its decision untouched — the
     // adapter's schema for that leaf can loosen between submits (a validation
     // rule can be relaxed) while `decisions` carries over unchanged, since
-    // `decisions` is keyed by item, not by which `valuesSchema` produced
-    // `request`. `"a schema change on the same item revalidates a stale error
+    // `decisions` is keyed by session, not by which `valuesSchema` produced
+    // `request`. `"a schema change on the same session revalidates a stale error
     // without re-deciding the leaf"` in the test file resubmits exactly that
     // shape and fails without this line.
-    setState((prior) => (prior.forItem === id ? { ...prior, errors: {} } : prior));
+    setState((prior) => (prior.forSession === id ? { ...prior, errors: {} } : prior));
     return await settle(outcome);
-  }, [decisions, instanceLinks, instancePaths, item?.id, paths, request, settle]);
+  }, [decisions, instanceLinks, instancePaths, session?.id, paths, request, settle]);
 
   const discard = useCallback(
     async (reason?: string): Promise<ReviewOutcome> =>

@@ -24,12 +24,18 @@ function fakeOutbox(): Pick<
   const chunkNames: string[] = [];
   return {
     chunkNames,
-    async beginRecording({ sourceId }: { recording: Recording; sourceId: string }) {
+    async beginRecording({
+      sourceId,
+    }: {
+      recording: Recording;
+      sourceId: string;
+      sessionId: string;
+    }) {
       return {
         id: "item-1",
         seq: 0,
         status: "recording",
-        idempotencyKey: "k",
+        sessionId: "test-session",
         attempts: 0,
         nextAttemptAt: "2026-07-23T10:00:00.000Z",
         enqueuedAt: "2026-07-23T10:00:00.000Z",
@@ -60,7 +66,7 @@ function fakeOutbox(): Pick<
         id: "item-1",
         seq: 0,
         status: "queued",
-        idempotencyKey: "k",
+        sessionId: "test-session",
         attempts: 0,
         nextAttemptAt: "2026-07-23T10:00:00.000Z",
         enqueuedAt: "2026-07-23T10:00:00.000Z",
@@ -85,6 +91,7 @@ test("ingestion is synchronous and persistence is a separate stage", async () =>
     outbox: fakeOutbox() as unknown as Outbox,
     recording,
     sourceId: "s1",
+    sessionId: "test-session",
     mimeType: "audio/webm",
     now: () => 0,
     decode: async () => 4200,
@@ -104,6 +111,7 @@ test("finalize drains everything ingested before it", async () => {
     outbox: outbox as unknown as Outbox,
     recording,
     sourceId: "s1",
+    sessionId: "test-session",
     mimeType: "audio/webm",
     now: () => 0,
     decode: async () => 4200,
@@ -123,6 +131,7 @@ test("a stall is observed even when the late event arrives before the detector r
     outbox: fakeOutbox() as unknown as Outbox,
     recording,
     sourceId: "s1",
+    sessionId: "test-session",
     mimeType: "audio/webm",
     now: () => t,
   });
@@ -138,6 +147,7 @@ test("a user pause is not a stall", async () => {
     outbox: fakeOutbox() as unknown as Outbox,
     recording,
     sourceId: "s1",
+    sessionId: "test-session",
     mimeType: "audio/webm",
     now: () => t,
   });
@@ -161,6 +171,7 @@ test("an ONGOING stall is reported without waiting for the next event", async ()
       outbox: fakeOutbox() as unknown as Outbox,
       recording,
       sourceId: "s1",
+      sessionId: "test-session",
       mimeType: "audio/webm",
       now: () => clock,
       decode: async () => 4200,
@@ -190,6 +201,7 @@ test("an oversized blob is ONE chunk in several slices, not several chunks", asy
     outbox: outbox as unknown as Outbox,
     recording,
     sourceId: "s1",
+    sessionId: "test-session",
     mimeType: "audio/webm",
     now: () => 0,
     decode: async () => 4200,
