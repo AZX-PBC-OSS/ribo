@@ -1,65 +1,105 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/12-wrong-field-old-unit.txt",
   "stresses": "WRONG-FIELD / OLD-UNIT trap, the second transcript task-flagged for the single-hvac-instance cardinality finding (see RECONCILIATION.md finding 5) -- but a CONTRAST to transcript 08, not a duplicate: here only ONE system is current (a brand-new Bryant gas furnace); the OLD oil Burnham boiler it replaced is fully described but explicitly decommissioned ('disconnected, capped off, stone cold') and the auditor is unambiguous -- 'Do not log the old boiler, it's just scrap sitting there... The furnace is the system now.' Unlike 08, this is cleanly resolvable: every hvac.* leaf reflects only the new furnace, with zero information loss, because the old unit was never a competing CURRENT system. Every heating field has a tempting wrong value sitting right next to the right one (fuel, equipment family, BTU capacity, model year) -- the corpus's sharpest wrong-field/wrong-unit bait. Also exercises: HAZARD 4 (spoken efficiency, 'ninety-plus, condensing', no write target); the schema-forced furnace/shared-ducts symmetric enum ambiguity (no cooling ever mentioned); a DHW age stated as a range that still lands cleanly in one band; a whole-group attic disclaimer; an explicit 'I ran' blower-door reading; and a leaf-CHOICE ambiguity (not a member choice) on a furnace-side CO check that could name either healthAmbientCarbonMonoxide or healthUndilutedFlueCo -- resolved to ambient per RECONCILIATION.md ruling 4, since neither the flue nor a probe nor combustion gas is explicitly named.",
   "disclaimers": [
     {
       "span": "Attic I didn't get to today.",
       "topic": "the attic",
-      "scope": { "kind": "group", "group": "attic" }
+      "scope": {
+        "kind": "group",
+        "group": "attic"
+      }
     }
   ],
-  "leaves": {
-    "hvac.hvacSystemEquipmentType": {
-      "status": "asserted",
-      "sourceSpan": "The new one is a gas furnace",
-      "member": "Furnace with standalone ducts",
-      "arguable": {
-        "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
-        "symmetric": true,
-        "note": "SCHEMA FINDING, same pattern as the worked example: hvacSystemEquipmentType conflates the furnace's identity with an unrelated fact (whether it shares ducts with a central AC unit). The auditor says 'a gas furnace' and never mentions cooling/AC at all, so neither the standalone-ducts member nor the shared-ducts-with-AC member is more supportable. `member` is 'Furnace with standalone ducts' only because it is FIRST in schema.ts's enum-list order (index 2 of 17 vs. index 16) -- the mechanical tie-break, not a preferred reading. SEPARATELY (see notes._general and RECONCILIATION.md finding 5): this leaf also carries the OLD-BOILER exclusion -- the auditor narrates a second, real, disconnected HVAC unit in the same breath ('the OLD boiler... an old Burnham... probably from the eighties, eighty thousand BTU') and explicitly instructs 'Do not log the old boiler.' Because the old unit is decommissioned (not a second CURRENT system, unlike transcript 08), this resolves cleanly: the furnace occupies the one hvac slot and none of the boiler's attributes (Boiler/Fuel Oil/Burnham/80000 BTU/1980s) appear on any leaf. Not recorded as `retracted` (rule 5) -- the auditor never asserted the boiler AS the current system before withdrawing it; it is a distinct real unit explicitly excluded, not a self-correction about the same entity."
+  "instances": {
+    "hvac": [
+      {
+        "discriminator": "the new Bryant gas furnace installed last fall",
+        "mentionSpan": "The new one is a gas furnace",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "The new one is a gas furnace",
+            "member": "Furnace with standalone ducts",
+            "arguable": {
+              "acceptableAlternatives": [
+                "Furnace / Central AC (shared ducts)"
+              ],
+              "symmetric": true,
+              "note": "SCHEMA FINDING, same pattern as the worked example: hvacSystemEquipmentType conflates the furnace's identity with an unrelated fact (whether it shares ducts with a central AC unit). The auditor says 'a gas furnace' and never mentions cooling/AC at all, so neither the standalone-ducts member nor the shared-ducts-with-AC member is more supportable. `member` is 'Furnace with standalone ducts' only because it is FIRST in schema.ts's enum-list order (index 2 of 17 vs. index 16) -- the mechanical tie-break, not a preferred reading. SEPARATELY (see notes._general and RECONCILIATION.md finding 5): this leaf also carries the OLD-BOILER exclusion -- the auditor narrates a second, real, disconnected HVAC unit in the same breath ('the OLD boiler... an old Burnham... probably from the eighties, eighty thousand BTU') and explicitly instructs 'Do not log the old boiler.' Because the old unit is decommissioned (not a second CURRENT system, unlike transcript 08), this resolves cleanly: the furnace occupies the one hvac slot and none of the boiler's attributes (Boiler/Fuel Oil/Burnham/80000 BTU/1980s) appear on any leaf. Not recorded as `retracted` (rule 5) -- the auditor never asserted the boiler AS the current system before withdrawing it; it is a distinct real unit explicitly excluded, not a self-correction about the same entity."
+            }
+          },
+          "hvacHeatingEnergySource": {
+            "status": "asserted",
+            "sourceSpan": "The new one is a gas furnace",
+            "member": "Natural Gas"
+          },
+          "hvacHeatingSystemManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "it's a Bryant",
+            "member": "Bryant"
+          },
+          "hvacHeatingSystemModel": {
+            "status": "asserted",
+            "sourceSpan": "model 926T",
+            "value": "926T"
+          },
+          "hvacHeatingSystemModelYear": {
+            "status": "asserted",
+            "sourceSpan": "the year on it is twenty twenty-four",
+            "value": 2024
+          },
+          "hvacHeatingCapacity": {
+            "status": "asserted",
+            "sourceSpan": "Output is sixty thousand BTU.",
+            "value": 60000
+          }
+        }
+      },
+      {
+        "discriminator": "the old Burnham oil boiler, disconnected and capped",
+        "mentionSpan": "is the OLD boiler, the one it replaced",
+        "distinguishedBy": "Sitting right next to it, not removed yet",
+        "eligibility": "decommissioned",
+        "eligibilitySpan": "Do not log the old boiler, it's just scrap sitting there.",
+        "leaves": {}
       }
-    },
-    "hvac.hvacHeatingEnergySource": {
-      "status": "asserted",
-      "sourceSpan": "The new one is a gas furnace",
-      "member": "Natural Gas"
-    },
-    "hvac.hvacHeatingSystemManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "it's a Bryant",
-      "member": "Bryant"
-    },
-    "hvac.hvacHeatingSystemModel": {
-      "status": "asserted",
-      "sourceSpan": "model 926T",
-      "value": "926T"
-    },
-    "hvac.hvacHeatingSystemModelYear": {
-      "status": "asserted",
-      "sourceSpan": "the year on it is twenty twenty-four",
-      "value": 2024
-    },
-    "hvac.hvacHeatingCapacity": {
-      "status": "asserted",
-      "sourceSpan": "Output is sixty thousand BTU.",
-      "value": 60000
-    },
-    "dhw.dhwType2": {
-      "status": "asserted",
-      "sourceSpan": "a gas storage tank",
-      "member": "Tank Water Heater"
-    },
-    "dhw.dhwFuel2": {
-      "status": "asserted",
-      "sourceSpan": "a gas storage tank",
-      "member": "Natural Gas"
-    },
-    "dhw.dhwAge": {
-      "status": "asserted",
-      "sourceSpan": "twenty-six, twenty-seven years old",
-      "member": "26-30"
-    },
+    ],
+    "attic": [],
+    "wall": [],
+    "window": [],
+    "dhw": [
+      {
+        "discriminator": "the original gas storage tank water heater they kept",
+        "mentionSpan": "The water heater they kept, it's the original, a gas storage tank",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "dhwType2": {
+            "status": "asserted",
+            "sourceSpan": "a gas storage tank",
+            "member": "Tank Water Heater"
+          },
+          "dhwFuel2": {
+            "status": "asserted",
+            "sourceSpan": "a gas storage tank",
+            "member": "Natural Gas"
+          },
+          "dhwAge": {
+            "status": "asserted",
+            "sourceSpan": "twenty-six, twenty-seven years old",
+            "member": "26-30"
+          }
+        }
+      }
+    ]
+  },
+  "leaves": {
     "basedata.blowerDoorReading": {
       "status": "asserted",
       "sourceSpan": "Blower door I ran after: forty-one hundred CFM50.",
@@ -86,6 +126,7 @@
   },
   "notes": {
     "hvac.hvacSystemEquipmentType": "See this leaf's own arguable block. FINDING-5 CONTRAST NOTE (task-mandated cross-reference to transcript 08): 08's two systems (furnace + central AC) are BOTH current and BOTH get real duct/identity detail mixed onto one record -- a genuine, unrecoverable loss. Here, only the furnace is current; the boiler is decommissioned and unambiguously excluded by the auditor's own words, so there is no comparable loss -- every hvac.* leaf below is 100% attributable to the furnace. The two transcripts share a SURFACE pattern (two HVAC systems narrated, one hvac slot) but differ in whether the schema's single-instance limitation actually costs any information.",
-    "_general": "The OLD boiler (Burnham, oil, probably eighties, 80000 BTU, disconnected/capped/stone cold, oil tank already removed) is fully narrated but deliberately gets NO leaf entries anywhere in this file and no disclaimer entry either -- consistent with how transcript 05's decommissioned floor furnace and transcript 10's neighboring house's oil boiler are handled: a real, named, excluded decoy unit is documented here in notes, not given an `unresolved` disclaimer, since it negates no leaf of THIS file's single hvac record (the furnace's own leaves are all individually asserted, not swept by any negation). 'ninety-plus, condensing' (the new furnace's efficiency) has no write target per schema.ts's HAZARD 4 and is deliberately not parked on hvacHeatingCapacity or anywhere else. 'The oil tank's already gone' likewise has no corresponding leaf. hvac.hvacUpgradeAction (one of the two API-required fields) is never addressed for the new furnace -- it is described as already installed and working, not as a recommendation going forward -- so it is left unmentioned rather than inferred from 'they just put in a new heating system.' The opening scene-setting line ('Basement, the Abernathy house...') was considered as a possible basis for dhw.dhwLocation but declined: DhwLocation's enum has no member that cleanly matches an unspecified basement without knowing whether it is conditioned space."
+    "_general": "The OLD boiler (Burnham, oil, probably eighties, 80000 BTU, disconnected/capped/stone cold, oil tank already removed) is fully narrated but deliberately gets NO leaf entries anywhere in this file and no disclaimer entry either -- consistent with how transcript 05's decommissioned floor furnace and transcript 10's neighboring house's oil boiler are handled: a real, named, excluded decoy unit is documented here in notes, not given an `unresolved` disclaimer, since it negates no leaf of THIS file's single hvac record (the furnace's own leaves are all individually asserted, not swept by any negation). 'ninety-plus, condensing' (the new furnace's efficiency) has no write target per schema.ts's HAZARD 4 and is deliberately not parked on hvacHeatingCapacity or anywhere else. 'The oil tank's already gone' likewise has no corresponding leaf. hvac.hvacUpgradeAction (one of the two API-required fields) is never addressed for the new furnace -- it is described as already installed and working, not as a recommendation going forward -- so it is left unmentioned rather than inferred from 'they just put in a new heating system.' The opening scene-setting line ('Basement, the Abernathy house...') was considered as a possible basis for dhw.dhwLocation but declined: DhwLocation's enum has no member that cleanly matches an unspecified basement without knowing whether it is conditioned space.",
+    "instances.hvac[1]": "THE EXCLUSION IS NOW DATA, not a prose note. The auditor says 'Do not log the old boiler' outright, so the correct output is TWO candidates of which exactly one is current -- not one candidate. That distinction is what the eligibility metric grades: a run that silently drops the boiler looks identical to one that never noticed it, and only the second is a failure. Its `leaves` are deliberately EMPTY: an excluded instance is not written, so there is nothing to attribute to it, and recording its BTU or manufacturer would invite a scorer to credit a run for extracting a system it was told to ignore."
   }
 }

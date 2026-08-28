@@ -39,6 +39,33 @@ import {
   classifySpan,
 } from "./score.mjs";
 
+/**
+ * Reach a leaf's truth object by its `group.leaf` path, whichever side of the v3 split it lives on.
+ *
+ * v3 moved the five collection groups out of the flat `leaves` map into `instances[group][n].leaves`
+ * keyed by LOCAL leaf name. These tests mutate individual leaves to prove the validator catches each
+ * malformation, and they should keep naming leaves the way the schema does rather than encoding the
+ * storage split at fourteen call sites.
+ */
+const COLLECTION_GROUPS_T = ["hvac", "attic", "wall", "window", "dhw"];
+const leafHome = (doc, path) => {
+  const [group, leaf] = path.split(".");
+  return COLLECTION_GROUPS_T.includes(group)
+    ? [doc.instances[group][0].leaves, leaf]
+    : [doc.leaves, path];
+};
+/** The truth object itself, for reading or mutating a property on it. */
+const leafAt = (doc, path) => {
+  const [home, key] = leafHome(doc, path);
+  return home[key];
+};
+/** Replace or delete a whole leaf entry. */
+const setLeaf = (doc, path, value) => {
+  const [home, key] = leafHome(doc, path);
+  if (value === undefined) delete home[key];
+  else home[key] = value;
+};
+
 const HERE = import.meta.dirname;
 const GT_DIR = join(HERE, "ground-truth");
 const TRANSCRIPT_DIR = join(HERE, "transcripts");
@@ -214,29 +241,29 @@ heading("1b. DISCLAIMER / SCHEMA-SHAPE VALIDATION (fix-round-2)");
   }
   {
     const bad = clone();
-    bad.leaves["hvac.hvacHeatingEnergySource"].value = "Natural Gas"; // enum leaf carrying a stray `value`
+    leafAt(bad, "hvac.hvacHeatingEnergySource").value = "Natural Gas"; // enum leaf carrying a stray `value`
     const res = validateGroundTruth(bad, transcript);
     check(
       "an enum leaf carrying a stray `value` is caught (IMPORTANT 7)",
       !res.ok &&
         res.errors.some(
-          (e) => e.includes("hvac.hvacHeatingEnergySource") && e.includes("must not carry"),
+          (e) => e.includes("hvacHeatingEnergySource") && e.includes("must not carry"),
         ),
     );
   }
   {
     const bad = clone();
-    bad.leaves["attic.atticInsulation"].member = "Fiberglass or Rockwool (batts or blown)"; // number leaf carrying a stray `member`
+    leafAt(bad, "attic.atticInsulation").member = "Fiberglass or Rockwool (batts or blown)"; // number leaf carrying a stray `member`
     const res = validateGroundTruth(bad, transcript);
     check(
       "a number leaf carrying a stray `member` is caught (IMPORTANT 7)",
       !res.ok &&
-        res.errors.some((e) => e.includes("attic.atticInsulation") && e.includes("must not carry")),
+        res.errors.some((e) => e.includes("atticInsulation") && e.includes("must not carry")),
     );
   }
   {
     const bad = clone();
-    bad.leaves["attic.atticInsulation"].retracted = [{ value: { nested: "object" }, note: "x" }];
+    leafAt(bad, "attic.atticInsulation").retracted = [{ value: { nested: "object" }, note: "x" }];
     const res = validateGroundTruth(bad, transcript);
     check(
       "an object-valued retracted.value is caught, not silently accepted (IMPORTANT 7)",
@@ -245,7 +272,7 @@ heading("1b. DISCLAIMER / SCHEMA-SHAPE VALIDATION (fix-round-2)");
   }
   {
     const bad = clone();
-    bad.leaves["attic.atticInsulation"].arguable = "oops"; // a primitive where an object is required
+    leafAt(bad, "attic.atticInsulation").arguable = "oops"; // a primitive where an object is required
     let threw = false;
     let res;
     try {
@@ -331,7 +358,7 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
 
   check(
     "the worked example's furnace leaf is marked symmetric: true",
-    gt.leaves["hvac.hvacSystemEquipmentType"].arguable.symmetric === true,
+    leafAt(gt, "hvac.hvacSystemEquipmentType").arguable.symmetric === true,
   );
 
   {
@@ -339,7 +366,7 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
     // `acceptableAlternatives`, keeping `symmetric: true`. Before this fix, this validated clean —
     // an annotator who wrote the pair in the wrong order would never find out.
     const bad = clone();
-    const leaf = bad.leaves["hvac.hvacSystemEquipmentType"];
+    const leaf = leafAt(bad, "hvac.hvacSystemEquipmentType");
     const original = leaf.member;
     leaf.member = leaf.arguable.acceptableAlternatives[0]; // "Furnace / Central AC (shared ducts)" — index 16
     leaf.arguable.acceptableAlternatives = [original]; // "Furnace with standalone ducts" — index 2, now demoted
@@ -349,7 +376,7 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
       "swapping which conflated member sits in `member` (now NOT the earliest) is REJECTED",
       !res.ok &&
         res.errors.some(
-          (e) => e.includes("hvac.hvacSystemEquipmentType") && e.includes("NOT the earliest"),
+          (e) => e.includes("hvacSystemEquipmentType") && e.includes("NOT the earliest"),
         ),
     );
   }
@@ -363,19 +390,19 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
     // symmetric: true requires an enum leaf with a real `member` — not noFittingMember, and not a
     // number/string leaf, since schema order has no meaning there.
     const bad = clone();
-    bad.leaves["attic.atticInsulation"].arguable = {
+    leafAt(bad, "attic.atticInsulation").arguable = {
       symmetric: true,
       note: "nonsensical: atticInsulation is a NUMBER leaf, not an enum",
     };
     const res = validateGroundTruth(bad, transcript);
     check(
       "arguable.symmetric on a NUMBER leaf is rejected (schema order has no meaning there)",
-      !res.ok && res.errors.some((e) => e.includes("attic.atticInsulation")),
+      !res.ok && res.errors.some((e) => e.includes("atticInsulation")),
     );
   }
   {
     const bad = clone();
-    bad.leaves["hvac.hvacSystemEquipmentType"].arguable.acceptableAlternatives = []; // nothing to be symmetric WITH
+    leafAt(bad, "hvac.hvacSystemEquipmentType").arguable.acceptableAlternatives = []; // nothing to be symmetric WITH
     const res = validateGroundTruth(bad, transcript);
     check(
       "arguable.symmetric with an empty acceptableAlternatives is rejected",
@@ -384,7 +411,7 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
   }
   {
     const bad = clone();
-    bad.leaves["hvac.hvacSystemEquipmentType"].arguable.symmetric = "yes"; // not a boolean
+    leafAt(bad, "hvac.hvacSystemEquipmentType").arguable.symmetric = "yes"; // not a boolean
     const res = validateGroundTruth(bad, transcript);
     check(
       "a non-boolean arguable.symmetric is rejected",
@@ -396,7 +423,7 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
     // this is the guard against the check firing on the genuinely different, asymmetric "lesser but
     // tolerated alternative" pattern, where schema order carries no meaning at all.
     const bad = clone();
-    const leaf = bad.leaves["hvac.hvacSystemEquipmentType"];
+    const leaf = leafAt(bad, "hvac.hvacSystemEquipmentType");
     const original = leaf.member;
     leaf.member = leaf.arguable.acceptableAlternatives[0];
     leaf.arguable.acceptableAlternatives = [original];
@@ -447,7 +474,7 @@ heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
     // error — it resolves to "unmentioned". This is the whole point of moving disclaimers out of
     // annotator judgment: the annotator only writes what they can address specifically.
     const sparse = clone();
-    delete sparse.leaves["attic.atticInsulationType"]; // not covered by any of the 3 disclaimers
+    setLeaf(sparse, "attic.atticInsulationType", undefined); // not covered by any of the 3 disclaimers
     const res = validateGroundTruth(sparse, transcript);
     check(
       "removing an explicit, disclaimer-uncovered leaf entry is VALID (defaults to unmentioned)",
@@ -456,7 +483,7 @@ heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
   }
   {
     const bad = clone();
-    bad.leaves["hvac.hvacHeatingEnergySource"].member = "Some Fuel Nobody Publishes";
+    leafAt(bad, "hvac.hvacHeatingEnergySource").member = "Some Fuel Nobody Publishes";
     const res = validateGroundTruth(bad, transcript);
     check(
       "a member not in schema.ts's list is caught",
@@ -478,16 +505,16 @@ heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
   }
   {
     const bad = clone();
-    bad.leaves["hvac.hvacUpgradeAction"] = { status: "unmentioned", sourceSpan: "should be null" };
+    setLeaf(bad, "hvac.hvacUpgradeAction", { status: "unmentioned", sourceSpan: "should be null" });
     const res = validateGroundTruth(bad, transcript);
     check(
       "a non-null sourceSpan on an unmentioned leaf is caught",
-      !res.ok && res.errors.some((e) => e.includes("hvac.hvacUpgradeAction")),
+      !res.ok && res.errors.some((e) => e.includes("hvacUpgradeAction")),
     );
   }
   {
     const bad = clone();
-    bad.leaves["hvac.hvacUpgradeAction"] = { status: "asserted", sourceSpan: "x" }; // neither member nor noFittingMember
+    setLeaf(bad, "hvac.hvacUpgradeAction", { status: "asserted", sourceSpan: "x" }); // neither member nor noFittingMember
     const res = validateGroundTruth(bad, transcript);
     check("asserted enum leaf missing both member and noFittingMember is caught", !res.ok);
   }

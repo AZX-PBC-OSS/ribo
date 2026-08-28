@@ -1,60 +1,127 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/01-attic-r-value-shell.txt",
   "stresses": "Attic R-value stated ALONE, with no depth given at all -- atticInsulation is asserted as a real number and atticInsulationDepth stays unmentioned rather than being derived/converted from the R-value (HAZARD 2b). 'Heat's a gas furnace ... forced hot air' states equipment identity and fuel but nothing about ducts-sharing-with-AC, reproducing the schema-forced hvacSystemEquipmentType axis conflation (rule 6's mechanical first-in-schema-order tie-break). A clean, unambiguous, appliance-side 'Ambient CO ... read zero' -> Passed, as a contrast case to the worked example's disclaimed personal-monitor trap -- explicitly labelled 'Ambient CO', so it is NOT an instance of the ambient-vs-undiluted-flue-CO schema confusability (RECONCILIATION.md finding). A blanket wall-insulation negation ('I can't tell you on the wall insulation') that is narrower than the whole `wall` group -- siding IS stated separately, positively, as brick veneer -- resolved per the reconciliation ruling as `group: wall`, relying on the explicit wallExteriorWallSiding leaf entry to structurally override the group disclaimer for that one leaf, rather than annotator judgment about reach.",
   "disclaimers": [
     {
       "span": "I can't tell you on the wall insulation. Leaving that one blank.",
       "topic": "the wall insulation (not the siding, separately and positively asserted as brick veneer)",
-      "scope": { "kind": "group", "group": "wall" }
+      "scope": {
+        "kind": "group",
+        "group": "wall"
+      }
     }
   ],
-  "leaves": {
-    "hvac.hvacSystemEquipmentType": {
-      "status": "asserted",
-      "sourceSpan": "a gas furnace",
-      "member": "Furnace with standalone ducts",
-      "arguable": {
-        "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
-        "symmetric": true,
-        "note": "SCHEMA FINDING, not a transcript ambiguity -- the same conflated-axis pattern as ANNOTATOR_GUIDE.md rule 6 / the worked example. 'Heat's a gas furnace ... forced hot air' states the equipment identity and fuel but says nothing about whether it shares ducts with a central AC unit (no AC is mentioned anywhere in this transcript). Neither 'Furnace with standalone ducts' nor 'Furnace / Central AC (shared ducts)' is more supportable than the other. `member` holds 'Furnace with standalone ducts' purely because it is FIRST in schema.ts's own enum-list order for this leaf (index 2 of 17, vs. index 16) -- the deterministic, no-discretion tie-break, not a preference."
+  "instances": {
+    "hvac": [
+      {
+        "discriminator": "the hvac described in this transcript",
+        "mentionSpan": "a gas furnace",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "a gas furnace",
+            "member": "Furnace with standalone ducts",
+            "arguable": {
+              "acceptableAlternatives": [
+                "Furnace / Central AC (shared ducts)"
+              ],
+              "symmetric": true,
+              "note": "SCHEMA FINDING, not a transcript ambiguity -- the same conflated-axis pattern as ANNOTATOR_GUIDE.md rule 6 / the worked example. 'Heat's a gas furnace ... forced hot air' states the equipment identity and fuel but says nothing about whether it shares ducts with a central AC unit (no AC is mentioned anywhere in this transcript). Neither 'Furnace with standalone ducts' nor 'Furnace / Central AC (shared ducts)' is more supportable than the other. `member` holds 'Furnace with standalone ducts' purely because it is FIRST in schema.ts's own enum-list order for this leaf (index 2 of 17, vs. index 16) -- the deterministic, no-discretion tie-break, not a preference."
+            }
+          },
+          "hvacHeatingEnergySource": {
+            "status": "asserted",
+            "sourceSpan": "a gas furnace",
+            "member": "Natural Gas"
+          },
+          "hvacHeatingSystemManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "it's a Trane",
+            "member": "Trane"
+          },
+          "hvacHeatingSystemModel": {
+            "status": "asserted",
+            "sourceSpan": "it's a TUD100",
+            "value": "TUD100"
+          },
+          "hvacHeatingSystemModelYear": {
+            "status": "asserted",
+            "sourceSpan": "the manufacture date stamped is twenty seventeen",
+            "value": 2017
+          },
+          "hvacHeatingCapacity": {
+            "status": "asserted",
+            "sourceSpan": "Output's a hundred thousand BTU on the plate.",
+            "value": 100000
+          }
+        }
       }
-    },
-    "hvac.hvacHeatingEnergySource": {
-      "status": "asserted",
-      "sourceSpan": "a gas furnace",
-      "member": "Natural Gas"
-    },
-    "hvac.hvacHeatingSystemManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "it's a Trane",
-      "member": "Trane"
-    },
-    "hvac.hvacHeatingSystemModel": {
-      "status": "asserted",
-      "sourceSpan": "it's a TUD100",
-      "value": "TUD100"
-    },
-    "hvac.hvacHeatingSystemModelYear": {
-      "status": "asserted",
-      "sourceSpan": "the manufacture date stamped is twenty seventeen",
-      "value": 2017
-    },
-    "hvac.hvacHeatingCapacity": {
-      "status": "asserted",
-      "sourceSpan": "Output's a hundred thousand BTU on the plate.",
-      "value": 100000
-    },
-    "attic.atticInsulationType": {
-      "status": "asserted",
-      "sourceSpan": "blown fiberglass",
-      "member": "Fiberglass or Rockwool (batts or blown)"
-    },
-    "attic.atticInsulation": {
-      "status": "asserted",
-      "sourceSpan": "I'd put it at about R-38 up here",
-      "value": 38
-    },
+    ],
+    "attic": [
+      {
+        "discriminator": "the attic described in this transcript",
+        "mentionSpan": "blown fiberglass",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "atticInsulationType": {
+            "status": "asserted",
+            "sourceSpan": "blown fiberglass",
+            "member": "Fiberglass or Rockwool (batts or blown)"
+          },
+          "atticInsulation": {
+            "status": "asserted",
+            "sourceSpan": "I'd put it at about R-38 up here",
+            "value": 38
+          }
+        }
+      }
+    ],
+    "wall": [
+      {
+        "discriminator": "the wall described in this transcript",
+        "mentionSpan": "it's brick veneer",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "wallExteriorWallSiding": {
+            "status": "asserted",
+            "sourceSpan": "it's brick veneer",
+            "member": "Brick Veneer"
+          }
+        }
+      }
+    ],
+    "window": [
+      {
+        "discriminator": "the window described in this transcript",
+        "mentionSpan": "Windows are all double pane, vinyl frames",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "windowType": {
+            "status": "asserted",
+            "sourceSpan": "Windows are all double pane, vinyl frames",
+            "member": "Double pane"
+          },
+          "windowFrame": {
+            "status": "asserted",
+            "sourceSpan": "Windows are all double pane, vinyl frames",
+            "member": "Vinyl"
+          }
+        }
+      }
+    ],
+    "dhw": []
+  },
+  "leaves": {
     "health.healthAmbientCarbonMonoxide": {
       "status": "asserted",
       "sourceSpan": "Ambient CO right next to the furnace while it was running read zero, so that's clean, no carbon monoxide, good.",
@@ -69,21 +136,6 @@
       "status": "asserted",
       "sourceSpan": "I set it in the side door",
       "member": "Tested"
-    },
-    "window.windowType": {
-      "status": "asserted",
-      "sourceSpan": "Windows are all double pane, vinyl frames",
-      "member": "Double pane"
-    },
-    "window.windowFrame": {
-      "status": "asserted",
-      "sourceSpan": "Windows are all double pane, vinyl frames",
-      "member": "Vinyl"
-    },
-    "wall.wallExteriorWallSiding": {
-      "status": "asserted",
-      "sourceSpan": "it's brick veneer",
-      "member": "Brick Veneer"
     }
   },
   "notes": {

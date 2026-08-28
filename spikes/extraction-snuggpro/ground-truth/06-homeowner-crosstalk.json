@@ -1,54 +1,86 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/06-homeowner-crosstalk.txt",
   "stresses": "HOMEOWNER CROSSTALK / ATTRIBUTION, three separate instances: (1) the homeowner asserts a furnace efficiency (\"ninety-five percent\") the auditor explicitly declines to take on faith (\"I hear you, but I need to read the plate myself\") before independently confirming furnace + fuel from the plate -- and the efficiency number itself has no write target regardless (HAZARD 4); (2) the homeowner offers a move-in date/derived age (\"about ten years old ... twenty-fifteen\") as a proxy for equipment year, which the auditor explicitly refuses to log absent a readable plate -- declared_absent, never 2015 or any derived year; (3) the homeowner relays second-hand hearsay asbestos (\"the previous owners told us\"), which the auditor neither confirms nor denies but states plainly was never tested -- the health-matrix explicit-non-performance pattern (Not Tested), on a leaf a careless model might stamp Failed purely off hearsay. Also exercises the schema-forced hvacSystemEquipmentType/shared-ducts axis ambiguity, a completed ambient-CO test read as Passed ('CO test right by the two appliances ... zero' -- textually the corpus's clearest instance of the ambient-vs-undiluted-flue-CO confusability, see RECONCILIATION.md ruling 4; resolved to healthAmbientCarbonMonoxide because neither the flue nor a probe nor combustion gas is named), and a closing blanket deferral ('the rest of the shell') scoped to the shell named set -- this transcript is disclaimer-policy.mjs's own citation for that named set.",
   "disclaimers": [
     {
       "span": "Attic and the rest of the shell we'll do on the next visit.",
       "topic": "the attic and the rest of the building shell (walls, windows, blower door)",
-      "scope": { "kind": "namedSet", "set": "shell" }
+      "scope": {
+        "kind": "namedSet",
+        "set": "shell"
+      }
     }
   ],
-  "leaves": {
-    "hvac.hvacSystemEquipmentType": {
-      "status": "asserted",
-      "sourceSpan": "it's a furnace, natural gas",
-      "member": "Furnace with standalone ducts",
-      "arguable": {
-        "acceptableAlternatives": ["Furnace / Central AC (shared ducts)"],
-        "symmetric": true,
-        "note": "SCHEMA FINDING, not a transcript ambiguity. The auditor states the equipment's identity and fuel after independently reading the plate (\"it's a furnace, natural gas\") but says nothing about cooling either way, so the ducts-sharing-with-AC axis hvacSystemEquipmentType conflates onto the same enum is left completely unaddressed. Per ANNOTATOR_GUIDE.md rule 6's mechanical tie-break, `member` is \"Furnace with standalone ducts\" because it appears first in schema.ts's enum-list order (index 2 of 17 vs. \"Furnace / Central AC (shared ducts)\" at index 16), not because it is a more likely reading."
+  "instances": {
+    "hvac": [
+      {
+        "discriminator": "the hvac described in this transcript",
+        "mentionSpan": "it's a furnace, natural gas",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "it's a furnace, natural gas",
+            "member": "Furnace with standalone ducts",
+            "arguable": {
+              "acceptableAlternatives": [
+                "Furnace / Central AC (shared ducts)"
+              ],
+              "symmetric": true,
+              "note": "SCHEMA FINDING, not a transcript ambiguity. The auditor states the equipment's identity and fuel after independently reading the plate (\"it's a furnace, natural gas\") but says nothing about cooling either way, so the ducts-sharing-with-AC axis hvacSystemEquipmentType conflates onto the same enum is left completely unaddressed. Per ANNOTATOR_GUIDE.md rule 6's mechanical tie-break, `member` is \"Furnace with standalone ducts\" because it appears first in schema.ts's enum-list order (index 2 of 17 vs. \"Furnace / Central AC (shared ducts)\" at index 16), not because it is a more likely reading."
+            }
+          },
+          "hvacHeatingEnergySource": {
+            "status": "asserted",
+            "sourceSpan": "it's a furnace, natural gas",
+            "member": "Natural Gas"
+          },
+          "hvacHeatingSystemManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "It's a Goodman.",
+            "member": "Goodman"
+          },
+          "hvacHeatingSystemModelYear": {
+            "status": "declared_absent",
+            "sourceSpan": "I'm leaving the year blank."
+          }
+        }
       }
-    },
-    "hvac.hvacHeatingEnergySource": {
-      "status": "asserted",
-      "sourceSpan": "it's a furnace, natural gas",
-      "member": "Natural Gas"
-    },
-    "hvac.hvacHeatingSystemManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "It's a Goodman.",
-      "member": "Goodman"
-    },
-    "hvac.hvacHeatingSystemModelYear": {
-      "status": "declared_absent",
-      "sourceSpan": "I'm leaving the year blank."
-    },
-    "dhw.dhwType2": {
-      "status": "asserted",
-      "sourceSpan": "it's a gas water heater, storage tank",
-      "member": "Tank Water Heater"
-    },
-    "dhw.dhwFuel2": {
-      "status": "asserted",
-      "sourceSpan": "it's a gas water heater, storage tank",
-      "member": "Natural Gas"
-    },
-    "dhw.dhwTankSize": {
-      "status": "asserted",
-      "sourceSpan": "forty-gallon",
-      "value": 40
-    },
+    ],
+    "attic": [],
+    "wall": [],
+    "window": [],
+    "dhw": [
+      {
+        "discriminator": "the dhw described in this transcript",
+        "mentionSpan": "it's a gas water heater, storage tank",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "dhwType2": {
+            "status": "asserted",
+            "sourceSpan": "it's a gas water heater, storage tank",
+            "member": "Tank Water Heater"
+          },
+          "dhwFuel2": {
+            "status": "asserted",
+            "sourceSpan": "it's a gas water heater, storage tank",
+            "member": "Natural Gas"
+          },
+          "dhwTankSize": {
+            "status": "asserted",
+            "sourceSpan": "forty-gallon",
+            "value": 40
+          }
+        }
+      }
+    ]
+  },
+  "leaves": {
     "health.healthAmbientCarbonMonoxide": {
       "status": "asserted",
       "sourceSpan": "CO test right by the two appliances, I'm reading zero, clean, no carbon monoxide.",

@@ -30,7 +30,7 @@ import {
   topicScopeMismatchWarning,
 } from "./disclaimer-policy.mjs";
 
-export const SCHEMA_VERSION = "snuggpro-51-leaf-v2";
+export const SCHEMA_VERSION = "snuggpro-instances-v3";
 
 /** @param {unknown} raw parsed JSON */
 export function isNewFormat(raw) {
@@ -227,6 +227,139 @@ function validateLeaf(path, leafSpec, truth, errors) {
  *   3. the default: `{ status: "unmentioned", sourceSpan: null }`
  * @param {object} raw
  */
+/**
+ * The five groups the vendor models as per-instance child resources. A job may hold several of
+ * each, so ground truth carries an ORDERED LIST per group rather than one flat leaf map.
+ * `basedata` and `health` are genuine singletons in the API and stay flat.
+ */
+export const COLLECTION_GROUPS = ["hvac", "attic", "wall", "window", "dhw"];
+export const SINGLETON_GROUPS = ["basedata", "health"];
+
+/** Eligibility verdicts. Anything other than `current` demands a verbatim exclusion span. */
+const ELIGIBILITY = new Set([
+  "current",
+  "decommissioned",
+  "proposed",
+  "off-property",
+  "outside-scope",
+]);
+
+/** Leaf names local to a group, derived from the built schema so this cannot drift. */
+export const LEAVES_BY_GROUP = (() => {
+  const byGroup = {};
+  for (const path of LEAF_PATHS) {
+    const [group, leaf] = path.split(".");
+    (byGroup[group] ??= []).push(leaf);
+  }
+  return byGroup;
+})();
+
+/**
+ * Validate one annotated instance: the three grounding spans, then its leaves.
+ *
+ * The span rules mirror the roster the model is asked to produce (`inventory.ts`), deliberately.
+ * Ground truth that could express something extraction cannot would grade against a target the
+ * model was never allowed to hit; ground truth that could NOT express something extraction can
+ * would silently mark correct output wrong. Same three guards, same directions.
+ */
+function validateInstance(group, index, instance, errors, transcriptText) {
+  const tag = (msg) => errors.push(`instances.${group}[${index}]: ${msg}`);
+  if (typeof instance !== "object" || instance === null || Array.isArray(instance)) {
+    return tag(`must be an object, got ${JSON.stringify(instance)}`);
+  }
+
+  const span = (field, value, required) => {
+    if (value === null || value === undefined) {
+      if (required) tag(`"${field}" is required here and must be a verbatim span`);
+      return;
+    }
+    if (typeof value !== "string" || value.length === 0) {
+      return tag(`"${field}" must be a non-empty string or null`);
+    }
+    if (transcriptText !== null && !transcriptText.includes(value)) {
+      tag(`"${field}" ${JSON.stringify(value)} is not a verbatim substring of the transcript`);
+    }
+  };
+
+  if (typeof instance.discriminator !== "string" || instance.discriminator.length === 0) {
+    tag('"discriminator" must be a non-empty auditor-language handle');
+  }
+  // EXISTENCE: an instance nothing introduces is an instance nobody can check.
+  span("mentionSpan", instance.mentionSpan, true);
+  // SEPARATION: splitting costs evidence; the first candidate has nothing to be distinguished from.
+  span("distinguishedBy", instance.distinguishedBy, index > 0);
+  if (index === 0 && instance.distinguishedBy != null) {
+    tag('"distinguishedBy" must be null on a group\'s first instance — there is nothing prior');
+  }
+
+  if (!ELIGIBILITY.has(instance.eligibility)) {
+    tag(`"eligibility" must be one of ${[...ELIGIBILITY].join(", ")}`);
+  }
+  // EXCLUSION: declining to record a mentioned component costs evidence too.
+  const excluded = instance.eligibility !== undefined && instance.eligibility !== "current";
+  span("eligibilitySpan", instance.eligibilitySpan, excluded);
+  if (!excluded && instance.eligibilitySpan != null) {
+    tag('"eligibilitySpan" must be null when eligibility is "current"');
+  }
+
+  const known = new Set(LEAVES_BY_GROUP[group] ?? []);
+  const leaves = instance.leaves;
+  if (typeof leaves !== "object" || leaves === null || Array.isArray(leaves)) {
+    return tag('"leaves" must be an object keyed by leaf name local to the group');
+  }
+  for (const [leaf, truth] of Object.entries(leaves)) {
+    if (!known.has(leaf)) {
+      tag(`unknown leaf "${leaf}" — not one of ${group}'s ${known.size} leaves (typo?)`);
+      continue;
+    }
+    const path = `${group}.${leaf}`;
+    validateLeaf(`instances.${group}[${index}].${leaf}`, LEAF_BY_PATH.get(path), truth, errors);
+    if (
+      transcriptText !== null &&
+      typeof truth?.sourceSpan === "string" &&
+      truth.sourceSpan.length > 0 &&
+      !transcriptText.includes(truth.sourceSpan)
+    ) {
+      errors.push(
+        `instances.${group}[${index}].${leaf}: sourceSpan ${JSON.stringify(truth.sourceSpan)} is not a verbatim substring of the transcript`,
+      );
+    }
+  }
+}
+
+/**
+ * Validate the `instances` map: every key a real collection group, every element an instance.
+ * An untouched group is an EMPTY LIST, never a missing key — the same distinction review draws
+ * between "there are none" and "touch nothing", kept here so the corpus can grade it.
+ */
+export function validateInstances(raw, errors, transcriptText) {
+  const instances = raw.instances;
+  if (typeof instances !== "object" || instances === null || Array.isArray(instances)) {
+    errors.push('"instances" must be an object keyed by collection group');
+    return;
+  }
+  for (const group of COLLECTION_GROUPS) {
+    if (!(group in instances)) {
+      errors.push(`"instances" is missing "${group}" — an untouched group is [], not absent`);
+    }
+  }
+  for (const [group, list] of Object.entries(instances)) {
+    if (!COLLECTION_GROUPS.includes(group)) {
+      errors.push(
+        `instances."${group}" is not a collection group — ${SINGLETON_GROUPS.join(" and ")} stay in "leaves"`,
+      );
+      continue;
+    }
+    if (!Array.isArray(list)) {
+      errors.push(`instances.${group} must be an array`);
+      continue;
+    }
+    for (const [i, instance] of list.entries()) {
+      validateInstance(group, i, instance, errors, transcriptText);
+    }
+  }
+}
+
 export function resolveGroundTruth(raw) {
   const leaves = {};
   for (const path of LEAF_PATHS) leaves[path] = { status: "unmentioned", sourceSpan: null };
@@ -239,7 +372,30 @@ export function resolveGroundTruth(raw) {
   for (const [path, truth] of Object.entries(raw.leaves ?? {})) {
     if (LEAF_BY_PATH.has(path)) leaves[path] = truth;
   }
-  return { ...raw, leaves };
+
+  // Collection groups resolve per INSTANCE, not into the flat map. Every leaf of the group is
+  // materialized on every instance, so a leaf an annotator did not mention is an explicit
+  // `unmentioned` rather than a missing key -- the same anti-silence property review holds, and
+  // the reason the scorer can tell "the model missed this" from "nobody asked about it".
+  const instances = {};
+  for (const group of COLLECTION_GROUPS) {
+    const annotated = Array.isArray(raw.instances?.[group]) ? raw.instances[group] : [];
+    instances[group] = annotated.map((instance) => {
+      const full = {};
+      for (const leaf of LEAVES_BY_GROUP[group] ?? []) {
+        full[leaf] = instance?.leaves?.[leaf] ?? { status: "unmentioned", sourceSpan: null };
+      }
+      return { ...instance, leaves: full };
+    });
+  }
+
+  // The flat map keeps ONLY singleton leaves. Leaving collection leaves in it would give a
+  // consumer two contradictory answers for the same field.
+  for (const path of Object.keys(leaves)) {
+    if (COLLECTION_GROUPS.includes(path.split(".")[0])) delete leaves[path];
+  }
+
+  return { ...raw, leaves, instances };
 }
 
 /**
@@ -280,6 +436,14 @@ export function validateGroundTruth(raw, transcriptText = null) {
       errors.push(`unknown leaf key "${path}" — not one of schema.ts's 51 leaves (typo?)`);
       continue;
     }
+    const group = path.split(".")[0];
+    if (COLLECTION_GROUPS.includes(group)) {
+      errors.push(
+        `"${path}" is a collection group's leaf — it belongs in instances.${group}[n].leaves, ` +
+          'not in the flat "leaves" map, which now holds singletons only',
+      );
+      continue;
+    }
     validateLeaf(path, LEAF_BY_PATH.get(path), truth, errors);
     if (
       transcriptText !== null &&
@@ -292,6 +456,8 @@ export function validateGroundTruth(raw, transcriptText = null) {
       );
     }
   }
+
+  validateInstances(raw, errors, transcriptText);
 
   const disclaimers = raw.disclaimers ?? [];
   if (!Array.isArray(disclaimers)) {
@@ -354,8 +520,22 @@ export function validateGroundTruth(raw, transcriptText = null) {
   // Defense in depth: resolve and re-validate the full 51-leaf map, catching a bug in the
   // disclaimer POLICY itself (disclaimer-policy.mjs), not just in one annotator's file.
   const resolved = resolveGroundTruth(raw);
-  for (const path of LEAF_PATHS)
+  for (const path of LEAF_PATHS) {
+    if (COLLECTION_GROUPS.includes(path.split(".")[0])) continue;
     validateLeaf(path, LEAF_BY_PATH.get(path), resolved.leaves[path], errors);
+  }
+  for (const group of COLLECTION_GROUPS) {
+    for (const [i, instance] of (resolved.instances[group] ?? []).entries()) {
+      for (const leaf of LEAVES_BY_GROUP[group] ?? []) {
+        validateLeaf(
+          `instances.${group}[${i}].${leaf}`,
+          LEAF_BY_PATH.get(`${group}.${leaf}`),
+          instance.leaves[leaf],
+          errors,
+        );
+      }
+    }
+  }
   return { ok: errors.length === 0, errors, warnings };
 }
 

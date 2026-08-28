@@ -1,79 +1,119 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/02-oil-boiler-basement.txt",
   "stresses": "Fuel/equipment fusion on a boiler ('it's an oil boiler' -> Boiler + Fuel Oil, one span backing two leaves). Two closed manufacturer enums (hvacHeatingSystemManufacturer, dhwManufacturer) both hit a real, named brand ('Burnham', 'Amtrol') that is not on Snugg's published list -- schema.ts's own docstring names Burnham as the worked example of the 'Other' catch-all (RECONCILIATION.md ruling 1). An indirect DHW tank maps to 'Sidearm Tank' per schema.ts's own gloss. A depth-only attic reading (six inches of cellulose, no R-value spoken) exercises atticInsulationDepth without ever touching atticInsulation (rule 7 -- no derivation). A declared-absent BTU output (painted-over plate). Two clean-result health tests stated as positive data (gas/oil-line sniffer, draft) rather than silence (rule 8). A narrow blanket disclaimer ('No blower door today') mapping to the blowerDoor named set. Two non-conflicting DHW age sources (an eight-year estimate and a 2017 install-sticker year) that corroborate rather than retract each other, with the bare install year having no write target of its own.",
   "disclaimers": [
     {
       "span": "No blower door today",
       "topic": "the blower-door test",
-      "scope": { "kind": "namedSet", "set": "blowerDoor" }
+      "scope": {
+        "kind": "namedSet",
+        "set": "blowerDoor"
+      }
     }
   ],
+  "instances": {
+    "hvac": [
+      {
+        "discriminator": "the hvac described in this transcript",
+        "mentionSpan": "it's an oil boiler",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "it's an oil boiler",
+            "member": "Boiler"
+          },
+          "hvacHeatingEnergySource": {
+            "status": "asserted",
+            "sourceSpan": "it's an oil boiler",
+            "member": "Fuel Oil"
+          },
+          "hvacHeatingSystemManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "Burnham",
+            "member": "Other"
+          },
+          "hvacHeatingSystemModel": {
+            "status": "asserted",
+            "sourceSpan": "Model plate says V8, V-eight series",
+            "value": "V8"
+          },
+          "hvacHeatingSystemModelYear": {
+            "status": "asserted",
+            "sourceSpan": "the tag year is two thousand four",
+            "value": 2004
+          },
+          "hvacHeatingCapacity": {
+            "status": "declared_absent",
+            "sourceSpan": "no BTU number from me"
+          }
+        }
+      }
+    ],
+    "attic": [
+      {
+        "discriminator": "the attic described in this transcript",
+        "mentionSpan": "it's cellulose, gray blown-in",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "atticInsulationType": {
+            "status": "asserted",
+            "sourceSpan": "it's cellulose, gray blown-in",
+            "member": "Cellulose"
+          },
+          "atticInsulationDepth": {
+            "status": "asserted",
+            "sourceSpan": "about six inches of it across most of the attic",
+            "member": "4-6"
+          }
+        }
+      }
+    ],
+    "wall": [],
+    "window": [],
+    "dhw": [
+      {
+        "discriminator": "the dhw described in this transcript",
+        "mentionSpan": "it's an indirect tank",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "dhwType2": {
+            "status": "asserted",
+            "sourceSpan": "it's an indirect tank",
+            "member": "Sidearm Tank"
+          },
+          "dhwFuel2": {
+            "status": "asserted",
+            "sourceSpan": "So that runs on the oil too, same as the boiler.",
+            "member": "Fuel Oil"
+          },
+          "dhwAge": {
+            "status": "asserted",
+            "sourceSpan": "that tank's about eight years old",
+            "member": "6-10"
+          },
+          "dhwTankSize": {
+            "status": "asserted",
+            "sourceSpan": "a forty-gallon Amtrol",
+            "value": 40
+          },
+          "dhwManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "Amtrol",
+            "member": "Other"
+          }
+        }
+      }
+    ]
+  },
   "leaves": {
-    "hvac.hvacSystemEquipmentType": {
-      "status": "asserted",
-      "sourceSpan": "it's an oil boiler",
-      "member": "Boiler"
-    },
-    "hvac.hvacHeatingEnergySource": {
-      "status": "asserted",
-      "sourceSpan": "it's an oil boiler",
-      "member": "Fuel Oil"
-    },
-    "hvac.hvacHeatingSystemManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "Burnham",
-      "member": "Other"
-    },
-    "hvac.hvacHeatingSystemModel": {
-      "status": "asserted",
-      "sourceSpan": "Model plate says V8, V-eight series",
-      "value": "V8"
-    },
-    "hvac.hvacHeatingSystemModelYear": {
-      "status": "asserted",
-      "sourceSpan": "the tag year is two thousand four",
-      "value": 2004
-    },
-    "hvac.hvacHeatingCapacity": {
-      "status": "declared_absent",
-      "sourceSpan": "no BTU number from me"
-    },
-    "dhw.dhwType2": {
-      "status": "asserted",
-      "sourceSpan": "it's an indirect tank",
-      "member": "Sidearm Tank"
-    },
-    "dhw.dhwFuel2": {
-      "status": "asserted",
-      "sourceSpan": "So that runs on the oil too, same as the boiler.",
-      "member": "Fuel Oil"
-    },
-    "dhw.dhwAge": {
-      "status": "asserted",
-      "sourceSpan": "that tank's about eight years old",
-      "member": "6-10"
-    },
-    "dhw.dhwTankSize": {
-      "status": "asserted",
-      "sourceSpan": "a forty-gallon Amtrol",
-      "value": 40
-    },
-    "dhw.dhwManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "Amtrol",
-      "member": "Other"
-    },
-    "attic.atticInsulationType": {
-      "status": "asserted",
-      "sourceSpan": "it's cellulose, gray blown-in",
-      "member": "Cellulose"
-    },
-    "attic.atticInsulationDepth": {
-      "status": "asserted",
-      "sourceSpan": "about six inches of it across most of the attic",
-      "member": "4-6"
-    },
     "health.healthGasLeak": {
       "status": "asserted",
       "sourceSpan": "I put the sniffer around the boiler and the oil lines, no gas smell obviously it's oil, but no leaks at the fittings either, all dry.",

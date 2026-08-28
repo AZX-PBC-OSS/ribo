@@ -1,71 +1,101 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/04-fuel-stated-separately.txt",
   "stresses": "HAZARD 1 (fuel-is-a-separate-axis) exercised TWICE, once per resource: the HVAC system is 'a boiler, hot water boiler ... runs on oil' (equipment and fuel stated in two separate clauses, never fused) and the DHW system is 'a standalone electric tank' (type and fuel likewise separate, and deliberately NOT the heating fuel -- the auditor stresses it is 'not tied to the boiler'). A closed manufacturer enum hit with a real but unlisted brand ('Weil-McLain', mirroring schema.ts's own hypothetical 'Burnham' for this exact leaf) -- THE FORK transcript for RECONCILIATION.md ruling 1 (member: 'Other', not noFittingMember, because the enum HAS a fitting catch-all). Three health-matrix tests each individually, specifically addressed (gas leak clean, worst-case depressurization explicitly not done, ambient CO a real instrument pass at 4 ppm) with NO blanket 'no tests' disclaimer anywhere -- contrast with the worked example's blanket coverage. A trailing attic disclaimer ('No attic access from inside ... nothing on attic insulation') whose stated REASON ('no attic access') is wider than its own trailing clause ('attic insulation') -- resolved to group:attic per ruling 2 (widest scope the auditor's stated reason supports). 'it's a flat roof' names roof GEOMETRY, which atticRoofType (a covering-material enum with no catch-all) cannot represent -- a schema finding, not an annotation gap.",
   "disclaimers": [
     {
       "span": "No attic access from inside, it's a flat roof, so I've got nothing on attic insulation.",
       "topic": "the attic (no access at all, hence nothing on its insulation)",
-      "scope": { "kind": "group", "group": "attic" },
+      "scope": {
+        "kind": "group",
+        "group": "attic"
+      },
       "note": "The trailing clause names only 'attic insulation', narrower than the whole attic group, but the auditor's STATED REASON is 'No attic access from inside' -- categorically wider, since no access means nothing about the attic (insulation, knee wall, or roof covering) was observable, not merely the insulation. Per RECONCILIATION.md ruling 2, scope is set to the WIDEST reading the stated reason supports: group:attic. 'it's a flat roof' is not read as an atticRoofType value (see notes) -- roof geometry has no leaf at all -- so that leaf, too, is left to this disclaimer's default rather than given an individual noFittingMember entry."
     }
   ],
+  "instances": {
+    "hvac": [
+      {
+        "discriminator": "the hvac described in this transcript",
+        "mentionSpan": "it's a boiler, hot water boiler",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "it's a boiler, hot water boiler",
+            "member": "Boiler"
+          },
+          "hvacHeatingEnergySource": {
+            "status": "asserted",
+            "sourceSpan": "it runs on oil",
+            "member": "Fuel Oil"
+          },
+          "hvacHeatingSystemManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "Weil-McLain",
+            "member": "Other"
+          },
+          "hvacHeatingSystemModel": {
+            "status": "asserted",
+            "sourceSpan": "the model's a WGO",
+            "value": "WGO"
+          },
+          "hvacHeatingSystemModelYear": {
+            "status": "asserted",
+            "sourceSpan": "it says nineteen ninety-nine on the burner tag",
+            "value": 1999
+          },
+          "hvacHeatingCapacity": {
+            "status": "asserted",
+            "sourceSpan": "Hundred and five thousand BTU output on the rating plate.",
+            "value": 105000
+          }
+        }
+      }
+    ],
+    "attic": [],
+    "wall": [],
+    "window": [],
+    "dhw": [
+      {
+        "discriminator": "the dhw described in this transcript",
+        "mentionSpan": "a standalone electric tank",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "dhwType2": {
+            "status": "asserted",
+            "sourceSpan": "a standalone electric tank",
+            "member": "Tank Water Heater"
+          },
+          "dhwFuel2": {
+            "status": "asserted",
+            "sourceSpan": "a standalone electric tank",
+            "member": "Electricity"
+          },
+          "dhwTankSize": {
+            "status": "asserted",
+            "sourceSpan": "fifty gallon",
+            "value": 50
+          },
+          "dhwManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "Rheem",
+            "member": "Rheem"
+          },
+          "dhwAge": {
+            "status": "asserted",
+            "sourceSpan": "maybe twelve years old",
+            "member": "11-15"
+          }
+        }
+      }
+    ]
+  },
   "leaves": {
-    "hvac.hvacSystemEquipmentType": {
-      "status": "asserted",
-      "sourceSpan": "it's a boiler, hot water boiler",
-      "member": "Boiler"
-    },
-    "hvac.hvacHeatingEnergySource": {
-      "status": "asserted",
-      "sourceSpan": "it runs on oil",
-      "member": "Fuel Oil"
-    },
-    "hvac.hvacHeatingSystemManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "Weil-McLain",
-      "member": "Other"
-    },
-    "hvac.hvacHeatingSystemModel": {
-      "status": "asserted",
-      "sourceSpan": "the model's a WGO",
-      "value": "WGO"
-    },
-    "hvac.hvacHeatingSystemModelYear": {
-      "status": "asserted",
-      "sourceSpan": "it says nineteen ninety-nine on the burner tag",
-      "value": 1999
-    },
-    "hvac.hvacHeatingCapacity": {
-      "status": "asserted",
-      "sourceSpan": "Hundred and five thousand BTU output on the rating plate.",
-      "value": 105000
-    },
-    "dhw.dhwType2": {
-      "status": "asserted",
-      "sourceSpan": "a standalone electric tank",
-      "member": "Tank Water Heater"
-    },
-    "dhw.dhwFuel2": {
-      "status": "asserted",
-      "sourceSpan": "a standalone electric tank",
-      "member": "Electricity"
-    },
-    "dhw.dhwTankSize": {
-      "status": "asserted",
-      "sourceSpan": "fifty gallon",
-      "value": 50
-    },
-    "dhw.dhwManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "Rheem",
-      "member": "Rheem"
-    },
-    "dhw.dhwAge": {
-      "status": "asserted",
-      "sourceSpan": "maybe twelve years old",
-      "member": "11-15"
-    },
     "health.healthGasLeak": {
       "status": "asserted",
       "sourceSpan": "sniffed all the fittings, came back completely clean, no leaks.",

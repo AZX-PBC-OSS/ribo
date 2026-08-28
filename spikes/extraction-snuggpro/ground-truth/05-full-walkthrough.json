@@ -1,8 +1,228 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/05-full-walkthrough.txt",
   "stresses": "A dense, single-take full walkthrough that individually addresses nearly every group (zero blanket disclaimers). Exercises: (1) a decommissioned/disconnected SECOND heating system, described at length and then explicitly excluded by the auditor before it is ever asserted -- a distractor, not a rule-5 retraction; (2) a schema CARDINALITY collision distinct from the worked example's axis conflation -- a full standalone-duct furnace AND a full standalone-duct central AC narrated as two independent, fully-detailed systems sharing hvac's single write slot, where the shared-duct member is actually RULED OUT (not merely unaddressed) by an explicit 'standalone ducts' statement on both sides, and the duct-detail leaves end up describing the AC while the identity leaves describe the furnace; (3) a real, explicit 'Ambient CO' measurement asserted Passed -- unambiguous, not an instance of the ambient-vs-undiluted-flue-CO confusability; (4) rule 7's 'auditor gives both a depth and an R-value' pattern, complicated by the auditor explicitly self-labeling the R-value 'just the conversion'; (5) a homeowner-reported future equipment swap of contested evidentiary weight for hvacUpgradeAction; (6) an explicit no-write-target efficiency percentage (HAZARD 4) plus a derived ACH50 sitting right next to the real CFM50 reading (rule 3's own hazard example, verbatim) and a long, self-flagged tail of behavioral/plug-load/foundation asides; (7) a sunroom explicitly carved out of the main thermal envelope, pre-empting a conflicting windowType reading; (8) a qualitative duct-leakage call ('very leaky') immediately superseded by an actual duct-blaster CFM25 reading -- schema.ts's own per-leaf comment settles this mechanically ('Measured (CFM25)' whenever a duct-blaster number was read), so it is asserted cleanly rather than flagged as a rule-5 retraction (no 'no wait' / 'scratch that' language was ever used).",
   "disclaimers": [],
+  "instances": {
+    "hvac": [
+      {
+        "discriminator": "the propane Carrier furnace in the mechanical closet",
+        "mentionSpan": "The heating system is a propane furnace, forced air",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "The heating system is a propane furnace, forced air",
+            "member": "Furnace with standalone ducts",
+            "arguable": {
+              "acceptableAlternatives": [
+                "Central AC with standalone ducts"
+              ],
+              "note": "SCHEMA CARDINALITY COLLISION, a different shape than the worked example's axis conflation (not marking symmetric: this is not a same-phrase tie-break). The transcript narrates TWO fully independent, standalone-duct systems in full detail: 'The heating system is a propane furnace...' (make/model/year/capacity), AND 'Cooling is central AC, it's got a standalone air handler up in the attic with its own duct runs... So central AC, standalone ducts.' hvac.hvacSystemEquipmentType has only one write slot -- schema.ts's own file header admits this cardinality gap ('a single dictation... A second system dictated today lands on the same leaves as the first and the reviewer sees the collision.'). Because the auditor explicitly states the AC's ducts are standalone (not shared with the furnace), 'Furnace / Central AC (shared ducts)' is actually RULED OUT here, not merely unaddressed. 'Furnace with standalone ducts' is chosen as member because the furnace is the system given full equipment detail AND the auditor's own words single it out as 'the system' ('The working system, the one that heats this house today, is the propane Carrier in the closet'); the central AC is a real, independently-detailed competing system, not a wrong answer, hence acceptableAlternatives. hvac.hvacDuctLocation/hvacDuctLeakage/hvacDuctLeakageValue/hvacDuctInsulation below describe the AC's attic ductwork specifically, not the furnace's -- this file's hvac.* leaves, taken together, describe two different physical systems, which the schema's single-instance shape cannot avoid. Schema finding, not a resolvable transcript ambiguity -- see RECONCILIATION.md."
+            }
+          },
+          "hvacUpgradeAction": {
+            "status": "asserted",
+            "sourceSpan": "the homeowner's got a quote to swap this out for a heat pump next year",
+            "member": "Replace with a newer model",
+            "arguable": {
+              "acceptableMiss": true,
+              "note": "Two things are contested. First, ATTRIBUTION: this is the auditor's own sentence, not a bracketed second-speaker line, but it reports a plan the HOMEOWNER already set in motion ('the homeowner's got a quote') rather than the auditor's own explicit recommendation (schema.ts's own example is 'we should get rid of it') -- genuinely between 'the auditor is recommending this' and 'the auditor is just relaying an existing plan', so a model that leaves this leaf null given that attribution doubt is a defensible caution (acceptableMiss). Second, FIT: none of the four members say 'replace with a DIFFERENT equipment family' -- swapping a furnace for a heat pump is a bigger change than 'a newer model' of the same thing usually implies -- but it remains the closest real member: 'Remove a system permanently' does not fit, because a replacement (the heat pump) IS planned, not a bare removal; 'Install a new non-existing system' implies adding where nothing existed. Not noFittingMember, since a real member is defensibly close, not absent."
+            }
+          },
+          "hvacHeatingEnergySource": {
+            "status": "asserted",
+            "sourceSpan": "The heating system is a propane furnace, forced air",
+            "member": "Propane"
+          },
+          "hvacHeatingSystemManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "It's a Carrier",
+            "member": "Carrier"
+          },
+          "hvacHeatingSystemModel": {
+            "status": "asserted",
+            "sourceSpan": "the model number is 59TP6",
+            "value": "59TP6"
+          },
+          "hvacHeatingSystemModelYear": {
+            "status": "asserted",
+            "sourceSpan": "the data plate year is twenty nineteen",
+            "value": 2019
+          },
+          "hvacHeatingCapacity": {
+            "status": "asserted",
+            "sourceSpan": "Output capacity is eighty thousand BTU.",
+            "value": 80000
+          }
+        }
+      },
+      {
+        "discriminator": "the central AC with its own standalone attic ductwork",
+        "mentionSpan": "Cooling is central AC, it's got a standalone air handler up in the attic with its own duct runs",
+        "distinguishedBy": "it's got a standalone air handler up in the attic with its own duct runs",
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "So central AC, standalone ducts.",
+            "member": "Central AC with standalone ducts"
+          },
+          "hvacDuctLocation": {
+            "status": "asserted",
+            "sourceSpan": "standalone air handler up in the attic with its own duct runs",
+            "value": "attic"
+          },
+          "hvacDuctLeakage": {
+            "status": "asserted",
+            "sourceSpan": "the duct leakage came in at one-fifty CFM25",
+            "member": "Measured (CFM25)"
+          },
+          "hvacDuctLeakageValue": {
+            "status": "asserted",
+            "sourceSpan": "the duct leakage came in at one-fifty CFM25",
+            "value": 150
+          },
+          "hvacDuctInsulation": {
+            "status": "asserted",
+            "sourceSpan": "The ducts are wrapped in that thin fiberglass, the inch-and-a-quarter stuff, not much.",
+            "member": "Fiberglass 1.25 inch"
+          }
+        }
+      },
+      {
+        "discriminator": "the decommissioned oil-pot-burner floor furnace in the basement",
+        "mentionSpan": "there's an old floor furnace, a gravity job, sitting disconnected down in the basement",
+        "distinguishedBy": "the ancient one they took out of service years ago",
+        "eligibility": "decommissioned",
+        "eligibilitySpan": "I am not logging that as the system.",
+        "leaves": {}
+      }
+    ],
+    "attic": [
+      {
+        "discriminator": "the attic reached from the garage ceiling",
+        "mentionSpan": "It's cellulose up there, blown gray cellulose",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "atticInsulationDepth": {
+            "status": "asserted",
+            "sourceSpan": "eleven, twelve inches in the field",
+            "member": "10-12"
+          },
+          "atticInsulationType": {
+            "status": "asserted",
+            "sourceSpan": "It's cellulose up there, blown gray cellulose",
+            "member": "Cellulose"
+          },
+          "atticInsulation": {
+            "status": "asserted",
+            "sourceSpan": "at that depth it works out to roughly R-38",
+            "value": 38,
+            "arguable": {
+              "acceptableMiss": true,
+              "note": "Tests the boundary of rule 7's 'if the auditor gives both a depth and an R-value, both are asserted independently' instruction against rule 3's derivation caution. Here the auditor states R-38 confidently and specifically, but explicitly self-labels it as a CONVERSION from the measured depth, not an independent observation ('the R-value's just the conversion... the depth is what I actually measured'), volunteered only because the homeowner asked. Rule 7 is written for exactly this both-depth-and-an-R-value shape and instructs asserting both without converting between them, so this is recorded as a real value (38) -- but unlike the worked example's committed 'R-13, final answer,' this number's own speaker frames it as secondary/derived, so a model that leaves it null is a defensible, mild miss rather than a real omission."
+            }
+          }
+        }
+      }
+    ],
+    "wall": [
+      {
+        "discriminator": "the addition's wall cavity that was opened",
+        "mentionSpan": "I opened one cavity on the addition, there's fiberglass batt in there",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "wallsInsulated": {
+            "status": "asserted",
+            "sourceSpan": "I'd call the walls insulated, yes, properly insulated.",
+            "member": "Well"
+          },
+          "wallCavityInsulationType": {
+            "status": "asserted",
+            "sourceSpan": "there's fiberglass batt in there",
+            "member": "Fiberglass or Rockwool Batt"
+          }
+        }
+      }
+    ],
+    "window": [
+      {
+        "discriminator": "the predominantly double-pane clad windows",
+        "mentionSpan": "Windows are a mix but predominantly double pane",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "windowType": {
+            "status": "asserted",
+            "sourceSpan": "Windows are a mix but predominantly double pane",
+            "member": "Double pane"
+          },
+          "windowFrame": {
+            "status": "asserted",
+            "sourceSpan": "the frames are that wood with the aluminum cladding on the outside, clad windows, wood clad.",
+            "member": "Wood or metal clad"
+          }
+        }
+      }
+    ],
+    "dhw": [
+      {
+        "discriminator": "the wall-mounted propane Rinnai tankless unit",
+        "mentionSpan": "it's a propane tankless unit",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "dhwType2": {
+            "status": "asserted",
+            "sourceSpan": "it's a propane tankless unit",
+            "member": "Tankless Water Heater"
+          },
+          "dhwFuel2": {
+            "status": "asserted",
+            "sourceSpan": "it's a propane tankless unit",
+            "member": "Propane"
+          },
+          "dhwAge": {
+            "status": "declared_absent",
+            "sourceSpan": "no age tag I could find on it, it's newer though.",
+            "arguable": {
+              "acceptableAlternatives": [
+                "0-5"
+              ],
+              "note": "The auditor explicitly addresses the absence of an age tag ('no age tag I could find on it'), a clean declared_absent per rule 1's own example ('I'm leaving the year blank'). But they immediately add 'it's newer though' -- a gesture toward a young age without committing to a specific band, matching rule 3's 'gestured at one without committing is NOT a stated value.' No band is asserted, but '0-5' is flagged as a tolerated alternative since a model that reads 'newer' as the youngest band would be a defensible, not hallucinated, answer."
+            }
+          },
+          "dhwLocation": {
+            "status": "asserted",
+            "sourceSpan": "mounted on the wall in the closet",
+            "member": "Indoors and within heated area",
+            "arguable": {
+              "acceptableAlternatives": [
+                "Don't Know"
+              ],
+              "acceptableMiss": true,
+              "note": "Requires two inferential steps the auditor never states outright in this sentence: (1) that 'the closet' here is the same 'mechanical closet off the kitchen' named earlier for the furnace, and (2) that a mechanical closet counts as 'within heated area' rather than an unconditioned utility space. Per THE ONE RULE, something WAS said about location, so omission alone is not the intended default -- but the mapping is genuinely contested: a model answering 'Don't Know' is a defensible caution, and a model leaving the leaf null entirely (declining the cross-paragraph inference) is likewise a defensible, non-penalized miss."
+            }
+          },
+          "dhwManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "a Rinnai",
+            "member": "Rinnai"
+          }
+        }
+      }
+    ]
+  },
   "leaves": {
     "basedata.blowerDoorReading": {
       "status": "asserted",
@@ -13,141 +233,6 @@
       "status": "asserted",
       "sourceSpan": "Blower door next, set up in the front door.",
       "member": "Tested"
-    },
-    "hvac.hvacSystemEquipmentType": {
-      "status": "asserted",
-      "sourceSpan": "The heating system is a propane furnace, forced air",
-      "member": "Furnace with standalone ducts",
-      "arguable": {
-        "acceptableAlternatives": ["Central AC with standalone ducts"],
-        "note": "SCHEMA CARDINALITY COLLISION, a different shape than the worked example's axis conflation (not marking symmetric: this is not a same-phrase tie-break). The transcript narrates TWO fully independent, standalone-duct systems in full detail: 'The heating system is a propane furnace...' (make/model/year/capacity), AND 'Cooling is central AC, it's got a standalone air handler up in the attic with its own duct runs... So central AC, standalone ducts.' hvac.hvacSystemEquipmentType has only one write slot -- schema.ts's own file header admits this cardinality gap ('a single dictation... A second system dictated today lands on the same leaves as the first and the reviewer sees the collision.'). Because the auditor explicitly states the AC's ducts are standalone (not shared with the furnace), 'Furnace / Central AC (shared ducts)' is actually RULED OUT here, not merely unaddressed. 'Furnace with standalone ducts' is chosen as member because the furnace is the system given full equipment detail AND the auditor's own words single it out as 'the system' ('The working system, the one that heats this house today, is the propane Carrier in the closet'); the central AC is a real, independently-detailed competing system, not a wrong answer, hence acceptableAlternatives. hvac.hvacDuctLocation/hvacDuctLeakage/hvacDuctLeakageValue/hvacDuctInsulation below describe the AC's attic ductwork specifically, not the furnace's -- this file's hvac.* leaves, taken together, describe two different physical systems, which the schema's single-instance shape cannot avoid. Schema finding, not a resolvable transcript ambiguity -- see RECONCILIATION.md."
-      }
-    },
-    "hvac.hvacUpgradeAction": {
-      "status": "asserted",
-      "sourceSpan": "the homeowner's got a quote to swap this out for a heat pump next year",
-      "member": "Replace with a newer model",
-      "arguable": {
-        "acceptableMiss": true,
-        "note": "Two things are contested. First, ATTRIBUTION: this is the auditor's own sentence, not a bracketed second-speaker line, but it reports a plan the HOMEOWNER already set in motion ('the homeowner's got a quote') rather than the auditor's own explicit recommendation (schema.ts's own example is 'we should get rid of it') -- genuinely between 'the auditor is recommending this' and 'the auditor is just relaying an existing plan', so a model that leaves this leaf null given that attribution doubt is a defensible caution (acceptableMiss). Second, FIT: none of the four members say 'replace with a DIFFERENT equipment family' -- swapping a furnace for a heat pump is a bigger change than 'a newer model' of the same thing usually implies -- but it remains the closest real member: 'Remove a system permanently' does not fit, because a replacement (the heat pump) IS planned, not a bare removal; 'Install a new non-existing system' implies adding where nothing existed. Not noFittingMember, since a real member is defensibly close, not absent."
-      }
-    },
-    "hvac.hvacHeatingEnergySource": {
-      "status": "asserted",
-      "sourceSpan": "The heating system is a propane furnace, forced air",
-      "member": "Propane"
-    },
-    "hvac.hvacHeatingSystemManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "It's a Carrier",
-      "member": "Carrier"
-    },
-    "hvac.hvacHeatingSystemModel": {
-      "status": "asserted",
-      "sourceSpan": "the model number is 59TP6",
-      "value": "59TP6"
-    },
-    "hvac.hvacHeatingSystemModelYear": {
-      "status": "asserted",
-      "sourceSpan": "the data plate year is twenty nineteen",
-      "value": 2019
-    },
-    "hvac.hvacHeatingCapacity": {
-      "status": "asserted",
-      "sourceSpan": "Output capacity is eighty thousand BTU.",
-      "value": 80000
-    },
-    "hvac.hvacDuctLocation": {
-      "status": "asserted",
-      "sourceSpan": "standalone air handler up in the attic with its own duct runs",
-      "value": "attic"
-    },
-    "hvac.hvacDuctLeakage": {
-      "status": "asserted",
-      "sourceSpan": "the duct leakage came in at one-fifty CFM25",
-      "member": "Measured (CFM25)"
-    },
-    "hvac.hvacDuctLeakageValue": {
-      "status": "asserted",
-      "sourceSpan": "the duct leakage came in at one-fifty CFM25",
-      "value": 150
-    },
-    "hvac.hvacDuctInsulation": {
-      "status": "asserted",
-      "sourceSpan": "The ducts are wrapped in that thin fiberglass, the inch-and-a-quarter stuff, not much.",
-      "member": "Fiberglass 1.25 inch"
-    },
-    "attic.atticInsulationDepth": {
-      "status": "asserted",
-      "sourceSpan": "eleven, twelve inches in the field",
-      "member": "10-12"
-    },
-    "attic.atticInsulationType": {
-      "status": "asserted",
-      "sourceSpan": "It's cellulose up there, blown gray cellulose",
-      "member": "Cellulose"
-    },
-    "attic.atticInsulation": {
-      "status": "asserted",
-      "sourceSpan": "at that depth it works out to roughly R-38",
-      "value": 38,
-      "arguable": {
-        "acceptableMiss": true,
-        "note": "Tests the boundary of rule 7's 'if the auditor gives both a depth and an R-value, both are asserted independently' instruction against rule 3's derivation caution. Here the auditor states R-38 confidently and specifically, but explicitly self-labels it as a CONVERSION from the measured depth, not an independent observation ('the R-value's just the conversion... the depth is what I actually measured'), volunteered only because the homeowner asked. Rule 7 is written for exactly this both-depth-and-an-R-value shape and instructs asserting both without converting between them, so this is recorded as a real value (38) -- but unlike the worked example's committed 'R-13, final answer,' this number's own speaker frames it as secondary/derived, so a model that leaves it null is a defensible, mild miss rather than a real omission."
-      }
-    },
-    "wall.wallsInsulated": {
-      "status": "asserted",
-      "sourceSpan": "I'd call the walls insulated, yes, properly insulated.",
-      "member": "Well"
-    },
-    "wall.wallCavityInsulationType": {
-      "status": "asserted",
-      "sourceSpan": "there's fiberglass batt in there",
-      "member": "Fiberglass or Rockwool Batt"
-    },
-    "window.windowType": {
-      "status": "asserted",
-      "sourceSpan": "Windows are a mix but predominantly double pane",
-      "member": "Double pane"
-    },
-    "window.windowFrame": {
-      "status": "asserted",
-      "sourceSpan": "the frames are that wood with the aluminum cladding on the outside, clad windows, wood clad.",
-      "member": "Wood or metal clad"
-    },
-    "dhw.dhwType2": {
-      "status": "asserted",
-      "sourceSpan": "it's a propane tankless unit",
-      "member": "Tankless Water Heater"
-    },
-    "dhw.dhwFuel2": {
-      "status": "asserted",
-      "sourceSpan": "it's a propane tankless unit",
-      "member": "Propane"
-    },
-    "dhw.dhwAge": {
-      "status": "declared_absent",
-      "sourceSpan": "no age tag I could find on it, it's newer though.",
-      "arguable": {
-        "acceptableAlternatives": ["0-5"],
-        "note": "The auditor explicitly addresses the absence of an age tag ('no age tag I could find on it'), a clean declared_absent per rule 1's own example ('I'm leaving the year blank'). But they immediately add 'it's newer though' -- a gesture toward a young age without committing to a specific band, matching rule 3's 'gestured at one without committing is NOT a stated value.' No band is asserted, but '0-5' is flagged as a tolerated alternative since a model that reads 'newer' as the youngest band would be a defensible, not hallucinated, answer."
-      }
-    },
-    "dhw.dhwLocation": {
-      "status": "asserted",
-      "sourceSpan": "mounted on the wall in the closet",
-      "member": "Indoors and within heated area",
-      "arguable": {
-        "acceptableAlternatives": ["Don't Know"],
-        "acceptableMiss": true,
-        "note": "Requires two inferential steps the auditor never states outright in this sentence: (1) that 'the closet' here is the same 'mechanical closet off the kitchen' named earlier for the furnace, and (2) that a mechanical closet counts as 'within heated area' rather than an unconditioned utility space. Per THE ONE RULE, something WAS said about location, so omission alone is not the intended default -- but the mapping is genuinely contested: a model answering 'Don't Know' is a defensible caution, and a model leaving the leaf null entirely (declining the cross-paragraph inference) is likewise a defensible, non-penalized miss."
-      }
-    },
-    "dhw.dhwManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "a Rinnai",
-      "member": "Rinnai"
     },
     "health.healthAmbientCarbonMonoxide": {
       "status": "asserted",
@@ -172,6 +257,8 @@
   },
   "notes": {
     "hvac.hvacDuctLocation": "This leaf and the two duct leaves below it (hvacDuctLeakage / hvacDuctInsulation) describe the attic ductwork the auditor introduces while discussing the CENTRAL AC's standalone air handler, not the furnace -- see hvac.hvacSystemEquipmentType's arguable note for the underlying one-record-per-two-systems limitation this reflects.",
-    "_general": "Deliberately zero blanket disclaimers -- this transcript individually addresses every topic it touches. Several things are said out loud with NO write target and are intentionally left off every leaf, per rule 9: the furnace's spoken efficiency ('ninety-six percent... but I'm not writing efficiency down, that's a lookup, you don't type that' -- HAZARD 4, self-excluded by the auditor); the furnace's combustion-vent detail ('direct-vented, sealed combustion, pulls its air from outside' -- no combustionVentType leaf exists in the 51, per ANNOTATOR_GUIDE.md rule 3's own example); the derived ACH50 ('about six point one ACH50') sitting right next to the real CFM50 blower-door reading, with the auditor explicitly distinguishing which one is 'the fan number... for the blower door'; the whole behavioral/plug-load block (smart-thermostat schedule, LED lighting, chest freezer, second fridge, dryer-vent routing, bath-fan venting), self-flagged as 'none of these are measures... not in my capture set'; and the basement/foundation/crawlspace description, again self-flagged as 'not one of my fields'. A decommissioned, disconnected oil floor furnace is described at length and explicitly excluded ('I am not logging that as the system... Don't let the old oil unit end up in the record') -- NOT a rule-5 retraction (no leaf value was ever asserted for it before being withdrawn); it is a distractor the auditor pre-empts himself, so no `retracted` entry was written for hvac.hvacSystemEquipmentType or hvac.hvacHeatingEnergySource. The sunroom's single-pane windows are explicitly carved out of the main envelope ('not on the main envelope so I'm treating it as outside the thermal boundary') and do not compete with window.windowType's 'Double pane' answer. dhw.dhwTankSize is left unmentioned rather than declared_absent: although a tankless unit has no tank size by definition, the auditor never individually addresses tank size itself, only the tankless type -- asserting declared_absent from the type alone would be inferring from another field rather than transcribing what was said."
+    "_general": "Deliberately zero blanket disclaimers -- this transcript individually addresses every topic it touches. Several things are said out loud with NO write target and are intentionally left off every leaf, per rule 9: the furnace's spoken efficiency ('ninety-six percent... but I'm not writing efficiency down, that's a lookup, you don't type that' -- HAZARD 4, self-excluded by the auditor); the furnace's combustion-vent detail ('direct-vented, sealed combustion, pulls its air from outside' -- no combustionVentType leaf exists in the 51, per ANNOTATOR_GUIDE.md rule 3's own example); the derived ACH50 ('about six point one ACH50') sitting right next to the real CFM50 blower-door reading, with the auditor explicitly distinguishing which one is 'the fan number... for the blower door'; the whole behavioral/plug-load block (smart-thermostat schedule, LED lighting, chest freezer, second fridge, dryer-vent routing, bath-fan venting), self-flagged as 'none of these are measures... not in my capture set'; and the basement/foundation/crawlspace description, again self-flagged as 'not one of my fields'. A decommissioned, disconnected oil floor furnace is described at length and explicitly excluded ('I am not logging that as the system... Don't let the old oil unit end up in the record') -- NOT a rule-5 retraction (no leaf value was ever asserted for it before being withdrawn); it is a distractor the auditor pre-empts himself, so no `retracted` entry was written for hvac.hvacSystemEquipmentType or hvac.hvacHeatingEnergySource. The sunroom's single-pane windows are explicitly carved out of the main envelope ('not on the main envelope so I'm treating it as outside the thermal boundary') and do not compete with window.windowType's 'Double pane' answer. dhw.dhwTankSize is left unmentioned rather than declared_absent: although a tankless unit has no tank size by definition, the auditor never individually addresses tank size itself, only the tankless type -- asserting declared_absent from the type alone would be inferring from another field rather than transcribing what was said.",
+    "instances.hvac": "THREE candidates, TWO current -- the richest instance case in the corpus, and it grades all three metrics at once. ENUMERATION: a run must find three candidates, not one and not two. ELIGIBILITY: the old floor furnace is explicitly ruled out ('I am not logging that as the system'), so excluding it is correct and silently never noticing it is not -- the two are indistinguishable without the eligibility record. ATTRIBUTION: the identity cluster (propane/Carrier/59TP6/2019/80000 BTU, plus the heat-pump upgrade quote) belongs to the FURNACE while the duct cluster (attic location, 150 CFM25, 1.25in fiberglass) belongs to the AC's own standalone ductwork. That is the same split as transcript 08, and the two together are what stop a run scoring well by getting counts right while mixing the clusters.",
+    "instances.hvac[2]": "Empty `leaves` deliberately: an excluded instance is never written, so it has nothing to attribute. The transcript does state facts about it (an oil pot burner, capped, cold), and recording them would invite a scorer to credit a run for extracting a system the auditor said to leave out."
   }
 }

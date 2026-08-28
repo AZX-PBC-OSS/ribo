@@ -32,7 +32,7 @@ against.
 
 ```jsonc
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",  // v2 is superseded — see "v3 — instances" below
   "transcript": "transcripts/NN-slug.txt",
   "stresses": "free-text summary of what this transcript is built to exercise",
   "disclaimers": [
@@ -98,6 +98,90 @@ type LeafTruth = {
 `validateGroundTruth` in `ground-truth.mjs` enforces every constraint above (which fields are
 required/forbidden per status and kind, that `member` is one of the leaf's real options, that
 `arguable`/`retracted` carry a non-empty `note`). Run it before you trust a file you hand-wrote.
+
+## v3 — instances, because a house has more than one of things
+
+**`snuggpro-instances-v3` supersedes `snuggpro-51-leaf-v2`.** The reason is the same one that drove
+R1.6: the vendor models `hvac`, `attic`, `wall`, `window` and `dhw` as **per-instance child
+resources**, and a real house has several of each. The v2 format had one flat leaf map, so a
+transcript describing two HVAC systems could only be annotated by choosing one — and transcript 08's
+file said so outright, carrying a "THE LOSS IS REAL" note because the furnace's identity and the AC's
+ductwork had to share a record that was therefore false about both.
+
+That loss is now representable, which is what makes segmentation and attribution measurable at all.
+
+### What changed
+
+**`leaves` holds singletons only.** `basedata` and `health` are genuine singletons in the API and
+stay exactly as they were. A collection group's leaf in the flat map is now a validation error
+naming where it belongs.
+
+**`instances` is new**, keyed by collection group, each an **ordered list** in first-mention order:
+
+```jsonc
+"instances": {
+  "hvac": [
+    {
+      "discriminator": "the Lennox furnace, forced warm air, in the closet",
+      "mentionSpan": "heating is a furnace, forced air, I can see the supply plenum coming off it.",
+      "distinguishedBy": null,
+      "eligibility": "current",
+      "eligibilitySpan": null,
+      "leaves": { "hvacSystemEquipmentType": { /* LeafTruth */ } }
+    }
+  ],
+  "attic": [], "wall": [], "window": [], "dhw": []
+}
+```
+
+**An untouched group is `[]`, never a missing key.** The distinction is load-bearing downstream:
+review draws exactly the same line between "there are none of these" and "touch nothing", which are
+opposite write instructions. A missing key is a validation error.
+
+**Leaf keys inside an instance are LOCAL to the group** — `hvacDuctLeakage`, not
+`hvac.hvacDuctLeakage`. The group is already known from the key above it, and repeating it invites
+the two to disagree.
+
+### The three grounding spans, and why they mirror the roster
+
+`mentionSpan`, `distinguishedBy` and `eligibilitySpan` are the same three guards the model's own
+roster must satisfy (`packages/ribo-adapter-snuggpro/src/inventory.ts`), and that symmetry is
+deliberate rather than tidy:
+
+| Field             | Grounds    | Required when                           |
+| ----------------- | ---------- | --------------------------------------- |
+| `mentionSpan`     | existence  | always                                  |
+| `distinguishedBy` | separation | every instance after a group's first    |
+| `eligibilitySpan` | exclusion  | `eligibility` is anything but `current` |
+
+Ground truth that could express something extraction cannot would grade against a target the model
+was never allowed to hit. Ground truth that could **not** express something extraction can would mark
+correct output wrong. Same guards, same directions, both sides.
+
+The principle underneath is the one the extraction design states: the provenance envelope grounds a
+**value**, and nothing previously grounded a **record's existence** — so a fabricated appliance, a
+full set of individually-plausible fields about a machine that does not exist, was easier to emit
+than a single fabricated number.
+
+### `eligibility`
+
+`current`, or one of `decommissioned`, `proposed`, `off-property`, `outside-scope`.
+
+**An excluded instance carries empty `leaves`, deliberately.** It is never written, so it has nothing
+to attribute — and recording its manufacturer or capacity would invite a scorer to credit a run for
+extracting a system the auditor explicitly said to leave out. Transcripts 05, 10 and 12 all have one:
+a decommissioned floor furnace, a neighbour's boiler, and an old boiler the auditor names and rules
+out.
+
+Recording the exclusion **as data rather than prose** is what lets the corpus grade whether a run
+excluded the right thing for the right reason. A run that silently drops the old boiler looks
+identical to one that never noticed it, and only the second is a failure.
+
+### What `resolveGroundTruth` materializes
+
+Every leaf of the group is filled in on **every** instance, so a leaf the annotator did not mention
+is an explicit `unmentioned` rather than a missing key. That is the same anti-silence property review
+holds, and it is what lets the scorer tell "the model missed this" from "nobody asked about it".
 
 ## Rationale, one decision at a time
 

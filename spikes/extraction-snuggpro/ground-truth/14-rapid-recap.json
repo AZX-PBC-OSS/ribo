@@ -1,46 +1,74 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/14-rapid-recap.txt",
   "stresses": "A COMPOUND, SINGLE-SENTENCE BLANKET DISCLAIMER covering FOUR distinct topics at once ('no heating checked, no attic, no blower door, no safety tests') -- exercises rule 4's requirement to write ONE disclaimer per named thing (hvac group, attic group, blowerDoor named set, healthTests named set) rather than one disclaimer whose topic lists everything but whose scope only covers one; this is the ANNOTATOR_GUIDE.md's own cited example transcript for that rule. Only ONE component was actually inspected (the DHW unit), stated with a fused fuel+type mention ('electric tank') and a location ('in the garage'), with no retractions and no genuinely contested enum mapping. A trailing 'nothing else today' needs no disclaimer of its own (rule 4.4 -- topic-free). A vague qualitative age impression ('looked pretty new') that must NOT be inferred into a dhwAge band -- the guide's own 'model year from the plate looked worn' inference trap, applied to a condition gesture instead. A secondhand, auditor-unverified comfort complaint (the wife's cold-upstairs remark) has no matching leaf anywhere in the 51 (SCHEMA FINDING -- comfort complaints; see RECONCILIATION.md) and is explicitly disclaimed by the auditor as 'not a measurement' -- exercises rule 3's second-speaker-attribution guard and rule 9's no-write-target guard simultaneously.",
   "disclaimers": [
     {
       "span": "no heating checked",
       "topic": "the heating system",
-      "scope": { "kind": "group", "group": "hvac" }
+      "scope": {
+        "kind": "group",
+        "group": "hvac"
+      }
     },
     {
       "span": "no attic",
       "topic": "the attic",
-      "scope": { "kind": "group", "group": "attic" }
+      "scope": {
+        "kind": "group",
+        "group": "attic"
+      }
     },
     {
       "span": "no blower door",
       "topic": "the blower-door test",
-      "scope": { "kind": "namedSet", "set": "blowerDoor" }
+      "scope": {
+        "kind": "namedSet",
+        "set": "blowerDoor"
+      }
     },
     {
       "span": "no safety tests",
       "topic": "the health & safety test battery",
-      "scope": { "kind": "namedSet", "set": "healthTests" }
+      "scope": {
+        "kind": "namedSet",
+        "set": "healthTests"
+      }
     }
   ],
-  "leaves": {
-    "dhw.dhwType2": {
-      "status": "asserted",
-      "sourceSpan": "electric tank, standard storage unit",
-      "member": "Tank Water Heater"
-    },
-    "dhw.dhwFuel2": {
-      "status": "asserted",
-      "sourceSpan": "electric tank, standard storage unit",
-      "member": "Electricity"
-    },
-    "dhw.dhwLocation": {
-      "status": "asserted",
-      "sourceSpan": "water heater in the garage",
-      "member": "Garage or Unconditioned Space"
-    }
+  "instances": {
+    "hvac": [],
+    "attic": [],
+    "wall": [],
+    "window": [],
+    "dhw": [
+      {
+        "discriminator": "the dhw described in this transcript",
+        "mentionSpan": "electric tank, standard storage unit",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "dhwType2": {
+            "status": "asserted",
+            "sourceSpan": "electric tank, standard storage unit",
+            "member": "Tank Water Heater"
+          },
+          "dhwFuel2": {
+            "status": "asserted",
+            "sourceSpan": "electric tank, standard storage unit",
+            "member": "Electricity"
+          },
+          "dhwLocation": {
+            "status": "asserted",
+            "sourceSpan": "water heater in the garage",
+            "member": "Garage or Unconditioned Space"
+          }
+        }
+      }
+    ]
   },
+  "leaves": {},
   "notes": {
     "dhw.dhwType2": "'electric tank' and the restated 'standard storage unit' / 'Electric storage water heater, that's it' all agree -- a tank (not tankless) unit; no retraction, just emphasis/restatement, so no `retracted` entry is warranted.",
     "dhw.dhwAge": "'looked pretty new' is a qualitative visual impression, not a stated age or number of years. ANNOTATOR_GUIDE.md rule 3 explicitly forbids deriving a field from an appearance judgment ('a model year from \"the plate looked worn\"' is its own named example of exactly this trap) -- so this leaf is left unmentioned rather than bucketed into the '0-5' band.",

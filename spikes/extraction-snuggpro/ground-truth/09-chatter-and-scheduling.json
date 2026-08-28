@@ -1,41 +1,63 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/09-chatter-and-scheduling.txt",
   "stresses": "A DHW-only visit wrapped in homeowner/dog/scheduling side-chatter, testing: (1) an off-topic distractor from a DIFFERENT job ('the guy had three furnaces in one house' at the prior Cedar job) that must not be attributed to this house's hvac; (2) a homeowner-stated appliance age ('we put that in two years ago') that the auditor only echoes ('Yeah, two years, so no concern on that one at all') without independently confirming it himself (no plate read, no 'let me check') -- BOTH annotators, independently, read this as failing rule 3's attribution bar and left dhw.dhwAge unmentioned; the PRE-EXISTING old-format ground truth had asserted dhwAgeBand: 0-5 here, apparently BY DESIGN as a contrast case against transcript 06's refusal, but the new consensus reading is that an uncritical echo does not clear rule 3's 'independently confirms ... in their own words' bar any better than transcript 06's outright refusal does -- see RECONCILIATION.md; (3) a compound deferral ('the furnace and the attic and all that, we said next Tuesday') naming TWO different resource groups (hvac, attic) in one clause, recorded as two separate group-scoped disclaimers rather than one mis-scoped one or a 'shell' named-set (which does not include hvac); (4) two spoken facts with no write target anywhere in the 51 leaves -- a DHW model number ('Navien NPE-something') and DHW venting hardware ('power-vented ... PVC going out the wall') -- schema findings, see RECONCILIATION.md.",
   "disclaimers": [
     {
       "span": "the furnace and the attic and all that, we said next Tuesday for the full assessment",
       "topic": "the furnace / HVAC system, deferred to next Tuesday's full assessment",
-      "scope": { "kind": "group", "group": "hvac" }
+      "scope": {
+        "kind": "group",
+        "group": "hvac"
+      }
     },
     {
       "span": "the furnace and the attic and all that, we said next Tuesday for the full assessment",
       "topic": "the attic, deferred to next Tuesday's full assessment",
-      "scope": { "kind": "group", "group": "attic" }
+      "scope": {
+        "kind": "group",
+        "group": "attic"
+      }
     }
   ],
-  "leaves": {
-    "dhw.dhwType2": {
-      "status": "asserted",
-      "sourceSpan": "tankless, on-demand, natural gas",
-      "member": "Tankless Water Heater"
-    },
-    "dhw.dhwFuel2": {
-      "status": "asserted",
-      "sourceSpan": "tankless, on-demand, natural gas",
-      "member": "Natural Gas"
-    },
-    "dhw.dhwManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "a Navien",
-      "member": "Navien"
-    },
-    "dhw.dhwLocation": {
-      "status": "asserted",
-      "sourceSpan": "mounted out in the garage",
-      "member": "Garage or Unconditioned Space"
-    }
+  "instances": {
+    "hvac": [],
+    "attic": [],
+    "wall": [],
+    "window": [],
+    "dhw": [
+      {
+        "discriminator": "the dhw described in this transcript",
+        "mentionSpan": "tankless, on-demand, natural gas",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "dhwType2": {
+            "status": "asserted",
+            "sourceSpan": "tankless, on-demand, natural gas",
+            "member": "Tankless Water Heater"
+          },
+          "dhwFuel2": {
+            "status": "asserted",
+            "sourceSpan": "tankless, on-demand, natural gas",
+            "member": "Natural Gas"
+          },
+          "dhwManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "a Navien",
+            "member": "Navien"
+          },
+          "dhwLocation": {
+            "status": "asserted",
+            "sourceSpan": "mounted out in the garage",
+            "member": "Garage or Unconditioned Space"
+          }
+        }
+      }
+    ]
   },
+  "leaves": {},
   "notes": {
     "dhw.dhwAge": "GENUINELY ARGUABLE, deliberately left unasserted rather than written with a value -- both independent annotators agreed on this. '[homeowner] We put that in two years ago.' is the homeowner's statement, not the auditor's. The auditor's own line, 'Yeah, two years, so no concern on that one at all, that's a good unit', repeats the homeowner's number back but does no independent confirming act (no plate reading, no 'let me check') the way rule 3's sanctioned example does ('I hear you, but I need to read the plate myself' followed by the auditor's own reading). This reads as the uncritical repeat-back rule 3 explicitly rules out. NOTE: the pre-existing OLD-format ground truth for this transcript asserted an age here (0-5, from '2 years'), apparently designed as a deliberate CONTRAST with transcript 06's outright refusal -- but under the new format's explicit rule-3 language, an uncritical echo does not obviously clear a higher bar than an outright refusal does; both leave the auditor's own words short of an independent confirming act. Treated as evidence, not authority (see RECONCILIATION.md); the new consensus is to leave this leaf unmentioned. A different, more permissive reading of 'Yeah' as the auditor adopting the number as his own professional record would not be unreasonable.",
     "dhw.dhwTankSize": "NOT recorded. The unit is tankless, so a tank size does not apply, but the auditor never says so explicitly -- inferring 'no tank size' from 'it's tankless' would be deriving one field from another (rule 3's first bullet), not transcribing something said.",

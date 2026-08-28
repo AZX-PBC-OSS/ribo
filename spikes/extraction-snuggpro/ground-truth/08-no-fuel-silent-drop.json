@@ -1,82 +1,129 @@
 {
-  "schemaVersion": "snuggpro-51-leaf-v2",
+  "schemaVersion": "snuggpro-instances-v3",
   "transcript": "transcripts/08-no-fuel-silent-drop.txt",
-  "stresses": "SCHEMA FINDING, escalated prominently (see RECONCILIATION.md and the leaf-level note below): this transcript narrates TWO real, current, fully-independent HVAC systems -- a furnace (manufacturer/model/fuel-question/year) and a separately-standalone-duct central AC (its own attic ducts, insulation, leakage) -- explicitly NOT sharing ducts, with identity detail belonging to one and duct detail belonging to the other. The single-hvac-instance schema (schema.ts's own documented 'Cardinality' divergence) cannot represent this house; ONE instance is chosen (the furnace, as the more fully-detailed, explicitly-reaffirmed system) and the loss is real, not resolved by annotation. Also: THE named silent-drop trap -- equipment is unambiguous (furnace) but the auditor explicitly declines the fuel ('I can't tell you the fuel on this one') and this must land as declared_absent, not silently collapse to the same 'unmentioned' a truly-never-discussed fuel would get. Two more individually-declared absences stack alongside it (model year unreadable; attic depth explicitly not measured, only the R-value eyeballed) -- mirroring the worked example's R-value/depth split. A genuine partial value ('model G-something') that is incomplete but still a real, stated fragment, not a pure non-answer. A clean, low-ambiguity wall-insulation call ('some, but poor' -> 'Poorly') matching schema.ts's own doc-comment example almost verbatim.",
+  "stresses": "TWO real, current, fully-independent HVAC systems -- a furnace (manufacturer/model/fuel-question/year) and a separately-standalone-duct central AC (its own attic ducts, insulation, leakage) -- explicitly NOT sharing ducts, with identity detail belonging to one and duct detail belonging to the other. Under the old single-instance format this was UNREPRESENTABLE and the file recorded the loss; the instance format now expresses it, which makes this transcript the corpus's primary ATTRIBUTION test: a run can emit the right number of systems and still put the furnace's identity and the AC's ducts on one record. Also: THE named silent-drop trap -- equipment is unambiguous (furnace) but the auditor explicitly declines the fuel ('I can't tell you the fuel on this one') and this must land as declared_absent, not collapse to the same 'unmentioned' a never-discussed fuel would get. Two more declared absences stack alongside (model year unreadable; attic depth explicitly not measured, only the R-value eyeballed). A genuine partial value ('model G-something') that is incomplete but still a real, stated fragment. A clean wall-insulation call ('some, but poor' -> 'Poorly').",
   "disclaimers": [],
-  "leaves": {
-    "hvac.hvacSystemEquipmentType": {
-      "status": "asserted",
-      "sourceSpan": "heating is a furnace, forced air, I can see the supply plenum coming off it.",
-      "member": "Furnace with standalone ducts",
-      "arguable": {
-        "acceptableAlternatives": ["Central AC with standalone ducts"],
-        "note": "SCHEMA FINDING, not a within-statement ambiguity: this transcript describes TWO full, independently-unambiguous standalone-duct systems on one property -- a furnace ('heating is a furnace, forced air ... supply plenum') and a central AC ('The AC's got its own ducts up in the attic, standalone, separate from anything the furnace does. Central AC, standalone ducts.') -- each one individually clear about NOT sharing ducts with the other (so this is NOT rule 6's conflated-axis pattern; the shared/standalone axis is explicitly resolved for both, hence no `symmetric`). The ambiguity is schema.ts's own documented 'Cardinality' divergence: this schema models exactly ONE hvac instance, so a second, equally-well-described system 'lands on the same leaves as the first and the reviewer sees the collision' (schema.ts file header). The furnace is chosen because it is mentioned first and re-affirmed with an explicit correction ('Let me be clear: heating is a furnace...'), and because it carries the manufacturer/model/fuel/year detail cluster -- but this is a judgment call about WHICH system occupies the one slot, not a resolution of what either system actually is. hvac.hvacDuctLocation/hvacDuctLeakage/hvacDuctInsulation below describe the AC's attic ductwork, not the furnace's -- so this record's hvac.* leaves, taken TOGETHER, describe two different physical systems. THE LOSS IS REAL: no encoding of this record recovers 'both systems, correctly attributed' from a single hvac instance; a downstream consumer reading this record alone would believe the furnace has bare, disconnected, very-leaky attic ducts, when those ducts belong to the AC. Recorded here, not solved."
+  "instances": {
+    "hvac": [
+      {
+        "discriminator": "the Lennox furnace, forced warm air, in the closet",
+        "mentionSpan": "heating is a furnace, forced air, I can see the supply plenum coming off it.",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "heating is a furnace, forced air, I can see the supply plenum coming off it.",
+            "member": "Furnace with standalone ducts"
+          },
+          "hvacHeatingEnergySource": {
+            "status": "declared_absent",
+            "sourceSpan": "I can't tell you the fuel on this one."
+          },
+          "hvacHeatingSystemManufacturer": {
+            "status": "asserted",
+            "sourceSpan": "It's a Lennox, though",
+            "member": "Lennox"
+          },
+          "hvacHeatingSystemModel": {
+            "status": "asserted",
+            "sourceSpan": "model G-something",
+            "value": "G-something",
+            "arguable": {
+              "acceptableMiss": true,
+              "note": "The auditor states a genuine partial reading ('model G-something') rather than declining outright -- a real, if incomplete, fragment, analogous to a stated R-value being a real independent value even when a depth is also unmeasured. Asserted verbatim rather than declared_absent, since something concrete WAS read off the plate ('G-...'), unlike the model year (below), where nothing at all was legible. It is explicitly incomplete ('I couldn't get the full model number off the corner it was jammed into'), so a model that leaves this null instead of inventing digits is a defensible caution, not a penalized miss."
+            }
+          },
+          "hvacHeatingSystemModelYear": {
+            "status": "declared_absent",
+            "sourceSpan": "there's no year I could read."
+          }
+        }
+      },
+      {
+        "discriminator": "the central AC with its own standalone attic ducts",
+        "mentionSpan": "The AC's got its own ducts up in the attic, standalone",
+        "distinguishedBy": "separate from anything the furnace does",
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "hvacSystemEquipmentType": {
+            "status": "asserted",
+            "sourceSpan": "Central AC, standalone ducts",
+            "member": "Central AC with standalone ducts"
+          },
+          "hvacDuctLocation": {
+            "status": "asserted",
+            "sourceSpan": "its own ducts up in the attic",
+            "value": "up in the attic"
+          },
+          "hvacDuctLeakage": {
+            "status": "asserted",
+            "sourceSpan": "I'd call the sealing very leaky.",
+            "member": "30% - Very leaky"
+          },
+          "hvacDuctInsulation": {
+            "status": "asserted",
+            "sourceSpan": "no insulation on them at all, bare metal",
+            "member": "No Insulation"
+          }
+        }
       }
-    },
-    "hvac.hvacHeatingEnergySource": {
-      "status": "declared_absent",
-      "sourceSpan": "I can't tell you the fuel on this one."
-    },
-    "hvac.hvacHeatingSystemManufacturer": {
-      "status": "asserted",
-      "sourceSpan": "It's a Lennox, though",
-      "member": "Lennox"
-    },
-    "hvac.hvacHeatingSystemModel": {
-      "status": "asserted",
-      "sourceSpan": "model G-something",
-      "value": "G-something",
-      "arguable": {
-        "acceptableMiss": true,
-        "note": "The auditor states a genuine partial reading ('model G-something') rather than declining outright -- a real, if incomplete, fragment, analogous to a stated R-value being a real independent value even when a depth is also unmeasured. Asserted verbatim rather than declared_absent, since something concrete WAS read off the plate ('G-...'), unlike the model year (below), where nothing at all was legible. It is explicitly incomplete ('I couldn't get the full model number off the corner it was jammed into'), so a model that leaves this null instead of inventing digits is a defensible caution, not a penalized miss."
+    ],
+    "attic": [
+      {
+        "discriminator": "the attic over the second floor",
+        "mentionSpan": "Attic insulation is fiberglass batts",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "atticInsulationType": {
+            "status": "asserted",
+            "sourceSpan": "Attic insulation is fiberglass batts",
+            "member": "Fiberglass or Rockwool (batts or blown)"
+          },
+          "atticInsulation": {
+            "status": "asserted",
+            "sourceSpan": "R-thirty, R-30, up here between the joists",
+            "value": 30
+          },
+          "atticInsulationDepth": {
+            "status": "declared_absent",
+            "sourceSpan": "I didn't measure the depth with a ruler"
+          }
+        }
       }
-    },
-    "hvac.hvacHeatingSystemModelYear": {
-      "status": "declared_absent",
-      "sourceSpan": "there's no year I could read."
-    },
-    "hvac.hvacDuctLocation": {
-      "status": "asserted",
-      "sourceSpan": "its own ducts up in the attic",
-      "value": "up in the attic"
-    },
-    "hvac.hvacDuctLeakage": {
-      "status": "asserted",
-      "sourceSpan": "I'd call the sealing very leaky.",
-      "member": "30% - Very leaky"
-    },
-    "hvac.hvacDuctInsulation": {
-      "status": "asserted",
-      "sourceSpan": "no insulation on them at all, bare metal",
-      "member": "No Insulation"
-    },
-    "attic.atticInsulationType": {
-      "status": "asserted",
-      "sourceSpan": "Attic insulation is fiberglass batts",
-      "member": "Fiberglass or Rockwool (batts or blown)"
-    },
-    "attic.atticInsulation": {
-      "status": "asserted",
-      "sourceSpan": "R-thirty, R-30, up here between the joists",
-      "value": 30
-    },
-    "attic.atticInsulationDepth": {
-      "status": "declared_absent",
-      "sourceSpan": "I didn't measure the depth with a ruler"
-    },
-    "wall.wallsInsulated": {
-      "status": "asserted",
-      "sourceSpan": "So some, but poor.",
-      "member": "Poorly"
-    },
-    "wall.wallCavityInsulationType": {
-      "status": "asserted",
-      "sourceSpan": "old batt",
-      "member": "Fiberglass or Rockwool Batt"
-    }
+    ],
+    "wall": [
+      {
+        "discriminator": "the upstairs walls",
+        "mentionSpan": "Walls, the upstairs walls",
+        "distinguishedBy": null,
+        "eligibility": "current",
+        "eligibilitySpan": null,
+        "leaves": {
+          "wallsInsulated": {
+            "status": "asserted",
+            "sourceSpan": "So some, but poor.",
+            "member": "Poorly"
+          },
+          "wallCavityInsulationType": {
+            "status": "asserted",
+            "sourceSpan": "old batt",
+            "member": "Fiberglass or Rockwool Batt"
+          }
+        }
+      }
+    ],
+    "window": [],
+    "dhw": []
   },
+  "leaves": {},
   "notes": {
-    "hvac.hvacSystemEquipmentType": "PROMINENT LOSS NOTE (task-mandated, see RECONCILIATION.md finding 5): this house genuinely has two current, independent HVAC systems and the schema has one hvac write slot. The chosen instance is the FURNACE. Everything else recorded on this hvac.* record besides the equipment-type/manufacturer/model/fuel/year cluster (i.e. hvacDuctLocation, hvacDuctLeakage, hvacDuctInsulation) actually describes the CENTRAL AC's attic ductwork, not the furnace's. This is not an annotation error and is not fixable by a different choice of leaf values -- it is the format's documented single-instance cardinality limitation (schema.ts file header) actually biting on real transcript content, not a hypothetical. A write to Snugg Pro from this record would attribute the AC's duct condition to the furnace's record.",
-    "_general": "No blanket negation ('no tests', 'no water heater', etc.) appears anywhere in this transcript, so there are no `disclaimers` entries -- the window, dhw, health, and basedata groups, plus attic.atticHasKneeWall/atticRoofType and wall.wallExteriorWallSiding, are never brought up at all and correctly resolve to the default 'unmentioned'. The 'no wait' self-correction in paragraph 2 ('up in the attic there's an air handler, no wait, the furnace itself is in the closet...') is a location clarification, not a value retraction of any leaf here -- no equipment-type member was actually stated before the correction, so it is not recorded as `retracted`. wall.wallCavityInsulation (the R-value number) is left unmentioned on purpose: 'a couple inches of old batt' states a thickness, not an R-value, and the wall group's only numeric leaf is R-value -- there is no depth/thickness write target for walls the way attic has both, so this has no home rather than being forced into the R-value leaf (rule 9). The furnace's own physical location ('the furnace itself is in the closet') has no write target either -- there is no equipment-location leaf, only hvacDuctLocation, which this file uses for the AC's duct location instead."
+    "instances.hvac": "THE LOSS NOTE THIS FILE USED TO CARRY IS RESOLVED, and that resolution is the point of R1.6. Previously both systems shared one hvac record: the equipment-type/manufacturer/model/fuel/year cluster described the FURNACE while hvacDuctLocation/hvacDuctLeakage/hvacDuctInsulation described the AC's attic ductwork, so the record asserted something false about a real appliance and no encoding of it could recover 'both systems, correctly attributed'. They are now two instances and each field sits on the system it belongs to. What this file now tests is whether extraction reproduces that split: emitting TWO hvac instances is necessary but not sufficient, because a run can get the count right and still mix the clusters. The attribution metric, not the enumeration metric, is what this transcript grades.",
+    "instances.hvac[1].hvacSystemEquipmentType": "The AC's own equipment type comes from 'Central AC, standalone ducts', stated separately from the furnace's line. The furnace instance's equipment type no longer carries an `arguable` alternative: the alternative it listed WAS this instance, so once both exist the choice is not a judgement call.",
+    "_general": "No blanket negation appears anywhere in this transcript, so `disclaimers` is empty -- window, dhw, health and basedata are never brought up and correctly resolve to 'unmentioned'. The 'no wait' self-correction in paragraph 2 ('up in the attic there's an air handler, no wait, the furnace itself is in the closet and the AC air handler's the separate thing') is an INSTANCE-LEVEL correction: it does not retract a leaf value, it clarifies that the air handler and the furnace are different machines -- which is precisely the distinction the two instances below encode. wall.wallCavityInsulation (an R-value) stays unmentioned on purpose: 'a couple inches of old batt' states a thickness, and walls have no depth leaf."
   }
 }
