@@ -774,3 +774,123 @@ test("a nested leaf can be required, addressed by its dotted path", () => {
   expect(marked.fields["healthSafety.ambientCo"]?.required).toBe(true);
   expect(marked.fields.rValue?.required).toBe(false);
 });
+
+/* R1.6 Task 6 — review enumerates instances from data, leaves from schema.
+ *
+ * The invariant, restated: the data determines how many instances exist; the schema
+ * determines every leaf within each instance. A leaf the model omitted from a present
+ * instance still appears with the sentinel envelope, so no leaf of a reviewed instance
+ * can silently vanish. Empty collections have no leaves, so they are recorded separately
+ * in {@link ReviewRequest.presentButEmpty}.
+ */
+
+const hvacElementSchema = z.object({
+  hvacSystemEquipmentType: z.string().nullable().optional(),
+  hvacHeatingEnergySource: z.string().nullable().optional(),
+  hvacUpgradeAction: z.string().nullable().optional(),
+});
+
+const dhwElementSchema = z.object({
+  dhwType2: z.string().nullable().optional(),
+});
+
+const withCollectionsSchema = z.object({
+  hvac: z.array(hvacElementSchema).optional(),
+  dhw: z.array(dhwElementSchema).optional(),
+});
+
+const collectionRequestFor = (extracted: Record<string, unknown>): ReviewRequest =>
+  buildReviewRequest(extracted, transcript, withCollectionsSchema);
+
+describe("buildReviewRequest — collections: data counts instances, schema counts leaves", () => {
+  test("two HVAC instances produce two full sets of HVAC leaf paths, each addressing a distinct key", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+        {
+          hvacSystemEquipmentType: { value: "Furnace", confidence: 1, sourceSpan: "furnace" },
+          hvacHeatingEnergySource: { value: "Natural Gas", confidence: 1, sourceSpan: "gas" },
+          hvacUpgradeAction: { value: "Replace", confidence: 1, sourceSpan: "replace" },
+        },
+      ],
+    });
+
+    expect(Object.keys(request.fields)).toEqual([
+      "hvac[k1].hvacSystemEquipmentType",
+      "hvac[k1].hvacHeatingEnergySource",
+      "hvac[k1].hvacUpgradeAction",
+      "hvac[k2].hvacSystemEquipmentType",
+      "hvac[k2].hvacHeatingEnergySource",
+      "hvac[k2].hvacUpgradeAction",
+    ]);
+    expect(request.fields["hvac[k1].hvacSystemEquipmentType"]?.extracted.value).toBe("Boiler");
+    expect(request.fields["hvac[k2].hvacSystemEquipmentType"]?.extracted.value).toBe("Furnace");
+  });
+
+  test("every leaf of every present instance appears, including leaves the model left null", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          // `hvacHeatingEnergySource` and `hvacUpgradeAction` are omitted.
+        },
+      ],
+    });
+
+    expect(Object.keys(request.fields)).toEqual([
+      "hvac[k1].hvacSystemEquipmentType",
+      "hvac[k1].hvacHeatingEnergySource",
+      "hvac[k1].hvacUpgradeAction",
+    ]);
+    expect(request.fields["hvac[k1].hvacHeatingEnergySource"]?.extracted).toEqual({
+      value: null,
+      confidence: 0,
+      sourceSpan: null,
+    });
+  });
+
+  test("an empty collection produces no leaf paths and is recorded as present-but-empty", () => {
+    const request = collectionRequestFor({
+      hvac: [],
+      dhw: [{ dhwType2: { value: "Tank Water Heater", confidence: 1, sourceSpan: "tank" } }],
+    });
+
+    expect(Object.keys(request.fields)).toEqual(["dhw[k1].dhwType2"]);
+    expect(request.presentButEmpty).toEqual(["hvac"]);
+  });
+
+  test("a group absent from the extraction output is not recorded as present-but-empty", () => {
+    const request = collectionRequestFor({});
+
+    expect(Object.keys(request.fields)).toHaveLength(0);
+    expect(request.presentButEmpty).toEqual([]);
+  });
+
+  test("instance order in the request follows the emitted array order", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "First", confidence: 1, sourceSpan: "first" },
+          hvacHeatingEnergySource: { value: "Electricity", confidence: 1, sourceSpan: "elec" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+        {
+          hvacSystemEquipmentType: { value: "Second", confidence: 1, sourceSpan: "second" },
+          hvacHeatingEnergySource: { value: "Natural Gas", confidence: 1, sourceSpan: "gas" },
+          hvacUpgradeAction: { value: "Replace", confidence: 1, sourceSpan: "replace" },
+        },
+      ],
+    });
+
+    const keys = Object.keys(request.fields);
+    expect(keys.indexOf("hvac[k1].hvacSystemEquipmentType")).toBeLessThan(
+      keys.indexOf("hvac[k2].hvacSystemEquipmentType"),
+    );
+    expect(request.fields["hvac[k1].hvacSystemEquipmentType"]?.extracted.value).toBe("First");
+    expect(request.fields["hvac[k2].hvacSystemEquipmentType"]?.extracted.value).toBe("Second");
+  });
+});

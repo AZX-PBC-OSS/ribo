@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { childPath, stripOptionalNullable } from "./field-path.js";
-import type { FieldPath } from "./field-path.js";
+import { buildFieldPath, stripOptionalNullable } from "./field-path.js";
+import type { FieldPath, FieldPathSegment } from "./field-path.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 import { isSpanGrounded } from "./provenance.js";
 import type { Extracted } from "./provenance.js";
@@ -56,13 +56,15 @@ export type { FieldPath } from "./field-path.js";
  *
  * Three consequences, each of which is a property this file establishes:
  *
- *   - **The schema enumerates the leaves, not the data.** {@link buildReviewRequest}
- *     walks the adapter's *values* schema and looks each leaf up in the extracted
- *     data — never the reverse. A leaf the model omitted entirely is still presented,
- *     carrying the sentinel envelope `{ value: null, confidence: 0, sourceSpan: null }`.
- *     Enumerating the data instead would make an omitted field vanish from the review
- *     card, which is indistinguishable to the auditor from a field that was extracted
- *     correctly and is exactly the silence the provenance envelope exists to forbid.
+ *   - **The data determines how many instances exist; the schema determines every leaf
+ *     within each instance.** A schema cannot know how many HVAC systems a transcript
+ *     described, so instance count is necessarily data-driven. {@link buildReviewRequest}
+ *     enumerates the adapter's *values* schema once per instance the data contains, and a leaf
+ *     the model omitted from a present instance is still shown with the sentinel envelope
+ *     `{ value: null, confidence: 0, sourceSpan: null }`. That preserves the property that
+ *     matters: no leaf of a reviewed instance can silently vanish from the card. Only empty
+ *     collections themselves have no leaves, and they are recorded separately so a submit
+ *     can still distinguish "there are none" from "touch nothing".
  *   - **Each leaf carries its own value schema** ({@link ReviewField.schema}), so a UI
  *     can render an editor and validate an edit knowing nothing about any adapter. A
  *     TypeScript type cannot tell a UI an enum's members at runtime; a zod schema can,
@@ -150,15 +152,18 @@ export interface ReviewField {
 }
 
 /**
- * Every leaf of the adapter's values schema, prepared for review, keyed by dotted path.
+ * Every leaf of the adapter's values schema, prepared for review, keyed by path.
+ * Paths are dotted for nested objects (`health.healthGasLeak`) and bracketed for
+ * array instances (`hvac[k1].hvacSystemEquipmentType`), constructed by
+ * {@link buildFieldPath} so construction and parsing never diverge.
  *
- * **Insertion order is schema-declaration order, and is part of the contract.** The
- * walk visits the shape's keys in declaration order and recurses into a nested object
- * at the position of its own key, so Snugg Pro's `health` group's 14 tests appear
- * together, where the schema author put them. A UI that maps over `Object.keys(fields)`
+ * **Insertion order is schema-declaration order within each instance, and is part of the
+ * contract.** The walk visits the shape's keys in declaration order and recurses into a
+ * nested object at the position of its own key, so Snugg Pro's `health` group's 14 tests
+ * appear together, where the schema author put them. A UI that maps over `Object.keys(fields)`
  * therefore renders the same order on every mount, and {@link resolveReview}'s
  * `editedFields` / `rejectedFields` follow the same order. This is deliberately *not*
- * sorted: sorting would discard the grouping the adapter author chose, and 51 fields in
+ * sorted: sorting would discard the grouping the schema author chose, and 51 fields in
  * an order nobody picked is worse than 51 fields in theirs. `field-path.ts` refuses the
  * one key shape that would break the guarantee.
  */
@@ -168,8 +173,17 @@ export type ReviewFields = Readonly<Record<FieldPath, ReviewField>>;
 export interface ReviewRequest {
   /** The transcript the draft came from — the auditor's own words, for context. */
   readonly transcript: Transcript;
-  /** Every leaf, by dotted path, with its provenance, grounded flag and schema. */
+  /** Every leaf, by path, with its provenance, grounded flag and schema. */
   readonly fields: ReviewFields;
+  /**
+   * Array paths that appeared in the extracted data as empty arrays.
+   *
+   * `hvac: []` and an absent `hvac` are opposite write instructions, but that distinction
+   * is gone once the per-leaf decisions are collected. {@link buildReviewRequest} is the one
+   * place that still sees the raw extraction, so it records the empty-but-present groups
+   * here. Task 7 consumes this list to emit `[]` for exactly these groups on submit.
+   */
+  readonly presentButEmpty: readonly FieldPath[];
 }
 
 /**
@@ -330,23 +344,75 @@ const readEnvelope = (node: unknown): Extracted<unknown> => {
  * Walk one level of the values schema, appending a {@link ReviewField} per leaf.
  *
  * Recursion is on the schema and the data in lockstep, but only the schema decides
- * what exists — `readChild` may hand back `undefined` the whole way down and the
- * leaves still get presented.
+ * what leaves exist — `readChild` may hand back `undefined` the whole way down and
+ * the leaves still get presented. For array groups the data decides how many
+ * instances exist: each element is assigned a stable key (`k1`, `k2`, …) and the
+ * element schema is walked once per instance, producing bracketed paths like
+ * `hvac[k1].hvacSystemEquipmentType`. Order is the order the data emits the
+ * instances in; the key is what keeps a decision attached to the same instance if
+ * the UI removes one later.
  */
 const collectFields = (
   values: z.ZodObject,
-  prefix: string,
+  prefixSegments: readonly FieldPathSegment[],
   node: unknown,
   transcript: Transcript,
   required: ReadonlySet<FieldPath>,
   out: Record<FieldPath, ReviewField>,
+  presentButEmpty: FieldPath[],
 ): void => {
   for (const [key, declared] of Object.entries(values.shape) as [string, z.ZodType][]) {
-    const path = childPath(prefix, key);
+    const pathSegments: readonly FieldPathSegment[] = [
+      ...prefixSegments,
+      { kind: "objectKey", key },
+    ];
+    const path = buildFieldPath(pathSegments);
     const stripped = stripOptionalNullable(declared);
 
     if (stripped instanceof z.ZodObject) {
-      collectFields(stripped, path, readChild(node, key), transcript, required, out);
+      collectFields(
+        stripped,
+        pathSegments,
+        readChild(node, key),
+        transcript,
+        required,
+        out,
+        presentButEmpty,
+      );
+      continue;
+    }
+
+    if (stripped instanceof z.ZodArray) {
+      // zod 4's `ZodArray.element` is typed as the core `$ZodType`; every schema in this
+      // codebase is built through the classic API, so the cast reflects the actual value.
+      const elementSchema = stripOptionalNullable(stripped.element as z.ZodType);
+      if (!(elementSchema instanceof z.ZodObject)) {
+        throw new Error(
+          `review cannot walk array at "${path}" — its element is not a plain object, ` +
+            "so there are no leaf fields to review per instance.",
+        );
+      }
+      const arrayNode = readChild(node, key);
+      if (arrayNode !== undefined && Array.isArray(arrayNode) && arrayNode.length === 0) {
+        presentButEmpty.push(path);
+      }
+      const elements = Array.isArray(arrayNode) ? arrayNode : [];
+      for (let i = 0; i < elements.length; i++) {
+        const instanceKey = `k${i + 1}`;
+        const instanceSegments: readonly FieldPathSegment[] = [
+          ...pathSegments,
+          { kind: "instanceKey", key: instanceKey },
+        ];
+        collectFields(
+          elementSchema,
+          instanceSegments,
+          elements[i],
+          transcript,
+          required,
+          out,
+          presentButEmpty,
+        );
+      }
       continue;
     }
 
@@ -372,7 +438,10 @@ const collectFields = (
  * extraction schema, and it is what decides which leaves exist. `extracted` is the
  * model's output, looked up path by path. That direction is the point: a leaf the
  * model never emitted is still shown, with the sentinel envelope, rather than
- * silently missing from the card.
+ * silently missing from the card. For collection groups, the data determines how
+ * many instances exist and the schema determines every leaf within each instance;
+ * empty-but-present collections are recorded in {@link ReviewRequest.presentButEmpty}
+ * so the submit path can still distinguish "there are none" from "touch nothing".
  */
 export const buildReviewRequest = (
   extracted: Record<string, unknown>,
@@ -381,9 +450,10 @@ export const buildReviewRequest = (
   options: BuildReviewRequestOptions = {},
 ): ReviewRequest => {
   const fields: Record<FieldPath, ReviewField> = {};
+  const presentButEmpty: FieldPath[] = [];
   const required = new Set(options.requiredOnCreate ?? []);
-  collectFields(valuesSchema, "", extracted, transcript, required, fields);
-  return { transcript, fields };
+  collectFields(valuesSchema, [], extracted, transcript, required, fields, presentButEmpty);
+  return { transcript, fields, presentButEmpty };
 };
 
 /**
