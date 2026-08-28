@@ -255,3 +255,10 @@ export type {
 // re-implemented it independently would risk the two walks disagreeing about
 // what counts as a wrapper.
 export { stripOptionalNullable } from "./field-path.js";
+
+// Field-path grammar: one shared implementation for building and parsing dotted
+// and bracketed paths. Object-key and instance-key segments are distinct at the
+// type level so `resolveReview` cannot silently rebuild `hvac[k3].leaf` as an
+// object whose key is the literal text `hvac[k3]`.
+export { buildFieldPath, parseFieldPath } from "./field-path.js";
+export type { FieldPathSegment } from "./field-path.js";
