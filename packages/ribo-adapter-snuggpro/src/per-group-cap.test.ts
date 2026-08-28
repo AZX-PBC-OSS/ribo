@@ -80,3 +80,48 @@ test("every per-group schema nests within the depth cap", () => {
     );
   }
 });
+
+/**
+ * The five collection groups (`hvac`, `attic`, `wall`, `window`, `dhw`) will be
+ * arrays of instances in Task 5. The split must still produce one entry per group,
+ * and each per-group schema — including the array-wrapped ones — must fit under the
+ * route's cap. This is the only test that exercises the cap against the real Snugg
+ * leaf set with the array wrapper in place.
+ */
+test("array-wrapped collection groups split and stay under the caps", () => {
+  const shape = snuggExtractionSchema.shape;
+  const arraySchema = z.strictObject({
+    basedata: shape.basedata,
+    hvac: z.array(shape.hvac),
+    attic: z.array(shape.attic),
+    wall: z.array(shape.wall),
+    window: z.array(shape.window),
+    dhw: z.array(shape.dhw),
+    health: shape.health,
+  });
+
+  const groups = splitExtractionSchema(arraySchema);
+  expect(groups.map((g) => g.key)).toEqual([
+    "basedata",
+    "hvac",
+    "attic",
+    "wall",
+    "window",
+    "dhw",
+    "health",
+  ]);
+
+  for (const group of groups) {
+    const jsonSchema = z.toJSONSchema(group.schema, { target: "draft-2020-12" });
+    const serialized = JSON.stringify(jsonSchema);
+    expect(
+      serialized.length,
+      `group "${group.key}" serialized schema is ${serialized.length} characters`,
+    ).toBeLessThan(SCHEMA_SERIALIZED_CHAR_CAP);
+
+    const depth = maxNestingDepth(jsonSchema, 0);
+    expect(depth, `group "${group.key}" nests ${depth} levels`).toBeLessThanOrEqual(
+      SCHEMA_NESTING_DEPTH_CAP,
+    );
+  }
+});

@@ -1,4 +1,4 @@
-import { enveloped } from "@azx/ribo-core";
+import { enveloped, extractedSchema } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
@@ -9,9 +9,11 @@ import { splitExtractionSchema } from "./split-schema.js";
  * half of R3. This package is tool-agnostic and must not depend on any adapter, so
  * the fixtures here are synthetic schemas that mirror the structures a real
  * adapter produces: a grouped schema (top-level properties are nested objects of
- * enveloped leaves) and a non-grouped schema (top-level properties are envelopes
- * directly). The Snugg-specific test against the real `snuggExtractionSchema` lives
- * in `ribo-adapter-snuggpro`, which already depends on this package for testing.
+ * enveloped leaves), an array-group schema (top-level properties are arrays of
+ * group objects, for collections), and a non-grouped schema (top-level properties
+ * are envelopes directly). The Snugg-specific test against the real
+ * `snuggExtractionSchema` lives in `ribo-adapter-snuggpro`, which already depends on
+ * this package for testing.
  */
 
 // --- Fixtures ----------------------------------------------------------------
@@ -57,20 +59,47 @@ const flatPatch = z
 
 const flatExtraction = enveloped(flatPatch);
 
+/**
+ * A collection-group extraction schema — one top-level property is a `ZodArray`
+ * whose element is a group object of envelopes. This mirrors the shape Task 5
+ * will produce for the five Snugg collection groups; the test exercises it before
+ * that derivation exists.
+ */
+const arrayGroupExtraction = z.strictObject({
+  hvac: z.array(
+    z.strictObject({
+      equipmentType: extractedSchema(z.string()),
+      fuel: extractedSchema(z.string()),
+    }),
+  ),
+  attic: z.strictObject({
+    insulationDepth: extractedSchema(z.string()),
+    insulationRValue: extractedSchema(z.number()),
+  }),
+});
+
 // --- Leaf enumeration (for the coverage test) --------------------------------
 
 const ENVELOPE_KEYS = new Set(["value", "confidence", "sourceSpan"]);
 
 /**
- * Walk a zod object schema and collect the dotted paths to every envelope — every
+ * Walk a zod schema and collect the dotted paths to every envelope — every
  * `{ value, confidence, sourceSpan }` leaf. This is the test's independent way to
  * enumerate what the split must cover, without relying on the implementation's own
  * `isGroupObject` heuristic: an envelope is identified by its key set, which is the
- * shape `extractedSchema` always produces.
+ * shape `extractedSchema` always produces. Arrays are unwrapped to their element
+ * so collection groups are counted the same way as singleton groups.
  */
+function unwrapArray(schema: z.ZodType): z.ZodType {
+  // The schemas under test are built with the classic `z` API, so the array
+  // element at runtime is the same classic wrapper the rest of the test uses.
+  return schema instanceof z.ZodArray ? (schema.element as z.ZodType) : schema;
+}
+
 function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
-  if (!(schema instanceof z.ZodObject)) return [];
-  const shape = schema.shape;
+  const unwrapped = unwrapArray(schema);
+  if (!(unwrapped instanceof z.ZodObject)) return [];
+  const shape = unwrapped.shape;
   const keys = Object.keys(shape);
 
   if (keys.length === 3 && keys.every((k) => ENVELOPE_KEYS.has(k))) {
@@ -79,7 +108,7 @@ function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
 
   const leaves: string[] = [];
   for (const key of keys) {
-    const child = shape[key];
+    const child = unwrapArray(shape[key]);
     if (child instanceof z.ZodObject) {
       leaves.push(...enumerateLeaves(child, prefix ? `${prefix}.${key}` : key));
     }
@@ -153,6 +182,66 @@ describe("splitExtractionSchema — grouped schema", () => {
     // No leaf is duplicated: every leaf appears in exactly one group.
     const unique = new Set(groupLeaves);
     expect(unique.size).toBe(groupLeaves.length);
+  });
+});
+
+describe("splitExtractionSchema — array groups", () => {
+  test("a schema whose groups are arrays still splits into one entry per group", () => {
+    const groups = splitExtractionSchema(arrayGroupExtraction);
+
+    expect(groups.map((g) => g.key)).toEqual(["hvac", "attic"]);
+
+    // Each per-group schema keeps the array wrapper so the response shape matches
+    // the final answer: one top-level key, whose value is an array of instances.
+    const hvac = groups.find((g) => g.key === "hvac")!;
+    const attic = groups.find((g) => g.key === "attic")!;
+    expect((hvac.schema as z.ZodObject).shape.hvac).toBeInstanceOf(z.ZodArray);
+    expect((attic.schema as z.ZodObject).shape.attic).not.toBeInstanceOf(z.ZodArray);
+
+    // Narrowing: a valid hvac array response parses against the hvac group, and
+    // the attic group rejects it because its top-level key is wrong.
+    const hvacData = {
+      hvac: [
+        {
+          equipmentType: { value: "Boiler", confidence: 0.9, sourceSpan: "boiler" },
+          fuel: { value: "Natural Gas", confidence: 0.8, sourceSpan: "gas" },
+        },
+      ],
+    };
+    expect(hvac.schema.safeParse(hvacData).success).toBe(true);
+    expect(attic.schema.safeParse(hvacData).success).toBe(false);
+  });
+
+  test("every leaf of an array-group schema appears in exactly one group schema, and none is lost", () => {
+    const groups = splitExtractionSchema(arrayGroupExtraction);
+
+    const originalLeaves = enumerateLeaves(arrayGroupExtraction).sort();
+    const groupLeaves = groups.flatMap((g) => enumerateLeaves(g.schema)).sort();
+
+    expect(originalLeaves).toEqual([
+      "attic.insulationDepth",
+      "attic.insulationRValue",
+      "hvac.equipmentType",
+      "hvac.fuel",
+    ]);
+
+    // No leaf is lost: the union of per-group leaves equals the original's.
+    expect(groupLeaves).toEqual(originalLeaves);
+
+    // No leaf is duplicated: every leaf appears in exactly one group.
+    expect(new Set(groupLeaves).size).toBe(groupLeaves.length);
+  });
+
+  test("a top-level array of envelopes is not a group and falls back to one entry", () => {
+    const arrayOfEnvelopes = z.strictObject({
+      tags: z.array(extractedSchema(z.string())),
+    });
+
+    const groups = splitExtractionSchema(arrayOfEnvelopes);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.key).toBe("");
+    expect(groups[0]!.schema).toBe(arrayOfEnvelopes);
   });
 });
 

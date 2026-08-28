@@ -14,9 +14,12 @@
  * adapter change, no hard-coded group names. `enveloped()` (ribo-core) recurses
  * into the seven resource groups rather than swallowing each into one envelope,
  * so the enveloped schema keeps the same seven top-level keys. Those keys ARE the
- * groups. An adapter whose schema is not an object of groups (a flat enveloped
- * schema whose top-level properties are leaves) gets one entry covering the whole
- * schema — today's behaviour, and the fallback rather than an error.
+ * groups. A collection group (e.g. `hvac` with multiple instances) arrives as a
+ * `ZodArray` whose element is a group object; the split unwraps that array and
+ * still produces one entry per group. An adapter whose schema is not an object of
+ * groups (a flat enveloped schema whose top-level properties are leaves, or a
+ * top-level array of envelopes) gets one entry covering the whole schema — today's
+ * behaviour, and the fallback rather than an error.
  */
 
 import { z } from "zod";
@@ -44,6 +47,20 @@ export interface ExtractionGroup {
    */
   readonly schema: z.ZodType;
 }
+
+/**
+ * A top-level group may be a plain `ZodObject` or a `ZodArray` whose element is
+ * that group object. Arrays are not groups themselves; the element schema is what
+ * the split inspects. This matters because a collection group (e.g. `hvac` with
+ * multiple instances) arrives as `z.array(GroupSchema)` after the derivation that
+ * turns patch objects into collections, and the per-group call must still be
+ * constrained to one top-level key.
+ */
+const groupCandidate = (value: z.ZodType): z.ZodType =>
+  // `ZodArray.element` is typed against zod's core API, but this function only
+  // receives schemas built through the classic `z` API (`z.array`, `z.strictObject`,
+  // etc.), so its runtime element is the same classic wrapper we already use.
+  value instanceof z.ZodArray ? (value.element as z.ZodType) : value;
 
 /**
  * Whether a `ZodObject` is a **group** (a nested object whose properties are
@@ -75,10 +92,10 @@ const isGroupObject = (obj: z.ZodObject): boolean => {
  * requires no adapter change.
  *
  * A schema that is not an object of groups — a flat enveloped schema whose
- * top-level properties are leaf envelopes, a non-object schema, or an empty
- * object — yields a single entry whose `key` is `""` and whose `schema` is the
- * whole input. That is today's behaviour (one call carrying everything) and the
- * correct fallback, not an error.
+ * top-level properties are leaf envelopes, a top-level array of envelopes, a
+ * non-object schema, or an empty object — yields a single entry whose `key` is
+ * `""` and whose `schema` is the whole input. That is today's behaviour (one call
+ * carrying everything) and the correct fallback, not an error.
  */
 export function splitExtractionSchema(schema: z.ZodType): readonly ExtractionGroup[] {
   if (!(schema instanceof z.ZodObject)) {
@@ -91,13 +108,13 @@ export function splitExtractionSchema(schema: z.ZodType): readonly ExtractionGro
     return [{ key: "", schema }];
   }
 
-  // Every top-level property must be a group (a ZodObject whose values are all
-  // ZodObjects) for the split to apply. A single envelope at the top level — the
-  // shape a flat (non-grouped) enveloped schema has — makes this false, and the
-  // whole schema is returned as one entry.
+  // Every top-level property must be a group (a ZodObject, or a ZodArray of a
+  // ZodObject, whose values are all ZodObjects) for the split to apply. A single
+  // envelope at the top level — the shape a flat (non-grouped) enveloped schema
+  // has — makes this false, and the whole schema is returned as one entry.
   const everyKeyIsGroup = keys.every((key) => {
-    const value = shape[key];
-    return value instanceof z.ZodObject && isGroupObject(value);
+    const candidate = groupCandidate(shape[key]);
+    return candidate instanceof z.ZodObject && isGroupObject(candidate);
   });
 
   if (!everyKeyIsGroup) {
