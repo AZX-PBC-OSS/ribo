@@ -5,7 +5,7 @@
 
 The outbox splits into recordings and sessions, so one review covers the whole capture rather than one review per recording.
 
-`OutboxItem` was two entities wearing one schema. A **session** now owns N **recordings**: `extracted`, `extractedBy`, `reviewOutcome`, `writeResult`, `writtenInstances` and `idempotencyKey` move onto the session, and the recording gains `sessionId`. This is a capture concept, not a domain one — `assessmentId`, `companyId` and `apiBaseUrl` stay in `recording.ctx`, so core still knows nothing about what a session is *about*.
+`OutboxItem` was two entities wearing one schema. A **session** now owns N **recordings**: `extracted`, `extractedBy`, `reviewOutcome`, `writeResult`, `writtenInstances` and `idempotencyKey` move onto the session, and the recording gains `sessionId`. This is a capture concept, not a domain one — `assessmentId`, `companyId` and `apiBaseUrl` stay in `recording.ctx`, so core still knows nothing about what a session is _about_.
 
 Two state machines instead of one. Recordings narrow to capture and transcription (`recording → queued → transcribing → transcribed`, plus `failed`/`dead`/`discarded`); sessions run `open → extracting → awaiting-review → writing → done` (plus `failed`/`dead`). A session leaves `open` on the host's say-so — the relay does not touch an open session.
 
