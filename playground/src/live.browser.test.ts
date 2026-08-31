@@ -312,7 +312,7 @@ test("a preview segment appears during recording and is gone once the transcript
   await outbox.clear();
   const recorder = getRecorder();
 
-  await recorder.start();
+  await recorder.start(crypto.randomUUID());
 
   // Wait for the preview segment to appear on the recording row. This is the
   // whole claim: `openLiveForCapture` (fire-and-forget from the capture session
@@ -335,8 +335,8 @@ test("a preview segment appears during recording and is gone once the transcript
   const relay = createRelay({
     outbox,
     transcriber: new FakeTranscriber(),
-    extract: () => Promise.resolve({ fields: {} }),
-    write: () => Promise.resolve(),
+    sessionExtract: () => Promise.resolve({ fields: {} }),
+    sessionWrite: () => Promise.resolve(),
   });
   await relay.syncNow();
 
@@ -370,7 +370,7 @@ test("a tail appears in preview.tail, a second tail replaces it, a commit moves 
   await outbox.clear();
   const recorder = getRecorder();
 
-  await recorder.start();
+  await recorder.start(crypto.randomUUID());
 
   // Wait for the second tail to replace the first. The tail is "the attic is
   // R-19" (the second text), not "the attic" (the first) — writePreviewTail
@@ -403,8 +403,8 @@ test("a tail appears in preview.tail, a second tail replaces it, a commit moves 
   const relay = createRelay({
     outbox,
     transcriber: new FakeTranscriber(),
-    extract: () => Promise.resolve({ fields: {} }),
-    write: () => Promise.resolve(),
+    sessionExtract: () => Promise.resolve({ fields: {} }),
+    sessionWrite: () => Promise.resolve(),
   });
   await relay.syncNow();
 
@@ -443,7 +443,7 @@ test("a segment posted after close() still reaches the outbox — the flushed fi
   await outbox.clear();
   const recorder = getRecorder();
 
-  await recorder.start();
+  await recorder.start(crypto.randomUUID());
 
   // Wait for the session to be open and subscribed — the recorder's
   // fire-and-forget `openLiveForCapture` chain runs async. The flush session
@@ -508,7 +508,7 @@ test("the subscription is eventually torn down — no leak across successive rec
     openSession: async () => session1,
   });
 
-  await recorder.start();
+  await recorder.start(crypto.randomUUID());
   await until(async () => {
     const [item] = await outbox.list({ status: ["recording"] });
     return item ? item : undefined;
@@ -544,7 +544,7 @@ test("the subscription is eventually torn down — no leak across successive rec
     openSession: async () => session2,
   });
 
-  await recorder.start();
+  await recorder.start(crypto.randomUUID());
   await until(async () => {
     const [item] = await outbox.list({ status: ["recording"] });
     return item ? item : undefined;
@@ -589,12 +589,11 @@ test("closeLiveSession is idempotent and safe with no session open", async () =>
   await outbox.clear();
   const recorder = getRecorder();
 
-  await recorder.start();
+  await recorder.start(crypto.randomUUID());
   await until(async () => {
     const [item] = await outbox.list({ status: ["recording"] });
     return item ? item : undefined;
   }, "a recording row");
-  await new Promise((resolve) => setTimeout(resolve, 50));
 
   // Close the live session — the flush should still arrive.
   closeLiveSession();

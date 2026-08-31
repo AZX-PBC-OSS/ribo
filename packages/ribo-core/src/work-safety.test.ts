@@ -2,30 +2,33 @@ import { describe, expect, test } from "vitest";
 
 import { OUTBOX_STATUSES } from "./queue/schema.js";
 import type { OutboxStatus } from "./queue/schema.js";
+import type { SessionStatus } from "./queue/session-schema.js";
 import { summarizeWork, workSafety } from "./work-safety.js";
 import type { StoragePersistence, WorkOnDevice } from "./work-safety.js";
 
 // A `WorkOnDevice` with nothing on the device: no unsynced work, nothing dead,
 // nothing ever synced. Individual tests override just the field they exercise.
-const empty: WorkOnDevice = { pending: 0, dead: 0, synced: 0, awaitingReview: 0 };
+const empty: WorkOnDevice = { pending: 0, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 };
 
 const items = (...statuses: OutboxStatus[]): { status: OutboxStatus }[] =>
   statuses.map((status) => ({ status }));
 
+const sessions = (...statuses: SessionStatus[]): { status: SessionStatus }[] =>
+  statuses.map((status) => ({ status }));
+
 describe("summarizeWork", () => {
   test("buckets every active status as pending unsynced work", () => {
-    const summary = summarizeWork(
-      items("queued", "transcribing", "extracting", "writing", "failed"),
-    );
-    expect(summary).toEqual({ pending: 5, dead: 0, synced: 0, awaitingReview: 0 });
+    const summary = summarizeWork(items("queued", "transcribing", "failed"));
+    expect(summary).toEqual({ pending: 3, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 });
   });
 
-  test("counts done as synced — work that has left the device", () => {
-    expect(summarizeWork(items("done", "done"))).toEqual({
+  test("counts done sessions as synced — work that has left the device", () => {
+    expect(summarizeWork([], sessions("done", "done"))).toEqual({
       pending: 0,
       dead: 0,
       synced: 2,
       awaitingReview: 0,
+      openSessions: 0,
     });
   });
 
@@ -35,25 +38,33 @@ describe("summarizeWork", () => {
       dead: 1,
       synced: 0,
       awaitingReview: 0,
+      openSessions: 0,
     });
   });
 
   test("an empty outbox is all zeros", () => {
-    expect(summarizeWork([])).toEqual({ pending: 0, dead: 0, synced: 0, awaitingReview: 0 });
+    expect(summarizeWork([])).toEqual({
+      pending: 0,
+      dead: 0,
+      synced: 0,
+      awaitingReview: 0,
+      openSessions: 0,
+    });
   });
 
   test("a realistic mix", () => {
-    expect(summarizeWork(items("queued", "failed", "done", "dead", "done"))).toEqual({
+    expect(summarizeWork(items("queued", "failed", "dead"), sessions("done", "done"))).toEqual({
       pending: 2,
       dead: 1,
       synced: 2,
       awaitingReview: 0,
+      openSessions: 0,
     });
   });
 
-  test("an awaiting-review item is pending work, not invisible", () => {
-    const work = summarizeWork([{ status: "awaiting-review" }]);
-    expect(work).toEqual({ pending: 1, dead: 0, synced: 0, awaitingReview: 1 });
+  test("an awaiting-review session is pending work, not invisible", () => {
+    const work = summarizeWork([], sessions("awaiting-review"));
+    expect(work).toEqual({ pending: 1, dead: 0, synced: 0, awaitingReview: 1, openSessions: 0 });
   });
 
   test("a recording in progress is pending work, never invisible", () => {
@@ -66,22 +77,19 @@ describe("summarizeWork", () => {
     // Deliberately abandoned. Not pending (nothing to do), not synced (it never
     // left), not dead (it did not fail).
     const work = summarizeWork([{ status: "discarded" }]);
-    expect(work).toEqual({ pending: 0, dead: 0, synced: 0, awaitingReview: 0 });
+    expect(work).toEqual({ pending: 0, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 });
     expect(workSafety(work, "granted", "online")).toEqual({
       level: "safe",
       reason: "nothing-captured",
     });
   });
 
-  test("awaitingReview counts only the parked items, while pending counts all unsynced work", () => {
-    const work = summarizeWork([
-      { status: "queued" },
-      { status: "awaiting-review" },
-      { status: "awaiting-review" },
-      { status: "done" },
-      { status: "discarded" },
-    ]);
-    expect(work).toEqual({ pending: 3, dead: 0, synced: 1, awaitingReview: 2 });
+  test("awaitingReview counts only the parked sessions, while pending counts all unsynced work", () => {
+    const work = summarizeWork(
+      [{ status: "queued" }, { status: "discarded" }],
+      sessions("awaiting-review", "awaiting-review", "done"),
+    );
+    expect(work).toEqual({ pending: 3, dead: 0, synced: 1, awaitingReview: 2, openSessions: 0 });
   });
 
   test("every status is accounted for by exactly one bucket, or deliberately none", () => {
@@ -91,7 +99,7 @@ describe("summarizeWork", () => {
       const work = summarizeWork([{ status }]);
       return work.pending + work.dead + work.synced === 0;
     });
-    expect(unclassified).toEqual(["discarded"]);
+    expect(unclassified).toEqual(["transcribed", "discarded"]);
   });
 });
 
@@ -99,8 +107,8 @@ describe("workSafety — the review gate", () => {
   test("un-reviewed work is never reported as safe", () => {
     // The regression this task exists for: a status outside summarizeWork's three
     // branches used to count as nothing, so the verdict read "safe / nothing-captured"
-    // over a device holding an un-reviewed recording.
-    const work = summarizeWork([{ status: "awaiting-review" }]);
+    // over a device holding an un-reviewed session.
+    const work = summarizeWork([], sessions("awaiting-review"));
     const verdict = workSafety(work, "granted", "online");
     expect(verdict.level).not.toBe("safe");
     expect(verdict).toEqual({
@@ -112,7 +120,7 @@ describe("workSafety — the review gate", () => {
   });
 
   test("un-reviewed work on unpersisted storage is at risk", () => {
-    const work = summarizeWork([{ status: "awaiting-review" }]);
+    const work = summarizeWork([], sessions("awaiting-review"));
     expect(workSafety(work, "denied", "online")).toEqual({
       level: "at-risk",
       reason: "not-persisted",
@@ -132,7 +140,11 @@ describe("workSafety — the truly-safe edge", () => {
 
   test("everything synced is safe — the reassuring 'all up' answer", () => {
     expect(
-      workSafety({ pending: 0, dead: 0, synced: 3, awaitingReview: 0 }, "unsupported", "offline"),
+      workSafety(
+        { pending: 0, dead: 0, synced: 3, awaitingReview: 0, openSessions: 0 },
+        "unsupported",
+        "offline",
+      ),
     ).toEqual({
       level: "safe",
       reason: "all-synced",
@@ -142,7 +154,11 @@ describe("workSafety — the truly-safe edge", () => {
   test("persistence is irrelevant once nothing is left on the device", () => {
     // No on-device work, so a refused persistence grant cannot make it unsafe.
     expect(
-      workSafety({ pending: 0, dead: 0, synced: 1, awaitingReview: 0 }, "denied", "offline").level,
+      workSafety(
+        { pending: 0, dead: 0, synced: 1, awaitingReview: 0, openSessions: 0 },
+        "denied",
+        "offline",
+      ).level,
     ).toBe("safe");
   });
 });
@@ -150,7 +166,11 @@ describe("workSafety — the truly-safe edge", () => {
 describe("workSafety — the three situations stay distinct", () => {
   test("pending work waiting for connectivity is a normal, protected field condition", () => {
     expect(
-      workSafety({ pending: 3, dead: 0, synced: 0, awaitingReview: 0 }, "granted", "offline"),
+      workSafety(
+        { pending: 3, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 },
+        "granted",
+        "offline",
+      ),
     ).toEqual({
       level: "protected",
       reason: "awaiting-sync",
@@ -161,7 +181,11 @@ describe("workSafety — the three situations stay distinct", () => {
 
   test("protected carries connectivity so the UI can say 'syncing' vs 'waiting'", () => {
     expect(
-      workSafety({ pending: 1, dead: 0, synced: 0, awaitingReview: 0 }, "granted", "online"),
+      workSafety(
+        { pending: 1, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 },
+        "granted",
+        "online",
+      ),
     ).toEqual({
       level: "protected",
       reason: "awaiting-sync",
@@ -172,7 +196,11 @@ describe("workSafety — the three situations stay distinct", () => {
 
   test("the SAME pending work becomes at-risk when storage is not persistent", () => {
     expect(
-      workSafety({ pending: 3, dead: 0, synced: 0, awaitingReview: 0 }, "denied", "offline"),
+      workSafety(
+        { pending: 3, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 },
+        "denied",
+        "offline",
+      ),
     ).toEqual({
       level: "at-risk",
       reason: "not-persisted",
@@ -183,7 +211,11 @@ describe("workSafety — the three situations stay distinct", () => {
 
   test("a permanently-failed item needs a human", () => {
     expect(
-      workSafety({ pending: 0, dead: 1, synced: 0, awaitingReview: 0 }, "granted", "online"),
+      workSafety(
+        { pending: 0, dead: 1, synced: 0, awaitingReview: 0, openSessions: 0 },
+        "granted",
+        "online",
+      ),
     ).toEqual({
       level: "action-required",
       reason: "failed-permanently",
@@ -198,7 +230,7 @@ describe("workSafety — persistence that is not an outright grant is never a gr
   for (const persistence of notGranted) {
     test(`pending work with persistence='${persistence}' is at-risk, carrying the reason`, () => {
       const safety = workSafety(
-        { pending: 2, dead: 0, synced: 0, awaitingReview: 0 },
+        { pending: 2, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 },
         persistence,
         "online",
       );
@@ -214,7 +246,11 @@ describe("workSafety — persistence that is not an outright grant is never a gr
   test("'unknown' (grant still being checked) is treated conservatively, not as safe", () => {
     // Never overstate safety while the answer is still in flight.
     expect(
-      workSafety({ pending: 1, dead: 0, synced: 0, awaitingReview: 0 }, "unknown", "online").level,
+      workSafety(
+        { pending: 1, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 },
+        "unknown",
+        "online",
+      ).level,
     ).toBe("at-risk");
   });
 });
@@ -225,7 +261,7 @@ describe("workSafety — load-bearing rules", () => {
     for (const persistence of ["denied", "unsupported", "unknown"] as const) {
       for (const connectivity of ["offline", "probing", "online"] as const) {
         const safety = workSafety(
-          { pending: 1, dead: 0, synced: 0, awaitingReview: 0 },
+          { pending: 1, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 },
           persistence,
           connectivity,
         );
@@ -240,7 +276,11 @@ describe("workSafety — load-bearing rules", () => {
     // Best case for on-device work — granted storage, online — is still only
     // 'protected'. Nothing short of leaving the device earns 'safe'.
     expect(
-      workSafety({ pending: 1, dead: 0, synced: 5, awaitingReview: 0 }, "granted", "online").level,
+      workSafety(
+        { pending: 1, dead: 0, synced: 5, awaitingReview: 0, openSessions: 0 },
+        "granted",
+        "online",
+      ).level,
     ).toBe("protected");
   });
 
@@ -248,7 +288,11 @@ describe("workSafety — load-bearing rules", () => {
     // dead AND not-persisted AND pending: the permanent failure is the most
     // severe, most actionable answer, so it wins.
     expect(
-      workSafety({ pending: 4, dead: 2, synced: 0, awaitingReview: 0 }, "denied", "offline"),
+      workSafety(
+        { pending: 4, dead: 2, synced: 0, awaitingReview: 0, openSessions: 0 },
+        "denied",
+        "offline",
+      ),
     ).toEqual({
       level: "action-required",
       reason: "failed-permanently",
@@ -262,7 +306,7 @@ describe("workSafety — capture health", () => {
     // NOT at-risk. A warning that fires on every single recording is noise that
     // teaches the user to ignore the one time it matters.
     const result = workSafety(
-      { pending: 1, dead: 0, synced: 0, awaitingReview: 0 },
+      { pending: 1, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 },
       "granted",
       "online",
       "flushing",
@@ -272,7 +316,7 @@ describe("workSafety — capture health", () => {
 
   test("a stalled capture is at-risk", () => {
     const result = workSafety(
-      { pending: 1, dead: 0, synced: 0, awaitingReview: 0 },
+      { pending: 1, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 },
       "granted",
       "online",
       "stalled",
@@ -284,7 +328,7 @@ describe("workSafety — capture health", () => {
     // action-required > at-risk > protected > safe, and `dead` is checked BEFORE
     // capture health. The new reason slots INTO that order; it does not redefine it.
     const result = workSafety(
-      { pending: 1, dead: 1, synced: 0, awaitingReview: 0 },
+      { pending: 1, dead: 1, synced: 0, awaitingReview: 0, openSessions: 0 },
       "denied",
       "online",
       "stalled",
@@ -294,7 +338,11 @@ describe("workSafety — capture health", () => {
 
   test("omitting capture health behaves exactly as today", () => {
     expect(
-      workSafety({ pending: 1, dead: 0, synced: 0, awaitingReview: 0 }, "granted", "online"),
+      workSafety(
+        { pending: 1, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 },
+        "granted",
+        "online",
+      ),
     ).toMatchObject({ level: "protected", reason: "awaiting-sync" });
   });
 });

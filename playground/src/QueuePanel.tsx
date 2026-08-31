@@ -238,11 +238,18 @@ function QueueRow({ outbox, item }: { outbox: Outbox; item: OutboxItem }) {
  * that gate — so this button drains as far as a human review, not further.
  */
 async function runStubRelay(outbox: Outbox): Promise<void> {
+  // Close any open sessions so the relay can extract them. In the real app,
+  // the host closes a session when the auditor is done walking the house;
+  // the playground's stub relay closes them all on sync for simplicity.
+  const sessions = await outbox.listSessions({ status: "open" });
+  for (const session of sessions) {
+    await outbox.closeSession(session.id).catch(() => undefined);
+  }
   const relay = createRelay({
     outbox,
     transcriber: new FakeTranscriber(),
-    extract: extractStep,
-    write: () => Promise.resolve({ writtenBy: "playground stub" }),
+    sessionExtract: extractStep,
+    sessionWrite: () => Promise.resolve({ writtenBy: "playground stub" }),
   });
   await relay.syncNow();
 }

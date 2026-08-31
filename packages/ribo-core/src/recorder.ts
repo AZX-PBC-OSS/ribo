@@ -218,6 +218,7 @@ export interface RecorderOptions<C = EmptyContext> {
     recording: Omit<Recording, "ctx"> & { ctx: C };
     sourceId: string;
     mimeType: string;
+    sessionId: string;
   }) => Promise<CaptureSession>;
   /** Timeslice for `MediaRecorder.start()` in durable mode. Defaults to 5000 ms. */
   readonly timesliceMs?: number;
@@ -329,6 +330,7 @@ export class Recorder<C = EmptyContext> {
         recording: Recording;
         sourceId: string;
         mimeType: string;
+        sessionId: string;
       }) => Promise<CaptureSession>)
     | undefined;
   readonly #timesliceMs: number;
@@ -435,12 +437,19 @@ export class Recorder<C = EmptyContext> {
    * `no-input-device`, `unsupported-mime-type` or `capture-failed`. On every failure the stream is
    * released, the lock is freed, and the recorder is left idle, so a retry starts from a clean state.
    */
-  async start(): Promise<string | undefined> {
+  async start(sessionId?: string): Promise<string | undefined> {
     if (this.#phase !== "idle") {
       throw new RecorderError(
         "already-recording",
         "This Recorder is already capturing. Call stop() before starting again, or use a second Recorder.",
       );
+    }
+
+    if (this.#captureSessionFactory !== undefined && sessionId === undefined) {
+      // Durable capture: the factory opens its own session, so sessionId is
+      // optional here. It is passed through to the factory for hosts that want
+      // to control session identity, but the factory in recorder-handle.ts
+      // creates one when it is not provided.
     }
 
     // Acquire the capture lock BEFORE the microphone: a second tab must be told
@@ -492,6 +501,7 @@ export class Recorder<C = EmptyContext> {
           recording,
           sourceId: recording.id,
           mimeType: this.#session.recorder.mimeType,
+          sessionId: sessionId!,
         });
         this.#session.captureSession = captureSession;
         this.#session.recorder.start(this.#timesliceMs);

@@ -42,7 +42,7 @@ test("the playground records durably: one row, live from start(), committed by s
   await outbox.clear();
   const recorder = getRecorder();
 
-  await recorder.start();
+  await recorder.start(crypto.randomUUID());
 
   // A `recording` row exists BEFORE stop(). This is the whole claim: audio is
   // reaching disk during capture, not handed over in one blob at the end. A

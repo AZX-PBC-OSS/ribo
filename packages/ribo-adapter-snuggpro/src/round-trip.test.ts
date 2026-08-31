@@ -2,6 +2,7 @@ import {
   buildReviewRequest,
   resolveReview,
   outboxItemSchema,
+  sessionItemSchema,
   toWriteStep,
   transcriptSchema,
 } from "@azx/ribo-core";
@@ -9,6 +10,7 @@ import type {
   FieldDecision,
   FieldDecisions,
   OutboxItem,
+  SessionItem,
   ToolAdapter,
   Transcript,
   WriteMetadata,
@@ -108,11 +110,11 @@ const ctx: SnuggWriteContext = {
   apiBaseUrl: "https://helix.example.com/snuggpro",
 };
 
-const item: OutboxItem = outboxItemSchema.parse({
+const _item: OutboxItem = outboxItemSchema.parse({
   id: "item-1",
   seq: 0,
-  status: "writing",
-  idempotencyKey: "idem-item-1",
+  status: "transcribed",
+  sessionId: "session-1",
   attempts: 0,
   nextAttemptAt: "2026-07-23T14:00:00.000Z",
   enqueuedAt: "2026-07-23T14:00:00.000Z",
@@ -125,6 +127,15 @@ const item: OutboxItem = outboxItemSchema.parse({
   },
   audioReady: false,
   audioBytes: 0,
+});
+
+const session: SessionItem = sessionItemSchema.parse({
+  id: "session-1",
+  status: "writing",
+  openedAt: "2026-07-23T14:00:00.000Z",
+  attempts: 0,
+  nextAttemptAt: "2026-07-23T14:00:00.000Z",
+  idempotencyKey: "idem-item-1",
 });
 
 /**
@@ -199,9 +210,10 @@ test("the real field set round-trips: schema → extraction → review → write
   // 3. The write step is the trust boundary: it parses the ctx off THIS item's recording
   //    and the patch through the adapter's schema before anything reaches `write`.
   await toWriteStep(adapter)({
-    item,
+    session,
     reviewed: outcome.fields,
-    idempotencyKey: item.idempotencyKey,
+    idempotencyKey: session.idempotencyKey,
+    ctx,
   });
 
   expect(written).toHaveLength(1);
@@ -271,9 +283,10 @@ test("one rejected leaf of the 63 still writes the other 62", async () => {
   expect(outcome.rejectedFields).toEqual([rejected]);
 
   await toWriteStep(adapter)({
-    item,
+    session,
     reviewed: outcome.fields,
-    idempotencyKey: item.idempotencyKey,
+    idempotencyKey: session.idempotencyKey,
+    ctx,
   });
 
   // The write SUCCEEDED — the rejection did not take the other 62 leaves down with it.

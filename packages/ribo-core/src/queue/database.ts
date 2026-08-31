@@ -4,7 +4,13 @@ import { RxDBAttachmentsPlugin } from "rxdb/plugins/attachments";
 import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 
+import {
+  SESSION_COLLECTION_NAME,
+  sessionRxSchema,
+  type SessionDocument,
+} from "./session-schema.js";
 import { OUTBOX_COLLECTION_NAME, outboxRxSchema, type OutboxDocument } from "./schema.js";
+import type { PersistedReviewOutcome } from "../review.js";
 
 /**
  * The RxDB collection holding the outbox documents.
@@ -15,8 +21,17 @@ import { OUTBOX_COLLECTION_NAME, outboxRxSchema, type OutboxDocument } from "./s
  */
 export type OutboxCollection = RxCollection<OutboxDocument>;
 
-/** The RxDB database this package owns. One collection today; more later. */
-export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
+/**
+ * The RxDB collection holding session documents.
+ *
+ * Parameterised by `SessionDocument` — the persisted shape, not `SessionItem`
+ * (which is the same today, but the split mirrors the recording's
+ * document/item pair so a future derived field has a place to land).
+ */
+export type SessionCollection = RxCollection<SessionDocument>;
+
+/** The RxDB database this package owns. Two collections: recordings and sessions. */
+export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection; sessions: SessionCollection }>;
 
 /**
  * Schema-migration strategies for the outbox collection, keyed by the schema
@@ -51,6 +66,22 @@ export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
  * progress, which is the correct state for it: the next write attempt will treat
  * every collection instance as unwritten.
  *
+ * v5 → v6 is the **session entity split**. The recording document loses
+ * `extracted`, `extractedBy`, `reviewOutcome`, `writeResult`, `writtenInstances`
+ * and `idempotencyKey` (those move to the session document), and gains
+ * `sessionId` (required — every recording belongs to a session). The recording
+ * state machine narrows to capture + transcription: `extracting`, `awaiting-review`,
+ * `writing` and `done` are gone; `transcribed` is new.
+ *
+ * RxDB migration strategies run per-document within a collection and cannot
+ * create documents in another collection. So the session-level fields are
+ * stashed in a module-level Map ({@link MIGRATED_SESSION_DATA}) keyed by a
+ * deterministic session id derived from `recording.ctx.assessmentId`. The
+ * post-migration step in {@link openOutboxDatabase} reads the Map and creates
+ * session documents, then patches each recording's `sessionId` from the
+ * placeholder to the real value.
+ * `attempts` and `nextAttemptAt` are preserved for transcription retry.
+ *
  * Note this entry is not optional bookkeeping: RxDB calls into the migration
  * plugin for every version above 0, and a bumped schema with no strategy for the
  * new version makes the outbox **fail to open**, not fail to migrate. The error
@@ -59,13 +90,98 @@ export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection }>;
  * Exported (rather than inlined into `addCollections`) so a test can exercise
  * the strategy function directly, independent of a real migration run.
  */
+/**
+ * Session-level fields stashed by the v6 migration strategy for the
+ * post-migration step to create session documents from.
+ *
+ * RxDB migration strategies cannot write to other collections, so the v6
+ * strategy stashes `extracted`, `extractedBy`, `reviewOutcome`, `writeResult`,
+ * `writtenInstances` and `idempotencyKey` here, keyed by a deterministic
+ * session id derived from `recording.ctx.assessmentId`. After
+ * `addCollections` completes (which runs the migration), the post-migration
+ * step in {@link openOutboxDatabase} reads this Map, creates session documents,
+ * and patches each recording's `sessionId` from the placeholder to the real
+ * value. The Map is cleared after the post-migration step runs.
+ */
+interface MigratedSessionData {
+  extracted?: Record<string, unknown>;
+  extractedBy?: string;
+  reviewOutcome?: PersistedReviewOutcome;
+  writeResult?: Record<string, unknown>;
+  writtenInstances?: Record<string, boolean[]>;
+  idempotencyKey: string;
+  recordingIds: string[];
+}
+
+export const MIGRATED_SESSION_DATA = new Map<string, MigratedSessionData>();
+
+/**
+ * Derive a deterministic session id from the recording's `ctx.assessmentId`.
+ * Recordings with no `assessmentId` get a singleton session.
+ */
+function migratedSessionId(ctx: unknown): string {
+  if (typeof ctx === "object" && ctx !== null && "assessmentId" in ctx) {
+    const assessmentId = (ctx as Record<string, unknown>).assessmentId;
+    if (typeof assessmentId === "string" && assessmentId.length > 0) {
+      return `migrated-session-${assessmentId}`;
+    }
+  }
+  // Recordings with no assessmentId share one singleton session per outbox.
+  // A deterministic id (not a random UUID) so multiple recordings with no
+  // assessmentId in the same outbox land in the same session.
+  return `migrated-session-singleton`;
+}
+
 export const OUTBOX_MIGRATION_STRATEGIES = {
   1: (doc: OutboxDocument) => doc,
   2: (doc: OutboxDocument) => doc,
   3: (doc: OutboxDocument) => doc,
   4: (doc: OutboxDocument) => doc,
   5: (doc: OutboxDocument) => doc,
+  6: (doc: Record<string, unknown>) => {
+    // v5 → v6: session entity split. Stash the session-level fields for the
+    // post-migration step, then drop them from the recording document.
+    const sessionId = migratedSessionId(doc.recording);
+
+    const existing = MIGRATED_SESSION_DATA.get(sessionId);
+    if (existing) {
+      existing.recordingIds.push(doc.id as string);
+    } else {
+      MIGRATED_SESSION_DATA.set(sessionId, {
+        extracted: doc.extracted as Record<string, unknown> | undefined,
+        extractedBy: doc.extractedBy as string | undefined,
+        reviewOutcome: doc.reviewOutcome as PersistedReviewOutcome | undefined,
+        writeResult: doc.writeResult as Record<string, unknown> | undefined,
+        writtenInstances: doc.writtenInstances as Record<string, boolean[]> | undefined,
+        idempotencyKey: (doc.idempotencyKey as string) ?? crypto.randomUUID(),
+        recordingIds: [doc.id as string],
+      });
+    }
+
+    const next: Record<string, unknown> = { ...doc };
+    delete next.extracted;
+    delete next.extractedBy;
+    delete next.reviewOutcome;
+    delete next.writeResult;
+    delete next.writtenInstances;
+    delete next.idempotencyKey;
+    // Map the old statuses to the new recording-only statuses.
+    const oldStatus = next.status as string;
+    if (
+      oldStatus === "extracting" ||
+      oldStatus === "awaiting-review" ||
+      oldStatus === "writing" ||
+      oldStatus === "done"
+    ) {
+      next.status = "transcribed";
+    }
+    // Placeholder — the post-migration step replaces it with the real session id.
+    next.sessionId = sessionId;
+    return next as OutboxDocument;
+  },
 };
+
+export type { MigratedSessionData };
 
 /**
  * Default IndexedDB database name.
@@ -132,7 +248,10 @@ export async function openOutboxDatabase(
   storage: RxStorage<unknown, unknown> = defaultStorage(),
 ): Promise<OutboxDatabase> {
   registerPlugins();
-  const database = await createRxDatabase<{ outbox: OutboxCollection }>({
+  const database = await createRxDatabase<{
+    outbox: OutboxCollection;
+    sessions: SessionCollection;
+  }>({
     name,
     storage,
     // Leave RxDB's cross-tab machinery on. The field app is a browser app and a
@@ -150,7 +269,55 @@ export async function openOutboxDatabase(
       schema: outboxRxSchema,
       migrationStrategies: OUTBOX_MIGRATION_STRATEGIES,
     },
+    [SESSION_COLLECTION_NAME]: {
+      schema: sessionRxSchema,
+    },
   });
+
+  // Post-migration: create session documents from the stashed v5 data.
+  // The v6 migration strategy stashed session-level fields in
+  // MIGRATED_SESSION_DATA; now that both collections are open, create the
+  // session documents and the recordings already carry the right sessionId.
+  if (MIGRATED_SESSION_DATA.size > 0) {
+    const sessionsCollection = database.collections.sessions;
+    const nowIso = new Date().toISOString();
+    for (const [sessionId, data] of MIGRATED_SESSION_DATA) {
+      // Determine the session status from the stashed data:
+      // - If reviewOutcome is present and writeResult is present → done
+      // - If reviewOutcome is present but no writeResult → writing
+      // - If extracted is present but no reviewOutcome → awaiting-review
+      // - Otherwise → open (or done if all recordings are transcribed)
+      const hasExtracted = data.extracted !== undefined;
+      const hasReview = data.reviewOutcome !== undefined;
+      const hasWrite = data.writeResult !== undefined;
+      const status = hasWrite
+        ? "done"
+        : hasReview
+          ? "writing"
+          : hasExtracted
+            ? "awaiting-review"
+            : "done"; // no extraction — nothing to do
+      await sessionsCollection.insert({
+        id: sessionId,
+        status,
+        openedAt: nowIso,
+        ...(status !== "done" ? {} : { closedAt: nowIso }),
+        attempts: 0,
+        nextAttemptAt: nowIso,
+        idempotencyKey: data.idempotencyKey,
+        ...(data.extracted !== undefined ? { extracted: data.extracted } : {}),
+        ...(data.extractedBy !== undefined ? { extractedBy: data.extractedBy } : {}),
+        ...(data.extracted !== undefined
+          ? { extractedFromRecordingIds: data.recordingIds.sort() }
+          : {}),
+        ...(data.reviewOutcome !== undefined ? { reviewOutcome: data.reviewOutcome } : {}),
+        ...(data.writeResult !== undefined ? { writeResult: data.writeResult } : {}),
+        ...(data.writtenInstances !== undefined ? { writtenInstances: data.writtenInstances } : {}),
+      } as SessionDocument);
+    }
+    MIGRATED_SESSION_DATA.clear();
+  }
+
   return database;
 }
 

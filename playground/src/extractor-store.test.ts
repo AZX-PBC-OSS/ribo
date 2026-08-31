@@ -3,8 +3,7 @@ import { expect, test } from "vitest";
 import {
   DEFAULT_BACKOFF_BASE_MS,
   DEFAULT_BACKOFF_CAP_MS,
-  type ExtractStepInput,
-  type OutboxItem,
+  type SessionItem,
   type Transcript,
 } from "@azx/ribo-core";
 import { ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
@@ -47,7 +46,14 @@ const transcript: Transcript = {
   text: "A dictated audit transcript, contents irrelevant to the wiring test.",
   engine: "fake",
 };
-const item = { id: "item-1" } as OutboxItem;
+const session: SessionItem = {
+  id: "session-1",
+  status: "extracting",
+  openedAt: "2026-07-23T14:00:00.000Z",
+  attempts: 0,
+  nextAttemptAt: "2026-07-23T14:00:00.000Z",
+  idempotencyKey: "key-session-1",
+};
 
 /**
  * A fake {@link ChatClient} that returns a valid per-group response for each
@@ -98,7 +104,7 @@ test("with an API key, the live extractor is the per-group strategy", async () =
 
   // Run the step end to end. The fake chat returns valid per-group responses, so
   // the extraction succeeds and the call count is observable.
-  await extractStep({ item, transcript } as ExtractStepInput);
+  await extractStep({ session, transcript: transcript.text, recordingIds: ["rec-1"] });
 
   // 7 groups → 7 calls. The single-shot extractor makes 1 — this is the
   // assertion that catches a wiring change the status alone might miss (e.g.
@@ -141,7 +147,7 @@ test("strategy: 'single-shot' is reachable as the alternative (Task 6's baseline
 
   expect(status).toMatchObject({ mode: "live", strategy: "single-shot" });
 
-  await extractStep({ item, transcript } as ExtractStepInput);
+  await extractStep({ session, transcript: transcript.text, recordingIds: ["rec-1"] });
 
   // The single-shot extractor makes ONE call carrying the whole schema.
   expect(requests).toHaveLength(1);

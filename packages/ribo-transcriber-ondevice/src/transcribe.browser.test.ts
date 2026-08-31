@@ -4,11 +4,11 @@ import {
   createRelay,
   openOutbox,
   removeOutboxDatabase,
-  type ExtractStep,
   type Outbox,
   type Recording,
+  type SessionExtractStep,
+  type SessionWriteStep,
   type Transcriber,
-  type WriteStep,
 } from "@azx/ribo-core";
 
 import {
@@ -241,9 +241,10 @@ afterEach(async () => {
 
 test("the queue relay drives an OnDeviceTranscriber with no changes", async () => {
   const outbox: Outbox = await openOutbox({ name: DB_NAME });
+  const session = await outbox.openSession();
   // A real, decodable capture blob — the relay hands this straight to transcribe().
   const audio = wavBlob([constant(0.1, 16_000)], 16_000);
-  const enqueued = await outbox.enqueue({ recording, audio });
+  const enqueued = await outbox.enqueue({ recording, audio, sessionId: session.id });
 
   const transcriber: Transcriber = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,
@@ -251,9 +252,9 @@ test("the queue relay drives an OnDeviceTranscriber with no changes", async () =
       new FakeWorker(transcribeReply("on-device transcript")) as unknown as Worker,
   });
 
-  const extract: ExtractStep = () => Promise.resolve({ fields: { ok: true } });
-  const write: WriteStep = () => Promise.resolve();
-  const relay = createRelay({ outbox, transcriber, extract, write });
+  const sessionExtract: SessionExtractStep = () => Promise.resolve({ fields: { ok: true } });
+  const sessionWrite: SessionWriteStep = () => Promise.resolve();
+  const relay = createRelay({ outbox, transcriber, sessionExtract, sessionWrite });
 
   await relay.syncNow();
   await relay.settled();

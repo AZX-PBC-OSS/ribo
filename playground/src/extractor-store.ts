@@ -1,11 +1,11 @@
 import {
   compositeExtractor,
   FakeExtractor,
-  toExtractStep,
+  toSessionExtractStep,
   type CompositeExtractor,
   type CompositeExtractorEntry,
   type Connectivity,
-  type ExtractStep,
+  type SessionExtractStep,
 } from "@azx/ribo-core";
 import {
   OnDeviceChat,
@@ -264,13 +264,13 @@ export function buildExtractorStep({
   strategy = "per-group",
   ...rest
 }: BuildExtractorOptions): {
-  readonly extractStep: ExtractStep;
+  readonly extractStep: SessionExtractStep;
   readonly status: ExtractorStatus;
   readonly composite: CompositeExtractor<ExtractedShape> | undefined;
 } {
   if (!apiKey) {
     return {
-      extractStep: toExtractStep(new FakeExtractor(sampleFields)),
+      extractStep: toSessionExtractStep(new FakeExtractor(sampleFields)),
       status: { mode: "fake" },
       composite: undefined,
     };
@@ -285,7 +285,7 @@ export function buildExtractorStep({
       normalize: normalizeFields,
     });
     return {
-      extractStep: toExtractStep(extractor),
+      extractStep: toSessionExtractStep(extractor),
       status: { mode: "live", strategy, model, baseUrl },
       composite: undefined,
     };
@@ -293,7 +293,7 @@ export function buildExtractorStep({
 
   const { composite } = buildExtractorWiring({ apiKey, baseUrl, model, ...rest });
   return {
-    extractStep: toExtractStep(composite),
+    extractStep: toSessionExtractStep(composite),
     status: { mode: "live", strategy, model, baseUrl },
     composite,
   };
@@ -394,7 +394,7 @@ export function wireExtractorConnectivity(
 const built = buildExtractorStep({ apiKey, baseUrl, model });
 
 /** The one extract step. Both relays pass this as `createRelay({ extract })`. */
-export const extractStep: ExtractStep = built.extractStep;
+export const extractStep: SessionExtractStep = built.extractStep;
 
 /** Which extractor is live — read by the UI to label the active path. */
 export const extractorStatus: ExtractorStatus = built.status;

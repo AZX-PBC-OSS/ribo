@@ -122,6 +122,7 @@ async function recoverOne(
   const newItem = await outbox.enqueue({
     recording: { ...item.recording, durationMs },
     audio,
+    sessionId: item.sessionId,
   });
 
   // Mark the original dead with a reason naming its successor. The new row

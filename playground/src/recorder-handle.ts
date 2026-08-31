@@ -126,17 +126,20 @@ let handle: Recorder | undefined = hotData?.recorder;
 export function getRecorder(): Recorder {
   handle ??= new Recorder({
     captureSession: async ({ recording, sourceId, mimeType }) => {
-      const session = await openCaptureSession({
-        outbox: await getOutbox(),
+      const outbox = await getOutbox();
+      const session = await outbox.openSession();
+      const captureSession = await openCaptureSession({
+        outbox,
         recording,
         sourceId,
         mimeType,
+        sessionId: session.id,
       });
       // Fire-and-forget: recording starts immediately, the live session opens
       // async. Frames arriving before the session is open are silently dropped
       // by `feedFrame` — live must never degrade recording.
-      void openLiveForCapture(recording, session.itemId);
-      return session;
+      void openLiveForCapture(recording, captureSession.itemId);
+      return captureSession;
     },
     onSamples: (frame) => feedFrame(frame),
     createSampleTap,

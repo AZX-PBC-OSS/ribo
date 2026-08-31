@@ -617,10 +617,17 @@ describe("Recorder durable capture", () => {
         sourceId: string;
         mimeType: string;
       }): Promise<CaptureSession> =>
-        openCaptureSession({ outbox, recording, sourceId, mimeType, decode: async () => 1234 }),
+        openCaptureSession({
+          outbox,
+          recording,
+          sourceId,
+          mimeType,
+          sessionId: "test-session",
+          decode: async () => 1234,
+        }),
     });
 
-    await recorder.start();
+    await recorder.start("test-session");
     expect(recorder.phase).toBe("recording");
     // A real timeslice must elapse or there is no chunk to commit.
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -671,14 +678,15 @@ describe("Recorder durable capture", () => {
       recording: Recording;
       sourceId: string;
       mimeType: string;
-    }): Promise<CaptureSession> => openCaptureSession({ outbox, recording, sourceId, mimeType });
+    }): Promise<CaptureSession> =>
+      openCaptureSession({ outbox, recording, sourceId, mimeType, sessionId: "test-session" });
     const recorder = new Recorder({
       getUserMedia,
       captureSession: factory,
     });
 
     try {
-      await expect(recorder.start()).rejects.toThrow(/another tab|busy/i);
+      await expect(recorder.start("test-session")).rejects.toThrow(/another tab|busy/i);
       expect(getUserMedia).not.toHaveBeenCalled();
     } finally {
       // Release the lock even if the assertion fails, so later tests are not poisoned.
@@ -704,7 +712,8 @@ describe("Recorder durable capture", () => {
       recording: Recording;
       sourceId: string;
       mimeType: string;
-    }): Promise<CaptureSession> => openCaptureSession({ outbox, recording, sourceId, mimeType });
+    }): Promise<CaptureSession> =>
+      openCaptureSession({ outbox, recording, sourceId, mimeType, sessionId: "test-session" });
     const recorder = new Recorder({
       captureSession: factory,
       createRecorder: (stream: MediaStream, options: MediaRecorderOptions) => {
@@ -717,7 +726,7 @@ describe("Recorder durable capture", () => {
       },
     });
 
-    await expect(recorder.start()).rejects.toThrow();
+    await expect(recorder.start("test-session")).rejects.toThrow();
     await vi.waitFor(async () => {
       expect(await isLockFree(CAPTURE_LOCK)).toBe(true);
     });

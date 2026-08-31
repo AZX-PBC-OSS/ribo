@@ -114,6 +114,7 @@ test("a session registered by useRecorder is visible to a SIBLING useWorkSafety"
       ctx: {},
     },
     audio: new Blob(["x"], { type: "audio/webm" }),
+    sessionId: crypto.randomUUID(),
   });
 
   // Register a capture session with "flushing" health — this is what

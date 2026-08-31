@@ -1,7 +1,7 @@
 import type { ToolAdapter } from "./adapter.js";
 import { TerminalQueueError } from "./queue/backoff.js";
 import type { Outbox } from "./queue/outbox.js";
-import type { WriteStep, WriteStepInput } from "./queue/relay.js";
+import type { SessionWriteStep, SessionWriteInput } from "./queue/relay.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 
 /**
@@ -16,13 +16,13 @@ import { describeLocated, zodIssues } from "./zod-issues.js";
  * re-derives the same key for the same instance, so a vendor that honours
  * `Idempotency-Key` recognises a retry rather than creating a duplicate record.
  *
- * The per-instance write step also persists per-instance progress in the outbox
- * (`OutboxDocument.writtenInstances`) before moving on. That narrows, but does
+ * The per-instance write step also persists per-instance progress on the session
+ * (`SessionDocument.writtenInstances`) before moving on. That narrows, but does
  * not close, the ambiguous-success window: if the vendor ignores the header, a
  * crash between the API creating a record and our persisting this marker can
  * still duplicate on retry. Server-side idempotency is required to eliminate it.
  *
- * Singleton groups are written together with the item's original idempotency
+ * Singleton groups are written together with the session's original idempotency
  * key, which is the correct granularity for one record per patch. A group with
  * an empty array (`[]`) writes nothing — neither creating nor deleting records.
  *
@@ -62,14 +62,14 @@ export function deriveInstanceIdempotencyKey(
  */
 export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
   options: ToInstanceWriteStepOptions<V, C>,
-): WriteStep {
+): SessionWriteStep {
   const { adapter, outbox, collectionGroups } = options;
-  return async ({ item, reviewed, idempotencyKey }: WriteStepInput): Promise<void> => {
-    const ctx = adapter.ctxSchema.safeParse(item.recording.ctx);
-    if (!ctx.success) {
+  return async ({ session, reviewed, idempotencyKey, ctx }: SessionWriteInput): Promise<void> => {
+    const parsedCtx = adapter.ctxSchema.safeParse(ctx);
+    if (!parsedCtx.success) {
       throw new TerminalQueueError(
-        `outbox item ${item.id}: its recording's ctx is not a valid write context for the ` +
-          `"${adapter.name}" adapter — ${describeLocated(zodIssues(ctx.error))}. The context is captured ` +
+        `session ${session.id}: its recording's ctx is not a valid write context for the ` +
+          `"${adapter.name}" adapter — ${describeLocated(zodIssues(parsedCtx.error))}. The context is captured ` +
           "with the recording and cannot be repaired by retrying; check what the host put in " +
           "`Recording.ctx` at enqueue.",
       );
@@ -78,10 +78,10 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
     const fields = adapter.schema.safeParse(reviewed);
     if (!fields.success) {
       throw new TerminalQueueError(
-        `outbox item ${item.id}: the reviewed values are not a valid patch for the ` +
+        `session ${session.id}: the reviewed values are not a valid patch for the ` +
           `"${adapter.name}" adapter — ${describeLocated(zodIssues(fields.error))}. Nothing was written. ` +
           "The review outcome is already persisted, so a retry would fail identically; " +
-          "to try again, re-park the item with Outbox.reopenForReview(id) and review it afresh.",
+          "to try again, re-park with Outbox.reopenSessionForReview(id) and review it afresh.",
       );
     }
 
@@ -97,12 +97,12 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
     }
 
     if (Object.keys(singletonPatch).length > 0) {
-      await adapter.write(adapter.schema.parse(singletonPatch) as V, ctx.data, {
+      await adapter.write(adapter.schema.parse(singletonPatch) as V, parsedCtx.data, {
         idempotencyKey,
       });
     }
 
-    let writtenInstances: Record<string, boolean[]> = { ...(item.writtenInstances ?? {}) };
+    let writtenInstances: Record<string, boolean[]> = { ...(session.writtenInstances ?? {}) };
     for (const { group, instances } of collections) {
       if (instances.length === 0) continue;
       for (let index = 0; index < instances.length; index += 1) {
@@ -110,12 +110,12 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
 
         const instancePatch = { [group]: [instances[index]] };
         const instanceKey = deriveInstanceIdempotencyKey(idempotencyKey, group, index);
-        await adapter.write(adapter.schema.parse(instancePatch) as V, ctx.data, {
+        await adapter.write(adapter.schema.parse(instancePatch) as V, parsedCtx.data, {
           idempotencyKey: instanceKey,
         });
 
         writtenInstances = markInstanceWritten(writtenInstances, group, index);
-        await outbox.patch(item.id, { writtenInstances });
+        await outbox.patchSession(session.id, { writtenInstances });
       }
     }
   };

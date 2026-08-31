@@ -32,7 +32,8 @@ import type {
  * hand-built draft stands in for extraction, which is exactly what Phases 4–6 will do. Review
  * itself is a queue state, not a callback the pipeline awaits — see `review.ts`'s file header —
  * so what stands in for "a human reviewed it" here is a hand-built {@link FieldDecisions}, the
- * same shape `Outbox.submitReview` would receive from a real UI.
+ * same shape `resolveReview` turns into the `PersistedReviewOutcome` that
+ * `Outbox.submitSessionReview` would receive from a real UI.
  *
  * Two threads worth following through the file:
  *
@@ -216,7 +217,7 @@ test("the contracts compose: record → transcribe → extract → review → wr
   //    justification does not check out, drop the health-safety test that was never run. There
   //    is no presenter to invoke here — review is a queue state a UI reports back into, not a
   //    callback the pipeline awaits, so a hand-built `FieldDecisions` stands in for what
-  //    `Outbox.submitReview` would receive from a real one. The two `healthSafety` leaves get
+  //    `Outbox.submitSessionReview` would receive from a real one. The two `healthSafety` leaves get
   //    DIFFERENT verdicts, which is the thing top-level-key review could not do.
   const decisions: FieldDecisions = {
     rValue: { status: "accepted" },

@@ -1,5 +1,5 @@
 import type { ToolAdapter } from "./adapter.js";
-import type { ExtractStep, ExtractedFieldMap } from "./queue/relay.js";
+import type { SessionExtractStep, ExtractedFieldMap } from "./queue/relay.js";
 
 /**
  * @file The extraction contract: how a transcript becomes structured host-tool fields.
@@ -11,7 +11,6 @@ import type { ExtractStep, ExtractedFieldMap } from "./queue/relay.js";
  * `ribo-core` stays headless and LLM-agnostic — the real strategies (single-shot managed LLM,
  * plan-then-execute, a managed endpoint) live in adapter packages and share this seam.
  */
-
 /**
  * What one extraction produced.
  *
@@ -78,20 +77,21 @@ export type ExtractionTarget<V extends Record<string, unknown>> = Pick<
 >;
 
 /**
- * Collapse any {@link Extractor} onto the relay's injected `ExtractStep`.
+ * Collapse any {@link Extractor} onto the relay's injected `SessionExtractStep`.
  *
- * The relay owns `RelayOptions.extract` and speaks in `ExtractedFieldMap`; an `Extractor` speaks
- * in `ExtractionResult<F>`. This is the one-line adapter between them, so wiring a strategy into
- * the queue is `createRelay({ ..., extract: toExtractStep(myExtractor) })` with **no** relay
- * change. Only `.fields` reaches the outbox; `raw` and `usage` stay with the extractor.
+ * The relay owns `RelayOptions.sessionExtract` and speaks in `ExtractedFieldMap`; an `Extractor`
+ * speaks in `ExtractionResult<F>`. This is the one-line adapter between them, so wiring a strategy
+ * into the queue is `createRelay({ ..., sessionExtract: toSessionExtractStep(myExtractor) })` with
+ * **no** relay change. Only `.fields` reaches the session document; `raw` and `usage` stay with
+ * the extractor.
+ *
+ * The session extract step receives the **joined transcript text** (all transcribed recordings
+ * in capture order, excluding discarded), not a single `Transcript` object — that is the whole
+ * point of session-level extraction.
  */
-export function toExtractStep<F>(extractor: Extractor<F>): ExtractStep {
+export function toSessionExtractStep<F>(extractor: Extractor<F>): SessionExtractStep {
   return async ({ transcript }) => {
-    const result = await extractor.extract(transcript.text);
-    // `engine` rides along beside the fields rather than inside them: the field map is the
-    // adapter's shape, validated against its schema, and smuggling provenance into it would
-    // put a key there that no schema declares. `raw` and `calls` still stay with the extractor
-    // — only what the outbox persists crosses this boundary.
+    const result = await extractor.extract(transcript);
     return { fields: result.fields as ExtractedFieldMap, engine: result.usage.engine };
   };
 }

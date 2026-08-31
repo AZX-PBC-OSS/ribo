@@ -4,11 +4,11 @@ import { parseFieldPath, stripOptionalNullable } from "@azx/ribo-core";
 import type {
   FieldDecision,
   FieldPath,
-  OutboxItem,
   ReviewField,
   ReviewFields,
+  SessionItem,
 } from "@azx/ribo-core";
-import { useOutboxItems, useReview } from "@azx/ribo-ui-react";
+import { useReview, useSessions } from "@azx/ribo-ui-react";
 import { snuggProAdapter, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 import { ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 
@@ -185,7 +185,7 @@ function groupFields(
 }
 
 export function ReviewPanel() {
-  const { items: parked, loading, error } = useOutboxItems({ status: "awaiting-review" });
+  const { items: parked, loading, error } = useSessions({ status: "awaiting-review" });
   const onDeviceExtractor = useSyncExternalStore(
     subscribeToOnDeviceExtractor,
     getOnDeviceExtractorState,
@@ -228,8 +228,8 @@ export function ReviewPanel() {
         </p>
       ) : (
         <ol style={{ listStyle: "none", margin: "1rem 0 0", padding: 0 }}>
-          {parked.map((item) => (
-            <ReviewCard key={item.id} item={item} />
+          {parked.map((session) => (
+            <ReviewCard key={session.id} session={session} />
           ))}
         </ol>
       )}
@@ -378,7 +378,7 @@ function OnDeviceExtractorDownloadProgress({ state }: { state: OnDeviceExtractor
   );
 }
 
-function ReviewCard({ item }: { item: OutboxItem }) {
+function ReviewCard({ session }: { session: SessionItem }) {
   const {
     ready,
     fields,
@@ -395,7 +395,7 @@ function ReviewCard({ item }: { item: OutboxItem }) {
     discard,
     submitting,
     error,
-  } = useReview(item, {
+  } = useReview(session, {
     valuesSchema: snuggValuesSchema,
     requiredOnCreate: snuggProAdapter.requiredOnCreate,
   });
@@ -448,8 +448,8 @@ function ReviewCard({ item }: { item: OutboxItem }) {
         style={{ borderTop: "1px solid #eaeef2", padding: "0.85rem 0" }}
       >
         <p style={muted}>
-          <strong style={monospace}>#{item.seq}</strong> is not ready for review — it has no
-          transcript, no extraction, or both.
+          <strong style={monospace}>#{session.id.slice(0, 8)}</strong> is not ready for review — it
+          has no transcript, no extraction, or both.
         </p>
       </li>
     );
@@ -458,13 +458,13 @@ function ReviewCard({ item }: { item: OutboxItem }) {
   return (
     <li data-testid="review-card" style={{ borderTop: "1px solid #eaeef2", padding: "0.85rem 0" }}>
       <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
-        <strong style={monospace}>#{item.seq}</strong>
-        <span style={statusBadge(item.status)}>{item.status}</span>
+        <strong style={monospace}>#{session.id.slice(0, 8)}</strong>
+        <span style={statusBadge(session.status)}>{session.status}</span>
         {/* Compared against the exported constant, not a copy of its value: the
             engine id is written by the extractor and read here, and a literal in
             one of those two places drifts silently — the badge would just stop
             appearing, which looks like "no on-device extractions happened". */}
-        {item.extractedBy === ONDEVICE_CHAT_ENGINE && (
+        {session.extractedBy === ONDEVICE_CHAT_ENGINE && (
           <span style={betaBadge}>beta — on-device extraction</span>
         )}
         <span style={muted}>

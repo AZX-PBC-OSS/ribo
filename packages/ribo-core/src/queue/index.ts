@@ -26,21 +26,28 @@ export {
   openOutboxDatabase,
   removeOutboxDatabase,
 } from "./database.js";
-export type { OutboxCollection, OutboxDatabase } from "./database.js";
+export type { OutboxCollection, OutboxDatabase, SessionCollection } from "./database.js";
 
 export { openOutbox, Outbox } from "./outbox.js";
-export type { EnqueueInput, OpenOutboxOptions, OutboxQuery } from "./outbox.js";
+export type {
+  EnqueueInput,
+  OpenOutboxOptions,
+  OpenSessionInput,
+  OutboxQuery,
+  SessionQuery,
+} from "./outbox.js";
 
 export { createRelay } from "./relay.js";
 export type {
   ConnectivitySource,
   ExtractedFieldMap,
-  ExtractStep,
-  ExtractStepInput,
+  ExtractStepResult,
   Relay,
   RelayOptions,
-  WriteStep,
-  WriteStepInput,
+  SessionExtractInput,
+  SessionExtractStep,
+  SessionWriteInput,
+  SessionWriteStep,
 } from "./relay.js";
 
 export {
@@ -58,6 +65,22 @@ export {
 export type { OutboxDocument, OutboxItem, OutboxPatch, OutboxStatus } from "./schema.js";
 
 export {
+  ACTIVE_SESSION_STATUSES,
+  FINISHED_SESSION_STATUSES,
+  SESSION_COLLECTION_NAME,
+  SESSION_STATUSES,
+  sessionDocumentSchema,
+  sessionItemSchema,
+  sessionRxSchema,
+} from "./session-schema.js";
+export type {
+  SessionDocument,
+  SessionItem,
+  SessionPatch,
+  SessionStatus,
+} from "./session-schema.js";
+
+export {
   chunkName,
   chunkPrefix,
   isChunkOf,
@@ -65,7 +88,13 @@ export {
   MAX_SLICE_INDEX,
   sliceOversized,
 } from "./chunk-names.js";
-export { CAPTURE_LOCK, holdLock, isLockFree } from "./capture-lock.js";
+export {
+  CAPTURE_LOCK,
+  holdLock,
+  isLockFree,
+  relayItemLock,
+  relaySessionLock,
+} from "./capture-lock.js";
 export type { HeldLock } from "./capture-lock.js";
 
 export { decodeAudioDuration, openCaptureSession } from "./capture-session.js";

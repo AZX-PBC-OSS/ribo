@@ -142,20 +142,26 @@ async function parkedItem(
   overrides: Readonly<Record<string, Envelope>>,
   instances: Readonly<Record<string, number>> = {},
 ): Promise<string> {
+  const session = await outbox.openSession();
   const item = await outbox.enqueue({
     recording: recording(),
     audio: new Blob(["x"], { type: "audio/webm" }),
+    sessionId: session.id,
   });
   await outbox.patch(item.id, {
-    status: "awaiting-review",
+    status: "transcribed",
     transcript: {
       recordingId: item.recording.id,
       text: `${FILLER_SPAN}. ${FILLER_SPAN}. ${FILLER_SPAN}.`,
       engine: "fake",
     },
-    extracted: fullExtraction(overrides, instances),
   });
-  return item.id;
+  await outbox.patchSession(session.id, {
+    status: "awaiting-review",
+    extracted: fullExtraction(overrides, instances),
+    extractedFromRecordingIds: [item.id],
+  });
+  return session.id;
 }
 
 async function renderReviewPanel(outbox: Outbox) {
@@ -253,7 +259,7 @@ test("Accept, Edit and Reject each record the decision they claim, and reach sub
 
   const screen = await renderReviewPanel(outbox);
 
-  const submitReviewSpy = vi.spyOn(outbox, "submitReview");
+  const submitReviewSpy = vi.spyOn(outbox, "submitSessionReview");
 
   // Accept: take the extracted value as-is.
   await screen.getByTestId(`review-field-${acceptPath}`).getByTestId("accept-field").click();
@@ -317,7 +323,7 @@ test("a two-instance group renders two labelled instance sections, and a leaf ed
   );
 
   const screen = await renderReviewPanel(outbox);
-  const submitReviewSpy = vi.spyOn(outbox, "submitReview");
+  const submitReviewSpy = vi.spyOn(outbox, "submitSessionReview");
 
   await expect.element(screen.getByTestId("review-instance-hvac[k1]")).toBeInTheDocument();
   await expect.element(screen.getByTestId("review-instance-hvac[k2]")).toBeInTheDocument();
@@ -383,7 +389,7 @@ test("removing the first instance leaves the second instance's entered value int
   );
 
   const screen = await renderReviewPanel(outbox);
-  const submitReviewSpy = vi.spyOn(outbox, "submitReview");
+  const submitReviewSpy = vi.spyOn(outbox, "submitSessionReview");
 
   // Edit the second instance before removing the first.
   await screen
