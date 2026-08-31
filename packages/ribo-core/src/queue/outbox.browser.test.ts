@@ -7,8 +7,10 @@ import { firstValueFrom } from "rxjs";
 import { afterEach, expect, test, vi } from "vitest";
 
 import type { Recording } from "../recording.js";
+import { summarizeWork } from "../work-safety.js";
+import { FINISHED_SESSION_STATUSES } from "./session-schema.js";
 import { openOutbox, type Outbox } from "./outbox.js";
-import { OUTBOX_MIGRATION_STRATEGIES, removeOutboxDatabase } from "./database.js";
+import { OUTBOX_MIGRATION_STRATEGIES, backfillSessions, removeOutboxDatabase } from "./database.js";
 import { chunkName } from "./chunk-names.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
@@ -422,7 +424,192 @@ test("v5 recordings with no assessmentId get singleton sessions", async () => {
   // A session was created — a singleton.
   const session = await outbox.getSession(items[0]!.sessionId);
   expect(session).toBeDefined();
-  expect(session?.status).toBe("done"); // no extraction → done
+  // The recording never reached transcription, so there is nothing to review
+  // yet and the work is NOT finished. `done` is terminal and would strand it.
+  expect(session?.status).toBe("open");
+  await outbox.close();
+});
+
+test("a v5 recording still awaiting transcription is not stranded in a finished session", async () => {
+  const name = uniqueName();
+  await seedVersionZeroOutbox(name, {
+    id: "midflight",
+    seq: 0,
+    status: "queued",
+    idempotencyKey: "k",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: {
+      id: "r",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      durationMs: 1,
+      mimeType: "audio/webm",
+      ctx: { assessmentId: "job-mid" },
+    },
+  } as V0OutboxDocument);
+
+  const outbox = await open(name);
+  const [item] = await outbox.list({});
+  const session = await outbox.getSession(item!.sessionId);
+
+  // The auditor captured this and upgraded before it transcribed. The session
+  // must still be reachable: `done` has no way back (FINISHED_SESSION_STATUSES)
+  // so the audio would transcribe and then sit forever, while `summarizeWork`
+  // counted the session as `synced` — safety overstated for work still on the
+  // device, which `work-safety.ts` calls the non-negotiable rule.
+  expect(FINISHED_SESSION_STATUSES).not.toContain(session!.status);
+  expect(summarizeWork([item!], [session!]).synced).toBe(0);
+  await outbox.close();
+});
+
+test("backfilling twice leaves one session, not two", async () => {
+  const name = uniqueName();
+  await seedVersionZeroOutbox(name, {
+    id: "solo",
+    seq: 0,
+    status: "awaiting-review",
+    idempotencyKey: "k",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: {
+      id: "r",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      durationMs: 1,
+      mimeType: "audio/webm",
+      ctx: { assessmentId: "job-twice" },
+    },
+  } as V0OutboxDocument);
+
+  // The first open migrates and backfills. The second re-runs the backfill over
+  // rows that still carry their `legacy` bag — which is exactly what happens on
+  // every subsequent app start, and after a migration interrupted mid-way.
+  const first = await open(name);
+  await first.close();
+  const outbox = await open(name);
+
+  expect(await outbox.listSessions({})).toHaveLength(1);
+  await outbox.close();
+});
+
+test("the migration carrier is cleared once its session holds the data", async () => {
+  const name = uniqueName();
+  await seedVersionZeroOutbox(name, {
+    id: "solo",
+    seq: 0,
+    status: "awaiting-review",
+    idempotencyKey: "k",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: {
+      id: "r",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      durationMs: 1,
+      mimeType: "audio/webm",
+      ctx: { assessmentId: "job-clear" },
+    },
+  } as V0OutboxDocument);
+
+  const outbox = await open(name);
+  // v6 is not deployed, so the carrier never needs to outlive the backfill that
+  // consumes it — no second schema version is required to tidy it away.
+  const [doc] = await outbox.database.collections.outbox.find().exec();
+  expect(doc!.toJSON()).not.toHaveProperty("legacy");
+  await outbox.close();
+});
+
+test("a backfill that already created the session does not insert it twice", async () => {
+  // The crash window: the session was inserted but the carrier was not cleared
+  // before the process died. The next open must find the group again and leave
+  // it alone rather than colliding on the primary key.
+  const name = uniqueName();
+  await seedVersionZeroOutbox(name, {
+    id: "solo",
+    seq: 0,
+    status: "awaiting-review",
+    idempotencyKey: "k",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: {
+      id: "r",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      durationMs: 1,
+      mimeType: "audio/webm",
+      ctx: { assessmentId: "job-crash" },
+    },
+  } as V0OutboxDocument);
+
+  const outbox = await open(name);
+  const [doc] = await outbox.database.collections.outbox.find().exec();
+  await doc!.incrementalPatch({ legacy: { extracted: { hvac: "furnace" } } } as never);
+
+  await backfillSessions(outbox.database);
+
+  expect(await outbox.listSessions({})).toHaveLength(1);
+  await outbox.close();
+});
+
+test("the extraction survives when a later recording carries it, not the first", async () => {
+  const name = uniqueName();
+  addRxPlugin(RxDBAttachmentsPlugin);
+  const db0 = await createRxDatabase({
+    name,
+    storage: getRxStorageDexie(),
+    multiInstance: true,
+    eventReduce: true,
+    cleanupPolicy: {},
+  });
+  await db0.addCollections({ [OUTBOX_COLLECTION_NAME]: { schema: OUTBOX_RX_SCHEMA_V0 } });
+  const outboxCol = db0.collections.outbox!;
+  const baseRec = {
+    id: "r",
+    capturedAt: "2026-07-23T10:00:00.000Z",
+    durationMs: 1,
+    mimeType: "audio/webm",
+    ctx: { assessmentId: "job-77" },
+  };
+  // seq 0 has nothing on it; seq 1 holds the auditor's extraction and review.
+  await outboxCol.insert({
+    id: "first",
+    seq: 0,
+    status: "queued",
+    idempotencyKey: "k1",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: { ...baseRec, id: "r1" },
+  });
+  await outboxCol.insert({
+    id: "second",
+    seq: 1,
+    status: "awaiting-review",
+    idempotencyKey: "k2",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: { ...baseRec, id: "r2" },
+    extracted: { hvac: "furnace" },
+    extractedBy: "gpt-4o",
+  } as unknown as V0OutboxDocument);
+  await db0.close();
+
+  const outbox = await open(name);
+  const items = await outbox.list({});
+  const session = await outbox.getSession(items[0]!.sessionId);
+
+  // A per-document fold that seeds from whichever recording it sees first
+  // drops this entirely — the auditor's cached extraction is their work.
+  expect(session?.extracted).toEqual({ hvac: "furnace" });
+  expect(session?.extractedBy).toBe("gpt-4o");
+  expect(session?.status).toBe("awaiting-review");
+
+  // Provenance must name only the recording that actually produced the
+  // extraction. Claiming both would make `recordingSetChanged` report the
+  // cache as valid and suppress the session-wide re-extraction that repairs it.
+  expect(session?.extractedFromRecordingIds).toEqual(["second"]);
   await outbox.close();
 });
 
