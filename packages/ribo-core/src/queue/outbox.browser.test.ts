@@ -10,7 +10,7 @@ import type { Recording } from "../recording.js";
 import { summarizeWork } from "../work-safety.js";
 import { FINISHED_SESSION_STATUSES } from "./session-schema.js";
 import { openOutbox, type Outbox } from "./outbox.js";
-import { OUTBOX_MIGRATION_STRATEGIES, removeOutboxDatabase } from "./database.js";
+import { OUTBOX_MIGRATION_STRATEGIES, backfillSessions, removeOutboxDatabase } from "./database.js";
 import { chunkName } from "./chunk-names.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
@@ -488,6 +488,65 @@ test("backfilling twice leaves one session, not two", async () => {
   const first = await open(name);
   await first.close();
   const outbox = await open(name);
+
+  expect(await outbox.listSessions({})).toHaveLength(1);
+  await outbox.close();
+});
+
+test("the migration carrier is cleared once its session holds the data", async () => {
+  const name = uniqueName();
+  await seedVersionZeroOutbox(name, {
+    id: "solo",
+    seq: 0,
+    status: "awaiting-review",
+    idempotencyKey: "k",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: {
+      id: "r",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      durationMs: 1,
+      mimeType: "audio/webm",
+      ctx: { assessmentId: "job-clear" },
+    },
+  } as V0OutboxDocument);
+
+  const outbox = await open(name);
+  // v6 is not deployed, so the carrier never needs to outlive the backfill that
+  // consumes it — no second schema version is required to tidy it away.
+  const [doc] = await outbox.database.collections.outbox.find().exec();
+  expect(doc!.toJSON()).not.toHaveProperty("legacy");
+  await outbox.close();
+});
+
+test("a backfill that already created the session does not insert it twice", async () => {
+  // The crash window: the session was inserted but the carrier was not cleared
+  // before the process died. The next open must find the group again and leave
+  // it alone rather than colliding on the primary key.
+  const name = uniqueName();
+  await seedVersionZeroOutbox(name, {
+    id: "solo",
+    seq: 0,
+    status: "awaiting-review",
+    idempotencyKey: "k",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: {
+      id: "r",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      durationMs: 1,
+      mimeType: "audio/webm",
+      ctx: { assessmentId: "job-crash" },
+    },
+  } as V0OutboxDocument);
+
+  const outbox = await open(name);
+  const [doc] = await outbox.database.collections.outbox.find().exec();
+  await doc!.incrementalPatch({ legacy: { extracted: { hvac: "furnace" } } } as never);
+
+  await backfillSessions(outbox.database);
 
   expect(await outbox.listSessions({})).toHaveLength(1);
   await outbox.close();

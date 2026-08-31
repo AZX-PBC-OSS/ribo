@@ -44,9 +44,9 @@ test("the RxDB required list is exactly zod's non-optional fields", () => {
 });
 
 test("the optional fields are the transcript, the error message, capture, preview, and the migration carrier", () => {
-  // `legacy` is the odd one out and is meant to be: it exists only on rows that
-  // came through the v6 expand migration, and the v7 contract migration removes
-  // it. When that lands, this list goes back to four entries.
+  // `legacy` is the odd one out and is meant to be: it carries v5 data from the
+  // expand migration to the backfill, which clears it. It has to be declared
+  // because it is persisted across that window, but no row keeps it afterwards.
   expect(optionalKeys).toEqual(["capture", "lastError", "legacy", "preview", "transcript"]);
 });
 

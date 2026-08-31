@@ -1,5 +1,5 @@
 import { addRxPlugin, createRxDatabase, removeRxDatabase } from "rxdb";
-import type { RxCollection, RxDatabase, RxStorage } from "rxdb";
+import type { RxCollection, RxDatabase, RxDocument, RxStorage } from "rxdb";
 import { RxDBAttachmentsPlugin } from "rxdb/plugins/attachments";
 import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
@@ -35,11 +35,14 @@ export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection; sessions: Se
 
 /**
  * The v5 session-level fields, carried on the recording document by the v6
- * migration until {@link backfillSessions} has lifted them onto a session.
+ * migration until {@link backfillSessions} has lifted them onto a session and
+ * cleared it.
  *
- * A single optional bag rather than six loose properties, so the contract step
- * (v7) is one deleted field and no new code can accidentally read a v5 field as
- * if it were current. Nothing outside migration writes this.
+ * A single optional bag rather than six loose properties, so no new code can
+ * accidentally read a v5 field as if it were current, and so clearing it is one
+ * delete. Nothing outside migration writes this. It is persisted rather than
+ * held in memory because a crash between the migration finishing and the
+ * backfill running would otherwise lose the data for good.
  */
 export interface LegacySessionFields {
   extracted?: Record<string, unknown>;
@@ -128,8 +131,9 @@ const V5_SESSION_OWNED_STATUSES = new Set(["extracting", "awaiting-review", "wri
  * - **backfill** — {@link backfillSessions}, run once both collections are
  *   open. It groups the migrated recordings by `sessionId` and upserts one
  *   session per group.
- * - **v7 (contract)** — a later schema version drops `legacy`, once the
- *   backfill is trusted. Not shipped yet, deliberately.
+ * - **contract** — the same backfill clears each `legacy` bag once its session
+ *   exists. v6 has not been deployed, so the carrier never has to outlive the
+ *   step that consumes it and no second schema version is needed.
  *
  * **Why not accumulate across documents in module scope?** Since RxDB 15 the
  * migration runs through the replication protocol and resumes from a
@@ -297,8 +301,8 @@ export async function openOutboxDatabase(
  * Idempotent, and that is the whole design. A session is created only if one
  * does not already exist under its deterministic id, so this may run on every
  * open, after a half-finished migration, or twice in a race, and converge on the
- * same result. Nothing is deleted from the recordings — the contract step (v7)
- * removes `legacy` wholesale once this is trusted.
+ * same result: a group whose session already exists is left alone, and clearing
+ * an already-cleared carrier is a no-op.
  *
  * Because it groups whole sessions rather than folding one document at a time,
  * it can do three things a per-document migration structurally cannot:
@@ -323,22 +327,39 @@ export async function backfillSessions(database: OutboxDatabase): Promise<void> 
   const recordings = await database.collections.outbox.find().exec();
   if (recordings.length === 0) return;
 
-  const groups = new Map<string, OutboxDocument[]>();
+  const groups = new Map<string, RxDocument<OutboxDocument>[]>();
   for (const doc of recordings) {
-    const data = doc.toJSON() as OutboxDocument;
-    const legacy = legacyOf(data);
     // Only migrated rows carry a legacy bag. A recording enqueued by current
     // code already has a real session and must not be swept into a synthetic one.
-    if (legacy === undefined) continue;
-    const group = groups.get(data.sessionId);
-    if (group) group.push(data);
-    else groups.set(data.sessionId, [data]);
+    if (legacyOf(doc.toJSON() as OutboxDocument) === undefined) continue;
+    const { sessionId } = doc;
+    const group = groups.get(sessionId);
+    if (group) group.push(doc);
+    else groups.set(sessionId, [doc]);
   }
 
   for (const [sessionId, group] of groups) {
+    const data = group.map((doc) => doc.toJSON() as OutboxDocument);
+    // The idempotency hinge. A crash between the insert below and the clear that
+    // follows it leaves the carriers in place with the session already built, so
+    // the next open finds this group again — and must leave it alone rather than
+    // colliding on the primary key.
     const existing = await database.collections.sessions.findOne(sessionId).exec();
-    if (existing) continue; // already backfilled — this is the idempotency hinge
-    await database.collections.sessions.insert(sessionDocumentFromMigratedGroup(sessionId, group));
+    if (!existing) {
+      await database.collections.sessions.insert(sessionDocumentFromMigratedGroup(sessionId, data));
+    }
+    // Contract, folded into the same step. v6 is not deployed, so the carrier
+    // never has to outlive the backfill that consumes it and no second schema
+    // version is needed to tidy it away. Ordered strictly after the session
+    // exists: the session is built from the whole group before anything is
+    // cleared, so losing this write costs only tidiness, never data.
+    for (const doc of group) {
+      await doc.incrementalModify((current) => {
+        const next = { ...current };
+        delete (next as { legacy?: unknown }).legacy;
+        return next;
+      });
+    }
   }
 }
 
