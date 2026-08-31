@@ -176,6 +176,18 @@ export const outboxDocumentSchema = z
     preview: z
       .strictObject({ committed: z.array(z.string()), tail: z.string().optional() })
       .optional(),
+    /**
+     * Migration-only carrier for the v5 session-level fields
+     * (`extracted`, `reviewOutcome`, `writeResult`, …), set by the v6 *expand*
+     * migration and consumed by `backfillSessions`. Present only on rows that
+     * came from a v5 database; nothing in current code writes it, and the v7
+     * *contract* migration deletes it.
+     *
+     * Deliberately an unvalidated bag: it holds data that was already validated
+     * under the v5 schema, and re-asserting a shape we are about to drop would
+     * turn a stale field into an open failure.
+     */
+    legacy: z.record(z.string(), z.unknown()).optional(),
   })
   .superRefine((doc, ctx) => {
     if (doc.status === "recording" && !doc.capture) {
@@ -257,6 +269,11 @@ export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
     transcript: { type: "object" },
     capture: { type: "object" },
     preview: { type: "object" },
+    // Migration-only carrier: the v5 session-level fields, held on the recording
+    // by the v6 (expand) migration until `backfillSessions` has lifted them onto
+    // a session document. Nothing outside `database.ts` reads or writes it, and
+    // the v7 (contract) migration deletes it. See `OUTBOX_MIGRATION_STRATEGIES`.
+    legacy: { type: "object" },
   },
   required: [
     "id",
