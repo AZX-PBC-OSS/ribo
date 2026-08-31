@@ -311,9 +311,13 @@ export async function openOutboxDatabase(
  *    from "no extraction because every recording was discarded" (→ `done`,
  *    genuinely finished). A per-document fold sees one row and cannot tell.
  * 3. **Record honest provenance.** `extractedFromRecordingIds` names only the
- *    recording that actually produced the extraction. Claiming the whole set
- *    would make `recordingSetChanged` report the cache as valid and suppress the
- *    session-wide re-extraction that supersedes a salvaged per-item one.
+ *    recording that actually produced the extraction, never the whole set. A
+ *    salvaged v5 extraction came from one recording's transcript and a
+ *    session-wide one joins them all, so the two are not interchangeable and the
+ *    field should not claim otherwise. Note this does not yet *cause* anything:
+ *    `recordingSetChanged` is the check that would act on it and nothing calls
+ *    it, so a migrated session keeps its salvaged extraction until the reopen
+ *    path is wired. The field is honest now so that path is correct when it is.
  */
 export async function backfillSessions(database: OutboxDatabase): Promise<void> {
   const recordings = await database.collections.outbox.find().exec();
