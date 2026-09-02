@@ -1,6 +1,7 @@
 import type { Outbox, SessionItem, SessionQuery } from "@azx/ribo-core";
 import { useEffect, useMemo, useState } from "react";
 
+import { queryFromKey, queryKey } from "./query-key.js";
 import { useRiboInstance } from "./use-ribo-instance.js";
 
 export interface UseSessionsResult {
@@ -26,12 +27,12 @@ export interface UseSessionsResult {
  */
 export function useSessions(query: SessionQuery = {}, outbox?: Outbox): UseSessionsResult {
   const instance = useRiboInstance("outbox", outbox);
-  const key = JSON.stringify({
-    status: query.status,
-    limit: query.limit,
-  });
-
-  const stableQuery = useMemo<SessionQuery>(() => JSON.parse(key) as SessionQuery, [key]);
+  // Derived from the query, never enumerated — see `query-key.ts`. Listing
+  // fields by hand here is what dropped `ref` on the floor: the key was also
+  // what the query got rebuilt from, so an unlisted field never reached the
+  // outbox and every caller filtered client-side instead.
+  const key = queryKey(query);
+  const stableQuery = useMemo<SessionQuery>(() => queryFromKey<SessionQuery>(key), [key]);
 
   const [items, setItems] = useState<readonly SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
