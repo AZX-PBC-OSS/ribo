@@ -42,7 +42,6 @@ test("the optional fields are the step outputs, the error, and the close timesta
     "lastError",
     "reviewOutcome",
     "writeResult",
-    "writtenInstances",
   ]);
 });
 

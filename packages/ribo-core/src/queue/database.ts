@@ -420,7 +420,6 @@ function sessionDocumentFromMigratedGroup(
             "open";
 
   const openedAt = bySeq[0]!.enqueuedAt;
-  const writtenInstances = written ? bagOf(written).writtenInstances : undefined;
 
   return {
     id: sessionId,
@@ -444,7 +443,6 @@ function sessionDocumentFromMigratedGroup(
     ...(source ? { extractedFromRecordingIds: [source.id] } : {}),
     ...(reviewed ? { reviewOutcome: bagOf(reviewed).reviewOutcome } : {}),
     ...(written ? { writeResult: bagOf(written).writeResult } : {}),
-    ...(writtenInstances !== undefined ? { writtenInstances } : {}),
   } as SessionDocument;
 }
 

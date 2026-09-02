@@ -73,9 +73,8 @@ export const FINISHED_SESSION_STATUSES = [
  * in IndexedDB, and nothing else.
  *
  * A session owns the state the recording used to carry: `extracted`,
- * `reviewOutcome`, `writeResult`, `writtenInstances` and the vendor-write
- * `idempotencyKey`. The recording keeps capture and transcription; everything
- * downstream moves here.
+ * `reviewOutcome`, `writeResult` and the vendor-write `idempotencyKey`. The
+ * recording keeps capture and transcription; everything downstream moves here.
  *
  * The session also owns its write destination (`ctx`) and what it is for
  * (`ref`). Both are set once at `openSession` and never patched: re-deciding
@@ -150,15 +149,6 @@ export const sessionDocumentSchema = z.strictObject({
   /** Step output — whatever the tool adapter returned from the write. */
   writeResult: z.record(z.string(), z.unknown()).optional(),
   /**
-   * Per-instance write progress: which collection instances have already been
-   * written successfully in the current attempt cycle. Keys are top-level group
-   * names (e.g. `"hvac"`), values are boolean arrays where index `i` is `true`
-   * when instance `i` of that group has been written. Moved here from the
-   * recording, where instance positions mean something — instances come from
-   * the set-wide extraction, not from any one recording.
-   */
-  writtenInstances: z.record(z.string(), z.array(z.boolean())).optional(),
-  /**
    * The vendor write idempotency key. Generated once at session open and reused
    * on every retry — same guarantee as the recording's old `idempotencyKey`:
    * an ambiguous success (write landed, response lost) cannot double-write.
@@ -225,7 +215,6 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
     extractedFromRecordingIds: { type: "array" },
     reviewOutcome: { type: "object" },
     writeResult: { type: "object" },
-    writtenInstances: { type: "object" },
     idempotencyKey: { type: "string", maxLength: 64 },
   },
   required: [
