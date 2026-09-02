@@ -215,6 +215,25 @@ export type SessionPatch = Partial<
  * descriptions against each other so they cannot drift.
  */
 export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
+  // **Still 0, and edited in place, because this collection has never shipped.**
+  //
+  // The rule for a collection that HAS shipped is the opposite, and the outbox
+  // records it: `OUTBOX_MIGRATION_STRATEGIES` carries identity steps for v1→v2,
+  // v2→v3, v3→v4 (`extractedBy`, optional) and v4→v5, because RxDB validates the
+  // declared schema against the one the collection was created with — a new
+  // property at the same version fails `addCollections` with DB6, which is a
+  // database that will not open rather than a field that quietly does nothing.
+  // "The field is optional so no data needs transforming" answers the data
+  // question and not the schema one; both had to be true, and only one was.
+  //
+  // So the moment a build carrying this collection reaches a device, this line
+  // stops being editable and every further change costs a bump plus a strategy.
+  // Until then a bump would be a migration for a transition that never happened,
+  // tested forever and run never.
+  //
+  // The cost of editing in place is local only: a developer whose browser
+  // already holds a sessions collection from an earlier build gets DB6 and has
+  // to clear the origin's IndexedDB once.
   version: 0,
   primaryKey: "id",
   type: "object",
