@@ -26,7 +26,7 @@ Where this plan and the design disagree, the design wins and the plan is wrong.
 
 The design treats `ctx` and `ref` as new required fields on a collection that has never shipped, and
 concludes there is no migration. That is true of the sessions collection itself and false of the
-path that *creates* sessions from migrated recordings.
+path that _creates_ sessions from migrated recordings.
 
 `buildSessionDocument` (`database.ts:390-425`) is the contract half of the v5 → v6 expand/contract
 split: it mints session documents from v5 recordings that carried session-level state. It has no
@@ -46,7 +46,7 @@ rejects, sitting in the migration. Task 2 converts it to a `ref` and leaves the 
 **Do not touch the v6 migration strategy itself** (`database.ts:160-195`). It has run on real devices.
 It salvages `writtenInstances` into the recording's `legacy` bag, and it should keep doing so even
 after the session field is deleted — an unread key in a bag costs nothing, and editing a strategy
-that has already executed is the failure mode `01f3e7a` was written to fix. Task 3 stops *reading*
+that has already executed is the failure mode `01f3e7a` was written to fix. Task 3 stops _reading_
 `writtenInstances` out of the bag; it does not stop it being put there.
 
 ## Global Constraints
@@ -95,13 +95,13 @@ apart, which is a three-state fact split across two collections.
   caller of `resolveReview` depend on it.
 - Consumes: nothing from other tasks. This task is independent and goes first.
 
-**The rule that governs this task:** the tree is a second *view*, never a second *source*. A leaf
+**The rule that governs this task:** the tree is a second _view_, never a second _source_. A leaf
 exists once, in the flat map, and the tree references it. `ReviewFields`' insertion order is
 contractual — `review.ts:160-174` states that schema-declaration order is part of the contract and
 that `editedFields` and `rejectedFields` follow it — so the tree must be built from the same walk in
 the same order, not sorted or regrouped afterwards.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `review.test.ts`, against an adapter schema with a nested object group, a collection group and a
 scalar leaf at top level:
@@ -114,12 +114,12 @@ scalar leaf at top level:
 - Walking the tree yields leaves in the same order as `Object.keys(request.fields)`.
 - `presentButEmpty` is no longer a property of `ReviewRequest`.
 
-- [ ] **Step 2: Run them and watch them fail**
+- [x] **Step 2: Run them and watch them fail**
 
 Run: `pnpm vitest run packages/ribo-core/src/review.test.ts`
 Expected: FAIL — the tree property does not exist.
 
-- [ ] **Step 3: Build the tree in `collectFields`**
+- [x] **Step 3: Build the tree in `collectFields`**
 
 Thread a tree accumulator through the existing recursion alongside the flat `out` map. The walk
 already distinguishes the three cases it needs — `ZodObject` (recurse), `ZodArray` (a collection
@@ -130,29 +130,29 @@ empty array, or having elements.
 Do not add a second traversal. A tree built by re-walking the flat map is the host code this task
 exists to delete.
 
-- [ ] **Step 4: Remove `presentButEmpty` from the public shape**
+- [x] **Step 4: Remove `presentButEmpty` from the public shape**
 
 `resolveReview` consumes it at `review.ts:933` to decide which groups emit `[]`. Read the group
 state off the tree instead. This is the one behavioural coupling between the two collections and it
 must keep working: a group that was present-but-empty still resolves to an empty array, and an absent
 group still resolves to nothing at all.
 
-- [ ] **Step 5: Surface it from `useReview`**
+- [x] **Step 5: Surface it from `useReview`**
 
 `use-review.ts` returns `presentButEmpty` at line 118 and `fields` at 94. Replace the former with the
 tree. Leave `fields` alone — Task 4 has no opinion about it and the decision channel is unchanged.
 
-- [ ] **Step 6: Run the full core and hook suites** — Expected: PASS.
+- [x] **Step 6: Run the full core and hook suites** — Expected: PASS.
 
 Run: `pnpm vitest run packages/ribo-core` and `pnpm vitest run packages/ribo-ui-react`
 
-- [ ] **Step 7: Mutate to prove the tests bite**
+- [x] **Step 7: Mutate to prove the tests bite**
 
 Make `collectFields` report `populated` for an empty array; the state test must fail. Make the tree
 omit leaves of nested objects; the leaf-set-equality test must fail. Sort the tree's groups
 alphabetically; the ordering test must fail. Restore, re-run, report all three.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 `git add packages/ribo-core/src/review.ts packages/ribo-core/src/index.ts packages/ribo-ui-react/src/use-review.ts` plus the two test files, and commit as
 `feat(core): return the review tree, not a flat map plus a list of empty groups`.
@@ -198,7 +198,7 @@ both sides saying which is authoritative, so the next reader does not re-derive 
 - A session opened with a `ctx` returns it on the `SessionItem`.
 - Two sessions opened with the same `ref` are both returned by a query on that `ref`, and a query on
   a different `ref` returns neither.
-- The write step receives the *session's* `ctx` when the session's recordings carry a different one —
+- The write step receives the _session's_ `ctx` when the session's recordings carry a different one —
   the test that would have passed by accident before, and the one that pins the whole task.
 - A session with no transcribed recordings still reaches the write step, where before the missing
   recording was a terminal error (`relay.ts:405`).
@@ -293,7 +293,7 @@ fixing the marker alone converts a silent skip into a silent dedupe against the 
 
 Against a fake adapter that records what it was asked to write: a session with a collection group of
 two instances; the first write succeeds and the second throws; the session dies. Reopen it, remove
-the *first* instance from the review, resubmit, and let the write step run.
+the _first_ instance from the review, resubmit, and let the write step run.
 
 Assert the surviving instance reached the adapter. Today it does not: it is now index 0, the marker
 at index 0 is still true from the deleted instance (`outbox.ts:757` preserves it across reopen,

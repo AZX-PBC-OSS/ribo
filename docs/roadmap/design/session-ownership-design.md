@@ -67,7 +67,7 @@ is to let a retry resume mid-patch rather than replay instances that already suc
 
 It is also a live correctness bug. `reopenSessionForReview` preserves it (`outbox.ts:757`), while
 `buildInstancePositions` (`review.ts:611`) assigns array indices by first-mention order among the
-paths that *survived* review. So: the first instance of a group writes, the second fails, the session
+paths that _survived_ review. So: the first instance of a group writes, the second fails, the session
 dies. A reviewer reopens it, deletes the first instance as a mishearing, and resubmits. The survivor
 is now index 0, the marker at index 0 is still true from the deleted instance, and the survivor is
 silently never written. The write step's own error message recommends this exact recovery path
@@ -149,7 +149,7 @@ the next reader does not re-derive the question.
 The sessions collection is at v0 and has not shipped to any device, so `ctx` is a new field rather
 than a migration.
 
-That is true of the collection and not of the path that *creates* sessions from migrated recordings.
+That is true of the collection and not of the path that _creates_ sessions from migrated recordings.
 `buildSessionDocument` (`database.ts:390-425`) is the contract half of the v5 → v6 split, minting
 session documents from v5 recordings that carried session-level state, and it has nothing to put in
 two new required fields. Both are recoverable from the recordings, and recovering them is the same
@@ -168,7 +168,7 @@ strategy is the failure `01f3e7a` was written to fix.
 
 The host also needs to ask "does a session already exist for this job?" when an auditor opens a job —
 resume the existing walkthrough, or start a new one. `SessionQuery` filters on status and limit only,
-so today that is answered by making the session id *be* the assessment id.
+so today that is answered by making the session id _be_ the assessment id.
 
 `ctx` does not answer it. It is opaque to core by construction, so RxDB cannot index it and a query
 over it is a scan.
@@ -217,20 +217,20 @@ inventing one.
 
 ## 6. Decisions
 
-| ID  | Decision                                                             | Why                                                                                                                          |
-| --- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| D1  | `reopenSessionForReview` widens to accept `done` as well as `dead`     | The data an amend needs is already persisted; the state machine was the only blocker, and only because no write occurs        |
-| D2  | `writtenInstances` is **deleted**, not repaired                        | It defends a resume that cannot happen, carries a live bug, and every repair substitutes for the identifier we discard        |
-| D3  | Amend does not re-extract                                              | Keys come off the same snapshot, so receipts and decisions keep meaning what they meant                                        |
-| D4  | `openSession` takes a required `ctx`; the write step reads it          | The session owns the write; recovering the destination from an arbitrary recording is unenforced and the field app can break it |
-| D5  | `Recording.ctx` stays                                                  | Deleting it means a migration on the v6 collection with real user data, to buy tidiness                                        |
-| D6  | `openSession` takes a required indexed `ref`; the id stays generated   | `ctx` is opaque and unindexable; id-as-assessment-id makes a second session for a job unrepresentable                          |
-| D7  | The tree goes on `ReviewRequest`, not `useReview`                      | The structure exists in core's schema walk; non-React hosts need it too                                                       |
-| D8  | The flat `ReviewFields` map is retained as the decision channel        | Its ordering is contractual and `resolveReview` is path-keyed; the tree is a second view, never a second source               |
-| D9  | `presentButEmpty` folds into a per-group `absent \| empty \| populated` | A three-state fact split across two collections is a bug every host writes independently                                       |
-| D10 | An amended session gets a fresh `attempts` budget                      | `attempts` is already a per-cycle budget; the reviewer changed something, so the last cycle's exhaustion predicts nothing      |
-| D11 | `ref` is an unstructured string core never parses                      | Same posture as `ctx`, minus the opacity; the contract is that it is queryable and non-unique                                  |
-| D12 | `lastError` is cleared on a successful write                           | Nothing clears it today, so a recovered session reaches `done` carrying a stale error an amend would present as current        |
+| ID  | Decision                                                                | Why                                                                                                                             |
+| --- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | `reopenSessionForReview` widens to accept `done` as well as `dead`      | The data an amend needs is already persisted; the state machine was the only blocker, and only because no write occurs          |
+| D2  | `writtenInstances` is **deleted**, not repaired                         | It defends a resume that cannot happen, carries a live bug, and every repair substitutes for the identifier we discard          |
+| D3  | Amend does not re-extract                                               | Keys come off the same snapshot, so receipts and decisions keep meaning what they meant                                         |
+| D4  | `openSession` takes a required `ctx`; the write step reads it           | The session owns the write; recovering the destination from an arbitrary recording is unenforced and the field app can break it |
+| D5  | `Recording.ctx` stays                                                   | Deleting it means a migration on the v6 collection with real user data, to buy tidiness                                         |
+| D6  | `openSession` takes a required indexed `ref`; the id stays generated    | `ctx` is opaque and unindexable; id-as-assessment-id makes a second session for a job unrepresentable                           |
+| D7  | The tree goes on `ReviewRequest`, not `useReview`                       | The structure exists in core's schema walk; non-React hosts need it too                                                         |
+| D8  | The flat `ReviewFields` map is retained as the decision channel         | Its ordering is contractual and `resolveReview` is path-keyed; the tree is a second view, never a second source                 |
+| D9  | `presentButEmpty` folds into a per-group `absent \| empty \| populated` | A three-state fact split across two collections is a bug every host writes independently                                        |
+| D10 | An amended session gets a fresh `attempts` budget                       | `attempts` is already a per-cycle budget; the reviewer changed something, so the last cycle's exhaustion predicts nothing       |
+| D11 | `ref` is an unstructured string core never parses                       | Same posture as `ctx`, minus the opacity; the contract is that it is queryable and non-unique                                   |
+| D12 | `lastError` is cleared on a successful write                            | Nothing clears it today, so a recovered session reaches `done` carrying a stale error an amend would present as current         |
 
 ## 7. Out of scope
 
