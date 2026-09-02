@@ -199,10 +199,13 @@ test("reopenSessionForReview moves dead → awaiting-review and clears the outco
   expect(reopened.extractedFromRecordingIds).toEqual(["r1"]);
 });
 
-test("reopenSessionForReview refuses a session that is not finished", async () => {
+test("reopenSessionForReview refuses a session that is neither finished nor stale", async () => {
   const outbox = await open();
   const session = await outbox.openSession(SESSION_INPUT);
-  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/not "done" or "dead"/);
+  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/nothing to re-park/);
+  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(
+    /an unchanged recording set/,
+  );
 });
 
 test("reopenSessionForReview moves done → awaiting-review and clears the outcome", async () => {
