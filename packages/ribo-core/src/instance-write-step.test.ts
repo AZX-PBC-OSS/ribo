@@ -121,7 +121,11 @@ const seedSession = async (
   });
   await outbox.patchSession(session.id, {
     extracted: {},
-    extractedFromRecordingIds: ["rec-1"],
+    // The OUTBOX ITEM id, not the recording's. `joinSessionTranscript` stamps
+    // `r.id` off the item, and `enqueue` generates that independently of
+    // `recording.id` — a fixture using "rec-1" describes a set no production
+    // extraction could ever produce.
+    extractedFromRecordingIds: [enqueued.id],
     status: "awaiting-review",
   });
   const reviewed = await outbox.submitSessionReview(session.id, {
@@ -281,7 +285,8 @@ test("a write failing on the second of three instances, then retrying, re-attemp
   });
   await outbox.patchSession(session.id, {
     extracted: {},
-    extractedFromRecordingIds: ["rec-1"],
+    // The outbox item id, not the recording's — see the note in `seedSession`.
+    extractedFromRecordingIds: [enqueued.id],
     status: "awaiting-review",
   });
   await outbox.submitSessionReview(session.id, {
@@ -471,7 +476,8 @@ test("after reopening from dead and removing the first instance, the survivor re
   });
   await outbox.patchSession(session.id, {
     extracted: {},
-    extractedFromRecordingIds: ["rec-1"],
+    // The outbox item id, not the recording's — see the note in `seedSession`.
+    extractedFromRecordingIds: [enqueued.id],
     status: "awaiting-review",
   });
   await outbox.submitSessionReview(session.id, {

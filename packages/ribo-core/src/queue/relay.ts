@@ -146,7 +146,24 @@ function isSessionActive(status: string): boolean {
 }
 
 /** Which session step still has to run, derived from persisted outputs. */
+/**
+ * Which step an active session is due for.
+ *
+ * **Status first, data second.** This used to read `extracted` alone, which was
+ * correct only while the sole route into `extracting` was the first close of a
+ * never-extracted session. `reopenSessionForReview` can now park a session that
+ * already HAS an extraction back in `extracting`, because its recording set
+ * moved — and under the data-only rule that session went to the write step
+ * instead, hit the missing `reviewOutcome` reopen had just cleared, and died.
+ * A re-extraction request has to be expressible.
+ *
+ * `failed` stays data-driven and must: it is resting mid-cycle and its status no
+ * longer names the step it was in. A session that failed during extraction has
+ * no `extracted`; one that failed during the write does.
+ */
 function sessionNextStep(session: SessionItem): "extract" | "write" {
+  if (session.status === "extracting") return "extract";
+  if (session.status === "writing") return "write";
   if (session.extracted === undefined) return "extract";
   return "write";
 }

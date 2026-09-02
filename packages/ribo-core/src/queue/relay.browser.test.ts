@@ -1807,6 +1807,67 @@ test("a done session can be reopened for review and a second review reaches the 
   expect(redone?.status).toBe("done");
 });
 
+test("reopening a done session with a new recording re-extracts over all of them", async () => {
+  // The walk-back-to-the-van case. The auditor submitted, the session wrote and
+  // reached `done`, and then they remembered the attic and recorded a fourth
+  // clip. Reopening must not re-present a draft computed before that clip
+  // existed — the auditor would review a document with no attic in it and
+  // nothing anywhere would say so.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(outbox, {
+    transcriber: new FakeTranscriber({ text: "the attic is R-19" }),
+  });
+  await outbox.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await drainToReview(harness);
+  await acceptReview(outbox, harness.session.id);
+  await harness.relay.syncNow();
+  expect((await outbox.getSession(harness.session.id))?.status).toBe("done");
+  expect(harness.extractCalls).toHaveLength(1);
+
+  // The remembered clip. Enqueued but NOT yet transcribed — this is the race
+  // that makes a transcribed-set comparison wrong: at the moment of reopen the
+  // transcribed ids are unchanged, so a check that only looked at those would
+  // find nothing new and re-present the stale draft, silently.
+  await outbox.enqueue({
+    recording: { ...recording, id: "rec-attic" },
+    audio: audio(),
+    sessionId: harness.session.id,
+  });
+
+  const reopened = await outbox.reopenSessionForReview(harness.session.id);
+  expect(reopened.status).toBe("extracting");
+
+  // The relay drains recordings before sessions, so the new clip transcribes
+  // and only then does extraction run — over both.
+  await harness.relay.syncNow();
+
+  expect(harness.extractCalls).toHaveLength(2);
+  const parked = await outbox.getSession(harness.session.id);
+  expect(parked?.status).toBe("awaiting-review");
+  expect(parked?.extractedFromRecordingIds).toHaveLength(2);
+});
+
+test("reopening a done session with no new recording does not re-extract", async () => {
+  // The correction case: a typo, not a missed room. Re-extraction costs a model
+  // call over the full field set, so an unchanged recording set must go straight
+  // back to the review gate.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(outbox);
+  await outbox.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await drainToReview(harness);
+  await acceptReview(outbox, harness.session.id);
+  await harness.relay.syncNow();
+  expect(harness.extractCalls).toHaveLength(1);
+
+  const reopened = await outbox.reopenSessionForReview(harness.session.id);
+  expect(reopened.status).toBe("awaiting-review");
+
+  await harness.relay.syncNow();
+  expect(harness.extractCalls).toHaveLength(1);
+  // And the relay left it alone: `awaiting-review` is not an active status.
+  expect((await outbox.getSession(harness.session.id))?.status).toBe("awaiting-review");
+});
+
 test("a session that failed a write, then succeeded, reaches done with no lastError", async () => {
   const outbox = await openTestOutbox(uniqueName());
   let attempt = 0;
