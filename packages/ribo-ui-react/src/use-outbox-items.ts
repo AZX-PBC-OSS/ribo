@@ -1,6 +1,7 @@
 import type { Outbox, OutboxItem, OutboxQuery } from "@azx/ribo-core";
 import { useEffect, useMemo, useState } from "react";
 
+import { queryFromKey, queryKey } from "./query-key.js";
 import { useRiboInstance } from "./use-ribo-instance.js";
 
 export interface UseOutboxItemsResult {
@@ -43,13 +44,11 @@ export function useOutboxItems(query: OutboxQuery = {}, outbox?: Outbox): UseOut
   // dynamically-reordered one, so this has no observed impact; sorting the
   // array before serializing would fix it but was judged not worth the extra
   // branch for a case no caller hits.
-  const key = JSON.stringify({
-    status: query.status,
-    sessionId: query.sessionId,
-    limit: query.limit,
-  });
-
-  const stableQuery = useMemo<OutboxQuery>(() => JSON.parse(key) as OutboxQuery, [key]);
+  // Derived from the query, never enumerated — see `query-key.ts`. This hook
+  // happened to list all three of `OutboxQuery`'s fields, so it was correct by
+  // attention rather than by construction; its sibling was not.
+  const key = queryKey(query);
+  const stableQuery = useMemo<OutboxQuery>(() => queryFromKey<OutboxQuery>(key), [key]);
 
   const [items, setItems] = useState<readonly OutboxItem[]>([]);
   const [loading, setLoading] = useState(true);
