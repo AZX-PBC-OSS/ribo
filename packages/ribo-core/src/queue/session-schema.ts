@@ -77,6 +77,12 @@ export const FINISHED_SESSION_STATUSES = [
  * `idempotencyKey`. The recording keeps capture and transcription; everything
  * downstream moves here.
  *
+ * The session also owns its write destination (`ctx`) and what it is for
+ * (`ref`). Both are set once at `openSession` and never patched: re-deciding
+ * the destination would strand a write, and re-deciding the subject would
+ * silently re-target it. `ctx` is opaque to core; `ref` is a bounded string
+ * core indexes but never parses.
+ *
  * Pinned field-for-field against {@link sessionRxSchema} by
  * `session-schema.test.ts`, the same seam `schema.test.ts` guards for the
  * recording.
@@ -92,6 +98,19 @@ export const sessionDocumentSchema = z.strictObject({
    * Set by `Outbox.closeSession`; a reopened session clears this.
    */
   closedAt: z.iso.datetime().optional(),
+  /**
+   * The write destination — opaque to core, same posture as `Recording.ctx`.
+   * Authoritative for writing: the relay reads `session.ctx`, not a
+   * recording's. Set once at `openSession` and never patched.
+   */
+  ctx: z.unknown(),
+  /**
+   * What the session is for — a bounded, indexed string naming the job,
+   * assessment or work-order. Core never parses it; the contract is that it
+   * is queryable and non-unique (two sessions may share one, for a re-audit
+   * or a QA pass). Set once at `openSession` and never patched.
+   */
+  ref: z.string().min(1).max(128),
   /**
    * How many times a session-level step (extract or write) has failed.
    * Drives the backoff curve and, against `RelayOptions.maxAttempts`, when
@@ -164,11 +183,14 @@ export type SessionItem = z.infer<typeof sessionItemSchema>;
 /**
  * The fields a caller may change after opening a session.
  *
- * `id`, `openedAt` and `idempotencyKey` are deliberately absent: they are
- * decided once and re-deciding any of them would break provenance or
- * idempotency. Same reasoning as `OutboxPatch` on the recording side.
+ * `id`, `openedAt`, `idempotencyKey`, `ctx` and `ref` are deliberately absent:
+ * they are decided once and re-deciding any of them would break provenance,
+ * idempotency, strand a write or silently re-target it. Same reasoning as
+ * `OutboxPatch` on the recording side.
  */
-export type SessionPatch = Partial<Omit<SessionDocument, "id" | "openedAt" | "idempotencyKey">>;
+export type SessionPatch = Partial<
+  Omit<SessionDocument, "id" | "openedAt" | "idempotencyKey" | "ctx" | "ref">
+>;
 
 /**
  * The RxDB JSON schema for the sessions collection.
@@ -187,6 +209,12 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
     status: { type: "string", maxLength: 16 },
     openedAt: { type: "string", maxLength: 32 },
     closedAt: { type: "string", maxLength: 32 },
+    // Opaque to core — no `maxLength` because RxDB only needs bounded widths
+    // for fields it has to encode as sortable index keys, and `ctx` is not
+    // indexed.
+    ctx: { type: "object" },
+    // Indexed, so RxDB needs a bounded width to build sortable index keys.
+    ref: { type: "string", maxLength: 128 },
     attempts: { type: "integer", minimum: 0 },
     nextAttemptAt: { type: "string", maxLength: 32 },
     lastError: { type: "string" },
@@ -200,9 +228,19 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
     writtenInstances: { type: "object" },
     idempotencyKey: { type: "string", maxLength: 64 },
   },
-  required: ["id", "status", "openedAt", "attempts", "nextAttemptAt", "idempotencyKey"],
-  // `openedAt` so a UI can list sessions oldest-first without a post-sort.
-  indexes: ["openedAt"],
+  required: [
+    "id",
+    "status",
+    "openedAt",
+    "ctx",
+    "ref",
+    "attempts",
+    "nextAttemptAt",
+    "idempotencyKey",
+  ],
+  // `openedAt` so a UI can list sessions oldest-first without a post-sort;
+  // `ref` so "the session(s) for this job" is a real query, not a scan.
+  indexes: ["openedAt", "ref"],
   // Presence of this key is what enables attachments at all — omit it and
   // `putAttachment` throws. The sessions collection has no attachments today,
   // but enabling the flag now means adding one later is a schema-property edit,

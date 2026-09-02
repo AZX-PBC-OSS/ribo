@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { z } from "zod";
 
 import {
   ACTIVE_SESSION_STATUSES,
@@ -19,7 +20,7 @@ import type { SessionPatch, SessionStatus } from "./session-schema.js";
 const zodKeys = Object.keys(sessionDocumentSchema.shape).sort();
 
 const optionalKeys = Object.entries(sessionDocumentSchema.shape)
-  .filter(([, field]) => field.safeParse(undefined).success)
+  .filter(([, field]) => field instanceof z.ZodOptional)
   .map(([key]) => key)
   .sort();
 
@@ -52,6 +53,10 @@ test("the primary key is a required field, as RxDB demands", () => {
 
 test("attachments are enabled — the sessions collection may need them later", () => {
   expect(sessionRxSchema.attachments).toBeDefined();
+});
+
+test("ref is indexed so a host can query 'the session for this job'", () => {
+  expect(sessionRxSchema.indexes).toContain("ref");
 });
 
 test("the collection name is not the outbox's", () => {
@@ -154,8 +159,12 @@ test("the fields decided once stay decided — none of them is patchable", () =>
   const openedAt: SessionPatch = { openedAt: "2026-01-01T00:00:00.000Z" };
   // @ts-expect-error `idempotencyKey` must survive every retry unchanged.
   const idempotencyKey: SessionPatch = { idempotencyKey: "regenerated" };
+  // @ts-expect-error `ctx` is the write destination, decided once at open.
+  const ctx: SessionPatch = { ctx: { jobId: "other" } };
+  // @ts-expect-error `ref` is what the session is for, decided once at open.
+  const ref: SessionPatch = { ref: "other" };
 
-  expect([id, openedAt, idempotencyKey]).toHaveLength(3);
+  expect([id, openedAt, idempotencyKey, ctx, ref]).toHaveLength(5);
 });
 
 /** A minimal session document that parses, for the negative cases to mutate. */
@@ -164,6 +173,8 @@ function validSession() {
     id: "s1",
     status: "open" as const,
     openedAt: "2026-08-28T10:00:00.000Z",
+    ctx: { jobId: "job-1" },
+    ref: "job-1",
     attempts: 0,
     nextAttemptAt: "2026-08-28T10:00:00.000Z",
     idempotencyKey: "k",

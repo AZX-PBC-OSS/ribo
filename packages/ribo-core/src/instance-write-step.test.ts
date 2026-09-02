@@ -96,7 +96,7 @@ const seedSession = async (
   fields: Record<string, unknown>,
   writtenInstances?: Record<string, boolean[]>,
 ): Promise<{ session: SessionItem; ctx: unknown }> => {
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx, ref: "job-7" });
   const enqueued = await outbox.enqueue({
     recording: {
       id: "rec-1",
@@ -335,7 +335,7 @@ test("a write failing on the second of three instances, then retrying, does not 
     },
   };
 
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
   const enqueued = await outbox.enqueue({
     recording: {
       id: "rec-1",
@@ -463,7 +463,7 @@ test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is 
   );
 
   expect(thrown).toBeInstanceOf(TerminalQueueError);
-  expect((thrown as Error).message).toContain("Recording.ctx");
+  expect((thrown as Error).message).toContain("Outbox.openSession");
   expect(isTransientFailure(thrown)).toBe(false);
   expect(written).toEqual([]);
 });

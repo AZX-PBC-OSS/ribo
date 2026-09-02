@@ -133,6 +133,8 @@ const session: SessionItem = sessionItemSchema.parse({
   id: "session-1",
   status: "writing",
   openedAt: "2026-07-23T14:00:00.000Z",
+  ctx,
+  ref: "assessment-1",
   attempts: 0,
   nextAttemptAt: "2026-07-23T14:00:00.000Z",
   idempotencyKey: "idem-item-1",

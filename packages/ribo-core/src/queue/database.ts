@@ -65,6 +65,11 @@ function legacyOf(doc: OutboxDocument): LegacySessionFields | undefined {
  * Deterministic (not a random UUID) is load-bearing twice over: it is what
  * groups a job's recordings into one session, and it is what lets the backfill
  * re-run without creating a second session for work it already lifted.
+ *
+ * `ref` now carries the "what this session is for" meaning the id-as-
+ * assessment-id trick was reaching for; the session keeps its own generated
+ * id, and `ref` is the indexed query target. This function stays because its
+ * output is still the session id that groups recordings together.
  */
 export function migratedSessionId(ctx: unknown): string {
   if (typeof ctx === "object" && ctx !== null && "assessmentId" in ctx) {
@@ -75,6 +80,21 @@ export function migratedSessionId(ctx: unknown): string {
   }
   // Recordings with no assessmentId share one singleton session per outbox.
   return `migrated-session-singleton`;
+}
+
+/**
+ * Derive a `ref` from the recording's `ctx.assessmentId`, with the same
+ * singleton fallback {@link migratedSessionId} uses. This is the same recovery
+ * the relay used to do on every write — done once at migration time instead.
+ */
+function migratedSessionRef(ctx: unknown): string {
+  if (typeof ctx === "object" && ctx !== null && "assessmentId" in ctx) {
+    const assessmentId = (ctx as Record<string, unknown>).assessmentId;
+    if (typeof assessmentId === "string" && assessmentId.length > 0) {
+      return assessmentId;
+    }
+  }
+  return "migrated-session-singleton";
 }
 
 /** v5 recording statuses that the session, not the recording, now owns. */
@@ -406,6 +426,11 @@ function sessionDocumentFromMigratedGroup(
     id: sessionId,
     status,
     openedAt,
+    // The session owns its write destination. `ctx` from the first recording
+    // in the group — the same recording the relay used to pick — and `ref`
+    // from the `assessmentId` `migratedSessionId` already extracts.
+    ctx: bySeq[0]!.recording.ctx,
+    ref: migratedSessionRef(bySeq[0]!.recording.ctx),
     // A session past `open` had, by definition, stopped accepting recordings.
     ...(status === "open" ? {} : { closedAt: bySeq[bySeq.length - 1]!.enqueuedAt }),
     attempts: 0,

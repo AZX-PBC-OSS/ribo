@@ -35,7 +35,7 @@ test("un-reviewed work is never reported as safe", async () => {
   // now a session status (not a recording status), so the test opens a session
   // and patches it there directly.
   const outbox = await freshOutbox();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx: {}, ref: "job-7" });
   await outbox.patchSession(session.id, { status: "awaiting-review" });
 
   function Probe() {

@@ -78,6 +78,8 @@ const sessionAt = (id: string): SessionItem =>
     id,
     status: "writing",
     openedAt: "2026-07-23T14:00:00.000Z",
+    ctx: { jobId: "job-7" },
+    ref: "job-7",
     attempts: 0,
     nextAttemptAt: "2026-07-23T14:00:00.000Z",
     idempotencyKey: `key-${id}`,
@@ -224,7 +226,7 @@ test("a session ctx the adapter's ctxSchema rejects is terminal, and write is ne
 
   expect(thrown).toBeInstanceOf(TerminalQueueError);
   expect((thrown as Error).message).toContain("jobId");
-  expect((thrown as Error).message).toContain("Recording.ctx");
+  expect((thrown as Error).message).toContain("Outbox.openSession");
   expect(isTransientFailure(thrown)).toBe(false);
   expect(written).toEqual([]);
 });
@@ -247,7 +249,7 @@ test("the ctx is parsed first: a session wrong in both ways reports the ctx", as
     (error: unknown) => error,
   );
 
-  expect((thrown as Error).message).toContain("Recording.ctx");
+  expect((thrown as Error).message).toContain("Outbox.openSession");
   expect((thrown as Error).message).not.toContain("not a valid patch");
   expect(written).toEqual([]);
 });
@@ -310,7 +312,7 @@ test("the relay records a terminal write failure as dead on the first attempt, n
   const outbox = await openMemoryOutbox();
   const written: Write[] = [];
 
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
   const enqueued = await outbox.enqueue({
     recording: {
       id: "rec-1",

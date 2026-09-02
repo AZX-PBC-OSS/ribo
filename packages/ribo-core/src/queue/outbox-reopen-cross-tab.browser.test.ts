@@ -128,7 +128,7 @@ test("two reopenSessionForReview calls from two independent Outbox connections s
   });
   openOutboxes.push(first);
 
-  const session = await first.openSession();
+  const session = await first.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
   await first.patchSession(session.id, {
     status: "dead",
     extracted: { atticRValue: 19 },

@@ -15,6 +15,11 @@ import { z } from "zod";
  * an assessment, a work order — and needs that association to survive the round trip through the
  * queue. `ctx` is that slot: opaque to core, meaningful to the host.
  *
+ * The session is now authoritative for the write destination (`SessionDocument.ctx`,
+ * set at `openSession`); nothing reads `Recording.ctx` for writing. This field is the
+ * capture-time copy and stays because it lives on the v6 outbox collection with real
+ * user data — deleting it would mean a migration on the one collection where migrations hurt.
+ *
  * It is deliberately **not** `ctx: unknown`. An untyped hole hides host coupling from the type
  * system (the same review finding that produced `ToolAdapter<F, C>`), so the shape is a *type
  * parameter* instead, supplied by the host as a zod schema:

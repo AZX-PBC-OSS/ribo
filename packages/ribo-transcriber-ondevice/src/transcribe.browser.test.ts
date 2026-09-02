@@ -241,7 +241,7 @@ afterEach(async () => {
 
 test("the queue relay drives an OnDeviceTranscriber with no changes", async () => {
   const outbox: Outbox = await openOutbox({ name: DB_NAME });
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx: recording.ctx, ref: "job-7" });
   // A real, decodable capture blob — the relay hands this straight to transcribe().
   const audio = wavBlob([constant(0.1, 16_000)], 16_000);
   const enqueued = await outbox.enqueue({ recording, audio, sessionId: session.id });

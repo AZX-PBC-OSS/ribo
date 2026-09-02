@@ -57,7 +57,7 @@ afterEach(async () => {
 
 test("a FakeExtractor substitutes into createRelay and its fields land on session.extracted", async () => {
   const outbox = await openTestOutbox();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
 
   const fields: AtticFields = { atticInsulation: "fiberglass batts", rValue: 19 };
   const extractor = new FakeExtractor<AtticFields>(fields);

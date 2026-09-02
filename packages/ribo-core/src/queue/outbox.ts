@@ -61,6 +61,18 @@ export interface OpenSessionInput {
   readonly id?: string;
   /** Idempotency key for the vendor write. Generated if omitted. */
   readonly idempotencyKey?: string;
+  /**
+   * The write destination — opaque to core, same posture as `Recording.ctx`.
+   * Required: the session owns its destination, so the relay does not recover
+   * it from a recording.
+   */
+  readonly ctx: unknown;
+  /**
+   * What the session is for — a bounded, indexed string. Required and
+   * non-unique: two sessions may share one (a re-audit, a QA pass). Core never
+   * parses it; the contract is that it is queryable.
+   */
+  readonly ref: string;
 }
 
 /**
@@ -69,6 +81,9 @@ export interface OpenSessionInput {
  */
 export interface SessionQuery {
   status?: SessionStatus | readonly SessionStatus[];
+  /** Match sessions whose `ref` is exactly this string. */
+  ref?: string;
+  /** At most this many sessions, still lowest-`openedAt` first. */
   limit?: number;
 }
 
@@ -577,15 +592,25 @@ export class Outbox {
    * Open a session: the auditor is starting a job. The session owns extraction,
    * review and write state for a set of recordings captured together.
    *
-   * The id and idempotency key are generated if not supplied, so the common
-   * call is `outbox.openSession()` with no arguments.
+   * The id and idempotency key are generated if not supplied. `ctx` (the write
+   * destination) and `ref` (what the session is for) are required — the session
+   * owns its destination and its subject, and both are decided once.
    */
-  async openSession(options: OpenSessionInput = {}): Promise<SessionItem> {
+  async openSession(options: OpenSessionInput): Promise<SessionItem> {
+    // `ctx` is typed `unknown` (required), but `z.unknown()` accepts
+    // `undefined` — so the schema parse alone cannot enforce presence. A
+    // host that bypasses the type system would silently open a session with
+    // no write destination.
+    if (options.ctx === undefined) {
+      throw new Error("openSession: `ctx` is required — the session owns its write destination.");
+    }
     const doc = await this.#sessionsCollection.insert(
       sessionDocumentSchema.parse({
         id: options.id ?? this.#createId(),
         status: "open",
         openedAt: this.#nowIso(),
+        ctx: options.ctx,
+        ref: options.ref,
         attempts: 0,
         nextAttemptAt: this.#nowIso(),
         idempotencyKey: options.idempotencyKey ?? this.#createIdempotencyKey(),
@@ -896,10 +921,13 @@ function persistedSessionFieldsOf(data: Record<string, unknown>): Record<string,
  * `watchSessions` and `nextPendingSession` cannot disagree about what a query
  * means — in particular about the `openedAt`-ascending sort.
  */
-function sessionMangoQuery({ status, limit }: SessionQuery): MangoQuery<SessionDocument> {
+function sessionMangoQuery({ status, ref, limit }: SessionQuery): MangoQuery<SessionDocument> {
   const statuses = status === undefined ? undefined : [status].flat();
+  const selector: Record<string, unknown> = {};
+  if (statuses) selector.status = { $in: statuses };
+  if (ref !== undefined) selector.ref = ref;
   return {
-    ...(statuses ? { selector: { status: { $in: statuses } } } : {}),
+    ...(Object.keys(selector).length > 0 ? { selector } : {}),
     sort: [{ openedAt: "asc" }],
     ...(limit === undefined ? {} : { limit }),
   };

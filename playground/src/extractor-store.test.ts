@@ -50,6 +50,8 @@ const session: SessionItem = {
   id: "session-1",
   status: "extracting",
   openedAt: "2026-07-23T14:00:00.000Z",
+  ctx: { assessmentId: "assessment-1" },
+  ref: "assessment-1",
   attempts: 0,
   nextAttemptAt: "2026-07-23T14:00:00.000Z",
   idempotencyKey: "key-session-1",
