@@ -31,7 +31,9 @@ import type {
 } from "@azx/ribo-core";
 
 import type { ChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
+import type { UsageTotals } from "./extraction-common.js";
 import {
+  addUsage,
   assertStopFinishReason,
   buildMessages,
   completeOrClassify,
@@ -473,6 +475,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
         backoffOpts.capMs ?? DEFAULT_BACKOFF_CAP_MS,
       );
 
+      const totals: UsageTotals = {};
       const fillResponses = await mapWithPool(
         jobs,
         concurrency,
@@ -502,6 +505,13 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
               const completion = await completeOrClassify(chat, request, job.context, {
                 signal: abort.signal,
               });
+              // Counted before the gates below, so a truncated response still
+              // reports what it cost. NOTE the inventory call's tokens are NOT
+              // here: `inventory` is a caller-supplied function returning a
+              // Roster, not a completion, so its usage never reaches this
+              // extractor. `usage.calls` counts it; the token totals understate
+              // by one call until that seam carries usage too.
+              addUsage(totals, completion.usage);
               assertStopFinishReason(completion, job.context);
               const raw = parseJsonContent(completion.content, job.context);
               return parseWithSchema(job.group.schema, raw, job.context);
@@ -536,7 +546,11 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
       const mergeContext = `scopedInstanceExtractor: merged response for "${target.name}"`;
       const parsed = parseWithSchema(target.extractionSchema, groupResult, mergeContext);
 
-      return { fields: normalize(parsed), raw: groupResult, usage: { calls: totalCalls } };
+      return {
+        fields: normalize(parsed),
+        raw: groupResult,
+        usage: { calls: totalCalls, ...totals },
+      };
     },
   };
 }

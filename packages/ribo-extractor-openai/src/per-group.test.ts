@@ -213,6 +213,96 @@ const noDelay = (): Promise<void> => Promise.resolve();
 // --- Tests -------------------------------------------------------------------
 
 describe("perGroupExtractor — N groups produce N calls", () => {
+  test("token usage is summed across every group call, cache counts included", async () => {
+    // The point of the whole seam: one extraction is N calls, and the only place
+    // the per-call totals can be added up is here. `helixChat` reports a prefix
+    // cache hit per call; a consumer asking "is the cache working" needs the sum,
+    // and before this the extractor reported `{ calls }` and dropped the rest.
+    const requests: ChatRequest[] = [];
+    const chat: ChatClient = {
+      complete: (request) => {
+        requests.push(request);
+        const name = request.response_format.json_schema.name;
+        const content = name.endsWith("-hvac")
+          ? JSON.stringify(hvacResponse)
+          : JSON.stringify(atticResponse);
+        return Promise.resolve({
+          content,
+          finishReason: "stop" as ChatFinishReason,
+          // Deliberately different per call, so a sum cannot be mistaken for
+          // either one of them, and a cold/warm split is visible.
+          usage: name.endsWith("-hvac")
+            ? {
+                promptTokens: 1000,
+                completionTokens: 100,
+                cachedPromptTokens: 0,
+                cacheCreationPromptTokens: 900,
+              }
+            : {
+                promptTokens: 1200,
+                completionTokens: 150,
+                cachedPromptTokens: 900,
+                cacheCreationPromptTokens: 0,
+              },
+        });
+      },
+    };
+
+    const result = await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract(
+      "Furnace is a Carrier, natural gas. Attic has R-38.",
+    );
+
+    expect(result.usage.calls).toBe(2);
+    expect(result.usage.promptTokens).toBe(2200);
+    expect(result.usage.completionTokens).toBe(250);
+    expect(result.usage.cachedPromptTokens).toBe(900);
+    expect(result.usage.cacheCreationPromptTokens).toBe(900);
+  });
+
+  test("a transport that reports tokens but no cache counts leaves the cache totals absent", async () => {
+    // The distinction `addUsage` exists to protect, and the one a naive `?? 0`
+    // destroys: this transport DOES report usage, just not cache counts. Summing a
+    // missing count as 0 would answer "the cache is not being hit" to a question
+    // whose real answer is "this endpoint does not say".
+    const chat: ChatClient = {
+      complete: (request) => {
+        const name = request.response_format.json_schema.name;
+        return Promise.resolve({
+          content: name.endsWith("-hvac")
+            ? JSON.stringify(hvacResponse)
+            : JSON.stringify(atticResponse),
+          finishReason: "stop" as ChatFinishReason,
+          usage: { promptTokens: 500, completionTokens: 50 },
+        });
+      },
+    };
+
+    const result = await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract(
+      "x",
+    );
+
+    expect(result.usage.promptTokens).toBe(1000);
+    expect(result.usage.cachedPromptTokens).toBeUndefined();
+    expect(result.usage.cacheCreationPromptTokens).toBeUndefined();
+  });
+
+  test("token totals stay absent when the transport reports no usage", async () => {
+    // Every fake in this file, and any on-device engine, reports no usage. An
+    // absent total must stay absent rather than becoming a misleading 0.
+    const { chat } = fakeGroupChat({
+      [groupedName("hvac")]: JSON.stringify(hvacResponse),
+      [groupedName("attic")]: JSON.stringify(atticResponse),
+    });
+
+    const result = await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract(
+      "x",
+    );
+
+    expect(result.usage.calls).toBe(2);
+    expect(result.usage.promptTokens).toBeUndefined();
+    expect(result.usage.cachedPromptTokens).toBeUndefined();
+  });
+
   test("two groups produce two calls, each pinned to its own schema, and the merged result carries every group's fields", async () => {
     const { chat, requests } = fakeGroupChat({
       [groupedName("hvac")]: JSON.stringify(hvacResponse),

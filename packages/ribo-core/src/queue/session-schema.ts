@@ -138,6 +138,25 @@ export const sessionDocumentSchema = z.strictObject({
    */
   extractedBy: z.string().optional(),
   /**
+   * What the extraction cost and which strategy produced it.
+   *
+   * `extractedBy` above is the *transport*; this is everything else the extractor
+   * reported — the strategy that won a ladder, the call count, and the token
+   * totals including prefix-cache hits. Absent when the extractor reported
+   * nothing beyond the engine, which every pre-existing session is.
+   *
+   * Persisted rather than left with the extractor because the questions it
+   * answers are asked *after* the fact, from a device nobody is watching: did
+   * this draft come from the degraded tier, how many calls did it take, and is
+   * the prefix cache being hit. A field app that cannot see these has to guess,
+   * and a slow path selected silently is how that guessing goes wrong.
+   *
+   * Loose (`z.record`) for the same reason `extracted` is: one document schema
+   * describes every host tool's extractor, and the typed shape lives at the
+   * `ExtractionUsage` boundary rather than here.
+   */
+  extractionUsage: z.record(z.string(), z.unknown()).optional(),
+  /**
    * The sorted recording ids whose transcripts produced `extracted`.
    * Absent before the first extraction; changes when a recording is added or
    * discarded after close, triggering a re-extraction. This is the cache key
@@ -217,6 +236,7 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
     // Not indexed, so no `maxLength` is required — RxDB only needs bounded
     // widths for fields it has to encode as sortable index keys.
     extractedBy: { type: "string" },
+    extractionUsage: { type: "object" },
     extractedFromRecordingIds: { type: "array" },
     reviewOutcome: { type: "object" },
     writeResult: { type: "object" },

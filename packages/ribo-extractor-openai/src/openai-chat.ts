@@ -40,7 +40,14 @@ interface ChatCompletionBody {
     readonly message?: { readonly content?: unknown; readonly refusal?: unknown };
     readonly finish_reason?: unknown;
   }>;
-  readonly usage?: { readonly prompt_tokens?: unknown; readonly completion_tokens?: unknown };
+  readonly usage?: {
+    readonly prompt_tokens?: unknown;
+    readonly completion_tokens?: unknown;
+    // OpenAI reports prefix-cache hits nested here rather than as a sibling of
+    // `prompt_tokens`. There is no cache-write counterpart on this surface — the
+    // provider does not bill one — so `cacheCreationPromptTokens` stays absent.
+    readonly prompt_tokens_details?: { readonly cached_tokens?: unknown };
+  };
 }
 
 /** The wire spelling for the token cap on the current default model. */
@@ -175,7 +182,12 @@ function parseFinishReason(raw: unknown): ChatFinishReason | undefined {
 /** Normalise the wire `usage` object into {@link ChatUsage}; `undefined` if absent or malformed. */
 function parseUsage(raw: ChatCompletionBody["usage"]): ChatUsage | undefined {
   if (raw && typeof raw.prompt_tokens === "number" && typeof raw.completion_tokens === "number") {
-    return { promptTokens: raw.prompt_tokens, completionTokens: raw.completion_tokens };
+    const cached = raw.prompt_tokens_details?.cached_tokens;
+    return {
+      promptTokens: raw.prompt_tokens,
+      completionTokens: raw.completion_tokens,
+      ...(typeof cached === "number" ? { cachedPromptTokens: cached } : {}),
+    };
   }
   return undefined;
 }

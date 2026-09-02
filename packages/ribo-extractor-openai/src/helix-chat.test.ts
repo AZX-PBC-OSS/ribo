@@ -74,7 +74,12 @@ function fakeFetch(response: Response): {
 function okBody(
   content: string,
   stopReason: string = "end_turn",
-  usage?: { inputTokens: number; outputTokens: number },
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadInputTokens?: number;
+    cacheCreationInputTokens?: number;
+  },
 ): Record<string, unknown> {
   const body: Record<string, unknown> = { content, stopReason };
   if (usage) body.usage = usage;
@@ -212,6 +217,61 @@ describe("helixChat — response mapping", () => {
       content: '{"ok":true}',
       finishReason: "stop",
       usage: { promptTokens: 10, completionTokens: 5 },
+    });
+  });
+
+  test("the route's cache counts reach ChatUsage rather than being dropped", async () => {
+    // The prefix cache is what decides what the few-shot example actually costs
+    // in production: the same instructions ship on every group call. These counts
+    // were parsed and discarded, which made "is the cache working" unanswerable
+    // from the field.
+    const { fetchImpl } = fakeFetch(
+      Response.json(
+        okBody('{"ok":true}', "end_turn", {
+          inputTokens: 4128,
+          outputTokens: 210,
+          cacheReadInputTokens: 3900,
+          cacheCreationInputTokens: 0,
+        }),
+      ),
+    );
+    const chat = helixChat({ token: "t", baseUrl: "https://h", fetchImpl });
+    expect((await chat.complete(sampleRequest)).usage).toEqual({
+      promptTokens: 4128,
+      completionTokens: 210,
+      cachedPromptTokens: 3900,
+      cacheCreationPromptTokens: 0,
+    });
+  });
+
+  test("a reported cache count of zero is carried, not treated as absent", async () => {
+    // A cold call reports 0 read / N created. Absent means "the route said
+    // nothing"; 0 means "it said there was no hit". Collapsing them would make a
+    // cold run indistinguishable from a route that does not cache at all.
+    const { fetchImpl } = fakeFetch(
+      Response.json(
+        okBody("{}", "end_turn", {
+          inputTokens: 100,
+          outputTokens: 10,
+          cacheReadInputTokens: 0,
+          cacheCreationInputTokens: 90,
+        }),
+      ),
+    );
+    const chat = helixChat({ token: "t", baseUrl: "https://h", fetchImpl });
+    const usage = (await chat.complete(sampleRequest)).usage;
+    expect(usage?.cachedPromptTokens).toBe(0);
+    expect(usage?.cacheCreationPromptTokens).toBe(90);
+  });
+
+  test("cache fields stay absent when the route does not report them", async () => {
+    const { fetchImpl } = fakeFetch(
+      Response.json(okBody("{}", "end_turn", { inputTokens: 10, outputTokens: 5 })),
+    );
+    const chat = helixChat({ token: "t", baseUrl: "https://h", fetchImpl });
+    expect((await chat.complete(sampleRequest)).usage).toEqual({
+      promptTokens: 10,
+      completionTokens: 5,
     });
   });
 

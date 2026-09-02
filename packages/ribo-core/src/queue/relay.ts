@@ -1,3 +1,4 @@
+import type { ExtractionUsage } from "../extractor.js";
 import type { Transcriber } from "../transcriber.js";
 import { transcriptSchema } from "../transcript.js";
 import {
@@ -36,6 +37,16 @@ export interface SessionExtractInput {
 export interface ExtractStepResult {
   readonly fields: ExtractedFieldMap;
   readonly engine?: string;
+  /**
+   * What the run cost and which strategy produced it, persisted onto the session.
+   *
+   * `engine` above is kept as its own member rather than read off here: it is
+   * existing public API and it already has a home on the session document
+   * (`extractedBy`). This carries the rest — the strategy that won a ladder, the
+   * call count, and the token totals including prefix-cache hits — which the step
+   * seam used to drop on the floor.
+   */
+  readonly usage?: ExtractionUsage;
 }
 
 /** Joined transcripts → structured fields. Network-bound, so it is a queued step. */
@@ -389,6 +400,10 @@ class QueueRelay implements Relay {
     await this.#patchSession(session.id, {
       extracted: result.fields,
       ...(result.engine !== undefined ? { extractedBy: result.engine } : {}),
+      // Spread as a plain record: the session document schema is loose here on
+      // purpose, and an absent `usage` must leave the field absent rather than
+      // writing `undefined` into a strictObject parse.
+      ...(result.usage !== undefined ? { extractionUsage: { ...result.usage } } : {}),
       extractedFromRecordingIds: recordingIds,
       status: "awaiting-review",
       attempts: 0,

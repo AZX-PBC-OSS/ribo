@@ -182,6 +182,7 @@ export { FakeExtractor, toSessionExtractStep } from "./extractor.js";
 export type {
   Extractor,
   ExtractionResult,
+  ExtractionUsage,
   ExtractionTarget,
   FakeExtractorOptions,
 } from "./extractor.js";

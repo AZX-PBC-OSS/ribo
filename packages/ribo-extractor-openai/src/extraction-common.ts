@@ -40,7 +40,42 @@ import type {
   ChatCompletion,
   ChatMessage,
   ChatRequest,
+  ChatUsage,
 } from "./chat-client.js";
+
+/**
+ * Running token totals for a multi-call extraction.
+ *
+ * Mutable and summed in place because the calls that feed it run in a worker
+ * pool: an immutable fold would need a lock the language does not have a use for
+ * here (JS is single-threaded, so `+=` between awaits is safe) and would make the
+ * accumulation order-dependent for no gain.
+ *
+ * Every member stays absent until some call reports it. That is deliberate: an
+ * absent total means "no transport reported this", while `0` means "it reported
+ * it and the answer was none" — for the cache counts that is the difference
+ * between "we cannot tell" and "the cache is not being hit".
+ */
+export interface UsageTotals {
+  promptTokens?: number;
+  completionTokens?: number;
+  cachedPromptTokens?: number;
+  cacheCreationPromptTokens?: number;
+}
+
+/** Add one completion's usage into the running totals, ignoring what it omits. */
+export function addUsage(totals: UsageTotals, usage: ChatUsage | undefined): void {
+  if (usage === undefined) return;
+  totals.promptTokens = (totals.promptTokens ?? 0) + usage.promptTokens;
+  totals.completionTokens = (totals.completionTokens ?? 0) + usage.completionTokens;
+  if (usage.cachedPromptTokens !== undefined) {
+    totals.cachedPromptTokens = (totals.cachedPromptTokens ?? 0) + usage.cachedPromptTokens;
+  }
+  if (usage.cacheCreationPromptTokens !== undefined) {
+    totals.cacheCreationPromptTokens =
+      (totals.cacheCreationPromptTokens ?? 0) + usage.cacheCreationPromptTokens;
+  }
+}
 
 /**
  * Assemble the chat messages: the instructions as the system prompt, each few-shot

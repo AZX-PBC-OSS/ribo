@@ -69,6 +69,30 @@ export type ChatFinishReason = "stop" | "length" | "content_filter";
 export interface ChatUsage {
   readonly promptTokens: number;
   readonly completionTokens: number;
+  /**
+   * Prompt tokens served from the provider's prefix cache, when it reports them.
+   *
+   * Optional because most transports do not report it: a fake in a test, an
+   * on-device engine with no cache, and any endpoint whose response omits the
+   * field. Absent means "not reported", never "zero" — a cache miss reports `0`,
+   * and telling those apart is the whole point of carrying it.
+   *
+   * Load-bearing for a real question: extraction sends the same instructions and
+   * few-shot example on every group call, so whether the prefix is being cached
+   * decides what that example actually costs in production. Without this the
+   * answer is unobservable from the field — `helixChat` used to parse the route's
+   * `cacheReadInputTokens` and throw it away for want of somewhere to put it.
+   */
+  readonly cachedPromptTokens?: number;
+  /**
+   * Prompt tokens written INTO the prefix cache by this call, when reported.
+   *
+   * Distinct from {@link cachedPromptTokens} because the two are priced
+   * differently and mean opposite things: a cache write is the cost of the first
+   * call with a given prefix, a cache read is the saving on every one after it.
+   * Collapsing them would make a warm run indistinguishable from a cold one.
+   */
+  readonly cacheCreationPromptTokens?: number;
 }
 
 /**
