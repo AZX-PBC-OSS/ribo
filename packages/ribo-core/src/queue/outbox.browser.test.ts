@@ -392,6 +392,14 @@ test("v5 recordings with extracted/reviewOutcome migrate to sessions", async () 
   const sessionId = items[0]!.sessionId;
   const session = await outbox.getSession(sessionId);
   expect(session).toBeDefined();
+
+  // The migrated session carries a write destination and a ref, recovered from
+  // the recordings rather than invented. Pinned by value, not merely by
+  // presence: both are derived by helpers that take `unknown`, so handing one
+  // the recording instead of the recording's `ctx` type-checks, returns the
+  // fallback, and would otherwise pass this whole suite unnoticed.
+  expect(session?.ctx).toEqual({ assessmentId: "job-42" });
+  expect(session?.ref).toBe("job-42");
   // The recording statuses were mapped: "awaiting-review" → "transcribed",
   // "queued" stays "queued".
   expect(items.find((r) => r.id === "a")?.status).toBe("transcribed");
@@ -425,8 +433,54 @@ test("v5 recordings with no assessmentId get singleton sessions", async () => {
   const session = await outbox.getSession(items[0]!.sessionId);
   expect(session).toBeDefined();
   // The recording never reached transcription, so there is nothing to review
-  // yet and the work is NOT finished. `done` is terminal and would strand it.
+  // yet and the work is NOT finished. `done` would misreport it as synced —
+  // reopening is possible now, but it takes a human, and nothing should need
+  // one to finish work the relay can finish by itself.
   expect(session?.status).toBe("open");
+  await outbox.close();
+});
+
+test("a v5 recording whose ctx is a primitive migrates to a session the outbox can still open", async () => {
+  // `Recording["ctx"]` is `unknown` and `baseRecordingSchema` leaves it
+  // unconstrained, so a host could legally enqueue `ctx: "job-42"` under v5.
+  // `sessionRxSchema` types the session's `ctx` as an object, so minting a
+  // session from that recording without a substitute produces a document the
+  // insert refuses — and that insert runs inside `openOutboxDatabase`, which
+  // means an outbox that will not open, on every launch, with no way back.
+  // Before the session owned its destination, the same recording reached the
+  // write step and died there with a readable error.
+  //
+  // A recording carrying NO ctx key at all is a different and older problem:
+  // `baseRecordingSchema` requires the key, so such a row fails to parse as an
+  // OutboxItem long before any session is minted. That is out of scope here.
+  const name = uniqueName();
+  await seedVersionZeroOutbox(name, {
+    id: "primitive-ctx",
+    seq: 0,
+    status: "queued",
+    idempotencyKey: "k",
+    attempts: 0,
+    nextAttemptAt: "2026-07-23T10:00:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: {
+      id: "r",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      durationMs: 1,
+      mimeType: "audio/webm",
+      ctx: "job-42",
+    },
+  } as unknown as V0OutboxDocument);
+
+  // The assertion is that this resolves at all.
+  const outbox = await open(name);
+  const [item] = await outbox.list({});
+  const session = await outbox.getSession(item!.sessionId);
+
+  expect(session).toBeDefined();
+  // An empty destination, not an invalid one: the adapter's `ctxSchema` refuses
+  // it at write time and the session goes dead with an error naming the
+  // adapter, which is what this recording did before.
+  expect(session?.ctx).toEqual({});
   await outbox.close();
 });
 
@@ -454,10 +508,12 @@ test("a v5 recording still awaiting transcription is not stranded in a finished 
   const session = await outbox.getSession(item!.sessionId);
 
   // The auditor captured this and upgraded before it transcribed. The session
-  // must still be reachable: `done` has no way back (FINISHED_SESSION_STATUSES)
-  // so the audio would transcribe and then sit forever, while `summarizeWork`
-  // counted the session as `synced` — safety overstated for work still on the
-  // device, which `work-safety.ts` calls the non-negotiable rule.
+  // must still be reachable by the RELAY: a finished status takes a human to
+  // undo (`reopenSessionForReview` now accepts either member of
+  // FINISHED_SESSION_STATUSES, but a human has to call it), so the audio would
+  // transcribe and then sit forever, while `summarizeWork` counted the session
+  // as `synced` — safety overstated for work still on the device, which
+  // `work-safety.ts` calls the non-negotiable rule.
   expect(FINISHED_SESSION_STATUSES).not.toContain(session!.status);
   expect(summarizeWork([item!], [session!]).synced).toBe(0);
   await outbox.close();

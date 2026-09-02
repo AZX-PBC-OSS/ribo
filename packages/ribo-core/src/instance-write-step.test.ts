@@ -16,9 +16,17 @@ import { deriveInstanceIdempotencyKey, toInstanceWriteStep } from "./instance-wr
 /**
  * @file `toInstanceWriteStep` — per-instance write-back and resumability.
  *
- * The sibling of `toWriteStep`: it writes each collection instance separately,
- * derives a stable idempotency key per instance, and persists per-instance
- * progress so a retry resumes after the instances that already succeeded.
+ * The sibling of `toWriteStep`: it writes each collection instance separately
+ * and derives a stable idempotency key per instance, so a vendor honouring
+ * `Idempotency-Key` recognises a retried instance rather than creating a second
+ * record.
+ *
+ * It no longer persists per-instance progress. That marker was positional, and
+ * position is not identity: `reopenSessionForReview` preserves progress across
+ * a review cycle while `resolveReview` renumbers the instances that survived
+ * it, so a reviewer who deleted an instance could silently strand its
+ * neighbour. The reopen case below pins exactly that, and it is the test that
+ * should stop positional identity coming back when receipts land.
  */
 
 // --- The adapter under test -------------------------------------------------

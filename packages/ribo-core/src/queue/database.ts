@@ -87,6 +87,23 @@ export function migratedSessionId(ctx: unknown): string {
  * singleton fallback {@link migratedSessionId} uses. This is the same recovery
  * the relay used to do on every write — done once at migration time instead.
  */
+/**
+ * The write destination for a migrated session, or an empty object when the
+ * recording carried none.
+ *
+ * `sessionRxSchema` types `ctx` as an object and lists it as required, so a
+ * minted session whose `ctx` is `undefined` or a primitive is rejected at
+ * insert — and that insert happens inside `openOutboxDatabase`, so the failure
+ * is a device that will not open its own outbox. An empty object keeps the
+ * failure where it belongs: the write step parses `ctx` through the adapter's
+ * `ctxSchema`, refuses it terminally, and the session goes `dead` with an error
+ * a human can read. That is what the same recording did before the session
+ * owned its destination.
+ */
+function migratedCtx(ctx: unknown): Record<string, unknown> {
+  return typeof ctx === "object" && ctx !== null ? (ctx as Record<string, unknown>) : {};
+}
+
 function migratedSessionRef(ctx: unknown): string {
   if (typeof ctx === "object" && ctx !== null && "assessmentId" in ctx) {
     const assessmentId = (ctx as Record<string, unknown>).assessmentId;
@@ -428,7 +445,18 @@ function sessionDocumentFromMigratedGroup(
     // The session owns its write destination. `ctx` from the first recording
     // in the group — the same recording the relay used to pick — and `ref`
     // from the `assessmentId` `migratedSessionId` already extracts.
-    ctx: bySeq[0]!.recording.ctx,
+    //
+    // `migratedCtx` rather than the raw value, because a v5 recording is not
+    // guaranteed to carry one. `Recording["ctx"]` is `unknown`, and zod's
+    // `strictObject` rejects a MISSING key while accepting an explicit
+    // `undefined` — so `ctx: undefined` was legal to enqueue, and JSON storage
+    // then drops the key entirely. Minting a session from such a recording with
+    // no `ctx` produces a document `sessionRxSchema` refuses at insert, which
+    // rejects `openOutboxDatabase` on every launch: an un-bootable app, not a
+    // degraded one. Substituting an empty object reproduces exactly what that
+    // recording did before this change — the write step's `ctxSchema.safeParse`
+    // refuses it, the session goes `dead`, and the rest of the outbox works.
+    ctx: migratedCtx(bySeq[0]!.recording.ctx),
     ref: migratedSessionRef(bySeq[0]!.recording.ctx),
     // A session past `open` had, by definition, stopped accepting recordings.
     ...(status === "open" ? {} : { closedAt: bySeq[bySeq.length - 1]!.enqueuedAt }),

@@ -228,7 +228,11 @@ test("reopenSessionForReview refuses a done session with no extracted data", asy
   const outbox = await open();
   const session = await outbox.openSession(SESSION_INPUT);
   await outbox.patchSession(session.id, { status: "done" });
+  // Named by the status it found. A completed session told it "never reached
+  // extraction" is described as the opposite of what it is, and the caller
+  // amending it is looking at the wrong explanation.
   await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/no extracted/);
+  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/completed its write/);
 });
 
 test("a session reopened from done starts its next write cycle with attempts at zero", async () => {
@@ -249,6 +253,8 @@ test("reopenSessionForReview refuses a dead session with no extracted data", asy
   const session = await outbox.openSession(SESSION_INPUT);
   await outbox.patchSession(session.id, { status: "dead", lastError: "extraction failed" });
   await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/no extracted/);
+  // The other half of the branch: "gave up", never "completed its write".
+  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/gave up/);
 });
 
 test("reopenSessionForReview refuses a dead session with no transcript ids", async () => {

@@ -62,7 +62,11 @@ export interface OpenSessionInput {
   /** Idempotency key for the vendor write. Generated if omitted. */
   readonly idempotencyKey?: string;
   /**
-   * The write destination — opaque to core, same posture as `Recording.ctx`.
+   * The write destination — opaque to core in what it MEANS, but it must be an
+   * object: it is stored as one, and the adapter parses it through
+   * `ToolAdapter.ctxSchema` at write time. `unknown` rather than a type
+   * parameter for the same reason `Recording.ctx` is: core has no business
+   * knowing what a session is about.
    * Required: the session owns its destination, so the relay does not recover
    * it from a recording.
    */
@@ -601,8 +605,17 @@ export class Outbox {
     // `undefined` — so the schema parse alone cannot enforce presence. A
     // host that bypasses the type system would silently open a session with
     // no write destination.
-    if (options.ctx === undefined) {
-      throw new Error("openSession: `ctx` is required — the session owns its write destination.");
+    //
+    // The object check is the same guard one level up. `sessionRxSchema` types
+    // `ctx` as an object, so a primitive passes both the TypeScript signature
+    // (`unknown`) and the zod parse, then fails deep inside RxDB's insert
+    // validator where the error names a JSON-schema path rather than the
+    // mistake. Refusing it here costs nothing and says what is wrong.
+    if (options.ctx === undefined || typeof options.ctx !== "object" || options.ctx === null) {
+      throw new Error(
+        "openSession: `ctx` must be an object — the session owns its write destination, and " +
+          "the adapter parses it through `ToolAdapter.ctxSchema`.",
+      );
     }
     const doc = await this.#sessionsCollection.insert(
       sessionDocumentSchema.parse({
@@ -774,16 +787,25 @@ export class Outbox {
             "be reopened for review. Only a finished session may be re-parked this way.",
         );
       }
+      // "Already written" and "gave up" are different things to explain, and
+      // the caller is looking at one of them. A `done` session told it "never
+      // reached extraction" is being described as the opposite of what it is.
+      const because =
+        current.status === "done"
+          ? "this session completed its write, so amending it means reviewing that extraction again"
+          : "this session gave up before completing, so reopening it means reviewing what it had";
+
       if (current.extracted === undefined) {
         throw new Error(
-          `outbox: session ${id} has no extracted data to review — it never reached extraction, ` +
-            "so there is nothing to re-park it with.",
+          `outbox: session ${id} is "${current.status}" but has no extracted data to review — ` +
+            `${because}, and there is none to re-park it with.`,
         );
       }
       if (current.extractedFromRecordingIds === undefined) {
         throw new Error(
-          `outbox: session ${id} has extracted data but no recording ids, so the extraction's ` +
-            "provenance is lost — there is nothing to ground the extracted values against.",
+          `outbox: session ${id} is "${current.status}" and has extracted data but no recording ` +
+            `ids, so the extraction's provenance is lost — ${because}, and there is nothing to ` +
+            "ground the extracted values against.",
         );
       }
 
