@@ -108,6 +108,43 @@ test("toSessionExtractStep passes the extractor's engine through beside the fiel
   expect(result).toEqual({
     fields: { atticInsulation: "R-19" },
     engine: "ondevice-prompt-api",
+    usage: { calls: 1, engine: "ondevice-prompt-api" },
+  });
+});
+
+test("toSessionExtractStep carries the strategy and the token totals, not just the engine", async () => {
+  // The step seam used to return `{ fields, engine }` and drop everything else,
+  // so the strategy that won a ladder and the prefix-cache counts never reached
+  // the session — which is where anyone asking after the fact has to look.
+  const extractor = new FakeExtractor<AtticFields>(
+    { atticInsulation: "R-19" },
+    {
+      usage: {
+        calls: 8,
+        engine: "managed-openai",
+        strategy: "tier1",
+        promptTokens: 33_024,
+        completionTokens: 1_680,
+        cachedPromptTokens: 29_600,
+        cacheCreationPromptTokens: 0,
+      },
+    },
+  );
+
+  const result = await toSessionExtractStep(extractor)({
+    session,
+    transcript: transcript.text,
+    recordingIds: ["rec-1"],
+  });
+
+  expect(result.usage).toEqual({
+    calls: 8,
+    engine: "managed-openai",
+    strategy: "tier1",
+    promptTokens: 33_024,
+    completionTokens: 1_680,
+    cachedPromptTokens: 29_600,
+    cacheCreationPromptTokens: 0,
   });
 });
 

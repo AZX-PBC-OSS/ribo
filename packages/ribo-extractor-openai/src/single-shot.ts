@@ -31,7 +31,9 @@ import { z } from "zod";
 import type { Enveloped, Extractor, ExtractionResult, ExtractionTarget } from "@azx/ribo-core";
 
 import type { ChatClient } from "./chat-client.js";
+import type { UsageTotals } from "./extraction-common.js";
 import {
+  addUsage,
   assertStopFinishReason,
   buildMessages,
   completeOrClassify,
@@ -126,7 +128,9 @@ export function singleShotExtractor<V extends Record<string, unknown>>({
       const raw = parseJsonContent(completion.content, context);
       const parsed = parseWithSchema(target.extractionSchema, raw, context);
 
-      return { fields: normalize(parsed), raw, usage: { calls: 1 } };
+      const totals: UsageTotals = {};
+      addUsage(totals, completion.usage);
+      return { fields: normalize(parsed), raw, usage: { calls: 1, ...totals } };
     },
   };
 }

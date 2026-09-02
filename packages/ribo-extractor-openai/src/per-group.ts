@@ -81,7 +81,9 @@ import type {
 } from "@azx/ribo-core";
 
 import type { ChatClient } from "./chat-client.js";
+import type { UsageTotals } from "./extraction-common.js";
 import {
+  addUsage,
   assertStopFinishReason,
   buildGroupMessages,
   completeOrClassify,
@@ -461,6 +463,7 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
       const abort = new AbortController();
       let totalCalls = 0;
 
+      const totals: UsageTotals = {};
       const responses = await mapWithPool(
         prepared,
         concurrency,
@@ -499,6 +502,12 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
               const completion = await completeOrClassify(chat, request, entry.context, {
                 signal: abort.signal,
               });
+
+              // Before the finish-reason and schema gates, so a truncated or
+              // rejected response still counts the tokens it burned. Retries
+              // accumulate too — `usage.calls` already counts them, and a token
+              // total that silently excluded them would disagree with it.
+              addUsage(totals, completion.usage);
 
               assertStopFinishReason(completion, entry.context);
 
@@ -571,7 +580,7 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
       return {
         fields: normalize(parsed),
         raw: merged,
-        usage: { calls: totalCalls },
+        usage: { calls: totalCalls, ...totals },
       };
     },
   };

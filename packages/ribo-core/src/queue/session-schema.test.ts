@@ -39,6 +39,7 @@ test("the optional fields are the step outputs, the error, and the close timesta
     "extracted",
     "extractedBy",
     "extractedFromRecordingIds",
+    "extractionUsage",
     "lastError",
     "reviewOutcome",
     "writeResult",

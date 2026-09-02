@@ -19,6 +19,45 @@ import type { SessionExtractStep, ExtractedFieldMap } from "./queue/relay.js";
  * the extractor parses raw model output through it before the result becomes field data. It is
  * only after review that the plain-values `V` exists — see `ToolAdapter`'s two schemas.
  */
+/**
+ * What one extraction run cost and how it was produced.
+ *
+ * `calls` is the only required member: every extractor knows how many model calls
+ * it made, including retries. Everything else is optional because an extractor
+ * that cannot report it must not be forced to invent it — `FakeExtractor` makes
+ * no calls, an on-device engine reports no tokens, and a single-strategy
+ * extractor has no ladder to name.
+ *
+ * The token counts are summed across every call of the run. They exist so the
+ * questions that were previously unanswerable from the field become answerable:
+ * what the few-shot example really costs, and whether the provider's prefix cache
+ * is being hit at all. The transports have reported them for a while;
+ * `helixChat` parsed the cache counts and discarded them for want of somewhere
+ * to put them, which is this type.
+ */
+export interface ExtractionUsage {
+  /** Model calls made, including retries. */
+  readonly calls: number;
+  /** Which transport produced the result — `engine` is *which transport*. */
+  readonly engine?: string;
+  /** Which approach inside that transport — `strategy` is *which strategy*. */
+  readonly strategy?: string;
+  /** Prompt tokens summed across every call, when the transport reports them. */
+  readonly promptTokens?: number;
+  /** Completion tokens summed across every call, when reported. */
+  readonly completionTokens?: number;
+  /**
+   * Prompt tokens served from the provider's prefix cache, summed across calls.
+   *
+   * Absent means no call reported it; `0` means calls reported it and none hit.
+   * That distinction is the difference between "we cannot tell" and "the cache
+   * is not working", so the two are never collapsed.
+   */
+  readonly cachedPromptTokens?: number;
+  /** Prompt tokens written into the prefix cache, summed across calls. */
+  readonly cacheCreationPromptTokens?: number;
+}
+
 export interface ExtractionResult<F> {
   /** The structured fields, already parsed to `F` at the trust boundary. */
   readonly fields: F;
@@ -41,7 +80,7 @@ export interface ExtractionResult<F> {
    * `strategy` is *which strategy* inside that transport. It is optional for the same reason
    * `engine` is — a single-strategy extractor has no ladder to name.
    */
-  readonly usage: { readonly calls: number; readonly engine?: string; readonly strategy?: string };
+  readonly usage: ExtractionUsage;
 }
 
 /**
@@ -82,8 +121,9 @@ export type ExtractionTarget<V extends Record<string, unknown>> = Pick<
  * The relay owns `RelayOptions.sessionExtract` and speaks in `ExtractedFieldMap`; an `Extractor`
  * speaks in `ExtractionResult<F>`. This is the one-line adapter between them, so wiring a strategy
  * into the queue is `createRelay({ ..., sessionExtract: toSessionExtractStep(myExtractor) })` with
- * **no** relay change. Only `.fields` reaches the session document; `raw` and `usage` stay with
- * the extractor.
+ * **no** relay change. `.fields`, the engine, the strategy and the usage totals reach the
+ * session; `raw` stays with the extractor, because it is unbounded model output and the session
+ * document is not a log.
  *
  * The session extract step receives the **joined transcript text** (all transcribed recordings
  * in capture order, excluding discarded), not a single `Transcript` object — that is the whole
@@ -92,7 +132,11 @@ export type ExtractionTarget<V extends Record<string, unknown>> = Pick<
 export function toSessionExtractStep<F>(extractor: Extractor<F>): SessionExtractStep {
   return async ({ transcript }) => {
     const result = await extractor.extract(transcript);
-    return { fields: result.fields as ExtractedFieldMap, engine: result.usage.engine };
+    return {
+      fields: result.fields as ExtractedFieldMap,
+      engine: result.usage.engine,
+      usage: result.usage,
+    };
   };
 }
 

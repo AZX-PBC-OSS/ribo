@@ -60,11 +60,12 @@ interface HelixChatResponseBody {
   readonly usage?: {
     readonly inputTokens?: unknown;
     readonly outputTokens?: unknown;
-    // The route also carries cacheReadInputTokens / cacheCreationInputTokens.
-    // The seam has nowhere for those today — drop them rather than widening
-    // ChatUsage. The route caches the prompt prefix, which matters for
-    // per-group extraction: the same system prompt is sent across multiple
-    // group calls, so subsequent calls may hit the cache and cost less.
+    // The route caches the prompt prefix. These now reach `ChatUsage` as
+    // `cachedPromptTokens` / `cacheCreationPromptTokens` — they used to be
+    // parsed and discarded, which made "is the cache working" unanswerable from
+    // the field. Note the prefix is per-GROUP (the system message is built by
+    // `groupInstructions(key)`), so the seven calls of one extraction do not
+    // share a prefix; the sharing is across sessions, for the same group.
     readonly cacheReadInputTokens?: unknown;
     readonly cacheCreationInputTokens?: unknown;
   };
@@ -321,7 +322,14 @@ function parseStopReason(raw: unknown): ChatFinishReason | undefined {
  */
 function parseUsage(raw: HelixChatResponseBody["usage"]): ChatUsage | undefined {
   if (raw && typeof raw.inputTokens === "number" && typeof raw.outputTokens === "number") {
-    return { promptTokens: raw.inputTokens, completionTokens: raw.outputTokens };
+    const read = raw.cacheReadInputTokens;
+    const created = raw.cacheCreationInputTokens;
+    return {
+      promptTokens: raw.inputTokens,
+      completionTokens: raw.outputTokens,
+      ...(typeof read === "number" ? { cachedPromptTokens: read } : {}),
+      ...(typeof created === "number" ? { cacheCreationPromptTokens: created } : {}),
+    };
   }
   return undefined;
 }

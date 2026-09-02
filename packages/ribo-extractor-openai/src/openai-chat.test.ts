@@ -304,3 +304,36 @@ describe("openAiChat — finish_reason guarantee", () => {
     expect((error as ChatError).kind).toBe("malformed-response");
   });
 });
+
+describe("openAiChat — prefix cache accounting", () => {
+  test("prompt_tokens_details.cached_tokens reaches ChatUsage", async () => {
+    // OpenAI nests the prefix-cache hit under prompt_tokens_details rather than
+    // alongside prompt_tokens, so a flat read misses it entirely.
+    const fetchImpl = (async () =>
+      Response.json({
+        choices: [{ message: { content: "{}" }, finish_reason: "stop" }],
+        usage: {
+          prompt_tokens: 4128,
+          completion_tokens: 210,
+          prompt_tokens_details: { cached_tokens: 3712 },
+        },
+      })) as unknown as typeof fetch;
+
+    const chat = openAiChat({ apiKey: "k", baseUrl: "https://api.example.com/v1", fetchImpl });
+    const usage = (
+      await chat.complete({
+        model: "m",
+        messages: [{ role: "user", content: "hi" }],
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "n", schema: { type: "object" }, strict: true },
+        },
+      })
+    ).usage;
+
+    expect(usage?.promptTokens).toBe(4128);
+    expect(usage?.cachedPromptTokens).toBe(3712);
+    // This surface bills no cache write, so there is nothing to report.
+    expect(usage?.cacheCreationPromptTokens).toBeUndefined();
+  });
+});
