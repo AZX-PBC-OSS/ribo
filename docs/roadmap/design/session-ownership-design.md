@@ -149,6 +149,21 @@ the next reader does not re-derive the question.
 The sessions collection is at v0 and has not shipped to any device, so `ctx` is a new field rather
 than a migration.
 
+That is true of the collection and not of the path that *creates* sessions from migrated recordings.
+`buildSessionDocument` (`database.ts:390-425`) is the contract half of the v5 → v6 split, minting
+session documents from v5 recordings that carried session-level state, and it has nothing to put in
+two new required fields. Both are recoverable from the recordings, and recovering them is the same
+thing the relay does today, done once at migration time rather than on every write: `ctx` from the
+first recording in the group, and `ref` from the `assessmentId` that `migratedSessionId`
+(`database.ts:69-78`) already digs out of `recording.ctx`.
+
+`migratedSessionId` is worth noticing on its own account. It is the id-as-assessment-id trick §4.1
+rejects, already sitting in the migration — which is some evidence the trick is what a host reaches
+for when there is no field for the thing it means.
+
+The v6 migration strategy itself is not touched. It has run on real devices, and editing an executed
+strategy is the failure `01f3e7a` was written to fix.
+
 ### 4.1 `ref`, and why it is not `ctx`
 
 The host also needs to ask "does a session already exist for this job?" when an auditor opens a job —
