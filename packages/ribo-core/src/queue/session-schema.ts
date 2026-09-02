@@ -214,8 +214,36 @@ export type SessionPatch = Partial<
  * uses to build fixed-width index keys. `session-schema.test.ts` pins the two
  * descriptions against each other so they cannot drift.
  */
+/**
+ * Schema-migration strategies for the sessions collection, keyed by the version
+ * being migrated *to*.
+ *
+ * v0 → v1 added `extractionUsage` (optional) — what the extraction cost and
+ * which strategy produced it. The strategy is **identity**: an absent optional
+ * field needs no transformation, and a session written before extraction usage
+ * was carried has none to record, which is the correct state for it.
+ *
+ * **An optional addition still needs the bump, and the stake is the recordings.**
+ * RxDB validates the declared schema against the one the collection was created
+ * with, so adding a property at the same version is refused at `addCollections`
+ * — and `openOutboxDatabase` adds `outbox` and `sessions` in ONE call on ONE
+ * database. A `DB6` on this collection therefore rejects the whole open, so the
+ * outbox is unreachable too: an auditor's captured recordings and their audio
+ * attachments, on a device, with no way in. The only recovery a host could offer
+ * is clearing the origin's IndexedDB, which destroys exactly the field work the
+ * outbox exists to protect. That is not a migration, and "the new field is
+ * optional so no data needs transforming" does not reach it — that answers the
+ * data question and leaves the schema question unasked. This is the same
+ * reasoning `OUTBOX_MIGRATION_STRATEGIES` records for its own identity steps
+ * (v1→v2, v2→v3, v3→v4 `extractedBy`, v4→v5): declared and exercised rather
+ * than skipped, so the migration path exists and is proven to run.
+ */
+export const SESSION_MIGRATION_STRATEGIES = {
+  1: (doc: SessionDocument) => doc,
+};
+
 export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
-  version: 0,
+  version: 1,
   primaryKey: "id",
   type: "object",
   properties: {
