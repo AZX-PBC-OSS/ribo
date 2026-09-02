@@ -775,10 +775,40 @@ export class Outbox {
    * reviewer changed something, so the previous cycle's exhaustion says nothing
    * about this one's chances. `lastError` is deliberately left — it explains
    * why the session needed reopening.
+   *
+   * ## Where it lands, and why that is a decision
+   *
+   * **`awaiting-review` when the recording set is unchanged** — the common case,
+   * a correction to what was already dictated. Re-extraction costs a model call
+   * over the whole field set, and there is nothing new for it to read.
+   *
+   * **`extracting` when the set has moved**, so the relay re-extracts and then
+   * parks the session for review. Without this, an auditor who submitted, then
+   * remembered the attic and recorded a fourth clip, would reopen onto the draft
+   * computed before that clip existed — reviewing a document with the attic
+   * missing, and nothing anywhere saying so. `closeSession` cannot rescue them:
+   * it refuses any status but `open`.
+   *
+   * The comparison is against every recording that is not `discarded` or `dead`,
+   * **not** against the transcribed ones. `extractedFromRecordingIds` holds the
+   * transcribed set, so comparing like with like would find nothing new in the
+   * exact case this exists for: at the moment of reopen the fourth clip has not
+   * transcribed yet. Comparing eligible-to-transcribed is safe because the relay
+   * drains recordings before sessions — the clip transcribes, then extraction
+   * runs over it. It is symmetric too: discarding a recording after the fact
+   * also moves the set, and that extraction is stale in the other direction.
    */
   async reopenSessionForReview(id: string): Promise<SessionItem> {
     const doc = await this.#sessionsCollection.findOne(id).exec();
     if (!doc) throw new Error(`outbox: no session with id "${id}"`);
+
+    // Read before the modify: `incrementalModify` takes a synchronous mutator
+    // and this is an outbox query. Recordings the extraction would never read
+    // are excluded, so discarding one does not read as new work forever.
+    const eligible = (await this.list({ sessionId: id }))
+      .filter((r) => r.status !== "discarded" && r.status !== "dead")
+      .map((r) => r.id)
+      .sort();
 
     const updated = await doc.incrementalModify((current) => {
       if (current.status !== "dead" && current.status !== "done") {
@@ -809,7 +839,24 @@ export class Outbox {
         );
       }
 
-      const merged = { ...current, status: "awaiting-review" as const, attempts: 0 };
+      const cached = current.extractedFromRecordingIds ?? [];
+      // An empty eligible set never counts as movement. Every recording being
+      // gone — discarded, or removed outright — does make the stored draft
+      // stale, but re-extracting over no transcript at all would replace it
+      // with nothing, which is strictly worse than re-presenting what the
+      // model last said. Re-presenting is also what this method has always
+      // done. (Whether a session whose every recording is discarded should be
+      // reviewable at all is an older open question — see the session-entity
+      // design's §12.1 — and this deliberately does not answer it.)
+      const setMoved =
+        eligible.length > 0 &&
+        (cached.length !== eligible.length || eligible.some((rid, i) => rid !== cached[i]));
+
+      const merged = {
+        ...current,
+        status: setMoved ? ("extracting" as const) : ("awaiting-review" as const),
+        attempts: 0,
+      };
       delete merged.reviewOutcome;
       sessionDocumentSchema.parse(persistedSessionFieldsOf(merged));
       return merged;
