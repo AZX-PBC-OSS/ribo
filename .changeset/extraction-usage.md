@@ -11,7 +11,11 @@ Extraction usage — the strategy, the call count and the token totals — is pe
 
 `ExtractionResult.usage` is now the named `ExtractionUsage` type and carries the four token totals, summed across every call of a run including retries. `singleShotExtractor`, `perGroupExtractor` and `scopedInstanceExtractor` accumulate them.
 
-`ExtractStepResult` gains `usage`, and the session document gains `extractionUsage` — optional, so every existing session is unaffected and no migration is needed.
+`ExtractStepResult` gains `usage`, and the session document gains `extractionUsage` — optional, so no stored data needs transforming.
+
+**The sessions schema stays at `version: 0`, edited in place, because no build carrying that collection has reached a device.** For a collection that HAS shipped the rule is the opposite: RxDB validates the declared schema against the one the collection was created with, so a new property at the same version fails `addCollections` with `DB6` — a database that will not open, on every launch — and the outbox's own identity strategies (v3→v4 added the optional `extractedBy`) exist for exactly that reason. "The field is optional so no data needs transforming" answers the data question and not the schema one. Until this collection ships, a bump would be a migration for a transition that never happened; the comment on `sessionRxSchema.version` records when that changes.
+
+The one cost of editing in place is local: a developer whose browser already holds a sessions collection from an earlier build gets `DB6` and clears that origin's IndexedDB once.
 
 An absent total means no call reported it; `0` means calls reported it and none hit. The two are never collapsed: for the cache counts that is the difference between "we cannot tell" and "the cache is not working".
 
