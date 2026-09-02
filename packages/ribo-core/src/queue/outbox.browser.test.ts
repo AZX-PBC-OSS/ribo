@@ -338,6 +338,66 @@ test("an outbox stored at schema version 0 opens and migrates to version 6", asy
   await outbox.close();
 });
 
+test("two v5 jobs migrate to two sessions, not one", async () => {
+  // The migration's whole purpose is to group a job's recordings into a session,
+  // and every other migration test in this file seeds ONE assessmentId — so they
+  // pass identically whether grouping works or every recording collapses into a
+  // single session. This is the test that can tell those apart.
+  const name = uniqueName();
+  addRxPlugin(RxDBAttachmentsPlugin);
+  const db0 = await createRxDatabase({
+    name,
+    storage: getRxStorageDexie(),
+    multiInstance: true,
+    eventReduce: true,
+    cleanupPolicy: {},
+  });
+  await db0.addCollections({ [OUTBOX_COLLECTION_NAME]: { schema: OUTBOX_RX_SCHEMA_V0 } });
+  const outboxCol = db0.collections.outbox!;
+  const baseRec = {
+    capturedAt: "2026-07-23T10:00:00.000Z",
+    durationMs: 1,
+    mimeType: "audio/webm",
+  };
+  const rows = [
+    { id: "a", seq: 0, job: "job-alpha", rec: "r-a" },
+    { id: "b", seq: 1, job: "job-beta", rec: "r-b" },
+    { id: "c", seq: 2, job: "job-alpha", rec: "r-c" },
+  ];
+  for (const row of rows) {
+    await outboxCol.insert({
+      id: row.id,
+      seq: row.seq,
+      status: "queued",
+      idempotencyKey: `k-${row.id}`,
+      attempts: 0,
+      nextAttemptAt: "2026-07-23T10:00:00.000Z",
+      enqueuedAt: "2026-07-23T10:00:00.000Z",
+      recording: { ...baseRec, id: row.rec, ctx: { assessmentId: row.job } },
+    });
+  }
+  await db0.close();
+
+  const outbox = await open(name);
+  const items = await outbox.list({});
+  expect(items).toHaveLength(3);
+
+  const sessionOf = (id: string) => items.find((r) => r.id === id)!.sessionId;
+
+  // Two jobs, two sessions. The two alpha recordings share one; beta has its own.
+  expect(sessionOf("a")).toBe(sessionOf("c"));
+  expect(sessionOf("b")).not.toBe(sessionOf("a"));
+  expect(new Set(items.map((r) => r.sessionId)).size).toBe(2);
+
+  // And the ids are derived from the assessment, not from a shared fallback —
+  // an implementation that sent every recording to the singleton would satisfy
+  // neither this nor the inequality above.
+  expect(sessionOf("a")).toBe("migrated-session-job-alpha");
+  expect(sessionOf("b")).toBe("migrated-session-job-beta");
+
+  await outbox.close();
+});
+
 test("v5 recordings with extracted/reviewOutcome migrate to sessions", async () => {
   // Seed a v0 outbox with two recordings sharing an assessmentId.
   const name = uniqueName();
