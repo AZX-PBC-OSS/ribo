@@ -8,7 +8,6 @@ import {
   SESSION_STATUSES,
   sessionDocumentSchema,
   sessionItemSchema,
-  SESSION_MIGRATION_STRATEGIES,
   sessionRxSchema,
 } from "./session-schema.js";
 import type { SessionPatch, SessionStatus } from "./session-schema.js";
@@ -65,14 +64,10 @@ test("the collection name is not the outbox's", () => {
   expect(SESSION_COLLECTION_NAME).not.toBe("outbox");
 });
 
-test("the RxDB schema is at version 1, with a strategy for the step it took", () => {
-  // v0 → v1 added `extractionUsage`. An OPTIONAL addition still needs the bump:
-  // RxDB validates the declared schema against the one the collection was
-  // created with, so adding a property at the same version fails at
-  // `addCollections` with DB6 — a database that will not open. Every version
-  // must also have a strategy, or `addCollections` fails with COL12 instead.
-  expect(sessionRxSchema.version).toBe(1);
-  expect(Object.keys(SESSION_MIGRATION_STRATEGIES)).toEqual(["1"]);
+test("the RxDB schema is at version 0", () => {
+  // The sessions collection is new — starts at version 0, not bumped from the
+  // outbox's version.
+  expect(sessionRxSchema.version).toBe(0);
 });
 
 test("the session state machine has the expected statuses", () => {

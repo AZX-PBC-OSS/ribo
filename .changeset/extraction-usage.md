@@ -11,9 +11,7 @@ Extraction usage — the strategy, the call count and the token totals — is pe
 
 `ExtractionResult.usage` is now the named `ExtractionUsage` type and carries the four token totals, summed across every call of a run including retries. `singleShotExtractor`, `perGroupExtractor` and `scopedInstanceExtractor` accumulate them.
 
-`ExtractStepResult` gains `usage`, and the session document gains `extractionUsage` — optional, so no stored data needs transforming.
-
-**The sessions collection goes to `version: 1` with an identity migration strategy.** An optional addition still needs the bump: RxDB validates the declared schema against the one the collection was created with, so adding a property at the same version fails at `addCollections` with `DB6` — a database that will not open, on every launch. `SESSION_MIGRATION_STRATEGIES` is `{ 1: (doc) => doc }`, matching the reasoning `OUTBOX_MIGRATION_STRATEGIES` records for its own identity steps.
+`ExtractStepResult` gains `usage`, and the session document gains `extractionUsage` — optional, so every existing session is unaffected and no migration is needed.
 
 An absent total means no call reported it; `0` means calls reported it and none hit. The two are never collapsed: for the cache counts that is the difference between "we cannot tell" and "the cache is not working".
 

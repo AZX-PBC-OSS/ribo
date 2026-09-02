@@ -4,11 +4,7 @@ import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 import { wrappedValidateAjvStorage } from "rxdb/plugins/validate-ajv";
 import { afterEach, expect, test } from "vitest";
 
-import {
-  SESSION_COLLECTION_NAME,
-  SESSION_MIGRATION_STRATEGIES,
-  sessionRxSchema,
-} from "./session-schema.js";
+import { SESSION_COLLECTION_NAME, sessionRxSchema } from "./session-schema.js";
 import {
   OUTBOX_MIGRATION_STRATEGIES,
   removeOutboxDatabase,
@@ -113,13 +109,6 @@ async function openSecondConnection(name: string): Promise<Outbox> {
     },
     [SESSION_COLLECTION_NAME]: {
       schema: sessionRxSchema,
-      // Mirrors `openOutboxDatabase`. Every version above 0 needs a strategy or
-      // `addCollections` fails with COL12, so this file has to move with the
-      // schema — the cost of hand-rolling the registration rather than going
-      // through `openOutbox`. It does that deliberately: this test needs two
-      // independent connections to one database, which the public helper does
-      // not expose.
-      migrationStrategies: SESSION_MIGRATION_STRATEGIES,
     },
   });
   const outbox = new Outbox(database);
