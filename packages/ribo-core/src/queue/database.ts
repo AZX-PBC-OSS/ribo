@@ -190,7 +190,14 @@ export const OUTBOX_MIGRATION_STRATEGIES = {
     // transcribed already.
     if (V5_SESSION_OWNED_STATUSES.has(next.status as string)) next.status = "transcribed";
 
-    next.sessionId = migratedSessionId(doc.recording);
+    // The RECORDING'S CTX, not the recording. `migratedSessionId` reads
+    // `ctx.assessmentId`, and a recording has no `assessmentId` of its own —
+    // handing it the whole recording made the `"assessmentId" in ctx` test
+    // always false, so every row on a device fell through to the singleton and
+    // one session swallowed every job the auditor had ever captured. The
+    // parameter is `unknown`, so nothing failed; the outbox simply grouped
+    // wrongly and silently.
+    next.sessionId = migratedSessionId((doc.recording as { ctx?: unknown } | undefined)?.ctx);
     return next as OutboxDocument;
   },
 };
