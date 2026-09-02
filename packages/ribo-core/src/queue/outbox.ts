@@ -751,13 +751,23 @@ export class Outbox {
   }
 
   /**
-   * Move a `done` or `dead` session back to `awaiting-review`, so a human can
-   * correct whatever went wrong and resubmit. "Amend" is the user-facing word;
-   * the API keeps the one method because the body is the same for both source
-   * statuses.
+   * Re-park a session at the review gate — or, when its recording set has moved,
+   * at `extracting` so the relay re-extracts first. "Amend" is the user-facing
+   * word; the API keeps one method because the body is the same for every source
+   * status.
    *
-   * **`done` and `dead` are the only legal source statuses.** Any active
-   * status would race the relay. The guard's reasoning for `done` was that
+   * **`awaiting-review`, `done` and `dead` are the legal source statuses.** Any
+   * ACTIVE status is refused, because it would race the relay — that is the line,
+   * not finishedness.
+   *
+   * `awaiting-review` is here because a recording can be added to a session that
+   * is already parked: `enqueue` never looks at the session's status, and the
+   * relay transcribes the new recording regardless. That left a parked draft
+   * covering fewer recordings than the session holds, with no way out —
+   * `closeSession` refuses anything but `open`, and this method used to refuse
+   * anything but `done`/`dead`. The reviewer would open a draft with the later
+   * clip missing and nothing saying so. Re-parking from `awaiting-review` with an
+   * unchanged recording set is a deliberate no-op beyond resetting `attempts`. The guard's reasoning for `done` was that
    * reopening would double-write; that is sound and currently vacuous — vendor
    * egress is gated, so nothing has reached the host tool. When egress lands,
    * a second review of an already-written session must update the records it
@@ -811,11 +821,38 @@ export class Outbox {
       .sort();
 
     const updated = await doc.incrementalModify((current) => {
+      const cached = current.extractedFromRecordingIds ?? [];
+      // An empty eligible set never counts as movement — see the note below.
+      const setMoved =
+        eligible.length > 0 &&
+        (cached.length !== eligible.length || eligible.some((rid, i) => rid !== cached[i]));
+
       if (current.status !== "dead" && current.status !== "done") {
-        throw new Error(
-          `outbox: session ${id} is "${current.status}", not "done" or "dead", so it cannot ` +
-            "be reopened for review. Only a finished session may be re-parked this way.",
-        );
+        // `awaiting-review` is accepted ONLY when the recording set has moved,
+        // and that condition is load-bearing twice over.
+        //
+        // It is what gives a parked session a way out at all: `enqueue` never
+        // looks at the session's status, so a recording can be added to a
+        // session already sitting at the review gate, and the relay transcribes
+        // it. That left a draft covering fewer recordings than the session
+        // holds, with no move available — `closeSession` refuses anything but
+        // `open`, and this method used to refuse anything but `done`/`dead`.
+        //
+        // And it is what keeps re-parking a NON-stale session an error rather
+        // than a silent no-op. Two tabs racing to rescue the same session must
+        // still settle as one winner and one refusal: the loser reads the
+        // already-parked document with an unchanged set and is told so. Accepting
+        // `awaiting-review` unconditionally would make both callers succeed and
+        // would make an implementation that lost the race indistinguishable from
+        // one that won it — see `outbox-reopen-cross-tab.browser.test.ts`.
+        if (current.status !== "awaiting-review" || !setMoved) {
+          throw new Error(
+            `outbox: session ${id} is "${current.status}" with ` +
+              `${setMoved ? "a changed" : "an unchanged"} recording set, so there is nothing to ` +
+              "re-park. A finished session can be reopened; a parked one can be refreshed only " +
+              "when a recording has been added or discarded since its extraction.",
+          );
+        }
       }
       // "Already written" and "gave up" are different things to explain, and
       // the caller is looking at one of them. A `done` session told it "never
@@ -823,7 +860,9 @@ export class Outbox {
       const because =
         current.status === "done"
           ? "this session completed its write, so amending it means reviewing that extraction again"
-          : "this session gave up before completing, so reopening it means reviewing what it had";
+          : current.status === "dead"
+            ? "this session gave up before completing, so reopening it means reviewing what it had"
+            : "this session is already parked for review, so re-parking it only refreshes the draft";
 
       if (current.extracted === undefined) {
         throw new Error(
@@ -839,18 +878,12 @@ export class Outbox {
         );
       }
 
-      const cached = current.extractedFromRecordingIds ?? [];
-      // An empty eligible set never counts as movement. Every recording being
-      // gone — discarded, or removed outright — does make the stored draft
-      // stale, but re-extracting over no transcript at all would replace it
-      // with nothing, which is strictly worse than re-presenting what the
-      // model last said. Re-presenting is also what this method has always
-      // done. (Whether a session whose every recording is discarded should be
-      // reviewable at all is an older open question — see the session-entity
-      // design's §12.1 — and this deliberately does not answer it.)
-      const setMoved =
-        eligible.length > 0 &&
-        (cached.length !== eligible.length || eligible.some((rid, i) => rid !== cached[i]));
+      // On `setMoved` above: an empty eligible set never counts as movement.
+      // Every recording being gone does make the stored draft stale, but
+      // re-extracting over no transcript would replace it with nothing, which is
+      // worse than re-presenting what the model last said. (Whether such a
+      // session should be reviewable at all is an older open question — the
+      // session-entity design's §12.1 — and this does not answer it.)
 
       const merged = {
         ...current,

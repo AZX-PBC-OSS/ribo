@@ -1807,6 +1807,66 @@ test("a done session can be reopened for review and a second review reaches the 
   expect(redone?.status).toBe("done");
 });
 
+test("a recording added while the session is parked at awaiting-review can still be re-extracted", async () => {
+  // The case #36 did not reach. The auditor closed the session, extraction ran
+  // over one recording, and the session parked at `awaiting-review`. Before
+  // submitting, they record a second clip — nothing stops that, `enqueue` never
+  // looks at the session's status — and the relay transcribes it normally.
+  //
+  // Now the parked draft covers one of two recordings and there was no move to
+  // make: `closeSession` throws unless the status is exactly `open`, and
+  // `reopenSessionForReview` took only `done` or `dead`. The reviewer would open
+  // a draft with the second clip missing and nothing saying so.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(outbox);
+  await outbox.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await drainToReview(harness);
+
+  const parked = await outbox.getSession(harness.session.id);
+  expect(parked?.status).toBe("awaiting-review");
+  expect(harness.extractCalls).toHaveLength(1);
+  expect(parked?.extractedFromRecordingIds).toHaveLength(1);
+
+  // The second clip, added while the review sits parked.
+  await outbox.enqueue({
+    recording: { ...recording, id: "rec-second" },
+    audio: audio(),
+    sessionId: harness.session.id,
+  });
+
+  const reopened = await outbox.reopenSessionForReview(harness.session.id);
+  expect(reopened.status).toBe("extracting");
+
+  await harness.relay.syncNow();
+
+  expect(harness.extractCalls).toHaveLength(2);
+  const refreshed = await outbox.getSession(harness.session.id);
+  expect(refreshed?.status).toBe("awaiting-review");
+  expect(refreshed?.extractedFromRecordingIds).toHaveLength(2);
+});
+
+test("re-parking an awaiting-review session with no new recording is refused, not a silent no-op", async () => {
+  // The other half, and it is a refusal on purpose. There is nothing to refresh
+  // — re-extracting the same transcripts would spend a model call to produce the
+  // same draft — and, more importantly, accepting it would break the cross-tab
+  // guarantee: two tabs racing to rescue one session must settle as one winner
+  // and one refusal, which only holds while an already-parked, unchanged session
+  // is refused. See `outbox-reopen-cross-tab.browser.test.ts`.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(outbox);
+  await outbox.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await drainToReview(harness);
+  expect(harness.extractCalls).toHaveLength(1);
+
+  await expect(outbox.reopenSessionForReview(harness.session.id)).rejects.toThrow(
+    /nothing to re-park/,
+  );
+
+  await harness.relay.syncNow();
+  expect(harness.extractCalls).toHaveLength(1);
+  expect((await outbox.getSession(harness.session.id))?.status).toBe("awaiting-review");
+});
+
 test("reopening a done session with a new recording re-extracts over all of them", async () => {
   // The walk-back-to-the-van case. The auditor submitted, the session wrote and
   // reached `done`, and then they remembered the attic and recorded a fourth
