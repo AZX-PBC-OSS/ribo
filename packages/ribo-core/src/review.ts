@@ -173,6 +173,60 @@ export interface ReviewField {
  */
 export type ReviewFields = Readonly<Record<FieldPath, ReviewField>>;
 
+/**
+ * Whether a collection group has instances, has none, or was never mentioned.
+ *
+ * `hvac: []` and an absent `hvac` are opposite write instructions — "there are none of
+ * these" against "touch nothing" — and the difference is invisible once per-leaf decisions
+ * are collected, because neither produces a leaf. It used to be recoverable only by
+ * cross-referencing {@link ReviewRequest.fields} against a separate list of empty groups,
+ * which is a three-state fact split across two collections and a bug every host got to
+ * write independently. It is one field now.
+ */
+export type ReviewGroupState = "absent" | "empty" | "populated";
+
+/** A reviewable leaf, in the position the schema declared it. */
+export interface ReviewLeafNode {
+  readonly kind: "leaf";
+  /** The schema key at this level — `"rValue"`, not the full path. */
+  readonly key: string;
+  readonly path: FieldPath;
+  /**
+   * The same object {@link ReviewRequest.fields} holds under `path`, not a copy. The tree
+   * is a second view of one source; a leaf that could differ between them would be two.
+   */
+  readonly field: ReviewField;
+}
+
+/** A nested object group — `healthSafety` and its tests, in one place. */
+export interface ReviewObjectNode {
+  readonly kind: "object";
+  readonly key: string;
+  readonly path: FieldPath;
+  readonly children: readonly ReviewNode[];
+}
+
+/** One instance of a collection group, addressed by the key review already assigns it. */
+export interface ReviewInstanceNode {
+  /** `k1`, `k2`, … — the same instance keys the flat paths carry. */
+  readonly key: string;
+  /** `hvac[k1]` — the instance's own path, which is what link decisions are keyed by. */
+  readonly path: FieldPath;
+  readonly children: readonly ReviewNode[];
+}
+
+/** A collection group — a house with two HVAC systems has two instances here. */
+export interface ReviewCollectionNode {
+  readonly kind: "collection";
+  readonly key: string;
+  readonly path: FieldPath;
+  readonly state: ReviewGroupState;
+  /** Empty for both `absent` and `empty`; `state` is what tells those apart. */
+  readonly instances: readonly ReviewInstanceNode[];
+}
+
+export type ReviewNode = ReviewLeafNode | ReviewObjectNode | ReviewCollectionNode;
+
 /** What a human reviewer is shown. */
 export interface ReviewRequest {
   /** The transcript the draft came from — the auditor's own words, for context. */
@@ -180,14 +234,20 @@ export interface ReviewRequest {
   /** Every leaf, by path, with its provenance, grounded flag and schema. */
   readonly fields: ReviewFields;
   /**
-   * Array paths that appeared in the extracted data as empty arrays.
+   * The same leaves as {@link fields}, in the shape the schema walk saw them: groups, their
+   * instances, and their leaves, in declaration order.
    *
-   * `hvac: []` and an absent `hvac` are opposite write instructions, but that distinction
-   * is gone once the per-leaf decisions are collected. {@link buildReviewRequest} is the one
-   * place that still sees the raw extraction, so it records the empty-but-present groups
-   * here. Task 7 consumes this list to emit `[]` for exactly these groups on submit.
+   * `fields` encodes structure in the path text, so every host rebuilt this with
+   * `parseFieldPath` — three review models doing the same parse, each free to get instance
+   * keys or nesting subtly wrong. {@link collectFields} has the structure in hand while it
+   * descends and used to throw it away.
+   *
+   * **A second view, never a second source.** A leaf lives once, in `fields`; the tree holds
+   * the same object. `resolveReview` is still path-keyed, and `fields`' insertion order is
+   * still the contract — the tree is built by the same walk in the same order, so the two
+   * agree by construction rather than by discipline.
    */
-  readonly presentButEmpty: readonly FieldPath[];
+  readonly tree: readonly ReviewNode[];
   /**
    * Existing records of each collection group, keyed by the group path (e.g. `"hvac"`).
    *
@@ -397,7 +457,7 @@ const collectFields = (
   transcript: Transcript,
   requiredOnCreate: RequiredOnCreate,
   out: Record<FieldPath, ReviewField>,
-  presentButEmpty: FieldPath[],
+  nodes: ReviewNode[],
 ): void => {
   for (const [key, declared] of Object.entries(values.shape) as [string, z.ZodType][]) {
     const pathSegments: readonly FieldPathSegment[] = [
@@ -408,6 +468,7 @@ const collectFields = (
     const stripped = stripOptionalNullable(declared);
 
     if (stripped instanceof z.ZodObject) {
+      const children: ReviewNode[] = [];
       collectFields(
         stripped,
         pathSegments,
@@ -415,8 +476,9 @@ const collectFields = (
         transcript,
         requiredOnCreate,
         out,
-        presentButEmpty,
+        children,
       );
+      nodes.push({ kind: "object", key, path, children });
       continue;
     }
 
@@ -431,16 +493,23 @@ const collectFields = (
         );
       }
       const arrayNode = readChild(node, key);
-      if (arrayNode !== undefined && Array.isArray(arrayNode) && arrayNode.length === 0) {
-        presentButEmpty.push(path);
-      }
       const elements = Array.isArray(arrayNode) ? arrayNode : [];
+      // Absent and empty are opposite write instructions and neither produces a leaf, so
+      // the state has to be read here, where the raw extraction is still in view.
+      const state: ReviewGroupState =
+        arrayNode === undefined || !Array.isArray(arrayNode)
+          ? "absent"
+          : elements.length === 0
+            ? "empty"
+            : "populated";
+      const instances: ReviewInstanceNode[] = [];
       for (let i = 0; i < elements.length; i++) {
         const instanceKey = `k${i + 1}`;
         const instanceSegments: readonly FieldPathSegment[] = [
           ...pathSegments,
           { kind: "instanceKey", key: instanceKey },
         ];
+        const children: ReviewNode[] = [];
         collectFields(
           elementSchema,
           instanceSegments,
@@ -448,22 +517,31 @@ const collectFields = (
           transcript,
           requiredOnCreate,
           out,
-          presentButEmpty,
+          children,
         );
+        instances.push({
+          key: instanceKey,
+          path: buildFieldPath(instanceSegments),
+          children,
+        });
       }
+      nodes.push({ kind: "collection", key, path, state, instances });
       continue;
     }
 
     const groupPath = pathSegments[0]?.key ?? "";
     const extracted = readEnvelope(readChild(node, key));
     const requiredLeaves = requiredOnCreate[groupPath];
-    out[path] = {
+    const field: ReviewField = {
       extracted,
       isGrounded: isSpanGrounded(extracted.sourceSpan, transcript.text),
       // The DECLARED schema, wrappers and all — see `ReviewField.schema`.
       schema: declared,
       required: Array.isArray(requiredLeaves) && requiredLeaves.includes(key),
     };
+    out[path] = field;
+    // The same object, not a copy — see `ReviewLeafNode.field`.
+    nodes.push({ kind: "leaf", key, path, field });
   }
 };
 
@@ -480,7 +558,7 @@ const collectFields = (
  * model never emitted is still shown, with the sentinel envelope, rather than
  * silently missing from the card. For collection groups, the data determines how
  * many instances exist and the schema determines every leaf within each instance;
- * empty-but-present collections are recorded in {@link ReviewRequest.presentButEmpty}
+ * empty-but-present collections are marked on {@link ReviewRequest.tree}'s group state
  * so the submit path can still distinguish "there are none" from "touch nothing".
  */
 export const buildReviewRequest = (
@@ -490,11 +568,29 @@ export const buildReviewRequest = (
   options: BuildReviewRequestOptions = {},
 ): ReviewRequest => {
   const fields: Record<FieldPath, ReviewField> = {};
-  const presentButEmpty: FieldPath[] = [];
+  const tree: ReviewNode[] = [];
   const requiredOnCreate = options.requiredOnCreate ?? {};
-  collectFields(valuesSchema, [], extracted, transcript, requiredOnCreate, fields, presentButEmpty);
-  return { transcript, fields, presentButEmpty, existingRecords: options.existingRecords ?? {} };
+  collectFields(valuesSchema, [], extracted, transcript, requiredOnCreate, fields, tree);
+  return { transcript, fields, tree, existingRecords: options.existingRecords ?? {} };
 };
+
+/**
+ * Paths of the collection groups that were present in the extraction as empty arrays.
+ *
+ * Walks the whole tree rather than only its top level: a collection nested inside an object
+ * group is still a collection, and "there are none of these" means the same thing at any
+ * depth. What {@link resolveReview} does with the answer is unchanged from when this was a
+ * field on the request.
+ */
+const emptyCollectionPaths = (nodes: readonly ReviewNode[]): FieldPath[] =>
+  nodes.flatMap((node) => {
+    if (node.kind === "leaf") return [];
+    if (node.kind === "object") return emptyCollectionPaths(node.children);
+    return [
+      ...(node.state === "empty" ? [node.path] : []),
+      ...node.instances.flatMap((instance) => emptyCollectionPaths(instance.children)),
+    ];
+  });
 
 /**
  * The adapter facts `buildReviewRequest` cannot read off the values schema.
@@ -930,7 +1026,7 @@ export const resolveReview = (
   // A group that was present-but-empty in the extraction means "there are none of these",
   // which is the opposite of "touch nothing". Record it as an empty array when no instance
   // survived review.
-  for (const groupPath of request.presentButEmpty) {
+  for (const groupPath of emptyCollectionPaths(request.tree)) {
     if (!Object.hasOwn(fields, groupPath)) {
       fields[groupPath] = [];
     }

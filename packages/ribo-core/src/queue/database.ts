@@ -65,6 +65,11 @@ function legacyOf(doc: OutboxDocument): LegacySessionFields | undefined {
  * Deterministic (not a random UUID) is load-bearing twice over: it is what
  * groups a job's recordings into one session, and it is what lets the backfill
  * re-run without creating a second session for work it already lifted.
+ *
+ * `ref` now carries the "what this session is for" meaning the id-as-
+ * assessment-id trick was reaching for; the session keeps its own generated
+ * id, and `ref` is the indexed query target. This function stays because its
+ * output is still the session id that groups recordings together.
  */
 export function migratedSessionId(ctx: unknown): string {
   if (typeof ctx === "object" && ctx !== null && "assessmentId" in ctx) {
@@ -75,6 +80,38 @@ export function migratedSessionId(ctx: unknown): string {
   }
   // Recordings with no assessmentId share one singleton session per outbox.
   return `migrated-session-singleton`;
+}
+
+/**
+ * Derive a `ref` from the recording's `ctx.assessmentId`, with the same
+ * singleton fallback {@link migratedSessionId} uses. This is the same recovery
+ * the relay used to do on every write — done once at migration time instead.
+ */
+/**
+ * The write destination for a migrated session, or an empty object when the
+ * recording carried none.
+ *
+ * `sessionRxSchema` types `ctx` as an object and lists it as required, so a
+ * minted session whose `ctx` is `undefined` or a primitive is rejected at
+ * insert — and that insert happens inside `openOutboxDatabase`, so the failure
+ * is a device that will not open its own outbox. An empty object keeps the
+ * failure where it belongs: the write step parses `ctx` through the adapter's
+ * `ctxSchema`, refuses it terminally, and the session goes `dead` with an error
+ * a human can read. That is what the same recording did before the session
+ * owned its destination.
+ */
+function migratedCtx(ctx: unknown): Record<string, unknown> {
+  return typeof ctx === "object" && ctx !== null ? (ctx as Record<string, unknown>) : {};
+}
+
+function migratedSessionRef(ctx: unknown): string {
+  if (typeof ctx === "object" && ctx !== null && "assessmentId" in ctx) {
+    const assessmentId = (ctx as Record<string, unknown>).assessmentId;
+    if (typeof assessmentId === "string" && assessmentId.length > 0) {
+      return assessmentId;
+    }
+  }
+  return "migrated-session-singleton";
 }
 
 /** v5 recording statuses that the session, not the recording, now owns. */
@@ -407,12 +444,27 @@ function sessionDocumentFromMigratedGroup(
             "open";
 
   const openedAt = bySeq[0]!.enqueuedAt;
-  const writtenInstances = written ? bagOf(written).writtenInstances : undefined;
 
   return {
     id: sessionId,
     status,
     openedAt,
+    // The session owns its write destination. `ctx` from the first recording
+    // in the group — the same recording the relay used to pick — and `ref`
+    // from the `assessmentId` `migratedSessionId` already extracts.
+    //
+    // `migratedCtx` rather than the raw value, because a v5 recording is not
+    // guaranteed to carry one. `Recording["ctx"]` is `unknown`, and zod's
+    // `strictObject` rejects a MISSING key while accepting an explicit
+    // `undefined` — so `ctx: undefined` was legal to enqueue, and JSON storage
+    // then drops the key entirely. Minting a session from such a recording with
+    // no `ctx` produces a document `sessionRxSchema` refuses at insert, which
+    // rejects `openOutboxDatabase` on every launch: an un-bootable app, not a
+    // degraded one. Substituting an empty object reproduces exactly what that
+    // recording did before this change — the write step's `ctxSchema.safeParse`
+    // refuses it, the session goes `dead`, and the rest of the outbox works.
+    ctx: migratedCtx(bySeq[0]!.recording.ctx),
+    ref: migratedSessionRef(bySeq[0]!.recording.ctx),
     // A session past `open` had, by definition, stopped accepting recordings.
     ...(status === "open" ? {} : { closedAt: bySeq[bySeq.length - 1]!.enqueuedAt }),
     attempts: 0,
@@ -426,7 +478,6 @@ function sessionDocumentFromMigratedGroup(
     ...(source ? { extractedFromRecordingIds: [source.id] } : {}),
     ...(reviewed ? { reviewOutcome: bagOf(reviewed).reviewOutcome } : {}),
     ...(written ? { writeResult: bagOf(written).writeResult } : {}),
-    ...(writtenInstances !== undefined ? { writtenInstances } : {}),
   } as SessionDocument;
 }
 

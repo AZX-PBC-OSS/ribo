@@ -199,7 +199,12 @@ async function buildRelay(
   // Reuse an existing session (two-tabs tests build two harnesses from the
   // same outbox) or create one on the first call.
   let session = await outbox.getSession(SESSION_ID);
-  if (!session) session = await outbox.openSession({ id: SESSION_ID });
+  if (!session)
+    session = await outbox.openSession({
+      id: SESSION_ID,
+      ctx: { jobId: "job-7" },
+      ref: "job-7",
+    });
 
   return { outbox, relay, transcriber, session, extractCalls, writeCalls };
 }
@@ -264,7 +269,7 @@ async function seedReviewedWriting(
   outbox: Outbox,
   options: { recording?: Recording; fields?: ExtractedFieldMap } = {},
 ): Promise<{ session: SessionItem; recordingItem: OutboxItem }> {
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
   const rec = options.recording ?? recording;
   const recordingItem = await outbox.enqueue({
     recording: rec,
@@ -1014,8 +1019,8 @@ test("writes follow review order, not capture order", async () => {
   const outbox = await openTestOutbox(uniqueName());
   const harness = await buildRelay(outbox);
 
-  const sessionA = await outbox.openSession();
-  const sessionB = await outbox.openSession();
+  const sessionA = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const sessionB = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
   await outbox.enqueue({
     recording: { ...recording, id: "first" },
     audio: audio(),
@@ -1498,7 +1503,7 @@ test("a step that never settles fails the attempt instead of stalling the queue"
   // backoff and nothing surfaced. This is the worst outcome the machinery can produce and
   // it is reachable from a hung worker or a managed service that goes quiet.
   const outbox = await openTestOutbox(uniqueName());
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
   const first = await outbox.enqueue({ recording, audio: audio(), sessionId: session.id });
   const second = await outbox.enqueue({
     recording: { ...recording, id: "rec-2" },
@@ -1688,4 +1693,139 @@ test("a relay that acquires the lock AFTER another finished does not re-run the 
   const after = await outbox.getSession(first.session.id);
   expect(after?.status).toBe("awaiting-review");
   expect(extractCalls).toHaveLength(1);
+});
+
+// ---------------------------------------------------------------------------
+// The session owns its write destination
+// ---------------------------------------------------------------------------
+
+test("the write step receives the session's ctx, not a recording's", async () => {
+  const outbox = await openTestOutbox(uniqueName());
+  const session = await outbox.openSession({
+    ctx: { jobId: "session-ctx" },
+    ref: "job-7",
+  });
+  await outbox.enqueue({
+    recording: { ...recording, ctx: { jobId: "recording-ctx" } },
+    audio: audio(),
+    sessionId: session.id,
+  });
+
+  // Transcribe manually, then drive the session through review to write.
+  const [item] = await outbox.list();
+  await outbox.patch(item!.id, {
+    transcript: { recordingId: item!.recording.id, text: "the attic is R-19", engine: "fake" },
+    status: "transcribed",
+  });
+  await outbox.closeSession(session.id);
+  await outbox.patchSession(session.id, {
+    extracted: { atticInsulation: "the attic is R-19" },
+    extractedFromRecordingIds: [item!.recording.id],
+    status: "awaiting-review",
+  });
+  await acceptReview(outbox, session.id);
+
+  const writeCalls: SessionWriteInput[] = [];
+  const relay = createRelay({
+    outbox,
+    transcriber: new FakeTranscriber(),
+    sessionExtract: async () => {
+      throw new Error("must not extract");
+    },
+    sessionWrite: async (input) => {
+      writeCalls.push(input);
+      return {};
+    },
+    now: clock.now,
+  });
+  await relay.syncNow();
+
+  expect(writeCalls).toHaveLength(1);
+  expect(writeCalls[0]?.ctx).toEqual({ jobId: "session-ctx" });
+});
+
+test("a session with no transcribed recordings still reaches the write step", async () => {
+  const outbox = await openTestOutbox(uniqueName());
+  const session = await outbox.openSession({
+    ctx: { jobId: "job-7" },
+    ref: "job-7",
+  });
+
+  // No recordings at all — patch straight to the review gate and accept.
+  await outbox.closeSession(session.id);
+  await outbox.patchSession(session.id, {
+    extracted: { atticInsulation: "the attic is R-19" },
+    extractedFromRecordingIds: [],
+    status: "awaiting-review",
+  });
+  await acceptReview(outbox, session.id);
+
+  const writeCalls: SessionWriteInput[] = [];
+  const relay = createRelay({
+    outbox,
+    transcriber: new FakeTranscriber(),
+    sessionExtract: async () => {
+      throw new Error("must not extract");
+    },
+    sessionWrite: async (input) => {
+      writeCalls.push(input);
+      return {};
+    },
+    now: clock.now,
+  });
+  await relay.syncNow();
+
+  expect(writeCalls).toHaveLength(1);
+  const done = await outbox.getSession(session.id);
+  expect(done?.status).toBe("done");
+});
+
+// ---------------------------------------------------------------------------
+// Amend — a done session can be reviewed again
+// ---------------------------------------------------------------------------
+
+test("a done session can be reopened for review and a second review reaches the write step", async () => {
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(outbox);
+  await outbox.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await drainToReview(harness);
+  await acceptReview(outbox, harness.session.id);
+  await harness.relay.syncNow();
+
+  // The session reached done.
+  const done = await outbox.getSession(harness.session.id);
+  expect(done?.status).toBe("done");
+
+  // Reopen from done, submit a second review, and write again.
+  await outbox.reopenSessionForReview(harness.session.id);
+  await acceptReview(outbox, harness.session.id, { atticRValue: 30 });
+  await harness.relay.syncNow();
+
+  expect(harness.writeCalls).toHaveLength(2);
+  expect(harness.writeCalls[1]?.reviewed).toEqual({ atticRValue: 30 });
+  const redone = await outbox.getSession(harness.session.id);
+  expect(redone?.status).toBe("done");
+});
+
+test("a session that failed a write, then succeeded, reaches done with no lastError", async () => {
+  const outbox = await openTestOutbox(uniqueName());
+  let attempt = 0;
+  const harness = await buildRelay(outbox, {
+    sessionWrite: async () => {
+      attempt += 1;
+      if (attempt < 3) throw Object.assign(new Error("gateway"), { status: 503 });
+      return { remoteId: "snugg-1" };
+    },
+  });
+  const { session: item } = await seedReviewedWriting(outbox);
+
+  for (let i = 0; i < 3; i += 1) {
+    await harness.relay.syncNow();
+    clock.advance(120_000);
+  }
+
+  const done = await outbox.getSession(item.id);
+  expect(done?.status).toBe("done");
+  // lastError was set on the transient failures and must be cleared on success.
+  expect(done?.lastError).toBeUndefined();
 });

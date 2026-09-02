@@ -54,9 +54,8 @@ export interface SessionWriteInput {
    */
   idempotencyKey: string;
   /**
-   * The write context, parsed from one of the session's recordings' `ctx`.
-   * All recordings in a session share the same `ctx` (they are for the same
-   * job), so the relay reads it from the first transcribed recording.
+   * The write context, from the session's `ctx` — set at open, opaque to core.
+   * The session owns the destination; the relay does not read recordings for it.
    */
   ctx: unknown;
 }
@@ -399,21 +398,12 @@ class QueueRelay implements Relay {
       );
     }
 
-    // Read ctx from one of the session's transcribed recordings.
-    const recordings = await this.#options.outbox.list({ sessionId: session.id });
-    const recording = recordings.find((r) => r.transcript !== undefined);
-    if (!recording) {
-      throw new TerminalQueueError(
-        `session ${session.id} has a review outcome but no transcribed recordings to provide a write context.`,
-      );
-    }
-
     const writeResult = await withTimeout(
       this.#options.sessionWrite({
         session,
         reviewed: outcome.fields,
         idempotencyKey: session.idempotencyKey,
-        ctx: recording.recording.ctx,
+        ctx: session.ctx,
       }),
       this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
       "session-write",
@@ -422,6 +412,10 @@ class QueueRelay implements Relay {
     await this.#patchSession(session.id, {
       status: "done",
       attempts: 0,
+      // A session that failed once and then succeeded should not carry the
+      // error it recovered from — an amend would present a stale failure as
+      // current. Nothing else clears this field.
+      lastError: undefined,
       ...(writeResult ? { writeResult } : {}),
     });
   }

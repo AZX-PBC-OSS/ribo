@@ -32,13 +32,12 @@ import { describeLocated, zodIssues } from "./zod-issues.js";
  * they reach here, and the adapter's schema is the last thing between them and a
  * customer's audit.
  *
- * ## ctx comes from the relay, not the recording
+ * ## ctx comes from the relay, from the session
  *
- * The relay reads `ctx` from one of the session's transcribed recordings and passes
- * it in `SessionWriteInput.ctx`. All recordings in a session share the same `ctx`
- * (they are for the same job), so which recording's `ctx` is used does not matter.
- * The step does not close over a `ctx` at construction — same reasoning as before
- * the split, just moved one layer out.
+ * The relay reads `ctx` from the session document and passes it in
+ * `SessionWriteInput.ctx`. The session owns the write destination; the relay
+ * does not read recordings for it. The step does not close over a `ctx` at
+ * construction — same reasoning as before the split, just moved one layer out.
  *
  * ## Both parses are terminal
  *
@@ -71,10 +70,10 @@ export function toWriteStep<V extends Record<string, unknown>, C>(
     const parsedCtx = adapter.ctxSchema.safeParse(ctx);
     if (!parsedCtx.success) {
       throw new TerminalQueueError(
-        `session ${session.id}: its recording's ctx is not a valid write context for the ` +
-          `"${adapter.name}" adapter — ${describeLocated(zodIssues(parsedCtx.error))}. The context is captured ` +
-          "with the recording and cannot be repaired by retrying; check what the host put in " +
-          "`Recording.ctx` at enqueue.",
+        `session ${session.id}: its ctx is not a valid write context for the ` +
+          `"${adapter.name}" adapter — ${describeLocated(zodIssues(parsedCtx.error))}. The context is set ` +
+          "at session open and cannot be repaired by retrying; check what the host passed to " +
+          "`Outbox.openSession`.",
       );
     }
 

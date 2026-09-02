@@ -10,9 +10,9 @@ export const SESSION_COLLECTION_NAME = "sessions";
  * The session state machine:
  *
  * ```
- * open → extracting → awaiting-review → writing → done
+ * open → extracting → awaiting-review → writing → done ⇄ awaiting-review (Outbox.reopenSessionForReview)
  *                          ↘ (transient) → failed → (backoff) → retry
- *                          ↘ (terminal)  → dead ⇢ awaiting-review (Outbox.reopenSessionForReview)
+ *                          ↘ (terminal)  → dead   ⇄ awaiting-review (Outbox.reopenSessionForReview)
  * ```
  *
  * A session owns extraction, review and write state for a set of recordings
@@ -28,10 +28,11 @@ export const SESSION_COLLECTION_NAME = "sessions";
  * **`awaiting-review` is the review gate, same as the recording side.** Absent
  * from {@link ACTIVE_SESSION_STATUSES} so the relay drains past it;
  * `Outbox.submitSessionReview` is the only way out, `Outbox.reopenSessionForReview`
- * the only way back from `dead`.
+ * the only way back from `done` or `dead`.
  *
- * **`dead` is the only terminal state.** `failed` is resting, same as the
- * recording's: the relay picks it back up once `nextAttemptAt` has passed.
+ * **Both `done` and `dead` have a human-driven way out.** `failed` is resting,
+ * same as the recording's: the relay picks it back up once `nextAttemptAt`
+ * has passed.
  */
 export const SESSION_STATUSES = [
   "open",
@@ -60,8 +61,12 @@ export const ACTIVE_SESSION_STATUSES = [
 ] as const satisfies readonly SessionStatus[];
 
 /**
- * Statuses the relay will not act on again unattended. `dead` has a
- * human-driven way out (`Outbox.reopenSessionForReview`); `done` has none.
+ * Statuses the relay will not act on again unattended. Both `done` and `dead`
+ * have a human-driven way out (`Outbox.reopenSessionForReview`). The constant
+ * keeps its name for now — whether it still earns it, or wants renaming to
+ * something like `RESTING_SESSION_STATUSES`, is an open question (see the
+ * session-ownership design's §10.1), left to a follow-up so a rename does not
+ * ride along with a behaviour change.
  */
 export const FINISHED_SESSION_STATUSES = [
   "done",
@@ -73,9 +78,14 @@ export const FINISHED_SESSION_STATUSES = [
  * in IndexedDB, and nothing else.
  *
  * A session owns the state the recording used to carry: `extracted`,
- * `reviewOutcome`, `writeResult`, `writtenInstances` and the vendor-write
- * `idempotencyKey`. The recording keeps capture and transcription; everything
- * downstream moves here.
+ * `reviewOutcome`, `writeResult` and the vendor-write `idempotencyKey`. The
+ * recording keeps capture and transcription; everything downstream moves here.
+ *
+ * The session also owns its write destination (`ctx`) and what it is for
+ * (`ref`). Both are set once at `openSession` and never patched: re-deciding
+ * the destination would strand a write, and re-deciding the subject would
+ * silently re-target it. `ctx` is opaque to core; `ref` is a bounded string
+ * core indexes but never parses.
  *
  * Pinned field-for-field against {@link sessionRxSchema} by
  * `session-schema.test.ts`, the same seam `schema.test.ts` guards for the
@@ -92,6 +102,19 @@ export const sessionDocumentSchema = z.strictObject({
    * Set by `Outbox.closeSession`; a reopened session clears this.
    */
   closedAt: z.iso.datetime().optional(),
+  /**
+   * The write destination — opaque to core, same posture as `Recording.ctx`.
+   * Authoritative for writing: the relay reads `session.ctx`, not a
+   * recording's. Set once at `openSession` and never patched.
+   */
+  ctx: z.unknown(),
+  /**
+   * What the session is for — a bounded, indexed string naming the job,
+   * assessment or work-order. Core never parses it; the contract is that it
+   * is queryable and non-unique (two sessions may share one, for a re-audit
+   * or a QA pass). Set once at `openSession` and never patched.
+   */
+  ref: z.string().min(1).max(128),
   /**
    * How many times a session-level step (extract or write) has failed.
    * Drives the backoff curve and, against `RelayOptions.maxAttempts`, when
@@ -131,15 +154,6 @@ export const sessionDocumentSchema = z.strictObject({
   /** Step output — whatever the tool adapter returned from the write. */
   writeResult: z.record(z.string(), z.unknown()).optional(),
   /**
-   * Per-instance write progress: which collection instances have already been
-   * written successfully in the current attempt cycle. Keys are top-level group
-   * names (e.g. `"hvac"`), values are boolean arrays where index `i` is `true`
-   * when instance `i` of that group has been written. Moved here from the
-   * recording, where instance positions mean something — instances come from
-   * the set-wide extraction, not from any one recording.
-   */
-  writtenInstances: z.record(z.string(), z.array(z.boolean())).optional(),
-  /**
    * The vendor write idempotency key. Generated once at session open and reused
    * on every retry — same guarantee as the recording's old `idempotencyKey`:
    * an ambiguous success (write landed, response lost) cannot double-write.
@@ -164,11 +178,14 @@ export type SessionItem = z.infer<typeof sessionItemSchema>;
 /**
  * The fields a caller may change after opening a session.
  *
- * `id`, `openedAt` and `idempotencyKey` are deliberately absent: they are
- * decided once and re-deciding any of them would break provenance or
- * idempotency. Same reasoning as `OutboxPatch` on the recording side.
+ * `id`, `openedAt`, `idempotencyKey`, `ctx` and `ref` are deliberately absent:
+ * they are decided once and re-deciding any of them would break provenance,
+ * idempotency, strand a write or silently re-target it. Same reasoning as
+ * `OutboxPatch` on the recording side.
  */
-export type SessionPatch = Partial<Omit<SessionDocument, "id" | "openedAt" | "idempotencyKey">>;
+export type SessionPatch = Partial<
+  Omit<SessionDocument, "id" | "openedAt" | "idempotencyKey" | "ctx" | "ref">
+>;
 
 /**
  * The RxDB JSON schema for the sessions collection.
@@ -187,6 +204,12 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
     status: { type: "string", maxLength: 16 },
     openedAt: { type: "string", maxLength: 32 },
     closedAt: { type: "string", maxLength: 32 },
+    // Opaque to core — no `maxLength` because RxDB only needs bounded widths
+    // for fields it has to encode as sortable index keys, and `ctx` is not
+    // indexed.
+    ctx: { type: "object" },
+    // Indexed, so RxDB needs a bounded width to build sortable index keys.
+    ref: { type: "string", maxLength: 128 },
     attempts: { type: "integer", minimum: 0 },
     nextAttemptAt: { type: "string", maxLength: 32 },
     lastError: { type: "string" },
@@ -197,12 +220,21 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
     extractedFromRecordingIds: { type: "array" },
     reviewOutcome: { type: "object" },
     writeResult: { type: "object" },
-    writtenInstances: { type: "object" },
     idempotencyKey: { type: "string", maxLength: 64 },
   },
-  required: ["id", "status", "openedAt", "attempts", "nextAttemptAt", "idempotencyKey"],
-  // `openedAt` so a UI can list sessions oldest-first without a post-sort.
-  indexes: ["openedAt"],
+  required: [
+    "id",
+    "status",
+    "openedAt",
+    "ctx",
+    "ref",
+    "attempts",
+    "nextAttemptAt",
+    "idempotencyKey",
+  ],
+  // `openedAt` so a UI can list sessions oldest-first without a post-sort;
+  // `ref` so "the session(s) for this job" is a real query, not a scan.
+  indexes: ["openedAt", "ref"],
   // Presence of this key is what enables attachments at all — omit it and
   // `putAttachment` throws. The sessions collection has no attachments today,
   // but enabling the flag now means adding one later is a schema-property edit,

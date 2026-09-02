@@ -142,7 +142,7 @@ async function parkedItem(
   overrides: Readonly<Record<string, Envelope>>,
   instances: Readonly<Record<string, number>> = {},
 ): Promise<string> {
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx: {}, ref: "job-7" });
   const item = await outbox.enqueue({
     recording: recording(),
     audio: new Blob(["x"], { type: "audio/webm" }),

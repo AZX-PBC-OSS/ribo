@@ -1,13 +1,11 @@
 import type { ToolAdapter } from "./adapter.js";
 import { TerminalQueueError } from "./queue/backoff.js";
-import type { Outbox } from "./queue/outbox.js";
 import type { SessionWriteStep, SessionWriteInput } from "./queue/relay.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 
 /**
  * A sibling composition of {@link toWriteStep} that writes each collection
- * instance separately, so a retry can resume mid-patch rather than replaying
- * instances that already succeeded.
+ * instance separately, so a vendor can honour `Idempotency-Key` per instance.
  *
  * `ToolAdapter.write` is unchanged: it still receives a parsed `V`, a parsed
  * context, and a `WriteMetadata` idempotency key. Only the *value* of that key
@@ -16,11 +14,14 @@ import { describeLocated, zodIssues } from "./zod-issues.js";
  * re-derives the same key for the same instance, so a vendor that honours
  * `Idempotency-Key` recognises a retry rather than creating a duplicate record.
  *
- * The per-instance write step also persists per-instance progress on the session
- * (`SessionDocument.writtenInstances`) before moving on. That narrows, but does
- * not close, the ambiguous-success window: if the vendor ignores the header, a
- * crash between the API creating a record and our persisting this marker can
- * still duplicate on retry. Server-side idempotency is required to eliminate it.
+ * **What was given up:** a write interrupted mid-collection now re-attempts
+ * instances it already sent, resting on the per-instance idempotency key alone.
+ * The positional `writtenInstances` marker that used to skip them was deleted
+ * because it carried a live data-loss bug (a reopened session with a removed
+ * instance silently skipped the survivor), and every repair considered
+ * substituted for the vendor identifier `write` discards. The receipts work
+ * will need a durable channel again and should re-add it deliberately rather
+ * than inherit the old positional one.
  *
  * Singleton groups are written together with the session's original idempotency
  * key, which is the correct granularity for one record per patch. A group with
@@ -28,14 +29,12 @@ import { describeLocated, zodIssues } from "./zod-issues.js";
  *
  * @param options.adapter - the tool adapter whose schema and write back this step
  *   delegates to.
- * @param options.outbox - the durable outbox to persist `writtenInstances` into.
  * @param options.collectionGroups - top-level field names that are per-instance
  *   arrays in the adapter's schema. Every other top-level field is treated as a
  *   singleton and written once.
  */
 export interface ToInstanceWriteStepOptions<V extends Record<string, unknown>, C> {
   readonly adapter: ToolAdapter<V, C>;
-  readonly outbox: Outbox;
   readonly collectionGroups: readonly string[];
 }
 
@@ -57,21 +56,21 @@ export function deriveInstanceIdempotencyKey(
 }
 
 /**
- * Build a per-instance write step from an adapter, an outbox and the list of
- * collection groups the adapter models as per-instance arrays.
+ * Build a per-instance write step from an adapter and the list of collection
+ * groups the adapter models as per-instance arrays.
  */
 export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
   options: ToInstanceWriteStepOptions<V, C>,
 ): SessionWriteStep {
-  const { adapter, outbox, collectionGroups } = options;
+  const { adapter, collectionGroups } = options;
   return async ({ session, reviewed, idempotencyKey, ctx }: SessionWriteInput): Promise<void> => {
     const parsedCtx = adapter.ctxSchema.safeParse(ctx);
     if (!parsedCtx.success) {
       throw new TerminalQueueError(
-        `session ${session.id}: its recording's ctx is not a valid write context for the ` +
-          `"${adapter.name}" adapter — ${describeLocated(zodIssues(parsedCtx.error))}. The context is captured ` +
-          "with the recording and cannot be repaired by retrying; check what the host put in " +
-          "`Recording.ctx` at enqueue.",
+        `session ${session.id}: its ctx is not a valid write context for the ` +
+          `"${adapter.name}" adapter — ${describeLocated(zodIssues(parsedCtx.error))}. The context is set ` +
+          "at session open and cannot be repaired by retrying; check what the host passed to " +
+          "`Outbox.openSession`.",
       );
     }
 
@@ -102,34 +101,15 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
       });
     }
 
-    let writtenInstances: Record<string, boolean[]> = { ...(session.writtenInstances ?? {}) };
     for (const { group, instances } of collections) {
       if (instances.length === 0) continue;
       for (let index = 0; index < instances.length; index += 1) {
-        if (writtenInstances[group]?.[index]) continue;
-
         const instancePatch = { [group]: [instances[index]] };
         const instanceKey = deriveInstanceIdempotencyKey(idempotencyKey, group, index);
         await adapter.write(adapter.schema.parse(instancePatch) as V, parsedCtx.data, {
           idempotencyKey: instanceKey,
         });
-
-        writtenInstances = markInstanceWritten(writtenInstances, group, index);
-        await outbox.patchSession(session.id, { writtenInstances });
       }
     }
   };
-}
-
-function markInstanceWritten(
-  written: Record<string, boolean[]>,
-  group: string,
-  index: number,
-): Record<string, boolean[]> {
-  const next = { ...written };
-  const groupProgress = [...(next[group] ?? [])];
-  while (groupProgress.length < index) groupProgress.push(false);
-  groupProgress[index] = true;
-  next[group] = groupProgress;
-  return next;
 }

@@ -127,7 +127,7 @@ export function getRecorder(): Recorder {
   handle ??= new Recorder({
     captureSession: async ({ recording, sourceId, mimeType }) => {
       const outbox = await getOutbox();
-      const session = await outbox.openSession();
+      const session = await outbox.openSession({ ctx: recording.ctx, ref: "playground" });
       const captureSession = await openCaptureSession({
         outbox,
         recording,

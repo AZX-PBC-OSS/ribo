@@ -31,9 +31,12 @@ async function open(): Promise<Outbox> {
   return outbox;
 }
 
+/** The session's destination and subject — required at open, opaque to core. */
+const SESSION_INPUT = { ctx: { jobId: "job-7" }, ref: "job-7" } as const;
+
 test("openSession creates an open session with an idempotency key", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   expect(session.status).toBe("open");
   expect(session.id).toBeTruthy();
   expect(session.idempotencyKey).toBeTruthy();
@@ -44,14 +47,18 @@ test("openSession creates an open session with an idempotency key", async () => 
 
 test("openSession with an injected id and idempotency key uses them", async () => {
   const outbox = await open();
-  const session = await outbox.openSession({ id: "s-custom", idempotencyKey: "key-custom" });
+  const session = await outbox.openSession({
+    ...SESSION_INPUT,
+    id: "s-custom",
+    idempotencyKey: "key-custom",
+  });
   expect(session.id).toBe("s-custom");
   expect(session.idempotencyKey).toBe("key-custom");
 });
 
 test("closeSession transitions open → extracting and sets closedAt", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   const closed = await outbox.closeSession(session.id);
   expect(closed.status).toBe("extracting");
   expect(closed.closedAt).toBeDefined();
@@ -59,14 +66,14 @@ test("closeSession transitions open → extracting and sets closedAt", async () 
 
 test("closeSession refuses a session that is not open", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   await outbox.closeSession(session.id);
   await expect(outbox.closeSession(session.id)).rejects.toThrow(/not "open"/);
 });
 
 test("getSession reads a session by id", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   const read = await outbox.getSession(session.id);
   expect(read).toEqual(session);
 });
@@ -89,9 +96,9 @@ test("listSessions returns sessions sorted by openedAt ascending", async () => {
   opened.push({ outbox, name, storage });
 
   t = 1_000;
-  const first = await outbox.openSession();
+  const first = await outbox.openSession(SESSION_INPUT);
   t = 2_000;
-  const second = await outbox.openSession();
+  const second = await outbox.openSession(SESSION_INPUT);
   const sessions = await outbox.listSessions();
   const firstIdx = sessions.findIndex((s) => s.id === first.id);
   const secondIdx = sessions.findIndex((s) => s.id === second.id);
@@ -100,7 +107,7 @@ test("listSessions returns sessions sorted by openedAt ascending", async () => {
 
 test("listSessions filters by status", async () => {
   const outbox = await open();
-  const openSession = await outbox.openSession();
+  const openSession = await outbox.openSession(SESSION_INPUT);
   await outbox.closeSession(openSession.id);
   const extracting = await outbox.listSessions({ status: "extracting" });
   expect(extracting).toHaveLength(1);
@@ -111,7 +118,7 @@ test("listSessions filters by status", async () => {
 
 test("patchSession updates fields and validates", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   const patched = await outbox.patchSession(session.id, { lastError: "something" });
   expect(patched.lastError).toBe("something");
   expect(patched.status).toBe("open");
@@ -119,7 +126,7 @@ test("patchSession updates fields and validates", async () => {
 
 test("patchSession refuses an invalid status", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   await expect(
     outbox.patchSession(session.id, { status: "transcribing" as never }),
   ).rejects.toThrow();
@@ -127,7 +134,7 @@ test("patchSession refuses an invalid status", async () => {
 
 test("submitSessionReview moves awaiting-review → writing", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   await outbox.patchSession(session.id, {
     status: "awaiting-review",
     extracted: {},
@@ -149,7 +156,7 @@ test("submitSessionReview with a discard moves to awaiting-review... no, to done
   // (which drops audio), there is no audio on the session to drop — the
   // recordings stay. The session transitions to `done` with the outcome recorded.
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   await outbox.patchSession(session.id, {
     status: "awaiting-review",
     extracted: {},
@@ -163,7 +170,7 @@ test("submitSessionReview with a discard moves to awaiting-review... no, to done
 
 test("submitSessionReview refuses a session that is not awaiting-review", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   await expect(
     outbox.submitSessionReview(session.id, { status: "accepted", fields: {} }),
   ).rejects.toThrow(/not "awaiting-review"/);
@@ -171,7 +178,7 @@ test("submitSessionReview refuses a session that is not awaiting-review", async 
 
 test("reopenSessionForReview moves dead → awaiting-review and clears the outcome", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   await outbox.patchSession(session.id, {
     status: "dead",
     extracted: { basedata: { yearBuilt: 1950 } },
@@ -192,22 +199,67 @@ test("reopenSessionForReview moves dead → awaiting-review and clears the outco
   expect(reopened.extractedFromRecordingIds).toEqual(["r1"]);
 });
 
-test("reopenSessionForReview refuses a session that is not dead", async () => {
+test("reopenSessionForReview refuses a session that is not finished", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
-  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/not "dead"/);
+  const session = await outbox.openSession(SESSION_INPUT);
+  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/not "done" or "dead"/);
+});
+
+test("reopenSessionForReview moves done → awaiting-review and clears the outcome", async () => {
+  const outbox = await open();
+  const session = await outbox.openSession(SESSION_INPUT);
+  await outbox.patchSession(session.id, {
+    status: "done",
+    extracted: { basedata: { yearBuilt: 1950 } },
+    extractedFromRecordingIds: ["r1"],
+    reviewOutcome: { status: "accepted", fields: {} },
+    writeResult: { remoteId: "snugg-1" },
+    attempts: 2,
+  });
+  const reopened = await outbox.reopenSessionForReview(session.id);
+  expect(reopened.status).toBe("awaiting-review");
+  expect(reopened.reviewOutcome).toBeUndefined();
+  expect(reopened.attempts).toBe(0);
+  expect(reopened.extracted).toEqual({ basedata: { yearBuilt: 1950 } });
+  expect(reopened.extractedFromRecordingIds).toEqual(["r1"]);
+});
+
+test("reopenSessionForReview refuses a done session with no extracted data", async () => {
+  const outbox = await open();
+  const session = await outbox.openSession(SESSION_INPUT);
+  await outbox.patchSession(session.id, { status: "done" });
+  // Named by the status it found. A completed session told it "never reached
+  // extraction" is described as the opposite of what it is, and the caller
+  // amending it is looking at the wrong explanation.
+  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/no extracted/);
+  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/completed its write/);
+});
+
+test("a session reopened from done starts its next write cycle with attempts at zero", async () => {
+  const outbox = await open();
+  const session = await outbox.openSession(SESSION_INPUT);
+  await outbox.patchSession(session.id, {
+    status: "done",
+    extracted: { basedata: {} },
+    extractedFromRecordingIds: ["r1"],
+    attempts: 3,
+  });
+  const reopened = await outbox.reopenSessionForReview(session.id);
+  expect(reopened.attempts).toBe(0);
 });
 
 test("reopenSessionForReview refuses a dead session with no extracted data", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   await outbox.patchSession(session.id, { status: "dead", lastError: "extraction failed" });
   await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/no extracted/);
+  // The other half of the branch: "gave up", never "completed its write".
+  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/gave up/);
 });
 
 test("reopenSessionForReview refuses a dead session with no transcript ids", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   await outbox.patchSession(session.id, {
     status: "dead",
     extracted: { basedata: {} },
@@ -218,7 +270,7 @@ test("reopenSessionForReview refuses a dead session with no transcript ids", asy
 
 test("a session with a nested review outcome round-trips storage", async () => {
   const outbox = await open();
-  const session = await outbox.openSession();
+  const session = await outbox.openSession(SESSION_INPUT);
   await outbox.patchSession(session.id, {
     status: "awaiting-review",
     extracted: {},
@@ -236,4 +288,39 @@ test("a session with a nested review outcome round-trips storage", async () => {
   await outbox.submitSessionReview(session.id, outcome);
   const read = await outbox.getSession(session.id);
   expect(read?.reviewOutcome).toEqual(outcome);
+});
+
+test("openSession rejects a call with no ctx", async () => {
+  const outbox = await open();
+  await expect(outbox.openSession({ ref: "job-7" } as never)).rejects.toThrow();
+});
+
+test("openSession rejects a call with no ref", async () => {
+  const outbox = await open();
+  await expect(outbox.openSession({ ctx: { jobId: "job-7" } } as never)).rejects.toThrow();
+});
+
+test("a session opened with a ctx returns it on the SessionItem", async () => {
+  const outbox = await open();
+  const session = await outbox.openSession({
+    ctx: { jobId: "job-42" },
+    ref: "job-42",
+  });
+  expect(session.ctx).toEqual({ jobId: "job-42" });
+});
+
+test("two sessions sharing a ref are both returned by a query on that ref", async () => {
+  const outbox = await open();
+  const a = await outbox.openSession({ ctx: {}, ref: "shared" });
+  const b = await outbox.openSession({ ctx: {}, ref: "shared" });
+  const shared = await outbox.listSessions({ ref: "shared" });
+  expect(shared.map((s) => s.id).sort()).toEqual([a.id, b.id].sort());
+});
+
+test("a query on a different ref returns neither", async () => {
+  const outbox = await open();
+  await outbox.openSession({ ctx: {}, ref: "shared" });
+  await outbox.openSession({ ctx: {}, ref: "shared" });
+  const other = await outbox.listSessions({ ref: "other" });
+  expect(other).toHaveLength(0);
 });

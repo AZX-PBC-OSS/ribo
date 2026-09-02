@@ -11,6 +11,7 @@ import type {
   RequiredOnCreate,
   ReviewFields,
   ReviewIssue,
+  ReviewNode,
   ReviewOutcome,
   ReviewRequest,
   ReviewSubmission,
@@ -114,8 +115,16 @@ export interface UseReviewResult {
   readonly errors: Readonly<Record<FieldPath, string>>;
   /** Existing records of each collection group, if any were supplied. */
   readonly existingRecords: Readonly<Record<string, readonly ExistingRecord[]>> | undefined;
-  /** Groups that appeared in the extracted data as empty arrays, so the card can offer an add affordance. */
-  readonly presentButEmpty: readonly string[] | undefined;
+  /**
+   * The review's leaves in the shape the schema declared them: groups, instances, leaves,
+   * each collection group carrying whether it is `absent`, `empty` or `populated`.
+   *
+   * `fields` stays the decision channel — it is what `decide` and `submit` are keyed by, and
+   * its order is the contract. This is the rendering channel, and it exists so a host does
+   * not re-derive the structure from path text. `undefined` until the review is ready, same
+   * as `fields`.
+   */
+  readonly tree: readonly ReviewNode[] | undefined;
   /** The current link-or-create decision for an instance path, or `undefined` if the path is not a known instance. */
   readonly linkDecisionOf: (instancePath: string) => InstanceLinkDecision | undefined;
   /** Decide to link an instance to an existing record. */
@@ -838,7 +847,7 @@ export function useReview(
     untouched,
     errors,
     existingRecords: request?.existingRecords,
-    presentButEmpty: request?.presentButEmpty,
+    tree: request?.tree,
     linkDecisionOf,
     linkInstance,
     createInstance,

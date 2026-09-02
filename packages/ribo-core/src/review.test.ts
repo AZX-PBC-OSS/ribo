@@ -14,6 +14,7 @@ import type {
   FieldDecision,
   FieldDecisions,
   ReviewField,
+  ReviewNode,
   ReviewOutcome,
   ReviewRequest,
 } from "./review.js";
@@ -783,7 +784,7 @@ test("a nested leaf can be required when its group declares it", () => {
  * determines every leaf within each instance. A leaf the model omitted from a present
  * instance still appears with the sentinel envelope, so no leaf of a reviewed instance
  * can silently vanish. Empty collections have no leaves, so they are recorded separately
- * in {@link ReviewRequest.presentButEmpty}.
+ * on the group's state in {@link ReviewRequest.tree}.
  */
 
 const hvacElementSchema = z.object({
@@ -865,14 +866,17 @@ describe("buildReviewRequest — collections: data counts instances, schema coun
     });
 
     expect(Object.keys(request.fields)).toEqual(["dhw[k1].dhwType2"]);
-    expect(request.presentButEmpty).toEqual(["hvac"]);
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind === "collection" && hvac.state).toBe("empty");
   });
 
   test("a group absent from the extraction output is not recorded as present-but-empty", () => {
     const request = collectionRequestFor({});
 
     expect(Object.keys(request.fields)).toHaveLength(0);
-    expect(request.presentButEmpty).toEqual([]);
+    for (const node of request.tree) {
+      expect(node.kind === "collection" && node.state).toBe("absent");
+    }
   });
 
   test("instance order in the request follows the emitted array order", () => {
@@ -1032,7 +1036,8 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
       dhw: [{ dhwType2: { value: "Tank Water Heater", confidence: 1, sourceSpan: "tank" } }],
     });
 
-    expect(request.presentButEmpty).toEqual([]);
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind === "collection" && hvac.state).toBe("absent");
 
     const paths = Object.keys(request.fields);
     const outcome = resolveReview(request, {
@@ -1279,4 +1284,115 @@ test("the Extractor seam has no structural parameter for existing records", () =
     : false;
   const _assert: ExactlyOneString = true;
   void _assert;
+});
+
+/* The review tree — the structure the schema walk already had.
+ *
+ * `fields` is flat, with the group/instance structure encoded in the path text, so every
+ * host rebuilt it with `parseFieldPath`. The tree returns what `collectFields` saw. Group
+ * state folds in `presentButEmpty`: absent, empty and populated are three states a host
+ * previously derived by cross-referencing two collections, which is a bug each host got
+ * to write independently.
+ */
+
+const treeSchema = z.object({
+  rValue: z.number().nullable().optional(),
+  healthSafety: z
+    .object({
+      ambientCo: z.enum(["passed", "failed"]).nullable().optional(),
+      gasLeak: z.enum(["passed", "failed"]).nullable().optional(),
+    })
+    .optional(),
+  hvac: z.array(hvacElementSchema).optional(),
+});
+
+const treeRequestFor = (extracted: Record<string, unknown>): ReviewRequest =>
+  buildReviewRequest(extracted, transcript, treeSchema);
+
+/** Every leaf path the tree reaches, in the order the tree presents them. */
+const treeLeafPaths = (nodes: readonly ReviewNode[]): string[] =>
+  nodes.flatMap((node) => {
+    if (node.kind === "leaf") return [node.path];
+    if (node.kind === "object") return treeLeafPaths(node.children);
+    return node.instances.flatMap((instance) => treeLeafPaths(instance.children));
+  });
+
+const groupNamed = (request: ReviewRequest, key: string): ReviewNode | undefined =>
+  request.tree.find((node) => node.key === key);
+
+describe("buildReviewRequest — the tree carries the shape the walk already knew", () => {
+  test("a collection absent from the extraction reports state absent", () => {
+    const group = groupNamed(treeRequestFor({}), "hvac");
+
+    expect(group?.kind).toBe("collection");
+    expect(group?.kind === "collection" && group.state).toBe("absent");
+    expect(group?.kind === "collection" && group.instances).toEqual([]);
+  });
+
+  test("a collection present as an empty array reports state empty", () => {
+    const group = groupNamed(treeRequestFor({ hvac: [] }), "hvac");
+
+    expect(group?.kind === "collection" && group.state).toBe("empty");
+    expect(group?.kind === "collection" && group.instances).toEqual([]);
+  });
+
+  test("a populated collection reports its instances, keyed and ordered as the array was", () => {
+    const request = treeRequestFor({
+      hvac: [
+        { hvacSystemEquipmentType: { value: "First", confidence: 1, sourceSpan: "first" } },
+        { hvacSystemEquipmentType: { value: "Second", confidence: 1, sourceSpan: "second" } },
+      ],
+    });
+    const group = groupNamed(request, "hvac");
+
+    expect(group?.kind === "collection" && group.state).toBe("populated");
+    expect(group?.kind === "collection" && group.instances.map((i) => i.key)).toEqual(["k1", "k2"]);
+    expect(group?.kind === "collection" && group.instances.map((i) => i.path)).toEqual([
+      "hvac[k1]",
+      "hvac[k2]",
+    ]);
+  });
+
+  test("the tree's leaves are exactly the flat map's keys — one source, two views", () => {
+    const request = treeRequestFor({
+      rValue: { value: 30, confidence: 1, sourceSpan: "R30" },
+      hvac: [{ hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" } }],
+    });
+
+    expect(new Set(treeLeafPaths(request.tree))).toEqual(new Set(Object.keys(request.fields)));
+  });
+
+  test("the tree presents leaves in the same order as the flat map, nested group in place", () => {
+    const request = treeRequestFor({
+      rValue: { value: 30, confidence: 1, sourceSpan: "R30" },
+      hvac: [{ hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" } }],
+    });
+
+    expect(treeLeafPaths(request.tree)).toEqual(Object.keys(request.fields));
+  });
+
+  test("a leaf node carries the same ReviewField object the flat map does, not a copy", () => {
+    const request = treeRequestFor({ rValue: { value: 30, confidence: 1, sourceSpan: "R30" } });
+    const node = groupNamed(request, "rValue");
+
+    expect(node?.kind).toBe("leaf");
+    expect(node?.kind === "leaf" && node.field).toBe(request.fields["rValue"]);
+  });
+
+  test("a nested object group exposes its leaves as children rather than as dotted paths", () => {
+    const request = treeRequestFor({
+      healthSafety: { ambientCo: { value: "passed", confidence: 1, sourceSpan: "co" } },
+    });
+    const group = groupNamed(request, "healthSafety");
+
+    expect(group?.kind).toBe("object");
+    expect(group?.kind === "object" && treeLeafPaths(group.children)).toEqual([
+      "healthSafety.ambientCo",
+      "healthSafety.gasLeak",
+    ]);
+  });
+
+  test("presentButEmpty is gone — the state it encoded lives on the group", () => {
+    expect("presentButEmpty" in treeRequestFor({ hvac: [] })).toBe(false);
+  });
 });

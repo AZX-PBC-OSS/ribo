@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useSyncExternalStore, type ChangeEvent } from "react";
 import { z } from "zod";
-import { parseFieldPath, stripOptionalNullable } from "@azx/ribo-core";
+import { stripOptionalNullable } from "@azx/ribo-core";
 import type {
   FieldDecision,
   FieldPath,
   ReviewField,
   ReviewFields,
+  ReviewNode,
   SessionItem,
 } from "@azx/ribo-core";
 import { useReview, useSessions } from "@azx/ribo-ui-react";
@@ -69,13 +70,13 @@ import {
  *
  * ## Grouping is generic and instance-aware
  *
- * A card's leaves are grouped by the **first segment of the path** and then by the
- * bracketed instance key (`"hvac[k1]"`), derived from {@link parseFieldPath} rather
- * than by naming Snugg Pro's seven resource groups. A leaf path with no group
- * segment (a flat adapter) falls into one shared, unnamed group. Collection groups
- * render each instance as a subsection with an add/remove affordance; an empty-but-
- * present collection renders the group with an add affordance so the auditor can
- * still notice it was missed.
+ * A card's groups and instances come from `useReview`'s `tree` — core's own schema walk,
+ * handed over in the shape it saw rather than flattened into path text this file would
+ * have to parse back. `groupFields` below is a rename onto this panel's rendering types,
+ * not a reconstruction. Collection groups render each instance as a subsection with an
+ * add/remove affordance; a group whose state is `empty` renders with an add affordance so
+ * the auditor can still notice it was missed, while an `absent` one renders nothing —
+ * "there are none of these" and "never mentioned" are different claims.
  *
  * ## The gate
  *
@@ -123,64 +124,58 @@ interface ResourceGroup {
   readonly isEmpty: boolean;
 }
 
-/** Derive resource groups and instances from the leaf paths, never by naming a group. */
-function groupFields(
-  fields: ReviewFields,
-  presentButEmpty: readonly string[] = [],
-): readonly ResourceGroup[] {
-  const groups = new Map<string | undefined, Map<string, FieldPath[]>>();
-  const groupOrder: (string | undefined)[] = [];
-
-  for (const path of Object.keys(fields)) {
-    const segments = parseFieldPath(path);
-    const groupName = segments[0]?.key;
-    // The instance key is the bracketed segment that follows the group, if any.
-    const instanceKey = segments[1]?.kind === "instanceKey" ? segments[1].key : undefined;
-    // The map key is the bare instance key ("k1") for collections, or "" for singleton groups.
-    const mapKey = instanceKey ?? "";
-
-    if (!groups.has(groupName)) {
-      groups.set(groupName, new Map());
-      groupOrder.push(groupName);
-    }
-    const instances = groups.get(groupName)!;
-    if (!instances.has(mapKey)) {
-      instances.set(mapKey, []);
-    }
-    instances.get(mapKey)!.push(path);
-  }
-
-  const result: ResourceGroup[] = groupOrder.map((name) => {
-    const instances = groups.get(name)!;
-    const entries = [...instances.entries()];
-    const hasUnnamedSingleton = entries.length === 1 && entries[0]![0] === "";
-    if (hasUnnamedSingleton) {
-      return {
-        name,
-        instances: [{ path: name ?? "", key: "", label: "", paths: entries[0]![1] }],
-        isEmpty: false,
-      };
-    }
-    return {
-      name,
-      instances: entries
-        .filter(([key]) => key !== "")
-        .map(([key, paths], index) => ({
-          path: `${name}[${key}]`,
-          key,
-          label: `${humanize(name ?? "")} ${index + 1}`,
-          paths,
-        })),
-      isEmpty: false,
-    };
+/** Every leaf path under a node, in the order the tree presents them. */
+function leafPathsOf(nodes: readonly ReviewNode[]): FieldPath[] {
+  return nodes.flatMap((node) => {
+    if (node.kind === "leaf") return [node.path];
+    if (node.kind === "object") return leafPathsOf(node.children);
+    return node.instances.flatMap((instance) => leafPathsOf(instance.children));
   });
+}
 
-  for (const groupName of presentButEmpty) {
-    if (!groups.has(groupName)) {
-      result.push({ name: groupName, instances: [], isEmpty: true });
+/**
+ * Map core's review tree onto this panel's rendering shape.
+ *
+ * This used to reconstruct the group/instance structure from the leaf paths with
+ * `parseFieldPath` — roughly sixty lines of grouping, ordering and empty-group patching,
+ * which core threw away and every host wrote again. The tree is the same walk's own output,
+ * so this is now a rename rather than a derivation.
+ *
+ * An `absent` collection is skipped: the group was never mentioned, so there is nothing to
+ * show and no add affordance to offer. `empty` means "there are none of these", which is a
+ * claim worth rendering.
+ */
+function groupFields(tree: readonly ReviewNode[]): readonly ResourceGroup[] {
+  const result: ResourceGroup[] = [];
+  for (const node of tree) {
+    if (node.kind === "leaf") {
+      result.push({
+        name: node.key,
+        instances: [{ path: node.path, key: "", label: "", paths: [node.path] }],
+        isEmpty: false,
+      });
+      continue;
     }
+    if (node.kind === "object") {
+      result.push({
+        name: node.key,
+        instances: [{ path: node.path, key: "", label: "", paths: leafPathsOf(node.children) }],
+        isEmpty: false,
+      });
+      continue;
+    }
+    if (node.state === "absent") continue;
+    result.push({
+      name: node.key,
+      instances: node.instances.map((instance, index) => ({
+        path: instance.path,
+        key: instance.key,
+        label: `${humanize(node.key)} ${index + 1}`,
+        paths: leafPathsOf(instance.children),
+      })),
+      isEmpty: node.state === "empty",
+    });
   }
-
   return result;
 }
 
@@ -388,7 +383,7 @@ function ReviewCard({ session }: { session: SessionItem }) {
     reject,
     untouched,
     errors,
-    presentButEmpty,
+    tree,
     addInstance,
     removeInstance,
     submit,
@@ -408,10 +403,7 @@ function ReviewCard({ session }: { session: SessionItem }) {
   );
   const blocked = blockedPaths.length > 0;
 
-  const groups = useMemo(
-    () => (fields === undefined ? [] : groupFields(fields, presentButEmpty)),
-    [fields, presentButEmpty],
-  );
+  const groups = useMemo(() => (tree === undefined ? [] : groupFields(tree)), [tree]);
 
   // Re-derived from the envelope itself, not from what a flatten walk happened to
   // find — see the `@file` note. `stated` / `silent` are purely informational: the

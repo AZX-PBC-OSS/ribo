@@ -61,6 +61,22 @@ export interface OpenSessionInput {
   readonly id?: string;
   /** Idempotency key for the vendor write. Generated if omitted. */
   readonly idempotencyKey?: string;
+  /**
+   * The write destination — opaque to core in what it MEANS, but it must be an
+   * object: it is stored as one, and the adapter parses it through
+   * `ToolAdapter.ctxSchema` at write time. `unknown` rather than a type
+   * parameter for the same reason `Recording.ctx` is: core has no business
+   * knowing what a session is about.
+   * Required: the session owns its destination, so the relay does not recover
+   * it from a recording.
+   */
+  readonly ctx: unknown;
+  /**
+   * What the session is for — a bounded, indexed string. Required and
+   * non-unique: two sessions may share one (a re-audit, a QA pass). Core never
+   * parses it; the contract is that it is queryable.
+   */
+  readonly ref: string;
 }
 
 /**
@@ -69,6 +85,9 @@ export interface OpenSessionInput {
  */
 export interface SessionQuery {
   status?: SessionStatus | readonly SessionStatus[];
+  /** Match sessions whose `ref` is exactly this string. */
+  ref?: string;
+  /** At most this many sessions, still lowest-`openedAt` first. */
   limit?: number;
 }
 
@@ -577,15 +596,34 @@ export class Outbox {
    * Open a session: the auditor is starting a job. The session owns extraction,
    * review and write state for a set of recordings captured together.
    *
-   * The id and idempotency key are generated if not supplied, so the common
-   * call is `outbox.openSession()` with no arguments.
+   * The id and idempotency key are generated if not supplied. `ctx` (the write
+   * destination) and `ref` (what the session is for) are required — the session
+   * owns its destination and its subject, and both are decided once.
    */
-  async openSession(options: OpenSessionInput = {}): Promise<SessionItem> {
+  async openSession(options: OpenSessionInput): Promise<SessionItem> {
+    // `ctx` is typed `unknown` (required), but `z.unknown()` accepts
+    // `undefined` — so the schema parse alone cannot enforce presence. A
+    // host that bypasses the type system would silently open a session with
+    // no write destination.
+    //
+    // The object check is the same guard one level up. `sessionRxSchema` types
+    // `ctx` as an object, so a primitive passes both the TypeScript signature
+    // (`unknown`) and the zod parse, then fails deep inside RxDB's insert
+    // validator where the error names a JSON-schema path rather than the
+    // mistake. Refusing it here costs nothing and says what is wrong.
+    if (options.ctx === undefined || typeof options.ctx !== "object" || options.ctx === null) {
+      throw new Error(
+        "openSession: `ctx` must be an object — the session owns its write destination, and " +
+          "the adapter parses it through `ToolAdapter.ctxSchema`.",
+      );
+    }
     const doc = await this.#sessionsCollection.insert(
       sessionDocumentSchema.parse({
         id: options.id ?? this.#createId(),
         status: "open",
         openedAt: this.#nowIso(),
+        ctx: options.ctx,
+        ref: options.ref,
         attempts: 0,
         nextAttemptAt: this.#nowIso(),
         idempotencyKey: options.idempotencyKey ?? this.#createIdempotencyKey(),
@@ -713,44 +751,61 @@ export class Outbox {
   }
 
   /**
-   * Move a `dead` session back to `awaiting-review`, so a human can correct
-   * whatever killed it and resubmit.
+   * Move a `done` or `dead` session back to `awaiting-review`, so a human can
+   * correct whatever went wrong and resubmit. "Amend" is the user-facing word;
+   * the API keeps the one method because the body is the same for both source
+   * statuses.
    *
-   * **`dead` is the only legal source status**, for the same reasons as
-   * {@link reopenForReview} on recordings: `done` means the write reached the
-   * host tool (reopening would double-write), and any active status would race
-   * the relay.
+   * **`done` and `dead` are the only legal source statuses.** Any active
+   * status would race the relay. The guard's reasoning for `done` was that
+   * reopening would double-write; that is sound and currently vacuous — vendor
+   * egress is gated, so nothing has reached the host tool. When egress lands,
+   * a second review of an already-written session must update the records it
+   * created rather than create more, which requires the vendor identifier
+   * `write` does not return yet (tracked as its own Asana ticket).
    *
-   * Also refused: a `dead` session missing `extracted` OR missing
+   * Also refused: a session missing `extracted` OR missing
    * `extractedFromRecordingIds`. Both are needed to re-present the extraction
    * for review — `extracted` is the draft, and `extractedFromRecordingIds`
    * names the recordings whose transcripts produced it (the grounding source).
+   * The refusal message branches on which terminal status was found, since
+   * "already written" and "gave up" are different things to explain.
    *
-   * Clears the stale `reviewOutcome` and resets `attempts` to `0`, same as
-   * the recording side. `lastError` is deliberately left — it explains why the
-   * session needed reopening.
+   * Clears the stale `reviewOutcome` and resets `attempts` to `0` — the
+   * reviewer changed something, so the previous cycle's exhaustion says nothing
+   * about this one's chances. `lastError` is deliberately left — it explains
+   * why the session needed reopening.
    */
   async reopenSessionForReview(id: string): Promise<SessionItem> {
     const doc = await this.#sessionsCollection.findOne(id).exec();
     if (!doc) throw new Error(`outbox: no session with id "${id}"`);
 
     const updated = await doc.incrementalModify((current) => {
-      if (current.status !== "dead") {
+      if (current.status !== "dead" && current.status !== "done") {
         throw new Error(
-          `outbox: session ${id} is "${current.status}", not "dead", so it cannot be reopened ` +
-            "for review. Only a dead session may be re-parked this way.",
+          `outbox: session ${id} is "${current.status}", not "done" or "dead", so it cannot ` +
+            "be reopened for review. Only a finished session may be re-parked this way.",
         );
       }
+      // "Already written" and "gave up" are different things to explain, and
+      // the caller is looking at one of them. A `done` session told it "never
+      // reached extraction" is being described as the opposite of what it is.
+      const because =
+        current.status === "done"
+          ? "this session completed its write, so amending it means reviewing that extraction again"
+          : "this session gave up before completing, so reopening it means reviewing what it had";
+
       if (current.extracted === undefined) {
         throw new Error(
-          `outbox: session ${id} has no extracted data to review — it never reached extraction, ` +
-            "so there is nothing to re-park it with.",
+          `outbox: session ${id} is "${current.status}" but has no extracted data to review — ` +
+            `${because}, and there is none to re-park it with.`,
         );
       }
       if (current.extractedFromRecordingIds === undefined) {
         throw new Error(
-          `outbox: session ${id} has extracted data but no recording ids, so the extraction's ` +
-            "provenance is lost — there is nothing to ground the extracted values against.",
+          `outbox: session ${id} is "${current.status}" and has extracted data but no recording ` +
+            `ids, so the extraction's provenance is lost — ${because}, and there is nothing to ` +
+            "ground the extracted values against.",
         );
       }
 
@@ -896,10 +951,13 @@ function persistedSessionFieldsOf(data: Record<string, unknown>): Record<string,
  * `watchSessions` and `nextPendingSession` cannot disagree about what a query
  * means — in particular about the `openedAt`-ascending sort.
  */
-function sessionMangoQuery({ status, limit }: SessionQuery): MangoQuery<SessionDocument> {
+function sessionMangoQuery({ status, ref, limit }: SessionQuery): MangoQuery<SessionDocument> {
   const statuses = status === undefined ? undefined : [status].flat();
+  const selector: Record<string, unknown> = {};
+  if (statuses) selector.status = { $in: statuses };
+  if (ref !== undefined) selector.ref = ref;
   return {
-    ...(statuses ? { selector: { status: { $in: statuses } } } : {}),
+    ...(Object.keys(selector).length > 0 ? { selector } : {}),
     sort: [{ openedAt: "asc" }],
     ...(limit === undefined ? {} : { limit }),
   };

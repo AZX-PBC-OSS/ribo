@@ -52,7 +52,7 @@ test("an injected non-Dexie (memory) RxStorage drives the same Outbox API", asyn
   const outbox = await openOutbox({ name, storage });
   opened.push({ outbox, name, storage });
 
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
   const enqueued = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
 
   // Same projection contract the Dexie-backed tests assert.
@@ -87,7 +87,7 @@ test("a nested review outcome with dotted paths round-trips storage with no migr
   const outbox = await openOutbox({ name, storage });
   opened.push({ outbox, name, storage });
 
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
   await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
   await outbox.patchSession(session.id, { status: "awaiting-review" });
 

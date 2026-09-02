@@ -16,9 +16,17 @@ import { deriveInstanceIdempotencyKey, toInstanceWriteStep } from "./instance-wr
 /**
  * @file `toInstanceWriteStep` — per-instance write-back and resumability.
  *
- * The sibling of `toWriteStep`: it writes each collection instance separately,
- * derives a stable idempotency key per instance, and persists per-instance
- * progress so a retry resumes after the instances that already succeeded.
+ * The sibling of `toWriteStep`: it writes each collection instance separately
+ * and derives a stable idempotency key per instance, so a vendor honouring
+ * `Idempotency-Key` recognises a retried instance rather than creating a second
+ * record.
+ *
+ * It no longer persists per-instance progress. That marker was positional, and
+ * position is not identity: `reopenSessionForReview` preserves progress across
+ * a review cycle while `resolveReview` renumbers the instances that survived
+ * it, so a reviewer who deleted an instance could silently strand its
+ * neighbour. The reopen case below pins exactly that, and it is the test that
+ * should stop positional identity coming back when receipts land.
  */
 
 // --- The adapter under test -------------------------------------------------
@@ -94,9 +102,8 @@ const seedSession = async (
   outbox: Outbox,
   ctx: unknown,
   fields: Record<string, unknown>,
-  writtenInstances?: Record<string, boolean[]>,
 ): Promise<{ session: SessionItem; ctx: unknown }> => {
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx, ref: "job-7" });
   const enqueued = await outbox.enqueue({
     recording: {
       id: "rec-1",
@@ -121,12 +128,6 @@ const seedSession = async (
     status: "accepted",
     fields,
   });
-  if (writtenInstances) {
-    return {
-      session: await outbox.patchSession(session.id, { writtenInstances }),
-      ctx,
-    };
-  }
   return { session: reviewed, ctx };
 };
 
@@ -144,7 +145,6 @@ test("each instance's derived key is stable across retries and distinct between 
   const written: Write[] = [];
   const step = toInstanceWriteStep({
     adapter: makeAdapter(written),
-    outbox,
     collectionGroups: ["hvac"],
   });
 
@@ -180,7 +180,6 @@ test("singleton groups are written once with the session's original idempotency 
   const written: Write[] = [];
   const step = toInstanceWriteStep({
     adapter: makeAdapter(written),
-    outbox,
     collectionGroups: ["hvac"],
   });
 
@@ -214,7 +213,6 @@ test("a patch with an empty collection group writes nothing for that group", asy
   const written: Write[] = [];
   const step = toInstanceWriteStep({
     adapter: makeAdapter(written),
-    outbox,
     collectionGroups: ["hvac"],
   });
 
@@ -238,83 +236,13 @@ test("a patch with an empty collection group writes nothing for that group", asy
   expect(written[0]!.fields).toEqual({ basedata: { yearBuilt: 2004 } });
 });
 
-test("progress is persisted before the next instance is attempted, not batched at the end", async () => {
-  const outbox = await openTestOutbox();
-  const written: Write[] = [];
-  const base = makeAdapter(written);
-  const watchingAdapter: ToolAdapter<Values, JobContext> = {
-    ...base,
-    write: async (fields, ctx, meta) => {
-      if (meta.idempotencyKey.endsWith(":instance:hvac:1")) {
-        const fromDisk = await outbox.getSession(session.id);
-        expect(fromDisk?.writtenInstances).toEqual({ hvac: [true] });
-      }
-      await base.write(fields, ctx, meta);
-    },
-  };
-
-  const { session, ctx } = await seedSession(
-    outbox,
-    { jobId: "job-7" },
-    {
-      hvac: [{ hvacSystemEquipmentType: "Furnace" }, { hvacSystemEquipmentType: "AC" }],
-    },
-  );
-
-  await toInstanceWriteStep({
-    adapter: watchingAdapter,
-    outbox,
-    collectionGroups: ["hvac"],
-  })({
-    session,
-    reviewed: reviewFields(session),
-    idempotencyKey: session.idempotencyKey,
-    ctx,
-  });
-
-  const fromDisk = await outbox.getSession(session.id);
-  expect(fromDisk?.writtenInstances).toEqual({ hvac: [true, true] });
-});
-
-// --- Skipping already-written instances on retry ----------------------------
-
-test("already-written instances are skipped when the step is retried", async () => {
-  const outbox = await openTestOutbox();
-  const written: Write[] = [];
-  const { session, ctx } = await seedSession(
-    outbox,
-    { jobId: "job-7" },
-    {
-      hvac: [
-        { hvacSystemEquipmentType: "Furnace" },
-        { hvacSystemEquipmentType: "AC" },
-        { hvacSystemEquipmentType: "Heat Pump" },
-      ],
-    },
-    { hvac: [true, false, false] },
-  );
-
-  await toInstanceWriteStep({
-    adapter: makeAdapter(written),
-    outbox,
-    collectionGroups: ["hvac"],
-  })({
-    session,
-    reviewed: reviewFields(session),
-    idempotencyKey: session.idempotencyKey,
-    ctx,
-  });
-
-  expect(written).toHaveLength(2);
-  expect(written.map((w) => w.meta.idempotencyKey)).toEqual([
-    deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 1),
-    deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 2),
-  ]);
-});
-
 // --- Relay-driven retry -----------------------------------------------------
 
-test("a write failing on the second of three instances, then retrying, does not re-attempt the first", async () => {
+test("a write failing on the second of three instances, then retrying, re-attempts the first", async () => {
+  // Without the positional skip, every instance is written every attempt —
+  // resting on the per-instance idempotency key alone. The first instance
+  // IS re-attempted on retry; a vendor honouring Idempotency-Key recognises
+  // it rather than creating a duplicate.
   const clock = new TestClock();
   const outbox = await openTestOutbox(clock);
   const written: Write[] = [];
@@ -335,7 +263,7 @@ test("a write failing on the second of three instances, then retrying, does not 
     },
   };
 
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
   const enqueued = await outbox.enqueue({
     recording: {
       id: "rec-1",
@@ -373,7 +301,6 @@ test("a write failing on the second of three instances, then retrying, does not 
     sessionExtract: () => Promise.reject(new Error("session extraction should not run")),
     sessionWrite: toInstanceWriteStep({
       adapter: failingAdapter,
-      outbox,
       collectionGroups: ["hvac"],
     }),
     now: clock.now,
@@ -384,7 +311,6 @@ test("a write failing on the second of three instances, then retrying, does not 
   await relay.syncNow();
   const failed = await outbox.getSession(session.id);
   expect(failed?.status).toBe("failed");
-  expect(failed?.writtenInstances).toEqual({ hvac: [true] });
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:0"))).toEqual([
     { key: deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0), failed: false },
   ]);
@@ -396,7 +322,8 @@ test("a write failing on the second of three instances, then retrying, does not 
   await relay.syncNow();
   const done = await outbox.getSession(session.id);
   expect(done?.status).toBe("done");
-  expect(calls.filter((c) => c.key.endsWith(":instance:hvac:0"))).toHaveLength(1);
+  // Instance 0 is re-attempted on retry — no positional skip.
+  expect(calls.filter((c) => c.key.endsWith(":instance:hvac:0"))).toHaveLength(2);
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:1"))).toHaveLength(2);
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:2"))).toHaveLength(1);
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:1") && c.failed)).toHaveLength(1);
@@ -418,7 +345,6 @@ test("a patch the adapter's schema rejects is terminal, and write is never calle
 
   const thrown = await toInstanceWriteStep({
     adapter: makeAdapter(written),
-    outbox,
     collectionGroups: ["hvac"],
   })({
     session,
@@ -450,7 +376,6 @@ test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is 
 
   const thrown = await toInstanceWriteStep({
     adapter: makeAdapter(written),
-    outbox,
     collectionGroups: ["hvac"],
   })({
     session,
@@ -463,7 +388,7 @@ test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is 
   );
 
   expect(thrown).toBeInstanceOf(TerminalQueueError);
-  expect((thrown as Error).message).toContain("Recording.ctx");
+  expect((thrown as Error).message).toContain("Outbox.openSession");
   expect(isTransientFailure(thrown)).toBe(false);
   expect(written).toEqual([]);
 });
@@ -485,7 +410,6 @@ test("a failing write propagates unchanged — the relay's retry contract is not
 
   const thrown = await toInstanceWriteStep({
     adapter,
-    outbox,
     collectionGroups: ["hvac"],
   })({
     session,
@@ -500,4 +424,119 @@ test("a failing write propagates unchanged — the relay's retry contract is not
   expect(thrown).toBe(failure);
   expect(isTransientFailure(thrown)).toBe(true);
   expect(thrown).not.toBeInstanceOf(TerminalQueueError);
+});
+
+// --- The reopen bug: a positional marker for an identity we do not keep --------
+
+test("after reopening from dead and removing the first instance, the survivor reaches the adapter", async () => {
+  // The bug this test outlives: `writtenInstances` records per-position write
+  // progress, and `reopenSessionForReview` preserves it. A reviewer reopens a
+  // dead session, deletes the first instance as a mishearing, and resubmits.
+  // The survivor is now index 0; the marker at index 0 is still true from the
+  // deleted instance; and the write step silently skips it. This test stops a
+  // future receipts implementation reintroducing positional identity.
+  const clock = new TestClock();
+  const outbox = await openTestOutbox(clock);
+  const written: Write[] = [];
+  const base = makeAdapter(written);
+  let firstAttempt = true;
+  const adapter: ToolAdapter<Values, JobContext> = {
+    ...base,
+    write: async (fields, ctx, meta) => {
+      const key = meta.idempotencyKey;
+      // First attempt: instance 0 succeeds, instance 1 throws → session dies.
+      if (firstAttempt && key.endsWith(":instance:hvac:1")) {
+        firstAttempt = false;
+        throw Object.assign(new Error("transient"), { status: 503 });
+      }
+      await base.write(fields, ctx, meta);
+    },
+  };
+
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const enqueued = await outbox.enqueue({
+    recording: {
+      id: "rec-1",
+      capturedAt: "2026-07-23T14:02:00.000Z",
+      durationMs: 8_400,
+      mimeType: "audio/webm;codecs=opus",
+      ctx: { jobId: "job-7" },
+    },
+    audio: new Blob(["audio"], { type: "audio/webm;codecs=opus" }),
+    sessionId: session.id,
+  });
+  await outbox.patch(enqueued.id, {
+    transcript: { recordingId: "rec-1", text: "the house has systems", engine: "fake" },
+    status: "transcribed",
+  });
+  await outbox.patchSession(session.id, {
+    extracted: {},
+    extractedFromRecordingIds: ["rec-1"],
+    status: "awaiting-review",
+  });
+  await outbox.submitSessionReview(session.id, {
+    status: "accepted",
+    fields: {
+      hvac: [{ hvacSystemEquipmentType: "Furnace" }, { hvacSystemEquipmentType: "AC" }],
+    },
+  });
+
+  const relay = createRelay({
+    outbox,
+    transcriber: new FakeTranscriber(),
+    sessionExtract: () => Promise.reject(new Error("should not extract")),
+    sessionWrite: toInstanceWriteStep({
+      adapter,
+      collectionGroups: ["hvac"],
+    }),
+    now: clock.now,
+    random: () => 1,
+    baseMs: 500,
+    maxAttempts: 1,
+  });
+
+  // First drain: instance 0 writes, instance 1 throws → session dies.
+  await relay.syncNow();
+  const dead = await outbox.getSession(session.id);
+  expect(dead?.status).toBe("dead");
+
+  // Reopen from dead, remove the first instance, resubmit with only the survivor.
+  await outbox.reopenSessionForReview(session.id);
+  await outbox.submitSessionReview(session.id, {
+    status: "accepted",
+    fields: {
+      hvac: [{ hvacSystemEquipmentType: "AC" }],
+    },
+  });
+
+  // Second drain: the survivor (now index 0) must reach the adapter.
+  const relay2 = createRelay({
+    outbox,
+    transcriber: new FakeTranscriber(),
+    sessionExtract: () => Promise.reject(new Error("should not extract")),
+    sessionWrite: toInstanceWriteStep({
+      adapter,
+      collectionGroups: ["hvac"],
+    }),
+    now: clock.now,
+    random: () => 1,
+    baseMs: 500,
+  });
+
+  await relay2.syncNow();
+  const done = await outbox.getSession(session.id);
+  expect(done?.status).toBe("done");
+
+  // The survivor reached the adapter. Today it does not: it is now index 0,
+  // and the marker at index 0 is still true from the deleted instance.
+  expect(written.filter((w) => w.meta.idempotencyKey.endsWith(":instance:hvac:0"))).toHaveLength(2);
+  expect(
+    written
+      .filter((w) => w.meta.idempotencyKey.endsWith(":instance:hvac:0"))
+      .map(
+        (w) =>
+          (w.fields as { hvac: Array<{ hvacSystemEquipmentType: string }> }).hvac[0]
+            ?.hvacSystemEquipmentType,
+      ),
+  ).toEqual(["Furnace", "AC"]);
 });

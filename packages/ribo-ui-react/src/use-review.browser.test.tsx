@@ -63,7 +63,7 @@ async function parkedItem() {
     name: `t-${crypto.randomUUID()}`,
     storage: getRxStorageMemory(),
   });
-  const session = await outbox.openSession();
+  const session = await outbox.openSession({ ctx: {}, ref: "job-7" });
   const rec = await outbox.enqueue({
     recording: recording(),
     audio: new Blob(["x"], { type: "audio/webm" }),
@@ -471,7 +471,7 @@ test("decisions and errors do not leak between sessions in a reused component", 
   // against session B -- and it must be gone on the FIRST render after the swap,
   // not one render later, because that render can submit.
   const { outbox, session: first } = await parkedItem();
-  const secondSession = await outbox.openSession();
+  const secondSession = await outbox.openSession({ ctx: {}, ref: "job-7" });
   const secondRec = await outbox.enqueue({
     recording: recording(),
     audio: new Blob(["x"], { type: "audio/webm" }),
@@ -536,7 +536,7 @@ test("switching sessions while a submit is pending does not leak submitting or e
   // once that stale write finally settles, its completion must not resurrect
   // anything on a card that has since moved on.
   const { outbox, session: first } = await parkedItem();
-  const secondSession = await outbox.openSession();
+  const secondSession = await outbox.openSession({ ctx: {}, ref: "job-7" });
   const secondRec = await outbox.enqueue({
     recording: recording(),
     audio: new Blob(["x"], { type: "audio/webm" }),
@@ -724,7 +724,7 @@ describe("useReview — instance identity: link-or-create decision", () => {
       name: `t-${crypto.randomUUID()}`,
       storage: getRxStorageMemory(),
     });
-    const session = await outbox.openSession();
+    const session = await outbox.openSession({ ctx: {}, ref: "job-7" });
     const rec = await outbox.enqueue({
       recording: recording(),
       audio: new Blob(["x"], { type: "audio/webm" }),
