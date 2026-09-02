@@ -48,7 +48,7 @@ double-write)" (`outbox.ts:719`).
 
 That reasoning is sound and currently vacuous. `snuggProAdapter.write` throws unconditionally
 (`adapter.ts:81`) because vendor egress is gated. Nothing has reached the host tool, so nothing can
-be double-written. `amendSession(id)` taking `done → awaiting-review` is safe today for the same
+be double-written. Letting a `done` session return to `awaiting-review` is safe today for the same
 reason the guard exists: there is no write to conflict with.
 
 It will not stay safe. When egress lands, a second review of an already-written session must update
@@ -99,13 +99,30 @@ guarantee was always supposed to rest on; the marker was belt over braces
 
 ### 3.3 What amend is
 
-`Outbox.amendSession(id)` moves `done → awaiting-review`, clears `reviewOutcome`, and resets
-`attempts`. It is `reopenSessionForReview` with a different source status and, like it, refuses a
-session missing `extracted` or `extractedFromRecordingIds` — a session with nothing to re-present
-cannot be reviewed afresh.
+There is no new method. `reopenSessionForReview` widens its accepted source status from `dead` to
+either terminal status, `done` or `dead`. Everything else it does is already what an amend needs:
+clear `reviewOutcome`, reset `attempts`, and refuse a session missing `extracted` or
+`extractedFromRecordingIds` — a session with nothing to re-present cannot be reviewed afresh. Its
+refusal message branches on which status it found, since "already written" and "gave up" are
+different things to explain.
 
-Whether the two collapse into one method taking either terminal status, or stay separate for the
-sake of their distinct error messages, is an implementation question and not settled here.
+Keeping the existing name is deliberate. It already means "re-park this session at
+`awaiting-review`", which is exactly what both cases are; a second method would be the same body
+under a second name, and renaming to `amendSession` would churn call sites and prose to no end. The
+user-facing word can still be "amend" without the API using it.
+
+**`attempts` resets, so an amended session gets a fresh write budget.** The counter is documented as
+a per-cycle budget reset on every fresh entry into `awaiting-review`
+(`session-schema.ts:95-101`), and an amendment is a new cycle by construction — the reviewer changed
+something, so the previous cycle's exhaustion says nothing about this one's chances.
+
+**`lastError` is cleared on a successful write.** `reopenSessionForReview` deliberately preserves
+`lastError` because it explains why a `dead` session needed reopening (`outbox.ts:730`). That is
+right for `dead` and wrong for `done`, because nothing clears the field on success: `#sessionWrite`
+patches status, attempts and `writeResult` only (`relay.ts:420`), so a session that failed once,
+retried and succeeded arrives at `done` still carrying an error it already recovered from. An amend
+would then present a stale failure as current. The fix belongs at the success patch rather than in
+the reopen path — a `done` session should not be carrying an error at all.
 
 Amend does not re-extract. It re-reviews the extraction already on the session, so the instance keys
 come off the same snapshot and mean the same things they meant the first time. Re-extraction after
@@ -143,6 +160,11 @@ over it is a scan.
 
 `openSession` therefore takes a required `ref`: a bounded, indexed string naming what the session is
 for. The lookup becomes a real query, and the session keeps its own generated id.
+
+`ref` is a plain string and core gives it no structure. It is not parsed, not validated beyond a
+length bound, and carries no meaning core acts on — the same posture as `ctx`, minus the opacity that
+makes `ctx` unindexable. Whatever the host puts there is the host's business; core's only contract is
+that it can be queried on and that two sessions may share one.
 
 The alternative — keeping id-as-assessment-id — is not merely a trick, and was seriously considered:
 if a job can only ever have one session, the primary key expresses exactly that and the lookup is as
@@ -182,7 +204,7 @@ inventing one.
 
 | ID  | Decision                                                             | Why                                                                                                                          |
 | --- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| D1  | `amendSession` takes `done → awaiting-review`                         | The data an amend needs is already persisted; the state machine was the only blocker, and only because no write occurs        |
+| D1  | `reopenSessionForReview` widens to accept `done` as well as `dead`     | The data an amend needs is already persisted; the state machine was the only blocker, and only because no write occurs        |
 | D2  | `writtenInstances` is **deleted**, not repaired                        | It defends a resume that cannot happen, carries a live bug, and every repair substitutes for the identifier we discard        |
 | D3  | Amend does not re-extract                                              | Keys come off the same snapshot, so receipts and decisions keep meaning what they meant                                        |
 | D4  | `openSession` takes a required `ctx`; the write step reads it          | The session owns the write; recovering the destination from an arbitrary recording is unenforced and the field app can break it |
@@ -191,6 +213,9 @@ inventing one.
 | D7  | The tree goes on `ReviewRequest`, not `useReview`                      | The structure exists in core's schema walk; non-React hosts need it too                                                       |
 | D8  | The flat `ReviewFields` map is retained as the decision channel        | Its ordering is contractual and `resolveReview` is path-keyed; the tree is a second view, never a second source               |
 | D9  | `presentButEmpty` folds into a per-group `absent \| empty \| populated` | A three-state fact split across two collections is a bug every host writes independently                                       |
+| D10 | An amended session gets a fresh `attempts` budget                      | `attempts` is already a per-cycle budget; the reviewer changed something, so the last cycle's exhaustion predicts nothing      |
+| D11 | `ref` is an unstructured string core never parses                      | Same posture as `ctx`, minus the opacity; the contract is that it is queryable and non-unique                                  |
+| D12 | `lastError` is cleared on a successful write                           | Nothing clears it today, so a recovered session reaches `done` carrying a stale error an amend would present as current        |
 
 ## 7. Out of scope
 
@@ -207,8 +232,11 @@ inventing one.
 
 The tests that must fail before the change and pass after:
 
-- A `done` session with an extraction moves to `awaiting-review` on `amendSession`, and a second
-  submitted review reaches the write step. A `done` session missing `extracted` is refused.
+- A `done` session with an extraction moves to `awaiting-review` on `reopenSessionForReview`, and a
+  second submitted review reaches the write step. A `done` session missing `extracted` is refused,
+  with a message naming `done` rather than `dead`. A session in any active status is still refused.
+- A session that exhausted its attempts, was reopened from `dead`, and succeeded, reaches `done` with
+  no `lastError`. A session reopened from `done` starts its next write cycle with `attempts` at zero.
 - The reopen case from §3.2, written against the current behaviour so it fails today: partial write,
   session dies, reopen, remove the first instance of a group, resubmit — the surviving instance
   reaches the adapter. This test outlives the marker's deletion and guards the receipts work later.
@@ -236,9 +264,10 @@ puts a second review through the code path that carries the bug.
 
 ## 10. Open questions
 
-1. Does `amendSession` collapse into `reopenSessionForReview` as one method taking either terminal
-   status, or stay separate for the sake of distinct error messages?
-2. Is `ref` meaningful to core beyond being an indexed string — should it have any structure, or is
-   an opaque bounded string the whole contract?
-3. `attempts` resets on entry to `awaiting-review`. Does an amended session get a fresh write budget,
-   or does the original cycle's exhaustion mean something worth preserving?
+1. `FINISHED_SESSION_STATUSES` becomes a list with no member the relay treats as truly terminal —
+   both `done` and `dead` now have a human-driven way out. Whether the constant still earns its name,
+   or wants renaming to something like `RESTING_SESSION_STATUSES`, is worth deciding while the
+   docstrings are being edited anyway.
+2. A session whose every recording is discarded — carried over unresolved from the session-entity
+   design (§12.1 there). Amend does not settle it, and it is the one case where `done` means "nothing
+   happened" rather than "the write landed".
