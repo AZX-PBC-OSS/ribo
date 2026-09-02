@@ -412,6 +412,10 @@ class QueueRelay implements Relay {
     await this.#patchSession(session.id, {
       status: "done",
       attempts: 0,
+      // A session that failed once and then succeeded should not carry the
+      // error it recovered from — an amend would present a stale failure as
+      // current. Nothing else clears this field.
+      lastError: undefined,
       ...(writeResult ? { writeResult } : {}),
     });
   }

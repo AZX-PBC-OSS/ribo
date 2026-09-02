@@ -10,9 +10,9 @@ export const SESSION_COLLECTION_NAME = "sessions";
  * The session state machine:
  *
  * ```
- * open → extracting → awaiting-review → writing → done
+ * open → extracting → awaiting-review → writing → done ⇄ awaiting-review (Outbox.reopenSessionForReview)
  *                          ↘ (transient) → failed → (backoff) → retry
- *                          ↘ (terminal)  → dead ⇢ awaiting-review (Outbox.reopenSessionForReview)
+ *                          ↘ (terminal)  → dead   ⇄ awaiting-review (Outbox.reopenSessionForReview)
  * ```
  *
  * A session owns extraction, review and write state for a set of recordings
@@ -28,10 +28,11 @@ export const SESSION_COLLECTION_NAME = "sessions";
  * **`awaiting-review` is the review gate, same as the recording side.** Absent
  * from {@link ACTIVE_SESSION_STATUSES} so the relay drains past it;
  * `Outbox.submitSessionReview` is the only way out, `Outbox.reopenSessionForReview`
- * the only way back from `dead`.
+ * the only way back from `done` or `dead`.
  *
- * **`dead` is the only terminal state.** `failed` is resting, same as the
- * recording's: the relay picks it back up once `nextAttemptAt` has passed.
+ * **Both `done` and `dead` have a human-driven way out.** `failed` is resting,
+ * same as the recording's: the relay picks it back up once `nextAttemptAt`
+ * has passed.
  */
 export const SESSION_STATUSES = [
   "open",
@@ -60,8 +61,12 @@ export const ACTIVE_SESSION_STATUSES = [
 ] as const satisfies readonly SessionStatus[];
 
 /**
- * Statuses the relay will not act on again unattended. `dead` has a
- * human-driven way out (`Outbox.reopenSessionForReview`); `done` has none.
+ * Statuses the relay will not act on again unattended. Both `done` and `dead`
+ * have a human-driven way out (`Outbox.reopenSessionForReview`). The constant
+ * keeps its name for now — whether it still earns it, or wants renaming to
+ * something like `RESTING_SESSION_STATUSES`, is an open question (see the
+ * session-ownership design's §10.1), left to a follow-up so a rename does not
+ * ride along with a behaviour change.
  */
 export const FINISHED_SESSION_STATUSES = [
   "done",

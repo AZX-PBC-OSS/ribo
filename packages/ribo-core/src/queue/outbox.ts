@@ -738,32 +738,40 @@ export class Outbox {
   }
 
   /**
-   * Move a `dead` session back to `awaiting-review`, so a human can correct
-   * whatever killed it and resubmit.
+   * Move a `done` or `dead` session back to `awaiting-review`, so a human can
+   * correct whatever went wrong and resubmit. "Amend" is the user-facing word;
+   * the API keeps the one method because the body is the same for both source
+   * statuses.
    *
-   * **`dead` is the only legal source status**, for the same reasons as
-   * {@link reopenForReview} on recordings: `done` means the write reached the
-   * host tool (reopening would double-write), and any active status would race
-   * the relay.
+   * **`done` and `dead` are the only legal source statuses.** Any active
+   * status would race the relay. The guard's reasoning for `done` was that
+   * reopening would double-write; that is sound and currently vacuous — vendor
+   * egress is gated, so nothing has reached the host tool. When egress lands,
+   * a second review of an already-written session must update the records it
+   * created rather than create more, which requires the vendor identifier
+   * `write` does not return yet (tracked as its own Asana ticket).
    *
-   * Also refused: a `dead` session missing `extracted` OR missing
+   * Also refused: a session missing `extracted` OR missing
    * `extractedFromRecordingIds`. Both are needed to re-present the extraction
    * for review — `extracted` is the draft, and `extractedFromRecordingIds`
    * names the recordings whose transcripts produced it (the grounding source).
+   * The refusal message branches on which terminal status was found, since
+   * "already written" and "gave up" are different things to explain.
    *
-   * Clears the stale `reviewOutcome` and resets `attempts` to `0`, same as
-   * the recording side. `lastError` is deliberately left — it explains why the
-   * session needed reopening.
+   * Clears the stale `reviewOutcome` and resets `attempts` to `0` — the
+   * reviewer changed something, so the previous cycle's exhaustion says nothing
+   * about this one's chances. `lastError` is deliberately left — it explains
+   * why the session needed reopening.
    */
   async reopenSessionForReview(id: string): Promise<SessionItem> {
     const doc = await this.#sessionsCollection.findOne(id).exec();
     if (!doc) throw new Error(`outbox: no session with id "${id}"`);
 
     const updated = await doc.incrementalModify((current) => {
-      if (current.status !== "dead") {
+      if (current.status !== "dead" && current.status !== "done") {
         throw new Error(
-          `outbox: session ${id} is "${current.status}", not "dead", so it cannot be reopened ` +
-            "for review. Only a dead session may be re-parked this way.",
+          `outbox: session ${id} is "${current.status}", not "done" or "dead", so it cannot ` +
+            "be reopened for review. Only a finished session may be re-parked this way.",
         );
       }
       if (current.extracted === undefined) {

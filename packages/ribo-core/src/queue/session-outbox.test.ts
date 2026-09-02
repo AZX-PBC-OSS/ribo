@@ -199,10 +199,49 @@ test("reopenSessionForReview moves dead → awaiting-review and clears the outco
   expect(reopened.extractedFromRecordingIds).toEqual(["r1"]);
 });
 
-test("reopenSessionForReview refuses a session that is not dead", async () => {
+test("reopenSessionForReview refuses a session that is not finished", async () => {
   const outbox = await open();
   const session = await outbox.openSession(SESSION_INPUT);
-  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/not "dead"/);
+  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/not "done" or "dead"/);
+});
+
+test("reopenSessionForReview moves done → awaiting-review and clears the outcome", async () => {
+  const outbox = await open();
+  const session = await outbox.openSession(SESSION_INPUT);
+  await outbox.patchSession(session.id, {
+    status: "done",
+    extracted: { basedata: { yearBuilt: 1950 } },
+    extractedFromRecordingIds: ["r1"],
+    reviewOutcome: { status: "accepted", fields: {} },
+    writeResult: { remoteId: "snugg-1" },
+    attempts: 2,
+  });
+  const reopened = await outbox.reopenSessionForReview(session.id);
+  expect(reopened.status).toBe("awaiting-review");
+  expect(reopened.reviewOutcome).toBeUndefined();
+  expect(reopened.attempts).toBe(0);
+  expect(reopened.extracted).toEqual({ basedata: { yearBuilt: 1950 } });
+  expect(reopened.extractedFromRecordingIds).toEqual(["r1"]);
+});
+
+test("reopenSessionForReview refuses a done session with no extracted data", async () => {
+  const outbox = await open();
+  const session = await outbox.openSession(SESSION_INPUT);
+  await outbox.patchSession(session.id, { status: "done" });
+  await expect(outbox.reopenSessionForReview(session.id)).rejects.toThrow(/no extracted/);
+});
+
+test("a session reopened from done starts its next write cycle with attempts at zero", async () => {
+  const outbox = await open();
+  const session = await outbox.openSession(SESSION_INPUT);
+  await outbox.patchSession(session.id, {
+    status: "done",
+    extracted: { basedata: {} },
+    extractedFromRecordingIds: ["r1"],
+    attempts: 3,
+  });
+  const reopened = await outbox.reopenSessionForReview(session.id);
+  expect(reopened.attempts).toBe(0);
 });
 
 test("reopenSessionForReview refuses a dead session with no extracted data", async () => {

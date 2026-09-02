@@ -1779,3 +1779,53 @@ test("a session with no transcribed recordings still reaches the write step", as
   const done = await outbox.getSession(session.id);
   expect(done?.status).toBe("done");
 });
+
+// ---------------------------------------------------------------------------
+// Amend — a done session can be reviewed again
+// ---------------------------------------------------------------------------
+
+test("a done session can be reopened for review and a second review reaches the write step", async () => {
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(outbox);
+  await outbox.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await drainToReview(harness);
+  await acceptReview(outbox, harness.session.id);
+  await harness.relay.syncNow();
+
+  // The session reached done.
+  const done = await outbox.getSession(harness.session.id);
+  expect(done?.status).toBe("done");
+
+  // Reopen from done, submit a second review, and write again.
+  await outbox.reopenSessionForReview(harness.session.id);
+  await acceptReview(outbox, harness.session.id, { atticRValue: 30 });
+  await harness.relay.syncNow();
+
+  expect(harness.writeCalls).toHaveLength(2);
+  expect(harness.writeCalls[1]?.reviewed).toEqual({ atticRValue: 30 });
+  const redone = await outbox.getSession(harness.session.id);
+  expect(redone?.status).toBe("done");
+});
+
+test("a session that failed a write, then succeeded, reaches done with no lastError", async () => {
+  const outbox = await openTestOutbox(uniqueName());
+  let attempt = 0;
+  const harness = await buildRelay(outbox, {
+    sessionWrite: async () => {
+      attempt += 1;
+      if (attempt < 3) throw Object.assign(new Error("gateway"), { status: 503 });
+      return { remoteId: "snugg-1" };
+    },
+  });
+  const { session: item } = await seedReviewedWriting(outbox);
+
+  for (let i = 0; i < 3; i += 1) {
+    await harness.relay.syncNow();
+    clock.advance(120_000);
+  }
+
+  const done = await outbox.getSession(item.id);
+  expect(done?.status).toBe("done");
+  // lastError was set on the transient failures and must be cleared on success.
+  expect(done?.lastError).toBeUndefined();
+});
