@@ -6,6 +6,7 @@ import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 
 import {
   SESSION_COLLECTION_NAME,
+  SESSION_MIGRATION_STRATEGIES,
   sessionRxSchema,
   type SessionDocument,
 } from "./session-schema.js";
@@ -327,6 +328,7 @@ export async function openOutboxDatabase(
     },
     [SESSION_COLLECTION_NAME]: {
       schema: sessionRxSchema,
+      migrationStrategies: SESSION_MIGRATION_STRATEGIES,
     },
   });
 
