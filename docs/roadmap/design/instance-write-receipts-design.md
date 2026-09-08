@@ -11,7 +11,7 @@ written can be corrected" (task 1218075751169739).
 that's sound and vacuous at once: `snuggProAdapter.write` throws unconditionally
 (`adapter.ts:81`), vendor egress is gated on Helix HMAC signing (Phase 4 Task 6), and
 nothing has ever reached a host tool. `session-ownership-design.md` §3.1-3.2 already
-walked through why a *positional* receipt scheme is a dead end — `writtenInstances`,
+walked through why a _positional_ receipt scheme is a dead end — `writtenInstances`,
 the old marker that tracked "already written" by array index, had a live data-loss bug
 (a reopened session with a removed instance silently skipped the survivor) and was
 deleted rather than repaired, because every repair considered (reset markers, key by
@@ -66,11 +66,11 @@ unchanged — "this session completed its write, so amending it means reviewing 
 extraction again" (`outbox.ts:862`) — goes straight to `awaiting-review` with
 `session.extracted` untouched. `collectFields` (`review.ts:453-546`) is a deterministic
 walk that assigns `k1`, `k2`, … by array position in that same, unchanged data, so the
-common amend case (re-review the same recordings) reassigns the *identical* keys in
-the *identical* order. Instance-key-indexed receipts are therefore directly reusable
+common amend case (re-review the same recordings) reassigns the _identical_ keys in
+the _identical_ order. Instance-key-indexed receipts are therefore directly reusable
 by whatever future work reads them, for exactly the scenario the ticket names.
 
-A reopen where the recording set *did* move re-extracts and can reassign keys
+A reopen where the recording set _did_ move re-extracts and can reassign keys
 differently — that is a harder, separate identity problem (matching a new instance to
 an old receipt when neither the position nor the key can be trusted to mean the same
 thing twice), and it is not solved by key-indexing alone. This design does not attempt
@@ -142,7 +142,7 @@ this field. The sessions v1→v2 migration (§3.5) backfills `instanceKeys` for 
 existing `reviewOutcome` missing it wherever `fields` has array data, synthesizing
 sequential keys (`k1`, `k2`, …) matching each group's array length. This is exactly
 correct, not merely a safe-enough guess: for any session actually in flight (`writing`
-or `failed`) at migration time, the array order already *is* first-mention order —
+or `failed`) at migration time, the array order already _is_ first-mention order —
 nothing has re-reviewed or reordered it — so the backfilled keys describe the same
 instances a freshly-computed `resolveReview` would have assigned. A `done`/`dead`
 session's `reviewOutcome` also gets backfilled for parse-safety, even though nothing
@@ -158,7 +158,7 @@ at exactly the same array position it already iterates by, since `fields[group]`
 `instanceKeys[group]` are aligned by construction (§3.2). `index` remains what
 `deriveInstanceIdempotencyKey` derives from (its job is "stable across retries of this
 exact queue item," not cross-review identity — position is the right input for that,
-unchanged), while the *key* read alongside it is what receipts get stored under (§3.4).
+unchanged), while the _key_ read alongside it is what receipts get stored under (§3.4).
 
 ### 3.4 Receipts: a new, durable, key-indexed session field
 
@@ -225,7 +225,7 @@ rewrites `reviewOutcome`, mirroring how `OUTBOX_MIGRATION_STRATEGIES`' v5→v6 e
 (`database.ts:195-241`) is the fuller precedent for a migration that does real,
 per-document work rather than only widening the schema.
 
-## 4. What this does *not* do
+## 4. What this does _not_ do
 
 Consuming `receipts` to decide "update, don't create" at write time —
 i.e. actually calling something like `adapter.update(uuid, fields, ctx, meta)`
@@ -251,7 +251,7 @@ above stays open until that follow-up ships.
   data). Assert `toInstanceWriteStep`'s resolved `SessionWriteResult.receipts` carries
   the correct `(group, key, uuid)` triples — including the reopen-and-remove-the-first-
   instance scenario already pinned at `instance-write-step.test.ts:436`, now asserting
-  the surviving instance's receipt is keyed by *its own* key, not by whatever position
+  the surviving instance's receipt is keyed by _its own_ key, not by whatever position
   it happens to occupy after the removal.
 - `session-schema.test.ts`: pin the v2 schema; confirm a v1 document with no
   `reviewOutcome` migrates cleanly (identity for that half); confirm a v1 document

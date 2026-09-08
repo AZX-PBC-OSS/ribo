@@ -53,10 +53,12 @@ export interface RosterCandidate {
 
 /** The house-wide inventory roster: one ordered list per collection group. */
 export interface Roster {
-  readonly [groupKey: string]: readonly RosterCandidate[] | {
-    readonly stated: "none";
-    readonly span: string;
-  };
+  readonly [groupKey: string]:
+    | readonly RosterCandidate[]
+    | {
+        readonly stated: "none";
+        readonly span: string;
+      };
 }
 
 /** The scope block passed to `buildFillInstructions` for each per-instance fill. */

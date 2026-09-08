@@ -25,6 +25,7 @@
 ### Task 1: `ToolAdapter.write` returns the vendor's uuid
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/adapter.ts:229-238`
 - Modify: `packages/ribo-adapter-snuggpro/src/adapter.ts:76-85` (and its stale doc comment at line 71)
 - Modify: `packages/ribo-core/src/adapter.test.ts` (lines 45-48, 139, 206, 224, 264, 292, 317)
@@ -33,6 +34,7 @@
 - Modify: `packages/ribo-adapter-snuggpro/src/round-trip.test.ts` and `packages/ribo-core/src/contracts.test.ts` (each has one more `write` stub not listed above — see Step 3)
 
 **Interfaces:**
+
 - Produces: `ToolAdapter<V, C>.write: (fields: V, ctx: C, meta: WriteMetadata) => Promise<{ readonly uuid: string }>` — every later task's write-step code depends on this return shape.
 
 - [x] **Step 1: Update the `ToolAdapter.write` signature and its doc comment**
@@ -73,6 +75,7 @@
 ### Task 2: `resolveReview` computes and exposes `instanceKeys`
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/review.ts` (types at lines 328-354, `resolveReview` at 931-1049, `reviewOutcomeSchema` at 1070-1087)
 - Modify: `packages/ribo-ui-react/src/use-review.ts` (`toPersisted` at lines 209-242)
 - Modify: `packages/ribo-core/src/review.test.ts` (extending `describe` blocks at lines 947 and 1162; two new tests)
@@ -80,6 +83,7 @@
 - Modify: `packages/ribo-core/src/instance-write-step.test.ts` (every `submitSessionReview`/`seedSession` call that supplies collection-group data — see Step 6; moved here from a later task because this task's own `reviewOutcomeSchema` refine, added in Step 4, is what makes these calls fail their parse in the first place, and a task's own changes should not leave the suite it just touched failing for a later task to fix)
 
 **Interfaces:**
+
 - Consumes: nothing new from Task 1.
 - Produces: `ReviewOutcome`'s `accepted`/`edited` variants gain `instanceKeys?: Readonly<Record<string, readonly string[]>>`. Task 3's migration and Task 4's write step both read this field by name.
 
@@ -95,7 +99,7 @@
 
   Add one new test in the first `describe` block, after "an instance whose every leaf was rejected is absent from the patch, not an empty record" (ends line 1014): a test named `"instanceKeys and fields stay in lockstep when one instance of several is fully rejected"`, reusing that same two-instance fixture (first instance `hvac[k1]` fully rejected, second `hvac[k2]` accepted). Assert `outcome.status === "edited"`, then `expect(outcome.instanceKeys).toEqual({ hvac: ["k2"] })` — the surviving instance keeps its real key `k2`, not a renumbered `k1`.
 
-  Add a second new test in the same `describe` block: a fixture with **two** instances where only *some* leaves of the first are accepted and the rest rejected (a partial rejection within one surviving instance, not a full rejection of it) alongside a second, fully-accepted instance. Assert `outcome.instanceKeys` still equals `{ hvac: ["k1", "k2"] }` — a partially-edited instance keeps its key and its place, only a *fully* rejected one is dropped (this is the design's §5 test bullet that a whole-instance-rejection test alone doesn't cover).
+  Add a second new test in the same `describe` block: a fixture with **two** instances where only _some_ leaves of the first are accepted and the rest rejected (a partial rejection within one surviving instance, not a full rejection of it) alongside a second, fully-accepted instance. Assert `outcome.instanceKeys` still equals `{ hvac: ["k1", "k2"] }` — a partially-edited instance keeps its key and its place, only a _fully_ rejected one is dropped (this is the design's §5 test bullet that a whole-instance-rejection test alone doesn't cover).
 
   Add a third new test, in a new `describe("reviewOutcomeSchema — instanceKeys length must match fields", ...)` block placed after the "instance identity" describe block (after line 1270): construct a plain object literal (not via `resolveReview`) shaped like `{ status: "accepted", fields: { hvac: [{}, {}] }, instanceKeys: { hvac: ["k1"] } }` (two instances, one key) and assert `reviewOutcomeSchema.safeParse(that).success === false` — the length-mismatch case the refine exists to catch. Add a second assertion in the same test that the identical object with `instanceKeys: { hvac: ["k1", "k2"] }` (matching length) parses successfully.
 
@@ -128,7 +132,7 @@
   This step exists because Step 4's refine, once merged, makes every one of these calls fail `reviewOutcomeSchema.parse` inside `Outbox.submitSessionReview` — this file never calls `buildReviewRequest`/`resolveReview`, so nothing computes `instanceKeys` for it automatically. Add a matching `instanceKeys` entry (one string per array element, sequential `"k1"`, `"k2"`, ... unless noted otherwise) to every `submitSessionReview` call in the file that supplies collection-group array data:
   - `seedSession`'s own `submitSessionReview` call (around line 131) — parameterize it to accept and pass through an `instanceKeys` value matching whatever `fields` its caller supplies, since `seedSession` is reused by many tests with different `hvac` array shapes.
   - The inline `submitSessionReview` call in "a write failing on the second of three instances, then retrying, re-attempts the first" (lines 292-301, a 3-instance `hvac` array): `instanceKeys: { hvac: ["k1", "k2", "k3"] }`.
-  - The reopen-bug test's two `submitSessionReview` calls (lines 483-488 and 511-516): the first (2 instances, Furnace + AC) gets `instanceKeys: { hvac: ["k1", "k2"] }`. The second, post-removal call (1 surviving instance, AC) gets `instanceKeys: { hvac: ["k2"] }` — **deliberately not `["k1"]`**, and this is worth a one-line comment in the test explaining why: the point of this fixture is to prove the write step keys receipts by whatever key the reviewed outcome actually declares, not by array position. Choosing a key that *matches* what position-based keying would produce (`"k1"` at index 0) would let a broken, position-based implementation pass this test by coincidence. (Note, for whoever reads this later: a *real* reopen via the actual review UI would, per `use-review.ts`'s `remapAfterInstanceRemove`, renumber the survivor to `k1` when the first of two instances is removed client-side before submit — this hand-built fixture bypasses that UI path entirely, on purpose, to isolate and stress-test the write step's own keying behavior independent of what any particular UI flow would produce.)
+  - The reopen-bug test's two `submitSessionReview` calls (lines 483-488 and 511-516): the first (2 instances, Furnace + AC) gets `instanceKeys: { hvac: ["k1", "k2"] }`. The second, post-removal call (1 surviving instance, AC) gets `instanceKeys: { hvac: ["k2"] }` — **deliberately not `["k1"]`**, and this is worth a one-line comment in the test explaining why: the point of this fixture is to prove the write step keys receipts by whatever key the reviewed outcome actually declares, not by array position. Choosing a key that _matches_ what position-based keying would produce (`"k1"` at index 0) would let a broken, position-based implementation pass this test by coincidence. (Note, for whoever reads this later: a _real_ reopen via the actual review UI would, per `use-review.ts`'s `remapAfterInstanceRemove`, renumber the survivor to `k1` when the first of two instances is removed client-side before submit — this hand-built fixture bypasses that UI path entirely, on purpose, to isolate and stress-test the write step's own keying behavior independent of what any particular UI flow would produce.)
 
 - [x] **Step 7: Thread `instanceKeys` through `use-review.ts`'s `toPersisted`**
 
@@ -152,16 +156,18 @@
 ### Task 3: Sessions schema v1 → v2 — add `receipts`, backfill `instanceKeys`
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/queue/session-schema.ts` (schema at lines 94-181, migration strategies at 241-243, RxDB schema at 245-291)
 - Modify: `packages/ribo-core/src/queue/session-schema.test.ts` (the field-parity pin around lines 37-48, and the version pin near line 68-75 — see Step 1)
 
 **Interfaces:**
+
 - Consumes: `instanceKeys` field name and shape from Task 2.
 - Produces: `SessionDocument.receipts?: { singleton?: string; instances?: Readonly<Record<string, Readonly<Record<string, string>>>> }`, consumed by Task 4's write-step changes and `relay.ts`.
 
 - [x] **Step 1: Write the failing migration tests**
 
-  No test today actually *executes* a session-collection migration (`session-schema.test.ts` pins the schema's shape and version; strategy *registration* is separately touched by `outbox-reopen-cross-tab.browser.test.ts:122`) — this task adds the first one(s). In `session-schema.test.ts`, add:
+  No test today actually _executes_ a session-collection migration (`session-schema.test.ts` pins the schema's shape and version; strategy _registration_ is separately touched by `outbox-reopen-cross-tab.browser.test.ts:122`) — this task adds the first one(s). In `session-schema.test.ts`, add:
   - A test asserting that a v1 document with `reviewOutcome: { status: "accepted", fields: { hvac: [{ hvacSystemEquipmentType: "Boiler" }, { hvacSystemEquipmentType: "Furnace" }] } }` (no `instanceKeys`) migrates, via `SESSION_MIGRATION_STRATEGIES[2]`, to a document whose `reviewOutcome.instanceKeys` equals `{ hvac: ["k1", "k2"] }`.
   - A test asserting that a v1 document with no `reviewOutcome` at all migrates to an unchanged document (no `receipts`, no `reviewOutcome` added) — the identity half.
   - A test asserting that a v1 document whose `reviewOutcome.status` is `"discarded"` migrates unchanged (no `fields` to derive keys from, and none needed).
@@ -209,6 +215,7 @@
 ### Task 4: The write step captures uuids and persists them as receipts
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/queue/relay.ts` (`SessionWriteInput`/`SessionWriteStep` types at lines 55-75, `#sessionWrite` at 413-453, and its stale doc comment at line 74)
 - Modify: `packages/ribo-core/src/write-step.ts` (lines 66-92)
 - Modify: `packages/ribo-core/src/instance-write-step.ts` (lines 62-115, and its stale doc comment at lines 17-24)
@@ -217,6 +224,7 @@
 - Modify: `packages/ribo-core/src/queue/relay.browser.test.ts` (three `SessionWriteStep` doubles that return a bare object instead of `{ fields: {...} }} — see Step 8)
 
 **Interfaces:**
+
 - Consumes: `ToolAdapter.write`'s new return shape (Task 1), `ReviewOutcome.instanceKeys` (Task 2), `SessionDocument.receipts` (Task 3).
 - Produces: `SessionWriteResult { fields?: ExtractedFieldMap; receipts?: { singleton?: string; instances?: Readonly<Record<string, Readonly<Record<string, string>>>> } }`, and `relay.ts` persists it onto `session.receipts` (merged, additive) and `session.writeResult` (as today).
 
@@ -248,7 +256,7 @@
 - [x] **Step 5: Update `toInstanceWriteStep` to accumulate receipts keyed by real instance key**
 
   In `instance-write-step.ts`:
-  - Update the stale doc comment at lines 17-24 ("The receipts work will need a durable channel again...") — this task *is* that work; rephrase to describe what actually landed (the `SessionWriteResult.receipts` return channel) rather than describing it as still-future.
+  - Update the stale doc comment at lines 17-24 ("The receipts work will need a durable channel again...") — this task _is_ that work; rephrase to describe what actually landed (the `SessionWriteResult.receipts` return channel) rather than describing it as still-future.
   - Change the function's declared return type from `Promise<void>` to `Promise<SessionWriteResult>`, importing `SessionWriteResult` from `./queue/relay.js`.
   - Before the singleton-write block (line 98), declare `const receipts: { singleton?: string; instances: Record<string, Record<string, string>> } = { instances: {} };`.
   - At the singleton-write call (lines 98-102), capture the result: `const { uuid } = await adapter.write(...)`, then `receipts.singleton = uuid;`.
@@ -282,7 +290,7 @@
 
 ## Out of scope (confirmed against the design doc)
 
-Nothing in this plan makes the write step *read* `session.receipts` back to decide "update, don't create." That is separate, future work, gated on Snugg Pro egress landing (Asana task 1218075751169739 stays open until it ships).
+Nothing in this plan makes the write step _read_ `session.receipts` back to decide "update, don't create." That is separate, future work, gated on Snugg Pro egress landing (Asana task 1218075751169739 stays open until it ships).
 
 ## Reviewed
 

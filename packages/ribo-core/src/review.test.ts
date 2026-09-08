@@ -1018,7 +1018,10 @@ describe("buildReviewRequest — statedEmptyGroups: a grounded 'stated empty' gr
 describe("resolveReview — a statedEmpty group resolves to an empty array, same as empty", () => {
   test("a statedEmpty group writes an empty array, not 'touch nothing'", () => {
     const request = collectionRequestFor(
-      { hvac: [], dhw: [{ dhwType2: { value: "Tank Water Heater", confidence: 1, sourceSpan: "tank" } }] },
+      {
+        hvac: [],
+        dhw: [{ dhwType2: { value: "Tank Water Heater", confidence: 1, sourceSpan: "tank" } }],
+      },
       undefined,
       { hvac: "there's no HVAC" },
     );

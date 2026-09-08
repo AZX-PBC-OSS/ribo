@@ -430,9 +430,9 @@ describe("scopedInstanceExtractor", () => {
 
     // The singleton branch runs exactly as today regardless of roster shape.
     expect(result.fields.house?.name.value).toBe("main");
-    expect(
-      requests.some((r) => r.response_format.json_schema.name === "demo-house-fill"),
-    ).toBe(true);
+    expect(requests.some((r) => r.response_format.json_schema.name === "demo-house-fill")).toBe(
+      true,
+    );
   });
 });
 

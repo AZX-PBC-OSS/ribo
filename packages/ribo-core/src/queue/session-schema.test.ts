@@ -209,7 +209,8 @@ describe("SESSION_MIGRATION_STRATEGIES[2] — v1 → v2 backfills instanceKeys",
     } as SessionDocument;
     const migrated = migrate[2](v1);
     expect(
-      (migrated.reviewOutcome as { instanceKeys?: Record<string, string[]> } | undefined)?.instanceKeys,
+      (migrated.reviewOutcome as { instanceKeys?: Record<string, string[]> } | undefined)
+        ?.instanceKeys,
     ).toEqual({ hvac: ["k1", "k2"] });
   });
 

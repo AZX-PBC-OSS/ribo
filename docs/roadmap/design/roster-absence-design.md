@@ -75,7 +75,7 @@ per-adapter `Enveloped<V>` schema.
 
 **This does need a session field, and it rides the same sessions v2 migration the
 instance-write-receipts design already introduces.** The pattern this codebase already
-uses for extraction metadata is a *dedicated* session field, not folding into the
+uses for extraction metadata is a _dedicated_ session field, not folding into the
 opaque `extracted` blob: `extractedBy` and `extractionUsage` (`session-schema.ts:136-158`)
 are both their own fields, populated by `relay.ts`'s `#sessionExtract`
 (`queue/relay.ts:391-411`) from the corresponding members of `ExtractStepResult`
@@ -115,7 +115,7 @@ group is top-level by construction, so this is not a full dotted path) when
 absent → `"empty"` as today, `emptyQuote: null`. `"absent"` (no array node at all) is
 unaffected — "there are none of these" and "never mentioned" stay different claims, per
 the existing doc comment at `ReviewPanel.tsx:76-79`, and this design adds a third claim
-distinct from both: "never mentioned, but *this specific absence* was affirmatively
+distinct from both: "never mentioned, but _this specific absence_ was affirmatively
 stated."
 
 **`resolveReview`'s `emptyCollectionPaths` (`review.ts:585-593`) must also treat
@@ -125,7 +125,7 @@ leaves gets `fields[groupPath] = []` written into the persisted outcome
 (`review.ts:1029-1033`) — it currently checks only `node.state === "empty"`. A
 `"statedEmpty"` group, by definition, also has zero elements and therefore zero
 leaves to accept, so without this change it would fall through to "absent from
-`fields` entirely" — the same shape as "touch nothing" — which is the *weaker*
+`fields` entirely" — the same shape as "touch nothing" — which is the _weaker_
 write instruction, exactly backwards from a group whose absence was explicitly
 stated by the auditor. The fix is one clause:
 `node.state === "empty" || node.state === "statedEmpty"`. This is a correction to
@@ -142,7 +142,7 @@ copy plus the quote) instead of the current hardcoded `<p>none described</p>`; w
 absent, today's fallback (which still applies to a genuinely untouched/never-decided
 group) is unchanged.
 
-## 3. What this does *not* do
+## 3. What this does _not_ do
 
 - Does not persist or expose the roster's other internal fields
   (`discriminator`, `mentionSpan`, `distinguishedBy`) — only the one new

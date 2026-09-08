@@ -23,10 +23,12 @@
 ### Task 1: The roster's per-group zod schema gains a "stated none" value
 
 **Files:**
+
 - Modify: `packages/ribo-adapter-snuggpro/src/inventory.ts` (lines 61-78, and the instructions at 84-159)
 - Test: `packages/ribo-adapter-snuggpro/src/inventory.test.ts` (create if it does not already exist, following whatever pattern this package's other `*.test.ts` files use for testing a bare zod schema — check `packages/ribo-adapter-snuggpro/src/adapter.test.ts` for the house style first)
 
 **Interfaces:**
+
 - Produces: `rosterGroupSchema` (zod) accepts, per group, either an array of candidates or `{ readonly stated: "none"; readonly span: string }`.
 
 **Scope note:** this task touches only the vendor-specific zod schema and its instructions, not `instance-fill.ts`'s generic `Roster` interface — that change moves to Task 2, alongside the code that actually consumes it, so this task's own typecheck gate isn't broken by a consumer this task doesn't update.
@@ -62,11 +64,13 @@
 ### Task 2: The generic `Roster` type and `scopedInstanceExtractor` both handle the union
 
 **Files:**
+
 - Modify: `packages/ribo-extractor-openai/src/instance-fill.ts` (`Roster` at lines 54-57; `extract()` at 398-556, specifically lines 409-433 and 549-553)
 - Modify: `packages/ribo-core/src/extractor.ts` (lines 61-84)
 - Test: `packages/ribo-extractor-openai/src/instance-fill.test.ts` (locate the existing test(s) that construct a fake `inventory` callback and assert on `extract()`'s return value — follow that exact pattern; the fixture there has exactly one collection group today, so this task's new test needs at least a second collection group added to the fixture to exercise "one stated-none, one genuinely empty" side by side)
 
 **Interfaces:**
+
 - Consumes: Task 1's zod union (informs the shape, not a runtime dependency — this task's TS interface and Task 1's zod schema are declared independently, same as `RosterCandidate` already is today).
 - Produces: `Roster`'s index-signature value type becomes `readonly RosterCandidate[] | { readonly stated: "none"; readonly span: string }`; `ExtractionResult<F>.statedEmptyGroups?: Readonly<Record<string, string>>`, consumed by Task 3's `toSessionExtractStep`.
 
@@ -114,12 +118,14 @@
 ### Task 3: A dedicated session field carries `statedEmptyGroups`, cleared on re-extraction
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/queue/relay.ts` (`ExtractStepResult` at lines 37-50, `#sessionExtract` at 391-411)
 - Modify: `packages/ribo-core/src/extractor.ts` (`toSessionExtractStep` at lines 132-140)
 - Modify: `packages/ribo-core/src/queue/session-schema.ts` (as an addition to the v2 schema/migration — see Global Constraints)
 - Test: `packages/ribo-core/src/queue/session-schema.test.ts`, and wherever `toSessionExtractStep` is currently tested (locate via the existing `engine`/`usage` forwarding test)
 
 **Interfaces:**
+
 - Consumes: `ExtractionResult.statedEmptyGroups` from Task 2.
 - Produces: `SessionDocument.statedEmptyGroups?: Readonly<Record<string, string>>`, consumed by Task 4.
 
@@ -138,7 +144,7 @@
 
   In `relay.ts`, add `readonly statedEmptyGroups?: Readonly<Record<string, string>>;` to `ExtractStepResult` (lines 37-50), beside `usage`.
 
-  In `#sessionExtract` (lines 391-411), add `statedEmptyGroups: result.statedEmptyGroups` to the session patch as an **unconditional** field (not the `...(x !== undefined ? {...} : {})` conditional-spread pattern `extractedBy`/`extractionUsage` use). This is deliberate, not an inconsistency with the existing style: `extractedBy`/`extractionUsage` are optional *transport metadata* that a later extractor run may simply not report, so leaving a prior run's value in place is harmless; `statedEmptyGroups` is *content about this specific transcript*, exactly like `extracted` itself (which is always overwritten, never conditionally spread). A re-extraction whose new roster no longer states a group is empty must not leave a stale quote from the previous extraction on the session — the same reasoning `lastError: undefined` already uses at line 450 to actively clear a field rather than merely omit setting it.
+  In `#sessionExtract` (lines 391-411), add `statedEmptyGroups: result.statedEmptyGroups` to the session patch as an **unconditional** field (not the `...(x !== undefined ? {...} : {})` conditional-spread pattern `extractedBy`/`extractionUsage` use). This is deliberate, not an inconsistency with the existing style: `extractedBy`/`extractionUsage` are optional _transport metadata_ that a later extractor run may simply not report, so leaving a prior run's value in place is harmless; `statedEmptyGroups` is _content about this specific transcript_, exactly like `extracted` itself (which is always overwritten, never conditionally spread). A re-extraction whose new roster no longer states a group is empty must not leave a stale quote from the previous extraction on the session — the same reasoning `lastError: undefined` already uses at line 450 to actively clear a field rather than merely omit setting it.
 
 - [x] **Step 4: Update `toSessionExtractStep`**
 
@@ -146,7 +152,7 @@
 
 - [x] **Step 5: Add `statedEmptyGroups` to the session schema**
 
-  In `session-schema.ts`: add `statedEmptyGroups: z.record(z.string(), z.string()).optional()` to `sessionDocumentSchema` (after `receipts`, assuming the sibling plan's Task 3 has already added it per this plan's Global Constraints), and `statedEmptyGroups: { type: "object" }` to `sessionRxSchema.properties`. This is a purely additive optional field on the *existing* v2 schema/migration — no change to the migration function itself, and no version bump beyond what the sibling plan's Task 3 already performed.
+  In `session-schema.ts`: add `statedEmptyGroups: z.record(z.string(), z.string()).optional()` to `sessionDocumentSchema` (after `receipts`, assuming the sibling plan's Task 3 has already added it per this plan's Global Constraints), and `statedEmptyGroups: { type: "object" }` to `sessionRxSchema.properties`. This is a purely additive optional field on the _existing_ v2 schema/migration — no change to the migration function itself, and no version bump beyond what the sibling plan's Task 3 already performed.
 
 - [x] **Step 6: Run the tests to verify they pass**
 
@@ -162,11 +168,13 @@
 ### Task 4: `review.ts` gains the fourth `ReviewGroupState`
 
 **Files:**
+
 - Modify: `packages/ribo-core/src/review.ts` (`ReviewGroupState` at line 186, `ReviewCollectionNode` at 219-226, `collectFields` at 453-546, `emptyCollectionPaths` at 585-593, `buildReviewRequest` at 564-575, `BuildReviewRequestOptions` at 603-618)
 - Modify: `packages/ribo-ui-react/src/use-review.ts` (the `buildReviewRequest` call at lines 440-454)
 - Test: `packages/ribo-core/src/review.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing new from earlier tasks directly (this task's tests construct `statedEmptyGroups` by hand; wiring the real session value through happens in this task's `use-review.ts` step).
 - Produces: `ReviewCollectionNode.state` can be `"statedEmpty"`; `ReviewCollectionNode.emptyQuote: string | null`; `resolveReview` writes `fields[groupPath] = []` for a `"statedEmpty"` group exactly as it already does for `"empty"`.
 
@@ -179,7 +187,7 @@
   - A group whose extracted value is present but malformed (not an array — e.g. `null` or an object) with a `statedEmptyGroups` entry for it anyway: `state` stays `"absent"`, exactly as today's malformed-data handling, unaffected by `statedEmptyGroups` — this is the regression case for accidentally narrowing today's `arrayNode === undefined || !Array.isArray(arrayNode)` condition down to only `=== undefined`.
   - A populated group is unaffected regardless of `statedEmptyGroups`.
 
-  In the same file's `resolveReview` tests (near the existing "a present-but-empty collection resolves to an empty array" test, using `collectionRequestFor` with `{ requiredOnCreate: undefined /* or however statedEmptyGroups reaches collectionRequestFor's underlying buildReviewRequest call */, statedEmptyGroups: { hvac: "there's no HVAC" } }` and `hvac: []`): assert `resolveReview(...)`'s outcome has `outcome.fields.hvac` equal to `[]` — proving `emptyCollectionPaths` treats a `"statedEmpty"` group the same as an `"empty"` one for write purposes, not "absent from fields," which would silently mean "touch nothing" for the *strongest* form of "none" the auditor can assert.
+  In the same file's `resolveReview` tests (near the existing "a present-but-empty collection resolves to an empty array" test, using `collectionRequestFor` with `{ requiredOnCreate: undefined /* or however statedEmptyGroups reaches collectionRequestFor's underlying buildReviewRequest call */, statedEmptyGroups: { hvac: "there's no HVAC" } }` and `hvac: []`): assert `resolveReview(...)`'s outcome has `outcome.fields.hvac` equal to `[]` — proving `emptyCollectionPaths` treats a `"statedEmpty"` group the same as an `"empty"` one for write purposes, not "absent from fields," which would silently mean "touch nothing" for the _strongest_ form of "none" the auditor can assert.
 
 - [x] **Step 2: Run the tests to verify they fail**
 
@@ -202,7 +210,7 @@
 
 - [x] **Step 5: Fix `emptyCollectionPaths` to treat `"statedEmpty"` as empty for write purposes**
 
-  In `emptyCollectionPaths` (lines 585-593), change `node.state === "empty" ? [node.path] : []` to `node.state === "empty" || node.state === "statedEmpty" ? [node.path] : []`. This is the fix the failing `resolveReview` test from Step 1 exercises: without it, a `"statedEmpty"` group (which by definition has zero leaves, since `elements.length === 0` is required for that state) would never get `fields[groupPath] = []` written by `resolveReview`'s loop at lines 1029-1033, meaning the persisted outcome would omit the group entirely — "touch nothing" — which is the *weaker* write instruction, backwards from what an explicitly-stated absence should produce.
+  In `emptyCollectionPaths` (lines 585-593), change `node.state === "empty" ? [node.path] : []` to `node.state === "empty" || node.state === "statedEmpty" ? [node.path] : []`. This is the fix the failing `resolveReview` test from Step 1 exercises: without it, a `"statedEmpty"` group (which by definition has zero leaves, since `elements.length === 0` is required for that state) would never get `fields[groupPath] = []` written by `resolveReview`'s loop at lines 1029-1033, meaning the persisted outcome would omit the group entirely — "touch nothing" — which is the _weaker_ write instruction, backwards from what an explicitly-stated absence should produce.
 
 - [x] **Step 6: Run the tests to verify they pass**
 
@@ -227,10 +235,12 @@
 ### Task 5: The canvas renders the quote
 
 **Files:**
+
 - Modify: `playground/src/ReviewPanel.tsx` (`ResourceGroup` at lines 121-125, `groupFields` at 148-180, the render at 533-550)
 - Test: `playground/src/ReviewPanel.browser.test.tsx` (or whatever this component's existing test file is named — locate via the tests referenced in earlier research, e.g. the ones exercising `collectionParkedItem`/`collectionProbe`)
 
 **Interfaces:**
+
 - Consumes: `ReviewCollectionNode.emptyQuote` from Task 4.
 
 - [x] **Step 1: Write the failing test**

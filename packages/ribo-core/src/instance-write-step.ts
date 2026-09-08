@@ -64,7 +64,12 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
   options: ToInstanceWriteStepOptions<V, C>,
 ): SessionWriteStep {
   const { adapter, collectionGroups } = options;
-  return async ({ session, reviewed, idempotencyKey, ctx }: SessionWriteInput): Promise<SessionWriteResult> => {
+  return async ({
+    session,
+    reviewed,
+    idempotencyKey,
+    ctx,
+  }: SessionWriteInput): Promise<SessionWriteResult> => {
     const parsedCtx = adapter.ctxSchema.safeParse(ctx);
     if (!parsedCtx.success) {
       throw new TerminalQueueError(
@@ -113,9 +118,13 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
     };
 
     if (Object.keys(singletonPatch).length > 0) {
-      const { uuid } = await adapter.write(adapter.schema.parse(singletonPatch) as V, parsedCtx.data, {
-        idempotencyKey,
-      });
+      const { uuid } = await adapter.write(
+        adapter.schema.parse(singletonPatch) as V,
+        parsedCtx.data,
+        {
+          idempotencyKey,
+        },
+      );
       receipts.singleton = uuid;
     }
 
@@ -131,9 +140,13 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
               "receipts cannot be safely recorded without a real key.",
           );
         }
-        const { uuid } = await adapter.write(adapter.schema.parse(instancePatch) as V, parsedCtx.data, {
-          idempotencyKey: instanceIdempotencyKey,
-        });
+        const { uuid } = await adapter.write(
+          adapter.schema.parse(instancePatch) as V,
+          parsedCtx.data,
+          {
+            idempotencyKey: instanceIdempotencyKey,
+          },
+        );
         receipts.instances[group] ??= {};
         receipts.instances[group][instanceKey] = uuid;
       }

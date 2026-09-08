@@ -73,11 +73,7 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
    * Snugg's `Not Tested`) and `meta.idempotencyKey` is what Task 6 sends as
    * `Idempotency-Key` — so Task 6 is a wiring change, not a redesign.
    */
-  write: async (
-    _fields: SnuggValues,
-    _ctx: SnuggWriteContext,
-    _meta: WriteMetadata,
-  ) => {
+  write: async (_fields: SnuggValues, _ctx: SnuggWriteContext, _meta: WriteMetadata) => {
     throw new Error(
       "snuggProAdapter.write is not implemented yet: Snugg Pro egress lands in Phase 4 Task 6, " +
         "gated on A1 (HMAC-SHA256 request signing at the Helix egress layer).",

@@ -66,7 +66,12 @@ import { describeLocated, zodIssues } from "./zod-issues.js";
 export function toWriteStep<V extends Record<string, unknown>, C>(
   adapter: ToolAdapter<V, C>,
 ): SessionWriteStep {
-  return async ({ session, reviewed, idempotencyKey, ctx }: SessionWriteInput): Promise<SessionWriteResult> => {
+  return async ({
+    session,
+    reviewed,
+    idempotencyKey,
+    ctx,
+  }: SessionWriteInput): Promise<SessionWriteResult> => {
     const parsedCtx = adapter.ctxSchema.safeParse(ctx);
     if (!parsedCtx.success) {
       throw new TerminalQueueError(
