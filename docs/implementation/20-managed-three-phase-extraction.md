@@ -256,6 +256,38 @@ for roughly a third of the token spend** — and pays for it in quality. Latency
 matters for a field app draining a queue on a phone, and 23 s versus 4 s per transcript is the
 difference between an extraction that feels immediate and one that does not.
 
+### 3a. The Anthropic-model run, where three-phase is the only thing that works
+
+Three-phase was also run end-to-end on `claude-sonnet-5` — the case per-group cannot reach at all
+(§2). It completed **14/14 with zero failed calls**, which is the strongest thing that can be said
+for it: on this half of the model roster it is the only one of the two strategies that produces
+anything.
+
+| metric                       | three-phase / `claude-sonnet-5` | three-phase / `gpt-4.1` | per-group / `claude-sonnet-5` |
+| ---------------------------- | ------------------------------: | ----------------------: | ----------------------------: |
+| transcripts completed        |                       **14/14** |                   14/14 |                      **0/14** |
+| hard hallucination           |                  **2.0%** 5/249 |             4.4% 11/249 |                           n/a |
+| miss rate (all 51 leaves)    |                **37.2%** 64/172 |            25.3% 44/174 |                           n/a |
+| accuracy, both non-null      |                           95.6% |                   96.4% |                           n/a |
+| enum member accuracy         |                           95.5% |                   96.3% |                           n/a |
+| source-span verbatim         |                            100% |                    100% |                           n/a |
+| hallucinated health passes   |                           **1** |                       2 |                           n/a |
+| chat calls                   |                             302 |                     318 |              98 (84 rejected) |
+| seconds per transcript       |                          **69** |                      23 |                           n/a |
+| wall clock, whole corpus     |                    **16.0 min** |                 5.5 min |                           n/a |
+| estimated cost, whole corpus |                       **$1.02** |                   $0.36 |                           n/a |
+
+The presence gate is more conservative on Sonnet: hallucination falls to the best figure in this
+document (2.0%) and the miss rate rises to the worst (37.2%). That is the same trade doc 19
+recorded on Nano, reproduced on a frontier model — three-phase buys precision with recall, and
+here it overpays. It is also **3× slower than on gpt-4.1** (69 s versus 23 s per transcript), and
+`claude-sonnet-5`'s adaptive thinking is why: 46k output tokens against gpt-4.1's 11k for the same
+work, which erases the token-cost advantage entirely ($1.02, on par with per-group's $1.00).
+
+So the honest reading of 3a is not "three-phase wins on Anthropic models". It is **"per-group is
+disqualified there on a schema-shape rule, and three-phase's own numbers are not good enough to
+call that a win."** Fixing the cap for per-group (§6) beats accepting a 37% miss rate.
+
 ---
 
 ## 4. Does per-group's byte cap break at `basedata` scale? Yes — but it is the second wall
@@ -308,8 +340,10 @@ Anthropic models. Bisected per phase (`phase-cap-probe.mjs`):
 Phase 2 is genuinely size-independent. Phases 0 and 1 are not.
 
 Today that is survivable: the largest group is `health` at 14 leaves, so phase 0 uses 14 of 72
-and phase 1 at most 14 of 16 — **two leaves of headroom on the worst case**, which is why
-three-phase runs on `claude-sonnet-5` where per-group does not. At the 163-field `basedata`
+and phase 1 at most 14 of 16 — **two leaves of headroom on the worst case**, which is exactly why
+three-phase completes 14/14 on `claude-sonnet-5` (§3a) where per-group completes 0/14. Two
+leaves. Adding a fifteenth field to `health` would take three-phase down too, and adding a
+seventeenth would do it with certainty. At the 163-field `basedata`
 target, phase 0 (163 booleans) is over the 72 ceiling and phase 1 is over the 16 ceiling the
 moment 17 fields are discussed at once — which a full walkthrough transcript comfortably does.
 
@@ -334,7 +368,12 @@ that partitioning is the actual work — not the choice between these two.
    grounding — and doc 16 §5 already recorded decomposition as "a wash-to-worse at 3× the LLM
    cost" for frontier models. This is the third time that result has reproduced.
 3. **It does not solve the scaling problem it was proposed for** (§5). It moves the ceiling from
-   8 leaves to 16, and `basedata` needs 163.
+   8 leaves to 16, and `basedata` needs 163. Its current 14/14 on `claude-sonnet-5` rests on two
+   leaves of headroom in the `health` group — a fifteenth health field breaks it.
+
+The one thing that does favour it: on an Anthropic model it is currently the only strategy that
+runs at all (§3a). That is an argument for **fixing the cap**, not for adopting a strategy whose
+own miss rate there is 37.2%.
 
 **What to do instead, in priority order:**
 
@@ -363,8 +402,9 @@ that partitioning is the actual work — not the choice between these two.
 adapter schema without three changes, two of them defects. On this route, Anthropic-family
 models cap a response schema at 16 nullable unions — 8 enveloped leaves — while OpenAI-family
 models on the same route do not; `perGroupExtractor` is over that cap today for two of seven
-groups. The 32,768-byte cap does break at `basedata` scale, between 50 and 60 leaves with
-descriptions.
+groups. With the three changes made, three-phase completes the corpus on both families
+(14/14 on each) and loses to per-group on quality on the family where both run. The 32,768-byte
+cap does break at `basedata` scale, between 50 and 60 leaves with descriptions.
 
 **Not settled.** Whether the 16 is the vendor's limit or this route's; one deployment, one token.
 Whether three-phase's quality gap would close with adapter-specific prompts — it gets none
@@ -373,7 +413,9 @@ not one that plausibly reverses a result this size. Whether an instance-aware th
 phase −1 inventory pass, as `instance-fill.ts` already does for Tier 1) would score differently;
 not built, not measured.
 
-**Not measured at all.** `claude-opus-5` on the corpus (probed for caps only).
+**Not measured at all.** `claude-opus-5` on the corpus (probed for caps only). Whether Sonnet's
+adaptive thinking — 46k output tokens against gpt-4.1's 11k for the same work (§3a) — can be
+turned down through this route, and what that would do to its 37.2% miss rate.
 `singleShotExtractor`, which is not the incumbent and cannot fit anyway — its 51-leaf schema is
 102 nullable unions against a cap of 16, and 39,884 bytes against a cap of 32,768, so it fails
 both limits on an Anthropic model and one on an OpenAI one. Any sub-group partitioning of
