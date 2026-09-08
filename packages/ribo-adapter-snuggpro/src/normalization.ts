@@ -169,7 +169,8 @@ export const yearsToDhwAgeBand = (years: number): AgeBand => {
  * number. Tested that way rather than by depth or by a group-name list so that
  * adding a group to `schema.ts` — or nesting one deeper — needs no change here.
  * The recursion below is the reason this pass survived the schema going from flat
- * fields plus one matrix to seven resource groups without touching its body.
+ * fields plus one matrix to nested resource groups — nine of them today — without
+ * touching its body.
  */
 const isEnvelope = (node: unknown): node is { confidence: number } =>
   typeof node === "object" &&
@@ -192,8 +193,8 @@ const clampDeep = (node: unknown): unknown => {
 
 /**
  * The deterministic pass the extractor runs after the model. Returns a new
- * `SnuggExtraction` with every envelope's `confidence` clamped to 0..1 — all 51
- * leaves, across all seven resource groups. `value` and `sourceSpan` are the
+ * `SnuggExtraction` with every envelope's `confidence` clamped to 0..1 — all 213
+ * leaves, across all nine resource groups. `value` and `sourceSpan` are the
  * model's faithful "what was said" and are left untouched; this pass never invents,
  * converts, or re-files a value. Pure and model-free.
  *

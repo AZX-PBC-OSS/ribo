@@ -13,34 +13,25 @@ import {
 /**
  * Guard the platform-route caps — R3 Task 5.
  *
- * The structured-output route the per-group extractor sends to rejects a schema
- * that is too big or too deep, with an HTTP 400 whose text names both limits:
- * `schema must serialize to <= 32768 characters and nest <= 12 levels`. That
- * error is a production failure on a real recording in the field; this test
- * turns it into a failing build instead. The full `snuggExtractionSchema` with
- * vendor descriptions is ~129k characters — over the character cap — which is
- * the whole reason R3 splits the call per top-level group. Since `basedata`
- * grew to its full 163-field capture surface, one call per GROUP is over too
- * (`basedata` alone is ~94k): the unit that fits — and the unit
- * `perGroupExtractor` actually sends — is the 8-leaf PARTITIONED PIECE
- * (largest measured ~7.4k), so that is what the cap assertions below run
- * against.
+ * The structured-output route rejects a schema that is too big or too deep with an HTTP
+ * 400 naming both limits (`schema must serialize to <= 32768 characters and nest <= 12
+ * levels`) — a production failure on a real recording in the field; this test turns it
+ * into a failing build instead. The full `snuggExtractionSchema` with vendor
+ * descriptions is over the character cap — the whole reason R3 splits the call per
+ * top-level group — and one call per GROUP is over too (`basedata` alone exceeds it):
+ * the unit that fits, and the unit `perGroupExtractor` actually sends, is the
+ * partitioned piece, so the cap assertions below run against those.
  *
- * The character cap was never checked before — only the nesting depth was, and
- * against a different, stricter source (OpenAI's documented 10-level ceiling in
- * `extraction-shape.test.ts`). Both limits named in the vendor's error are
- * asserted here, against the vendor's own numbers.
- *
- * Sizes are NOT pinned to exact byte counts. A test that asserts 13,273 fails
- * on every innocuous wording change and teaches people to bump the number
- * without thinking. The property that matters is: under the cap.
+ * Both limits named in the vendor's error are asserted here, against the vendor's own
+ * numbers. Sizes are NOT pinned to exact byte counts: a test asserting an exact size
+ * fails on every innocuous wording change and teaches people to bump the number without
+ * thinking. The property that matters is: under the cap.
  */
 
 /**
- * Walk a JSON Schema node and return the maximum nesting depth, counting one
- * level per `properties` descent — the same counting method
- * `extraction-shape.test.ts` uses for its own nesting check, so the two tests
- * agree on what a "level" is.
+ * Walk a JSON Schema node and return the maximum nesting depth, counting one level per
+ * `properties` descent — the same counting method `extraction-shape.test.ts` uses, so
+ * the two tests agree on what a "level" is.
  */
 function maxNestingDepth(node: unknown, depth: number): number {
   let deepest = depth;
@@ -56,18 +47,17 @@ function maxNestingDepth(node: unknown, depth: number): number {
 }
 
 test("every per-call schema serializes under the character cap", () => {
-  // Partitioned, because that is the shape of a real call: `perGroupExtractor`
-  // always splits at MAX_ENVELOPED_LEAVES_PER_GROUP, and an unpartitioned
-  // `basedata` (~94k with vendor descriptions) is a schema no call ever carries.
+  // Partitioned, because that is the shape of a real call: `perGroupExtractor` always
+  // splits at MAX_ENVELOPED_LEAVES_PER_GROUP, and an unpartitioned `basedata` is a
+  // schema no call ever carries.
   const groups = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
   expect(groups.length).toBeGreaterThan(1);
 
   for (const group of groups) {
     const jsonSchema = z.toJSONSchema(group.schema, { target: "draft-2020-12" });
     const serialized = JSON.stringify(jsonSchema);
-    // Under the cap, not equal to it — a group exactly AT the cap is one
-    // wording change away from breaking, so the guard leaves no margin to
-    // discover that the hard way.
+    // Under the cap, not equal to it: a group exactly AT the cap is one wording change
+    // away from breaking.
     expect(
       serialized.length,
       `group "${group.key}" serialized schema is ${serialized.length} characters`,
@@ -89,14 +79,13 @@ test("every per-call schema nests within the depth cap", () => {
 });
 
 /**
- * R1.6 Task 5 made the five per-instance groups (`hvac`, `attic`, `wall`,
- * `window`, `dhw`) arrays of instances. The real `snuggExtractionSchema` now carries
- * that shape. This test asserts the split still produces one entry per group, and
- * that the collection groups are actually arrays in the derived schema. The caps
- * are NOT asserted here: they bind per CALL, and a call carries a partitioned
- * piece — the unpartitioned `basedata` group (~94k characters) is over the
- * character cap by design and is never sent. The cap assertions above and below
- * run against the partitioned pieces instead.
+ * The per-instance groups (`hvac`, `attic`, `wall`, `window`, `dhw`) and the
+ * job-collection groups (`concern`, `incentive`) are arrays of instances in the real
+ * `snuggExtractionSchema`. This test asserts the split still produces one entry per
+ * group and that collection groups are actually arrays in the derived schema. The caps
+ * are NOT asserted here: they bind per CALL, and a call carries a partitioned piece —
+ * the unpartitioned `basedata` group is over the character cap by design and is never
+ * sent.
  */
 test("the real derived schema splits collection groups as arrays", () => {
   const groups = splitExtractionSchema(snuggExtractionSchema);
@@ -108,9 +97,20 @@ test("the real derived schema splits collection groups as arrays", () => {
     "window",
     "dhw",
     "health",
+    "concern",
+    "incentive",
+    "stage",
   ]);
 
-  const collectionKeys = new Set(["hvac", "attic", "wall", "window", "dhw"]);
+  const collectionKeys = new Set([
+    "hvac",
+    "attic",
+    "wall",
+    "window",
+    "dhw",
+    "concern",
+    "incentive",
+  ]);
   for (const group of groups) {
     const shape = (group.schema as z.ZodObject).shape;
     const inner = shape[group.key];
@@ -129,32 +129,27 @@ test("the real derived schema splits collection groups as arrays", () => {
 });
 
 /**
- * Guard the managed-route MODEL-FAMILY cap — Anthropic-family models reject a
- * response schema carrying more than 16 nullable unions on the managed route, and
- * `Enveloped<V>` emits two nullable unions per leaf (`value`, `sourceSpan`), so
- * the real per-call ceiling is 8 enveloped leaves. This is a DIFFERENT limit from
- * the byte-size/nesting-depth caps above: a group like `hvac` (12 leaves) sits
- * comfortably under 32,768 characters and 12 nesting levels, so a byte-size test
- * never catches this. It is invisible in production today because the
- * managed route is pinned to OpenAI-family models, which accept far more — but
- * fixing it now, rather than when that pin changes, is the point of this guard.
+ * Guard the managed-route MODEL-FAMILY cap — Anthropic-family models reject a response
+ * schema carrying more than 16 nullable unions on the managed route, and `Enveloped<V>`
+ * emits two nullable unions per leaf (`value`, `sourceSpan`), so the real per-call
+ * ceiling is 8 enveloped leaves. This is a DIFFERENT limit from the byte-size/nesting
+ * caps above: an over-cap group can sit comfortably under both, so a byte-size test
+ * never catches this. It is invisible in production today because the managed route is
+ * pinned to OpenAI-family models — fixing it now, rather than when that pin changes, is
+ * the point of this guard.
  *
- * `splitExtractionSchema`'s `maxLeavesPerGroup` partitions a group whose leaves
- * exceed the cap into multiple entries sharing one key (`ExtractionGroup.part`/
- * `parts`); `perGroupExtractor` (ribo-extractor-openai) makes one call per entry
- * and recombines the pieces. This file only exercises the pure split — the
- * recombination itself is exercised in `ribo-extractor-openai`'s
- * `per-group.test.ts`, which is tool-agnostic and cannot reference the real
- * Snugg schema.
+ * `splitExtractionSchema`'s `maxLeavesPerGroup` partitions an over-cap group into
+ * multiple entries sharing one key (`ExtractionGroup.part`/`parts`); `perGroupExtractor`
+ * makes one call per entry and recombines. This file only exercises the pure split —
+ * recombination is exercised in `ribo-extractor-openai`'s tool-agnostic
+ * `per-group.test.ts`.
  */
 describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union cap", () => {
   /**
-   * Count the enveloped leaves ONE group (or partitioned piece of one) asks the
-   * model for: unwrap the group's top-level key, unwrap a collection group's
-   * array to its per-instance element, and count that object's own keys — one
-   * key per leaf, since `enveloped()` recurses only one level (see schema.ts's
-   * file header), so a group's own properties are always leaf envelopes, never
-   * further nested sub-groups.
+   * Count the enveloped leaves ONE group (or partitioned piece) asks the model for:
+   * unwrap the group's top-level key and any collection array, then count the object's
+   * own keys — `enveloped()` recurses only one level, so a group's own properties are
+   * always leaf envelopes, never further nested sub-groups.
    */
   function groupLeafCount(group: ExtractionGroup): number {
     const shape = (group.schema as z.ZodObject).shape;
@@ -164,11 +159,9 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
   }
 
   test("before partitioning, basedata, hvac and health all exceed the 8-leaf cap — the bug this guard exists to catch", () => {
-    // No `maxLeavesPerGroup` — today's one-entry-per-group split, exactly what
-    // `perGroupExtractor` would send if it never partitioned. This pins the
-    // starting problem: without the fix below, three of Snugg's seven groups
-    // would send an over-cap schema to an Anthropic-family model — `basedata`
-    // (163 leaves, its full doc-17 capture surface) most of all.
+    // No `maxLeavesPerGroup` — the one-entry-per-group split `perGroupExtractor` would
+    // send if it never partitioned. This pins the starting problem: without the fix
+    // below, these groups would send an over-cap schema to an Anthropic-family model.
     const unpartitioned = splitExtractionSchema(snuggExtractionSchema);
     const basedata = unpartitioned.find((g) => g.key === "basedata")!;
     const hvac = unpartitioned.find((g) => g.key === "hvac")!;
@@ -176,7 +169,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
 
     expect(groupLeafCount(basedata)).toBe(163);
     expect(groupLeafCount(hvac)).toBe(12);
-    expect(groupLeafCount(health)).toBe(14);
+    expect(groupLeafCount(health)).toBe(16);
     expect(groupLeafCount(basedata)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(hvac)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(health)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
@@ -192,13 +185,13 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
         leaves,
         `group "${group.key}"${group.part !== undefined ? ` part ${group.part}` : ""} carries ${leaves} leaves`,
       ).toBeLessThanOrEqual(MAX_ENVELOPED_LEAVES_PER_GROUP);
-      // Enveloped<V> emits exactly two nullable unions per leaf (value,
-      // sourceSpan) — the cap this leaf count stands in for.
+      // Enveloped<V> emits exactly two nullable unions per leaf — the cap this leaf
+      // count stands in for.
       expect(leaves * 2).toBeLessThanOrEqual(16);
     }
   });
 
-  test("basedata (163 leaves), hvac (12) and health (14) are partitioned into pieces sharing one key, and every other group is untouched", () => {
+  test("basedata, hvac and health are partitioned into pieces sharing one key, and every other group is untouched", () => {
     const groups = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
 
     const byKey = new Map<string, ExtractionGroup[]>();
@@ -206,8 +199,8 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       byKey.set(group.key, [...(byKey.get(group.key) ?? []), group]);
     }
 
-    // The seven top-level keys as seen by consumers are unchanged — partitioning
-    // is purely about call count, never about the resource model.
+    // The top-level keys as seen by consumers are unchanged — partitioning is purely
+    // about call count, never about the resource model.
     expect([...byKey.keys()]).toEqual([
       "basedata",
       "hvac",
@@ -216,25 +209,26 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       "window",
       "dhw",
       "health",
+      "concern",
+      "incentive",
+      "stage",
     ]);
 
-    // 163 leaves at an 8-leaf cap: ceil(163/8) = 21 evenly-sized pieces.
     expect(byKey.get("basedata")).toHaveLength(21);
     expect(byKey.get("hvac")).toHaveLength(2);
     expect(byKey.get("health")).toHaveLength(2);
-    for (const key of ["attic", "wall", "window", "dhw"]) {
+    for (const key of ["attic", "wall", "window", "dhw", "concern", "incentive", "stage"]) {
       const pieces = byKey.get(key)!;
       expect(pieces, `group "${key}"`).toHaveLength(1);
       expect(pieces[0]!.part, `group "${key}" should not be partitioned`).toBeUndefined();
     }
 
-    // Each partitioned key's pieces are labelled 0..parts-1, in order, and their
-    // leaf counts sum back to the original 163 (basedata) / 12 (hvac) / 14
-    // (health) — no leaf lost or duplicated across the split.
+    // Each partitioned key's pieces are labelled 0..parts-1, in order, and their leaf
+    // counts sum back to the original — no leaf lost or duplicated across the split.
     for (const [key, expectedTotal] of [
       ["basedata", 163],
       ["hvac", 12],
-      ["health", 14],
+      ["health", 16],
     ] as const) {
       const pieces = byKey.get(key)!;
       expect(pieces.map((p) => p.part)).toEqual(pieces.map((_, i) => i));

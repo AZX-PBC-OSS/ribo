@@ -342,6 +342,28 @@ const fields: SnuggExtraction = {
     healthLead: env(null, null),
     healthElectrical: env(null, null),
     healthRoofCondition: env(null, null),
+    healthDrainageSystemCondition: env(null, null),
+    // Nothing in this transcript states a disclosure conversation, and the field is
+    // an attestation — never inferred from the draft/leak tests having been run.
+    healthSafetyQuestionsDisclosed: env(null, null),
+  },
+
+  // This dictation is the auditor walking the basement alone — no homeowner worry
+  // is voiced anywhere in it, so the concern collection is honestly EMPTY. The
+  // empty array is itself the demonstration for this group: a transcript with no
+  // voiced concern produces `[]`, never an invented one (rule 14).
+  concern: [],
+
+  // This transcript mentions no rebate or incentive program, so the honest
+  // roster-driven output is an empty array — the "transcript never brings the
+  // group up at all" case, not one all-null instance.
+  incentive: [],
+
+  stage: {
+    // Nothing in this transcript moves the job's workflow stage, so the group's one
+    // capture field is an unforced `null` — silence is never an invented stage, the
+    // same discipline as an unmentioned health test.
+    stageId: env(null, null),
   },
 };
 

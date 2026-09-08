@@ -6,12 +6,8 @@ import type { ChatClient, ChatRequest } from "@azx/ribo-extractor-openai";
 
 import { snuggProAdapter } from "./adapter.js";
 import type { SnuggValues } from "./schema.js";
-// A plain JSON import (resolveJsonModule, set in @azx/tsconfig/base.json) rather
-// than `node:fs` — this package's tsconfig has no Node types (AGENTS.md §4/§6:
-// "headless" means no React/DOM rendering, not "no Node", but the package still
-// targets the browser lib surface and does not carry `"types": ["node"]`), and a
-// JSON import is resolved identically by both `tsc` and Vite/Vitest, with no
-// Node-specific API at all.
+// JSON import rather than `node:fs`: this package carries no Node types, and a JSON
+// import resolves identically under `tsc` and Vite/Vitest.
 import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { type: "json" };
 
 /**
@@ -26,108 +22,41 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  * deliberately changed, and then the diff must say so.
  * ============================================================================
  *
- * ## Provenance: what this fixture pinned, and what it pins now
+ * The fixture has been re-captured several times, always for a deliberate FIELD-SET
+ * change and never for a derivation change: the spec-derived `schema.ts` rebuild, the
+ * move of the per-instance groups to arrays, the basedata capture-surface expansion,
+ * the health-endpoint completion, and the concern, incentive and stage job-collection
+ * tranches. Any *future* unexplained movement is a regression.
  *
- * The original capture was taken BEFORE R1.5 split the old single
- * `SnuggFieldsSchema` into the hand-written writable patch (`snuggValuesSchema`)
- * plus the schema derived from it (`snuggExtractionSchema =
- * enveloped(snuggValuesSchema)`). R1.5 claimed that split changed the types and
- * not the wire artifact, and this file was the evidence: Task 3 moved the types
- * and the test kept passing against an untouched fixture. **That claim was
- * established and is now history.**
+ * Why capture via the real extractor, not `z.toJSONSchema(snuggExtractionSchema, ...)`
+ * inline: `singleShotExtractor` (ribo-extractor-openai/src/single-shot.ts) is the ONLY
+ * code path that produces the object landing in `response_format.json_schema.schema`.
+ * Re-deriving that call by hand would silently stop catching it the day single-shot.ts
+ * adds post-processing; running the real extractor against a fake `ChatClient`
+ * (network-free, no key) captures whatever single-shot.ts actually builds.
  *
- * The fixture was re-captured when `schema.ts` was rebuilt from Snugg Pro's
- * machine-readable spec — new wire field names, the API's literal enum strings,
- * and nesting by resource endpoint. That is a deliberate change to the field set,
- * not a change to the derivation, so the wire artifact moved on purpose and the
- * fixture moved with it. Everything the fixture still guards is unchanged: it is
- * the byte-for-byte record of what leaves for the model, and any *future*
- * unexplained movement is a regression.
+ * Why a committed JSON file instead of `expect(...).toMatchSnapshot()`: Vitest
+ * snapshots are one `vitest -u` away from being silently regenerated into agreement
+ * with a broken derivation — the exact failure mode this fixture exists to prevent. A
+ * file the test only ever READS cannot be updated by accident.
  *
- * ## Provenance: the Task 5 move (R1.6 instance modeling)
+ * Why STRING equality, not `toEqual`: `openai-chat.ts` does `body:
+ * JSON.stringify(request)`, so key order is part of the bytes on the wire; `toEqual` is
+ * blind to reordering. Both sides are re-serialized compactly (`JSON.stringify`, no
+ * indentation) before comparing, because the repo's format gate reflows the fixture's
+ * on-disk layout without changing its meaning. `JSON.stringify` preserves
+ * property-insertion order for ordinary string keys and a JSON import preserves it too,
+ * so canonicalizing this way changes nothing the comparison can detect.
  *
- * The fixture was re-captured again when R1.6 Task 5 made the five per-instance
- * resource groups (`hvac`, `attic`, `wall`, `window`, `dhw`) into arrays, leaving
- * the two genuine singletons (`basedata`, `health`) as objects. This is a
- * deliberate field-shape change, not a derivation change: `enveloped()` recurses
- * through arrays into the same per-leaf envelopes, and the per-group cap test
- * (per-group-cap.test.ts) confirms the serialized schema still fits. The move
- * is named here so a future diff that does not recognize it has to explain why it
- * is undoing a documented task.
- *
- * ## Provenance: the basedata capture-surface expansion
- *
- * The fixture was re-captured again when `basedata` grew from 7 leaves to its full
- * 163-field honest capture surface (doc 17 — the `POST /jobs/{jobId}/basedata`
- * form fields, minus the `*Improved` and auto-calculated fields), taking the whole
- * schema from 51 to 207 leaves. Like the two moves above, this is a deliberate
- * change to the FIELD SET, not to the derivation: the new leaves are generated
- * from the same machine-readable spec, carry the same vendor-first descriptions,
- * and flow through the same `enveloped()` pipeline. The per-group cap test
- * confirms the partitioned per-call pieces still fit under the platform's
- * character and nesting ceilings; the OpenAI-limit test in this file confirms the
- * whole schema still sits inside the property/enum/nesting ceilings with margin.
- *
- * Why capture it this way, not by calling `z.toJSONSchema(snuggExtractionSchema, ...)`
- * inline: `singleShotExtractor` (packages/ribo-extractor-openai/src/single-shot.ts)
- * is the ONLY code path that produces the object that actually lands in
- * `response_format.json_schema.schema` — today that is exactly
- * `z.toJSONSchema(target.extractionSchema, { target: "draft-2020-12" })` with no
- * post-processing, but re-deriving the call by hand here would silently stop
- * catching it the day someone adds post-processing in single-shot.ts. Running the
- * real extractor against a fake `ChatClient` (network-free, no key) captures
- * whatever single-shot.ts actually builds, whatever that turns out to be.
- *
- * Why a plain committed JSON file instead of `expect(...).toMatchSnapshot()`:
- * Vitest's own snapshot files are one `vitest -u` away from being silently
- * regenerated into agreement with a broken derivation — which is precisely the
- * failure mode this fixture exists to prevent. A file the test only ever READS,
- * with no built-in "accept the new output" command, cannot be updated by
- * accident; changing it requires deliberately editing tracked source and stating
- * why in the diff.
- *
- * Why STRING equality, not `toEqual`: `openai-chat.ts` does
- * `body: JSON.stringify(request)`, so key order is part of the bytes sent over
- * the wire. `toEqual` is a structural/deep-equality match and is blind to key
- * reordering; two objects with the same keys in a different order are `toEqual`
- * but serialize to different strings, which is a different request.
- *
- * The fixture is committed as pretty-printed JSON so a real change shows up as a
- * readable `git diff` — but this repo's format gate (`pnpm format`/`format:check`,
- * AGENTS.md §4) reformats committed JSON on every run (it re-wraps short arrays
- * onto one line), so the fixture's byte layout on disk is NOT stable across a
- * `pnpm format` pass even with nothing semantically changed, and importing it as
- * a JSON module (rather than reading the raw text) sidesteps that entirely: both
- * `actual` and the fixture below are re-serialized with `JSON.stringify` — NO
- * indentation — before comparing as strings. This is still a strict,
- * order-sensitive STRING comparison, not `toEqual`: `JSON.stringify`'s key order
- * depends on each object's own property-insertion order for ordinary string
- * keys, and a JSON importer/parser preserves that order exactly like
- * `JSON.parse` does, so canonicalizing this way changes nothing about what the
- * comparison can detect. (Verified by hand: `pnpm format` reflows this fixture
- * file's arrays onto fewer lines, and the compact re-serialization is
- * byte-identical before and after.)
- *
- * CAVEAT this canonicalization relies on: JS object key order is NOT purely
- * insertion order in general — every object, however constructed, sorts
- * canonical-integer-string keys ("0", "1", "23", ...) ascending and places them
- * BEFORE all other keys, regardless of insertion order (e.g.
- * `JSON.stringify(JSON.parse('{"2":1,"10":2,"1":3,"a":4}'))` →
- * `{"1":3,"2":1,"10":2,"a":4}`). Canonicalizing away whitespace is only safe
- * here because no numeric-looking string is ever an OBJECT KEY anywhere in this
- * schema — the numeric-looking tokens that do appear ("0", "1-3", "0-5", the
- * attic/DHW band values) are only `enum` ARRAY ELEMENTS, and array order is
- * never touched by the integer-key sort rule. If a future field ever introduces
- * an object keyed by a numeric-looking string, this canonicalization would
- * silently stop being order-sensitive for that key — the test would keep
- * passing while no longer detecting a reordering there, exactly the failure
- * mode this fixture exists to catch. Nothing else in this file would flag that;
- * it is a property of the fixture's current shape, not an invariant this test
- * enforces.
+ * CAVEAT: JS sorts canonical-integer-string keys ("0", "1", "23", ...) before all
+ * others regardless of insertion order. That is safe here only because no
+ * numeric-looking string is ever an OBJECT KEY in this schema — such tokens appear
+ * only as `enum` ARRAY ELEMENTS, which the sort rule never touches. A future field
+ * keyed by a numeric-looking string would silently make this comparison
+ * order-insensitive for that key, and nothing else here would flag it.
  */
 
-// Canonical (compact, no whitespace) form of the fixture — see the comment above
-// for why this is still a byte-for-byte, order-sensitive STRING comparison.
+// Canonical (compact) form of the fixture — still an order-sensitive STRING comparison.
 const fixtureCanonical = JSON.stringify(fixtureSchema);
 
 /** A ChatClient double that records every request and returns a canned body. */
@@ -136,9 +65,8 @@ function fakeChat(): { chat: ChatClient; requests: ChatRequest[] } {
   const chat: ChatClient = {
     complete: (request) => {
       requests.push(request);
-      // The body need not satisfy snuggExtractionSchema — we only need the REQUEST,
-      // which is captured before the response is parsed. `extract` is allowed to
-      // reject afterwards; that rejection is swallowed by the caller below.
+      // The body need not satisfy the schema — we only need the REQUEST, captured
+      // before the response is parsed; the later rejection is swallowed below.
       return Promise.resolve({ content: "{}" });
     },
   };
@@ -148,19 +76,15 @@ function fakeChat(): { chat: ChatClient; requests: ChatRequest[] } {
 /** Drive the real singleShotExtractor + real adapter wiring, capture the request sent. */
 async function captureJsonSchema(): Promise<Record<string, unknown>> {
   const { chat, requests } = fakeChat();
-  // `snuggProAdapter` satisfies ExtractionTarget<SnuggValues> structurally (a Pick
-  // of name/extractionSchema/instructions/examples) — this is exactly how a real
-  // caller composes the extractor (see src/index.ts's closing comment), not a
-  // hand-rolled stand-in target. Note the argument is the VALUES type: the target
-  // exposes `ZodType<Enveloped<SnuggValues>>`, so both sides name the same `V`.
+  // The real adapter, composed exactly as a real caller would — not a hand-rolled
+  // stand-in. The type argument is the VALUES type; the target exposes the enveloped one.
   const target: ExtractionTarget<SnuggValues> = snuggProAdapter;
   const extractor = singleShotExtractor({ target, chat, model: "gpt-test" });
 
   try {
     await extractor.extract("A dictated audit transcript, contents irrelevant here.");
   } catch {
-    // Expected: the canned "{}" response does not satisfy snuggExtractionSchema. The
-    // request was already captured by the fake ChatClient before this throws.
+    // Expected: the canned "{}" response fails the schema; the request was already captured.
   }
 
   expect(requests).toHaveLength(1);
@@ -168,12 +92,8 @@ async function captureJsonSchema(): Promise<Record<string, unknown>> {
 }
 
 /**
- * Recursively assert the structural properties OpenAI strict mode requires, so a
- * differently-derived-but-string-equal schema (or a future edit to this file's
- * fixture) still gets caught even if some day it happens to serialize
- * byte-for-byte to something else entirely: every object is closed, every
- * declared property is required, and no numeric/string constraint keyword sneaks
- * in anywhere in the tree.
+ * Recursively assert the structural properties OpenAI strict mode requires: every object
+ * closed, every declared property required, no numeric/string constraint keyword anywhere.
  */
 function assertStrictModeCompatible(node: unknown, path: string): void {
   if (Array.isArray(node)) {
@@ -209,12 +129,8 @@ test("the JSON Schema sent to the model matches the frozen fixture, byte for byt
   const schema = await captureJsonSchema();
   const actual = JSON.stringify(schema); // canonical (compact) — see file-level comment
 
-  // STRING comparison, not toEqual — see the file-level comment on why, and on
-  // why both sides are canonicalized to a compact string before the comparison.
-  //
-  // A MISMATCH HERE MEANS THE DERIVATION CHANGED WHAT IS SENT TO THE MODEL. Fix
-  // the derivation; do not edit `__fixtures__/snugg-fields-json-schema.json` to
-  // silence this test.
+  // A MISMATCH HERE MEANS THE DERIVATION CHANGED WHAT IS SENT TO THE MODEL. Fix the
+  // derivation; do not edit the fixture to silence this test.
   expect(actual).toBe(fixtureCanonical);
 });
 
@@ -229,12 +145,9 @@ test("the live schema is well-formed strict-mode JSON Schema (closed objects, no
 
 test("the live schema sits inside OpenAI's structured-output limits, with room to grow", async () => {
   // Doc 16 (`docs/implementation/16-extraction-schema-scale.md`) closed whole-spec
-  // extraction on exactly these ceilings: 5,000 properties, 1,000 enum values, 10
-  // levels of nesting. The bounded field set is meant to sit far inside them, and
-  // this asserts the margin rather than assuming it — the field set HAS grown once
-  // already (doc 17's honest capture surface — all 163 basedata fields — now ships,
-  // 207 leaves total, ~835 properties and ~469 enum values measured), and the
-  // failure mode of growing past a ceiling is an API rejection at extraction
+  // extraction on OpenAI's structured-output ceilings (properties, enum values, nesting
+  // depth). This asserts the margin rather than assuming it — the field set has grown
+  // several times, and growing past a ceiling fails as an API rejection at extraction
   // time, on a real recording, in the field.
   const schema = await captureJsonSchema();
 
@@ -257,9 +170,9 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
   };
   walk(schema, 0);
 
-  // Pinned as ranges, not exact counts: an exact count would fail on every honest
-  // field addition and get bumped without thought, which is how a limit guard stops
-  // being one. The lower bounds still catch a derivation that collapsed the tree.
+  // Pinned as ranges, not exact counts: an exact count would fail on every honest field
+  // addition and get bumped without thought. The lower bounds still catch a derivation
+  // that collapsed the tree.
   expect(properties).toBeGreaterThan(200);
   expect(properties).toBeLessThan(5_000);
   expect(enumValues).toBeGreaterThan(200);
@@ -270,11 +183,9 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
 /**
  * Walk the emitted JSON Schema and return every leaf's description, keyed by dotted path.
  *
- * Reads the SCHEMA, not the zod object: the description only matters if it survives
- * `enveloped()` and `z.toJSONSchema` and lands in the bytes the model receives. An
- * assertion against `.description` on the zod side would pass for a description that
- * never reaches the request — which is exactly the bug this guards, since a `.describe()`
- * on the `.nullable().optional()` wrapper used to be discarded on the way through.
+ * Reads the SCHEMA, not the zod object: a description only matters if it lands in the bytes
+ * the model receives. A `.describe()` on the `.nullable().optional()` wrapper used to be
+ * discarded on the way through — a zod-side assertion would not have caught that.
  */
 function collectLeafDescriptions(schema: Record<string, unknown>): Map<string, string> {
   const found = new Map<string, string>();
@@ -303,28 +214,24 @@ function collectLeafDescriptions(schema: Record<string, unknown>): Map<string, s
 test("every leaf reaches the model with the vendor's description and our prohibition", async () => {
   const descs = collectLeafDescriptions(await captureJsonSchema());
 
-  // All 207, not a subset. An earlier version described 31 from our own JSDoc and left 20
-  // deliberately bare; with the vendor supplying authoritative text for every leaf
-  // (or our own note standing in where the vendor publishes none or junk),
-  // "leave it bare" stopped being the better answer.
-  expect(descs.size).toBe(207);
-  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(207);
+  // Every leaf, not a subset: the vendor supplies authoritative text for each (or our own
+  // note stands in where the vendor publishes none or junk), so none is deliberately bare.
+  expect(descs.size).toBe(214);
+  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(214);
 
-  // The VENDOR half is really there. Without this, a generated module that failed to
-  // import — or regenerated to an empty map — would still leave our own notes in place on
-  // 31 leaves and pass a bare "is it described?" check.
+  // The VENDOR half is really there: without this, a generated module that failed to
+  // import — or regenerated to an empty map — would still pass a bare "is it described?"
+  // check on our own notes alone.
   const blower = descs.get("basedata.blowerDoorReading") ?? "";
   expect(blower).toContain("cubic feet per minute");
   expect(blower).toContain("50 Pascals");
 
-  // OUR half survives being composed around. Each of these is a named hazard from the
-  // file header, and a description that lost its prohibition is worse than a missing one:
-  // it looks informative while omitting the thing the model gets wrong.
+  // OUR half survives being composed around: a description that lost its prohibition is
+  // worse than a missing one — it looks informative while omitting the hazard.
   expect(descs.get("hvac.hvacSystemEquipmentType") ?? "").toContain("never a fused token");
   expect(blower).toContain("Never ACH50");
 
-  // Order matters: definition first, then prohibition. The vendor sentence orients the
-  // model before ours constrains it, and a composition that reversed them would read as
-  // a correction rather than a rule.
+  // Order matters: the vendor definition orients the model before our prohibition
+  // constrains it; reversed, the prohibition reads as a correction rather than a rule.
   expect(blower.indexOf("cubic feet per minute")).toBeLessThan(blower.indexOf("Never ACH50"));
 });

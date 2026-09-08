@@ -27,8 +27,8 @@ describe("rosterCandidateSchema", () => {
   });
 
   test("rejects a non-current eligibility without eligibilitySpan", () => {
-    // The discriminated union requires eligibilitySpan to be a string when
-    // eligibility is not "current".
+    // The discriminated union requires a string eligibilitySpan when eligibility is not
+    // "current".
     const candidate = {
       mentionSpan: "the old boiler",
       discriminator: "the old boiler",
@@ -98,6 +98,8 @@ describe("rosterSchema", () => {
       wall: emptyGroup(),
       window: emptyGroup(),
       dhw: emptyGroup(),
+      concern: emptyGroup(),
+      incentive: emptyGroup(),
     };
     const parsed = rosterSchema.safeParse(roster);
     expect(parsed.success).toBe(false);
@@ -119,6 +121,8 @@ describe("rosterSchema", () => {
       wall: emptyGroup(),
       window: emptyGroup(),
       dhw: emptyGroup(),
+      concern: emptyGroup(),
+      incentive: emptyGroup(),
     };
     expect(rosterSchema.safeParse(roster).success).toBe(true);
   });
@@ -145,6 +149,8 @@ describe("rosterSchema", () => {
       wall: emptyGroup(),
       window: emptyGroup(),
       dhw: emptyGroup(),
+      concern: emptyGroup(),
+      incentive: emptyGroup(),
     };
     expect(rosterSchema.safeParse(roster).success).toBe(true);
   });
@@ -156,6 +162,8 @@ describe("rosterSchema", () => {
       wall: [],
       window: [],
       dhw: [],
+      concern: [],
+      incentive: [],
     };
     const parsed = rosterSchema.safeParse(roster);
     expect(parsed.success).toBe(true);
@@ -185,17 +193,19 @@ describe("rosterGroupSchema — stated none union value", () => {
 
 describe("snuggInventoryInstructions", () => {
   test("keeps the transcript injection boundary last", () => {
-    // The instructions must end with the exact transcript section, so a
-    // transcript appended after it is strictly data and never instructions.
+    // Ending with the exact transcript section makes an appended transcript strictly
+    // data, never instructions.
     expect(snuggInventoryInstructions.endsWith(TRANSCRIPT_SECTION)).toBe(true);
   });
 
-  test("mentions all five collection groups and the roster fields", () => {
+  test("mentions every collection group and the roster fields", () => {
     expect(snuggInventoryInstructions).toContain("hvac");
     expect(snuggInventoryInstructions).toContain("attic");
     expect(snuggInventoryInstructions).toContain("wall");
     expect(snuggInventoryInstructions).toContain("window");
     expect(snuggInventoryInstructions).toContain("dhw");
+    expect(snuggInventoryInstructions).toContain("concern");
+    expect(snuggInventoryInstructions).toContain("incentive");
     expect(snuggInventoryInstructions).toContain("mentionSpan");
     expect(snuggInventoryInstructions).toContain("distinguishedBy");
     expect(snuggInventoryInstructions).toContain("eligibilitySpan");

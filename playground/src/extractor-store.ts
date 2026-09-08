@@ -77,7 +77,7 @@ const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
 const baseUrl = import.meta.env.VITE_OPENAI_BASE_URL ?? DEFAULT_BASE_URL;
 const model = import.meta.env.VITE_OPENAI_MODEL ?? DEFAULT_MODEL;
 
-/** The seven-group Snugg Pro extraction shape the two delegates share. */
+/** The eight-group Snugg Pro extraction shape the two delegates share. */
 type ExtractedShape = SnuggExtraction;
 
 /**

@@ -28,6 +28,9 @@ test("re-exports the adapter, both schemas, the ctx schema, instructions, exampl
   // A resource group is exported too: a UI rendering one endpoint's card needs the
   // group schema, not just the whole field set.
   expect(typeof api.HvacFields.parse).toBe("function");
+  // The concern job-collection group is in the barrel as well — the first
+  // job-collection resource (doc 20 tranche 2) must not fall out of the exports.
+  expect(typeof api.ConcernFields.parse).toBe("function");
   // The platform-route caps are exported as runtime constants so the per-group
   // cap test and any consumer can guard against the vendor's HTTP 400.
   expect(api.SCHEMA_SERIALIZED_CHAR_CAP).toBe(32_768);

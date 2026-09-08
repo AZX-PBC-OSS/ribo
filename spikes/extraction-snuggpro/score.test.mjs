@@ -4,18 +4,16 @@
  *
  *   node spikes/extraction-snuggpro/score.test.mjs
  *
- * "A gate you haven't watched fail isn't a gate." Each test builds a PERFECT model output by
- * copying the ONE real new-format ground-truth file (11-ambiguous-attic — the worked example; see
- * ANNOTATOR_GUIDE.md) via `buildPerfectModel`, asserts the relevant metric is green, then MUTATES
- * one leaf and asserts the metric goes red — printing the before/after numbers.
+ * "A gate you haven't watched fail isn't a gate." Each test builds a PERFECT model output
+ * by copying a real new-format ground-truth file (11-ambiguous-attic, the worked example)
+ * via `buildPerfectModel`, asserts the relevant metric is green, then MUTATES one leaf and
+ * asserts the metric goes red — printing the before/after numbers.
  *
- * Only one real fixture exists because only one transcript has been re-annotated so far (deliberate
- * — see the report); several gates below (band boundary, a second axis pair) therefore build a
- * SYNTHETIC ground-truth object instead of reading a file, using `emptyGroundTruth()` (every leaf
- * "unmentioned", derived from schema-leaves.mjs's LEAF_PATHS) plus targeted overrides. This is not
- * a lesser test: a scorer unit test should not need a real annotated transcript at all, and
- * decoupling scorer coverage from annotation progress is a feature — the 26-way fan-out does not
- * block finishing this suite, and this suite does not need to wait on it.
+ * Several gates (band boundary, a second axis pair, truly silent health leaves) build a
+ * SYNTHETIC ground truth instead of reading a file, via `emptyGroundTruth()` (every leaf
+ * "unmentioned", derived from LEAF_PATHS) plus targeted overrides. This is not a lesser
+ * test: a scorer unit test should not need a real annotated transcript at all, and
+ * decoupling scorer coverage from annotation progress is a feature.
  *
  * Exit non-zero if any assertion fails.
  */
@@ -40,14 +38,13 @@ import {
 } from "./score.mjs";
 
 /**
- * Reach a leaf's truth object by its `group.leaf` path, whichever side of the v3 split it lives on.
- *
- * v3 moved the five collection groups out of the flat `leaves` map into `instances[group][n].leaves`
- * keyed by LOCAL leaf name. These tests mutate individual leaves to prove the validator catches each
- * malformation, and they should keep naming leaves the way the schema does rather than encoding the
- * storage split at fourteen call sites.
+ * Reach a leaf's truth object by its `group.leaf` path, whichever side of the v3 split it
+ * lives on: v3 moved collection-group leaves out of the flat `leaves` map into
+ * `instances[group][n].leaves` keyed by LOCAL leaf name. These tests mutate individual
+ * leaves to prove the validator catches each malformation, and they name leaves the way
+ * the schema does rather than encoding the storage split at every call site.
  */
-const COLLECTION_GROUPS_T = ["hvac", "attic", "wall", "window", "dhw"];
+const COLLECTION_GROUPS_T = ["hvac", "attic", "wall", "window", "dhw", "concern"];
 const leafHome = (doc, path) => {
   const [group, leaf] = path.split(".");
   return COLLECTION_GROUPS_T.includes(group)
@@ -118,10 +115,10 @@ function runFixture(slug, mutate) {
   return scoreTranscript(slug, gt, transcript, model);
 }
 
-/** A synthetic, fully "unmentioned" ground truth over all 51 real leaves — no file, no transcript
- * dependency. `overrides` is `{ [path]: partialLeafTruth }`, merged onto the "unmentioned" default.
- * Collection-group overrides are lifted into a single current instance so the synthetic shape matches
- * the v3 instance format. */
+/** A synthetic, fully "unmentioned" ground truth over all real leaves — no file, no
+ * transcript dependency. `overrides` is `{ [path]: partialLeafTruth }`, merged onto the
+ * "unmentioned" default. Collection-group overrides are lifted into a single current
+ * instance so the synthetic shape matches the v3 instance format. */
 function emptyGroundTruth(overrides = {}) {
   const leaves = {};
   for (const path of LEAF_PATHS) leaves[path] = { status: "unmentioned", sourceSpan: null };
@@ -152,12 +149,15 @@ heading("0. SCHEMA INTROSPECTION (schema-leaves.mjs) — derived, not hand-count
   console.log(
     `   ${LEAVES.length} leaves, ${enumLeaves.length} enum leaves, ${totalMembers} enum members total`,
   );
-  // Pinned against the real schema, and moved deliberately when the field set moves:
-  // `basedata` grew to its full 163-field capture surface (doc 17), taking the schema
-  // from 51 to 207 leaves and the enum vocabulary from 233 to 469 members. The
-  // ground-truth corpus stays sparse by design, so nothing else here needed to move.
-  check("207 leaves across the 7 resource groups", LEAVES.length === 207);
-  check("469 total enum members across all enum leaves", totalMembers === 469);
+  // Pinned against the real schema, and moved deliberately when the field set moves.
+  // `stageId` is a NUMBER leaf carrying its label→code pairs in its description (the
+  // spec publishes no `enum` key for it), not a zod enum. The ground-truth corpus stays
+  // sparse by design — unannotated leaves score as "unmentioned". (`incentive` is an
+  // array group in the schema but is deliberately NOT in ground-truth.mjs's
+  // COLLECTION_GROUPS yet — the corpus predates it — so its leaves resolve as flat
+  // "unmentioned" entries until a corpus tranche says otherwise.)
+  check("214 leaves across the 10 resource groups", LEAVES.length === 214);
+  check("474 total enum members across all enum leaves", totalMembers === 474);
   check(
     "ENUM_VOCAB has an entry for every enum leaf (no collisions at import time)",
     ENUM_VOCAB.size === enumLeaves.length,
@@ -194,12 +194,10 @@ heading(
   "0c. RESOLVER exact-match — a near-miss of the API string is UNRECOGNIZED, not mislabelled 'slug'",
 );
 {
-  // fix-round-2: resolveEnumMember used to slugify the raw value and compare it to the slug SET
-  // before giving up — which meant a mis-cased/re-punctuated near-miss of the API string (not the
-  // deliberately generated token) slugified to a real slug and was reported as "slug" regardless of
-  // whether the run actually emitted that token. Attribution is now exact-match only, in both
-  // directions: the raw value must equal the literal API string or one of the PRECOMPUTED slugs
-  // character-for-character.
+  // fix-round-2: resolveEnumMember used to slugify the raw value and compare it to the
+  // slug SET before giving up — so a mis-cased/re-punctuated near-miss of the API string
+  // was reported as "slug" whether or not the run actually emitted that token.
+  // Attribution is now exact-match only, in both directions.
   const nearMissCasing = resolveEnumMember("hvac.hvacDuctLeakage", "well sealed"); // API string, wrong case, dropped "6% -"
   const nearMissPunctuation = resolveEnumMember("hvac.hvacDuctInsulation", 'duct board 1.5"'); // API string, wrong case
   const exactSlug = resolveEnumMember("hvac.hvacDuctLeakage", "well_sealed");
@@ -222,13 +220,11 @@ heading(
 
 heading("0d. NAMED_SETS self-check (MINOR 10) — every entry must be a subset of LEAF_PATHS");
 {
-  // disclaimer-policy.mjs asserts this at import time (a typo throws immediately, for every real
-  // entry, since this module is the single place that re-scores every transcript using a given named
-  // set — see its own comment). That means the REAL NAMED_SETS can never be caught failing this check
-  // by a runtime assertion here (if it had a bad path, this file would already have failed to import).
-  // What we CAN and must test is the check formula itself: feed it a deliberately-corrupted copy and
-  // confirm the formula says "no" — proving the load-time assertion would have caught a real typo,
-  // without needing to corrupt the actual module (which would break every other test in this file).
+  // disclaimer-policy.mjs asserts this at import time, so the REAL NAMED_SETS can never be
+  // caught failing by a runtime assertion here (a bad path would fail the import first).
+  // What we CAN test is the check formula itself: feed it a deliberately-corrupted copy
+  // and confirm it says "no" — proving the load-time assertion would catch a real typo,
+  // without corrupting the actual module.
   const isSubsetOfLeafPaths = (paths) => paths.every((p) => LEAF_PATHS.includes(p));
   check(
     "every REAL NAMED_SETS entry passes the subset check",
@@ -375,13 +371,11 @@ heading("1b. DISCLAIMER / SCHEMA-SHAPE VALIDATION (fix-round-2)");
 // ---------------------------------------------------------------------------
 // 1c. SYMMETRIC TIE-BREAK is now MECHANICALLY enforced (final review item).
 //
-// Rule 6's determinism ("member must be the earliest, in schema.ts's own enum order, of the
-// co-equally-fitting set") was previously prose only — an annotator ERROR (not discretion; the
-// design removed the discretion on purpose) passed validation silently. The conflated-pair shape is
-// schema-wide (hvacSystemEquipmentType's shared-ducts heat-pump and ground-source variants have the
-// identical structure), and only 1 of 14 transcripts is annotated, so this needed to be closed
-// before the fan-out, not caught in reconciliation after it. `arguable.symmetric: true` makes it
-// checkable without a hand-listed table of which members conflate — the "set" is just
+// Rule 6's determinism ("member must be the earliest, in schema.ts's own enum order, of
+// the co-equally-fitting set") was previously prose only — an annotator ERROR passed
+// validation silently. The conflated-pair shape is schema-wide, so this needed to be
+// closed before the annotation fan-out. `arguable.symmetric: true` makes it checkable
+// without a hand-listed table of which members conflate — the "set" is just
 // `{member} ∪ acceptableAlternatives`, exactly what the annotator wrote on THIS leaf.
 // ---------------------------------------------------------------------------
 heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item this fix closes");
@@ -396,13 +390,14 @@ heading("1c. SYMMETRIC TIE-BREAK enforcement (arguable.symmetric) — the item t
 
   {
     // THE mutation that fails without the check: swap which member sits in `member` vs
-    // `acceptableAlternatives`, keeping `symmetric: true`. Before this fix, this validated clean —
-    // an annotator who wrote the pair in the wrong order would never find out.
+    // `acceptableAlternatives`, keeping `symmetric: true`. Before this fix, this
+    // validated clean — an annotator who wrote the pair in the wrong order would never
+    // find out.
     const bad = clone();
     const leaf = leafAt(bad, "hvac.hvacSystemEquipmentType");
     const original = leaf.member;
-    leaf.member = leaf.arguable.acceptableAlternatives[0]; // "Furnace / Central AC (shared ducts)" — index 16
-    leaf.arguable.acceptableAlternatives = [original]; // "Furnace with standalone ducts" — index 2, now demoted
+    leaf.member = leaf.arguable.acceptableAlternatives[0]; // the shared-ducts variant, later in schema order
+    leaf.arguable.acceptableAlternatives = [original]; // the earliest member, now demoted
     const res = validateGroundTruth(bad, transcript);
     console.log(`   swapped order: ok=${res.ok} errors=${JSON.stringify(res.errors)}`);
     check(
@@ -507,7 +502,7 @@ heading("1. GROUND-TRUTH VALIDATOR (ground-truth.mjs)");
     // error — it resolves to "unmentioned". This is the whole point of moving disclaimers out of
     // annotator judgment: the annotator only writes what they can address specifically.
     const sparse = clone();
-    setLeaf(sparse, "attic.atticInsulationType", undefined); // not covered by any of the 3 disclaimers
+    setLeaf(sparse, "attic.atticInsulationType", undefined); // not covered by any disclaimer
     const res = validateGroundTruth(sparse, transcript);
     check(
       "removing an explicit, disclaimer-uncovered leaf entry is VALID (defaults to unmentioned)",
@@ -719,9 +714,10 @@ heading(
   "4b. EMPTY-SPAN gate (IMPORTANT 8a) — grounds for nothing must not score as grounded in everything",
 );
 {
-  // `"".includes("")` is trivially true for ANY transcript, so a model emitting `sourceSpan: ""`
-  // used to sail through `spanIsVerbatim` as "verbatim" — the near-miss fallback in `classifySpan`
-  // had the identical hazard on its own `.includes()` calls, so both needed the guard, not one.
+  // `"".includes("")` is trivially true for ANY transcript, so a model emitting
+  // `sourceSpan: ""` used to sail through `spanIsVerbatim` as "verbatim" — and the
+  // near-miss fallback in `classifySpan` had the identical hazard on its own `.includes()`
+  // calls, so both needed the guard, not one.
   check(
     "spanIsVerbatim rejects an empty span outright, regardless of the transcript",
     spanIsVerbatim("", "literally any transcript text at all") === false,
@@ -777,14 +773,13 @@ heading(
     "a genuinely wrong value spelled in slug form is still wrong, not merely unresolved",
     wrongVocabRun.counts.wrong === 1,
   );
-  // CRITICAL FIX (fix-round-2): vocabApi/vocabSlug were incremented whenever `compareValue` found
-  // ANY real member for the raw value — correct or not — because that check ran before the
-  // correctness check, not gated on it. A wrong-but-real slug-spelled value (GT "Natural Gas", model
-  // "fuel_oil") therefore contributed to `vocabSlug` and the CLI printed it under "vocabulary mix on
-  // CORRECT matches", which is exactly backwards for the one measurement this format exists to make.
-  // Isolated on a SYNTHETIC single-leaf fixture (rather than the worked example, whose other ~15
-  // correct leaves would swamp a delta-of-one signal) so the count is unambiguous: this leaf's wrong
-  // answer must contribute to neither counter, full stop.
+  // CRITICAL FIX (fix-round-2): vocabApi/vocabSlug were incremented whenever
+  // `compareValue` found ANY real member for the raw value — correct or not — so a
+  // wrong-but-real slug-spelled value contributed to `vocabSlug` and the CLI printed it
+  // under "vocabulary mix on CORRECT matches": exactly backwards for the one measurement
+  // this format exists to make. Isolated on a SYNTHETIC single-leaf fixture (the worked
+  // example's other correct leaves would swamp a delta-of-one signal) so the count is
+  // unambiguous: this leaf's wrong answer must contribute to neither counter.
   const isolatedGt = emptyGroundTruth({
     "hvac.hvacHeatingEnergySource": {
       status: "asserted",
@@ -836,13 +831,11 @@ heading("6. R-VALUE -> BAND INVENTION gate");
 // ---------------------------------------------------------------------------
 // 7. HALLUCINATED HEALTH PASS vs SILENT NOT-TESTED gate
 // ---------------------------------------------------------------------------
-// 7a-7c use a SYNTHETIC ground truth with NO disclaimers, specifically so a health-test leaf is
-// genuinely "unmentioned" (true silence) to mutate against. In the worked example itself, every one
-// of the 13 health-test leaves is now either explicitly asserted (ambientCarbonMonoxide) or covered
-// by the "No tests" disclaimer (asserted "Not Tested") — a direct, intended consequence of moving
-// disclaimer scope out of annotator judgment: this corpus genuinely has no leftover silent health
-// leaf once "No tests" is honored uniformly. That is not a gap in coverage; it is what "the disclaimer
-// covers everything a blanket statement plausibly reaches" is supposed to produce.
+// 7a-7c use a SYNTHETIC ground truth with NO disclaimers, so a health-test leaf is
+// genuinely "unmentioned" (true silence) to mutate against. In the worked example, every
+// health-test leaf is either explicitly asserted or covered by the "No tests" disclaimer
+// (asserted "Not Tested") — an intended consequence of moving disclaimer scope out of
+// annotator judgment, not a gap in coverage.
 heading("7a. HALLUCINATED-HEALTH-PASS gate (synthetic: a truly silent health test)");
 {
   const gt = emptyGroundTruth();
@@ -902,11 +895,11 @@ heading(
   "7d. hGtPassed denominator gate (IMPORTANT 8b) — must never be smaller than its own numerator",
 );
 {
-  // A previous version incremented `hGtPassed` only inside the both-non-null branch, so a MISSED
-  // "Passed" leaf (model emits null) bumped `hCleanDropped` (the numerator, in the miss branch)
-  // without ever bumping `hGtPassed` (the denominator) — "N of GT-passed dropped" could report a
-  // numerator larger than its own denominator. `hGtPassed` must now be counted once, unconditionally
-  // on GT alone, before any branch on what the model emitted.
+  // A previous version incremented `hGtPassed` only inside the both-non-null branch, so a
+  // MISSED "Passed" leaf bumped `hCleanDropped` (the numerator) without ever bumping
+  // `hGtPassed` (the denominator) — "N of GT-passed dropped" could report a numerator
+  // larger than its own denominator. `hGtPassed` must be counted once, unconditionally on
+  // GT alone, before any branch on what the model emitted.
   const gt = emptyGroundTruth({
     "health.healthMoldMoisture": {
       status: "asserted",
@@ -959,11 +952,11 @@ heading(
       before.counts.enumSanctioned === 0 &&
       before.counts.hallucinationSoft === 0,
   );
-  // fix-round-2 (IMPORTANT 9): this is GT NON-NULL — nothing was hallucinated, the schema forced an
-  // arbitrary pick and the model landed on the other lobe of the SAME forced choice. It must land in
-  // its OWN counter (`enumSanctioned`), never in `hallucinationSoft` (that bucket is reserved for a
-  // GT-NULL leaf where a real, if tolerated, overreach happened) and must not be reported under the
-  // HALLUCINATION section.
+  // fix-round-2 (IMPORTANT 9): this is GT NON-NULL — nothing was hallucinated, the schema
+  // forced an arbitrary pick and the model landed on the other lobe. It must land in its
+  // OWN counter (`enumSanctioned`), never in `hallucinationSoft` (reserved for a GT-NULL
+  // leaf where a real, if tolerated, overreach happened), and must not be reported under
+  // the HALLUCINATION section.
   check(
     "the sanctioned alternative is NOT counted as wrong, and IS counted in enumSanctioned (NOT hallucinationSoft)",
     after.counts.wrong === 0 &&
@@ -1135,15 +1128,14 @@ heading("13. ROBUSTNESS");
   );
   check("a missing result is status=unscored, not a crash", miss.status === "unscored");
   check("its GT-side denominators survive (whole-transcript miss)", miss.counts.gtNonNull > 0);
-  // CRITICAL FIX (fix-round-2): a missing/malformed result must be scored EXACTLY as if the
-  // extractor had emitted an empty object — every GT-non-null leaf becomes a counted miss (or an
-  // excused miss where arguable.acceptableMiss says so), never a silent zero. Before this fix,
-  // `scoreTranscript` returned immediately after computing the GT-side denominators, so a missing
-  // result contributed miss=0/hMiss=0 no matter how many values GT actually asserted — meaning an
-  // extractor that returns NOTHING scored strictly better than one that tried and got some answers
-  // wrong. The worked example asserts 4 generic leaves (3 enum + 1 number, none excused) and 13
-  // health leaves (12 via the "No tests" disclaimer + 1 explicit, 1 of the 13 excused by its own
-  // arguable.acceptableMiss) — a missing result must show ALL of that as real misses.
+  // CRITICAL FIX (fix-round-2): a missing/malformed result must be scored EXACTLY as if
+  // the extractor had emitted an empty object — every GT-non-null leaf becomes a counted
+  // miss (or an excused miss where arguable.acceptableMiss says so), never a silent zero.
+  // Before this fix, `scoreTranscript` returned right after computing the GT-side
+  // denominators, so a missing result contributed miss=0 no matter how much GT asserted —
+  // an extractor returning NOTHING scored strictly better than one that tried and got
+  // some answers wrong. The checks below pin the exact GT-asserted leaf counts of the
+  // worked example as real misses.
   check(
     "a missing result counts every GT-asserted GENERIC leaf as a real miss, not a silent zero",
     miss.counts.miss === 4 && miss.counts.missExcused === 0 && miss.counts.enumMiss === 3,
@@ -1162,11 +1154,10 @@ heading("13. ROBUSTNESS");
       const tried = run((m) => {
         m.hvac[0].hvacHeatingEnergySource.value = "Fuel Oil"; // wrong, on top of everything else correct
       });
-      // "worse" = strictly more penalized signal than the missing-result case on the SAME leaf set:
-      // the missing case has miss=4 and wrong=0; a run that emits a wrong answer for one leaf and
-      // leaves everything else correct has miss=0 but wrong=1 — neither dominates the other in raw
-      // counts, so what must hold is the property CRITICAL 1 is actually about: the missing case is
-      // no longer a free pass (miss > 0), which the pre-fix behavior violated outright (miss === 0).
+      // "worse" = the property CRITICAL 1 is actually about: the missing case is no
+      // longer a free pass (miss > 0), which the pre-fix behavior violated outright
+      // (miss === 0). Raw counts alone don't order the two runs — a trying run trades
+      // misses for wrongs.
       return miss.counts.miss > 0 && tried.counts.wrong === 1;
     })(),
   );

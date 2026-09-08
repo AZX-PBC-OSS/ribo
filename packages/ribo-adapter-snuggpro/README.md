@@ -31,10 +31,11 @@ pnpm add @azx/ribo-adapter-snuggpro @azx/ribo-core
   sends, with every leaf optional (absent = the reviewer rejected it, leave it alone) and nullable
   (a present `null` = write it empty). `snuggExtractionSchema` (type `SnuggExtraction`) is what the
   **model** is asked for, derived from the patch with `ribo-core`'s `enveloped()` — every leaf
-  wrapped in a provenance envelope, closed and fully required. Plus the seven per-endpoint groups
+  wrapped in a provenance envelope, closed and fully required. Plus the ten per-endpoint groups
   (`BasedataFields`, `HvacFields`, `AtticFields`, `WallFields`, `WindowFields`, `DhwFields`,
-  `HealthFields`) and the enums they are built from (`HvacSystemEquipmentType`, `HvacUpgradeAction`,
-  `HvacDuctLeakage`, `AtticInsulationDepth`, `HealthTestState`, and the rest).
+  `HealthFields`, `ConcernFields`, `IncentiveFields`, `StageFields`) and the enums they are built
+  from (`HvacSystemEquipmentType`, `HvacUpgradeAction`, `HvacDuctLeakage`, `AtticInsulationDepth`,
+  `HealthTestState`, and the rest).
 - **The write context** — `snuggCtxSchema` and the `SnuggWriteContext` inferred from it (the real
   `C` the adapter's `write` needs, parsed rather than merely typed because it comes back out of
   storage).

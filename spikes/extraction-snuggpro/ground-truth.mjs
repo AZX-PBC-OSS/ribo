@@ -4,25 +4,25 @@
  * is documented in `ground-truth-format.md` — read that first; this file enforces what it
  * describes and must not drift from it.
  *
- * A ground-truth file is "new format" iff it has a `leaves` object. All 14 corpus transcripts have
- * been re-annotated into the new format; `isNewFormat` below remains as the single place that draws
+ * A ground-truth file is "new format" iff it has a `leaves` object. The whole corpus has been
+ * re-annotated into the new format; `isNewFormat` below remains as the single place that draws
  * the line, so a stale old-format file (if one is ever reintroduced) is reported as "not yet
  * re-annotated" by score.mjs instead of crashing on it.
  *
  * TWO LAYERS, not one:
  *   - The RAW file an annotator writes: `leaves` is SPARSE — only the leaves they can address
- *     specifically — plus `disclaimers`, a list of blanket/generic negations recorded as data (a
- *     verbatim span + a mechanical scope), never resolved by the annotator's own judgment. See
+ *     specifically — plus `disclaimers`, blanket/generic negations recorded as data (a verbatim
+ *     span + a mechanical scope), never resolved by the annotator's own judgment. See
  *     `disclaimer-policy.mjs` for why, and for the scope vocabulary.
- *   - The RESOLVED ground truth `score.mjs` actually scores against: every leaf, filled in by
- *     applying every disclaimer's scope through the CURRENT policy, then overlaid with the
- *     annotator's explicit `leaves` entries (which always win — the most specific statement about a
- *     leaf beats a blanket one covering it). `resolveGroundTruth` is the only place this happens,
- *     so changing the disclaimer policy re-scores every transcript without touching a single
+ *   - The RESOLVED ground truth `score.mjs` scores against: every leaf, filled in by applying
+ *     every disclaimer's scope through the CURRENT policy, then overlaid with the annotator's
+ *     explicit `leaves` entries (which always win — the most specific statement about a leaf
+ *     beats a blanket one covering it). `resolveGroundTruth` is the only place this happens, so
+ *     changing the disclaimer policy re-scores every transcript without touching a single
  *     ground-truth file.
  */
 
-import { LEAF_BY_PATH, LEAF_PATHS } from "./schema-leaves.mjs";
+import { GROUPS, LEAF_BY_PATH, LEAF_PATHS } from "./schema-leaves.mjs";
 import {
   defaultTruthForDisclaimer,
   leavesInScope,
@@ -69,15 +69,12 @@ function validateLeaf(path, leafSpec, truth, errors) {
   } else if (typeof sourceSpan !== "string" || sourceSpan.length === 0) {
     tag(`status ${JSON.stringify(status)} requires a non-empty verbatim sourceSpan string`);
   }
-  // `retracted` and `arguable` are meaningful at ANY status — most commonly on "asserted" (the
-  // final value itself was contested, or a retraction preceded it), but also on "unmentioned" /
-  // "declared_absent" (a model producing a sanctioned soft non-null on a GT-null slot is a mild
-  // call, not a hard hallucination — the old scorer's TOP_PARTIAL table, now living on the leaf
-  // it describes instead of a slug-keyed table in score.mjs).
-  // Every kind-specific field this leaf's kind does NOT use must be absent. Checked up front, for
-  // ALL statuses (not just "asserted") and for every kind, so e.g. an enum leaf cannot carry a
-  // stray `value`, and a number/string leaf cannot carry a stray `member`/`noFittingMember` —
-  // whether or not `status` happens to be "asserted".
+  // `retracted` and `arguable` are meaningful at ANY status — most commonly on "asserted", but
+  // also on "unmentioned"/"declared_absent" (a model producing a sanctioned soft non-null on a
+  // GT-null slot is a mild call, not a hard hallucination).
+  // Every kind-specific field this leaf's kind does NOT use must be absent. Checked up front,
+  // for ALL statuses and every kind, so e.g. an enum leaf cannot carry a stray `value`, and a
+  // number/string leaf cannot carry a stray `member`/`noFittingMember`.
   const kindFields = { number: ["value"], string: ["value"], enum: ["member", "noFittingMember"] };
   const allValueFields = ["value", "member", "noFittingMember"];
   const disallowed = allValueFields.filter((f) => !kindFields[leafSpec.kind].includes(f));
@@ -167,17 +164,14 @@ function validateLeaf(path, leafSpec, truth, errors) {
       if ("acceptableMiss" in a && typeof a.acceptableMiss !== "boolean") {
         tag("arguable.acceptableMiss must be a boolean when present");
       }
-      // Rule 6's determinism (ANNOTATOR_GUIDE.md): when several enum members equally fit and the
-      // schema forces a pick between them, `member` must be whichever one appears FIRST in
-      // schema.ts's own enum-list order — never a free choice, because two annotators each "picking
-      // either one" would disagree on WHICH member sits in `member` even though their files score
-      // identically. That rule was previously enforced only by prose; `arguable.symmetric: true` is
-      // the marker that makes it checkable WITHOUT hand-listing which members form a conflated
-      // set anywhere: the "set" being ordered is simply `{member} ∪ acceptableAlternatives` — exactly
-      // what the annotator wrote on THIS leaf, nothing pre-declared elsewhere. This does NOT fire on
-      // the (legitimate, different) case of an asymmetric "lesser but tolerated" alternative — that
-      // case never sets `symmetric: true`, and schema order has no bearing on it (the annotator's own
-      // note explains why a specific member is more correct, not the order they happen to appear in).
+      // Rule 6's determinism (ANNOTATOR_GUIDE.md): when several enum members equally fit,
+      // `member` must be whichever appears FIRST in schema.ts's own enum-list order — two
+      // annotators each "picking either one" would otherwise disagree on WHICH member sits in
+      // `member`. `arguable.symmetric: true` makes that checkable WITHOUT hand-listing which
+      // members conflate: the ordered "set" is simply `{member} ∪ acceptableAlternatives`,
+      // exactly what the annotator wrote on THIS leaf. It does NOT fire on the asymmetric
+      // "lesser but tolerated" alternative case — that never sets `symmetric: true`, and
+      // schema order has no bearing on it.
       if ("symmetric" in a) {
         if (typeof a.symmetric !== "boolean") {
           tag("arguable.symmetric must be a boolean when present");
@@ -228,12 +222,41 @@ function validateLeaf(path, leafSpec, truth, errors) {
  * @param {object} raw
  */
 /**
- * The five groups the vendor models as per-instance child resources. A job may hold several of
+ * The groups the vendor models as per-instance child resources. A job may hold several of
  * each, so ground truth carries an ORDERED LIST per group rather than one flat leaf map.
- * `basedata` and `health` are genuine singletons in the API and stay flat.
+ * `basedata`, `health` and `stage` are genuine singletons in the API and stay flat;
+ * `concern` is a job-collection resource the schema models as an array of instances exactly
+ * like the component collections, so the scorer must too.
+ *
+ * NOTE: `incentive` is an array group in `schema.ts` but is deliberately NOT listed here:
+ * the ground-truth corpus predates it and must not be re-annotated as part of that schema
+ * tranche, and adding it would make every corpus file invalid ("instances is missing
+ * incentive") until each gained an `instances.incentive` key. Until a corpus tranche says
+ * otherwise, incentive's leaves ride the flat map below as ordinary singleton leaves —
+ * harmless for scoring (no transcript mentions them, so they sit at "unmentioned") and
+ * honest about what the corpus can currently express.
  */
-export const COLLECTION_GROUPS = ["hvac", "attic", "wall", "window", "dhw"];
-export const SINGLETON_GROUPS = ["basedata", "health"];
+export const COLLECTION_GROUPS = ["hvac", "attic", "wall", "window", "dhw", "concern"];
+
+/**
+ * Every group that is NOT a collection group, DERIVED from the schema rather than
+ * hand-listed — so a new top-level group is scored as a flat leaf map from the day it
+ * lands, with no harness edit, until it is deliberately promoted into COLLECTION_GROUPS
+ * alongside a corpus re-annotation.
+ */
+export const SINGLETON_GROUPS = GROUPS.filter((group) => !COLLECTION_GROUPS.includes(group));
+
+/**
+ * The collection groups the v3 corpus was actually annotated against. A group that joined
+ * `COLLECTION_GROUPS` AFTER the annotation pass may be ABSENT from a corpus file's
+ * `instances` map: its absence means "annotated before this group existed", NOT "annotated
+ * as none" — writing `concern: []` into a file nobody re-listened to would be a false
+ * negative claim. So the missing-key error in `validateInstances` applies only to the
+ * groups below, while a present `instances.concern` validates like any other collection
+ * group and `resolveGroundTruth` materializes an absent group as [] either way. When the
+ * corpus is deliberately re-annotated, this list merges back into `COLLECTION_GROUPS`.
+ */
+const ANNOTATED_COLLECTION_GROUPS = ["hvac", "attic", "wall", "window", "dhw"];
 
 /** Eligibility verdicts. Anything other than `current` demands a verbatim exclusion span. */
 const ELIGIBILITY = new Set([
@@ -257,10 +280,10 @@ export const LEAVES_BY_GROUP = (() => {
 /**
  * Validate one annotated instance: the three grounding spans, then its leaves.
  *
- * The span rules mirror the roster the model is asked to produce (`inventory.ts`), deliberately.
- * Ground truth that could express something extraction cannot would grade against a target the
- * model was never allowed to hit; ground truth that could NOT express something extraction can
- * would silently mark correct output wrong. Same three guards, same directions.
+ * The span rules mirror the roster the model is asked to produce (`inventory.ts`),
+ * deliberately: ground truth that could express something extraction cannot would grade
+ * against a target the model was never allowed to hit; ground truth that could NOT
+ * express something extraction can would silently mark correct output wrong.
  */
 function validateInstance(group, index, instance, errors, transcriptText) {
   const tag = (msg) => errors.push(`instances.${group}[${index}]: ${msg}`);
@@ -330,7 +353,7 @@ function validateInstance(group, index, instance, errors, transcriptText) {
 /**
  * Validate the `instances` map: every key a real collection group, every element an instance.
  * An untouched group is an EMPTY LIST, never a missing key — the same distinction review draws
- * between "there are none" and "touch nothing", kept here so the corpus can grade it.
+ * between "there are none" and "touch nothing".
  */
 export function validateInstances(raw, errors, transcriptText) {
   const instances = raw.instances;
@@ -338,7 +361,9 @@ export function validateInstances(raw, errors, transcriptText) {
     errors.push('"instances" must be an object keyed by collection group');
     return;
   }
-  for (const group of COLLECTION_GROUPS) {
+  // Only the groups the v3 annotation pass covered must be PRESENT — see
+  // ANNOTATED_COLLECTION_GROUPS for why a later-added group (concern) may be absent.
+  for (const group of ANNOTATED_COLLECTION_GROUPS) {
     if (!(group in instances)) {
       errors.push(`"instances" is missing "${group}" — an untouched group is [], not absent`);
     }
@@ -375,8 +400,8 @@ export function resolveGroundTruth(raw) {
 
   // Collection groups resolve per INSTANCE, not into the flat map. Every leaf of the group is
   // materialized on every instance, so a leaf an annotator did not mention is an explicit
-  // `unmentioned` rather than a missing key -- the same anti-silence property review holds, and
-  // the reason the scorer can tell "the model missed this" from "nobody asked about it".
+  // `unmentioned` rather than a missing key — the reason the scorer can tell "the model missed
+  // this" from "nobody asked about it".
   const instances = {};
   for (const group of COLLECTION_GROUPS) {
     const annotated = Array.isArray(raw.instances?.[group]) ? raw.instances[group] : [];
@@ -399,20 +424,17 @@ export function resolveGroundTruth(raw) {
 }
 
 /**
- * Validate a whole new-format ground-truth document: the RAW shape (sparse `leaves`, `disclaimers`,
- * no overlapping scopes), then — if the raw shape is clean — the fully RESOLVED full-leaf map, so a
- * bug in the disclaimer policy itself (not just in one file) is still caught. Never throws: every
- * branch that reads a field off a value of unknown shape checks that shape first, so a malformed
- * file (e.g. `arguable: "oops"`, a primitive where an object is expected) becomes a reported error,
- * not an uncaught exception the CLI would have to guard against separately.
+ * Validate a whole new-format ground-truth document: the RAW shape (sparse `leaves`,
+ * `disclaimers`, no overlapping scopes), then — if the raw shape is clean — the fully RESOLVED
+ * full-leaf map, so a bug in the disclaimer policy itself is still caught. Never throws: every
+ * branch checks a value's shape before reading fields off it, so a malformed file becomes a
+ * reported error, not an uncaught exception.
  *
  * @param {unknown} raw parsed JSON
- * @param {string | null} transcriptText when given, every `sourceSpan` (on leaves AND disclaimers)
- *   is checked as a verbatim substring — the same rule prompt.md rule 3 states, enforced mechanically
- *   rather than trusted to a careful re-read.
- * @returns {{ ok: boolean, errors: string[], warnings: string[] }} `warnings` never affects `ok` —
- *   they flag things worth a human's attention (an implausible topic/scope pairing, an `unresolved`
- *   disclaimer needing reconciliation) that cannot be mechanically proven wrong.
+ * @param {string | null} transcriptText when given, every `sourceSpan` (on leaves AND
+ *   disclaimers) is checked as a verbatim substring — prompt.md rule 3, enforced mechanically.
+ * @returns {{ ok: boolean, errors: string[], warnings: string[] }} `warnings` never affects
+ *   `ok` — they flag things worth a human's attention that cannot be mechanically proven wrong.
  */
 export function validateGroundTruth(raw, transcriptText = null) {
   const errors = [];
@@ -487,8 +509,8 @@ export function validateGroundTruth(raw, transcriptText = null) {
       }
       if (d.scope.kind === "unresolved") {
         // Reaches no leaf and cannot participate in overlap detection — the one place an error
-        // could hide silently. Require a note explaining why, and flag it every time as something
-        // reconciliation must look at, so it is never merely "valid and forgotten."
+        // could hide silently. Require a note, and flag it every time, so it is never merely
+        // "valid and forgotten."
         if (typeof d.note !== "string" || d.note.length === 0) {
           tag(
             'scope "unresolved" requires a non-empty `note` explaining why no group/namedSet fits',
@@ -540,11 +562,11 @@ export function validateGroundTruth(raw, transcriptText = null) {
 }
 
 /**
- * Read + parse + validate a ground-truth file, checking spans against its transcript. Never throws
- * on a validation problem (returns it in `errors`); throws only on missing file / bad JSON, same as
- * any other "this run cannot proceed" condition in this spike.
+ * Read + parse + validate a ground-truth file, checking spans against its transcript. Never
+ * throws on a validation problem (returns it in `errors`); throws only on missing file / bad
+ * JSON, same as any other "this run cannot proceed" condition in this spike.
  * @param {string} path path to the ground-truth JSON file
- * @param {string} spikeRoot directory `raw.transcript` (e.g. "transcripts/NN-slug.txt") is relative to
+ * @param {string} spikeRoot directory `raw.transcript` is relative to
  */
 export async function readGroundTruth(path, spikeRoot) {
   const { existsSync, readFileSync } = await import("node:fs");
