@@ -47,6 +47,14 @@ export interface ExtractStepResult {
    * seam used to drop on the floor.
    */
   readonly usage?: ExtractionUsage;
+  /**
+   * Per-group verbatim spans where the roster recorded an explicit "none of
+   * these," surfaced from `scopedInstanceExtractor`. Persisted as its own
+   * session field (`statedEmptyGroups`), consulted by `buildReviewRequest` to
+   * produce the `"statedEmpty"` group state. Absent for any extractor that does
+   * not use a roster.
+   */
+  readonly statedEmptyGroups?: Readonly<Record<string, string>>;
 }
 
 /** Joined transcripts → structured fields. Network-bound, so it is a queued step. */
@@ -444,6 +452,13 @@ class QueueRelay implements Relay {
       // purpose, and an absent `usage` must leave the field absent rather than
       // writing `undefined` into a strictObject parse.
       ...(result.usage !== undefined ? { extractionUsage: { ...result.usage } } : {}),
+      // Unconditional, not conditional-spread like `extractedBy`/`extractionUsage`
+      // above: `statedEmptyGroups` is content about this specific transcript,
+      // exactly like `extracted` itself (which is always overwritten). A
+      // re-extraction whose new roster no longer states a group is empty must not
+      // leave a stale quote from the previous extraction on the session — same
+      // reasoning as `lastError: undefined` below.
+      statedEmptyGroups: result.statedEmptyGroups,
       extractedFromRecordingIds: recordingIds,
       status: "awaiting-review",
       attempts: 0,

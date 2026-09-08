@@ -34,7 +34,7 @@ test("the RxDB required list is exactly zod's non-optional fields", () => {
   expect(required).toEqual(zodKeys.filter((key) => !optionalKeys.includes(key)));
 });
 
-test("the optional fields are the step outputs, the error, the close timestamp, and receipts", () => {
+test("the optional fields are the step outputs, the error, the close timestamp, receipts, and statedEmptyGroups", () => {
   expect(optionalKeys).toEqual([
     "closedAt",
     "extracted",
@@ -44,6 +44,7 @@ test("the optional fields are the step outputs, the error, the close timestamp, 
     "lastError",
     "receipts",
     "reviewOutcome",
+    "statedEmptyGroups",
     "writeResult",
   ]);
 });
@@ -242,5 +243,50 @@ describe("SESSION_MIGRATION_STRATEGIES[2] — v1 → v2 backfills instanceKeys",
     } as SessionDocument;
     const migrated = migrate[2](v2);
     expect(migrated).toEqual(v2);
+  });
+});
+
+describe("statedEmptyGroups — additive optional field on v2, cleared on re-extraction", () => {
+  test("a v1 document with no statedEmptyGroups migrates to a v2 document still lacking it", () => {
+    const v1 = {
+      ...validSession(),
+      status: "writing" as const,
+      reviewOutcome: {
+        status: "accepted" as const,
+        fields: { hvac: [{ hvacSystemEquipmentType: "Boiler" }] },
+      },
+    } as SessionDocument;
+    const migrated = SESSION_MIGRATION_STRATEGIES[2](v1);
+    expect(migrated.statedEmptyGroups).toBeUndefined();
+  });
+
+  test("re-extraction clears a prior statedEmptyGroups — the field is content, not transport metadata", () => {
+    // Simulates what #sessionExtract does: the relay patch unconditionally sets
+    // statedEmptyGroups (to `undefined` when the new extraction reports none),
+    // rather than conditionally spreading it. A stale quote from a prior run
+    // must not survive a re-extraction whose roster no longer states a group
+    // is empty — same reasoning as `lastError: undefined` clearing a prior error.
+    const prior = sessionDocumentSchema.parse({
+      ...validSession(),
+      status: "awaiting-review" as const,
+      extracted: { hvac: [] },
+      statedEmptyGroups: { hvac: "there's no HVAC in this unit" },
+    });
+
+    // The relay's patch: { ..., statedEmptyGroups: result.statedEmptyGroups, ... }
+    // where `result.statedEmptyGroups` is `undefined` because the new extraction
+    // reported no stated-empty groups.
+    const reExtractedPatch: SessionPatch = {
+      extracted: { hvac: [{ hvacSystemEquipmentType: "Boiler" }] },
+      statedEmptyGroups: undefined,
+      status: "awaiting-review" as const,
+      attempts: 0,
+    };
+
+    // patchSession validates the merged document before writing — this is
+    // exactly what outbox.patchSession does: `sessionItemSchema.parse({ ...doc, ...patch })`.
+    const merged = { ...prior, ...reExtractedPatch };
+    const parsed = sessionItemSchema.parse(merged);
+    expect(parsed.statedEmptyGroups).toBeUndefined();
   });
 });

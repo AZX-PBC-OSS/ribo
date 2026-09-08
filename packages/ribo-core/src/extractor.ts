@@ -143,6 +143,7 @@ export function toSessionExtractStep<F>(extractor: Extractor<F>): SessionExtract
       fields: result.fields as ExtractedFieldMap,
       engine: result.usage.engine,
       usage: result.usage,
+      statedEmptyGroups: result.statedEmptyGroups,
     };
   };
 }
