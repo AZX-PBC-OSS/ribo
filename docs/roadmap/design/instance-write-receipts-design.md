@@ -35,8 +35,9 @@ reliably available** wherever a review outcome can legally be submitted from (on
 is genuinely optional, by design, unlike structural identity), and — because nothing
 consumes `receipts` yet (§4) — keying by position vs. key made no provable difference to
 correctness for this design's actual scope. Re-keying `linkTargets` was dropped, and
-`linkTargets` is unchanged by this design. What's kept instead is a **new, dedicated,
-required** field carrying real instance keys — see §3.2.
+`linkTargets` is unchanged by this design. What's kept instead is a **new, dedicated**
+field carrying real instance keys, enforced by a schema-level check rather than a
+blanket type requirement — see §3.2.
 
 ## 2. Why position-keying and content-hash-keying are both ruled out for the receipts key itself
 
@@ -95,60 +96,59 @@ that `adapter.ts:168-171` calls out.
 signature updates to match. Every test-fixture adapter (`adapter.test.ts`,
 `write-step.test.ts`, `instance-write-step.test.ts`) updates its stub return value.
 
-### 3.2 `ReviewOutcome` gains a required `instanceKeys` field
+### 3.2 `ReviewOutcome` gains an `instanceKeys` field, enforced where it matters
 
-`ReviewOutcome`'s `accepted` and `edited` branches (`review.ts:328-354`) gain a new,
-**required** (not optional, unlike `linkTargets`) field:
+`ReviewOutcome`'s `accepted` and `edited` branches (`review.ts:328-354`) gain a new
+field:
 
 ```
-instanceKeys: Readonly<Record<string /* group path */, readonly string[]>>
+instanceKeys?: Readonly<Record<string /* group path */, readonly string[]>>
 ```
 
-Present for every group that has at least one surviving instance, absent (as `{}`,
-never omitted — it is required) otherwise. `resolveReview` computes it from the same
-`positions` map (`review.ts:707-736`) that already determines `fields[group]`'s array
-order: `Array.from(indexMap.keys())` per group, in the exact iteration order
-`buildInstancePositions` inserted them (first-mention order — the same order
-`setAtPath` uses to build the array). Because both are derived from one shared map in
-one function call, `instanceKeys[group].length` and `fields[group].length` are
-structurally in lockstep for any outcome `resolveReview` produces — there is no code
-path where one has an entry the other lacks.
+Optional in the base shape — same posture as `linkTargets` — so a singleton-only
+outcome (no collection groups at all, the common case in most of today's tests:
+`relay.browser.test.ts`, `outbox-memory.test.ts`, `session-outbox.test.ts`,
+`outbox-reopen-cross-tab.browser.test.ts`, `write-step.test.ts`) needs no change.
+`resolveReview` computes it from the same `positions` map (`review.ts:707-736`) that
+already determines `fields[group]`'s array order: `Array.from(indexMap.keys())` per
+group, in the exact iteration order `buildInstancePositions` inserted them
+(first-mention order — the same order `setAtPath` uses to build the array). Present
+for every group that has at least one surviving instance; omitted when there are none
+(mirroring `linkTargets`' own `hasLinkTargets` omission).
 
-**Required, not optional, is the point.** `linkTargets` is optional because a link
-decision is a human choice that may not exist. Instance identity is not a choice — it
-exists for every surviving instance — so leaving it optional would let a hand-built
-outcome (bypassing `resolveReview` entirely, as every current
-`instance-write-step.test.ts` fixture does via `Outbox.submitSessionReview`) omit real
-keys and fall back to something synthetic. Making it required means `PersistedReviewOutcome`
-(inferred directly from `reviewOutcomeSchema`, per `review.ts:1089-1090`'s own
-convention) forces every caller — real or test — to supply real keys or fail to
-compile and fail `reviewOutcomeSchema.parse` at `submitSessionReview` (`outbox.ts:730`).
-
-**A schema-level parity check, for the callers the type system can't fully protect.**
-A hand-built outcome can still supply the right *type* with the wrong *length* — a
-2-element `fields.hvac` beside a 3-element `instanceKeys.hvac`, say. `reviewOutcomeSchema`'s
-`accepted` and `edited` branches gain a `.refine()` checking, for every group key
-present in `fields`, that `instanceKeys[group].length === fields[group].length` (when
-`fields[group]` is an array). This runs at the same trust boundary `resolveReview`'s own
-consistency checks already occupy — a real review can never fail it (see above), and a
-malformed hand-built one is refused loudly at submit time instead of misbehaving
-silently in the write step.
+**Enforcement is a schema-level `.refine()`, scoped to where collection data actually
+exists** — not a blanket-required field. `reviewOutcomeSchema`'s `accepted` and
+`edited` branches gain a check: for every key `g` in `fields` where `fields[g]` is a
+non-empty array, `instanceKeys` must be present, `instanceKeys[g]` must exist, and
+`instanceKeys[g].length` must equal `fields[g].length`. This is what actually answers
+"how does the contractor make sure of it": a real review can never fail this check —
+`instanceKeys` and `fields` are built from the same `positions` map in the same
+`resolveReview` call, so they're in lockstep by construction — while a hand-built
+outcome (every current `instance-write-step.test.ts` fixture, which calls
+`Outbox.submitSessionReview` directly without ever running `resolveReview`) is refused
+loudly by `reviewOutcomeSchema.parse` at `submitSessionReview` (`outbox.ts:730`) the
+moment it has collection-group data but no matching keys — the same trust boundary
+`resolveReview`'s own decision-completeness checks already occupy, not a new one.
+Singleton-only test literals are untouched; only the ones actually exercising
+collection groups (`instance-write-step.test.ts`, the relevant `review.test.ts`
+`describe` blocks) need `instanceKeys` added.
 
 **Backward compatibility: a session schema migration backfills existing data.**
 `reviewOutcome` is re-validated against `reviewOutcomeSchema` whenever a session
 document is read back (`sessionDocumentSchema`'s `reviewOutcome: reviewOutcomeSchema.optional()`,
-`session-schema.ts:172`), so making `instanceKeys` required would fail that parse for
-every real, already-persisted session whose `reviewOutcome` predates this field. The
-sessions v1→v2 migration (§3.4) backfills `instanceKeys` for any existing `reviewOutcome`
-missing it, synthesizing sequential keys (`k1`, `k2`, …) matching each collection
-group's array length. This is exactly correct, not merely a safe-enough guess: for any
-session actually in flight (`writing` or `failed`) at migration time, the array order
-already *is* first-mention order — nothing has re-reviewed or reordered it — so the
-backfilled keys describe the same instances a freshly-computed `resolveReview` would
-have assigned. A `done`/`dead` session's `reviewOutcome` also gets backfilled for
-parse-safety, even though nothing reads its `instanceKeys` again unless it is amended
-(and an amend re-reviews from `session.extracted`, producing a fresh `reviewOutcome`
-that replaces the backfilled one entirely).
+`session-schema.ts:172`), so the new refine would fail that parse for any real,
+already-persisted session whose `reviewOutcome` has collection-group data but predates
+this field. The sessions v1→v2 migration (§3.5) backfills `instanceKeys` for any
+existing `reviewOutcome` missing it wherever `fields` has array data, synthesizing
+sequential keys (`k1`, `k2`, …) matching each group's array length. This is exactly
+correct, not merely a safe-enough guess: for any session actually in flight (`writing`
+or `failed`) at migration time, the array order already *is* first-mention order —
+nothing has re-reviewed or reordered it — so the backfilled keys describe the same
+instances a freshly-computed `resolveReview` would have assigned. A `done`/`dead`
+session's `reviewOutcome` also gets backfilled for parse-safety, even though nothing
+reads its `instanceKeys` again unless it is amended (and an amend re-reviews from
+`session.extracted`, producing a fresh `reviewOutcome` that replaces the backfilled one
+entirely).
 
 ### 3.3 The write step reads real keys, not positions
 
