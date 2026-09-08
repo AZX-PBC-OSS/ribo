@@ -85,6 +85,18 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
       );
     }
 
+    // Checked before any write runs, not just before the instance loop: a
+    // malformed or missing review outcome must fail before the singleton write
+    // below has a chance to reach a real vendor, the same "both parses are
+    // terminal, before any write" ordering this file's ctx/fields checks above
+    // already follow.
+    const outcome = session.reviewOutcome;
+    if (outcome === undefined || outcome.status === "discarded") {
+      throw new TerminalQueueError(
+        `session ${session.id} reached the instance write step with no reviewable outcome.`,
+      );
+    }
+
     const singletonPatch: Record<string, unknown> = {};
     const collections: Array<{ group: string; instances: unknown[] }> = [];
 
@@ -105,13 +117,6 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
         idempotencyKey,
       });
       receipts.singleton = uuid;
-    }
-
-    const outcome = session.reviewOutcome;
-    if (outcome === undefined || outcome.status === "discarded") {
-      throw new TerminalQueueError(
-        `session ${session.id} reached the instance write step with no reviewable outcome.`,
-      );
     }
 
     for (const { group, instances } of collections) {
