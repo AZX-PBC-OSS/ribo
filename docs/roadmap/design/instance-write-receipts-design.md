@@ -23,18 +23,22 @@ already-written session must update the records it created rather than create mo
 and that requires keeping the identifier the vendor assigned." This design is that
 fix.
 
-It also surfaces a fact the prior design didn't have occasion to state: `linkTargets`
-(`session.reviewOutcome.linkTargets`, `instance-identity.ts`) is *already* a second
-positional structure with the identical latent bug as the deleted `writtenInstances` —
-it's just untriggered because nothing writes yet. `linkTargets[group]` is "positionally
-aligned to the resolved patch array... indices follow the first-mention order
-established by `buildInstancePositions`" (`instance-identity.ts:47-52`). The moment
-egress lands, reopening a session whose instances were edited or reordered will
-silently mismatch link decisions to the wrong instance, exactly as `writtenInstances`
-did. This design fixes both at once rather than shipping a receipts scheme that
-inherits the bug it's meant to prevent.
+**A caution surfaced and then corrected during design.** An earlier draft of this
+document also proposed changing `linkTargets` (`instance-identity.ts`) from
+position-indexed to key-indexed, reasoning that it shared the same latent bug class as
+the deleted `writtenInstances`. Closer reading of `instance-write-step.test.ts`
+(specifically the reopen-and-remove-an-instance regression test at line 436, and every
+other test's direct use of `Outbox.submitSessionReview` without ever calling
+`buildReviewRequest`/`resolveReview`) showed two things: instance keys are **not
+reliably available** wherever a review outcome can legally be submitted from (only
+`linkTargets` might carry them, and only when a human made a link decision — `linkTargets`
+is genuinely optional, by design, unlike structural identity), and — because nothing
+consumes `receipts` yet (§4) — keying by position vs. key made no provable difference to
+correctness for this design's actual scope. Re-keying `linkTargets` was dropped, and
+`linkTargets` is unchanged by this design. What's kept instead is a **new, dedicated,
+required** field carrying real instance keys — see §3.2.
 
-## 2. Why position-keying and content-hash-keying are both ruled out
+## 2. Why position-keying and content-hash-keying are both ruled out for the receipts key itself
 
 Two alternatives were considered and rejected:
 
@@ -43,18 +47,15 @@ Two alternatives were considered and rejected:
   its hash — amend would create a duplicate record instead of updating the existing
   one, which defeats the entire point of "safe amend."
 - **Array position**, matching today's `linkTargets` and the deleted
-  `writtenInstances`. Rejected because it's the exact bug class §3.2 already
-  documented: a reopened session whose instance list was reordered or had an instance
-  removed silently pairs a receipt/link-decision with the wrong instance.
+  `writtenInstances`. Rejected on the same grounds `writtenInstances` was deleted for:
+  it is not identity, and a reader should not have to reason about whether a position
+  still means the same thing across a review cycle.
 
-The only approach that's actually safe under instance edit, reorder, and delete is to
-key by the instance's own key (`k1`, `k2`, ...) rather than by its position. That key
-already exists earlier in the pipeline — the review tree's `ReviewInstanceNode.key`
-(`review.ts:210`) — it's `resolveReview` that currently flattens instances into
-position-indexed arrays before the write step ever sees them
-(`session-ownership-design.md` §3.2, rejected-repair #2: "Requires the keys at write
-time, and `resolveReview` flattens them into positions before the write step sees
-anything."). This design carries the key through instead of discarding it.
+The chosen approach is to key by the instance's own key (`k1`, `k2`, ...) rather than
+its position. That key already exists earlier in the pipeline — the review tree's
+`ReviewInstanceNode.key` (`review.ts:210`) — it's `resolveReview` that currently
+computes it internally (via `buildInstancePositions`) and then discards it, keeping
+only the position it derives. This design makes `resolveReview` keep it.
 
 **Verified, not assumed: instance keys are stable across the amend scenario the ticket
 actually names.** `Outbox.reopenSessionForReview` (`queue/outbox.ts:888-896`) only
@@ -94,39 +95,70 @@ that `adapter.ts:168-171` calls out.
 signature updates to match. Every test-fixture adapter (`adapter.test.ts`,
 `write-step.test.ts`, `instance-write-step.test.ts`) updates its stub return value.
 
-### 3.2 Instance keys survive resolution into the write step
+### 3.2 `ReviewOutcome` gains a required `instanceKeys` field
 
-`resolveReview` (`review.ts`) and the write-step pipeline currently discard instance
-keys once positions are computed. This design threads `ReviewInstanceNode.key`
-alongside position through `buildInstancePositions` / `buildLinkTargets`
-(`review.ts:707,799`) and into `toInstanceWriteStep`'s per-instance loop
-(`instance-write-step.ts:104-113`), so each `adapter.write` call is paired with both
-its array position (still needed to derive the idempotency key —
-`deriveInstanceIdempotencyKey` stays positional, since the idempotency key's job is
-"stable across retries of this exact queue item," not cross-review identity) and its
-instance key (used for receipt storage).
+`ReviewOutcome`'s `accepted` and `edited` branches (`review.ts:328-354`) gain a new,
+**required** (not optional, unlike `linkTargets`) field:
 
-### 3.3 `linkTargets` becomes key-indexed
+```
+instanceKeys: Readonly<Record<string /* group path */, readonly string[]>>
+```
 
-`PersistedReviewOutcome.linkTargets` (`review.ts:337,352`) changes shape from
-`Record<groupPath, ReadonlyArray<string | null>>` (position-indexed) to
-`Record<groupPath, Readonly<Record<instanceKey, string | null>>>` (key-indexed).
-`buildLinkTargets` (`review.ts:803-816`) changes to emit the new shape. The zod schema
-at `review.ts:1074,1081` and its test pin update accordingly. `use-review.ts:233-237`
-(the only other reader, which rehydrates a just-computed outcome into the review UI)
-updates its `Object.entries` walk to match.
+Present for every group that has at least one surviving instance, absent (as `{}`,
+never omitted — it is required) otherwise. `resolveReview` computes it from the same
+`positions` map (`review.ts:707-736`) that already determines `fields[group]`'s array
+order: `Array.from(indexMap.keys())` per group, in the exact iteration order
+`buildInstancePositions` inserted them (first-mention order — the same order
+`setAtPath` uses to build the array). Because both are derived from one shared map in
+one function call, `instanceKeys[group].length` and `fields[group].length` are
+structurally in lockstep for any outcome `resolveReview` produces — there is no code
+path where one has an entry the other lacks.
 
-This needs **no RxDB schema version bump**: `reviewOutcome` is stored as
-`{ type: "object" }` in the RxDB JSON schema (loose), even though it's validated by
-`reviewOutcomeSchema` on the zod side (`session-schema.ts:172,269`). Only the zod
-schema and its pin need updating.
+**Required, not optional, is the point.** `linkTargets` is optional because a link
+decision is a human choice that may not exist. Instance identity is not a choice — it
+exists for every surviving instance — so leaving it optional would let a hand-built
+outcome (bypassing `resolveReview` entirely, as every current
+`instance-write-step.test.ts` fixture does via `Outbox.submitSessionReview`) omit real
+keys and fall back to something synthetic. Making it required means `PersistedReviewOutcome`
+(inferred directly from `reviewOutcomeSchema`, per `review.ts:1089-1090`'s own
+convention) forces every caller — real or test — to supply real keys or fail to
+compile and fail `reviewOutcomeSchema.parse` at `submitSessionReview` (`outbox.ts:730`).
 
-It also needs no data migration for existing sessions: `reopenSessionForReview`
-already clears `reviewOutcome` on reopen (shipped in #35, "The session owns its shape,
-its write destination, and a second review"). A "done" session's stale
-position-shaped `linkTargets` is wiped before a new review produces key-shaped ones,
-and no history view was found reading `reviewOutcome.linkTargets` for a session that
-isn't actively being reviewed.
+**A schema-level parity check, for the callers the type system can't fully protect.**
+A hand-built outcome can still supply the right *type* with the wrong *length* — a
+2-element `fields.hvac` beside a 3-element `instanceKeys.hvac`, say. `reviewOutcomeSchema`'s
+`accepted` and `edited` branches gain a `.refine()` checking, for every group key
+present in `fields`, that `instanceKeys[group].length === fields[group].length` (when
+`fields[group]` is an array). This runs at the same trust boundary `resolveReview`'s own
+consistency checks already occupy — a real review can never fail it (see above), and a
+malformed hand-built one is refused loudly at submit time instead of misbehaving
+silently in the write step.
+
+**Backward compatibility: a session schema migration backfills existing data.**
+`reviewOutcome` is re-validated against `reviewOutcomeSchema` whenever a session
+document is read back (`sessionDocumentSchema`'s `reviewOutcome: reviewOutcomeSchema.optional()`,
+`session-schema.ts:172`), so making `instanceKeys` required would fail that parse for
+every real, already-persisted session whose `reviewOutcome` predates this field. The
+sessions v1→v2 migration (§3.4) backfills `instanceKeys` for any existing `reviewOutcome`
+missing it, synthesizing sequential keys (`k1`, `k2`, …) matching each collection
+group's array length. This is exactly correct, not merely a safe-enough guess: for any
+session actually in flight (`writing` or `failed`) at migration time, the array order
+already *is* first-mention order — nothing has re-reviewed or reordered it — so the
+backfilled keys describe the same instances a freshly-computed `resolveReview` would
+have assigned. A `done`/`dead` session's `reviewOutcome` also gets backfilled for
+parse-safety, even though nothing reads its `instanceKeys` again unless it is amended
+(and an amend re-reviews from `session.extracted`, producing a fresh `reviewOutcome`
+that replaces the backfilled one entirely).
+
+### 3.3 The write step reads real keys, not positions
+
+`toInstanceWriteStep`'s per-instance loop (`instance-write-step.ts:104-113`) reads the
+instance's real key off `session.reviewOutcome.instanceKeys[group][index]` — available
+at exactly the same array position it already iterates by, since `fields[group]` and
+`instanceKeys[group]` are aligned by construction (§3.2). `index` remains what
+`deriveInstanceIdempotencyKey` derives from (its job is "stable across retries of this
+exact queue item," not cross-review identity — position is the right input for that,
+unchanged), while the *key* read alongside it is what receipts get stored under (§3.4).
 
 ### 3.4 Receipts: a new, durable, key-indexed session field
 
@@ -176,12 +208,22 @@ happens not to touch that instance.
 
 ### 3.5 Sessions schema v1 → v2
 
-Adding `receipts` as a new top-level optional field on the session document requires a
-version bump, per the existing pattern (`SESSION_MIGRATION_STRATEGIES`,
-`session-schema.ts:241-243`, and the v0→v1 precedent that added
-`extractionUsage`). The migration is an identity function
-(`2: (doc) => doc`) since the field is optional and new documents simply start
-without it.
+Two changes land in one version bump, per the existing pattern
+(`SESSION_MIGRATION_STRATEGIES`, `session-schema.ts:241-243`, and the v0→v1 precedent
+that added `extractionUsage`):
+
+- `receipts` is added as a new top-level optional session field. New documents simply
+  start without it — no transformation needed for that half.
+- Any existing `reviewOutcome` (`accepted`/`edited`, `status !== "discarded"`) missing
+  `instanceKeys` gets it backfilled: for each group present in `reviewOutcome.fields`
+  as an array, synthesize `["k1", "k2", …]` matching that array's length. Per §3.2,
+  this is exactly correct for any session actually mid-cycle, and safe (never read
+  again before being replaced) for a `done`/`dead` one.
+
+The migration function is therefore **not** identity — it inspects and conditionally
+rewrites `reviewOutcome`, mirroring how `OUTBOX_MIGRATION_STRATEGIES`' v5→v6 entry
+(`database.ts:195-241`) is the fuller precedent for a migration that does real,
+per-document work rather than only widening the schema.
 
 ## 4. What this does *not* do
 
@@ -196,15 +238,23 @@ above stays open until that follow-up ships.
 
 ## 5. Testing
 
+- `review.test.ts`: `resolveReview` produces `instanceKeys` in lockstep with `fields`
+  for a plain accept, for a partial rejection within one instance (that instance's key
+  still appears), and for a fully-rejected instance (its key correctly does not
+  appear, and the array is shorter by one). `reviewOutcomeSchema`'s new `.refine()`
+  rejects a hand-built outcome whose `instanceKeys[group].length` disagrees with
+  `fields[group].length`.
 - `adapter.test.ts` / `write-step.test.ts` / `instance-write-step.test.ts`: update
-  stub adapters to return `{ uuid }`, assert the write step no longer discards it —
-  specifically, that the receipt callback fires once per instance with the correct
-  `(group, instanceKey, uuid)` triple, including for a resolved review whose instances
-  are in a different order than first-mention (regression test for the exact bug
-  class §2 rules out).
-- A new test exercising `linkTargets`' key-indexed shape end to end: build a review
-  with 3 instances, remove the middle one, resubmit, and confirm the surviving
-  instances' link decisions stay paired with their own keys — the direct analog of the
-  `writtenInstances` regression test, now for `linkTargets`.
-- `session-schema.test.ts`: pin the v2 schema, confirm a v1 doc (no `receipts`)
-  migrates cleanly and a v2 doc round-trips.
+  every stub adapter to return `{ uuid }`; update every hand-built `ReviewOutcome`/
+  `Outbox.submitSessionReview` call to include real `instanceKeys` (mechanical: one
+  `"k1".."kN"` entry per collection-group array's length, matching the fixture's own
+  data). Assert `toInstanceWriteStep`'s resolved `SessionWriteResult.receipts` carries
+  the correct `(group, key, uuid)` triples — including the reopen-and-remove-the-first-
+  instance scenario already pinned at `instance-write-step.test.ts:436`, now asserting
+  the surviving instance's receipt is keyed by *its own* key, not by whatever position
+  it happens to occupy after the removal.
+- `session-schema.test.ts`: pin the v2 schema; confirm a v1 document with no
+  `reviewOutcome` migrates cleanly (identity for that half); confirm a v1 document
+  with a `reviewOutcome` missing `instanceKeys` gets it backfilled correctly, matching
+  each group's array length; confirm a v2 document (already carrying `receipts` and/or
+  `instanceKeys`) round-trips unchanged.
