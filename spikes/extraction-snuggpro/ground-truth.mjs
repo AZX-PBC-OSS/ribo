@@ -228,12 +228,27 @@ function validateLeaf(path, leafSpec, truth, errors) {
  * @param {object} raw
  */
 /**
- * The five groups the vendor models as per-instance child resources. A job may hold several of
+ * The groups the vendor models as per-instance child resources. A job may hold several of
  * each, so ground truth carries an ORDERED LIST per group rather than one flat leaf map.
- * `basedata` and `health` are genuine singletons in the API and stay flat.
+ * `basedata` and `health` are genuine singletons in the API and stay flat. `concern` is the
+ * first job-collection resource (doc 20 §5.7, tranche 2) — the schema models it as an array
+ * of instances exactly like the five component collections, so the scorer must too.
  */
-export const COLLECTION_GROUPS = ["hvac", "attic", "wall", "window", "dhw"];
+export const COLLECTION_GROUPS = ["hvac", "attic", "wall", "window", "dhw", "concern"];
 export const SINGLETON_GROUPS = ["basedata", "health"];
+
+/**
+ * The collection groups the v3 corpus was actually annotated against. A group that joined
+ * `COLLECTION_GROUPS` AFTER the annotation pass (`concern` is the first) may be ABSENT from a
+ * corpus file's `instances` map: its absence there means "annotated before this group existed",
+ * NOT "annotated as none" — writing `concern: []` into a file nobody re-listened to would be a
+ * false negative claim (a transcript may well voice a concern; nobody has checked). So the
+ * missing-key error in `validateInstances` applies only to the groups below, while everything
+ * else about a present `instances.concern` validates exactly like any other collection group,
+ * and `resolveGroundTruth` materializes an absent group as [] either way. When the corpus is
+ * deliberately re-annotated for concern, this list merges back into `COLLECTION_GROUPS`.
+ */
+const ANNOTATED_COLLECTION_GROUPS = ["hvac", "attic", "wall", "window", "dhw"];
 
 /** Eligibility verdicts. Anything other than `current` demands a verbatim exclusion span. */
 const ELIGIBILITY = new Set([
@@ -338,7 +353,9 @@ export function validateInstances(raw, errors, transcriptText) {
     errors.push('"instances" must be an object keyed by collection group');
     return;
   }
-  for (const group of COLLECTION_GROUPS) {
+  // Only the groups the v3 annotation pass covered must be PRESENT — see
+  // ANNOTATED_COLLECTION_GROUPS for why a later-added group (concern) may be absent.
+  for (const group of ANNOTATED_COLLECTION_GROUPS) {
     if (!(group in instances)) {
       errors.push(`"instances" is missing "${group}" — an untouched group is [], not absent`);
     }

@@ -108,9 +108,10 @@ test("the real derived schema splits collection groups as arrays", () => {
     "window",
     "dhw",
     "health",
+    "concern",
   ]);
 
-  const collectionKeys = new Set(["hvac", "attic", "wall", "window", "dhw"]);
+  const collectionKeys = new Set(["hvac", "attic", "wall", "window", "dhw", "concern"]);
   for (const group of groups) {
     const shape = (group.schema as z.ZodObject).shape;
     const inner = shape[group.key];
@@ -206,7 +207,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       byKey.set(group.key, [...(byKey.get(group.key) ?? []), group]);
     }
 
-    // The seven top-level keys as seen by consumers are unchanged — partitioning
+    // The eight top-level keys as seen by consumers are unchanged — partitioning
     // is purely about call count, never about the resource model.
     expect([...byKey.keys()]).toEqual([
       "basedata",
@@ -216,13 +217,14 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       "window",
       "dhw",
       "health",
+      "concern",
     ]);
 
     // 163 leaves at an 8-leaf cap: ceil(163/8) = 21 evenly-sized pieces.
     expect(byKey.get("basedata")).toHaveLength(21);
     expect(byKey.get("hvac")).toHaveLength(2);
     expect(byKey.get("health")).toHaveLength(2);
-    for (const key of ["attic", "wall", "window", "dhw"]) {
+    for (const key of ["attic", "wall", "window", "dhw", "concern"]) {
       const pieces = byKey.get(key)!;
       expect(pieces, `group "${key}"`).toHaveLength(1);
       expect(pieces[0]!.part, `group "${key}" should not be partitioned`).toBeUndefined();

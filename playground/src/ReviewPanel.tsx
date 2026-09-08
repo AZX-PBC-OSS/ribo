@@ -65,8 +65,8 @@ import {
  * plain text box whose value round-trips through the schema at submit time. There
  * is no field-name switch and no per-field label table beyond `humanize` — if a
  * row ever needed a special case, that would be a sign the information belongs on
- * the schema, not here. This is what lets the field set change (51 leaves under
- * seven resource groups today, and counting) without a UI edit.
+ * the schema, not here. This is what lets the field set change (209 leaves under
+ * eight resource groups today, and counting) without a UI edit.
  *
  * ## Grouping is generic and instance-aware
  *

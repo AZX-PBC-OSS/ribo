@@ -42,12 +42,14 @@ import {
 /**
  * Reach a leaf's truth object by its `group.leaf` path, whichever side of the v3 split it lives on.
  *
- * v3 moved the five collection groups out of the flat `leaves` map into `instances[group][n].leaves`
- * keyed by LOCAL leaf name. These tests mutate individual leaves to prove the validator catches each
+ * v3 moved the collection groups out of the flat `leaves` map into `instances[group][n].leaves`
+ * keyed by LOCAL leaf name (`concern` joined with the doc-20 tranche 2 schema move; the corpus
+ * itself carries no concern instances — see ground-truth.mjs's ANNOTATED_COLLECTION_GROUPS).
+ * These tests mutate individual leaves to prove the validator catches each
  * malformation, and they should keep naming leaves the way the schema does rather than encoding the
  * storage split at fourteen call sites.
  */
-const COLLECTION_GROUPS_T = ["hvac", "attic", "wall", "window", "dhw"];
+const COLLECTION_GROUPS_T = ["hvac", "attic", "wall", "window", "dhw", "concern"];
 const leafHome = (doc, path) => {
   const [group, leaf] = path.split(".");
   return COLLECTION_GROUPS_T.includes(group)
@@ -154,9 +156,11 @@ heading("0. SCHEMA INTROSPECTION (schema-leaves.mjs) — derived, not hand-count
   );
   // Pinned against the real schema, and moved deliberately when the field set moves:
   // `basedata` grew to its full 163-field capture surface (doc 17), taking the schema
-  // from 51 to 207 leaves and the enum vocabulary from 233 to 469 members. The
-  // ground-truth corpus stays sparse by design, so nothing else here needed to move.
-  check("207 leaves across the 7 resource groups", LEAVES.length === 207);
+  // from 51 to 207 leaves and the enum vocabulary from 233 to 469 members; the
+  // `concern` job-collection group (doc 20 §5.7, tranche 2) then added its 2 free-text
+  // leaves, taking the schema to 209 (no new enum members). The ground-truth corpus
+  // stays sparse by design, so nothing else here needed to move.
+  check("209 leaves across the 8 resource groups", LEAVES.length === 209);
   check("469 total enum members across all enum leaves", totalMembers === 469);
   check(
     "ENUM_VOCAB has an entry for every enum leaf (no collisions at import time)",

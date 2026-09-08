@@ -2,7 +2,7 @@
 //
 // Source:    https://app.snuggpro.com/apidocs/swagger.json
 // Refreshed: 2026-09-08
-// Leaves:    205
+// Leaves:    207
 //
 // The vendor's own description for each field we extract — the same sentence a Snugg Pro
 // user reads in their UI. `schema.ts` composes this with our own note, where we have one,
@@ -89,6 +89,9 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
   clothesWasherSerialNumber:
     "If there is more than one serial number, each serial number should be separated with a comma,",
   clothesWasherType: "Enter the type of Clothes Washer, if any, that is installed in the house.",
+  concernDetail: "Type a more detailed description of this concern from the homeowner.",
+  concernSummary:
+    "Type a short sentence that details a concern from the homeowner. This could be regarding comfort, health and safety, energy savings, aesthetics, noise, etc. There is no right or wrong answer.",
   conditionedAirVolume:
     "The conditioned air volume is calculated from the Conditioned Area and the Average Wall Height. This is really available for informational purposes and in most cases should not be edited.",
   conditionedArea:

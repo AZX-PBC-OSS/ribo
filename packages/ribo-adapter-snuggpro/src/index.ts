@@ -11,7 +11,7 @@
 // write, as a `ToolAdapter`.
 export { SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
 
-// The two field schemas, the seven per-endpoint groups they nest, and the enums
+// The two field schemas, the eight per-endpoint groups they nest, and the enums
 // they are built from. `snuggValuesSchema` is the hand-written writable patch and
 // the source of truth for `SnuggValues`; `snuggExtractionSchema` is DERIVED from it
 // with `enveloped()` and is what the model is constrained to. See schema.ts for why
@@ -35,6 +35,7 @@ export {
   BlowerDoorTestPerformed,
   ClothesWasherManufacturer,
   ClothesWasherType,
+  ConcernFields,
   CrawlCavityInsulationType,
   CrawlspaceInsulation,
   CrawlspaceRimJoistInsulationType,
@@ -96,7 +97,7 @@ export { snuggCtxSchema } from "./context.js";
 export type { SnuggWriteContext } from "./context.js";
 
 // The extraction instructions (the normalization intent) and few-shot examples.
-// `snuggProInstructions` is the full prompt (all thirteen rules, seven-key output
+// `snuggProInstructions` is the full prompt (all fourteen rules, eight-key output
 // section) for the single-shot extractor. `snuggGroupInstructions(key)` produces
 // a per-group prompt (universal rules + only that group's rules, one-key output
 // section) for the per-group extractor (R3 Task 4). The rule data (`SNUGG_RULES`,

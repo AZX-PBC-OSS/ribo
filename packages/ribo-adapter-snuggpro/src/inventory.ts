@@ -85,6 +85,7 @@ export const rosterSchema = z.strictObject({
   wall: rosterGroupSchema,
   window: rosterGroupSchema,
   dhw: rosterGroupSchema,
+  concern: rosterGroupSchema,
 });
 
 export type Roster = z.infer<typeof rosterSchema>;
@@ -94,8 +95,9 @@ export type Roster = z.infer<typeof rosterSchema>;
 const INVENTORY_PREAMBLE = `## System
 
 You are doing an inventory pass over a home energy auditor's dictated transcript. Your job is to
-list every recordable instance of the following component types: \`hvac\`, \`attic\`, \`wall\`,
-\`window\`, and \`dhw\`. Do not fill any leaf fields yet — only decide which instances exist, which
+list every recordable instance of the following resource types: \`hvac\`, \`attic\`, \`wall\`,
+\`window\`, \`dhw\`, and \`concern\` — the first five are components of the house; \`concern\` is a
+worry the homeowner voiced. Do not fill any leaf fields yet — only decide which instances exist, which
 are excluded, and how to refer to them.
 
 For each candidate instance emit exactly these five fields:
@@ -144,10 +146,11 @@ excluded the component. A mentioned-but-excluded component is different from one
 **5. Absence needs a span.**
 
 When the auditor explicitly states a component type does not exist in the property (e.g. "there's no
-attic," "no supplemental heating"), emit \`{ "stated": "none", "span": "<verbatim quote>" }\` for that
-group instead of an empty array. An empty array still means "the model found nothing to report," used
-when the transcript never brings the group up at all. The \`span\` must be a verbatim substring of the
-transcript, same discipline as every other span.
+attic," "no supplemental heating") — or, for \`concern\`, explicitly states that no worry was voiced
+(e.g. "I asked if they had any concerns and they said no") — emit \`{ "stated": "none", "span":
+"<verbatim quote>" }\` for that group instead of an empty array. An empty array still means "the
+model found nothing to report," used when the transcript never brings the group up at all. The
+\`span\` must be a verbatim substring of the transcript, same discipline as every other span.
 
 **6. Granularity — one record per group as the vendor counts it.**
 
@@ -158,6 +161,11 @@ transcript, same discipline as every other span.
 - \`wall\`: one record per distinct wall construction assembly.
 - \`window\`: one record per distinct window type or area.
 - \`dhw\`: one record per water heating system.
+- \`concern\`: one record per DISTINCT concern the homeowner voiced, distinguished by its SUBJECT —
+  a noise worry, a comfort worry and a cost worry are three records even when they share one cause.
+  A re-mention or rephrasing of the same worry is the same record, not a new one. The auditor's own
+  findings are not concerns; only a voiced homeowner worry is (rule 14 of the leaf-level
+  instructions).
 
 **7. Self-correction at the instance level.**
 
@@ -170,8 +178,8 @@ the corrected count, not the first one.
 
 Return a **single JSON object** conforming exactly to the roster schema.
 
-- The object has exactly five top-level keys — \`hvac\`, \`attic\`, \`wall\`, \`window\`, \`dhw\` — each
-  one of three shapes:
+- The object has exactly six top-level keys — \`hvac\`, \`attic\`, \`wall\`, \`window\`, \`dhw\`,
+  \`concern\` — each one of three shapes:
   - An **array of candidate instances** in **first-mention order**, when the auditor introduced at
     least one.
   - An **empty array**, when the transcript never brings the group up at all.

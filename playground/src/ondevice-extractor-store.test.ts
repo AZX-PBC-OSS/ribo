@@ -280,7 +280,7 @@ class SimpleFakeLanguageModelSession implements LanguageModelSession {
 
 /**
  * A fake language model whose sessions yield one top-level group per prompt,
- * so the per-group extractor can merge seven valid group responses.
+ * so the per-group extractor can merge eight valid group responses.
  */
 class PerGroupFakeLanguageModel implements LanguageModel {
   availabilityValue: LanguageModelAvailability = "available";
