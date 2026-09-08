@@ -173,6 +173,17 @@ export const sessionDocumentSchema = z.strictObject({
   /** Step output — whatever the tool adapter returned from the write. */
   writeResult: z.record(z.string(), z.unknown()).optional(),
   /**
+   * The vendor uuid(s) returned by `write`, keyed by instance key — the durable
+   * channel a future amend reads. Not cleared on reopen (contrast with
+   * `reviewOutcome`, which is).
+   */
+  receipts: z
+    .object({
+      singleton: z.string().optional(),
+      instances: z.record(z.string(), z.record(z.string(), z.string())).optional(),
+    })
+    .optional(),
+  /**
    * The vendor write idempotency key. Generated once at session open and reused
    * on every retry — same guarantee as the recording's old `idempotencyKey`:
    * an ambiguous success (write landed, response lost) cannot double-write.
@@ -223,6 +234,15 @@ export type SessionPatch = Partial<
  * field needs no transformation, and a session written before extraction usage
  * was carried has none to record, which is the correct state for it.
  *
+ * v1 → v2 added `receipts` (optional) and backfills `reviewOutcome.instanceKeys`
+ * for pre-existing accepted/edited outcomes that predate the field. `receipts`
+ * is left absent — v1 documents never had writes with returned uuids.
+ * `instanceKeys` is synthesised as `["k1", …, "kN"]` per non-empty collection
+ * group, matching what `resolveReview` would have produced had the field existed.
+ * This is the schema version the sibling `roster-absence` plan's Task 3 also
+ * extends (adding `statedEmptyGroups`) — a reader who lands there first should
+ * know this v2 schema isn't "finished" the moment this task's commit lands.
+ *
  * **An optional addition still needs the bump, and the stake is the recordings.**
  * RxDB validates the declared schema against the one the collection was created
  * with, so adding a property at the same version is refused at `addCollections`
@@ -240,10 +260,22 @@ export type SessionPatch = Partial<
  */
 export const SESSION_MIGRATION_STRATEGIES = {
   1: (doc: SessionDocument) => doc,
+  2: (doc: SessionDocument): SessionDocument => {
+    const { reviewOutcome } = doc;
+    if (reviewOutcome === undefined || reviewOutcome.status === "discarded") return doc;
+    const fields = reviewOutcome.fields;
+    const instanceKeys: Record<string, string[]> = { ...reviewOutcome.instanceKeys };
+    for (const [group, groupFields] of Object.entries(fields)) {
+      if (!Array.isArray(groupFields) || groupFields.length === 0) continue;
+      if (instanceKeys[group] !== undefined) continue;
+      instanceKeys[group] = Array.from({ length: groupFields.length }, (_, i) => `k${i + 1}`);
+    }
+    return { ...doc, reviewOutcome: { ...reviewOutcome, instanceKeys } };
+  },
 };
 
 export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
-  version: 1,
+  version: 2,
   primaryKey: "id",
   type: "object",
   properties: {
@@ -268,6 +300,7 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
     extractedFromRecordingIds: { type: "array" },
     reviewOutcome: { type: "object" },
     writeResult: { type: "object" },
+    receipts: { type: "object" },
     idempotencyKey: { type: "string", maxLength: 64 },
   },
   required: [
