@@ -160,10 +160,19 @@ distinct wire names. `covered` counts leaves already in `snuggValuesSchema`.
 | `POST /jobs/{jobId}/incentives`                     |       3 |       0 |         1 |          0 |                  2 | **repeats**                |
 | `POST /jobs/{jobId}/concern`                        |       2 |       0 |         2 |          0 |                  0 | **repeats**                |
 | _(update-twin-only fields:_ `name`_,_ `category`_)_ |       2 |       0 |         1 |          1 |                  0 | —                          |
-| **total**                                           | **557** |  **44** |   **188** |    **190** |            **135** | 16 of 23 repeat            |
+| **total**                                           | **557** |  **44** |   **188** |    **190** |            **135** | 18 of 23 repeat            |
 
-_(557 counts each operation's fields; 544 counts distinct names — `PUT /jobs/{jobId}`'s 5 fields and
-`PUT .../incentives/{uuid}`'s 2 are all duplicates of their create's.)_
+_Reconciling 557 with 544: across the 25 write operations beyond `basedata` (the 23 above plus
+`PUT /jobs/{jobId}` and `PUT .../incentives/{uuid}`, both folded into their create's row) there are
+**557 operation-scoped fields but only 543 distinct wire names** — fourteen names appear on two
+operations each. Six are the job PUT's overlap with the job create (`serviceTime`, `accountId`,
+`companyId`, `note`, `householdIncomeTier`, plus `stageId` shared with the stage endpoint); five are
+shared between the two line-item creates (`code`, `description`, `costPerUnit`, `quantity`, `unit`);
+two are the incentive PUT's overlap with its create (`amount`, `recommendations`); and one is
+`status`, which means something entirely different on a ticket than on a recommendation. Adding the
+single update-twin-only **name**, `name` on `POST /jobs/recommendation-line-items/{uuid}`, gives
+**544**. (`category` is the other update-twin-only *field* but not a new *name* — it already exists
+on the recommendation line-item create, with a completely different enum; see §5.7.)_
 
 **The broad-stance candidate surface beyond `basedata` is 378 leaves** — 188 `capture` plus 190
 `capture?`. Add `basedata`'s 163-field honest-capture target and full coverage of the writable job
@@ -360,8 +369,13 @@ than cosmetics.
   are the only write-only names anywhere; a round-trip keyed on the response name silently drops
   electrical demand.
 - **`hvacSystemEquipmentType` is accepted on create but not on update** (`POST /jobs/hvac/{uuid}` has
-  71 fields to the create's 72) — the only such create/update asymmetry in the document, and it lands
-  on one of only two required capture fields.
+  71 fields to the create's 72). There are **five** create/update asymmetries across the spec's 17
+  create/update pairs, but the other four are all deliberate and explicable: `recDefinitionId` and
+  `fromTemplateUuid` are immutable template FKs dropped from their updates (§5.7), and `category` /
+  `name` are the line-item fields that exist on only one side of their pair (§4.4). This one is the
+  odd one out — a plain capture field, not an FK, silently unavailable on update — and it lands on one
+  of only two required capture fields, so a correction to a system's equipment type cannot be written
+  at all.
 - **Copy-pasted descriptions, verbatim:** `company.name`'s description is attic-insulation help text;
   `company.state`'s begins with the literal string `undefined`; `wallAssemblyRValue` describes "the
   basement wall system"; `atticKneeWallContinuousInsulation` repeats the cavity sentence;
@@ -1699,9 +1713,11 @@ All fields below are `formData` parameters unless noted. Verdicts: **capture** (
 **capture?** (extractable but flagged), **lookup** (must be resolved against a template list),
 **exclude** (never extractable).
 
-Field totals across the nine operations in this domain (creates plus their update twins): **65** —
-see the per-operation counts below. Deduplicated to distinct wire names the domain is 36 leaves
-(§3).
+Field totals across the **ten** operations in this domain (five creates plus five update twins):
+**67** — see the per-operation counts below. §3's table counts only the creates plus the two
+update-twin-only fields, giving 36; deduplicated to distinct wire names the domain is **30**, because
+the two line-item creates share five names (`code`, `description`, `costPerUnit`, `quantity`, `unit`)
+and the incentive PUT shares both of its with its create.
 
 ---
 
@@ -2155,11 +2171,11 @@ For each resource, the resource's response `definition` properties were diffed a
 
 **Additional C-class finds outside the requested set:**
 
-| Resource                                                                                                                           | Response-only fields                                                                                                                                                                                                                                   |
-| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `job` (`POST /jobs` 32 fields, `PUT /jobs/{jobId}` only 5: `serviceTime`, `accountId`, `companyId`, `note`, `householdIncomeTier`) | `id`, `doeWap`, `hasCalculated`, `hasUnmodeledChanges`, `completionDate`, `firstModeledAt`, `hasOutdatedHpxml`, `lastModeledDate`, `bpiCalibrationStatus`, **`auditStarted`**, **`auditEnded`**, `customFields`                                        |
-| `recommendation` (9 writable of 25)                                                                                                | `uuid`, `savings`, `sir`, `savedMbtu`, `savedKwh`, `savedTherms`, `savedThermsGas`, `savedThermsPropane`, `savedThermsOil`, `savedThermsWood`, `savedThermsPellets`, `savedThermsCoal`, `savedThermsKerosene`, `category`, `captions`, `detailedCosts` |
-| `hvac` create/update asymmetry                                                                                                     | `hvacSystemEquipmentType` is accepted by `POST /jobs/{jobId}/hvac` (create) but **not** by `POST /jobs/hvac/{uuid}` (update) — the only such field in the whole spec.                                                                                  |
+| Resource                                                                                                                           | Response-only fields                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `job` (`POST /jobs` 32 fields, `PUT /jobs/{jobId}` only 5: `serviceTime`, `accountId`, `companyId`, `note`, `householdIncomeTier`) | `id`, `doeWap`, `hasCalculated`, `hasUnmodeledChanges`, `completionDate`, `firstModeledAt`, `hasOutdatedHpxml`, `lastModeledDate`, `bpiCalibrationStatus`, **`auditStarted`**, **`auditEnded`**, `customFields`                                                                                                                    |
+| `recommendation` (9 writable of 25)                                                                                                | `uuid`, `savings`, `sir`, `savedMbtu`, `savedKwh`, `savedTherms`, `savedThermsGas`, `savedThermsPropane`, `savedThermsOil`, `savedThermsWood`, `savedThermsPellets`, `savedThermsCoal`, `savedThermsKerosene`, `category`, `captions`, `detailedCosts`                                                                             |
+| `hvac` create/update asymmetry                                                                                                     | `hvacSystemEquipmentType` is accepted by `POST /jobs/{jobId}/hvac` (create) but **not** by `POST /jobs/hvac/{uuid}` (update). One of five create/update asymmetries in the spec, and the only one that is a plain capture field rather than an immutable template FK or a line-item field that exists on one side only — see §4.7. |
 
 `auditStarted` and `auditEnded` are the notable ones: an auditor plausibly dictates when the audit began and ended, and neither can be written.
 
