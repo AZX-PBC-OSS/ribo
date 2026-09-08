@@ -154,9 +154,14 @@ heading("0. SCHEMA INTROSPECTION (schema-leaves.mjs) — derived, not hand-count
   );
   // Pinned against the real schema, and moved deliberately when the field set moves:
   // `basedata` grew to its full 163-field capture surface (doc 17), taking the schema
-  // from 51 to 207 leaves and the enum vocabulary from 233 to 469 members. The
-  // ground-truth corpus stays sparse by design, so nothing else here needed to move.
-  check("207 leaves across the 7 resource groups", LEAVES.length === 207);
+  // from 51 to 207 leaves and the enum vocabulary from 233 to 469 members; the
+  // `incentive` job-collection tranche (doc 20 §5.7) then added 2 free-text/number
+  // leaves — no enum members — taking it to 209. The ground-truth corpus stays sparse
+  // by design, so nothing else here needed to move. (`incentive` is an array group in
+  // the schema but is deliberately NOT in ground-truth.mjs's COLLECTION_GROUPS yet —
+  // the corpus predates it and must not be re-annotated here, so its two leaves
+  // resolve as flat "unmentioned" entries until a corpus tranche says otherwise.)
+  check("209 leaves across the 8 resource groups", LEAVES.length === 209);
   check("469 total enum members across all enum leaves", totalMembers === 469);
   check(
     "ENUM_VOCAB has an entry for every enum leaf (no collisions at import time)",

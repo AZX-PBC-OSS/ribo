@@ -1156,7 +1156,7 @@ export function scoreTranscript(slug, rawGt, transcript, model, loadProblem = nu
   // before it, a missing result scored miss=0 on every leaf, so "return nothing" beat "try and get
   // some wrong" — see score.test.mjs's ROBUSTNESS gate for the mutation that proves it.
 
-  // ---- score singleton groups (basedata, health) ----
+  // ---- score singleton groups (derived — see ground-truth.mjs's SINGLETON_GROUPS) ----
   for (const group of SINGLETON_GROUPS) {
     const isHealth = group === "health";
     for (const path of LEAF_PATHS) {

@@ -343,6 +343,11 @@ const fields: SnuggExtraction = {
     healthElectrical: env(null, null),
     healthRoofCondition: env(null, null),
   },
+
+  // This transcript mentions no rebate or incentive program, so the honest
+  // roster-driven output is an empty array — the "transcript never brings the
+  // group up at all" case, not one all-null instance.
+  incentive: [],
 };
 
 export const snuggExamples: readonly ToolAdapterExample<SnuggExtraction>[] = [

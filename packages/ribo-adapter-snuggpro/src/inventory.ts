@@ -85,6 +85,7 @@ export const rosterSchema = z.strictObject({
   wall: rosterGroupSchema,
   window: rosterGroupSchema,
   dhw: rosterGroupSchema,
+  incentive: rosterGroupSchema,
 });
 
 export type Roster = z.infer<typeof rosterSchema>;
@@ -94,8 +95,8 @@ export type Roster = z.infer<typeof rosterSchema>;
 const INVENTORY_PREAMBLE = `## System
 
 You are doing an inventory pass over a home energy auditor's dictated transcript. Your job is to
-list every recordable instance of the following component types: \`hvac\`, \`attic\`, \`wall\`,
-\`window\`, and \`dhw\`. Do not fill any leaf fields yet — only decide which instances exist, which
+list every recordable instance of the following collection groups: \`hvac\`, \`attic\`, \`wall\`,
+\`window\`, \`dhw\`, and \`incentive\`. Do not fill any leaf fields yet — only decide which instances exist, which
 are excluded, and how to refer to them.
 
 For each candidate instance emit exactly these five fields:
@@ -158,6 +159,11 @@ transcript, same discipline as every other span.
 - \`wall\`: one record per distinct wall construction assembly.
 - \`window\`: one record per distinct window type or area.
 - \`dhw\`: one record per water heating system.
+- \`incentive\`: one record per distinct rebate or incentive program the auditor introduces. An
+  incentive has no name of its own — one is distinguished from another by the rebate or program name
+  mentioned (a spoken name like "the utility's heat pump rebate", captured later as free text) and/or
+  by its amount. A second program is a second record; the same program restated, or its amount
+  corrected, is the same record.
 
 **7. Self-correction at the instance level.**
 
@@ -170,8 +176,8 @@ the corrected count, not the first one.
 
 Return a **single JSON object** conforming exactly to the roster schema.
 
-- The object has exactly five top-level keys — \`hvac\`, \`attic\`, \`wall\`, \`window\`, \`dhw\` — each
-  one of three shapes:
+- The object has exactly six top-level keys — \`hvac\`, \`attic\`, \`wall\`, \`window\`, \`dhw\`,
+  \`incentive\` — each one of three shapes:
   - An **array of candidate instances** in **first-mention order**, when the auditor introduced at
     least one.
   - An **empty array**, when the transcript never brings the group up at all.

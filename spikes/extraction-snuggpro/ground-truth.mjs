@@ -22,7 +22,7 @@
  *     ground-truth file.
  */
 
-import { LEAF_BY_PATH, LEAF_PATHS } from "./schema-leaves.mjs";
+import { GROUPS, LEAF_BY_PATH, LEAF_PATHS } from "./schema-leaves.mjs";
 import {
   defaultTruthForDisclaimer,
   leavesInScope,
@@ -230,10 +230,24 @@ function validateLeaf(path, leafSpec, truth, errors) {
 /**
  * The five groups the vendor models as per-instance child resources. A job may hold several of
  * each, so ground truth carries an ORDERED LIST per group rather than one flat leaf map.
- * `basedata` and `health` are genuine singletons in the API and stay flat.
+ *
+ * NOTE: `schema.ts` has since grown a sixth array group, `incentive` (doc 20 §5.7 job-collection
+ * tranche). It is deliberately NOT listed here: the ground-truth corpus predates it and must not
+ * be re-annotated as part of that tranche, and adding it would make every corpus file invalid
+ * ("instances is missing incentive") until each gained an `instances.incentive` key. Until a
+ * corpus tranche says otherwise, incentive's two leaves ride the flat map below as ordinary
+ * singleton leaves — harmless for scoring (no transcript mentions them, so they sit at
+ * "unmentioned") and honest about what the corpus can currently express.
  */
 export const COLLECTION_GROUPS = ["hvac", "attic", "wall", "window", "dhw"];
-export const SINGLETON_GROUPS = ["basedata", "health"];
+
+/**
+ * Every group that is NOT a collection group, DERIVED from the schema rather than hand-listed —
+ * so a new top-level group (`incentive` today, more job-collection tranches tomorrow) is scored
+ * as a flat leaf map from the day it lands, with no harness edit, until it is deliberately
+ * promoted into COLLECTION_GROUPS alongside a corpus re-annotation.
+ */
+export const SINGLETON_GROUPS = GROUPS.filter((group) => !COLLECTION_GROUPS.includes(group));
 
 /** Eligibility verdicts. Anything other than `current` demands a verbatim exclusion span. */
 const ELIGIBILITY = new Set([

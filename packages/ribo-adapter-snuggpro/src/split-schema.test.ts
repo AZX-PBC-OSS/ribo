@@ -7,16 +7,25 @@ import { snuggExtractionSchema } from "./schema.js";
 
 /**
  * Snugg-specific tests for `splitExtractionSchema` against the real
- * `snuggExtractionSchema` — 207 enveloped leaves across seven resource groups.
+ * `snuggExtractionSchema` — 209 enveloped leaves across eight resource groups.
  * The pure function lives in `@azx/ribo-extractor-openai` (tool-agnostic, no
  * adapter dependency); these tests live here because the real schema lives here,
  * and this package already depends on the extractor for testing
  * (`extraction-shape.test.ts`).
  */
 
-// The seven resource groups are the top-level keys of `snuggValuesSchema`, which
+// The eight resource groups are the top-level keys of `snuggValuesSchema`, which
 // `enveloped()` preserves — see schema.ts's file header.
-const SEVEN_GROUPS = ["basedata", "hvac", "attic", "wall", "window", "dhw", "health"] as const;
+const EIGHT_GROUPS = [
+  "basedata",
+  "hvac",
+  "attic",
+  "wall",
+  "window",
+  "dhw",
+  "health",
+  "incentive",
+] as const;
 
 const ENVELOPE_KEYS = new Set(["value", "confidence", "sourceSpan"]);
 
@@ -46,10 +55,10 @@ function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
   return leaves;
 }
 
-test("the seven Snugg groups are derived from snuggExtractionSchema, each carrying exactly its own key", () => {
+test("the eight Snugg groups are derived from snuggExtractionSchema, each carrying exactly its own key", () => {
   const groups = splitExtractionSchema(snuggExtractionSchema);
 
-  expect(groups.map((g) => g.key)).toEqual([...SEVEN_GROUPS]);
+  expect(groups.map((g) => g.key)).toEqual([...EIGHT_GROUPS]);
 
   for (const group of groups) {
     const shape = (group.schema as z.ZodObject).shape;
@@ -63,9 +72,10 @@ test("every leaf of snuggExtractionSchema appears in exactly one group schema, a
   const originalLeaves = enumerateLeaves(snuggExtractionSchema).sort();
   const groupLeaves = groups.flatMap((g) => enumerateLeaves(g.schema)).sort();
 
-  // 207 leaves across 7 groups — the full 163-field basedata capture surface
-  // plus the 44 bounded component-group leaves.
-  expect(originalLeaves).toHaveLength(207);
+  // 209 leaves across 8 groups — the full 163-field basedata capture surface,
+  // the 44 bounded component-group leaves, and the incentive job-collection
+  // group's 2.
+  expect(originalLeaves).toHaveLength(209);
 
   // No leaf is lost: the union of per-group leaves equals the original's.
   expect(groupLeaves).toEqual(originalLeaves);

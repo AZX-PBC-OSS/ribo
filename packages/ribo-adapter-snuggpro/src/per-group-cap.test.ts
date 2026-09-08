@@ -90,7 +90,8 @@ test("every per-call schema nests within the depth cap", () => {
 
 /**
  * R1.6 Task 5 made the five per-instance groups (`hvac`, `attic`, `wall`,
- * `window`, `dhw`) arrays of instances. The real `snuggExtractionSchema` now carries
+ * `window`, `dhw`) arrays of instances, and the `incentive` job-collection
+ * tranche (doc 20 §5.7) added a sixth. The real `snuggExtractionSchema` now carries
  * that shape. This test asserts the split still produces one entry per group, and
  * that the collection groups are actually arrays in the derived schema. The caps
  * are NOT asserted here: they bind per CALL, and a call carries a partitioned
@@ -108,9 +109,10 @@ test("the real derived schema splits collection groups as arrays", () => {
     "window",
     "dhw",
     "health",
+    "incentive",
   ]);
 
-  const collectionKeys = new Set(["hvac", "attic", "wall", "window", "dhw"]);
+  const collectionKeys = new Set(["hvac", "attic", "wall", "window", "dhw", "incentive"]);
   for (const group of groups) {
     const shape = (group.schema as z.ZodObject).shape;
     const inner = shape[group.key];
@@ -166,7 +168,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
   test("before partitioning, basedata, hvac and health all exceed the 8-leaf cap — the bug this guard exists to catch", () => {
     // No `maxLeavesPerGroup` — today's one-entry-per-group split, exactly what
     // `perGroupExtractor` would send if it never partitioned. This pins the
-    // starting problem: without the fix below, three of Snugg's seven groups
+    // starting problem: without the fix below, three of Snugg's eight groups
     // would send an over-cap schema to an Anthropic-family model — `basedata`
     // (163 leaves, its full doc-17 capture surface) most of all.
     const unpartitioned = splitExtractionSchema(snuggExtractionSchema);
@@ -206,7 +208,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       byKey.set(group.key, [...(byKey.get(group.key) ?? []), group]);
     }
 
-    // The seven top-level keys as seen by consumers are unchanged — partitioning
+    // The eight top-level keys as seen by consumers are unchanged — partitioning
     // is purely about call count, never about the resource model.
     expect([...byKey.keys()]).toEqual([
       "basedata",
@@ -216,13 +218,14 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       "window",
       "dhw",
       "health",
+      "incentive",
     ]);
 
     // 163 leaves at an 8-leaf cap: ceil(163/8) = 21 evenly-sized pieces.
     expect(byKey.get("basedata")).toHaveLength(21);
     expect(byKey.get("hvac")).toHaveLength(2);
     expect(byKey.get("health")).toHaveLength(2);
-    for (const key of ["attic", "wall", "window", "dhw"]) {
+    for (const key of ["attic", "wall", "window", "dhw", "incentive"]) {
       const pieces = byKey.get(key)!;
       expect(pieces, `group "${key}"`).toHaveLength(1);
       expect(pieces[0]!.part, `group "${key}" should not be partitioned`).toBeUndefined();

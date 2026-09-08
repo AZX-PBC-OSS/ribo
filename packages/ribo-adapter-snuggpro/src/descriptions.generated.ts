@@ -2,7 +2,7 @@
 //
 // Source:    https://app.snuggpro.com/apidocs/swagger.json
 // Refreshed: 2026-09-08
-// Leaves:    205
+// Leaves:    207
 //
 // The vendor's own description for each field we extract — the same sentence a Snugg Pro
 // user reads in their UI. `schema.ts` composes this with our own note, where we have one,
@@ -14,6 +14,7 @@
 
 /** Vendor descriptions, keyed by the leaf name as it appears in `snuggValuesSchema`. */
 export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  amount: "The amount that was paid",
   ashrae622:
     "Mark this as Yes if wish to turn on controls for the ASHRAE 62.2 ventilation standard.",
   ashraeBathroom1Window: "If there is an operable window in this bathroom, then choose yes.",
@@ -185,6 +186,7 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Select the percentage of foundation that is **basement**, **crawlspace**, **slab on grade** or **frame floor**. Total of the foundation type cannot exceed 100%.",
   foundationSlab:
     "Select the percentage of foundation that is **basement**, **crawlspace** or **slab on grade**. Total of all three foundation types cannot exceed 100%.",
+  fromTemplateUuid: "The UUID of the template from which the incentive was created.",
   frontOfBuildingOrientation:
     "Select the closest direction that the Length of the house as designated above faces (either of the opposite directions is fine). If the home is square, then choose the direction the main entry door of the home faces.",
   garageSize:

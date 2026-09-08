@@ -7107,8 +7107,80 @@
         "healthRoofCondition"
       ],
       "additionalProperties": false
+    },
+    "incentive": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fromTemplateUuid": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "The UUID of the template from which the incentive was created. The rebate or program name the auditor spoke, as free text — despite the field name, never a UUID: resolving the spoken name against the program's real incentive-template list is a later, human-supervised step, not extraction's."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "amount": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "The amount that was paid The rebate amount in dollars as a number (\"a fifteen hundred dollar rebate\" → 1500)."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["fromTemplateUuid", "amount"],
+        "additionalProperties": false
+      }
     }
   },
-  "required": ["basedata", "hvac", "attic", "wall", "window", "dhw", "health"],
+  "required": ["basedata", "hvac", "attic", "wall", "window", "dhw", "health", "incentive"],
   "additionalProperties": false
 }

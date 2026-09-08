@@ -98,6 +98,7 @@ describe("rosterSchema", () => {
       wall: emptyGroup(),
       window: emptyGroup(),
       dhw: emptyGroup(),
+      incentive: emptyGroup(),
     };
     const parsed = rosterSchema.safeParse(roster);
     expect(parsed.success).toBe(false);
@@ -119,6 +120,7 @@ describe("rosterSchema", () => {
       wall: emptyGroup(),
       window: emptyGroup(),
       dhw: emptyGroup(),
+      incentive: emptyGroup(),
     };
     expect(rosterSchema.safeParse(roster).success).toBe(true);
   });
@@ -145,6 +147,7 @@ describe("rosterSchema", () => {
       wall: emptyGroup(),
       window: emptyGroup(),
       dhw: emptyGroup(),
+      incentive: emptyGroup(),
     };
     expect(rosterSchema.safeParse(roster).success).toBe(true);
   });
@@ -156,6 +159,7 @@ describe("rosterSchema", () => {
       wall: [],
       window: [],
       dhw: [],
+      incentive: [],
     };
     const parsed = rosterSchema.safeParse(roster);
     expect(parsed.success).toBe(true);
@@ -190,12 +194,13 @@ describe("snuggInventoryInstructions", () => {
     expect(snuggInventoryInstructions.endsWith(TRANSCRIPT_SECTION)).toBe(true);
   });
 
-  test("mentions all five collection groups and the roster fields", () => {
+  test("mentions all six collection groups and the roster fields", () => {
     expect(snuggInventoryInstructions).toContain("hvac");
     expect(snuggInventoryInstructions).toContain("attic");
     expect(snuggInventoryInstructions).toContain("wall");
     expect(snuggInventoryInstructions).toContain("window");
     expect(snuggInventoryInstructions).toContain("dhw");
+    expect(snuggInventoryInstructions).toContain("incentive");
     expect(snuggInventoryInstructions).toContain("mentionSpan");
     expect(snuggInventoryInstructions).toContain("distinguishedBy");
     expect(snuggInventoryInstructions).toContain("eligibilitySpan");

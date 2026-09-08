@@ -4,7 +4,10 @@
  * reconciled field-by-field in
  * docs/implementation/17-snuggpro-field-reconciliation.md). The `basedata` group
  * is the FULL honest capture surface of that endpoint (doc 17 §Scoping); the six
- * component groups remain bounded, representative subsets of theirs.
+ * component groups remain bounded, representative subsets of theirs. `incentive`
+ * is the first job-collection group beyond basedata's own endpoints (doc 20
+ * §5.7, `docs/roadmap/design/job-collections-foundation-design.md`), and it
+ * carries every field of its endpoint that is in extraction scope.
  *
  * "Representative" is the design goal and it has three concrete parts. Every one
  * of them was false in the previous version of this file, which was built from a
@@ -23,17 +26,21 @@
  *   3. **The nesting is the resource layout.** Snugg Pro has no single "audit
  *      data" write; the surface is one singleton (`POST /jobs/{jobId}/basedata`)
  *      plus per-instance component resources (`hvac`, `attic`, `wall`, `window`,
- *      `dhw`, `health`), each its own endpoint. The seven groups below ARE those
- *      endpoints, so `write` dispatches on the group key rather than routing 207
+ *      `dhw`, `health`), each its own endpoint — plus, beyond basedata's own
+ *      surface, the job-collection resources doc 20 curated (`incentive` first),
+ *      each likewise its own endpoint. The eight groups below ARE those
+ *      endpoints, so `write` dispatches on the group key rather than routing 209
  *      flat fields by hand.
  *
  * The `basedata` group is the FULL honest capture surface of doc 17 §Scoping:
  * the endpoint's 294 form fields minus the 122 `*Improved` retrofit twins and
  * the 9 self-described auto-calculated fields — exactly 163 leaves, every one a
- * verbatim wire name with verbatim enum strings. The other six groups remain
+ * verbatim wire name with verbatim enum strings. The six component groups remain
  * bounded, *dictation-density* subsets of their own endpoints — what an auditor
  * actually says walking a house — and which leaves they grow next is a question
- * for real fill-rate data, not for judgement.
+ * for real fill-rate data, not for judgement. `incentive` is different in kind:
+ * it carries both of its endpoint's fields that are in extraction scope at all
+ * (its third, `recommendations`, is excluded by design — see the group).
  *
  * ---
  *
@@ -49,8 +56,8 @@
  *         as empty" is a different instruction from "leave this field alone".
  *       * `.optional()` because a REJECTED field must be absent from the patch
  *         entirely. `resolveReview` omits a rejected leaf, and a patch is what
- *         makes that well-defined: rejecting one leaf of 207 must still write
- *         the other 206, not fail the whole write.
+ *         makes that well-defined: rejecting one leaf of 209 must still write
+ *         the other 208, not fail the whole write.
  *
  *   - `snuggExtractionSchema` — what the MODEL is asked to produce. NOT
  *     hand-written: `enveloped()` derives it from the patch, stripping the
@@ -58,8 +65,8 @@
  *     leaf in `ribo-core`'s provenance envelope. The result is closed and fully
  *     required at every level, because `provenance.ts`'s anti-hallucination rule
  *     needs the model to emit an explicit `null` rather than omit a key. The
- *     derivation recurses into the seven groups, so the model produces 207
- *     independent envelopes and review presents 207 dotted leaf paths
+ *     derivation recurses into the eight groups, so the model produces 209
+ *     independent envelopes and review presents 209 dotted leaf paths
  *     (`"hvac.hvacDuctLeakage"`, `"health.healthAmbientCarbonMonoxide"`) — never
  *     one envelope per group, which would make a group un-reviewable field by
  *     field.
@@ -875,13 +882,13 @@ export const HealthTestState = z
  */
 export const HealthCondition = z.enum(["Good", "Potential Issues", "NA"]);
 
-// --- The seven resource groups ----------------------------------------------
+// --- The eight resource groups -----------------------------------------------
 // One group per write endpoint. Each is `.strict()` and each leaf is
 // `X.nullable().optional()`; the group itself is `.optional()` so a review that
 // rejected every leaf in a group writes no request to that endpoint at all.
 //
 // `enveloped()` RECURSES into these rather than wrapping each whole, so the
-// derived extraction schema carries 207 independent provenance envelopes and the
+// derived extraction schema carries 209 independent provenance envelopes and the
 // review card can show the auditor the exact quote behind each one. One envelope
 // per group would make its leaves un-reviewable individually, which is the point
 // of field-level review.
@@ -917,7 +924,7 @@ function cleanVendorDescription(text: string | undefined): string | undefined {
  *
  * Vendor first: the definition orients the model before the prohibition constrains it.
  *
- * Applied to the whole group at once rather than at 207 call sites — the leaf's own
+ * Applied to the whole group at once rather than at 209 call sites — the leaf's own
  * `.describe()` is read back out and appended, so a note written the obvious way is
  * picked up automatically. Leaves the vendor does not describe keep their note alone.
  */
@@ -1779,14 +1786,74 @@ export const HealthFields = z
   )
   .strict();
 
+// == incentive ===============================================================
+// The first job-collection group beyond basedata's own endpoints (doc 20 §5.7;
+// target model per `docs/roadmap/design/job-collections-foundation-design.md`).
+
+/**
+ * `POST /jobs/{jobId}/incentives` — one incentive record, created "from
+ * template". 2 of its 3 fields.
+ *
+ * The operation carries **no name, no description and no title**: the
+ * incentive's identity comes entirely from the template it was instantiated
+ * from, which in this schema is the captured `fromTemplateUuid` text itself.
+ * Instance identity is the roster's job (`inventory.ts`): one incentive per
+ * distinct rebate or program the auditor mentions, distinguished by that name
+ * and/or its amount.
+ *
+ * The third field, `recommendations` (an array of `{uuid, selectedLineItems}`),
+ * is EXCLUDED from extraction entirely: same-job UUIDs of a resource this
+ * adapter does not build at all — the recommendations tranche is dropped per
+ * the foundation design's decision 4, because `recDefinitionId` has no listing
+ * endpoint anywhere in the spec and a recommendation cannot be created from an
+ * empty state. Extracting a cross-reference to records that can never be
+ * written would be data the app can never use.
+ */
+export const IncentiveFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * REQUIRED by the API at create time (doc 20 §5.7), and captured as PLAIN
+       * FREE TEXT despite the name: the spoken rebate or program name, never a
+       * resolved UUID. Per the runtime-reference-resolution decision
+       * (`docs/roadmap/design/runtime-reference-resolution-design.md`), this is
+       * exactly as free-text as any `concern` field — the spoken name IS the
+       * lookup key ("the only thing an extractor can contribute besides the
+       * amount", doc 20 §5.7), and matching it against the program's real
+       * template list (`GET /programs/{programId}/incentive-templates`) is a
+       * review/write-time step that must be able to fail visibly, not an
+       * extraction one. Nothing here validates, enumerates or resolves it.
+       */
+      fromTemplateUuid: z
+        .string()
+        .describe(
+          "The rebate or program name the auditor spoke, as free text — despite the field name, never a UUID: resolving the spoken name against the program's real incentive-template list is a later, human-supervised step, not extraction's.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The rebate amount in dollars: "a fifteen hundred dollar rebate" -> 1500. */
+      amount: z
+        .number()
+        .describe(
+          'The rebate amount in dollars as a number ("a fifteen hundred dollar rebate" → 1500).',
+        )
+        .nullable()
+        .optional(),
+    }),
+  )
+  .strict();
+
 // --- The field set, as a writable patch --------------------------------------
-// 207 leaves across 7 resource groups — the full 163-field `basedata` capture
-// surface plus the 44 bounded component-group leaves. Every leaf is
-// `X.nullable().optional()` and every object is `.strict()`; see the file header
-// for why both halves of that are load-bearing.
+// 209 leaves across 8 resource groups — the full 163-field `basedata` capture
+// surface, the 44 bounded component-group leaves, and the `incentive`
+// job-collection group's 2. Every leaf is `X.nullable().optional()` and every
+// object is `.strict()`; see the file header for why both halves of that are
+// load-bearing.
 //
-// Five groups are per-instance child resources (API creates one record per element
-// with `POST /jobs/{jobId}/<type>`), so they are `z.array(...).optional()`.
+// Six groups are per-instance child resources (API creates one record per element
+// with `POST /jobs/{jobId}/<type>` — the five component resources plus
+// `incentive`), so they are `z.array(...).optional()`.
 // `basedata` and `health` are genuine singletons and stay objects.
 
 export const snuggValuesSchema = z
@@ -1798,6 +1865,7 @@ export const snuggValuesSchema = z
     window: z.array(WindowFields).optional(),
     dhw: z.array(DhwFields).optional(),
     health: HealthFields.optional(),
+    incentive: z.array(IncentiveFields).optional(),
   })
   .strict();
 
@@ -1812,7 +1880,7 @@ export type SnuggValues = z.infer<typeof snuggValuesSchema>;
 /**
  * What the MODEL is asked to produce, derived from the patch — never hand-written.
  * `enveloped()` strips the patch's `.optional()`/`.nullable()`, wraps each leaf in
- * `ribo-core`'s provenance envelope, recurses into the seven resource groups rather
+ * `ribo-core`'s provenance envelope, recurses into the eight resource groups rather
  * than swallowing each into one envelope, and closes every object with every key
  * required. See the file header, and `extraction-shape.test.ts` for the frozen
  * JSON Schema this derivation must keep producing.
