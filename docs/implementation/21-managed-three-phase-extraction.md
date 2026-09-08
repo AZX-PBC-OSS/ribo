@@ -1,4 +1,4 @@
-# 20 — Three-phase extraction on the managed path: measured, and the cap nobody was looking for
+# 21 — Three-phase extraction on the managed path: measured, and the cap nobody was looking for
 
 **Date:** 2026-09-08
 **Status:** Result, recorded. Corpus runs against the **real Helix managed LLM route**
@@ -422,6 +422,27 @@ both limits on an Anthropic model and one on an OpenAI one. Any sub-group partit
 `hvac`/`health`. Whether the route's prompt-prefix cache changes the cost picture
 — `cacheReadInputTokens` came back `0` on every call in every run here, so nothing was cached and
 the cost figures are cold-cache figures for both strategies alike.
+
+---
+
+## 8. Decision (2026-09-08)
+
+Following this spike, and the parallel job-collections curation pass (doc 20), the decision is:
+
+- **Pin the managed extraction path to OpenAI-family models.** This matches what is already
+  deployed (`openAiChat` / `gpt-4o-2024-08-06`) — no migration required, just recording it as a
+  deliberate choice rather than an accident of what happened to be wired up. An Anthropic-compatible
+  managed path is a real possibility later, not adopted now.
+- **Proactively partition `hvac` and `health` into ≤8-enveloped-leaf sub-groups**, ahead of any
+  actual need on the OpenAI-pinned path, specifically so that a future Anthropic-compatible path
+  does not require schema surgery to unblock it — the same partitioning `basedata`'s 163-field
+  target will need anyway (§6).
+- **Add the nullable-union cap as a guarded regression test**, per model family, so this ceiling
+  stays visible regardless of which model the managed path is pinned to next.
+- **Fix `three-phase-extractor.ts`'s defect 1.1 regardless** (§1) — it breaks the on-device path
+  today, independent of the managed decision above.
+
+Three-phase itself remains NO-GO for managed, per §6.
 
 ---
 
