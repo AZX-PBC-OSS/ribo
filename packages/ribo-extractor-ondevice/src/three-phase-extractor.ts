@@ -39,6 +39,16 @@ interface Leaf {
 interface Group {
   readonly key: string;
   readonly leaves: readonly Leaf[];
+  /**
+   * True when this group's JSON Schema node is `{"type":"array", "items": {...}}` —
+   * a R1.6 instance-modeled collection group (`hvac`, `attic`, `wall`, `window`,
+   * `dhw` in the real Snugg Pro schema) rather than a flat object of enveloped
+   * leaves. `leaves` still describes the leaves of ONE instance (the array's
+   * `items` schema); the extraction loop wraps its single filled-in instance back
+   * into a one-element array so the result validates against the required
+   * array-typed group key. See the file header and `extractGroups` for the walk.
+   */
+  readonly isArray: boolean;
 }
 
 export interface ThreePhaseExtractorOptions<V extends Record<string, unknown>> {
@@ -72,10 +82,14 @@ export function threePhaseExtractor<V extends Record<string, unknown>>(
 
   return {
     async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
-      const result: Record<
-        string,
-        Record<string, { value: unknown; confidence: number; sourceSpan: string | null }>
-      > = {};
+      // A group's value is either the flat leaf-envelope map itself (an object-shaped
+      // group) or that same map wrapped in a one-element array (an array-shaped, R1.6
+      // instance-modeled group — see `Group.isArray`). Every group's leaves are always
+      // asked about exactly once, over the whole transcript; an array-shaped group's
+      // single filled-in instance is what `perGroupSingletonExtractor` elsewhere in
+      // this codebase calls Tier 3 — it cannot represent a second instance, but it no
+      // longer drops the group's leaves or fails the closing `parse()` below.
+      const result: Record<string, unknown> = {};
       let totalCalls = 0;
       const recordCall = (): void => {
         totalCalls++;
@@ -86,7 +100,9 @@ export function threePhaseExtractor<V extends Record<string, unknown>>(
           string,
           { value: unknown; confidence: number; sourceSpan: string | null }
         > = {};
-        result[group.key] = groupResult;
+        const commit = (): void => {
+          result[group.key] = group.isArray ? [groupResult] : groupResult;
+        };
 
         let presence: Record<string, boolean>;
         try {
@@ -95,6 +111,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>>(
           for (const leaf of group.leaves) {
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
           }
+          commit();
           continue;
         }
 
@@ -103,6 +120,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>>(
           for (const leaf of group.leaves) {
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
           }
+          commit();
           continue;
         }
 
@@ -121,6 +139,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>>(
           for (const leaf of group.leaves) {
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
           }
+          commit();
           continue;
         }
 
@@ -144,6 +163,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>>(
             confidence: value !== null ? 1 : 0,
           };
         }
+        commit();
       }
 
       const parsed = target.extractionSchema.parse(result);
@@ -166,7 +186,18 @@ function extractGroups(schema: JsonSchema): Group[] {
 
   for (const [groupKey, groupSchemaValue] of Object.entries(topProperties)) {
     if (!isSchemaNode(groupSchemaValue)) continue;
-    const leafProperties = groupSchemaValue["properties"];
+
+    // Since R1.6, a collection group (hvac/attic/wall/window/dhw in the real Snugg
+    // Pro schema) is `enveloped()`'s `z.array(envelopedElement)` — it serializes to
+    // `{"type":"array","items":{...}}`, with no `properties` of its own. Its leaves
+    // live one level down, on the array's `items` schema, which is the same
+    // enveloped-object shape a flat group's own schema node is. Walking into `items`
+    // when present is what stops this from silently dropping every array-shaped
+    // group's leaves.
+    const isArray = groupSchemaValue["type"] === "array";
+    const leafContainer = isArray ? groupSchemaValue["items"] : groupSchemaValue;
+    if (!isSchemaNode(leafContainer)) continue;
+    const leafProperties = leafContainer["properties"];
     if (!isSchemaNode(leafProperties)) continue;
 
     const leaves: Leaf[] = [];
@@ -182,7 +213,7 @@ function extractGroups(schema: JsonSchema): Group[] {
         valueSchema: valueSchemaValue,
       });
     }
-    groups.push({ key: groupKey, leaves });
+    groups.push({ key: groupKey, leaves, isArray });
   }
   return groups;
 }

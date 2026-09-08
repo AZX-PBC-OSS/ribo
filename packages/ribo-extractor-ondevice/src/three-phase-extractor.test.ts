@@ -225,6 +225,88 @@ describe("threePhaseExtractor", () => {
     expect(result.usage.engine).toBe("ondevice-chat");
   });
 
+  describe("array-shaped groups (R1.6 instance modeling)", () => {
+    // Since R1.6, a collection group (hvac/attic/wall/window/dhw in the real Snugg Pro
+    // schema) is `z.array(...)`, not a flat object of enveloped leaves. `extractGroups`
+    // must walk into the array's element schema to enumerate its leaves, and the
+    // extraction loop must wrap its single filled-in instance back into a one-element
+    // array so the result still validates against the (required, array-typed) group
+    // key in the extraction schema.
+    const instancePatchSchema = z.strictObject({
+      hvac: z
+        .array(
+          z.strictObject({
+            fuel: z.enum(["Oil", "Gas"]).nullable().optional(),
+          }),
+        )
+        .optional(),
+      site: z
+        .strictObject({
+          yearBuilt: z.number().nullable().optional(),
+        })
+        .optional(),
+    });
+    const instanceExtractionSchema = enveloped(instancePatchSchema);
+    type InstanceValues = z.infer<typeof instancePatchSchema>;
+    const instanceTarget: ExtractionTarget<InstanceValues> = {
+      name: "instance-test",
+      extractionSchema: instanceExtractionSchema,
+      instructions: "Extract the fields from the transcript.",
+      examples: [],
+    };
+
+    test("a leaf discussed inside an array-shaped group is extracted, not dropped", async () => {
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      model.sequence = [
+        // hvac phase 0: fuel is discussed.
+        [json({ fuel: true })],
+        // hvac phase 1: verbatim quote.
+        [json({ fuel: "the system is gas" })],
+        // hvac phase 2: classify.
+        [json("Gas")],
+        // site phase 0: nothing discussed.
+        [json({ yearBuilt: false })],
+      ];
+
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({ target: instanceTarget, chat, maxRetries: 3 });
+      const result = await extractor.extract("the system is gas");
+
+      // Before the fix, `hvac` (an array-shaped group) is dropped entirely by the
+      // schema walk, and `target.extractionSchema.parse()` throws on the missing
+      // required `hvac` key instead of ever reaching these assertions.
+      expect(result.fields.hvac).toHaveLength(1);
+      expect(result.fields.hvac[0]!.fuel.value).toBe("Gas");
+      expect(result.fields.hvac[0]!.fuel.sourceSpan).toBe("the system is gas");
+      expect(result.fields.hvac[0]!.fuel.confidence).toBe(1);
+      expect(result.fields.site.yearBuilt.value).toBeNull();
+    });
+
+    test("an array-shaped group with nothing discussed still yields one null-filled instance", async () => {
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      model.sequence = [
+        // hvac phase 0: nothing discussed, no phase-1 call follows.
+        [json({ fuel: false })],
+        // site phase 0: nothing discussed.
+        [json({ yearBuilt: false })],
+      ];
+
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({ target: instanceTarget, chat, maxRetries: 3 });
+      const result = await extractor.extract("nothing relevant was said");
+
+      // Matches `perGroupSingletonExtractor`'s convention elsewhere in this codebase:
+      // a collection group always comes back as a one-element array, never an empty
+      // one — it just cannot represent a second instance.
+      expect(result.fields.hvac).toHaveLength(1);
+      expect(result.fields.hvac[0]!.fuel.value).toBeNull();
+      expect(result.fields.hvac[0]!.fuel.sourceSpan).toBeNull();
+      expect(result.usage.calls).toBe(2);
+    });
+  });
+
   test("a degenerate phase-1 call is retried and can still succeed", async () => {
     const singleLeafPatch = z.strictObject({
       hvac: z
