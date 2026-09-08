@@ -310,7 +310,7 @@ Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` 
   \`dhw\`, \`health\` — each a nested object grouping the fields for one part of the house. They are not
   themselves fields and carry no envelope of their own.
 - Every field in the schema must be present as a key inside its group. Never omit a key — "not
-  mentioned" is expressed by \`value: null\`, not by absence. This includes every one of the 14 keys
+  mentioned" is expressed by \`value: null\`, not by absence. This includes every one of the 16 keys
   inside \`health\`, and every field of a group the auditor never touched.
 - Every leaf field's value is the object \`{ "value": …, "confidence": …, "sourceSpan": … }\`. All
   three keys are required on every leaf. No extra keys, on any object.

@@ -24,7 +24,7 @@
  *      data" write; the surface is one singleton (`POST /jobs/{jobId}/basedata`)
  *      plus per-instance component resources (`hvac`, `attic`, `wall`, `window`,
  *      `dhw`, `health`), each its own endpoint. The seven groups below ARE those
- *      endpoints, so `write` dispatches on the group key rather than routing 207
+ *      endpoints, so `write` dispatches on the group key rather than routing 209
  *      flat fields by hand.
  *
  * The `basedata` group is the FULL honest capture surface of doc 17 §Scoping:
@@ -49,8 +49,8 @@
  *         as empty" is a different instruction from "leave this field alone".
  *       * `.optional()` because a REJECTED field must be absent from the patch
  *         entirely. `resolveReview` omits a rejected leaf, and a patch is what
- *         makes that well-defined: rejecting one leaf of 207 must still write
- *         the other 206, not fail the whole write.
+ *         makes that well-defined: rejecting one leaf of 209 must still write
+ *         the other 208, not fail the whole write.
  *
  *   - `snuggExtractionSchema` — what the MODEL is asked to produce. NOT
  *     hand-written: `enveloped()` derives it from the patch, stripping the
@@ -58,8 +58,8 @@
  *     leaf in `ribo-core`'s provenance envelope. The result is closed and fully
  *     required at every level, because `provenance.ts`'s anti-hallucination rule
  *     needs the model to emit an explicit `null` rather than omit a key. The
- *     derivation recurses into the seven groups, so the model produces 207
- *     independent envelopes and review presents 207 dotted leaf paths
+ *     derivation recurses into the seven groups, so the model produces 209
+ *     independent envelopes and review presents 209 dotted leaf paths
  *     (`"hvac.hvacDuctLeakage"`, `"health.healthAmbientCarbonMonoxide"`) — never
  *     one envelope per group, which would make a group un-reviewable field by
  *     field.
@@ -869,9 +869,10 @@ export const HealthTestState = z
   );
 
 /**
- * `healthRoofCondition` (`health`) — one of the health endpoint's non-4-state
- * fields, kept because roof condition is something an auditor says out loud from
- * the driveway. Its sibling `healthDrainageSystemCondition` shares this enum.
+ * `healthRoofCondition` and `healthDrainageSystemCondition` (`health`) — the
+ * health endpoint's two condition-judgement fields, on one shared enum. Both are
+ * things an auditor says out loud from the driveway: the roof's condition, and
+ * whether gutters and grading ("the drainage system") look fine.
  */
 export const HealthCondition = z.enum(["Good", "Potential Issues", "NA"]);
 
@@ -881,7 +882,7 @@ export const HealthCondition = z.enum(["Good", "Potential Issues", "NA"]);
 // rejected every leaf in a group writes no request to that endpoint at all.
 //
 // `enveloped()` RECURSES into these rather than wrapping each whole, so the
-// derived extraction schema carries 207 independent provenance envelopes and the
+// derived extraction schema carries 209 independent provenance envelopes and the
 // review card can show the auditor the exact quote behind each one. One envelope
 // per group would make its leaves un-reviewable individually, which is the point
 // of field-level review.
@@ -917,7 +918,7 @@ function cleanVendorDescription(text: string | undefined): string | undefined {
  *
  * Vendor first: the definition orients the model before the prohibition constrains it.
  *
- * Applied to the whole group at once rather than at 207 call sites — the leaf's own
+ * Applied to the whole group at once rather than at 209 call sites — the leaf's own
  * `.describe()` is read back out and appended, so a note written the obvious way is
  * picked up automatically. Leaves the vendor does not describe keep their note alone.
  */
@@ -1748,8 +1749,10 @@ export const DhwFields = z
   .strict();
 
 /**
- * `POST /jobs/{jobId}/health` — HAZARD 3, the full 13-test matrix plus roof
- * condition. 14 of its 17 fields.
+ * `POST /jobs/{jobId}/health` — HAZARD 3, the full 13-test matrix plus the three
+ * non-4-state fields: roof condition, drainage condition, and the safety-questions
+ * disclosure. 16 of its 17 fields — every `formData` parameter but the malformed
+ * `customFields` (doc 20 §5.8, whose tranche 1 landed the last two).
  *
  * The old schema had 11 tests: `healthUndilutedFlueCo` and `healthRadon` were
  * missing outright (doc 17 §"the health matrix is 13 tests, not 11"). Undiluted
@@ -1775,13 +1778,34 @@ export const HealthFields = z
 
       /** Not a 4-state test — a condition judgement on its own enum. */
       healthRoofCondition: HealthCondition.nullable().optional(),
+
+      /**
+       * Not a 4-state test either — the drainage system (gutters, grading) on the
+       * same condition enum as the roof. "Gutters and grading look fine" is
+       * `"Good"`, never `"Passed"`.
+       */
+      healthDrainageSystemCondition: HealthCondition.nullable().optional(),
+
+      /**
+       * Different in kind from everything else in the group (doc 20 §5.8): a
+       * compliance ATTESTATION about a conversation with the homeowner, not a
+       * measurement and not a test — so it is set only from an explicit statement,
+       * never inferred from the safety tests themselves having been run.
+       */
+      healthSafetyQuestionsDisclosed: z
+        .enum(["Yes", "No"])
+        .describe(
+          "A compliance attestation about a conversation with the homeowner, not a test result. Set it only when the auditor explicitly says whether the safety-testing answers were disclosed to the homeowner; never infer it from the tests themselves having been run.",
+        )
+        .nullable()
+        .optional(),
     }),
   )
   .strict();
 
 // --- The field set, as a writable patch --------------------------------------
-// 207 leaves across 7 resource groups — the full 163-field `basedata` capture
-// surface plus the 44 bounded component-group leaves. Every leaf is
+// 209 leaves across 7 resource groups — the full 163-field `basedata` capture
+// surface plus the 46 bounded component-group leaves. Every leaf is
 // `X.nullable().optional()` and every object is `.strict()`; see the file header
 // for why both halves of that are load-bearing.
 //

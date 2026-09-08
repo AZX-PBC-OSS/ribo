@@ -2,7 +2,7 @@
 //
 // Source:    https://app.snuggpro.com/apidocs/swagger.json
 // Refreshed: 2026-09-08
-// Leaves:    205
+// Leaves:    207
 //
 // The vendor's own description for each field we extract — the same sentence a Snugg Pro
 // user reads in their UI. `schema.ts` composes this with our own note, where we have one,
@@ -196,6 +196,8 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     'Choose the appropriate description for this test. If you performed an actual test and it passed, then choose "Passed", if the test failed, then choose "Failed". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose "Warning". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose "Not Tested".',
   healthDraftPressure:
     'Choose the appropriate description for this test. If you performed an actual test and it passed, then choose "Passed", if the test failed, then choose "Failed". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose "Warning". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose "Not Tested".',
+  healthDrainageSystemCondition:
+    "Choose the appropriate description to describe the condition of the drainage system. If the drainage system is in good condition, choose “Good”, if it has potential issues, choose “Potential Issues”. If you did not perform this test and do not want the test information to show up on the homeowner report, then choose “NA”",
   healthElectrical:
     'Choose the appropriate description for this test. If you performed an actual test and it passed, then choose "Passed", if the test failed, then choose "Failed". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose "Warning". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose "Not Tested".',
   healthGasLeak:
@@ -210,6 +212,8 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     'Choose the appropriate description for this test. If you performed an actual test and it passed, then choose "Passed", if the test failed, then choose "Failed". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose "Warning". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose "Not Tested".',
   healthRoofCondition:
     "Choose the appropriate description to describe the condition of the roof. If the roof is in good condition, choose “Good”, if it has potential issues, choose “Potential Issues”. If you did not perform this test and do not want the test information to show up on the homeowner report, then choose “NA”",
+  healthSafetyQuestionsDisclosed:
+    "IRA programs require answers to applicable Safety Testing questions be disclosed to the homeowner. Select “Yes” if disclosed, or “No” if not applicable.",
   healthUndilutedFlueCo:
     'Choose the appropriate description for this test. If you performed an actual test and it passed, then choose "Passed", if the test failed, then choose "Failed". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose "Warning". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose "Not Tested".',
   healthVenting:

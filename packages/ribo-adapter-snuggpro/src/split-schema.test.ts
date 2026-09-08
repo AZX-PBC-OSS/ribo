@@ -7,7 +7,7 @@ import { snuggExtractionSchema } from "./schema.js";
 
 /**
  * Snugg-specific tests for `splitExtractionSchema` against the real
- * `snuggExtractionSchema` — 207 enveloped leaves across seven resource groups.
+ * `snuggExtractionSchema` — 209 enveloped leaves across seven resource groups.
  * The pure function lives in `@azx/ribo-extractor-openai` (tool-agnostic, no
  * adapter dependency); these tests live here because the real schema lives here,
  * and this package already depends on the extractor for testing
@@ -63,9 +63,9 @@ test("every leaf of snuggExtractionSchema appears in exactly one group schema, a
   const originalLeaves = enumerateLeaves(snuggExtractionSchema).sort();
   const groupLeaves = groups.flatMap((g) => enumerateLeaves(g.schema)).sort();
 
-  // 207 leaves across 7 groups — the full 163-field basedata capture surface
-  // plus the 44 bounded component-group leaves.
-  expect(originalLeaves).toHaveLength(207);
+  // 209 leaves across 7 groups — the full 163-field basedata capture surface
+  // plus the 46 bounded component-group leaves.
+  expect(originalLeaves).toHaveLength(209);
 
   // No leaf is lost: the union of per-group leaves equals the original's.
   expect(groupLeaves).toEqual(originalLeaves);

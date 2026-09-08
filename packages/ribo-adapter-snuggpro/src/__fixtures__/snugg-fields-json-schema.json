@@ -7088,6 +7088,70 @@
           },
           "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
+        },
+        "healthDrainageSystemCondition": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Good", "Potential Issues", "NA"],
+                  "description": "Choose the appropriate description to describe the condition of the drainage system. If the drainage system is in good condition, choose “Good”, if it has potential issues, choose “Potential Issues”. If you did not perform this test and do not want the test information to show up on the homeowner report, then choose “NA”"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "healthSafetyQuestionsDisclosed": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "IRA programs require answers to applicable Safety Testing questions be disclosed to the homeowner. Select “Yes” if disclosed, or “No” if not applicable. A compliance attestation about a conversation with the homeowner, not a test result. Set it only when the auditor explicitly says whether the safety-testing answers were disclosed to the homeowner; never infer it from the tests themselves having been run."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -7104,7 +7168,9 @@
         "healthAsbestos",
         "healthLead",
         "healthElectrical",
-        "healthRoofCondition"
+        "healthRoofCondition",
+        "healthDrainageSystemCondition",
+        "healthSafetyQuestionsDisclosed"
       ],
       "additionalProperties": false
     }

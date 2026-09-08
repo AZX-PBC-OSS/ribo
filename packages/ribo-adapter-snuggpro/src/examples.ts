@@ -342,6 +342,10 @@ const fields: SnuggExtraction = {
     healthLead: env(null, null),
     healthElectrical: env(null, null),
     healthRoofCondition: env(null, null),
+    healthDrainageSystemCondition: env(null, null),
+    // Nothing in this transcript states a disclosure conversation, and the field is
+    // an attestation — never inferred from the draft/leak tests having been run.
+    healthSafetyQuestionsDisclosed: env(null, null),
   },
 };
 

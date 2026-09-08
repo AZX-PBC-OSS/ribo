@@ -154,10 +154,13 @@ heading("0. SCHEMA INTROSPECTION (schema-leaves.mjs) — derived, not hand-count
   );
   // Pinned against the real schema, and moved deliberately when the field set moves:
   // `basedata` grew to its full 163-field capture surface (doc 17), taking the schema
-  // from 51 to 207 leaves and the enum vocabulary from 233 to 469 members. The
-  // ground-truth corpus stays sparse by design, so nothing else here needed to move.
-  check("207 leaves across the 7 resource groups", LEAVES.length === 207);
-  check("469 total enum members across all enum leaves", totalMembers === 469);
+  // from 51 to 207 leaves and the enum vocabulary from 233 to 469 members; the health
+  // completion tranche (doc 20 §5.8) then landed that endpoint's last two fields
+  // (`healthDrainageSystemCondition`, `healthSafetyQuestionsDisclosed`), taking it to
+  // 209 leaves and 474 members. The ground-truth corpus stays sparse by design —
+  // unannotated leaves score as "unmentioned" — so nothing else here needed to move.
+  check("209 leaves across the 7 resource groups", LEAVES.length === 209);
+  check("474 total enum members across all enum leaves", totalMembers === 474);
   check(
     "ENUM_VOCAB has an entry for every enum leaf (no collisions at import time)",
     ENUM_VOCAB.size === enumLeaves.length,

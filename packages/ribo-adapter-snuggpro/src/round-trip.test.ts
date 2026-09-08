@@ -35,7 +35,7 @@ import { snuggExtractionSchema, snuggValuesSchema, type SnuggValues } from "./sc
  * Dependencies point inward: `ribo-core` must never import an adapter. Core's own
  * `contracts.test.ts` composes the same pipeline over a four-leaf synthetic field set,
  * which is the right thing for a package that knows no tools. What that cannot do is
- * run the chain over 207 real leaves nested across seven per-endpoint resource groups,
+ * run the chain over 209 real leaves nested across seven per-endpoint resource groups,
  * with a fixture full of honest `null`s — so that test lives on this side of the
  * boundary, importing core through its public entry point exactly as a consumer would.
  *
@@ -156,7 +156,7 @@ const EDITED_LEAF = "health.healthGasLeak";
 const MODEL_VALUE = "Passed";
 const HUMAN_VALUE = "Warning";
 
-/** Accept all 219 leaves, then apply the given overrides. */
+/** Accept all 221 leaves, then apply the given overrides. */
 const decide = (
   paths: readonly string[],
   overrides: Readonly<Record<string, FieldDecision>> = {},
@@ -193,10 +193,10 @@ test("the real field set round-trips: schema → extraction → review → write
   const request = buildReviewRequest(extracted, transcript, adapter.schema);
   const paths = Object.keys(request.fields);
 
-  // 219 leaves across seven resource groups (the fixture carries two hvac
-  // instances, so 207 schema leaves become 219 review paths), each independently
+  // 221 leaves across seven resource groups (the fixture carries two hvac
+  // instances, so 209 schema leaves become 221 review paths), each independently
   // reviewable.
-  expect(paths).toHaveLength(219);
+  expect(paths).toHaveLength(221);
   expect(paths).toContain(EDITED_LEAF);
   expect(request.fields[EDITED_LEAF]?.extracted.value).toBe(MODEL_VALUE);
 
@@ -257,7 +257,7 @@ test("the real field set round-trips: schema → extraction → review → write
   expect(write.fields.attic?.[0]?.atticInsulationDepth).toBe("4-6");
   expect(write.fields.dhw?.[0]?.dhwType2).toBe("Sidearm Tank");
 
-  // Nothing is missing: accepting all 219 leaves writes all 219. The resolved patch is
+  // Nothing is missing: accepting all 221 leaves writes all 221. The resolved patch is
   // positional, so compare the flattened field paths against positional versions of the
   // keyed review paths.
   expect(flatten(write.fields).sort()).toEqual([...paths].map(positionalPath).sort());
@@ -267,7 +267,7 @@ test("the real field set round-trips: schema → extraction → review → write
   expect(write.meta).toEqual({ idempotencyKey: "idem-item-1" });
 });
 
-test("one rejected leaf of the 219 still writes the other 218", async () => {
+test("one rejected leaf of the 221 still writes the other 220", async () => {
   // The test that proves patch semantics, and the one an earlier revision of this design
   // would have failed outright: rejecting a leaf must leave that field alone in Snugg
   // Pro, not fail the write and not blank the field.
@@ -294,7 +294,7 @@ test("one rejected leaf of the 219 still writes the other 218", async () => {
     ctx,
   });
 
-  // The write SUCCEEDED — the rejection did not take the other 218 leaves down with it.
+  // The write SUCCEEDED — the rejection did not take the other 220 leaves down with it.
   expect(written).toHaveLength(1);
   const fields = written[0]!.fields;
 
@@ -302,14 +302,14 @@ test("one rejected leaf of the 219 still writes the other 218", async () => {
   // rests on that being distinguishable, and `in` is what distinguishes it —
   // `fields.healthSafety?.asbestos` reads `undefined` either way.
   expect("healthAsbestos" in fields.health!).toBe(false);
-  // Every other leaf is present, including the thirteen surviving health fields.
+  // Every other leaf is present, including the fifteen surviving health fields.
   expect(flatten(fields).sort()).toEqual(
     paths
       .filter((path) => path !== rejected)
       .map(positionalPath)
       .sort(),
   );
-  expect(Object.keys(fields.health!)).toHaveLength(13);
+  expect(Object.keys(fields.health!)).toHaveLength(15);
 
   // The neighbouring case, in the same patch: an accepted `null` is PRESENT and null.
   // Snugg Pro has no null, so the write layer renders both this and the absent leaf

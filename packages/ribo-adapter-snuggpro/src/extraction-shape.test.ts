@@ -68,6 +68,18 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  * character and nesting ceilings; the OpenAI-limit test in this file confirms the
  * whole schema still sits inside the property/enum/nesting ceilings with margin.
  *
+ * ## Provenance: the health-completion tranche (doc 20 §5.8, tranche 1)
+ *
+ * The fixture was re-captured again when `health` gained the last two `formData`
+ * fields of `POST /jobs/{jobId}/health` — `healthDrainageSystemCondition` (the
+ * roof's sibling on the `Good`/`Potential Issues`/`NA` condition enum) and
+ * `healthSafetyQuestionsDisclosed` (a `Yes`/`No` disclosure attestation) — taking
+ * the schema from 207 to 209 leaves and completing that endpoint (16 of its 17
+ * fields; the 17th is the malformed `customFields`). Same deliberate FIELD-SET
+ * change, same derivation: the diff is confined to the `health` group's
+ * properties and required list, both new leaves carrying vendor-first
+ * descriptions from `pnpm snugg:refresh`.
+ *
  * Why capture it this way, not by calling `z.toJSONSchema(snuggExtractionSchema, ...)`
  * inline: `singleShotExtractor` (packages/ribo-extractor-openai/src/single-shot.ts)
  * is the ONLY code path that produces the object that actually lands in
@@ -231,11 +243,11 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
   // Doc 16 (`docs/implementation/16-extraction-schema-scale.md`) closed whole-spec
   // extraction on exactly these ceilings: 5,000 properties, 1,000 enum values, 10
   // levels of nesting. The bounded field set is meant to sit far inside them, and
-  // this asserts the margin rather than assuming it — the field set HAS grown once
-  // already (doc 17's honest capture surface — all 163 basedata fields — now ships,
-  // 207 leaves total, ~835 properties and ~469 enum values measured), and the
-  // failure mode of growing past a ceiling is an API rejection at extraction
-  // time, on a real recording, in the field.
+  // this asserts the margin rather than assuming it — the field set HAS grown
+  // (doc 17's honest capture surface — all 163 basedata fields — and doc 20 §5.8's
+  // health completion now ship: 209 leaves total, ~843 properties and ~474 enum
+  // values measured), and the failure mode of growing past a ceiling is an API
+  // rejection at extraction time, on a real recording, in the field.
   const schema = await captureJsonSchema();
 
   let properties = 0;
@@ -303,12 +315,12 @@ function collectLeafDescriptions(schema: Record<string, unknown>): Map<string, s
 test("every leaf reaches the model with the vendor's description and our prohibition", async () => {
   const descs = collectLeafDescriptions(await captureJsonSchema());
 
-  // All 207, not a subset. An earlier version described 31 from our own JSDoc and left 20
+  // All 209, not a subset. An earlier version described 31 from our own JSDoc and left 20
   // deliberately bare; with the vendor supplying authoritative text for every leaf
   // (or our own note standing in where the vendor publishes none or junk),
   // "leave it bare" stopped being the better answer.
-  expect(descs.size).toBe(207);
-  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(207);
+  expect(descs.size).toBe(209);
+  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(209);
 
   // The VENDOR half is really there. Without this, a generated module that failed to
   // import — or regenerated to an empty map — would still leave our own notes in place on

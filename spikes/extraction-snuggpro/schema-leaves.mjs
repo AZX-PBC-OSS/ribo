@@ -13,7 +13,7 @@
  * snake_case copy of "the Snugg Pro model." That copy silently drifted from
  * the real adapter (packages/ribo-adapter-snuggpro/src/schema.ts): the real
  * schema was rebuilt from Snugg's machine-readable spec into leaves under 7
- * resource groups (207 today — `basedata` carries its full 163-field capture
+ * resource groups (209 today — `basedata` carries its full 163-field capture
  * surface), with the API's literal enum strings, and the spike's schema
  * never moved. This file is the fix for the CLASS of bug, not just today's
  * instance: it reads `snuggValuesSchema` directly, so the ground truth and the

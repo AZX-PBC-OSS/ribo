@@ -176,7 +176,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
 
     expect(groupLeafCount(basedata)).toBe(163);
     expect(groupLeafCount(hvac)).toBe(12);
-    expect(groupLeafCount(health)).toBe(14);
+    expect(groupLeafCount(health)).toBe(16);
     expect(groupLeafCount(basedata)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(hvac)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(health)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
@@ -198,7 +198,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     }
   });
 
-  test("basedata (163 leaves), hvac (12) and health (14) are partitioned into pieces sharing one key, and every other group is untouched", () => {
+  test("basedata (163 leaves), hvac (12) and health (16) are partitioned into pieces sharing one key, and every other group is untouched", () => {
     const groups = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
 
     const byKey = new Map<string, ExtractionGroup[]>();
@@ -229,12 +229,12 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     }
 
     // Each partitioned key's pieces are labelled 0..parts-1, in order, and their
-    // leaf counts sum back to the original 163 (basedata) / 12 (hvac) / 14
+    // leaf counts sum back to the original 163 (basedata) / 12 (hvac) / 16
     // (health) — no leaf lost or duplicated across the split.
     for (const [key, expectedTotal] of [
       ["basedata", 163],
       ["hvac", 12],
-      ["health", 14],
+      ["health", 16],
     ] as const) {
       const pieces = byKey.get(key)!;
       expect(pieces.map((p) => p.part)).toEqual(pieces.map((_, i) => i));
