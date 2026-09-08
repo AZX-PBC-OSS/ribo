@@ -70,3 +70,8 @@ already qualify). **Scoring it cannot** — that needs a Snugg Pro ground-truth 
 5. **Listen to the recording and correct the better-sounding draft into `ground-truth/<slug>.txt`.**
    This is the one step nothing here can do for you — WER needs a transcript nobody's guessed at. Copy
    whichever draft is closer, fix it by ear against the audio, and re-run step 4.
+
+   **Intentionally deferred as of 2026-09-08:** the extracted field set is incomplete — more fields
+   are being added to the adapter/schema right now. Correcting ground truth (transcript or, further
+   down the line, the extraction leaves/instances) against a field set that's about to change is
+   wasted effort. Pick this back up once that work lands.
