@@ -9,8 +9,9 @@ describe("shape diagnostic", () => {
   test("what does three-phase see in the current snuggpro extraction schema?", async () => {
     const schema = z.toJSONSchema(snuggProAdapter.extractionSchema, {
       target: "draft-2020-12",
-    }) as Record<string, any>;
-    for (const [k, v] of Object.entries(schema.properties as Record<string, any>)) {
+    }) as Record<string, unknown>;
+    const properties = schema.properties as Record<string, Record<string, unknown>>;
+    for (const [k, v] of Object.entries(properties)) {
       console.log(
         `group ${k}: type=${v.type} hasProperties=${v.properties !== undefined} isArray=${v.type === "array"}`,
       );
