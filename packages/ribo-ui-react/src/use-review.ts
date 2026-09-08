@@ -455,10 +455,12 @@ export function useReview(
     return buildReviewRequest(extracted, transcript, valuesSchema, {
       requiredOnCreate,
       existingRecords,
+      statedEmptyGroups: session?.statedEmptyGroups,
     });
   }, [
     extractedSnapshot,
     session?.extracted,
+    session?.statedEmptyGroups,
     transcript,
     valuesSchema,
     requiredOnCreate,

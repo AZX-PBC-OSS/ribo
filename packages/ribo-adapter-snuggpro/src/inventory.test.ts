@@ -2,7 +2,12 @@ import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
 import { TRANSCRIPT_SECTION } from "./instructions.js";
-import { rosterCandidateSchema, rosterSchema, snuggInventoryInstructions } from "./inventory.js";
+import {
+  rosterCandidateSchema,
+  rosterGroupSchema,
+  rosterSchema,
+  snuggInventoryInstructions,
+} from "./inventory.js";
 
 /**
  * Must-fail tests for the inventory roster schema and instructions (Task 9).
@@ -155,6 +160,26 @@ describe("rosterSchema", () => {
     const parsed = rosterSchema.safeParse(roster);
     expect(parsed.success).toBe(true);
     expect(parsed.data?.hvac).toHaveLength(0);
+  });
+});
+
+describe("rosterGroupSchema — stated none union value", () => {
+  test("an empty array still succeeds (no candidates recorded, unchanged)", () => {
+    expect(rosterGroupSchema.safeParse([]).success).toBe(true);
+  });
+
+  test("a stated-none object with a span succeeds", () => {
+    expect(rosterGroupSchema.safeParse({ stated: "none", span: "there's no attic" }).success).toBe(
+      true,
+    );
+  });
+
+  test("a stated-none object missing span fails", () => {
+    expect(rosterGroupSchema.safeParse({ stated: "none" }).success).toBe(false);
+  });
+
+  test("a stated-none object with an empty string span fails", () => {
+    expect(rosterGroupSchema.safeParse({ stated: "none", span: "" }).success).toBe(false);
   });
 });
 

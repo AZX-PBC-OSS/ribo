@@ -184,6 +184,21 @@ export const sessionDocumentSchema = z.strictObject({
     })
     .optional(),
   /**
+   * Per-group verbatim spans where the roster recorded an explicit "none of
+   * these," keyed by the group's own top-level key. Surfaced from
+   * `scopedInstanceExtractor`'s `ExtractionResult.statedEmptyGroups` via
+   * `toSessionExtractStep` and `#sessionExtract`. Absent for any extractor that
+   * does not use a roster, and for sessions extracted before this field shipped.
+   *
+   * Set **unconditionally** on every extraction (to `undefined` when the new
+   * extraction reports none), not conditionally spread like `extractedBy`/
+   * `extractionUsage`: this is content about a specific transcript, not transport
+   * metadata, so a re-extraction must clear a prior run's stale quote rather than
+   * leave it in place. Consulted by `buildReviewRequest` to produce the
+   * `"statedEmpty"` group state on the review tree.
+   */
+  statedEmptyGroups: z.record(z.string(), z.string()).optional(),
+  /**
    * The vendor write idempotency key. Generated once at session open and reused
    * on every retry — same guarantee as the recording's old `idempotencyKey`:
    * an ambiguous success (write landed, response lost) cannot double-write.
@@ -301,6 +316,7 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
     reviewOutcome: { type: "object" },
     writeResult: { type: "object" },
     receipts: { type: "object" },
+    statedEmptyGroups: { type: "object" },
     idempotencyKey: { type: "string", maxLength: 64 },
   },
   required: [

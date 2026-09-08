@@ -122,6 +122,7 @@ interface ResourceGroup {
   readonly name: string | undefined;
   readonly instances: readonly InstanceGroup[];
   readonly isEmpty: boolean;
+  readonly emptyQuote: string | null;
 }
 
 /** Every leaf path under a node, in the order the tree presents them. */
@@ -173,7 +174,8 @@ function groupFields(tree: readonly ReviewNode[]): readonly ResourceGroup[] {
         label: `${humanize(node.key)} ${index + 1}`,
         paths: leafPathsOf(instance.children),
       })),
-      isEmpty: node.state === "empty",
+      isEmpty: node.state === "empty" || node.state === "statedEmpty",
+      emptyQuote: node.emptyQuote,
     });
   }
   return result;
@@ -530,7 +532,7 @@ function ResourceGroup({
   readonly onAddInstance: (group: string) => void;
   readonly onRemoveInstance: (instancePath: string) => void;
 }) {
-  const { name, instances, isEmpty } = group;
+  const { name, instances, isEmpty, emptyQuote } = group;
   return (
     <div style={{ marginTop: "0.75rem" }} data-testid={`review-group-${name ?? "unnamed"}`}>
       {name !== undefined && (
@@ -538,7 +540,16 @@ function ResourceGroup({
       )}
       {isEmpty ? (
         <div>
-          <p style={muted}>none described</p>
+          {emptyQuote !== null ? (
+            <>
+              <p style={muted}>None in this house.</p>
+              <p style={{ ...muted, fontStyle: "italic", margin: "0.2rem 0 0" }}>
+                <q>{emptyQuote}</q>
+              </p>
+            </>
+          ) : (
+            <p style={muted}>none described</p>
+          )}
           <button
             type="button"
             style={button}
