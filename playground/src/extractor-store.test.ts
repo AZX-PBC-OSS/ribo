@@ -72,9 +72,9 @@ const session: SessionItem = {
  * `perGroupExtractor` builds internally for the Snugg target (see
  * `ribo-extractor-openai/src/per-group.ts`). Every group whose leaves exceed
  * {@link MAX_ENVELOPED_LEAVES_PER_GROUP} is split into entries sharing one key;
- * every other group is untouched. Building this here
- * (rather than assuming "one entry per group") is what keeps the fake's request
- * naming and response shaping honest as that split evolves.
+ * every other group is untouched. Building this here (rather than assuming
+ * "one entry per group") is what keeps the fake's request naming and response
+ * shaping honest as that split evolves.
  */
 const snuggPieces = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
 
@@ -167,19 +167,21 @@ test("with an API key, the live extractor is the per-group strategy", async () =
   // the extraction succeeds and the call count is observable.
   await extractStep({ session, transcript: transcript.text, recordingIds: ["rec-1"] });
 
-  // One call per partitioned piece: a group whose leaves exceed the
-  // 8-enveloped-leaf cap splits into several calls; every other group makes one —
-  // see `snuggPieces` above. The single-shot extractor makes 1 call total — this
-  // is the assertion that catches a wiring change the status alone might miss
-  // (e.g. always constructing `singleShotExtractor` regardless of `strategy`).
+  // One call per partitioned piece, not one per group: the over-cap groups
+  // (see `snuggPieces` above) each split into several calls, so the total is
+  // larger than the group count. The single-shot extractor makes 1 call
+  // total — this is the assertion that catches a wiring change the status
+  // alone might miss (e.g. always constructing `singleShotExtractor`
+  // regardless of `strategy`).
   expect(requests).toHaveLength(snuggPieces.length);
   expect(requests).toHaveLength(0);
 
   // Each call's system message is a per-group prompt, not the full
   // `snuggProInstructions` the single-shot extractor sends. This catches
   // `groupInstructions: snuggGroupInstructions` being dropped from the
-  // `perGroupExtractor` call — the extractor would still make the same calls, but
-  // every call would carry the full prompt instead of its own slice.
+  // `perGroupExtractor` call — the extractor would still make the same number
+  // of calls, but every call would carry the full prompt instead of its own
+  // slice.
   for (const req of requests) {
     const system = req.messages[0]!;
     expect(system.role).toBe("system");

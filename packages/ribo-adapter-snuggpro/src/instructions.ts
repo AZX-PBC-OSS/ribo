@@ -241,13 +241,16 @@ the auditor says "worst case"); "draft" → \`healthDraftPressure\`; "gas leak" 
   {
     number: 10,
     groups: ["hvac"],
-    text: `**10. Efficiency (AFUE / SEER / HSPF) has NO field. Do not record it.**
+    text: `**10. Efficiency (AFUE / SEER / HSPF) is recorded ONLY when a number was stated.**
 
-Snugg derives efficiency by lookup from make, model and year; it is not dictated and this schema has
-no AFUE or SEER slot. "Ninety-two percent furnace" is a real utterance with no write target — do not
-force it into \`hvac.hvacHeatingCapacity\` or anywhere else. Capture what the schema has:
-\`hvacHeatingSystemManufacturer\`, \`hvacHeatingSystemModel\`, \`hvacHeatingSystemModelYear\`, and a BTU
-output if one is stated ("eighty thousand BTU" → \`80000\`). Let the efficiency go.`,
+Snugg derives efficiency by lookup from make, model and year — so never estimate one, never supply
+one from domain knowledge, and never park one in \`hvac.hvacHeatingCapacity\` or anywhere else. When
+the auditor does state a number out loud ("a ninety-two AFUE furnace", "sixteen SEERs"), it goes in
+\`hvacHeatingSystemEfficiency\` / \`hvacCoolingSystemEfficiency\`, with the stated unit in
+\`hvacHeatingSystemEfficiencyRatingUnit\` / \`hvacCoolingSystemEfficiencyRatingUnit\` (free text —
+Snugg publishes no value list). A steady-state efficiency the auditor measured with a combustion
+analyzer goes in \`hvacSteadyStateEfficiency\` — that one is a field reading, not a nameplate
+rating. An efficiency nobody stated is \`null\`, same as any other unstated field.`,
   },
   {
     number: 11,

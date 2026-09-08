@@ -26,9 +26,11 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  * change and never for a derivation change: the spec-derived `schema.ts` rebuild, the
  * move of the per-instance groups to arrays, the basedata capture-surface expansion,
  * the health-endpoint completion, the concern, incentive and stage job-collection
- * tranches, the attic-remainder + vault tranche, and the window remainder tranche
+ * tranches, the attic-remainder + vault tranche, the window remainder tranche
  * (doc 20 §5.5's verdicted capture surface — the diff confined to the window group's
- * properties and required list). Any *future* unexplained movement is a regression.
+ * properties and required list), and the hvac remainder tranche (doc 20 §5.4 — the
+ * diff confined to the hvac group's properties and required list). Any *future*
+ * unexplained movement is a regression.
  *
  * Why capture via the real extractor, not `z.toJSONSchema(snuggExtractionSchema, ...)`
  * inline: `singleShotExtractor` (ribo-extractor-openai/src/single-shot.ts) is the ONLY

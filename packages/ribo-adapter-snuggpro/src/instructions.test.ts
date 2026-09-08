@@ -40,7 +40,7 @@ const RULE_MARKERS: readonly string[] = [
   "Fuel is a SEPARATE axis",
   "Attic insulation: a depth band",
   "Health & safety is a fixed matrix",
-  "Efficiency (AFUE / SEER / HSPF) has NO field",
+  "Efficiency (AFUE / SEER / HSPF) is recorded ONLY when a number was stated",
   "Enum members are exact strings",
   "Numbers spoken as words become numerals",
   "is a number from 0 to 1",
@@ -252,7 +252,7 @@ describe("snuggGroupFillInstructions", () => {
     const prompt = snuggGroupFillInstructions("hvac", fillScope(0));
 
     // A group-specific rule (rule 10) and the one-key output section survive.
-    expect(prompt).toContain("Efficiency (AFUE / SEER / HSPF) has NO field");
+    expect(prompt).toContain("Efficiency (AFUE / SEER / HSPF) is recorded ONLY when");
     expect(prompt).toContain("exactly one top-level key");
     expect(prompt).toContain("`hvac`");
   });
