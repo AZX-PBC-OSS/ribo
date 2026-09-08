@@ -17,6 +17,8 @@
 - `linkTargets` (`instance-identity.ts`, `review.ts`) is **not** touched by this plan. It stays array-positional exactly as it is today.
 - Every schema change to the sessions collection needs a version bump and an exercised migration strategy — this repo shares one RxDB database between `outbox` and `sessions`, and a schema mismatch on either collection makes the whole database (including captured audio) unreachable on open (`session-schema.ts:226-239`).
 - `deriveInstanceIdempotencyKey` (`instance-write-step.ts:50-56`) stays positional and unchanged — its job (stable across retries of the same queue item) is a different concern from instance identity.
+- **This plan's Task 3 is the one that bumps the sessions schema to v2 and lands first.** `docs/superpowers/plans/2026-09-08-roster-absence.md`'s own Task 3 adds a further field (`statedEmptyGroups`) to the same v2 schema/migration this plan introduces, and assumes this plan's Task 3 has already landed — implement this plan's Task 3 before that one.
+- Tests run from the repo root via Vitest's own path filtering, **not** a per-package `test` script (none of these packages define one — only `typecheck`/`build`). Use `pnpm vitest run packages/<dir>` (whole package) or `pnpm vitest run packages/<dir>/src/<file>.test.ts` (one file), per `AGENTS.md`'s own example. `pnpm --filter @azx/<pkg> typecheck` remains correct as written — only `test` invocations change.
 
 ---
 
@@ -24,10 +26,11 @@
 
 **Files:**
 - Modify: `packages/ribo-core/src/adapter.ts:229-238`
-- Modify: `packages/ribo-adapter-snuggpro/src/adapter.ts:76-85`
+- Modify: `packages/ribo-adapter-snuggpro/src/adapter.ts:76-85` (and its stale doc comment at line 71)
 - Modify: `packages/ribo-core/src/adapter.test.ts` (lines 45-48, 139, 206, 224, 264, 292, 317)
 - Modify: `packages/ribo-core/src/write-step.test.ts` (lines 64-67, and no change needed at line 267)
 - Modify: `packages/ribo-core/src/instance-write-step.test.ts` (lines 69-72, 258-267, and no change needed at lines 406, 450-458 beyond what's below)
+- Modify: `packages/ribo-adapter-snuggpro/src/round-trip.test.ts` and `packages/ribo-core/src/contracts.test.ts` (each has one more `write` stub not listed above — see Step 3)
 
 **Interfaces:**
 - Produces: `ToolAdapter<V, C>.write: (fields: V, ctx: C, meta: WriteMetadata) => Promise<{ readonly uuid: string }>` — every later task's write-step code depends on this return shape.
@@ -38,7 +41,7 @@
 
 - [ ] **Step 2: Update `snuggProAdapter`'s stub to match the new type**
 
-  In `ribo-adapter-snuggpro/src/adapter.ts`, the `write` property (lines 76-85) throws unconditionally — its inferred return type (`Promise<never>`) is already assignable to the new signature, so no logic changes. Confirm this compiles as-is; if the arrow function has an explicit `: Promise<void>` return-type annotation anywhere, remove it so the type is inferred (or update it to the new signature) rather than leaving a stale annotation.
+  In `ribo-adapter-snuggpro/src/adapter.ts`, the `write` property (lines 76-85) throws unconditionally — its inferred return type (`Promise<never>`) is already assignable to the new signature, so no logic changes. Confirm this compiles as-is; if the arrow function has an explicit `: Promise<void>` return-type annotation anywhere, remove it so the type is inferred (or update it to the new signature) rather than leaving a stale annotation. Also update the doc comment at line 71 ("The SIGNATURE is honest now — `(fields, ctx, meta) => Promise<void>`") — it describes the pre-this-plan signature and goes stale the moment Step 1 lands; rephrase it to describe the new `Promise<{ uuid }>` signature.
 
 - [ ] **Step 3: Update every test-fixture adapter's `write` stub**
 
@@ -54,14 +57,16 @@
   - The rejection-only stub at line 406 needs no change.
   - The wrapping adapter at lines 448-459 (the reopen-bug regression test) currently does `await base.write(fields, ctx, meta);` with no return; change to `return await base.write(fields, ctx, meta);`, same reasoning as above.
 
+  Two more trivial `write: async () => {}`-shaped stubs exist outside the files above and need the same `write: async () => ({ uuid: "unused" })` treatment: `ribo-adapter-snuggpro/src/round-trip.test.ts:78` and `ribo-core/src/contracts.test.ts:102`. Neither exercises `write`'s runtime behavior (both are structural/round-trip pins), so a fixed placeholder uuid is sufficient.
+
 - [ ] **Step 4: Verify nothing else broke**
 
-  Run: `pnpm --filter @azx/ribo-core typecheck && pnpm --filter @azx/ribo-core test && pnpm --filter @azx/ribo-adapter-snuggpro typecheck && pnpm --filter @azx/ribo-adapter-snuggpro test`
+  Run: `pnpm --filter @azx/ribo-core typecheck && pnpm vitest run packages/ribo-core && pnpm --filter @azx/ribo-adapter-snuggpro typecheck && pnpm vitest run packages/ribo-adapter-snuggpro`
   Expected: every test passes unchanged — this task changes a type and updates stubs to satisfy it, with no behavior change anywhere yet (nothing reads the returned `uuid`).
 
 - [ ] **Step 5: Commit**
 
-  Stage `adapter.ts`, `ribo-adapter-snuggpro/src/adapter.ts`, `adapter.test.ts`, `write-step.test.ts`, `instance-write-step.test.ts`. Commit message: `feat(core): ToolAdapter.write returns the vendor's created-record uuid`.
+  Stage `adapter.ts`, `ribo-adapter-snuggpro/src/adapter.ts`, `adapter.test.ts`, `write-step.test.ts`, `instance-write-step.test.ts`, `round-trip.test.ts`, `contracts.test.ts`. Commit message: `feat(core): ToolAdapter.write returns the vendor's created-record uuid`.
 
 ---
 
@@ -70,8 +75,9 @@
 **Files:**
 - Modify: `packages/ribo-core/src/review.ts` (types at lines 328-354, `resolveReview` at 931-1049, `reviewOutcomeSchema` at 1070-1087)
 - Modify: `packages/ribo-ui-react/src/use-review.ts` (`toPersisted` at lines 209-242)
-- Modify: `packages/ribo-core/src/review.test.ts` (extending `describe` blocks at lines 947 and 1162; one new test)
+- Modify: `packages/ribo-core/src/review.test.ts` (extending `describe` blocks at lines 947 and 1162; two new tests)
 - Modify: `packages/ribo-ui-react/src/use-review.browser.test.tsx` (extending the test at line 809)
+- Modify: `packages/ribo-core/src/instance-write-step.test.ts` (every `submitSessionReview`/`seedSession` call that supplies collection-group data — see Step 6; moved here from a later task because this task's own `reviewOutcomeSchema` refine, added in Step 4, is what makes these calls fail their parse in the first place, and a task's own changes should not leave the suite it just touched failing for a later task to fix)
 
 **Interfaces:**
 - Consumes: nothing new from Task 1.
@@ -89,11 +95,13 @@
 
   Add one new test in the first `describe` block, after "an instance whose every leaf was rejected is absent from the patch, not an empty record" (ends line 1014): a test named `"instanceKeys and fields stay in lockstep when one instance of several is fully rejected"`, reusing that same two-instance fixture (first instance `hvac[k1]` fully rejected, second `hvac[k2]` accepted). Assert `outcome.status === "edited"`, then `expect(outcome.instanceKeys).toEqual({ hvac: ["k2"] })` — the surviving instance keeps its real key `k2`, not a renumbered `k1`.
 
-  Add a second new test, in a new `describe("reviewOutcomeSchema — instanceKeys length must match fields", ...)` block placed after the "instance identity" describe block (after line 1270): construct a plain object literal (not via `resolveReview`) shaped like `{ status: "accepted", fields: { hvac: [{}, {}] }, instanceKeys: { hvac: ["k1"] } }` (two instances, one key) and assert `reviewOutcomeSchema.safeParse(that).success === false` — the length-mismatch case the refine exists to catch. Add a second assertion in the same test that the identical object with `instanceKeys: { hvac: ["k1", "k2"] }` (matching length) parses successfully.
+  Add a second new test in the same `describe` block: a fixture with **two** instances where only *some* leaves of the first are accepted and the rest rejected (a partial rejection within one surviving instance, not a full rejection of it) alongside a second, fully-accepted instance. Assert `outcome.instanceKeys` still equals `{ hvac: ["k1", "k2"] }` — a partially-edited instance keeps its key and its place, only a *fully* rejected one is dropped (this is the design's §5 test bullet that a whole-instance-rejection test alone doesn't cover).
+
+  Add a third new test, in a new `describe("reviewOutcomeSchema — instanceKeys length must match fields", ...)` block placed after the "instance identity" describe block (after line 1270): construct a plain object literal (not via `resolveReview`) shaped like `{ status: "accepted", fields: { hvac: [{}, {}] }, instanceKeys: { hvac: ["k1"] } }` (two instances, one key) and assert `reviewOutcomeSchema.safeParse(that).success === false` — the length-mismatch case the refine exists to catch. Add a second assertion in the same test that the identical object with `instanceKeys: { hvac: ["k1", "k2"] }` (matching length) parses successfully.
 
 - [ ] **Step 2: Run the new tests to verify they fail**
 
-  Run: `pnpm --filter @azx/ribo-core test review.test.ts`
+  Run: `pnpm vitest run packages/ribo-core/src/review.test.ts`
   Expected: FAIL — `outcome.instanceKeys` is `undefined` everywhere, and `reviewOutcomeSchema` has no `instanceKeys` field or refine yet so the schema-mismatch test's `safeParse` calls don't behave as asserted.
 
 - [ ] **Step 3: Add `instanceKeys` to the `ReviewOutcome` type and compute it in `resolveReview`**
@@ -108,29 +116,36 @@
 
   In `reviewOutcomeSchema` (lines 1070-1087), add `instanceKeys: z.record(z.string(), z.array(z.string())).optional()` to both the `accepted` and `edited` `z.strictObject(...)` branches, alongside the existing `linkTargets` line.
 
-  Wrap the whole `z.discriminatedUnion(...)` in a `.refine(...)` (or add a `.superRefine` — whichever this codebase's zod version supports for a discriminated union; check `zodIssues`/`describeLocated`'s usage elsewhere in this file for the established error-reporting convention) that, for `accepted`/`edited` values only, checks every key `g` of `value.fields` where `Array.isArray(value.fields[g])` and `value.fields[g].length > 0`: `value.instanceKeys?.[g]` must exist and have the same length as `value.fields[g]`. On failure, report an issue whose message names the offending group path and both lengths, in the style of this file's other validation messages (see `invalidValueMessage`, lines 686-697, for the tone to match).
+  Wrap the whole `z.discriminatedUnion(...)` in a `.superRefine(...)` (this repo's zod version, pinned in `pnpm-workspace.yaml`, supports `.superRefine`/`.refine` composed with a discriminated union and with the `.optional()` wrapper `session-schema.ts:172` applies around the whole thing) that, for `accepted`/`edited` values only, checks every key `g` of `value.fields` where `Array.isArray(value.fields[g])` and `value.fields[g].length > 0`: `value.instanceKeys?.[g]` must exist and have the same length as `value.fields[g]`. On failure, call `ctx.addIssue(...)` with a message naming the offending group path and both lengths, in the style of this file's other validation messages (see `invalidValueMessage`, lines 686-697, for the tone to match). Note for later tasks: a refine failure surfaces to a caller of `submitSessionReview` as a thrown `ZodError` (from `reviewOutcomeSchema.parse` at `outbox.ts:730`), not a `ReviewValidationError` — the two are different failure types from different layers, and Step 1's `safeParse` test above is deliberately written against the schema directly rather than through `submitSessionReview`, so it doesn't need to distinguish them.
 
 - [ ] **Step 5: Run the tests again to verify they pass**
 
-  Run: `pnpm --filter @azx/ribo-core test review.test.ts`
+  Run: `pnpm vitest run packages/ribo-core/src/review.test.ts`
   Expected: PASS.
 
-- [ ] **Step 6: Thread `instanceKeys` through `use-review.ts`'s `toPersisted`**
+- [ ] **Step 6: Add `instanceKeys` to every hand-built collection-group review outcome in `instance-write-step.test.ts`**
+
+  This step exists because Step 4's refine, once merged, makes every one of these calls fail `reviewOutcomeSchema.parse` inside `Outbox.submitSessionReview` — this file never calls `buildReviewRequest`/`resolveReview`, so nothing computes `instanceKeys` for it automatically. Add a matching `instanceKeys` entry (one string per array element, sequential `"k1"`, `"k2"`, ... unless noted otherwise) to every `submitSessionReview` call in the file that supplies collection-group array data:
+  - `seedSession`'s own `submitSessionReview` call (around line 131) — parameterize it to accept and pass through an `instanceKeys` value matching whatever `fields` its caller supplies, since `seedSession` is reused by many tests with different `hvac` array shapes.
+  - The inline `submitSessionReview` call in "a write failing on the second of three instances, then retrying, re-attempts the first" (lines 292-301, a 3-instance `hvac` array): `instanceKeys: { hvac: ["k1", "k2", "k3"] }`.
+  - The reopen-bug test's two `submitSessionReview` calls (lines 483-488 and 511-516): the first (2 instances, Furnace + AC) gets `instanceKeys: { hvac: ["k1", "k2"] }`. The second, post-removal call (1 surviving instance, AC) gets `instanceKeys: { hvac: ["k2"] }` — **deliberately not `["k1"]`**, and this is worth a one-line comment in the test explaining why: the point of this fixture is to prove the write step keys receipts by whatever key the reviewed outcome actually declares, not by array position. Choosing a key that *matches* what position-based keying would produce (`"k1"` at index 0) would let a broken, position-based implementation pass this test by coincidence. (Note, for whoever reads this later: a *real* reopen via the actual review UI would, per `use-review.ts`'s `remapAfterInstanceRemove`, renumber the survivor to `k1` when the first of two instances is removed client-side before submit — this hand-built fixture bypasses that UI path entirely, on purpose, to isolate and stress-test the write step's own keying behavior independent of what any particular UI flow would produce.)
+
+- [ ] **Step 7: Thread `instanceKeys` through `use-review.ts`'s `toPersisted`**
 
   In `use-review.ts`, `toPersisted` (lines 209-242) currently builds `mutable` and then, only if `outcome.linkTargets` is present, returns a copy with `linkTargets` converted from readonly arrays to plain mutable arrays via one early return. Restructure so both `linkTargets` and the new `instanceKeys` can be added independently without one clobbering the other: build a `let result: PersistedReviewOutcome = mutable;` after the existing `mutable` construction, then `if (outcome.linkTargets) result = { ...result, linkTargets: Object.fromEntries(Object.entries(outcome.linkTargets).map(([group, targets]) => [group, [...targets]])) };` (unchanged conversion, just reassigned instead of returned), then a parallel `if (outcome.instanceKeys) result = { ...result, instanceKeys: Object.fromEntries(Object.entries(outcome.instanceKeys).map(([group, keys]) => [group, [...keys]])) };`, then `return result;` at the end (replacing the old two-branch `if`/`return`).
 
-- [ ] **Step 7: Extend the end-to-end hook test**
+- [ ] **Step 8: Extend the end-to-end hook test**
 
   In `use-review.browser.test.tsx`, extend "linking an instance survives submit and reaches the outcome as an update target" (line 809): add `instanceKeys: { hvac: ["k1"] }` to both `toMatchObject` calls (the in-memory `outcome` at line 822 and the `persisted?.reviewOutcome` at line 831) — proving the real hook path (not a hand-built literal) produces and persists real keys end to end.
 
-- [ ] **Step 8: Run the full test suites**
+- [ ] **Step 9: Run the full test suites**
 
-  Run: `pnpm --filter @azx/ribo-core test && pnpm --filter @azx/ribo-ui-react test`
-  Expected: PASS, including the extended test from Step 7.
+  Run: `pnpm vitest run packages/ribo-core && pnpm vitest run packages/ribo-ui-react`
+  Expected: PASS, including every test touched in Steps 1, 6 and 8.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
-  Stage `review.ts`, `review.test.ts`, `use-review.ts`, `use-review.browser.test.tsx`. Commit message: `feat(core): resolveReview exposes real per-instance keys via instanceKeys`.
+  Stage `review.ts`, `review.test.ts`, `use-review.ts`, `use-review.browser.test.tsx`, `instance-write-step.test.ts`. Commit message: `feat(core): resolveReview exposes real per-instance keys via instanceKeys`.
 
 ---
 
@@ -138,24 +153,25 @@
 
 **Files:**
 - Modify: `packages/ribo-core/src/queue/session-schema.ts` (schema at lines 94-181, migration strategies at 241-243, RxDB schema at 245-291)
-- Modify: `packages/ribo-core/src/queue/session-schema.test.ts` (wherever the v1 pin and migration tests live — locate via the existing v0→v1 test for `extractionUsage` and follow its pattern)
+- Modify: `packages/ribo-core/src/queue/session-schema.test.ts` (the field-parity pin around lines 37-48, and the version pin near line 68-75 — see Step 1)
 
 **Interfaces:**
 - Consumes: `instanceKeys` field name and shape from Task 2.
 - Produces: `SessionDocument.receipts?: { singleton?: string; instances?: Readonly<Record<string, Readonly<Record<string, string>>>> }`, consumed by Task 4's write-step changes and `relay.ts`.
 
-- [ ] **Step 1: Write the failing migration test**
+- [ ] **Step 1: Write the failing migration tests**
 
-  In `session-schema.test.ts`, find the existing test(s) covering the v0→v1 migration (the one that added `extractionUsage`) and add two new tests immediately after, following the same structure:
+  No test today actually *executes* a session-collection migration (`session-schema.test.ts` pins the schema's shape and version; strategy *registration* is separately touched by `outbox-reopen-cross-tab.browser.test.ts:122`) — this task adds the first one(s). In `session-schema.test.ts`, add:
   - A test asserting that a v1 document with `reviewOutcome: { status: "accepted", fields: { hvac: [{ hvacSystemEquipmentType: "Boiler" }, { hvacSystemEquipmentType: "Furnace" }] } }` (no `instanceKeys`) migrates, via `SESSION_MIGRATION_STRATEGIES[2]`, to a document whose `reviewOutcome.instanceKeys` equals `{ hvac: ["k1", "k2"] }`.
   - A test asserting that a v1 document with no `reviewOutcome` at all migrates to an unchanged document (no `receipts`, no `reviewOutcome` added) — the identity half.
   - A test asserting that a v1 document whose `reviewOutcome.status` is `"discarded"` migrates unchanged (no `fields` to derive keys from, and none needed).
+  - A test asserting that a v2 document already carrying both `receipts` and a fully-populated `reviewOutcome.instanceKeys` round-trips through the migration function unchanged (idempotence for a document that's already current).
 
-  Also extend whatever test currently pins `sessionRxSchema`/`sessionDocumentSchema` field-for-field parity (the seam this file's own doc comment says it guards) to include `receipts`, and bump the expected `version` to `2`.
+  Also extend the hardcoded `optionalKeys` list at `session-schema.test.ts:37-48` (the field-parity pin between the zod schema and the RxDB schema) to include `receipts`, and bump whatever test currently asserts `sessionRxSchema.version === 1` (near lines 68-75) to expect `2`.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-  Run: `pnpm --filter @azx/ribo-core test session-schema.test.ts`
+  Run: `pnpm vitest run packages/ribo-core/src/queue/session-schema.test.ts`
   Expected: FAIL — `SESSION_MIGRATION_STRATEGIES` has no `2` entry yet, and the schema has no `receipts` property.
 
 - [ ] **Step 3: Add `receipts` to `sessionDocumentSchema` and `sessionRxSchema`**
@@ -168,7 +184,7 @@
 
   Change `SESSION_MIGRATION_STRATEGIES` (lines 241-243) from `{ 1: (doc) => doc }` to also include a `2` entry. The `2` function: given `doc: SessionDocument` (the v1 shape), if `doc.reviewOutcome` is undefined or its `status` is `"discarded"`, return `doc` unchanged. Otherwise, for each key `g` in `doc.reviewOutcome.fields` where `Array.isArray(doc.reviewOutcome.fields[g])` and the array is non-empty, and `doc.reviewOutcome.instanceKeys?.[g]` is missing: synthesize `["k1", "k2", ..., "kN"]` where `N` is that array's length, and merge it into a new `instanceKeys` object alongside any that were already present (there shouldn't be any, since this is a v1→v2 migration of documents that never had the field, but preserve them defensively rather than assuming). Return a new document with `reviewOutcome` replaced by `{ ...doc.reviewOutcome, instanceKeys: <the merged object> }`, leaving `receipts` absent (v1 documents never had writes with returned uuids).
 
-  Update the doc comment above `SESSION_MIGRATION_STRATEGIES` (lines 217-240) to describe this v1→v2 step alongside the existing v0→v1 description, following the same "declared and exercised rather than skipped" reasoning already there.
+  Update the doc comment above `SESSION_MIGRATION_STRATEGIES` (lines 217-240) to describe this v1→v2 step alongside the existing v0→v1 description, following the same "declared and exercised rather than skipped" reasoning already there. Note in that comment that this is the schema version the sibling `roster-absence` plan's Task 3 also extends (adding `statedEmptyGroups`) — a reader who lands there first should know this v2 schema isn't "finished" the moment this task's commit lands.
 
 - [ ] **Step 5: Bump `sessionRxSchema.version` to `2`**
 
@@ -176,12 +192,12 @@
 
 - [ ] **Step 6: Run the tests to verify they pass**
 
-  Run: `pnpm --filter @azx/ribo-core test session-schema.test.ts`
+  Run: `pnpm vitest run packages/ribo-core/src/queue/session-schema.test.ts`
   Expected: PASS.
 
 - [ ] **Step 7: Run the full `ribo-core` suite**
 
-  Run: `pnpm --filter @azx/ribo-core typecheck && pnpm --filter @azx/ribo-core test`
+  Run: `pnpm --filter @azx/ribo-core typecheck && pnpm vitest run packages/ribo-core`
   Expected: PASS — this step catches any other test in the package that constructs a `SessionDocument`/`SessionItem` literal and pins its schema version or field set (e.g. `queue/outbox-memory.test.ts`, `queue/session-outbox.test.ts`) needing a matching update.
 
 - [ ] **Step 8: Commit**
@@ -193,11 +209,12 @@
 ### Task 4: The write step captures uuids and persists them as receipts
 
 **Files:**
-- Modify: `packages/ribo-core/src/queue/relay.ts` (`SessionWriteInput`/`SessionWriteStep` types at lines 55-75, `#sessionWrite` at 413-453)
+- Modify: `packages/ribo-core/src/queue/relay.ts` (`SessionWriteInput`/`SessionWriteStep` types at lines 55-75, `#sessionWrite` at 413-453, and its stale doc comment at line 74)
 - Modify: `packages/ribo-core/src/write-step.ts` (lines 66-92)
-- Modify: `packages/ribo-core/src/instance-write-step.ts` (lines 62-115)
+- Modify: `packages/ribo-core/src/instance-write-step.ts` (lines 62-115, and its stale doc comment at lines 17-24)
 - Modify: `packages/ribo-core/src/write-step.test.ts` (extend the happy-path test at line 90)
-- Modify: `packages/ribo-core/src/instance-write-step.test.ts` (extend the happy-path tests, the seeding of `submitSessionReview` calls to add `instanceKeys`, and the reopen-bug test)
+- Modify: `packages/ribo-core/src/instance-write-step.test.ts` (extend the happy-path tests and the reopen-bug test — the `instanceKeys` fixture additions themselves were already made in Task 2 Step 6)
+- Modify: `packages/ribo-core/src/queue/relay.browser.test.ts` (three `SessionWriteStep` doubles that return a bare object instead of `{ fields: {...} }} — see Step 8)
 
 **Interfaces:**
 - Consumes: `ToolAdapter.write`'s new return shape (Task 1), `ReviewOutcome.instanceKeys` (Task 2), `SessionDocument.receipts` (Task 3).
@@ -205,27 +222,24 @@
 
 - [ ] **Step 1: Write the failing tests**
 
-  In `instance-write-step.test.ts`, every `seedSession`/`submitSessionReview` call that builds a `hvac` (or other collection-group) array now needs a matching `instanceKeys` entry (mechanical, per Task 2's refine — this is required for the schema parse to succeed at all once Task 2 lands, independent of what this task adds). Update:
-  - `seedSession`'s callers throughout the file: wherever `fields` includes e.g. `hvac: [a, b]`, the `submitSessionReview` call needs `instanceKeys: { hvac: ["k1", "k2"] }` (matching each array's length, sequential keys) — apply this to every call in the file that supplies collection-group data, including the ones inlined directly in the "failing on the second of three instances" test (lines 292-301) and the reopen-bug test (both `submitSessionReview` calls, lines 483-488 and 511-516; the second, post-removal call gets `instanceKeys: { hvac: ["k2"] }` since the survivor's real key is `k2`, not `k1` — this is the crux assertion for this task's regression test below).
-
   Extend "each instance's derived key is stable across retries and distinct between instances" (line 147): after the existing assertions, assert that calling `step(input)` returns a `SessionWriteResult` whose `receipts.instances.hvac` equals `{ k1: "uuid-<the derived key for instance 0>", k2: "uuid-<the derived key for instance 1>" }` (using the fixture adapter's `uuid-${idempotencyKey}` convention from Task 1) after the first call, and that calling it again returns the same values (idempotent re-derivation, not accumulation of duplicates).
 
   Extend "singleton groups are written once..." (line 182): assert the returned `SessionWriteResult.receipts.singleton` equals the derived uuid for the singleton write, and `receipts.instances.hvac` equals `{ k1: "<uuid>" }`.
 
-  Extend the reopen-bug test ("after reopening from dead and removing the first instance...", line 436): after the final assertions (lines 538-547), assert that the second drain's resolved `SessionWriteResult.receipts.instances.hvac` is `{ k2: "<the AC instance's uuid>" }` — keyed by the survivor's real key `k2`, proving receipts are not reintroducing positional identity the way `writtenInstances` did. (`toInstanceWriteStep`'s produced function needs to be captured from the relay's `sessionWrite` option and its return value inspected directly — the relay itself doesn't expose the resolved `SessionWriteResult`, so this assertion should call the produced step function directly with the same `session`/`reviewed`/`ctx` inputs used to seed the second `submitSessionReview`, in addition to running it through the relay for the status/side-effect assertions already there.)
+  Extend the reopen-bug test ("after reopening from dead and removing the first instance...", line 436): after the final assertions (lines 538-547), assert that the second drain's resolved `SessionWriteResult.receipts.instances.hvac` is `{ k2: "<the AC instance's uuid>" }` — keyed by the survivor's real key `k2` (per Task 2 Step 6's fixture, which deliberately supplies `k2` rather than a renumbered `k1` — see that step's note on why), proving receipts are keyed by whatever the reviewed outcome declares rather than by array position. (`toInstanceWriteStep`'s produced function needs to be captured from the relay's `sessionWrite` option and its return value inspected directly — the relay itself doesn't expose the resolved `SessionWriteResult`, so this assertion should call the produced step function directly with the same `session`/`reviewed`/`ctx` inputs used to seed the second `submitSessionReview`, in addition to running it through the relay for the status/side-effect assertions already there.)
 
   In `write-step.test.ts`, extend "the reviewed patch and the session's ctx reach write, both parsed" (line 90): assert the step's resolved value equals `{ receipts: { singleton: "uuid-key-session-1" } }` (matching the fixture's `uuid-${meta.idempotencyKey}` convention).
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-  Run: `pnpm --filter @azx/ribo-core test write-step.test.ts instance-write-step.test.ts`
-  Expected: FAIL — `toWriteStep`/`toInstanceWriteStep` still resolve `void`, and (once Task 2's refine is in place) several `submitSessionReview` calls in `instance-write-step.test.ts` fail their schema parse until `instanceKeys` is added per Step 1 above.
+  Run: `pnpm vitest run packages/ribo-core/src/write-step.test.ts packages/ribo-core/src/instance-write-step.test.ts`
+  Expected: FAIL — `toWriteStep`/`toInstanceWriteStep` still resolve `void`.
 
 - [ ] **Step 3: Define `SessionWriteResult` and update `SessionWriteStep`**
 
   In `relay.ts`, add a new exported interface directly above `SessionWriteStep` (before line 75): `SessionWriteResult { readonly fields?: ExtractedFieldMap; readonly receipts?: { readonly singleton?: string; readonly instances?: Readonly<Record<string, Readonly<Record<string, string>>>> } }`, with a doc comment: `fields` is unchanged from today's bare return value (persisted as `writeResult`); `receipts` is new and persisted onto `session.receipts`, additively.
 
-  Change `SessionWriteStep`'s type (line 75) from `(input: SessionWriteInput) => Promise<ExtractedFieldMap | void>` to `(input: SessionWriteInput) => Promise<SessionWriteResult | void>`.
+  Change `SessionWriteStep`'s type (line 75) from `(input: SessionWriteInput) => Promise<ExtractedFieldMap | void>` to `(input: SessionWriteInput) => Promise<SessionWriteResult | void>`. Update the doc comment at line 74 ("Anything returned is persisted as `writeResult`") — after this task, only `result.fields` is; `result.receipts` is persisted onto a different field. Rephrase to describe both channels.
 
 - [ ] **Step 4: Update `toWriteStep` to capture the uuid**
 
@@ -234,6 +248,7 @@
 - [ ] **Step 5: Update `toInstanceWriteStep` to accumulate receipts keyed by real instance key**
 
   In `instance-write-step.ts`:
+  - Update the stale doc comment at lines 17-24 ("The receipts work will need a durable channel again...") — this task *is* that work; rephrase to describe what actually landed (the `SessionWriteResult.receipts` return channel) rather than describing it as still-future.
   - Change the function's declared return type from `Promise<void>` to `Promise<SessionWriteResult>`, importing `SessionWriteResult` from `./queue/relay.js`.
   - Before the singleton-write block (line 98), declare `const receipts: { singleton?: string; instances: Record<string, Record<string, string>> } = { instances: {} };`.
   - At the singleton-write call (lines 98-102), capture the result: `const { uuid } = await adapter.write(...)`, then `receipts.singleton = uuid;`.
@@ -247,20 +262,28 @@
 
 - [ ] **Step 7: Run the tests to verify they pass**
 
-  Run: `pnpm --filter @azx/ribo-core test write-step.test.ts instance-write-step.test.ts`
+  Run: `pnpm vitest run packages/ribo-core/src/write-step.test.ts packages/ribo-core/src/instance-write-step.test.ts`
   Expected: PASS.
 
-- [ ] **Step 8: Run the full suite**
+- [ ] **Step 8: Fix the `relay.browser.test.ts` write-stub doubles**
 
-  Run: `pnpm --filter @azx/ribo-core typecheck && pnpm --filter @azx/ribo-core test`
-  Expected: PASS — catches any other test constructing a `SessionWriteStep` or asserting on `session.writeResult`/`session.receipts` that this task's rename/addition affects (check `relay.browser.test.ts` in particular, since it also exercises `sessionWrite`'s return value).
+  `relay.browser.test.ts` defines `SessionWriteStep` doubles that return `{ remoteId: "snugg-1" }` directly (not wrapped in `{ fields: ... }`) at three sites: lines 172-176, 806-810 and 1935-1938. Under `SessionWriteResult`'s new shape these still compile (structural typing admits the extra key sitting where `fields`/`receipts` would go, since the object satisfies `SessionWriteResult | void`'s optional members trivially by having neither), but `result.fields` is now `undefined` for all three, so `writeResult` stops being persisted — silently breaking the assertions at lines 339 and 1318 that check `session.writeResult` equals `{ remoteId: "snugg-1" }`. Change all three doubles to `return { fields: { remoteId: "snugg-1" } };`.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 9: Run the full suite**
 
-  Stage `relay.ts`, `write-step.ts`, `instance-write-step.ts`, `write-step.test.ts`, `instance-write-step.test.ts`, and any files Step 8 required touching. Commit message: `feat(core): the write step captures vendor uuids and persists them as receipts`.
+  Run: `pnpm --filter @azx/ribo-core typecheck && pnpm vitest run packages/ribo-core`
+  Expected: PASS.
+
+- [ ] **Step 10: Commit**
+
+  Stage `relay.ts`, `write-step.ts`, `instance-write-step.ts`, `write-step.test.ts`, `instance-write-step.test.ts`, `relay.browser.test.ts`. Commit message: `feat(core): the write step captures vendor uuids and persists them as receipts`.
 
 ---
 
 ## Out of scope (confirmed against the design doc)
 
 Nothing in this plan makes the write step *read* `session.receipts` back to decide "update, don't create." That is separate, future work, gated on Snugg Pro egress landing (Asana task 1218075751169739 stays open until it ships).
+
+## Reviewed
+
+This plan was reviewed by OpenCode (`kimi-k3`, run 4926) before implementation. Findings applied: moved the `instance-write-step.test.ts` fixture updates (adding `instanceKeys` to every hand-built collection-group review outcome) from Task 4 into Task 2, since Task 2's own refine is what breaks those fixtures — Task 2's exit gate was previously unreachable; corrected the reopen-bug test's rationale for choosing `instanceKeys: { hvac: ["k2"] }` over `["k1"]` (it's a deliberate choice to distinguish real-key-based keying from position-based keying, not a claim about what the real review UI would produce for that scenario — a real UI-driven removal actually renumbers the survivor to `k1`, per `use-review.ts`'s `remapAfterInstanceRemove`); enumerated the two additional void-returning `write` stubs (`round-trip.test.ts:78`, `contracts.test.ts:102`) and the three `relay.browser.test.ts` write-stub doubles that silently stop persisting `writeResult` under the new shape (Task 4 Step 8); fixed every `pnpm --filter <pkg> test` command to the actual `pnpm vitest run <path>` form; corrected Task 3 Step 1's instruction, which implied an existing executed-migration test pattern that doesn't exist yet; added a partial-rejection-within-one-instance test and a v2 round-trip test (both named as design §5 gaps); and flagged three doc comments that go stale as part of this plan's changes (`ribo-adapter-snuggpro/src/adapter.ts:71`, `instance-write-step.ts:17-24`, `relay.ts:74`), now updated in Tasks 1 and 4 rather than left describing pre-change behavior.

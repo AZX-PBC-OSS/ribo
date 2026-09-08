@@ -118,6 +118,21 @@ the existing doc comment at `ReviewPanel.tsx:76-79`, and this design adds a thir
 distinct from both: "never mentioned, but *this specific absence* was affirmatively
 stated."
 
+**`resolveReview`'s `emptyCollectionPaths` (`review.ts:585-593`) must also treat
+`"statedEmpty"` as an empty group, or this design silently regresses the write
+patch.** That function is what actually decides whether a group with no surviving
+leaves gets `fields[groupPath] = []` written into the persisted outcome
+(`review.ts:1029-1033`) — it currently checks only `node.state === "empty"`. A
+`"statedEmpty"` group, by definition, also has zero elements and therefore zero
+leaves to accept, so without this change it would fall through to "absent from
+`fields` entirely" — the same shape as "touch nothing" — which is the *weaker*
+write instruction, exactly backwards from a group whose absence was explicitly
+stated by the auditor. The fix is one clause:
+`node.state === "empty" || node.state === "statedEmpty"`. This is a correction to
+the design, not only the plan — an earlier draft of this document specified the
+`buildReviewRequest`-side change (§2.3 above) without noticing `resolveReview` has
+its own, separate empty-group bookkeeping that also needed updating.
+
 ### 2.4 Canvas rendering
 
 `ReviewPanel.tsx`'s `groupFields` (lines 148-180) passes `emptyQuote` through onto its
