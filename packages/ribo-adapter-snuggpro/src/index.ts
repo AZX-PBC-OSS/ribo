@@ -78,6 +78,7 @@ export {
   Shielding,
   snuggExtractionSchema,
   snuggValuesSchema,
+  StageFields,
   TypeOfHome,
   VentilationSchedule,
   VentilationType,
@@ -98,7 +99,7 @@ export { snuggCtxSchema } from "./context.js";
 export type { SnuggWriteContext } from "./context.js";
 
 // The extraction instructions (the normalization intent) and few-shot examples.
-// `snuggProInstructions` is the full prompt (all fourteen rules, eight-key output
+// `snuggProInstructions` is the full prompt (all fifteen rules, ten-key output
 // section) for the single-shot extractor. `snuggGroupInstructions(key)` produces
 // a per-group prompt (universal rules + only that group's rules, one-key output
 // section) for the per-group extractor (R3 Task 4). The rule data (`SNUGG_RULES`,

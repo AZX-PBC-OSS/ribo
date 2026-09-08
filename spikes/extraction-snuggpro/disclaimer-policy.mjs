@@ -77,7 +77,7 @@ for (const [name, paths] of Object.entries(NAMED_SETS)) {
 /**
  * A disclaimer's scope, in the closed vocabulary annotators choose from:
  *
- *   - `{ kind: "group", group: <one of the 7 schema.ts resource groups> }` — every leaf under that
+ *   - `{ kind: "group", group: <one of the 10 schema.ts resource groups> }` — every leaf under that
  *     group. Mechanical: a prefix match on LEAF_PATHS, needs no named list at all.
  *   - `{ kind: "namedSet", set: <a key of NAMED_SETS> }` — for a recurring scope narrower than a
  *     whole group.
@@ -111,7 +111,7 @@ export function scopeError(scope) {
   if (scope.kind === "group") {
     return GROUPS.includes(scope.group)
       ? null
-      : `scope.group ${JSON.stringify(scope.group)} is not one of the 7 resource groups`;
+      : `scope.group ${JSON.stringify(scope.group)} is not one of the 10 resource groups`;
   }
   if (scope.kind === "namedSet") {
     return scope.set in NAMED_SETS

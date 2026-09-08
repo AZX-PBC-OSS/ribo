@@ -21,8 +21,8 @@ import type { SnuggExtraction, SnuggValues } from "./schema.js";
  *     BOTH: they are declared on the patch and must survive the derivation.
  */
 
-// A known-valid, fully-populated ENVELOPED field set (all 213 leaves across the
-// nine resource groups), reused as the base for the mutation tests below.
+// A known-valid, fully-populated ENVELOPED field set (all 214 leaves across the
+// ten resource groups), reused as the base for the mutation tests below.
 const fixture = snuggExamples[0];
 if (!fixture) throw new Error("expected a Snugg Pro few-shot example fixture");
 const valid = (): SnuggExtraction => structuredClone(fixture.fields);
@@ -30,7 +30,7 @@ const valid = (): SnuggExtraction => structuredClone(fixture.fields);
 /**
  * The same fixture as a PATCH: every envelope replaced by its `value`, group
  * structure preserved. This is what review produces from a model response in which
- * every field was accepted — deriving it rather than hand-writing 209 more fields
+ * every field was accepted — deriving it rather than hand-writing 214 more fields
  * keeps the two fixtures from drifting, and states the relationship between the
  * shapes as code.
  */
@@ -120,7 +120,7 @@ describe("snuggExtractionSchema — what the model is asked to produce", () => {
 
   test("a group is NOT itself an envelope — the derivation recursed instead of wrapping", () => {
     // If `enveloped()` had wrapped each group whole, this would parse and the
-    // review card would show 9 fields instead of 213 — one verdict for all 13 health
+    // review card would show 10 fields instead of 214 — one verdict for all 13 health
     // tests at once, which is the exact failure field-level review exists to avoid.
     const fields = valid() as unknown as Record<string, unknown>;
     fields.health = { value: null, confidence: 1, sourceSpan: null };
@@ -154,8 +154,8 @@ describe("snuggValuesSchema — the writable patch", () => {
 
   test("an omitted key is allowed — that is exactly what a rejected field looks like", () => {
     // The inverse of the extraction schema's required-keys rule, and the property
-    // that makes field-level review possible at all: rejecting one leaf of 209 must
-    // still write the other 208 rather than fail the whole write (design §2.1).
+    // that makes field-level review possible at all: rejecting one leaf of 214 must
+    // still write the other 213 rather than fail the whole write (design §2.1).
     const fields = validValues();
     delete (fields.hvac![0]! as Record<string, unknown>).hvacHeatingSystemModel;
     const parsed = snuggValuesSchema.parse(fields);

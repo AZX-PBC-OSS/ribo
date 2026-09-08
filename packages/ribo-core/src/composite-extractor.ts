@@ -55,7 +55,7 @@ export interface CapabilitySource {
  * device-first rescuing the online one.
  *
  * Selection is per **extraction**, not per call. The winning delegate's extractor
- * runs the whole extraction (all seven group calls for the per-group strategy). That
+ * runs the whole extraction (all eight group calls for the per-group strategy). That
  * keeps the timing budget the delegate was configured for intact; switching transports
  * mid-extraction would invalidate that budget.
  *

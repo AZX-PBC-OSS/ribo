@@ -13,12 +13,13 @@
  * snake_case copy of "the Snugg Pro model." That copy silently drifted from
  * the real adapter (packages/ribo-adapter-snuggpro/src/schema.ts): the real
  * schema was rebuilt from Snugg's machine-readable spec into leaves under
- * resource groups (213 across 9 today — `basedata` carries its full 163-field
- * capture surface, and `concern`/`incentive` are the first job-collection
- * groups), with the API's literal enum strings, and the spike's schema
- * never moved. This file is the fix for the CLASS of bug, not just today's
- * instance: it reads `snuggValuesSchema` directly, so the ground truth and the
- * scorer can never again describe a schema that doesn't match `schema.ts`.
+ * resource groups (214 across 10 today — `basedata` carries its full 163-field
+ * capture surface, `concern`/`incentive` are the first job-collection array
+ * groups, and `stage` is a one-leaf job-collection singleton), with the API's
+ * literal enum strings, and the spike's schema never moved. This file is the
+ * fix for the CLASS of bug, not just today's instance: it reads
+ * `snuggValuesSchema` directly, so the ground truth and the scorer can never
+ * again describe a schema that doesn't match `schema.ts`.
  *
  * PRECONDITION: `pnpm build:packages` must have been run at least once (this
  * imports `@azx/ribo-adapter-snuggpro`'s built `dist/index.js`, not its `src/`
@@ -124,7 +125,7 @@ export const LEAF_PATHS = leaves.map((l) => l.path);
 /** @type {Map<string, Leaf>} */
 export const LEAF_BY_PATH = new Map(leaves.map((l) => [l.path, l]));
 
-/** The nine resource-group keys, in schema order. */
+/** The ten resource-group keys, in schema order. */
 export const GROUPS = Object.keys(snuggValuesSchema.shape);
 
 /**

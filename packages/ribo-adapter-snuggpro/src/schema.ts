@@ -6,8 +6,8 @@
  * is the FULL honest capture surface of that endpoint (doc 17 §Scoping); the six
  * component groups remain bounded, representative subsets of theirs; and the
  * job-collection resources doc 20 curated (`concern` in tranche 2, `incentive`
- * in tranche 3) each carry every field of their endpoint that is in extraction
- * scope.
+ * in tranche 3, the `stage` singleton in tranche 4) each carry every field of
+ * their endpoint that is in extraction scope.
  *
  * "Representative" is the design goal and it has three concrete parts. Every one
  * of them was false in the previous version of this file, which was built from a
@@ -28,9 +28,11 @@
  *      plus per-instance component resources (`hvac`, `attic`, `wall`, `window`,
  *      `dhw`, `health`), each its own endpoint, plus — since the job-collections
  *      tranches — per-instance job-collection resources (`concern`, `incentive`,
- *      doc 20), which are more endpoints of the same kind. The nine groups below
- *      ARE those endpoints, so `write` dispatches on the group key rather than
- *      routing 213 flat fields by hand.
+ *      doc 20) and the `stage` singleton (`POST /jobs/{jobId}/stage`), a state
+ *      transition on the job rather than a house component (see
+ *      `job-collections-foundation-design.md`). The ten groups below ARE those
+ *      endpoints, so `write` dispatches on the group key rather than routing 214
+ *      flat fields by hand.
  *
  * The `basedata` group is the FULL honest capture surface of doc 17 §Scoping:
  * the endpoint's 294 form fields minus the 122 `*Improved` retrofit twins and
@@ -42,7 +44,8 @@
  * different in kind: each carries every field of its endpoint that is in
  * extraction scope at all (`concern`'s surface is exactly its two fields;
  * `incentive`'s third, `recommendations`, is excluded by design — see the
- * group).
+ * group), and the `stage` singleton carries its endpoint's one capture field,
+ * `stageId`.
  *
  * ---
  *
@@ -58,8 +61,8 @@
  *         as empty" is a different instruction from "leave this field alone".
  *       * `.optional()` because a REJECTED field must be absent from the patch
  *         entirely. `resolveReview` omits a rejected leaf, and a patch is what
- *         makes that well-defined: rejecting one leaf of 213 must still write
- *         the other 212, not fail the whole write.
+ *         makes that well-defined: rejecting one leaf of 214 must still write
+ *         the other 213, not fail the whole write.
  *
  *   - `snuggExtractionSchema` — what the MODEL is asked to produce. NOT
  *     hand-written: `enveloped()` derives it from the patch, stripping the
@@ -67,8 +70,8 @@
  *     leaf in `ribo-core`'s provenance envelope. The result is closed and fully
  *     required at every level, because `provenance.ts`'s anti-hallucination rule
  *     needs the model to emit an explicit `null` rather than omit a key. The
- *     derivation recurses into the nine groups, so the model produces 213
- *     independent envelopes and review presents 213 dotted leaf paths
+ *     derivation recurses into the ten groups, so the model produces 214
+ *     independent envelopes and review presents 214 dotted leaf paths
  *     (`"hvac.hvacDuctLeakage"`, `"health.healthAmbientCarbonMonoxide"`) — never
  *     one envelope per group, which would make a group un-reviewable field by
  *     field.
@@ -148,6 +151,13 @@
  *     numeric-enum leaf (zod's `z.enum` is strings-only and a literal union is
  *     not a supported leaf), so it is a `z.number()` and the 1/0 vocabulary
  *     travels in its description instead of its type.
+ *   - **`stage.stageId` is an integer whose ten valid codes exist only in the
+ *     spec's description prose.** `POST /jobs/{jobId}/stage` publishes no `enum`
+ *     key for it — the label→code pairs live in the parameter's description text
+ *     (doc 20 §5.1), and `POST /jobs` independently declares the same closed set
+ *     `enum: [1..10]`. Same `enveloped()` constraint as `hasEv`: no numeric-enum
+ *     leaf, so it is a `z.number()` and the ten label→code pairs travel in its
+ *     description instead of its type.
  */
 
 import { enveloped } from "@azx/ribo-core";
@@ -885,13 +895,13 @@ export const HealthTestState = z
  */
 export const HealthCondition = z.enum(["Good", "Potential Issues", "NA"]);
 
-// --- The nine resource groups -----------------------------------------------
+// --- The ten resource groups ------------------------------------------------
 // One group per write endpoint. Each is `.strict()` and each leaf is
 // `X.nullable().optional()`; the group itself is `.optional()` so a review that
 // rejected every leaf in a group writes no request to that endpoint at all.
 //
 // `enveloped()` RECURSES into these rather than wrapping each whole, so the
-// derived extraction schema carries 213 independent provenance envelopes and the
+// derived extraction schema carries 214 independent provenance envelopes and the
 // review card can show the auditor the exact quote behind each one. One envelope
 // per group would make its leaves un-reviewable individually, which is the point
 // of field-level review.
@@ -927,7 +937,7 @@ function cleanVendorDescription(text: string | undefined): string | undefined {
  *
  * Vendor first: the definition orients the model before the prohibition constrains it.
  *
- * Applied to the whole group at once rather than at 213 call sites — the leaf's own
+ * Applied to the whole group at once rather than at 214 call sites — the leaf's own
  * `.describe()` is read back out and appended, so a note written the obvious way is
  * picked up automatically. Leaves the vendor does not describe keep their note alone.
  */
@@ -1910,18 +1920,50 @@ export const IncentiveFields = z
   )
   .strict();
 
+/**
+ * `POST /jobs/{jobId}/stage` — the job's current workflow stage. A
+ * job-collection resource (design `job-collections-foundation-design.md`) but a
+ * SINGLETON, like `basedata` and `health`, not an array of instances. Doc 20
+ * §5.1 is explicit — "the job holds exactly one current `stageId`; the endpoint
+ * is a state transition, not an instance create." One capture field; its sibling
+ * `stageChangeReason` is deliberately out of this tranche.
+ */
+export const StageFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * The job's current workflow stage as an integer code. The spec's
+       * `POST /jobs/{jobId}/stage` operation publishes NO `enum` key for this
+       * parameter — its ten valid values exist only in the description's prose
+       * (doc 20 §5.1), and `POST /jobs` independently declares the same closed
+       * set `enum: [1..10]`. `enveloped()` has no numeric-enum leaf (the same
+       * constraint `hasEv` hit), so this is `z.number()` and the label→code
+       * vocabulary travels in the description.
+       */
+      stageId: z
+        .number()
+        .describe(
+          "The job's current workflow stage; the wire value is an integer code — 1 (Lead), 2 (Audit), 3 (Bid Proposed), 4 (Bid Approved), 5 (Retrofit In Progress), 6 (Retrofit Complete), 7 (QA), 8 (Uncategorized), 9 (Archived Won), 10 (Archived Lost).",
+        )
+        .nullable()
+        .optional(),
+    }),
+  )
+  .strict();
+
 // --- The field set, as a writable patch --------------------------------------
-// 213 leaves across 9 resource groups — the full 163-field `basedata` capture
+// 214 leaves across 10 resource groups — the full 163-field `basedata` capture
 // surface, the 46 bounded component-group leaves (including health's 2
-// job-collection completions, doc 20 §5.8), and the job-collection groups'
-// 4 (`concern`'s 2 free-text leaves, doc 20 §5.7 tranche 2; `incentive`'s 2,
-// tranche 3). Every leaf is `X.nullable().optional()` and every object is
-// `.strict()`; see the file header for why both halves of that are load-bearing.
+// job-collection completions, doc 20 §5.8), the job-collection groups' 4
+// (`concern`'s 2 free-text leaves, doc 20 §5.7 tranche 2; `incentive`'s 2,
+// tranche 3), and the `stage` singleton's 1 (tranche 4). Every leaf is
+// `X.nullable().optional()` and every object is `.strict()`; see the file header
+// for why both halves of that are load-bearing.
 //
 // Seven groups are per-instance child resources (API creates one record per
 // element with `POST /jobs/{jobId}/<type>` — the five component resources plus
 // `concern` and `incentive`), so they are `z.array(...).optional()`.
-// `basedata` and `health` are genuine singletons and stay objects.
+// `basedata`, `health` and `stage` are genuine singletons and stay objects.
 
 export const snuggValuesSchema = z
   .object({
@@ -1934,6 +1976,7 @@ export const snuggValuesSchema = z
     health: HealthFields.optional(),
     concern: z.array(ConcernFields).optional(),
     incentive: z.array(IncentiveFields).optional(),
+    stage: StageFields.optional(),
   })
   .strict();
 
@@ -1948,7 +1991,7 @@ export type SnuggValues = z.infer<typeof snuggValuesSchema>;
 /**
  * What the MODEL is asked to produce, derived from the patch — never hand-written.
  * `enveloped()` strips the patch's `.optional()`/`.nullable()`, wraps each leaf in
- * `ribo-core`'s provenance envelope, recurses into the nine resource groups rather
+ * `ribo-core`'s provenance envelope, recurses into the ten resource groups rather
  * than swallowing each into one envelope, and closes every object with every key
  * required. See the file header, and `extraction-shape.test.ts` for the frozen
  * JSON Schema this derivation must keep producing.

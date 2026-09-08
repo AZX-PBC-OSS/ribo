@@ -161,15 +161,18 @@ heading("0. SCHEMA INTROSPECTION (schema-leaves.mjs) — derived, not hand-count
   // (`healthDrainageSystemCondition`, `healthSafetyQuestionsDisclosed`), taking it to
   // 209 leaves and 474 members; the `concern` job-collection group (doc 20 §5.7,
   // tranche 2) then added its 2 free-text leaves (no new enum members), taking the
-  // schema to 211; and the `incentive` job-collection tranche (doc 20 §5.7, tranche 3)
-  // added 2 free-text/number leaves — no enum members — taking it to 213. The
-  // ground-truth corpus stays sparse by design — unannotated leaves score as
-  // "unmentioned" — so nothing else here needed to move. (`incentive` is an array
-  // group in the schema but is deliberately NOT in ground-truth.mjs's
-  // COLLECTION_GROUPS yet — the corpus predates it and must not be re-annotated
-  // here, so its two leaves resolve as flat "unmentioned" entries until a corpus
-  // tranche says otherwise.)
-  check("213 leaves across the 9 resource groups", LEAVES.length === 213);
+  // schema to 211; the `incentive` job-collection tranche (doc 20 §5.7, tranche 3)
+  // added 2 free-text/number leaves — no enum members — taking it to 213; and the
+  // `stage` singleton (job collections, doc 20 §5.1, tranche 4) added one `stageId`
+  // leaf, taking it to 214. The enum vocabulary is unchanged at 474 — `stageId` is a
+  // NUMBER leaf carrying its ten label→code pairs in its description (the spec
+  // publishes no `enum` key for it), not a zod enum. The ground-truth corpus stays
+  // sparse by design — unannotated leaves score as "unmentioned" — so nothing else
+  // here needed to move. (`incentive` is an array group in the schema but is
+  // deliberately NOT in ground-truth.mjs's COLLECTION_GROUPS yet — the corpus
+  // predates it and must not be re-annotated here, so its two leaves resolve as flat
+  // "unmentioned" entries until a corpus tranche says otherwise.)
+  check("214 leaves across the 10 resource groups", LEAVES.length === 214);
   check("474 total enum members across all enum leaves", totalMembers === 474);
   check(
     "ENUM_VOCAB has an entry for every enum leaf (no collisions at import time)",

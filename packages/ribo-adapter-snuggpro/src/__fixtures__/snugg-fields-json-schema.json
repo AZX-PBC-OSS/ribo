@@ -33,11 +33,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "conditionedArea": {
@@ -68,11 +64,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "floorsAboveGrade": {
@@ -103,11 +95,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "numberOfBedrooms": {
@@ -138,11 +126,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "typeOfHome": {
@@ -182,11 +166,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "blowerDoorReading": {
@@ -217,11 +197,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "blowerDoorTestPerformed": {
@@ -231,10 +207,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Tested",
-                    "Estimate"
-                  ],
+                  "enum": ["Tested", "Estimate"],
                   "description": "Choose \"Tested\" if an actual blower door test was performed. Choose \"Estimate\" if the blower door reading below is an estimate."
                 },
                 {
@@ -256,11 +229,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "averageWallHeight": {
@@ -291,11 +260,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "houseLength": {
@@ -326,11 +291,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "houseWidth": {
@@ -361,11 +322,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "numberOfOccupants": {
@@ -396,11 +353,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "frontOfBuildingOrientation": {
@@ -441,11 +394,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "tuckUnderGarage": {
@@ -455,10 +404,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "Is there any conditioned living space over an unconditioned garage, cantilever, or frame floor that might need floor insulation? This data is used for the \"Insulate Floors\" recommendation. For cantilevers, adjust the total sqft on the refine screen or the details section."
                 },
                 {
@@ -480,11 +426,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "garageSize": {
@@ -494,13 +436,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "1-car",
-                    "2-car",
-                    "3-car",
-                    "4-car",
-                    "5-car"
-                  ],
+                  "enum": ["1-car", "2-car", "3-car", "4-car", "5-car"],
                   "description": "Enter the number of cars that could fit in the the parking area of the garage. The software assumes an extra 100 sqft of storage and other space and each car takes up 200 sqft of space. This data is used for the \"Insulate Floors\" recommendation. For cantilevers, adjust the total sqft on the refine screen or the details section."
                 },
                 {
@@ -522,11 +458,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "programmableThermostatInstalled": {
@@ -536,10 +468,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "Is a programmable (setback) thermostat installed in the house? If it is installed, but not used, still check this box and adjust the thermostat settings accordingly. This button determines if a cost is added to the Programmable Thermostat recommendation. If you check Yes, then no cost will be added, but the software will still recommend ideal setpoints for the home for energy savings. If you check No, then a cost will be added to the recommendation and the ideal setpoints will also be shown in the recommendation."
                 },
                 {
@@ -561,11 +490,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "heatingSetpointHigh": {
@@ -596,11 +521,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "heatingSetpointLow": {
@@ -631,11 +552,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "coolingSetpointHigh": {
@@ -666,11 +583,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "coolingSetpointLow": {
@@ -701,11 +614,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "thermostatManufacturer": {
@@ -736,11 +645,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "thermostatModel": {
@@ -771,11 +676,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "thermostatSerialNumber": {
@@ -806,11 +707,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "totalNumberOfLightBulbs": {
@@ -841,11 +738,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "sharedWallsNorth": {
@@ -876,11 +769,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "percentOfCeilingsShared": {
@@ -911,11 +800,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "percentOfFloorsShared": {
@@ -946,11 +831,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "foundationBasement": {
@@ -981,11 +862,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "foundationAboveGradeHeight": {
@@ -1016,11 +893,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementWallInsulation": {
@@ -1059,11 +932,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "crawlspaceInsulation": {
@@ -1100,11 +969,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "skylightArea": {
@@ -1135,11 +1000,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "unmodeledBlowerDoorReading": {
@@ -1170,11 +1031,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "equivalentNach": {
@@ -1205,11 +1062,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "conditionedAirVolume": {
@@ -1240,11 +1093,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "effectiveLeakageArea": {
@@ -1275,11 +1124,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "modeledBasementWallArea": {
@@ -1310,11 +1155,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementCavityInsulation": {
@@ -1345,11 +1186,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementContinuousInsulation": {
@@ -1380,11 +1217,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementWallAssemblyRValue": {
@@ -1415,11 +1248,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "floorCavityInsulation": {
@@ -1450,11 +1279,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "floorContinuousInsulation": {
@@ -1485,11 +1310,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "floorAssemblyRValue": {
@@ -1520,11 +1341,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "sharedWallsEast": {
@@ -1555,11 +1372,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "sharedWallsSouth": {
@@ -1590,11 +1403,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "sharedWallsWest": {
@@ -1625,11 +1434,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "foundationCrawlspace": {
@@ -1660,11 +1465,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "foundationSlab": {
@@ -1695,11 +1496,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "foundationFramefloor": {
@@ -1730,11 +1527,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "percentCflsOrLeds": {
@@ -1744,15 +1537,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "0%",
-                    "1-25%",
-                    "26-50%",
-                    "51-75%",
-                    "76-99%",
-                    "100%",
-                    "Don't Know"
-                  ],
+                  "enum": ["0%", "1-25%", "26-50%", "51-75%", "76-99%", "100%", "Don't Know"],
                   "description": "Select the percentage range that most closely represents the percentage of lamps and fixtures on the home that are fitted with compact fluorescent lights (CLFs)."
                 },
                 {
@@ -1774,11 +1559,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "crawlCavityInsulation": {
@@ -1809,11 +1590,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "crawlWallInsulation": {
@@ -1844,11 +1621,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "crawlAssemblyRValue": {
@@ -1879,11 +1652,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "crawlspaceType": {
@@ -1920,11 +1689,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "clothesWasherType": {
@@ -1934,11 +1699,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Front Load",
-                    "Top Load",
-                    "No Clothes Washer"
-                  ],
+                  "enum": ["Front Load", "Top Load", "No Clothes Washer"],
                   "description": "Enter the type of Clothes Washer, if any, that is installed in the house."
                 },
                 {
@@ -1960,11 +1721,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "clothesWasherEnergyStar": {
@@ -1974,10 +1731,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "If a Clothes Washer is installed, choose if it is an ENERGY STAR model."
                 },
                 {
@@ -1999,11 +1753,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "clothesWasherManufacturer": {
@@ -2051,11 +1801,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "clothesWasherModel": {
@@ -2086,11 +1832,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "clothesWasherSerialNumber": {
@@ -2121,11 +1863,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "clothesWasherMef": {
@@ -2156,11 +1894,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "dishwasherEnergyStar": {
@@ -2170,10 +1904,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "Choose Yes if the Dishwasher is an ENERGY STAR model."
                 },
                 {
@@ -2195,11 +1926,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "dishwasherEnergyFactor": {
@@ -2230,11 +1957,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "percentCflOrLed": {
@@ -2265,11 +1988,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "windZone": {
@@ -2279,12 +1998,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "1",
-                    "2",
-                    "3",
-                    "4"
-                  ],
+                  "enum": ["1", "2", "3", "4"],
                   "description": "Select the Wind Zone from the map."
                 },
                 {
@@ -2306,11 +2020,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "shielding": {
@@ -2320,11 +2030,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Well-Shielded",
-                    "Normal",
-                    "Exposed"
-                  ],
+                  "enum": ["Well-Shielded", "Normal", "Exposed"],
                   "description": "Shielding type used to determine NACH N-factor: * **Well-Shielded** - urban areas with high buildings or sheltered areas * **Normal** - surrounded by trees or other buildings * **Exposed** - dwelling is not surrounded by any objects"
                 },
                 {
@@ -2346,11 +2052,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "nFactor": {
@@ -2381,11 +2083,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "dishwasherModel": {
@@ -2416,11 +2114,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "dishwasherManufacturer": {
@@ -2469,11 +2163,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "dishwasherModelYear": {
@@ -2504,11 +2194,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "clothesWasherModelYear": {
@@ -2539,11 +2225,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "numberOfIncandescents": {
@@ -2574,11 +2256,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "numberOfCflsInstalled": {
@@ -2609,11 +2287,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "numberOfCflsOrLeds": {
@@ -2644,11 +2318,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "numberOfOutdoorIncandescents": {
@@ -2679,11 +2349,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "numberOfOutdoorCfls": {
@@ -2714,11 +2380,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "numberOfOutdoorLeds": {
@@ -2749,11 +2411,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "hotTub": {
@@ -2763,10 +2421,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "Does this house have an electrically heated hot tub? If yes, 2,040 kWh/yr of electricity consumption is added to the baseload."
                 },
                 {
@@ -2788,11 +2443,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "pool": {
@@ -2802,10 +2453,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "Does the home have a pool?"
                 },
                 {
@@ -2827,11 +2475,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "poolPumpType": {
@@ -2841,12 +2485,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Single Speed",
-                    "Two Speed",
-                    "Variable Speed",
-                    "No Pool Pump"
-                  ],
+                  "enum": ["Single Speed", "Two Speed", "Variable Speed", "No Pool Pump"],
                   "description": "Select the Pump Type from Single Speed, Two Speed, or Variable Speed (or No Improvement or None). Enter the HP (or leave blank for the default) for a Single Speed or Two Speed pump, or Turnover for a variable speed pump. Wattage of variable speed pumps depends on the speed the pump is running, and the speed will depend on the turnover, so electrical usage is determined by turnover (number of times all the water in the pool circulates through the filter in a day). The Variable Speed Pump analysis includes an optimization routine that calculates the minimal electrical usage for a variable speed pump for the selected turnover. Therefore proper setup of the pump is required to achieve these results."
                 },
                 {
@@ -2868,11 +2507,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "poolPumpHorsepower": {
@@ -2882,14 +2517,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "1",
-                    "2",
-                    "3",
-                    "0.5",
-                    "0.75",
-                    "1.5"
-                  ],
+                  "enum": ["1", "2", "3", "0.5", "0.75", "1.5"],
                   "description": "Select the Horsepower for this Pool Pump. Only necessary for Single-Speed or Two-Speed pumps."
                 },
                 {
@@ -2911,11 +2539,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementHeating": {
@@ -2952,11 +2576,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementCooling": {
@@ -2993,11 +2613,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "poolSize": {
@@ -3028,11 +2644,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "poolPumpTurnover": {
@@ -3063,11 +2675,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "poolPumpHours": {
@@ -3098,11 +2706,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "poolPumpManufacturer": {
@@ -3112,10 +2716,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Pentair",
-                    "Other"
-                  ],
+                  "enum": ["Pentair", "Other"],
                   "description": "Enter the Manufacturer of the Pool Pump."
                 },
                 {
@@ -3137,11 +2738,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "poolPumpModel": {
@@ -3172,11 +2769,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "poolPumpSerialNumber": {
@@ -3207,11 +2800,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "poolPumpDaysPerYear": {
@@ -3242,11 +2831,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "dishwasherInstalled": {
@@ -3256,10 +2841,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "Choose Yes if an automatic dishwasher is installed in the home."
                 },
                 {
@@ -3281,11 +2863,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "includesBasement": {
@@ -3295,10 +2873,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "Mark this as Yes if the conditioned area above includes the basement area. Whether the conditioned area includes the basement — the qualifier on that number, not an area of its own."
                 },
                 {
@@ -3320,11 +2895,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "heatingDesignLoad": {
@@ -3355,11 +2926,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "coolingSensibleDesignLoad": {
@@ -3390,11 +2957,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "coolingLatentDesignLoad": {
@@ -3425,11 +2988,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "designTempWinterOutdoor": {
@@ -3460,11 +3019,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "designTempSummerOutdoor": {
@@ -3495,11 +3050,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "designTempWinterIndoor": {
@@ -3530,11 +3081,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "designTempSummerIndoor": {
@@ -3565,11 +3112,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "numberOfUnits": {
@@ -3600,11 +3143,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "numberOfLeds": {
@@ -3635,11 +3174,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "crawlspaceRimJoistTreatment": {
@@ -3649,10 +3184,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Same as Crawl Wall",
-                    "Separately"
-                  ],
+                  "enum": ["Same as Crawl Wall", "Separately"],
                   "description": "Choose whether or not the Rim Joist is treated in the same was as the Crawlspace Wall or separately. **Note**: This field is triggered by the Crawlspace Type. In order for the Rim Joist to be counted in the modeling and be designated in the HPXML output, the Crawlspace Type must be set as Conditioned Crawl. Otherwise, the Rim Joist is counted as part of the Frame Floor (the crawlspace ceiling)."
                 },
                 {
@@ -3674,11 +3206,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "crawlspaceRimJoistInsulation": {
@@ -3709,11 +3237,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "crawlRimJoistAssemblyRValue": {
@@ -3744,11 +3268,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementRimJoistTreatment": {
@@ -3758,10 +3278,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Same as Basement Wall",
-                    "Separately"
-                  ],
+                  "enum": ["Same as Basement Wall", "Separately"],
                   "description": "Choose whether or not the Rim Joist is treated in the same way as the Basement Wall or separately."
                 },
                 {
@@ -3783,11 +3300,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementRimJoistInsulation": {
@@ -3818,11 +3331,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementRimJoistAssemblyRValue": {
@@ -3853,11 +3362,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "demandKW": {
@@ -3888,11 +3393,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "demandKWSavings": {
@@ -3923,11 +3424,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "cazMaxAmbientCo": {
@@ -3958,11 +3455,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashrae622": {
@@ -3972,10 +3465,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "Mark this as Yes if wish to turn on controls for the ASHRAE 62.2 ventilation standard."
                 },
                 {
@@ -3997,11 +3487,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashraeKitchenFanCfm": {
@@ -4032,11 +3518,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashraeKitchenWindow": {
@@ -4046,10 +3528,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "If there is an operable window in the Kitchen, then choose yes."
                 },
                 {
@@ -4071,11 +3550,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashraeNumberOfBathrooms": {
@@ -4085,12 +3560,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "1",
-                    "2",
-                    "3",
-                    "4"
-                  ],
+                  "enum": ["1", "2", "3", "4"],
                   "description": "Enter the number of bathrooms with ventilation fans."
                 },
                 {
@@ -4112,11 +3582,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashraeBathroomFan1Cfm": {
@@ -4147,11 +3613,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashraeBathroom1Window": {
@@ -4161,10 +3623,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "If there is an operable window in this bathroom, then choose yes."
                 },
                 {
@@ -4186,11 +3645,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashraeBathroomFan2Cfm": {
@@ -4221,11 +3676,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashraeBathroom2Window": {
@@ -4235,10 +3686,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "If there is an operable window in this bathroom, then choose yes."
                 },
                 {
@@ -4260,11 +3708,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashraeBathroomFan3Cfm": {
@@ -4295,11 +3739,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashraeBathroom3Window": {
@@ -4309,10 +3749,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "If there is an operable window in this bathroom, then choose yes."
                 },
                 {
@@ -4334,11 +3771,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashraeBathroomFan4Cfm": {
@@ -4369,11 +3802,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashraeBathroom4Window": {
@@ -4383,10 +3812,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "If there is an operable window in this bathroom, then choose yes."
                 },
                 {
@@ -4408,11 +3834,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ashraeRequiredAdditionalCfm": {
@@ -4443,11 +3865,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "floorCavityInsulationType": {
@@ -4489,11 +3907,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "floorContinuousInsulationType": {
@@ -4535,11 +3949,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "floorSkirtPresent": {
@@ -4549,10 +3959,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "Is the frame floor skirt present?"
                 },
                 {
@@ -4574,11 +3981,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "floorWingInsulationCondition": {
@@ -4588,13 +3991,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Perfect",
-                    "Good",
-                    "Average",
-                    "Poor",
-                    "Critical"
-                  ],
+                  "enum": ["Perfect", "Good", "Average", "Poor", "Critical"],
                   "description": "Select the condition of the belly insulation."
                 },
                 {
@@ -4616,11 +4013,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "floorBellyInsulationCondition": {
@@ -4630,13 +4023,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Perfect",
-                    "Good",
-                    "Average",
-                    "Poor",
-                    "Critical"
-                  ],
+                  "enum": ["Perfect", "Good", "Average", "Poor", "Critical"],
                   "description": "Select the condition of the belly insulation."
                 },
                 {
@@ -4658,11 +4045,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "floorFrameFloorType": {
@@ -4672,9 +4055,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Manufactured Home Belly"
-                  ],
+                  "enum": ["Manufactured Home Belly"],
                   "description": "Select the frame floor's floor type"
                 },
                 {
@@ -4696,11 +4077,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "floorInsulationLocation": {
@@ -4710,10 +4087,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Insulation above ducts",
-                    "Insulation below ducts"
-                  ],
+                  "enum": ["Insulation above ducts", "Insulation below ducts"],
                   "description": "Select the insulation location."
                 },
                 {
@@ -4735,11 +4109,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "crawlCavityInsulationType": {
@@ -4778,11 +4148,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "crawlWallInsulationType": {
@@ -4822,11 +4188,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "crawlspaceRimJoistInsulationType": {
@@ -4868,11 +4230,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementCavityInsulationType": {
@@ -4911,11 +4269,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementContinuousInsulationType": {
@@ -4955,11 +4309,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementRimJoistInsulationType": {
@@ -5001,11 +4351,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "windowVentingUsed": {
@@ -5015,10 +4361,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "Do the occupants make use of operable windows to cool the home when the outdoor temperature and humidity are favorable? This can eliminate cooling loads during shoulder seasons or even year-round in temperate climates. Turning this feature on will help eliminate scenarios where you previously had negative savings for some air sealing and insulation measures."
                 },
                 {
@@ -5040,11 +4383,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "modeledSlabFloorArea": {
@@ -5075,11 +4414,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "heatTapeLength": {
@@ -5110,11 +4445,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "heatTapeLoad": {
@@ -5145,11 +4476,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "heatTapeDailyFrequency": {
@@ -5180,11 +4507,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "heatTapeAnnualFrequency": {
@@ -5215,11 +4538,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "hasEv": {
@@ -5250,11 +4569,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "evMilesDrive": {
@@ -5285,11 +4600,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "evEfficiency": {
@@ -5320,11 +4631,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "evHomeChargingPercent": {
@@ -5355,11 +4662,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "evHomeChargingAmount": {
@@ -5390,11 +4693,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "evCalculationMethod": {
@@ -5404,10 +4703,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Detailed",
-                    "Simple"
-                  ],
+                  "enum": ["Detailed", "Simple"],
                   "description": "Choose between Simple or Detailed Calculations for EV Charging."
                 },
                 {
@@ -5429,11 +4725,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "evEnergyStarCharger": {
@@ -5443,10 +4735,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "Whether the EV charger is ENERGY STAR certified."
                 },
                 {
@@ -5468,11 +4757,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "mainServicePanelMaxAmps": {
@@ -5503,11 +4788,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "openBreakerSpots": {
@@ -5538,11 +4819,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementCeilingCavityInsulation": {
@@ -5573,11 +4850,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementCeilingCavityInsulationType": {
@@ -5616,11 +4889,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementCeilingContinuousInsulation": {
@@ -5651,11 +4920,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementCeilingContinuousInsulationType": {
@@ -5695,11 +4960,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "basementCeilingAssemblyRValue": {
@@ -5730,11 +4991,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ventilationType": {
@@ -5772,11 +5029,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ventilationSchedule": {
@@ -5786,10 +5039,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Continuous",
-                    "Intermittent"
-                  ],
+                  "enum": ["Continuous", "Intermittent"],
                   "description": "Choose whether the mechanical ventilation system runs continuously or intermittently throughout the day"
                 },
                 {
@@ -5811,11 +5061,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ventilationCycleFrequency": {
@@ -5846,11 +5092,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ventilationCycleDuration": {
@@ -5881,11 +5123,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ventilationFlowRate": {
@@ -5916,11 +5154,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ventilationSensibleRecoveryEfficiency": {
@@ -5951,11 +5185,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ventilationTotalRecoveryEfficiency": {
@@ -5986,11 +5216,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "ventilationFanPower": {
@@ -6021,11 +5247,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "wholeHomeIsProfessionallyAirSealed": {
@@ -6035,10 +5257,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "Choose Yes if Whole home is professionally air sealed."
                 },
                 {
@@ -6060,11 +5279,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         }
       },
@@ -6287,11 +5502,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "hvacUpgradeAction": {
@@ -6328,11 +5539,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "hvacHeatingEnergySource": {
@@ -6373,11 +5580,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "hvacHeatingSystemManufacturer": {
@@ -6444,11 +5647,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "hvacHeatingSystemModel": {
@@ -6479,11 +5678,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "hvacHeatingSystemModelYear": {
@@ -6514,11 +5709,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "hvacHeatingCapacity": {
@@ -6549,11 +5740,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "hvacCoolingCapacity": {
@@ -6584,11 +5771,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "hvacDuctLocation": {
@@ -6619,11 +5802,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "hvacDuctLeakage": {
@@ -6661,11 +5840,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "hvacDuctLeakageValue": {
@@ -6696,11 +5871,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "hvacDuctInsulation": {
@@ -6742,11 +5913,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           }
         },
@@ -6779,16 +5946,7 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "enum": [
-                      "0",
-                      "1-3",
-                      "4-6",
-                      "7-9",
-                      "10-12",
-                      "13-15",
-                      "16+",
-                      "Don't Know"
-                    ],
+                    "enum": ["0", "1-3", "4-6", "7-9", "10-12", "13-15", "16+", "Don't Know"],
                     "description": "Enter the depth of all installed attic or ceiling insulation. If the insulation is not evenly distributed, estimate an average depth for the area. If the insulation is evenly distributed but has different depths installed in different area, use the depth of insulation that covers the largest area. If there is no attic and instead vaulted ceilings, enter an estimate of the thickness of insulation in the vaulted cavity. Depth band in inches, set from a stated depth or thickness and never converted from an R-value — a stated R-value goes in atticInsulation instead, and this stays null."
                   },
                   {
@@ -6810,11 +5968,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "atticInsulationType": {
@@ -6851,11 +6005,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "atticInsulation": {
@@ -6886,11 +6036,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "atticHasKneeWall": {
@@ -6900,10 +6046,7 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "enum": [
-                      "Yes",
-                      "No"
-                    ],
+                    "enum": ["Yes", "No"],
                     "description": "Choose Yes if there is a knee wall in this attic space."
                   },
                   {
@@ -6925,11 +6068,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "atticRoofType": {
@@ -6966,11 +6105,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           }
         },
@@ -6996,12 +6131,7 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "enum": [
-                      "Well",
-                      "Poorly",
-                      "Yes",
-                      "No"
-                    ],
+                    "enum": ["Well", "Poorly", "Yes", "No"],
                     "description": "Is there insulation in the wall cavities of this home? If so, how good is it? If unsure, please leave blank. **Well**: All cavities contain insulation at full or near full depth with gaps and voids not exceeding 5%. **Poor**: Majority of cavities contain insulation, but one or more of the following is suspected: low density, low depth, poor installation. **Yes**: You can confirm that insulation exists, but are unsure of the installation quality. **No** - No insulation value is applied to cavities. Four states, not boolean: \"Well\" means insulated and done properly, \"Poorly\" means some but thin, and \"Yes\" means there is insulation of unknown quality — they are not interchangeable."
                   },
                   {
@@ -7023,11 +6153,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "wallExteriorWallSiding": {
@@ -7069,11 +6195,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "wallCavityInsulation": {
@@ -7104,11 +6226,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "wallCavityInsulationType": {
@@ -7147,11 +6265,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           }
         },
@@ -7205,11 +6319,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "windowFrame": {
@@ -7219,12 +6329,7 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "enum": [
-                      "Metal",
-                      "Vinyl",
-                      "Wood or metal clad",
-                      "Don't Know"
-                    ],
+                    "enum": ["Metal", "Vinyl", "Wood or metal clad", "Don't Know"],
                     "description": "Select the type of window frame material that is used for the windows installed in the home. If more than one type of window is installed, add a second window system."
                   },
                   {
@@ -7246,11 +6351,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "windowEnergyStar": {
@@ -7260,10 +6361,7 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "enum": [
-                      "Yes",
-                      "No"
-                    ],
+                    "enum": ["Yes", "No"],
                     "description": "Select Yes if this window system is ENERGY STAR Certified."
                   },
                   {
@@ -7285,19 +6383,11 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           }
         },
-        "required": [
-          "windowType",
-          "windowFrame",
-          "windowEnergyStar"
-        ],
+        "required": ["windowType", "windowFrame", "windowEnergyStar"],
         "additionalProperties": false
       }
     },
@@ -7340,11 +6430,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "dhwFuel2": {
@@ -7385,11 +6471,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "dhwAge": {
@@ -7399,16 +6481,7 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "enum": [
-                      "0-5",
-                      "6-10",
-                      "11-15",
-                      "16-20",
-                      "21-25",
-                      "26-30",
-                      "31-35",
-                      "36+"
-                    ],
+                    "enum": ["0-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36+"],
                     "description": "Select the age in years of the hot water system that stores or delivers the domestic hot water for the home. If more than one type of system is used for hot water in the home, select the age for the one that delivers the most gallons of hot water to the home."
                   },
                   {
@@ -7430,11 +6503,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "dhwLocation": {
@@ -7471,11 +6540,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "dhwTankSize": {
@@ -7506,11 +6571,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "dhwManufacturer": {
@@ -7562,11 +6623,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           }
         },
@@ -7591,12 +6648,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -7618,11 +6670,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthNaturalConditionSpillage": {
@@ -7632,12 +6680,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -7659,11 +6702,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthWorstCaseDepressurization": {
@@ -7673,12 +6712,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -7700,11 +6734,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthWorstCaseSpillage": {
@@ -7714,12 +6744,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -7741,11 +6766,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthUndilutedFlueCo": {
@@ -7755,12 +6776,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -7782,11 +6798,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthDraftPressure": {
@@ -7796,12 +6808,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -7823,11 +6830,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthGasLeak": {
@@ -7837,12 +6840,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -7864,11 +6862,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthVenting": {
@@ -7878,12 +6872,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -7905,11 +6894,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthMoldMoisture": {
@@ -7919,12 +6904,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -7946,11 +6926,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthRadon": {
@@ -7960,12 +6936,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -7987,11 +6958,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthAsbestos": {
@@ -8001,12 +6968,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -8028,11 +6990,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthLead": {
@@ -8042,12 +7000,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -8069,11 +7022,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthElectrical": {
@@ -8083,12 +7032,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Passed",
-                    "Failed",
-                    "Warning",
-                    "Not Tested"
-                  ],
+                  "enum": ["Passed", "Failed", "Warning", "Not Tested"],
                   "description": "Choose the appropriate description for this test. If you performed an actual test and it passed, then choose \"Passed\", if the test failed, then choose \"Failed\". If you did not perform this test, but suspect there might be issues or have notes to provide the homeowner or contractor, then choose \"Warning\". If you did not perform this test and do not want the test information to show up on the homeowner report, then choose \"Not Tested\". A clean result is \"Passed\"; \"Not Tested\" means the auditor explicitly skipped the test, and a test never mentioned is null — not \"Not Tested\"."
                 },
                 {
@@ -8110,11 +7054,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthRoofCondition": {
@@ -8124,11 +7064,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Good",
-                    "Potential Issues",
-                    "NA"
-                  ],
+                  "enum": ["Good", "Potential Issues", "NA"],
                   "description": "Choose the appropriate description to describe the condition of the roof. If the roof is in good condition, choose “Good”, if it has potential issues, choose “Potential Issues”. If you did not perform this test and do not want the test information to show up on the homeowner report, then choose “NA”"
                 },
                 {
@@ -8150,11 +7086,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthDrainageSystemCondition": {
@@ -8164,11 +7096,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Good",
-                    "Potential Issues",
-                    "NA"
-                  ],
+                  "enum": ["Good", "Potential Issues", "NA"],
                   "description": "Choose the appropriate description to describe the condition of the drainage system. If the drainage system is in good condition, choose “Good”, if it has potential issues, choose “Potential Issues”. If you did not perform this test and do not want the test information to show up on the homeowner report, then choose “NA”"
                 },
                 {
@@ -8190,11 +7118,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         },
         "healthSafetyQuestionsDisclosed": {
@@ -8204,10 +7128,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "Yes",
-                    "No"
-                  ],
+                  "enum": ["Yes", "No"],
                   "description": "IRA programs require answers to applicable Safety Testing questions be disclosed to the homeowner. Select “Yes” if disclosed, or “No” if not applicable. A compliance attestation about a conversation with the homeowner, not a test result. Set it only when the auditor explicitly says whether the safety-testing answers were disclosed to the homeowner; never infer it from the tests themselves having been run."
                 },
                 {
@@ -8229,11 +7150,7 @@
               ]
             }
           },
-          "required": [
-            "value",
-            "confidence",
-            "sourceSpan"
-          ],
+          "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
         }
       },
@@ -8290,11 +7207,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "concernDetail": {
@@ -8325,18 +7238,11 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           }
         },
-        "required": [
-          "concernSummary",
-          "concernDetail"
-        ],
+        "required": ["concernSummary", "concernDetail"],
         "additionalProperties": false
       }
     },
@@ -8373,11 +7279,7 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           },
           "amount": {
@@ -8408,20 +7310,51 @@
                 ]
               }
             },
-            "required": [
-              "value",
-              "confidence",
-              "sourceSpan"
-            ],
+            "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
           }
         },
-        "required": [
-          "fromTemplateUuid",
-          "amount"
-        ],
+        "required": ["fromTemplateUuid", "amount"],
         "additionalProperties": false
       }
+    },
+    "stage": {
+      "type": "object",
+      "properties": {
+        "stageId": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Current stage ID of the job. Field options: 1 → Lead 2 → Audit 3 → Bid Proposed 4 → Bid Approved 5 → Retrofit In Progress 6 → Retrofit Complete 7 → QA 8 → Uncategorized 9 → Archived Won 10 → Archived Lost The job's current workflow stage; the wire value is an integer code — 1 (Lead), 2 (Audit), 3 (Bid Proposed), 4 (Bid Approved), 5 (Retrofit In Progress), 6 (Retrofit Complete), 7 (QA), 8 (Uncategorized), 9 (Archived Won), 10 (Archived Lost)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["stageId"],
+      "additionalProperties": false
     }
   },
   "required": [
@@ -8433,7 +7366,8 @@
     "dhw",
     "health",
     "concern",
-    "incentive"
+    "incentive",
+    "stage"
   ],
   "additionalProperties": false
 }

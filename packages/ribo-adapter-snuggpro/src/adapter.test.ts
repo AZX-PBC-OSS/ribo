@@ -79,7 +79,7 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
   for (const example of snuggProAdapter.examples ?? []) {
     // Recurses, because the field set nests by resource group now. Counting the
     // envelopes it reaches is the guard against the recursion silently bottoming
-    // out at the nine group objects and checking nothing. (221, not 213: the
+    // out at the ten group objects and checking nothing. (222, not 214: the
     // fixture carries two hvac instances; its concern and incentive lists are
     // empty.)
     let checked = 0;
@@ -100,7 +100,7 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
       for (const child of Object.values(node)) walk(child);
     };
     walk(example.fields);
-    expect(checked).toBe(221);
+    expect(checked).toBe(222);
   }
 });
 

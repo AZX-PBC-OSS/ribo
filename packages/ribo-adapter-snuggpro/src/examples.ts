@@ -358,6 +358,13 @@ const fields: SnuggExtraction = {
   // roster-driven output is an empty array — the "transcript never brings the
   // group up at all" case, not one all-null instance.
   incentive: [],
+
+  stage: {
+    // Nothing in this transcript moves the job's workflow stage, so the group's one
+    // capture field is an unforced `null` — silence is never an invented stage, the
+    // same discipline as an unmentioned health test.
+    stageId: env(null, null),
+  },
 };
 
 export const snuggExamples: readonly ToolAdapterExample<SnuggExtraction>[] = [

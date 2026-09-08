@@ -73,7 +73,7 @@ afterAll(async () => {
 
 /**
  * `field`, stripped of leading `.optional()`/`.nullable()` wrappers, asserted to
- * be a `z.ZodObject` — the same shape `snuggValuesSchema`'s own eight groups
+ * be a `z.ZodObject` — the same shape `snuggValuesSchema`'s own ten groups
  * take. Mirrors `ReviewPanel.browser.test.tsx`'s `unwrapGroup` exactly; kept
  * local rather than shared, matching this directory's own convention of every
  * e2e file carrying its own helpers (see `captureOneRecording`, duplicated

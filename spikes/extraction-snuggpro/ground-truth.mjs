@@ -230,7 +230,7 @@ function validateLeaf(path, leafSpec, truth, errors) {
 /**
  * The groups the vendor models as per-instance child resources. A job may hold several of
  * each, so ground truth carries an ORDERED LIST per group rather than one flat leaf map.
- * `basedata` and `health` are genuine singletons in the API and stay flat. `concern` is the
+ * `basedata`, `health` and `stage` are genuine singletons in the API and stay flat. `concern` is the
  * first job-collection resource (doc 20 §5.7, tranche 2) — the schema models it as an array
  * of instances exactly like the five component collections, so the scorer must too.
  *
@@ -249,7 +249,9 @@ export const COLLECTION_GROUPS = ["hvac", "attic", "wall", "window", "dhw", "con
  * Every group that is NOT a collection group, DERIVED from the schema rather than hand-listed —
  * so a new top-level group (`incentive` today, more job-collection tranches tomorrow) is scored
  * as a flat leaf map from the day it lands, with no harness edit, until it is deliberately
- * promoted into COLLECTION_GROUPS alongside a corpus re-annotation.
+ * promoted into COLLECTION_GROUPS alongside a corpus re-annotation. Genuine singletons
+ * (`basedata`, `health`, and the `stage` tranche-4 singleton) land here the same way — the
+ * derivation is the whole list of flat-scored groups, not a hand-maintained copy of it.
  */
 export const SINGLETON_GROUPS = GROUPS.filter((group) => !COLLECTION_GROUPS.includes(group));
 

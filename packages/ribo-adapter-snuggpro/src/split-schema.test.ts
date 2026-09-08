@@ -7,16 +7,16 @@ import { snuggExtractionSchema } from "./schema.js";
 
 /**
  * Snugg-specific tests for `splitExtractionSchema` against the real
- * `snuggExtractionSchema` — 213 enveloped leaves across nine resource groups.
+ * `snuggExtractionSchema` — 214 enveloped leaves across ten resource groups.
  * The pure function lives in `@azx/ribo-extractor-openai` (tool-agnostic, no
  * adapter dependency); these tests live here because the real schema lives here,
  * and this package already depends on the extractor for testing
  * (`extraction-shape.test.ts`).
  */
 
-// The nine resource groups are the top-level keys of `snuggValuesSchema`, which
+// The ten resource groups are the top-level keys of `snuggValuesSchema`, which
 // `enveloped()` preserves — see schema.ts's file header.
-const NINE_GROUPS = [
+const TEN_GROUPS = [
   "basedata",
   "hvac",
   "attic",
@@ -26,6 +26,7 @@ const NINE_GROUPS = [
   "health",
   "concern",
   "incentive",
+  "stage",
 ] as const;
 
 const ENVELOPE_KEYS = new Set(["value", "confidence", "sourceSpan"]);
@@ -56,10 +57,10 @@ function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
   return leaves;
 }
 
-test("the eight Snugg groups are derived from snuggExtractionSchema, each carrying exactly its own key", () => {
+test("the ten Snugg groups are derived from snuggExtractionSchema, each carrying exactly its own key", () => {
   const groups = splitExtractionSchema(snuggExtractionSchema);
 
-  expect(groups.map((g) => g.key)).toEqual([...NINE_GROUPS]);
+  expect(groups.map((g) => g.key)).toEqual([...TEN_GROUPS]);
 
   for (const group of groups) {
     const shape = (group.schema as z.ZodObject).shape;
@@ -73,10 +74,11 @@ test("every leaf of snuggExtractionSchema appears in exactly one group schema, a
   const originalLeaves = enumerateLeaves(snuggExtractionSchema).sort();
   const groupLeaves = groups.flatMap((g) => enumerateLeaves(g.schema)).sort();
 
-  // 213 leaves across 9 groups — the full 163-field basedata capture surface,
-  // the 46 bounded component-group leaves (health completion included), and the
-  // job-collection groups' 4 (concern's 2 free-text leaves, incentive's 2).
-  expect(originalLeaves).toHaveLength(213);
+  // 214 leaves across 10 groups — the full 163-field basedata capture surface,
+  // the 46 bounded component-group leaves (health completion included), the
+  // job-collection groups' 4 (concern's 2 free-text leaves, incentive's 2), and
+  // the stage singleton's 1.
+  expect(originalLeaves).toHaveLength(214);
 
   // No leaf is lost: the union of per-group leaves equals the original's.
   expect(groupLeaves).toEqual(originalLeaves);

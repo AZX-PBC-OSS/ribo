@@ -30,13 +30,13 @@
  * groups — the same text appears in both groups' prompts, driven by the data.
  *
  * The output section is **wrong per group, not merely verbose**: the full
- * instructions assert "exactly nine top-level keys" and name them, but a per-group
+ * instructions assert "exactly ten top-level keys" and name them, but a per-group
  * call must assert its one key. `groupOutputSection(key)` generates the per-group
- * version; `fullOutputSection()` keeps the nine-key version for the single-shot
+ * version; `fullOutputSection()` keeps the ten-key version for the single-shot
  * extractor.
  */
 
-/** The nine top-level groups of the Snugg Pro extraction schema. */
+/** The ten top-level groups of the Snugg Pro extraction schema. */
 export const SNUGG_GROUP_KEYS = [
   "basedata",
   "hvac",
@@ -47,6 +47,7 @@ export const SNUGG_GROUP_KEYS = [
   "health",
   "concern",
   "incentive",
+  "stage",
 ] as const;
 
 /**
@@ -337,7 +338,7 @@ self-correction apply unchanged).`,
 // --- Output section ----------------------------------------------------------
 
 /**
- * The output section for the full (single-shot) prompt — asserts all nine
+ * The output section for the full (single-shot) prompt — asserts all ten
  * top-level keys. Kept for `snuggProInstructions` and the single-shot extractor.
  */
 function fullOutputSection(): string {
@@ -347,10 +348,10 @@ function fullOutputSection(): string {
 
 Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` in \`schema.ts\`.
 
-- The object has exactly nine top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`wall\`, \`window\`,
-  \`dhw\`, \`health\`, \`concern\`, \`incentive\` — each a nested object grouping the fields for one
-  part of the house or one job-collection resource. They are not themselves fields and carry no
-  envelope of their own.
+- The object has exactly ten top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`wall\`, \`window\`,
+  \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\` — each a nested object grouping the
+  fields for one part of the house or one job-collection resource. They are not themselves fields and
+  carry no envelope of their own.
 - Every field in the schema must be present as a key inside its group. Never omit a key — "not
   mentioned" is expressed by \`value: null\`, not by absence. This includes every one of the 16 keys
   inside \`health\`, and every field of a group the auditor never touched.
@@ -365,7 +366,7 @@ Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` 
 /**
  * The output section for a per-group prompt — asserts the single top-level key.
  * Each per-group call must be instructed to produce the shape it is being asked
- * for, not the full nine-key object.
+ * for, not the full ten-key object.
  */
 function groupOutputSection(key: string): string {
   return `
@@ -409,7 +410,7 @@ act on it.
  *
  * Rules 1–6 go under `### The rules`; rules 7+ go under `### Normalization`. The
  * normalization section is omitted when no normalization rules are present (not
- * the case for any of the nine Snugg groups — all get at least the universal
+ * the case for any of the ten Snugg groups — all get at least the universal
  * rules 11–13 — but the guard keeps the assembly correct for any future subset).
  */
 function assembleInstructions(rules: readonly SnuggRule[], outputSection: string): string {
@@ -423,7 +424,7 @@ function assembleInstructions(rules: readonly SnuggRule[], outputSection: string
 }
 
 /**
- * The full extraction instructions — all fifteen rules plus the nine-key output
+ * The full extraction instructions — all fifteen rules plus the ten-key output
  * section. Used by the single-shot extractor and the adapter's `instructions`
  * field; the per-group extractor uses {@link snuggGroupInstructions} instead.
  */

@@ -35,7 +35,7 @@ import { snuggExtractionSchema, snuggValuesSchema, type SnuggValues } from "./sc
  * Dependencies point inward: `ribo-core` must never import an adapter. Core's own
  * `contracts.test.ts` composes the same pipeline over a four-leaf synthetic field set,
  * which is the right thing for a package that knows no tools. What that cannot do is
- * run the chain over 213 real leaves nested across nine per-endpoint resource groups,
+ * run the chain over 214 real leaves nested across ten per-endpoint resource groups,
  * with a fixture full of honest `null`s — so that test lives on this side of the
  * boundary, importing core through its public entry point exactly as a consumer would.
  *
@@ -156,7 +156,7 @@ const EDITED_LEAF = "health.healthGasLeak";
 const MODEL_VALUE = "Passed";
 const HUMAN_VALUE = "Warning";
 
-/** Accept all 221 leaves, then apply the given overrides. */
+/** Accept all 222 leaves, then apply the given overrides. */
 const decide = (
   paths: readonly string[],
   overrides: Readonly<Record<string, FieldDecision>> = {},
@@ -193,10 +193,10 @@ test("the real field set round-trips: schema → extraction → review → write
   const request = buildReviewRequest(extracted, transcript, adapter.schema);
   const paths = Object.keys(request.fields);
 
-  // 221 review paths across nine resource groups (213 schema leaves; the fixture
+  // 222 review paths across ten resource groups (214 schema leaves; the fixture
   // carries two hvac instances, +12 paths, and no concern or incentive instance,
   // −4), each independently reviewable.
-  expect(paths).toHaveLength(221);
+  expect(paths).toHaveLength(222);
   expect(paths).toContain(EDITED_LEAF);
   expect(request.fields[EDITED_LEAF]?.extracted.value).toBe(MODEL_VALUE);
 
@@ -257,7 +257,7 @@ test("the real field set round-trips: schema → extraction → review → write
   expect(write.fields.attic?.[0]?.atticInsulationDepth).toBe("4-6");
   expect(write.fields.dhw?.[0]?.dhwType2).toBe("Sidearm Tank");
 
-  // Nothing is missing: accepting all 221 leaves writes all 221. The resolved patch is
+  // Nothing is missing: accepting all 222 leaves writes all 222. The resolved patch is
   // positional, so compare the flattened field paths against positional versions of the
   // keyed review paths.
   expect(flatten(write.fields).sort()).toEqual([...paths].map(positionalPath).sort());
@@ -267,7 +267,7 @@ test("the real field set round-trips: schema → extraction → review → write
   expect(write.meta).toEqual({ idempotencyKey: "idem-item-1" });
 });
 
-test("one rejected leaf of the 221 still writes the other 220", async () => {
+test("one rejected leaf of the 222 still writes the other 221", async () => {
   // The test that proves patch semantics, and the one an earlier revision of this design
   // would have failed outright: rejecting a leaf must leave that field alone in Snugg
   // Pro, not fail the write and not blank the field.
@@ -294,7 +294,7 @@ test("one rejected leaf of the 221 still writes the other 220", async () => {
     ctx,
   });
 
-  // The write SUCCEEDED — the rejection did not take the other 220 leaves down with it.
+  // The write SUCCEEDED — the rejection did not take the other 221 leaves down with it.
   expect(written).toHaveLength(1);
   const fields = written[0]!.fields;
 
