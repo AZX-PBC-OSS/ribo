@@ -95,6 +95,7 @@ describe("rosterSchema", () => {
     const roster = {
       hvac: [first, second],
       attic: emptyGroup(),
+      vault: emptyGroup(),
       wall: emptyGroup(),
       window: emptyGroup(),
       dhw: emptyGroup(),
@@ -118,6 +119,7 @@ describe("rosterSchema", () => {
         },
       ],
       attic: emptyGroup(),
+      vault: emptyGroup(),
       wall: emptyGroup(),
       window: emptyGroup(),
       dhw: emptyGroup(),
@@ -146,6 +148,7 @@ describe("rosterSchema", () => {
         },
       ],
       attic: emptyGroup(),
+      vault: emptyGroup(),
       wall: emptyGroup(),
       window: emptyGroup(),
       dhw: emptyGroup(),
@@ -159,6 +162,7 @@ describe("rosterSchema", () => {
     const roster = {
       hvac: [],
       attic: [],
+      vault: [],
       wall: [],
       window: [],
       dhw: [],
@@ -201,6 +205,7 @@ describe("snuggInventoryInstructions", () => {
   test("mentions every collection group and the roster fields", () => {
     expect(snuggInventoryInstructions).toContain("hvac");
     expect(snuggInventoryInstructions).toContain("attic");
+    expect(snuggInventoryInstructions).toContain("vault");
     expect(snuggInventoryInstructions).toContain("wall");
     expect(snuggInventoryInstructions).toContain("window");
     expect(snuggInventoryInstructions).toContain("dhw");

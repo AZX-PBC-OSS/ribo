@@ -6107,6 +6107,825 @@
             },
             "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
+          },
+          "atticModeledAtticArea": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This field designates the actual interior surface area of the ceiling. On the improved side, this is the new total sqft of the attic. Reduce this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch). Interior ceiling surface area in square feet; auto-calculated by the vendor, so set it only when the auditor states an actual number — a stated value overrides the model default."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallArea": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total surface area of knee wall adjoining this attic space."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallInsulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallContinuousInsulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity. Total R-value of the CONTINUOUS insulation on the knee wall — a separate field from the knee wall cavity R-value, despite the vendor's copy-pasted description."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRadiantBarrier": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Please designate if the base or improved attic has a radiant barrier. Costs will not be adjusted for this nor will the R-Value of the attic insulation. The energy savings will be calculated in addition to the R-Value of the attic."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticPercent": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the % of the total footprint that is attributed to each attic or vault area. Share of the total footprint attributed to this attic area, as a percentage; only meaningful when several attic/vault instances split the house."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRoofAbsorptance": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Solar Absorptance of the roofing material above this attic space. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Solar absorptance of the roofing above; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRoofEmissivity": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Thermal Emittance or Emissivity of the roofing material above this attic space. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Thermal emittance of the roofing above; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticCoolRoof": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallInsulationType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool Batt",
+                      "Blown Fiberglass or Rockwool",
+                      "Cellulose",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of insulation that is installed in the knee wall cavity. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallContinuousInsulationType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Rigid XPS",
+                      "Rigid EPS",
+                      "Rigid Polyisocyanurate",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of continuous insulation that is installed on the knee wall. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRoofColor": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["White", "Light", "Medium"],
+                    "description": "Select the color of roofing material for this roof section."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticInsulationTypeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool (batts or blown)",
+                      "Cellulose",
+                      "Spray Foam",
+                      "Don't Know"
+                    ],
+                    "description": "Select the type of insulation that is installed in the attic or ceiling. If more than one type of insulation is installed, select the type that covers that largest area. Insulation material — there is no \"None\" member; an uninsulated attic is atticInsulationDepth: \"0\", not a material here."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticModeledAtticAreaImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This field designates the actual interior surface area of the ceiling. On the improved side, this is the new total sqft of the attic. Reduce this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch). Attic area in square feet after the retrofit; a modelled number, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticInsulationImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Attic. Framing factors have already been taken into account, so specify the R-value of the insulation within the cavity. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Target R-value to be installed as a number; set only when the auditor states the target ('bring it to R-49'), never derived from the base value."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallAreaImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total surface area of knee wall adjoining this attic space."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallInsulationImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallContinuousInsulationImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticHasKneeWallImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Choose Yes if there is a knee wall in this attic space. Knee wall on the improved side; a retrofit rarely adds or removes one, so set this only from an explicit statement."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRadiantBarrierImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Please designate if the base or improved attic has a radiant barrier. Costs will not be adjusted for this nor will the R-Value of the attic insulation. The energy savings will be calculated in addition to the R-Value of the attic."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRoofAbsorptanceImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Solar Absorptance of the roofing material above this attic space. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Solar absorptance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRoofEmissivityImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Thermal Emittance or Emissivity of the roofing material above this attic space. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Thermal emittance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticCoolRoofImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallInsulationTypeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool Batt",
+                      "Blown Fiberglass or Rockwool",
+                      "Cellulose",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of insulation that is installed in the knee wall cavity. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallContinuousInsulationTypeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Rigid XPS",
+                      "Rigid EPS",
+                      "Rigid Polyisocyanurate",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of continuous insulation that is installed on the knee wall. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -6114,7 +6933,725 @@
           "atticInsulationType",
           "atticInsulation",
           "atticHasKneeWall",
-          "atticRoofType"
+          "atticRoofType",
+          "atticModeledAtticArea",
+          "atticKneeWallArea",
+          "atticKneeWallInsulation",
+          "atticKneeWallContinuousInsulation",
+          "atticRadiantBarrier",
+          "atticPercent",
+          "atticRoofAbsorptance",
+          "atticRoofEmissivity",
+          "atticCoolRoof",
+          "atticKneeWallInsulationType",
+          "atticKneeWallContinuousInsulationType",
+          "atticRoofColor",
+          "atticInsulationTypeImproved",
+          "atticModeledAtticAreaImproved",
+          "atticInsulationImproved",
+          "atticKneeWallAreaImproved",
+          "atticKneeWallInsulationImproved",
+          "atticKneeWallContinuousInsulationImproved",
+          "atticHasKneeWallImproved",
+          "atticRadiantBarrierImproved",
+          "atticRoofAbsorptanceImproved",
+          "atticRoofEmissivityImproved",
+          "atticCoolRoofImproved",
+          "atticKneeWallInsulationTypeImproved",
+          "atticKneeWallContinuousInsulationTypeImproved"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "vault": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "vaultModeledVaultArea": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This is the actual surface area of the vaulted ceiling. It includes a default roof pitch of 5/12. When you override this number, be sure to include the complete sqft of the vault that's covering conditioned space. This field designates the interior surface area of the vaulted ceiling. On the improved side, this is the new total sqft of the vaulted ceiling. Increase this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch). Interior surface area of the vaulted ceiling in square feet; auto-calculated by the vendor, so set it only when the auditor states an actual number."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultCavityInsulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Vaulted Ceiling. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Total installed R-value in the vaulted ceiling cavity as a number — a stated DEPTH has no field on this resource; it routes to attic.atticInsulationDepth."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultContinuousInsulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of continuous insulation installed or to be installed in this Vaulted Ceiling. Continuous insulation is any insulation like spray foam or rigid foam that is continuous and consistent in R-value across studs, joists, or any framing member. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vault": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Well", "Yes", "Poorly", "No"],
+                    "description": "Is there insulation in the vaulted ceiling cavities of this home? If so, how good is it? If unsure, please leave blank. **Well**: All cavities contain insulation at full or near full depth with gaps and voids not exceeding 5%. **Poor**: Majority of cavities contain insulation, but one or more of the following is suspected: low density, low depth, poor installation. **Yes**: You can confirm that insulation exists, but are unsure of the installation quality. **No** - No insulation value is applied to cavities. Four graded states, chosen by meaning: \"Well\" is full depth with few voids, \"Poorly\" is majority-filled but low density or depth is suspected, \"Yes\" is confirmed present with quality unknown, \"No\" is no insulation. Leave null if the auditor was unsure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultPercent": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the % of the total footprint that is attributed to each attic or vault area. Share of the total footprint attributed to this vaulted area, as a percentage; only meaningful when several attic/vault instances split the house."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultRoofAbsorptance": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Solar Absorptance of the roofing material above this vaulted ceiling. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Solar absorptance of the roofing above the vault; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultRoofEmissivity": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Thermal Emittance or Emissivity of the roofing material above this vaulted ceiling. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Thermal emittance of the roofing above the vault; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultCoolRoof": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultCavityInsulationType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool Batt",
+                      "Blown Fiberglass or Rockwool",
+                      "Cellulose",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of insulation that is installed in the vault. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultContinuousInsulationType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Rigid XPS",
+                      "Rigid EPS",
+                      "Rigid Polyisocyanurate",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of continuous insulation that is installed on the vault. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultRoofType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Composition Shingles",
+                      "Concrete Tile",
+                      "Wood Shakes",
+                      "Tar and Gravel"
+                    ],
+                    "description": "Select the type of roofing material for this roof section."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultRoofColor": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["White", "Light", "Medium"],
+                    "description": "Select the color of roofing material for this roof section."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultModeledVaultAreaImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This is the actual surface area of the vaulted ceiling. It includes a default roof pitch of 5/12. When you override this number, be sure to include the complete sqft of the vault that's covering conditioned space. This field designates the interior surface area of the vaulted ceiling. On the improved side, this is the new total sqft of the vaulted ceiling. Increase this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch). Vaulted ceiling area in square feet after the retrofit; a modelled number, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultCavityInsulationImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Vaulted Ceiling. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultContinuousInsulationImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of continuous insulation installed or to be installed in this Vaulted Ceiling. Continuous insulation is any insulation like spray foam or rigid foam that is continuous and consistent in R-value across studs, joists, or any framing member. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultRoofAbsorptanceImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Solar Absorptance of the roofing material above this vaulted ceiling. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Solar absorptance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultRoofEmissivityImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Thermal Emittance or Emissivity of the roofing material above this vaulted ceiling. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Thermal emittance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultCoolRoofImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultCavityInsulationTypeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool Batt",
+                      "Blown Fiberglass or Rockwool",
+                      "Cellulose",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of insulation that is installed in the vault. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultContinuousInsulationTypeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Rigid XPS",
+                      "Rigid EPS",
+                      "Rigid Polyisocyanurate",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of continuous insulation that is installed on the vault. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "vaultModeledVaultArea",
+          "vaultCavityInsulation",
+          "vaultContinuousInsulation",
+          "vault",
+          "vaultPercent",
+          "vaultRoofAbsorptance",
+          "vaultRoofEmissivity",
+          "vaultCoolRoof",
+          "vaultCavityInsulationType",
+          "vaultContinuousInsulationType",
+          "vaultRoofType",
+          "vaultRoofColor",
+          "vaultModeledVaultAreaImproved",
+          "vaultCavityInsulationImproved",
+          "vaultContinuousInsulationImproved",
+          "vaultRoofAbsorptanceImproved",
+          "vaultRoofEmissivityImproved",
+          "vaultCoolRoofImproved",
+          "vaultCavityInsulationTypeImproved",
+          "vaultContinuousInsulationTypeImproved"
         ],
         "additionalProperties": false
       }
@@ -7361,6 +8898,7 @@
     "basedata",
     "hvac",
     "attic",
+    "vault",
     "wall",
     "window",
     "dhw",

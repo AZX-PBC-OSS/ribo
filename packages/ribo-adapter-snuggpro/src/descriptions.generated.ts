@@ -2,7 +2,7 @@
 //
 // Source:    https://app.snuggpro.com/apidocs/swagger.json
 // Refreshed: 2026-09-08
-// Leaves:    212
+// Leaves:    257
 //
 // The vendor's own description for each field we extract — the same sentence a Snugg Pro
 // user reads in their UI. `schema.ts` composes this with our own note, where we have one,
@@ -30,13 +30,60 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
   ashraeNumberOfBathrooms: "Enter the number of bathrooms with ventilation fans.",
   ashraeRequiredAdditionalCfm:
     'Minimum ventilation flow rate in CFM of continuous whole house ventilation required to satisfy the ASHRAE 62.2-2013 standard. If this field shows "N/A", then you likely did not fill out all of the AHSHRAE fields below. You must choose Yes or No for the Operable windows and set the Fan CFM to 0 or more.',
+  atticCoolRoof:
+    "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package.",
+  atticCoolRoofImproved:
+    "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package.",
   atticHasKneeWall: "Choose Yes if there is a knee wall in this attic space.",
+  atticHasKneeWallImproved: "Choose Yes if there is a knee wall in this attic space.",
   atticInsulation:
     'Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Attic. Framing factors have already been taken into account, so specify the R-value of the insulation within the cavity. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
   atticInsulationDepth:
     "Enter the depth of all installed attic or ceiling insulation. If the insulation is not evenly distributed, estimate an average depth for the area. If the insulation is evenly distributed but has different depths installed in different area, use the depth of insulation that covers the largest area. If there is no attic and instead vaulted ceilings, enter an estimate of the thickness of insulation in the vaulted cavity.",
+  atticInsulationImproved:
+    'Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Attic. Framing factors have already been taken into account, so specify the R-value of the insulation within the cavity. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
   atticInsulationType:
     "Select the type of insulation that is installed in the attic or ceiling. If more than one type of insulation is installed, select the type that covers that largest area.",
+  atticInsulationTypeImproved:
+    "Select the type of insulation that is installed in the attic or ceiling. If more than one type of insulation is installed, select the type that covers that largest area.",
+  atticKneeWallArea: "Enter the total surface area of knee wall adjoining this attic space.",
+  atticKneeWallAreaImproved:
+    "Enter the total surface area of knee wall adjoining this attic space.",
+  atticKneeWallContinuousInsulation:
+    "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity.",
+  atticKneeWallContinuousInsulationImproved:
+    "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity.",
+  atticKneeWallContinuousInsulationType:
+    "Select the type of continuous insulation that is installed on the knee wall. If more than one type of insulation is installed, select the type that covers that largest area.",
+  atticKneeWallContinuousInsulationTypeImproved:
+    "Select the type of continuous insulation that is installed on the knee wall. If more than one type of insulation is installed, select the type that covers that largest area.",
+  atticKneeWallInsulation:
+    "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity.",
+  atticKneeWallInsulationImproved:
+    "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity.",
+  atticKneeWallInsulationType:
+    "Select the type of insulation that is installed in the knee wall cavity. If more than one type of insulation is installed, select the type that covers that largest area.",
+  atticKneeWallInsulationTypeImproved:
+    "Select the type of insulation that is installed in the knee wall cavity. If more than one type of insulation is installed, select the type that covers that largest area.",
+  atticModeledAtticArea:
+    "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This field designates the actual interior surface area of the ceiling. On the improved side, this is the new total sqft of the attic. Reduce this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch).",
+  atticModeledAtticAreaImproved:
+    "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This field designates the actual interior surface area of the ceiling. On the improved side, this is the new total sqft of the attic. Reduce this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch).",
+  atticPercent:
+    "Enter the % of the total footprint that is attributed to each attic or vault area.",
+  atticRadiantBarrier:
+    "Please designate if the base or improved attic has a radiant barrier. Costs will not be adjusted for this nor will the R-Value of the attic insulation. The energy savings will be calculated in addition to the R-Value of the attic.",
+  atticRadiantBarrierImproved:
+    "Please designate if the base or improved attic has a radiant barrier. Costs will not be adjusted for this nor will the R-Value of the attic insulation. The energy savings will be calculated in addition to the R-Value of the attic.",
+  atticRoofAbsorptance:
+    "Enter the Solar Absorptance of the roofing material above this attic space. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  atticRoofAbsorptanceImproved:
+    "Enter the Solar Absorptance of the roofing material above this attic space. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  atticRoofColor: "Select the color of roofing material for this roof section.",
+  atticRoofEmissivity:
+    "Enter the Thermal Emittance or Emissivity of the roofing material above this attic space. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  atticRoofEmissivityImproved:
+    "Enter the Thermal Emittance or Emissivity of the roofing material above this attic space. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
   atticRoofType: "Select the type of roofing material for this roof section.",
   averageWallHeight:
     "Enter the average floor to ceiling wall height (internal measurement). This is used to calculate the volume of the home as well as the wall surface area. **Please note:** When we calculate the volume of the house, we add an additional foot of height for the basement rim joists (if there is a basement), and an additional foot of height for every story above one (if there are any).",
@@ -342,6 +389,44 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Select the type of home that most closely resembles this home. Single-family Attached would be a duplex or a townhome with shared walls. **Please note:** that only multi-family units with independently metered fuel and electricity can be modeled with this software.",
   unmodeledBlowerDoorReading:
     "The baseline unmodeled airflow, in cubic feet per minute, through leaks in the building when there is a pressure difference between the building and ambient of 50 Pascals. This is the result of your blower door test if you perform one. If you do not enter a number here, the software will determine an appropriate number based on the age and size of the home. On the improved side, the default recommendation is a 25% reduction in the air leakage. You may of course override this to whatever number you feel you'll be able to achieve.",
+  vault:
+    "Is there insulation in the vaulted ceiling cavities of this home? If so, how good is it? If unsure, please leave blank. **Well**: All cavities contain insulation at full or near full depth with gaps and voids not exceeding 5%. **Poor**: Majority of cavities contain insulation, but one or more of the following is suspected: low density, low depth, poor installation. **Yes**: You can confirm that insulation exists, but are unsure of the installation quality. **No** - No insulation value is applied to cavities.",
+  vaultCavityInsulation:
+    'Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Vaulted Ceiling. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  vaultCavityInsulationImproved:
+    'Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Vaulted Ceiling. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  vaultCavityInsulationType:
+    "Select the type of insulation that is installed in the vault. If more than one type of insulation is installed, select the type that covers that largest area.",
+  vaultCavityInsulationTypeImproved:
+    "Select the type of insulation that is installed in the vault. If more than one type of insulation is installed, select the type that covers that largest area.",
+  vaultContinuousInsulation:
+    'Enter the total R-value of continuous insulation installed or to be installed in this Vaulted Ceiling. Continuous insulation is any insulation like spray foam or rigid foam that is continuous and consistent in R-value across studs, joists, or any framing member. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  vaultContinuousInsulationImproved:
+    'Enter the total R-value of continuous insulation installed or to be installed in this Vaulted Ceiling. Continuous insulation is any insulation like spray foam or rigid foam that is continuous and consistent in R-value across studs, joists, or any framing member. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  vaultContinuousInsulationType:
+    "Select the type of continuous insulation that is installed on the vault. If more than one type of insulation is installed, select the type that covers that largest area.",
+  vaultContinuousInsulationTypeImproved:
+    "Select the type of continuous insulation that is installed on the vault. If more than one type of insulation is installed, select the type that covers that largest area.",
+  vaultCoolRoof:
+    "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package.",
+  vaultCoolRoofImproved:
+    "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package.",
+  vaultModeledVaultArea:
+    "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This is the actual surface area of the vaulted ceiling. It includes a default roof pitch of 5/12. When you override this number, be sure to include the complete sqft of the vault that's covering conditioned space. This field designates the interior surface area of the vaulted ceiling. On the improved side, this is the new total sqft of the vaulted ceiling. Increase this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch).",
+  vaultModeledVaultAreaImproved:
+    "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This is the actual surface area of the vaulted ceiling. It includes a default roof pitch of 5/12. When you override this number, be sure to include the complete sqft of the vault that's covering conditioned space. This field designates the interior surface area of the vaulted ceiling. On the improved side, this is the new total sqft of the vaulted ceiling. Increase this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch).",
+  vaultPercent:
+    "Enter the % of the total footprint that is attributed to each attic or vault area.",
+  vaultRoofAbsorptance:
+    "Enter the Solar Absorptance of the roofing material above this vaulted ceiling. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  vaultRoofAbsorptanceImproved:
+    "Enter the Solar Absorptance of the roofing material above this vaulted ceiling. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  vaultRoofColor: "Select the color of roofing material for this roof section.",
+  vaultRoofEmissivity:
+    "Enter the Thermal Emittance or Emissivity of the roofing material above this vaulted ceiling. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  vaultRoofEmissivityImproved:
+    "Enter the Thermal Emittance or Emissivity of the roofing material above this vaulted ceiling. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  vaultRoofType: "Select the type of roofing material for this roof section.",
   ventilationCycleDuration:
     "When the ventilation system turns on, how long does it run for each time? For instance, if the ventilation system runs for 15 minutes every 4 hours, enter 4 in the Ventilation Cycle Frequency field and 0.25 in this field. This field is hidden if the ventilation system runs continuously.",
   ventilationCycleFrequency:

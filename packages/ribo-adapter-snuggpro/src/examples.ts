@@ -288,8 +288,41 @@ const fields: SnuggExtraction = {
       atticInsulation: env(null, null),
       atticHasKneeWall: env(null, null),
       atticRoofType: env(null, null),
+      // The remainder of the endpoint's verdicted capture surface: nothing in this
+      // transcript states an area, a knee wall, a roof coefficient or any retrofit, so
+      // every one of them is an unforced null.
+      atticModeledAtticArea: env(null, null),
+      atticKneeWallArea: env(null, null),
+      atticKneeWallInsulation: env(null, null),
+      atticKneeWallContinuousInsulation: env(null, null),
+      atticRadiantBarrier: env(null, null),
+      atticPercent: env(null, null),
+      atticRoofAbsorptance: env(null, null),
+      atticRoofEmissivity: env(null, null),
+      atticCoolRoof: env(null, null),
+      atticKneeWallInsulationType: env(null, null),
+      atticKneeWallContinuousInsulationType: env(null, null),
+      atticRoofColor: env(null, null),
+      atticInsulationTypeImproved: env(null, null),
+      atticModeledAtticAreaImproved: env(null, null),
+      atticInsulationImproved: env(null, null),
+      atticKneeWallAreaImproved: env(null, null),
+      atticKneeWallInsulationImproved: env(null, null),
+      atticKneeWallContinuousInsulationImproved: env(null, null),
+      atticHasKneeWallImproved: env(null, null),
+      atticRadiantBarrierImproved: env(null, null),
+      atticRoofAbsorptanceImproved: env(null, null),
+      atticRoofEmissivityImproved: env(null, null),
+      atticCoolRoofImproved: env(null, null),
+      atticKneeWallInsulationTypeImproved: env(null, null),
+      atticKneeWallContinuousInsulationTypeImproved: env(null, null),
     },
   ],
+
+  // The attic in this transcript is a flat-floor attic; no vaulted or cathedral ceiling
+  // is ever brought up, so the honest roster-driven output is an empty array — the
+  // "transcript never brings the group up at all" case, not one all-null instance.
+  vault: [],
 
   wall: [
     {

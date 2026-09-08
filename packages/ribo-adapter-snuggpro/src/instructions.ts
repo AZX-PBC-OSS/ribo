@@ -31,6 +31,7 @@ export const SNUGG_GROUP_KEYS = [
   "basedata",
   "hvac",
   "attic",
+  "vault",
   "wall",
   "window",
   "dhw",
@@ -186,7 +187,7 @@ Ducted-versus-standalone matters: a furnace sharing ducts with an AC is a differ
   },
   {
     number: 8,
-    groups: ["attic", "dhw"],
+    groups: ["attic", "vault", "dhw"],
     text: `**8. Attic insulation: a depth band and an R-value are two separate fields. Never convert between them.**
 
 - A stated **depth or thickness** goes in \`attic.atticInsulationDepth\`, mapped to the band whose
@@ -196,6 +197,12 @@ Ducted-versus-standalone matters: a furnace sharing ducts with an AC is a differ
 - If the auditor gives **both**, fill both. If they give one, fill that one and leave the other
   \`null\` — converting an R-value to a depth (or back) is climate- and material-dependent and lossy,
   and it is **not** your job. Nothing downstream needs you to do it; both fields are real.
+
+The depth band is also where VAULTED-ceiling depth lands: the vendor's own field description says
+"If there is no attic and instead vaulted ceilings, enter an estimate of the thickness of insulation
+in the vaulted cavity." The \`vault\` resource has NO depth field, so a dictated vault insulation
+depth ("six inches in the vaulted ceiling") is captured on \`attic.atticInsulationDepth\` and never
+on a vault R-value field — \`vault.vaultCavityInsulation\` takes only a stated R-value.
 
 The same banding discipline applies to \`dhw.dhwAge\` ("about twelve years old" → \`"11-15"\`). Map a
 stated number to the band that contains it; do not invent a number to bucket.`,
@@ -323,6 +330,29 @@ One incentive instance per distinct rebate or program the auditor introduces. A 
 second instance; the same program restated is the same instance (the leaf-level rules on merging and
 self-correction apply unchanged).`,
   },
+  {
+    number: 16,
+    groups: ["vault"],
+    text: `**16. A vault is a vaulted / cathedral ceiling — and its quality field is named bare \`vault\`.**
+
+The \`vault\` group records vaulted or cathedral ceiling spaces. Its insulation-quality leaf has the
+wire name \`vault.vault\` — the field is named exactly like its resource. It is the sibling of
+\`wall.wallsInsulated\`: four graded states chosen by MEANING ("Well" is full depth with few voids,
+"Poorly" is majority-filled but thin or low-density, "Yes" is present with quality unknown, "No" is
+none). The two fields publish their members in a different order; that is a vendor artefact with no
+meaning — never pick by position, always by what the auditor said.
+
+A vault has no name and no location field — instances are told apart by the share of the footprint
+they cover (\`vault.vaultPercent\`), so "the vaulted ceiling over the great room" and "the cathedral
+ceiling in the bedroom wing" are two records only when the auditor describes them as separate areas
+(the leaf-level rules on merging and self-correction apply unchanged). A stated footprint share
+("about half the house is vaulted") goes in \`vaultPercent\`; when no share is stated, leave it \`null\`
+rather than dividing the house yourself.
+
+A dictated insulation DEPTH for a vault has no field in this group — it is captured on
+\`attic.atticInsulationDepth\` (rule 8). Here, \`vaultCavityInsulation\` and
+\`vaultContinuousInsulation\` take only stated R-values.`,
+  },
 ];
 
 // --- Output section ----------------------------------------------------------
@@ -338,10 +368,10 @@ function fullOutputSection(): string {
 
 Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` in \`schema.ts\`.
 
-- The object has exactly ten top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`wall\`, \`window\`,
-  \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\` — each a nested object grouping the
-  fields for one part of the house or one job-collection resource. They are not themselves fields and
-  carry no envelope of their own.
+- The object has exactly eleven top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`vault\`, \`wall\`,
+  \`window\`, \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\` — each a nested object grouping
+  the fields for one part of the house or one job-collection resource. They are not themselves fields
+  and carry no envelope of their own.
 - Every field in the schema must be present as a key inside its group. Never omit a key — "not
   mentioned" is expressed by \`value: null\`, not by absence. This includes every one of the 16 keys
   inside \`health\`, and every field of a group the auditor never touched.

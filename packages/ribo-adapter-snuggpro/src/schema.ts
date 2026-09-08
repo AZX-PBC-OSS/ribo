@@ -14,9 +14,12 @@
  * §Scoping — the form fields minus the `*Improved` retrofit twins and the
  * self-described auto-calculated fields). The component groups are bounded
  * dictation-density subsets — what an auditor actually says walking a house —
- * grown from real fill-rate data, not judgement. The job-collection groups each
- * carry every field of their endpoint in extraction scope (`incentive`'s
- * `recommendations` is excluded by design — see the group).
+ * grown from real fill-rate data, not judgement; `attic` has since grown to doc 20
+ * §5.5's full verdicted capture surface (every field but the computed ones, and the
+ * `capture?` fields described with the caveat that makes them borderline). The
+ * job-collection groups each carry every field of their endpoint in extraction
+ * scope minus the computed ones (`incentive`'s `recommendations` is excluded by
+ * design — see the group).
  *
  * ---
  *
@@ -644,12 +647,88 @@ export const AtticInsulationType = z
     'Insulation material — there is no "None" member; an uninsulated attic is atticInsulationDepth: "0", not a material here.',
   );
 
-/** `atticRoofType` (`attic`). */
+/** `atticRoofType` (`attic`). `vaultRoofType` publishes the same list — one export. */
 export const AtticRoofType = z.enum([
   "Composition Shingles",
   "Concrete Tile",
   "Wood Shakes",
   "Tar and Gravel",
+]);
+
+/**
+ * `atticKneeWallInsulationType` (`attic`). The cavity-insulation vocabulary of doc 20
+ * §5.0, copied verbatim; `largest-area wins` when several materials are installed.
+ */
+export const AtticKneeWallInsulationType = z.enum([
+  "Fiberglass or Rockwool Batt",
+  "Blown Fiberglass or Rockwool",
+  "Cellulose",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
+/**
+ * `atticKneeWallContinuousInsulationType` (`attic`). The rigid-insulation vocabulary of
+ * doc 20 §5.0, copied verbatim; largest-area wins.
+ */
+export const AtticKneeWallContinuousInsulationType = z.enum([
+  "Rigid XPS",
+  "Rigid EPS",
+  "Rigid Polyisocyanurate",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
+/**
+ * `atticRoofColor` (`attic`). The vendor's list stops at `Medium` — there is no Dark
+ * member, so a dictated dark roof has no member and stays `null` (rule 11).
+ * `vaultRoofColor` publishes the same list — one export.
+ */
+export const AtticRoofColor = z.enum(["White", "Light", "Medium"]);
+
+// == vault ===================================================================
+
+/**
+ * `vault` (`POST /jobs/{jobId}/vault`) — insulation quality of the vaulted cavities,
+ * on a wire field named bare `vault`, identical to its resource name. The sibling of
+ * `wallsInsulated`: identical member DESCRIPTIONS, but the vendor publishes the
+ * members in a DIFFERENT ORDER here (`Well` · `Yes` · `Poorly` · `No` vs. the wall's
+ * `Well` · `Poorly` · `Yes` · `No`). The two lists are therefore declared separately
+ * and never shared — anything treating enum position as ordinal would silently swap
+ * `Poorly` and `Yes` (doc 20 §5.5 cross-cutting notes).
+ */
+export const VaultInsulationQuality = z
+  .enum(["Well", "Yes", "Poorly", "No"])
+  .describe(
+    'Four graded states, chosen by meaning: "Well" is full depth with few voids, "Poorly" is majority-filled but low density or depth is suspected, "Yes" is confirmed present with quality unknown, "No" is no insulation. Leave null if the auditor was unsure.',
+  );
+
+/**
+ * `vaultCavityInsulationType` (`vault`). The cavity-insulation vocabulary of doc 20
+ * §5.0, copied verbatim; largest-area wins.
+ */
+export const VaultCavityInsulationType = z.enum([
+  "Fiberglass or Rockwool Batt",
+  "Blown Fiberglass or Rockwool",
+  "Cellulose",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
+/**
+ * `vaultContinuousInsulationType` (`vault`). The rigid-insulation vocabulary of doc 20
+ * §5.0, copied verbatim; largest-area wins.
+ */
+export const VaultContinuousInsulationType = z.enum([
+  "Rigid XPS",
+  "Rigid EPS",
+  "Rigid Polyisocyanurate",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
 ]);
 
 // == wall ====================================================================
@@ -1573,7 +1652,18 @@ export const HvacFields = z
   )
   .strict();
 
-/** `POST /jobs/{jobId}/attic` — one attic record, a bounded subset of the endpoint. */
+/**
+ * `POST /jobs/{jobId}/attic` — one attic record. Now the full verdicted capture
+ * surface of doc 20 §5.5: every field of the endpoint except the self-described
+ * computed ones (`atticAssemblyRValue`, `atticKneeWallAssemblyRValue` and their
+ * improved twins — "not editable since it is calculated from the other fields").
+ *
+ * The vendor's own `atticInsulationDepth` description routes VAULTED-ceiling depth
+ * here too ("If there is no attic and instead vaulted ceilings, enter an estimate of
+ * the thickness of insulation in the vaulted cavity") — the vault resource has no
+ * depth field, so dictated vault depth lands on this attic leaf (doc 20 §5.5
+ * cross-cutting notes; rule 8 of the extraction instructions).
+ */
 export const AtticFields = z
   .object(
     withVendorDescriptions({
@@ -1600,6 +1690,324 @@ export const AtticFields = z
 
       /** Roof covering. */
       atticRoofType: AtticRoofType.nullable().optional(),
+
+      /**
+       * Interior ceiling surface area in ft². Auto-calculated from conditioned area ×
+       * stories but overridable — writing it replaces the model default, so set it only
+       * from a stated number ("the attic is about twelve hundred square feet").
+       */
+      atticModeledAtticArea: z
+        .number()
+        .describe(
+          "Interior ceiling surface area in square feet; auto-calculated by the vendor, so set it only when the auditor states an actual number — a stated value overrides the model default.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Total surface area of the knee wall adjoining this attic space, in ft². */
+      atticKneeWallArea: z.number().nullable().optional(),
+
+      /** Total R-value installed (BASE) in the knee wall cavity. */
+      atticKneeWallInsulation: z.number().nullable().optional(),
+
+      /**
+       * Total R-value of continuous insulation on the knee wall. The vendor reuses the
+       * cavity description verbatim here — treat the description as approximate (doc 20
+       * §5.5 cross-cutting notes).
+       */
+      atticKneeWallContinuousInsulation: z
+        .number()
+        .describe(
+          "Total R-value of the CONTINUOUS insulation on the knee wall — a separate field from the knee wall cavity R-value, despite the vendor's copy-pasted description.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Whether the attic has a radiant barrier — directly observable, commonly called out. */
+      atticRadiantBarrier: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /**
+       * % of total footprint attributed to this attic/vault area. Only meaningful with
+       * multiple attic/vault instances, and it is a proportion, not an identity —
+       * auditors say "about half the attic" rather than a number.
+       */
+      atticPercent: z
+        .number()
+        .describe(
+          "Share of the total footprint attributed to this attic area, as a percentage; only meaningful when several attic/vault instances split the house.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Solar absorptance of the roofing above (1 − reflectance). An auto-defaulted lab
+       * coefficient nobody dictates — only in play with a cool-roof spec.
+       */
+      atticRoofAbsorptance: z
+        .number()
+        .describe(
+          "Solar absorptance of the roofing above; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Thermal emittance of the roofing above — same auto-defaulted coefficient story. */
+      atticRoofEmissivity: z
+        .number()
+        .describe(
+          "Thermal emittance of the roofing above; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Whether to specify cool-roof characteristics — auditors do say "it is a cool roof". */
+      atticCoolRoof: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Insulation type in the knee wall cavity (largest-area wins). */
+      atticKneeWallInsulationType: AtticKneeWallInsulationType.nullable().optional(),
+
+      /** Continuous insulation type on the knee wall (largest-area wins). */
+      atticKneeWallContinuousInsulationType:
+        AtticKneeWallContinuousInsulationType.nullable().optional(),
+
+      /** Roofing colour for this roof section; the list has no Dark member. */
+      atticRoofColor: AtticRoofColor.nullable().optional(),
+
+      /**
+       * Retrofit insulation type — "we will blow cellulose" is dictated upgrade INTENT,
+       * which is captured; the improved spec numbers below are the borderline side.
+       */
+      atticInsulationTypeImproved: AtticInsulationType.nullable().optional(),
+
+      /**
+       * New attic sqft after retrofit — used to model attic→conditioned conversions.
+       * Structural intent, but a modelled number rather than speech; set only from a
+       * stated figure.
+       */
+      atticModeledAtticAreaImproved: z
+        .number()
+        .describe(
+          "Attic area in square feet after the retrofit; a modelled number, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Target R-value to be installed. Borders on intent ("bring it to R-49") but is
+       * the spec side of it — set only when a target number is actually stated.
+       */
+      atticInsulationImproved: z
+        .number()
+        .describe(
+          "Target R-value to be installed as a number; set only when the auditor states the target ('bring it to R-49'), never derived from the base value.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Improved knee wall area — spec side; set only from a stated figure. */
+      atticKneeWallAreaImproved: z.number().nullable().optional(),
+
+      /** Target knee wall cavity R-value — spec side; set only when stated. */
+      atticKneeWallInsulationImproved: z.number().nullable().optional(),
+
+      /** Target knee wall continuous R-value — spec side; set only when stated. */
+      atticKneeWallContinuousInsulationImproved: z.number().nullable().optional(),
+
+      /**
+       * Knee wall present on the improved side. An odd field: a retrofit rarely creates
+       * or removes a knee wall — likely a modelling artefact of the base/improved
+       * doubling, so set it only from an explicit statement.
+       */
+      atticHasKneeWallImproved: z
+        .enum(["Yes", "No"])
+        .describe(
+          "Knee wall on the improved side; a retrofit rarely adds or removes one, so set this only from an explicit statement.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Add a radiant barrier — clean upgrade intent. */
+      atticRadiantBarrierImproved: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Cool-roof spec coefficient — auto-defaulted, not dictated. */
+      atticRoofAbsorptanceImproved: z
+        .number()
+        .describe(
+          "Solar absorptance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Cool-roof spec coefficient — auto-defaulted, not dictated. */
+      atticRoofEmissivityImproved: z
+        .number()
+        .describe(
+          "Thermal emittance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Specify a cool roof as the improvement. Intent-shaped, but only used when a roof
+       * replacement is actually in the package.
+       */
+      atticCoolRoofImproved: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Retrofit knee wall cavity insulation type — spec side. */
+      atticKneeWallInsulationTypeImproved: AtticKneeWallInsulationType.nullable().optional(),
+
+      /** Retrofit knee wall continuous insulation type — spec side. */
+      atticKneeWallContinuousInsulationTypeImproved:
+        AtticKneeWallContinuousInsulationType.nullable().optional(),
+    }),
+  )
+  .strict();
+
+/**
+ * `POST /jobs/{jobId}/vault` — one vaulted / cathedral ceiling record: the
+ * job-collections tranche 12 group (doc 20 §5.5; target model per
+ * `docs/roadmap/design/job-collections-foundation-design.md`). A top-level key of `V`
+ * following the per-instance pattern — an array with one element per real-world
+ * occurrence, repeating per job (0..n). Every field of the endpoint except the
+ * computed `vaultAssemblyRValue`/`Improved`.
+ *
+ * Like attic, the resource has NO name/label field — only `uuid` in the response — so
+ * instance identity rides the roster's discriminator mechanism, with `vaultPercent`
+ * (share of footprint) as the sole positional discriminator (foundation design
+ * decision 2; see `inventory.ts`).
+ *
+ * The vault has no insulation DEPTH field at all: dictated vault depth is routed to
+ * `attic.atticInsulationDepth` by the vendor's own field description — a
+ * cross-resource leak extraction must know about (doc 20 §5.5 cross-cutting notes;
+ * rule 8 of the extraction instructions), not a vault-group bug.
+ */
+export const VaultFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * Interior surface area of the vaulted ceiling in ft²; auto-calculated with a
+       * default 5/12 roof pitch, overridable — set only from a stated number.
+       */
+      vaultModeledVaultArea: z
+        .number()
+        .describe(
+          "Interior surface area of the vaulted ceiling in square feet; auto-calculated by the vendor, so set it only when the auditor states an actual number.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Total R-value installed in the vaulted ceiling cavity. */
+      vaultCavityInsulation: z
+        .number()
+        .describe(
+          "Total installed R-value in the vaulted ceiling cavity as a number — a stated DEPTH has no field on this resource; it routes to attic.atticInsulationDepth.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Total R-value of continuous insulation on the vaulted ceiling. */
+      vaultContinuousInsulation: z.number().nullable().optional(),
+
+      /**
+       * Insulation quality of the vaulted cavities — the sibling of `wallsInsulated`,
+       * on a wire field named bare `vault`. Same member descriptions, DIFFERENT
+       * published member order; pick by meaning, never by position.
+       */
+      vault: VaultInsulationQuality.nullable().optional(),
+
+      /**
+       * % of total footprint attributed to this attic/vault area (the vendor shares the
+       * description with `atticPercent`). The only positional discriminator between
+       * vault instances — a proportion, not an identity.
+       */
+      vaultPercent: z
+        .number()
+        .describe(
+          "Share of the total footprint attributed to this vaulted area, as a percentage; only meaningful when several attic/vault instances split the house.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Solar absorptance of roofing above the vault — auto-defaulted coefficient. */
+      vaultRoofAbsorptance: z
+        .number()
+        .describe(
+          "Solar absorptance of the roofing above the vault; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Thermal emittance of roofing above the vault — auto-defaulted coefficient. */
+      vaultRoofEmissivity: z
+        .number()
+        .describe(
+          "Thermal emittance of the roofing above the vault; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Specify cool-roof characteristics for this vault section. */
+      vaultCoolRoof: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Insulation type in the vault cavity (largest-area wins). */
+      vaultCavityInsulationType: VaultCavityInsulationType.nullable().optional(),
+
+      /** Continuous insulation type on the vault. */
+      vaultContinuousInsulationType: VaultContinuousInsulationType.nullable().optional(),
+
+      /** Roofing material for this roof section — the same published list `atticRoofType` uses. */
+      vaultRoofType: AtticRoofType.nullable().optional(),
+
+      /** Roofing colour for this roof section — the same published list `atticRoofColor` uses. */
+      vaultRoofColor: AtticRoofColor.nullable().optional(),
+
+      /**
+       * New vault sqft; increased when converting an unconditioned attic to conditioned
+       * vaulted space. A modelled number — set only from a stated figure.
+       */
+      vaultModeledVaultAreaImproved: z
+        .number()
+        .describe(
+          "Vaulted ceiling area in square feet after the retrofit; a modelled number, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Target cavity R-value — spec side; set only when stated. */
+      vaultCavityInsulationImproved: z.number().nullable().optional(),
+
+      /** Target continuous R-value — spec side; set only when stated. */
+      vaultContinuousInsulationImproved: z.number().nullable().optional(),
+
+      /** Cool-roof spec coefficient — not dictated. */
+      vaultRoofAbsorptanceImproved: z
+        .number()
+        .describe(
+          "Solar absorptance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Cool-roof spec coefficient — not dictated. */
+      vaultRoofEmissivityImproved: z
+        .number()
+        .describe(
+          "Thermal emittance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Cool roof as the improvement — only with an actual roof replacement in the package. */
+      vaultCoolRoofImproved: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /**
+       * Retrofit cavity insulation type — "spray foam the vault" is dictated upgrade
+       * intent, which is captured.
+       */
+      vaultCavityInsulationTypeImproved: VaultCavityInsulationType.nullable().optional(),
+
+      /** Retrofit continuous insulation type — spec side. */
+      vaultContinuousInsulationTypeImproved: VaultContinuousInsulationType.nullable().optional(),
     }),
   )
   .strict();
@@ -1860,6 +2268,7 @@ export const snuggValuesSchema = z
     basedata: BasedataFields.optional(),
     hvac: z.array(HvacFields).optional(),
     attic: z.array(AtticFields).optional(),
+    vault: z.array(VaultFields).optional(),
     wall: z.array(WallFields).optional(),
     window: z.array(WindowFields).optional(),
     dhw: z.array(DhwFields).optional(),
