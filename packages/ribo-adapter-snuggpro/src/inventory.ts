@@ -5,15 +5,14 @@
  *
  * The roster is **scaffolding for prompt assembly**, not part of the write patch
  * or the extraction contract (design §5.3). It lists, per collection group, the
- * candidate instances the auditor introduced, with the verbatim spans that ground
- * existence, separation, exclusion and absence. It is not persisted and does not
- * reach review.
+ * candidate instances the auditor introduced, with the verbatim spans that
+ * ground existence, separation, exclusion and absence. It is not persisted and
+ * does not reach review.
  *
- * The four span requirements are one mechanism used four times (design §3):
- * existence, separation, exclusion and absence each require a verbatim quote,
- * making the unsafe direction cost evidence. A model cannot invent a system,
- * split one into two, drop a live one, or claim there are none without quoting
- * the auditor doing it.
+ * The span requirements are one mechanism: existence, separation, exclusion and
+ * absence each require a verbatim quote, making the unsafe direction cost
+ * evidence. A model cannot invent a system, split one into two, drop a live
+ * one, or claim there are none without quoting the auditor doing it.
  *
  * `discriminator` is a prompting artifact only — a short auditor-language handle
  * with no write target — so there is no schema leaf for it beyond this roster.
@@ -59,11 +58,11 @@ export type RosterCandidate = z.infer<typeof rosterCandidateSchema>;
  * carry `distinguishedBy: null`; every later candidate must carry a non-null
  * span that separates it from the ones before it.
  *
- * The union also admits a `{ stated: "none", span }` value — the fourth
- * grounding mechanism (absence) — for when the auditor explicitly states a
- * component type does not exist in the property. An empty array still means
- * "the model found nothing to report," used when the transcript never brings
- * the group up at all.
+ * The union also admits a `{ stated: "none", span }` value — the absence
+ * grounding mechanism — for when the auditor explicitly states a component type
+ * does not exist in the property. An empty array still means "the model found
+ * nothing to report," used when the transcript never brings the group up at
+ * all.
  */
 export const rosterGroupSchema = z.union([
   z
