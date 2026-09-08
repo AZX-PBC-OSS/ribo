@@ -174,16 +174,20 @@ export interface ReviewField {
 export type ReviewFields = Readonly<Record<FieldPath, ReviewField>>;
 
 /**
- * Whether a collection group has instances, has none, or was never mentioned.
+ * Whether a collection group has instances, has none, was stated as having none,
+ * or was never mentioned.
  *
  * `hvac: []` and an absent `hvac` are opposite write instructions — "there are none of
  * these" against "touch nothing" — and the difference is invisible once per-leaf decisions
- * are collected, because neither produces a leaf. It used to be recoverable only by
- * cross-referencing {@link ReviewRequest.fields} against a separate list of empty groups,
- * which is a three-state fact split across two collections and a bug every host got to
- * write independently. It is one field now.
+ * are collected, because neither produces a leaf. `"statedEmpty"` is the third claim:
+ * the auditor explicitly said there are none, grounded in a verbatim quote — distinct
+ * from `"empty"` (present but empty, no reason given) and from `"absent"` (never
+ * mentioned). It used to be recoverable only by cross-referencing
+ * {@link ReviewRequest.fields} against a separate list of empty groups, which is a
+ * three-state fact split across two collections and a bug every host got to write
+ * independently. It is one field now.
  */
-export type ReviewGroupState = "absent" | "empty" | "populated";
+export type ReviewGroupState = "absent" | "empty" | "statedEmpty" | "populated";
 
 /** A reviewable leaf, in the position the schema declared it. */
 export interface ReviewLeafNode {
@@ -221,6 +225,12 @@ export interface ReviewCollectionNode {
   readonly key: string;
   readonly path: FieldPath;
   readonly state: ReviewGroupState;
+  /**
+   * The verbatim quote grounding a `"statedEmpty"` state, or `null` for every
+   * other state. Present on every collection node (like the interface's other
+   * members) so a UI can read it without a separate lookup.
+   */
+  readonly emptyQuote: string | null;
   /** Empty for both `absent` and `empty`; `state` is what tells those apart. */
   readonly instances: readonly ReviewInstanceNode[];
 }
@@ -335,6 +345,11 @@ export type ReviewOutcome =
        * review, so callers can treat it as optional rather than an empty object.
        */
       readonly linkTargets?: LinkTargets;
+      /**
+       * Real per-instance keys (`k1`, `k2`, ...), aligned by position with the same
+       * group's array in `fields` — see {@link buildInstanceKeys}.
+       */
+      readonly instanceKeys?: Readonly<Record<string, readonly string[]>>;
     }
   | {
       readonly status: "edited";
@@ -350,6 +365,11 @@ export type ReviewOutcome =
        * review.
        */
       readonly linkTargets?: LinkTargets;
+      /**
+       * Real per-instance keys (`k1`, `k2`, ...), aligned by position with the same
+       * group's array in `fields` — see {@link buildInstanceKeys}.
+       */
+      readonly instanceKeys?: Readonly<Record<string, readonly string[]>>;
     }
   | { readonly status: "discarded"; readonly reason?: string };
 
@@ -456,6 +476,7 @@ const collectFields = (
   node: unknown,
   transcript: Transcript,
   requiredOnCreate: RequiredOnCreate,
+  statedEmptyGroups: Readonly<Record<string, string>>,
   out: Record<FieldPath, ReviewField>,
   nodes: ReviewNode[],
 ): void => {
@@ -475,6 +496,7 @@ const collectFields = (
         readChild(node, key),
         transcript,
         requiredOnCreate,
+        statedEmptyGroups,
         out,
         children,
       );
@@ -496,12 +518,24 @@ const collectFields = (
       const elements = Array.isArray(arrayNode) ? arrayNode : [];
       // Absent and empty are opposite write instructions and neither produces a leaf, so
       // the state has to be read here, where the raw extraction is still in view.
-      const state: ReviewGroupState =
-        arrayNode === undefined || !Array.isArray(arrayNode)
-          ? "absent"
-          : elements.length === 0
-            ? "empty"
-            : "populated";
+      // The malformed-data guard (`!Array.isArray(arrayNode)`) stays exactly as it was —
+      // a present-but-non-array value is "absent", unaffected by `statedEmptyGroups`.
+      const isAbsent = arrayNode === undefined || !Array.isArray(arrayNode);
+      const statedEmptySpan = statedEmptyGroups[key];
+      const state: ReviewGroupState = isAbsent
+        ? "absent"
+        : elements.length === 0
+          ? statedEmptySpan !== undefined && statedEmptySpan !== ""
+            ? "statedEmpty"
+            : "empty"
+          : "populated";
+      const emptyQuote: string | null =
+        !isAbsent &&
+        elements.length === 0 &&
+        statedEmptySpan !== undefined &&
+        statedEmptySpan !== ""
+          ? statedEmptySpan
+          : null;
       const instances: ReviewInstanceNode[] = [];
       for (let i = 0; i < elements.length; i++) {
         const instanceKey = `k${i + 1}`;
@@ -516,6 +550,7 @@ const collectFields = (
           elements[i],
           transcript,
           requiredOnCreate,
+          statedEmptyGroups,
           out,
           children,
         );
@@ -525,7 +560,7 @@ const collectFields = (
           children,
         });
       }
-      nodes.push({ kind: "collection", key, path, state, instances });
+      nodes.push({ kind: "collection", key, path, state, emptyQuote, instances });
       continue;
     }
 
@@ -570,7 +605,17 @@ export const buildReviewRequest = (
   const fields: Record<FieldPath, ReviewField> = {};
   const tree: ReviewNode[] = [];
   const requiredOnCreate = options.requiredOnCreate ?? {};
-  collectFields(valuesSchema, [], extracted, transcript, requiredOnCreate, fields, tree);
+  const statedEmptyGroups = options.statedEmptyGroups ?? {};
+  collectFields(
+    valuesSchema,
+    [],
+    extracted,
+    transcript,
+    requiredOnCreate,
+    statedEmptyGroups,
+    fields,
+    tree,
+  );
   return { transcript, fields, tree, existingRecords: options.existingRecords ?? {} };
 };
 
@@ -587,7 +632,7 @@ const emptyCollectionPaths = (nodes: readonly ReviewNode[]): FieldPath[] =>
     if (node.kind === "leaf") return [];
     if (node.kind === "object") return emptyCollectionPaths(node.children);
     return [
-      ...(node.state === "empty" ? [node.path] : []),
+      ...(node.state === "empty" || node.state === "statedEmpty" ? [node.path] : []),
       ...node.instances.flatMap((instance) => emptyCollectionPaths(instance.children)),
     ];
   });
@@ -615,6 +660,15 @@ export interface BuildReviewRequestOptions {
    * link against, with a default of creating a new record.
    */
   readonly existingRecords?: Readonly<Record<string, readonly ExistingRecord[]>>;
+  /**
+   * Per-group verbatim spans surfaced by the extractor's roster, keyed by the
+   * group's own top-level key — the quote where the auditor explicitly stated a
+   * component type does not exist. A group present as an empty array with an
+   * entry here gets `state: "statedEmpty"` and `emptyQuote` set to the span;
+   * absent, it stays `"empty"`. A group absent from the extraction entirely or
+   * carrying a malformed (non-array) value stays `"absent"` regardless.
+   */
+  readonly statedEmptyGroups?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -787,6 +841,29 @@ const instanceLinkIssues = (
     }
   }
   return issues;
+};
+
+/**
+ * Build the per-group instance-keys array for every collection group that survives
+ * review, aligned by position with the same group's array in `fields`.
+ *
+ * Simpler than {@link buildLinkTargets}: it takes only the positions map (no link
+ * decisions) and returns the real keys in first-mention order, so a consumer can
+ * address the instance a reviewed outcome actually declared rather than by array
+ * position.
+ */
+const buildInstanceKeys = (
+  positions: Map<string, Map<string, number>>,
+): Readonly<Record<string, readonly string[]>> => {
+  const instanceKeys: Record<string, string[]> = {};
+  for (const [groupPath, indexMap] of positions) {
+    const keys = new Array<string>(indexMap.size);
+    for (const [key, index] of indexMap) {
+      keys[index] = key;
+    }
+    instanceKeys[groupPath] = keys;
+  }
+  return instanceKeys;
 };
 
 /**
@@ -1037,15 +1114,30 @@ export const resolveReview = (
   // backward-compatible for callers that only deal with singleton groups.
   const linkTargets = buildLinkTargets(positions, submission.instanceLinks);
   const hasLinkTargets = Object.keys(linkTargets).length > 0;
+  const instanceKeys = buildInstanceKeys(positions);
+  const hasInstanceKeys = Object.keys(instanceKeys).length > 0;
 
   if (editedFields.length === 0 && rejectedFields.length === 0) {
     return hasLinkTargets
-      ? { status: "accepted", fields, linkTargets }
-      : { status: "accepted", fields };
+      ? { status: "accepted", fields, linkTargets, ...(hasInstanceKeys ? { instanceKeys } : {}) }
+      : { status: "accepted", fields, ...(hasInstanceKeys ? { instanceKeys } : {}) };
   }
   return hasLinkTargets
-    ? { status: "edited", fields, editedFields, rejectedFields, linkTargets }
-    : { status: "edited", fields, editedFields, rejectedFields };
+    ? {
+        status: "edited",
+        fields,
+        editedFields,
+        rejectedFields,
+        linkTargets,
+        ...(hasInstanceKeys ? { instanceKeys } : {}),
+      }
+    : {
+        status: "edited",
+        fields,
+        editedFields,
+        rejectedFields,
+        ...(hasInstanceKeys ? { instanceKeys } : {}),
+      };
 };
 
 /**
@@ -1067,24 +1159,42 @@ export const resolveReview = (
  * indistinguishable from `accepted`, and silently under-reporting review effort is
  * exactly the failure `resolveReview`'s doc comment refuses.
  */
-export const reviewOutcomeSchema = z.discriminatedUnion("status", [
-  z.strictObject({
-    status: z.literal("accepted"),
-    fields: z.record(z.string(), z.unknown()),
-    linkTargets: z.record(z.string(), z.array(z.string().nullable())).optional(),
-  }),
-  z.strictObject({
-    status: z.literal("edited"),
-    fields: z.record(z.string(), z.unknown()),
-    editedFields: z.array(z.string()),
-    rejectedFields: z.array(z.string()),
-    linkTargets: z.record(z.string(), z.array(z.string().nullable())).optional(),
-  }),
-  z.strictObject({
-    status: z.literal("discarded"),
-    reason: z.string().optional(),
-  }),
-]);
+export const reviewOutcomeSchema = z
+  .discriminatedUnion("status", [
+    z.strictObject({
+      status: z.literal("accepted"),
+      fields: z.record(z.string(), z.unknown()),
+      linkTargets: z.record(z.string(), z.array(z.string().nullable())).optional(),
+      instanceKeys: z.record(z.string(), z.array(z.string())).optional(),
+    }),
+    z.strictObject({
+      status: z.literal("edited"),
+      fields: z.record(z.string(), z.unknown()),
+      editedFields: z.array(z.string()),
+      rejectedFields: z.array(z.string()),
+      linkTargets: z.record(z.string(), z.array(z.string().nullable())).optional(),
+      instanceKeys: z.record(z.string(), z.array(z.string())).optional(),
+    }),
+    z.strictObject({
+      status: z.literal("discarded"),
+      reason: z.string().optional(),
+    }),
+  ])
+  .superRefine((value, ctx) => {
+    if (value.status !== "accepted" && value.status !== "edited") return;
+    for (const [group, groupFields] of Object.entries(value.fields)) {
+      if (!Array.isArray(groupFields) || groupFields.length === 0) continue;
+      const keys = value.instanceKeys?.[group];
+      if (keys === undefined || keys.length !== groupFields.length) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            `instanceKeys for group "${group}" has ${keys?.length ?? 0} key(s) ` +
+            `but fields has ${groupFields.length} instance(s) — the two must stay in lockstep`,
+        });
+      }
+    }
+  });
 
 /** The persisted, field-set-agnostic outcome. `ReviewOutcome` is the typed form. */
 export type PersistedReviewOutcome = z.infer<typeof reviewOutcomeSchema>;

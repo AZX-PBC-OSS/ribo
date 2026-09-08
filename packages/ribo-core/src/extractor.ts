@@ -81,6 +81,13 @@ export interface ExtractionResult<F> {
    * `engine` is — a single-strategy extractor has no ladder to name.
    */
   readonly usage: ExtractionUsage;
+  /**
+   * Per-group verbatim spans where the roster recorded an explicit "none of
+   * these," keyed by the group's own top-level key. Absent for any extractor
+   * that does not use a roster — a single-shot extractor, for instance, has no
+   * inventory pass and never produces this field.
+   */
+  readonly statedEmptyGroups?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -136,6 +143,7 @@ export function toSessionExtractStep<F>(extractor: Extractor<F>): SessionExtract
       fields: result.fields as ExtractedFieldMap,
       engine: result.usage.engine,
       usage: result.usage,
+      statedEmptyGroups: result.statedEmptyGroups,
     };
   };
 }

@@ -53,7 +53,12 @@ export interface RosterCandidate {
 
 /** The house-wide inventory roster: one ordered list per collection group. */
 export interface Roster {
-  readonly [groupKey: string]: readonly RosterCandidate[];
+  readonly [groupKey: string]:
+    | readonly RosterCandidate[]
+    | {
+        readonly stated: "none";
+        readonly span: string;
+      };
 }
 
 /** The scope block passed to `buildFillInstructions` for each per-instance fill. */
@@ -404,6 +409,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
       const jobs: FillJob[] = [];
       const collectionArrays: Record<string, unknown[]> = {};
       const groupResult: Record<string, unknown> = {};
+      const statedEmptyGroups: Record<string, string> = {};
 
       for (const group of prepared) {
         const rosterGroup = roster[group.key] ?? [];
@@ -422,6 +428,13 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
             requestName: group.name,
             context: group.context,
           });
+          continue;
+        }
+
+        if (!Array.isArray(rosterGroup)) {
+          const statedNone = rosterGroup as { stated: "none"; span: string };
+          statedEmptyGroups[group.key] = statedNone.span;
+          groupResult[group.key] = [];
           continue;
         }
 
@@ -550,6 +563,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
         fields: normalize(parsed),
         raw: groupResult,
         usage: { calls: totalCalls, ...totals },
+        ...(Object.keys(statedEmptyGroups).length > 0 ? { statedEmptyGroups } : {}),
       };
     },
   };

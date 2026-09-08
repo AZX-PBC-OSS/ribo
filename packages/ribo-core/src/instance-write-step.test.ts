@@ -68,6 +68,7 @@ const makeAdapter = (sink: Write[]): ToolAdapter<Values, JobContext> => ({
   instructions: "test",
   write: async (fields, ctx, meta) => {
     sink.push({ fields, ctx, meta });
+    return { uuid: `uuid-${meta.idempotencyKey}` };
   },
 });
 
@@ -102,6 +103,7 @@ const seedSession = async (
   outbox: Outbox,
   ctx: unknown,
   fields: Record<string, unknown>,
+  instanceKeys?: Record<string, string[]>,
 ): Promise<{ session: SessionItem; ctx: unknown }> => {
   const session = await outbox.openSession({ ctx, ref: "job-7" });
   const enqueued = await outbox.enqueue({
@@ -131,6 +133,7 @@ const seedSession = async (
   const reviewed = await outbox.submitSessionReview(session.id, {
     status: "accepted",
     fields,
+    ...(instanceKeys ? { instanceKeys } : {}),
   });
   return { session: reviewed, ctx };
 };
@@ -158,6 +161,7 @@ test("each instance's derived key is stable across retries and distinct between 
     {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }, { hvacSystemEquipmentType: "AC" }],
     },
+    { hvac: ["k1", "k2"] },
   );
 
   const input = {
@@ -167,8 +171,8 @@ test("each instance's derived key is stable across retries and distinct between 
     ctx,
   };
 
-  await step(input);
-  await step(input);
+  const result1 = await step(input);
+  const result2 = await step(input);
 
   expect(written).toHaveLength(4);
   const keys = written.map((w) => w.meta.idempotencyKey);
@@ -177,6 +181,11 @@ test("each instance's derived key is stable across retries and distinct between 
   expect(keys[0]).not.toBe(keys[1]);
   expect(keys[0]).toBe(deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0));
   expect(keys[1]).toBe(deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 1));
+  expect(result1?.receipts?.instances?.hvac).toEqual({
+    k1: `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0)}`,
+    k2: `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 1)}`,
+  });
+  expect(result2?.receipts?.instances?.hvac).toEqual(result1?.receipts?.instances?.hvac);
 });
 
 test("singleton groups are written once with the session's original idempotency key", async () => {
@@ -194,9 +203,10 @@ test("singleton groups are written once with the session's original idempotency 
       basedata: { yearBuilt: 2004 },
       hvac: [{ hvacSystemEquipmentType: "Furnace" }],
     },
+    { hvac: ["k1"] },
   );
 
-  await step({
+  const result = await step({
     session,
     reviewed: reviewFields(session),
     idempotencyKey: session.idempotencyKey,
@@ -210,6 +220,10 @@ test("singleton groups are written once with the session's original idempotency 
   expect(instance?.meta.idempotencyKey).toBe(
     deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0),
   );
+  expect(result?.receipts?.singleton).toBe(`uuid-${session.idempotencyKey}`);
+  expect(result?.receipts?.instances?.hvac).toEqual({
+    k1: `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0)}`,
+  });
 });
 
 test("a patch with an empty collection group writes nothing for that group", async () => {
@@ -263,7 +277,7 @@ test("a write failing on the second of three instances, then retrying, re-attemp
         instanceOneFailed = false;
         throw Object.assign(new Error("transient"), { status: 503 });
       }
-      await base.write(fields, ctx, meta);
+      return await base.write(fields, ctx, meta);
     },
   };
 
@@ -298,6 +312,7 @@ test("a write failing on the second of three instances, then retrying, re-attemp
         { hvacSystemEquipmentType: "Heat Pump" },
       ],
     },
+    instanceKeys: { hvac: ["k1", "k2", "k3"] },
   });
 
   const relay = createRelay({
@@ -377,6 +392,7 @@ test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is 
     {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }],
     },
+    { hvac: ["k1"] },
   );
 
   const thrown = await toInstanceWriteStep({
@@ -411,6 +427,7 @@ test("a failing write propagates unchanged — the relay's retry contract is not
     {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }],
     },
+    { hvac: ["k1"] },
   );
 
   const thrown = await toInstanceWriteStep({
@@ -454,7 +471,7 @@ test("after reopening from dead and removing the first instance, the survivor re
         firstAttempt = false;
         throw Object.assign(new Error("transient"), { status: 503 });
       }
-      await base.write(fields, ctx, meta);
+      return await base.write(fields, ctx, meta);
     },
   };
 
@@ -485,6 +502,7 @@ test("after reopening from dead and removing the first instance, the survivor re
     fields: {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }, { hvacSystemEquipmentType: "AC" }],
     },
+    instanceKeys: { hvac: ["k1", "k2"] },
   });
 
   const relay = createRelay({
@@ -513,17 +531,22 @@ test("after reopening from dead and removing the first instance, the survivor re
     fields: {
       hvac: [{ hvacSystemEquipmentType: "AC" }],
     },
+    // Deliberately "k2" (not "k1"): this fixture bypasses the real UI's
+    // remapAfterInstanceRemove (which would renumber the survivor to k1) to
+    // stress-test the write step's keying behavior in isolation.
+    instanceKeys: { hvac: ["k2"] },
   });
 
   // Second drain: the survivor (now index 0) must reach the adapter.
+  const step2 = toInstanceWriteStep({
+    adapter,
+    collectionGroups: ["hvac"],
+  });
   const relay2 = createRelay({
     outbox,
     transcriber: new FakeTranscriber(),
     sessionExtract: () => Promise.reject(new Error("should not extract")),
-    sessionWrite: toInstanceWriteStep({
-      adapter,
-      collectionGroups: ["hvac"],
-    }),
+    sessionWrite: step2,
     now: clock.now,
     random: () => 1,
     baseMs: 500,
@@ -545,4 +568,18 @@ test("after reopening from dead and removing the first instance, the survivor re
             ?.hvacSystemEquipmentType,
       ),
   ).toEqual(["Furnace", "AC"]);
+
+  // Receipts are keyed by the real instance key the reviewed outcome declares
+  // (k2), not by array position. The relay doesn't expose the resolved
+  // SessionWriteResult, so call the step directly with the same inputs.
+  const postRemoval = await outbox.getSession(session.id);
+  const receiptResult = await step2({
+    session: postRemoval!,
+    reviewed: reviewFields(postRemoval!),
+    idempotencyKey: postRemoval!.idempotencyKey,
+    ctx: postRemoval!.ctx,
+  });
+  expect(receiptResult?.receipts?.instances?.hvac).toEqual({
+    k2: `uuid-${deriveInstanceIdempotencyKey(postRemoval!.idempotencyKey, "hvac", 0)}`,
+  });
 });

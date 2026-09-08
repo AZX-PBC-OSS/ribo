@@ -47,6 +47,14 @@ export interface ExtractStepResult {
    * seam used to drop on the floor.
    */
   readonly usage?: ExtractionUsage;
+  /**
+   * Per-group verbatim spans where the roster recorded an explicit "none of
+   * these," surfaced from `scopedInstanceExtractor`. Persisted as its own
+   * session field (`statedEmptyGroups`), consulted by `buildReviewRequest` to
+   * produce the `"statedEmpty"` group state. Absent for any extractor that does
+   * not use a roster.
+   */
+  readonly statedEmptyGroups?: Readonly<Record<string, string>>;
 }
 
 /** Joined transcripts → structured fields. Network-bound, so it is a queued step. */
@@ -71,8 +79,26 @@ export interface SessionWriteInput {
   ctx: unknown;
 }
 
-/** Fields → the host tool. Anything returned is persisted as `writeResult`. */
-export type SessionWriteStep = (input: SessionWriteInput) => Promise<ExtractedFieldMap | void>;
+/**
+ * What a session write step resolves with.
+ *
+ * `fields` is unchanged from today's bare return value (persisted as
+ * `writeResult`); `receipts` is new and persisted onto `session.receipts`,
+ * additively.
+ */
+export interface SessionWriteResult {
+  readonly fields?: ExtractedFieldMap;
+  readonly receipts?: {
+    readonly singleton?: string;
+    readonly instances?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+  };
+}
+
+/**
+ * Fields → the host tool. `result.fields` is persisted as `writeResult`;
+ * `result.receipts` is persisted onto `session.receipts` (merged, additive).
+ */
+export type SessionWriteStep = (input: SessionWriteInput) => Promise<SessionWriteResult | void>;
 
 // ---------------------------------------------------------------------------
 // Connectivity
@@ -190,6 +216,28 @@ const SESSION_STEP_STATUS = {
 
 export function createRelay(options: RelayOptions): Relay {
   return new QueueRelay(options);
+}
+
+/**
+ * Merge new write receipts into the session's existing ones, additively per
+ * group. Returns `previous` unchanged when `next` is undefined (nothing new
+ * to merge), and `undefined` only when there is nothing at all to persist.
+ */
+function mergeReceipts(
+  previous: SessionItem["receipts"],
+  next: SessionWriteResult["receipts"],
+): SessionItem["receipts"] | undefined {
+  if (next === undefined) return previous;
+  const instances: Record<string, Record<string, string>> = { ...previous?.instances };
+  for (const [group, byKey] of Object.entries(next.instances ?? {})) {
+    instances[group] = { ...instances[group], ...byKey };
+  }
+  const singleton = next.singleton ?? previous?.singleton;
+  if (singleton === undefined && Object.keys(instances).length === 0) return undefined;
+  return {
+    ...(singleton !== undefined ? { singleton } : {}),
+    ...(Object.keys(instances).length > 0 ? { instances } : {}),
+  };
 }
 
 /**
@@ -404,6 +452,13 @@ class QueueRelay implements Relay {
       // purpose, and an absent `usage` must leave the field absent rather than
       // writing `undefined` into a strictObject parse.
       ...(result.usage !== undefined ? { extractionUsage: { ...result.usage } } : {}),
+      // Unconditional, not conditional-spread like `extractedBy`/`extractionUsage`
+      // above: `statedEmptyGroups` is content about this specific transcript,
+      // exactly like `extracted` itself (which is always overwritten). A
+      // re-extraction whose new roster no longer states a group is empty must not
+      // leave a stale quote from the previous extraction on the session — same
+      // reasoning as `lastError: undefined` below.
+      statedEmptyGroups: result.statedEmptyGroups,
       extractedFromRecordingIds: recordingIds,
       status: "awaiting-review",
       attempts: 0,
@@ -430,7 +485,7 @@ class QueueRelay implements Relay {
       );
     }
 
-    const writeResult = await withTimeout(
+    const result = await withTimeout(
       this.#options.sessionWrite({
         session,
         reviewed: outcome.fields,
@@ -441,6 +496,8 @@ class QueueRelay implements Relay {
       "session-write",
     );
 
+    const receipts = mergeReceipts(session.receipts, result?.receipts);
+
     await this.#patchSession(session.id, {
       status: "done",
       attempts: 0,
@@ -448,7 +505,8 @@ class QueueRelay implements Relay {
       // error it recovered from — an amend would present a stale failure as
       // current. Nothing else clears this field.
       lastError: undefined,
-      ...(writeResult ? { writeResult } : {}),
+      ...(result?.fields ? { writeResult: result.fields } : {}),
+      ...(receipts ? { receipts } : {}),
     });
   }
 

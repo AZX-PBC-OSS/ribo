@@ -805,8 +805,12 @@ const withCollectionsSchema = z.object({
 const collectionRequestFor = (
   extracted: Record<string, unknown>,
   existingRecords?: Record<string, readonly ExistingRecord[]>,
+  statedEmptyGroups?: Readonly<Record<string, string>>,
 ): ReviewRequest =>
-  buildReviewRequest(extracted, transcript, withCollectionsSchema, { existingRecords });
+  buildReviewRequest(extracted, transcript, withCollectionsSchema, {
+    existingRecords,
+    statedEmptyGroups,
+  });
 
 describe("buildReviewRequest — collections: data counts instances, schema counts leaves", () => {
   test("two HVAC instances produce two full sets of HVAC leaf paths, each addressing a distinct key", () => {
@@ -944,6 +948,96 @@ describe("buildReviewRequest — collections: data counts instances, schema coun
   });
 });
 
+describe("buildReviewRequest — statedEmptyGroups: a grounded 'stated empty' group state", () => {
+  test("a group with an empty array and a statedEmptyGroups entry gets state statedEmpty with the quote", () => {
+    const request = collectionRequestFor(
+      { hvac: [], dhw: [{ dhwType2: { value: "Tank", confidence: 1, sourceSpan: "tank" } }] },
+      undefined,
+      { hvac: "there's no HVAC in this unit" },
+    );
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind).toBe("collection");
+    expect(hvac?.kind === "collection" && hvac.state).toBe("statedEmpty");
+    expect(hvac?.kind === "collection" && hvac.emptyQuote).toBe("there's no HVAC in this unit");
+  });
+
+  test("the same empty array with no statedEmptyGroups entry stays state empty with null quote", () => {
+    const request = collectionRequestFor({ hvac: [] });
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind === "collection" && hvac.state).toBe("empty");
+    expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
+  });
+
+  test("a group absent from the extraction stays absent even with a statedEmptyGroups entry", () => {
+    const request = collectionRequestFor(
+      { dhw: [{ dhwType2: { value: "Tank", confidence: 1, sourceSpan: "tank" } }] },
+      undefined,
+      { hvac: "there's no HVAC" },
+    );
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind === "collection" && hvac.state).toBe("absent");
+    expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
+  });
+
+  test("a malformed present-but-non-array value stays absent even with a statedEmptyGroups entry", () => {
+    const request = collectionRequestFor(
+      { hvac: null, dhw: [{ dhwType2: { value: "Tank", confidence: 1, sourceSpan: "tank" } }] },
+      undefined,
+      { hvac: "there's no HVAC" },
+    );
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind === "collection" && hvac.state).toBe("absent");
+    expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
+  });
+
+  test("a populated group is unaffected regardless of statedEmptyGroups", () => {
+    const request = collectionRequestFor(
+      {
+        hvac: [
+          {
+            hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+            hvacHeatingEnergySource: { value: "Oil", confidence: 1, sourceSpan: "oil" },
+            hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+          },
+        ],
+      },
+      undefined,
+      { hvac: "there's no HVAC" },
+    );
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind === "collection" && hvac.state).toBe("populated");
+    expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
+  });
+});
+
+describe("resolveReview — a statedEmpty group resolves to an empty array, same as empty", () => {
+  test("a statedEmpty group writes an empty array, not 'touch nothing'", () => {
+    const request = collectionRequestFor(
+      {
+        hvac: [],
+        dhw: [{ dhwType2: { value: "Tank Water Heater", confidence: 1, sourceSpan: "tank" } }],
+      },
+      undefined,
+      { hvac: "there's no HVAC" },
+    );
+    const paths = Object.keys(request.fields);
+
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(paths),
+    });
+
+    if (outcome.status !== "accepted") throw new Error("unreachable");
+    expect(outcome.fields.hvac).toEqual([]);
+    expect(outcome.fields.dhw).toEqual([{ dhwType2: "Tank Water Heater" }]);
+  });
+});
+
 describe("resolveReview — keyed instance paths reassemble into positional arrays", () => {
   test("a keyed path rebuilds as an array, not an object whose key is the literal bracket text", () => {
     const request = collectionRequestFor({
@@ -973,6 +1067,7 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
     expect("hvac[k1]" in outcome.fields).toBe(false);
     expect(Array.isArray(outcome.fields.hvac)).toBe(true);
     expect(outcome.linkTargets).toEqual({ hvac: [null] });
+    expect(outcome.instanceKeys).toEqual({ hvac: ["k1"] });
   });
 
   test("an instance whose every leaf was rejected is absent from the patch, not an empty record", () => {
@@ -1013,6 +1108,68 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
     });
   });
 
+  test("instanceKeys and fields stay in lockstep when one instance of several is fully rejected", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+        {
+          hvacSystemEquipmentType: { value: "Furnace", confidence: 1, sourceSpan: "furnace" },
+          hvacHeatingEnergySource: { value: "Natural Gas", confidence: 1, sourceSpan: "gas" },
+          hvacUpgradeAction: { value: "Replace", confidence: 1, sourceSpan: "replace" },
+        },
+      ],
+    });
+    const paths = Object.keys(request.fields);
+    const decisions: FieldDecisions = Object.fromEntries(
+      paths.map((path): [string, FieldDecision] => {
+        if (path.startsWith("hvac[k1].")) {
+          return [path, { status: "rejected" as const }];
+        }
+        return [path, { status: "accepted" as const }];
+      }),
+    );
+
+    const outcome = resolveReview(request, { status: "submitted", decisions });
+
+    if (outcome.status !== "edited") throw new Error("unreachable");
+    expect(outcome.instanceKeys).toEqual({ hvac: ["k2"] });
+  });
+
+  test("instanceKeys keeps a partially-rejected instance's key and place alongside a fully-accepted one", () => {
+    const request = collectionRequestFor({
+      hvac: [
+        {
+          hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+          hvacHeatingEnergySource: { value: "Fuel Oil", confidence: 1, sourceSpan: "oil" },
+          hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+        },
+        {
+          hvacSystemEquipmentType: { value: "Furnace", confidence: 1, sourceSpan: "furnace" },
+          hvacHeatingEnergySource: { value: "Natural Gas", confidence: 1, sourceSpan: "gas" },
+          hvacUpgradeAction: { value: "Replace", confidence: 1, sourceSpan: "replace" },
+        },
+      ],
+    });
+    const paths = Object.keys(request.fields);
+    const decisions: FieldDecisions = Object.fromEntries(
+      paths.map((path): [string, FieldDecision] => {
+        if (path === "hvac[k1].hvacHeatingEnergySource") {
+          return [path, { status: "rejected" as const }];
+        }
+        return [path, { status: "accepted" as const }];
+      }),
+    );
+
+    const outcome = resolveReview(request, { status: "submitted", decisions });
+
+    if (outcome.status !== "edited") throw new Error("unreachable");
+    expect(outcome.instanceKeys).toEqual({ hvac: ["k1", "k2"] });
+  });
+
   test("a present-but-empty collection resolves to an empty array", () => {
     const request = collectionRequestFor({
       hvac: [],
@@ -1029,6 +1186,8 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
     expect(outcome.fields.hvac).toEqual([]);
     expect(outcome.fields.dhw).toEqual([{ dhwType2: "Tank Water Heater" }]);
     expect(outcome.linkTargets).toEqual({ dhw: [null] });
+    expect(outcome.instanceKeys).toEqual({ dhw: ["k1"] });
+    expect("hvac" in (outcome.instanceKeys ?? {})).toBe(false);
   });
 
   test("a group absent from extraction yields no key, distinct from present-but-empty []", () => {
@@ -1098,6 +1257,7 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
       hvacUpgradeAction: "Remove",
     });
     expect(outcome.linkTargets).toEqual({ hvac: [null, null] });
+    expect(outcome.instanceKeys).toEqual({ hvac: ["k2", "k3"] });
   });
 
   test("two instances resolve to array positions in first-mention order", () => {
@@ -1135,6 +1295,7 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
       hvacUpgradeAction: "Replace",
     });
     expect(outcome.linkTargets).toEqual({ hvac: [null, null] });
+    expect(outcome.instanceKeys).toEqual({ hvac: ["k1", "k2"] });
   });
 
   test("rejecting every leaf of every instance leaves the group key absent", () => {
@@ -1211,6 +1372,7 @@ describe("resolveReview — instance identity: link only when the human decides"
 
     if (outcome.status !== "accepted") throw new Error("unreachable");
     expect(outcome.linkTargets).toEqual({ hvac: ["hvac-existing-1"] });
+    expect(outcome.instanceKeys).toEqual({ hvac: ["k1"] });
     expect(outcome.fields.hvac).toEqual([
       {
         hvacSystemEquipmentType: "Boiler",
@@ -1266,6 +1428,24 @@ describe("resolveReview — instance identity: link only when the human decides"
     if (outcome.status !== "edited") throw new Error("unreachable");
     expect("hvac" in outcome.fields).toBe(false);
     expect(outcome.linkTargets).toBeUndefined();
+  });
+});
+
+describe("reviewOutcomeSchema — instanceKeys length must match fields", () => {
+  test("a mismatch between fields array length and instanceKeys is rejected", () => {
+    const mismatched = {
+      status: "accepted" as const,
+      fields: { hvac: [{}, {}] },
+      instanceKeys: { hvac: ["k1"] },
+    };
+    expect(reviewOutcomeSchema.safeParse(mismatched).success).toBe(false);
+
+    const matching = {
+      status: "accepted" as const,
+      fields: { hvac: [{}, {}] },
+      instanceKeys: { hvac: ["k1", "k2"] },
+    };
+    expect(reviewOutcomeSchema.safeParse(matching).success).toBe(true);
   });
 });
 

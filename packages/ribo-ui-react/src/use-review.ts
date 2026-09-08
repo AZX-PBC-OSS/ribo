@@ -230,15 +230,24 @@ const toPersisted = (outcome: ReviewOutcome): PersistedReviewOutcome => {
           editedFields: [...outcome.editedFields],
           rejectedFields: [...outcome.rejectedFields],
         };
+  let result: PersistedReviewOutcome = mutable;
   if (outcome.linkTargets) {
-    return {
-      ...mutable,
+    result = {
+      ...result,
       linkTargets: Object.fromEntries(
         Object.entries(outcome.linkTargets).map(([group, targets]) => [group, [...targets]]),
       ),
     };
   }
-  return mutable;
+  if (outcome.instanceKeys) {
+    result = {
+      ...result,
+      instanceKeys: Object.fromEntries(
+        Object.entries(outcome.instanceKeys).map(([group, keys]) => [group, [...keys]]),
+      ),
+    };
+  }
+  return result;
 };
 
 // ---------------------------------------------------------------------------
@@ -446,10 +455,12 @@ export function useReview(
     return buildReviewRequest(extracted, transcript, valuesSchema, {
       requiredOnCreate,
       existingRecords,
+      statedEmptyGroups: session?.statedEmptyGroups,
     });
   }, [
     extractedSnapshot,
     session?.extracted,
+    session?.statedEmptyGroups,
     transcript,
     valuesSchema,
     requiredOnCreate,

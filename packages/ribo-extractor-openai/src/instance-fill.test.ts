@@ -36,6 +36,7 @@ const houseValues = z
 const demoValuesSchema = z
   .object({
     widgets: z.array(widgetValues).optional(),
+    gadgets: z.array(widgetValues).optional(),
     house: houseValues.optional(),
   })
   .strict();
@@ -55,6 +56,7 @@ const demoExample: Enveloped<DemoValues> = {
     { color: env("red", "red widget", 0.9), size: env(null, null) },
     { color: env("blue", "blue widget", 0.8), size: env(5, "five", 0.9) },
   ],
+  gadgets: [{ color: env("green", "green gadget", 0.7), size: env(null, null) }],
   house: { name: env("main", "main house", 1) },
 };
 
@@ -70,6 +72,7 @@ const target: ExtractionTarget<DemoValues> = {
 function makeRoster(overrides: Partial<Roster> = {}): Roster {
   return {
     widgets: [],
+    gadgets: [],
     house: [],
     ...overrides,
   };
@@ -364,6 +367,72 @@ describe("scopedInstanceExtractor", () => {
     });
 
     await expect(extractor.extract("the full transcript")).rejects.toThrow("cap");
+  });
+
+  test("a stated-none group surfaces on statedEmptyGroups and makes zero fill calls", async () => {
+    const roster = makeRoster({
+      widgets: { stated: "none", span: "there's no attic access" },
+      gadgets: [],
+    });
+
+    const { chat, requests } = fakeChat((request) => {
+      const name = request.response_format.json_schema.name;
+      if (name === "demo-house-fill") {
+        return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
+      }
+      throw new Error(`Unexpected request: ${name}`);
+    });
+
+    const extractor = scopedInstanceExtractor({
+      target,
+      chat,
+      model: "demo-model",
+      inventory: async () => roster,
+      buildFillInstructions,
+    });
+
+    const result = await extractor.extract("the full transcript");
+
+    expect(result.statedEmptyGroups).toEqual({ widgets: "there's no attic access" });
+    expect(result.statedEmptyGroups?.gadgets).toBeUndefined();
+    expect(result.fields.widgets).toEqual([]);
+    expect(result.fields.gadgets).toEqual([]);
+    expect(
+      requests.some((r) => r.response_format.json_schema.name.startsWith("demo-widgets-fill")),
+    ).toBe(false);
+  });
+
+  test("a singleton group is unaffected even if roster holds a stated-none shape for its key", async () => {
+    const roster = makeRoster({
+      house: { stated: "none", span: "there's no house" } as unknown as readonly {
+        mentionSpan: string;
+        discriminator: string;
+        distinguishedBy: string | null;
+        eligibility: string;
+        eligibilitySpan: string | null;
+      }[],
+    });
+
+    const { chat, requests } = fakeChat(() => ({
+      content: JSON.stringify(houseResponse("main")),
+      finishReason: "stop",
+    }));
+
+    const extractor = scopedInstanceExtractor({
+      target,
+      chat,
+      model: "demo-model",
+      inventory: async () => roster,
+      buildFillInstructions,
+    });
+
+    const result = await extractor.extract("the full transcript");
+
+    // The singleton branch runs exactly as today regardless of roster shape.
+    expect(result.fields.house?.name.value).toBe("main");
+    expect(requests.some((r) => r.response_format.json_schema.name === "demo-house-fill")).toBe(
+      true,
+    );
   });
 });
 

@@ -343,7 +343,7 @@ async function runOnDeviceRelay(outbox: Outbox): Promise<void> {
       onFallback: recordFallback,
     }),
     sessionExtract: extractStep,
-    sessionWrite: () => Promise.resolve({ writtenBy: "playground on-device demo" }),
+    sessionWrite: () => Promise.resolve({ fields: { writtenBy: "playground on-device demo" } }),
   });
   await relay.syncNow();
 }

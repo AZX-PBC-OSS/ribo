@@ -163,3 +163,34 @@ test("toSessionExtractStep reports no engine when the extractor does not name on
   expect(result.fields).toEqual({ atticInsulation: "R-19" });
   expect(result.engine).toBeUndefined();
 });
+
+test("toSessionExtractStep carries statedEmptyGroups through unchanged", async () => {
+  const handRolled: Extractor<AtticFields> = {
+    extract: (): Promise<ExtractionResult<AtticFields>> =>
+      Promise.resolve({
+        fields: { atticInsulation: "R-19" },
+        usage: { calls: 1 },
+        statedEmptyGroups: { hvac: "there's no HVAC in this unit" },
+      }),
+  };
+
+  const result = await toSessionExtractStep(handRolled)({
+    session,
+    transcript: transcript.text,
+    recordingIds: ["rec-1"],
+  });
+
+  expect(result.statedEmptyGroups).toEqual({ hvac: "there's no HVAC in this unit" });
+});
+
+test("toSessionExtractStep reports no statedEmptyGroups when the extractor does not supply one", async () => {
+  const extractor = new FakeExtractor<AtticFields>({ atticInsulation: "R-19" });
+
+  const result = await toSessionExtractStep(extractor)({
+    session,
+    transcript: transcript.text,
+    recordingIds: ["rec-1"],
+  });
+
+  expect(result.statedEmptyGroups).toBeUndefined();
+});

@@ -249,7 +249,7 @@ async function runStubRelay(outbox: Outbox): Promise<void> {
     outbox,
     transcriber: new FakeTranscriber(),
     sessionExtract: extractStep,
-    sessionWrite: () => Promise.resolve({ writtenBy: "playground stub" }),
+    sessionWrite: () => Promise.resolve({ fields: { writtenBy: "playground stub" } }),
   });
   await relay.syncNow();
 }
