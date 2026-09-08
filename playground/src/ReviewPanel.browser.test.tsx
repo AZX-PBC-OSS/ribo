@@ -141,6 +141,7 @@ async function parkedItem(
   outbox: Outbox,
   overrides: Readonly<Record<string, Envelope>>,
   instances: Readonly<Record<string, number>> = {},
+  statedEmptyGroups?: Readonly<Record<string, string>>,
 ): Promise<string> {
   const session = await outbox.openSession({ ctx: {}, ref: "job-7" });
   const item = await outbox.enqueue({
@@ -160,6 +161,7 @@ async function parkedItem(
     status: "awaiting-review",
     extracted: fullExtraction(overrides, instances),
     extractedFromRecordingIds: [item.id],
+    ...(statedEmptyGroups ? { statedEmptyGroups } : {}),
   });
   return session.id;
 }
@@ -469,5 +471,23 @@ test("the submit gate blocks on an ungrounded leaf in the second instance, not j
     .click();
 
   await expect.element(submit).toBeEnabled();
+  await outbox.close();
+});
+
+test("a stated-empty group renders the verbatim quote instead of 'none described'", async () => {
+  const outbox = await openTestOutbox();
+  const quote = "there's no attic access at all";
+  await parkedItem(outbox, {}, { hvac: 0 }, { hvac: quote });
+
+  const screen = await renderReviewPanel(outbox);
+  const group = screen.getByTestId("review-group-hvac");
+
+  // The quote text should appear in the group's section.
+  await expect.element(group.getByText(quote)).toBeInTheDocument();
+
+  // The "Add one" button is still present — an auditor can still add an instance
+  // if the stated-none turns out to be wrong.
+  await expect.element(screen.getByTestId("add-instance-hvac")).toBeInTheDocument();
+
   await outbox.close();
 });
