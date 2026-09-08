@@ -99,6 +99,7 @@ describe("rosterSchema", () => {
       window: emptyGroup(),
       dhw: emptyGroup(),
       concern: emptyGroup(),
+      incentive: emptyGroup(),
     };
     const parsed = rosterSchema.safeParse(roster);
     expect(parsed.success).toBe(false);
@@ -121,6 +122,7 @@ describe("rosterSchema", () => {
       window: emptyGroup(),
       dhw: emptyGroup(),
       concern: emptyGroup(),
+      incentive: emptyGroup(),
     };
     expect(rosterSchema.safeParse(roster).success).toBe(true);
   });
@@ -148,6 +150,7 @@ describe("rosterSchema", () => {
       window: emptyGroup(),
       dhw: emptyGroup(),
       concern: emptyGroup(),
+      incentive: emptyGroup(),
     };
     expect(rosterSchema.safeParse(roster).success).toBe(true);
   });
@@ -160,6 +163,7 @@ describe("rosterSchema", () => {
       window: [],
       dhw: [],
       concern: [],
+      incentive: [],
     };
     const parsed = rosterSchema.safeParse(roster);
     expect(parsed.success).toBe(true);
@@ -201,6 +205,7 @@ describe("snuggInventoryInstructions", () => {
     expect(snuggInventoryInstructions).toContain("window");
     expect(snuggInventoryInstructions).toContain("dhw");
     expect(snuggInventoryInstructions).toContain("concern");
+    expect(snuggInventoryInstructions).toContain("incentive");
     expect(snuggInventoryInstructions).toContain("mentionSpan");
     expect(snuggInventoryInstructions).toContain("distinguishedBy");
     expect(snuggInventoryInstructions).toContain("eligibilitySpan");

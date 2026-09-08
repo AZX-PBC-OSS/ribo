@@ -68,6 +68,7 @@ export {
   HvacHeatingSystemManufacturer,
   HvacSystemEquipmentType,
   HvacUpgradeAction,
+  IncentiveFields,
   PercentCflsOrLeds,
   PoolPumpHorsepower,
   PoolPumpManufacturer,

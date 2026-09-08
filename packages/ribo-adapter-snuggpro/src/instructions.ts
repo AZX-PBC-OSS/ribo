@@ -30,13 +30,13 @@
  * groups — the same text appears in both groups' prompts, driven by the data.
  *
  * The output section is **wrong per group, not merely verbose**: the full
- * instructions assert "exactly eight top-level keys" and name them, but a per-group
+ * instructions assert "exactly nine top-level keys" and name them, but a per-group
  * call must assert its one key. `groupOutputSection(key)` generates the per-group
- * version; `fullOutputSection()` keeps the eight-key version for the single-shot
+ * version; `fullOutputSection()` keeps the nine-key version for the single-shot
  * extractor.
  */
 
-/** The eight top-level groups of the Snugg Pro extraction schema. */
+/** The nine top-level groups of the Snugg Pro extraction schema. */
 export const SNUGG_GROUP_KEYS = [
   "basedata",
   "hvac",
@@ -46,6 +46,7 @@ export const SNUGG_GROUP_KEYS = [
   "dhw",
   "health",
   "concern",
+  "incentive",
 ] as const;
 
 /**
@@ -89,7 +90,7 @@ where most of the value is, and where a schema alone would leave you guessing.
 
 `;
 
-// --- The fourteen rules ------------------------------------------------------
+// --- The fifteen rules -------------------------------------------------------
 
 export const SNUGG_RULES: readonly SnuggRule[] = [
   {
@@ -313,12 +314,30 @@ share a cause. \`concernSummary\` is one short sentence, the concern as it was s
 \`concernDetail\` is the longer telling of the SAME concern, when one was spoken — when only a
 one-liner came out, leave the detail \`null\` rather than padding it out.`,
   },
+  {
+    number: 15,
+    groups: ["incentive"],
+    text: `**15. An incentive's \`fromTemplateUuid\` is the SPOKEN rebate name — free text, never a UUID.**
+
+Despite its name, \`incentive.fromTemplateUuid\` is not a UUID you produce, look up, or invent. It is
+the rebate or program name the auditor spoke, captured as ordinary free text exactly as a free-text
+field anywhere else in this schema is: "there's a fifteen hundred dollar rebate from the utility's
+heat pump program" → \`fromTemplateUuid: "the utility's heat pump program"\` (the spoken name, with
+the quote as \`sourceSpan\`) and \`amount: 1500\`. Never emit a UUID, never translate the name into
+one, and never leave the name \`null\` because you could not resolve it — matching the spoken name
+against the program's real template list is a later, human-supervised step that is allowed to fail
+visibly, and guessing a match here is exactly what that step exists to prevent.
+
+One incentive instance per distinct rebate or program the auditor introduces. A second program is a
+second instance; the same program restated is the same instance (the leaf-level rules on merging and
+self-correction apply unchanged).`,
+  },
 ];
 
 // --- Output section ----------------------------------------------------------
 
 /**
- * The output section for the full (single-shot) prompt — asserts all eight
+ * The output section for the full (single-shot) prompt — asserts all nine
  * top-level keys. Kept for `snuggProInstructions` and the single-shot extractor.
  */
 function fullOutputSection(): string {
@@ -328,9 +347,10 @@ function fullOutputSection(): string {
 
 Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` in \`schema.ts\`.
 
-- The object has exactly eight top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`wall\`, \`window\`,
-  \`dhw\`, \`health\`, \`concern\` — each a nested object grouping the fields for one part of the house.
-  They are not themselves fields and carry no envelope of their own.
+- The object has exactly nine top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`wall\`, \`window\`,
+  \`dhw\`, \`health\`, \`concern\`, \`incentive\` — each a nested object grouping the fields for one
+  part of the house or one job-collection resource. They are not themselves fields and carry no
+  envelope of their own.
 - Every field in the schema must be present as a key inside its group. Never omit a key — "not
   mentioned" is expressed by \`value: null\`, not by absence. This includes every one of the 16 keys
   inside \`health\`, and every field of a group the auditor never touched.
@@ -345,7 +365,7 @@ Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` 
 /**
  * The output section for a per-group prompt — asserts the single top-level key.
  * Each per-group call must be instructed to produce the shape it is being asked
- * for, not the full eight-key object.
+ * for, not the full nine-key object.
  */
 function groupOutputSection(key: string): string {
   return `
@@ -389,7 +409,7 @@ act on it.
  *
  * Rules 1–6 go under `### The rules`; rules 7+ go under `### Normalization`. The
  * normalization section is omitted when no normalization rules are present (not
- * the case for any of the eight Snugg groups — all get at least the universal
+ * the case for any of the nine Snugg groups — all get at least the universal
  * rules 11–13 — but the guard keeps the assembly correct for any future subset).
  */
 function assembleInstructions(rules: readonly SnuggRule[], outputSection: string): string {
@@ -403,7 +423,7 @@ function assembleInstructions(rules: readonly SnuggRule[], outputSection: string
 }
 
 /**
- * The full extraction instructions — all fourteen rules plus the eight-key output
+ * The full extraction instructions — all fifteen rules plus the nine-key output
  * section. Used by the single-shot extractor and the adapter's `instructions`
  * field; the per-group extractor uses {@link snuggGroupInstructions} instead.
  */

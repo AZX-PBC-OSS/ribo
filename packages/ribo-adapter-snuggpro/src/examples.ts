@@ -353,6 +353,11 @@ const fields: SnuggExtraction = {
   // empty array is itself the demonstration for this group: a transcript with no
   // voiced concern produces `[]`, never an invented one (rule 14).
   concern: [],
+
+  // This transcript mentions no rebate or incentive program, so the honest
+  // roster-driven output is an empty array — the "transcript never brings the
+  // group up at all" case, not one all-null instance.
+  incentive: [],
 };
 
 export const snuggExamples: readonly ToolAdapterExample<SnuggExtraction>[] = [

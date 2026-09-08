@@ -93,6 +93,19 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  * the same `enveloped()` pipeline, and the per-group cap test confirms the new
  * group's single partitioned piece fits the platform ceilings.
  *
+ * ## Provenance: the incentive job-collection tranche (tranche 3)
+ *
+ * The fixture was re-captured again when the `incentive` group landed — the
+ * second job-collection resource beyond basedata's own endpoints (doc 20 §5.7;
+ * `docs/roadmap/design/job-collections-foundation-design.md`), adding
+ * `fromTemplateUuid` (a plain free-text capture of the spoken rebate name, per the
+ * runtime-reference-resolution decision — never a lookup/enum leaf) and `amount`,
+ * taking the schema from 211 to 213 leaves. Like every move above, a deliberate
+ * FIELD SET change, not a derivation change: the two new leaves flow through the
+ * same `enveloped()` pipeline, and `incentive` is a seventh per-instance array
+ * group the per-group split does not partition at all (2 leaves, under the
+ * 8-leaf cap).
+ *
  * Why capture it this way, not by calling `z.toJSONSchema(snuggExtractionSchema, ...)`
  * inline: `singleShotExtractor` (packages/ribo-extractor-openai/src/single-shot.ts)
  * is the ONLY code path that produces the object that actually lands in
@@ -258,8 +271,9 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
   // levels of nesting. The bounded field set is meant to sit far inside them, and
   // this asserts the margin rather than assuming it — the field set HAS grown
   // several times (doc 17's honest capture surface — all 163 basedata fields —
-  // doc 20 §5.8's health completion, and doc 20 §5.7's concern tranche now ship:
-  // 211 leaves total, properties and enum values measured fresh below), and the
+  // doc 20 §5.8's health completion, and doc 20 §5.7's concern and incentive
+  // tranches now ship: 213 leaves total, properties and enum values measured
+  // fresh below), and the
   // failure mode of growing past a ceiling is an API rejection at extraction
   // time, on a real recording, in the field.
   const schema = await captureJsonSchema();
@@ -329,12 +343,12 @@ function collectLeafDescriptions(schema: Record<string, unknown>): Map<string, s
 test("every leaf reaches the model with the vendor's description and our prohibition", async () => {
   const descs = collectLeafDescriptions(await captureJsonSchema());
 
-  // All 209, not a subset. An earlier version described 31 from our own JSDoc and left 20
+  // All 213, not a subset. An earlier version described 31 from our own JSDoc and left 20
   // deliberately bare; with the vendor supplying authoritative text for every leaf
   // (or our own note standing in where the vendor publishes none or junk),
   // "leave it bare" stopped being the better answer.
-  expect(descs.size).toBe(209);
-  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(209);
+  expect(descs.size).toBe(213);
+  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(213);
 
   // The VENDOR half is really there. Without this, a generated module that failed to
   // import — or regenerated to an empty map — would still leave our own notes in place on

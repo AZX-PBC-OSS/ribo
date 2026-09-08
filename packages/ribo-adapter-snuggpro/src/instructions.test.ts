@@ -58,9 +58,10 @@ const RULE_MARKERS: readonly string[] = [
   "Numbers spoken as words become numerals",
   "is a number from 0 to 1",
   "A concern is the HOMEOWNER's",
+  "is the SPOKEN rebate name",
 ];
 
-/** The group-specific rules (7–10, 14) and the groups they belong to. */
+/** The group-specific rules (7–10, 14–15) and the groups they belong to. */
 const GROUP_SPECIFIC_RULES: ReadonlyArray<{
   readonly rule: number;
   readonly marker: string;
@@ -71,6 +72,7 @@ const GROUP_SPECIFIC_RULES: ReadonlyArray<{
   { rule: 9, marker: RULE_MARKERS[8]!, groups: ["health"] },
   { rule: 10, marker: RULE_MARKERS[9]!, groups: ["hvac"] },
   { rule: 14, marker: RULE_MARKERS[13]!, groups: ["concern"] },
+  { rule: 15, marker: RULE_MARKERS[14]!, groups: ["incentive"] },
 ];
 
 /** Groups that should NOT see a given group-specific rule. */
@@ -134,15 +136,15 @@ describe("per-group instructions — sole top-level key", () => {
       expect(prompt, `group "${key}"`).toContain("exactly one top-level key");
       // And must name the group's key specifically.
       expect(prompt, `group "${key}"`).toContain(`\`${key}\``);
-      // And must NOT say "eight top-level keys" (the full-prompt output section).
-      expect(prompt, `group "${key}"`).not.toContain("eight top-level keys");
+      // And must NOT say "nine top-level keys" (the full-prompt output section).
+      expect(prompt, `group "${key}"`).not.toContain("nine top-level keys");
     }
   });
 
-  test("the full instructions still assert eight top-level keys", () => {
+  test("the full instructions still assert nine top-level keys", () => {
     // The single-shot path keeps the full output section — this is the guard
     // against accidentally changing the full instructions too.
-    expect(snuggProInstructions).toContain("eight top-level keys");
+    expect(snuggProInstructions).toContain("nine top-level keys");
   });
 });
 
@@ -203,13 +205,13 @@ describe("per-group instructions — no rule is lost", () => {
     }
   });
 
-  test("the rule count is 14 — adding or removing a rule is a conscious decision", () => {
+  test("the rule count is 15 — adding or removing a rule is a conscious decision", () => {
     // A guard against accidentally deleting a rule entry: the count is pinned so
     // a dropped entry makes this test fail before the "no rule lost" test even
     // needs to identify which one.
-    expect(SNUGG_RULES).toHaveLength(14);
+    expect(SNUGG_RULES).toHaveLength(15);
     expect(SNUGG_RULES.map((r) => r.number)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
     ]);
   });
 });
