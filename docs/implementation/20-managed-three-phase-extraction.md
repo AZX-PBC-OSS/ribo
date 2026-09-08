@@ -129,9 +129,13 @@ fake chat has neither a model allowlist nor a strict-subset validator.
 ## 2. The cap that actually binds: 16 nullable unions, and only on Anthropic models
 
 With the three gaps worked around, three-phase runs. `perGroupExtractor` then did not — on
-`claude-sonnet-5`, five of seven groups succeeded and `hvac` and `health` returned
+`claude-sonnet-5` it produced **0 of 14 transcripts**, every one failing with
 `400 validation_failed … check responseFormat.schema against the strict JSON Schema subset`.
-**0 of 14 transcripts produced output.** Stripping descriptions did not help.
+
+Submitting each group's schema on its own (`group-probe.mjs`) isolates it: **five of the seven
+groups are accepted — `basedata`, `attic`, `wall`, `window`, `dhw` — and `hvac` and `health` are
+rejected.** In the corpus run that is enough to lose everything, because `perGroupExtractor`
+aborts its sibling calls on the first failure. Stripping descriptions did not help either group.
 
 That is not the documented byte cap. `health` serialises to 13,330 chars and `hvac` to 9,251,
 both far under 32,768, and both fail with descriptions stripped (5,070 and 5,241 chars).
@@ -369,8 +373,11 @@ not one that plausibly reverses a result this size. Whether an instance-aware th
 phase −1 inventory pass, as `instance-fill.ts` already does for Tier 1) would score differently;
 not built, not measured.
 
-**Not measured at all.** `claude-opus-5` on the corpus (probed for caps only). Any sub-group
-partitioning of `hvac`/`health`. Whether the route's prompt-prefix cache changes the cost picture
+**Not measured at all.** `claude-opus-5` on the corpus (probed for caps only).
+`singleShotExtractor`, which is not the incumbent and cannot fit anyway — its 51-leaf schema is
+102 nullable unions against a cap of 16, and 39,884 bytes against a cap of 32,768, so it fails
+both limits on an Anthropic model and one on an OpenAI one. Any sub-group partitioning of
+`hvac`/`health`. Whether the route's prompt-prefix cache changes the cost picture
 — `cacheReadInputTokens` came back `0` on every call in every run here, so nothing was cached and
 the cost figures are cold-cache figures for both strategies alike.
 
