@@ -1,52 +1,46 @@
 #!/usr/bin/env node
 /**
- * Scorer for the Snugg Pro extraction spike — rebuilt against the vocabulary-neutral ground-truth
- * format (`ground-truth-format.md`) and the REAL, spec-derived 51-leaf / 7-group schema
- * (`packages/ribo-adapter-snuggpro/src/schema.ts`), not the old spike's dead 23-field copy of it.
+ * Scorer for the Snugg Pro extraction spike — built against the vocabulary-neutral
+ * ground-truth format (`ground-truth-format.md`) and the REAL, spec-derived schema
+ * (`packages/ribo-adapter-snuggpro/src/schema.ts`), not the old spike's dead copy of it.
  *
  *   node spikes/extraction-snuggpro/score.mjs [resultsDir]   # default: results/codex
  *
  * Reads ground-truth/NN-slug.json + transcripts/NN-slug.txt + <resultsDir>/NN-slug.json and
- * reports, per transcript and aggregate, the same measures the spike has always reported —
- * hallucination, miss, axis-split, enum-mapping, band-mapping, health-matrix state, sourceSpan
- * validity, confidence separation — plus two new ones: the VOCABULARY MIX of a run's TRUE-correct
- * enum matches (API literal strings vs the derived snake_case alternative — never a wrong or merely
- * sanctioned one, see the fix-round-2 note below), which is the whole reason this format exists —
- * see ground-truth-format.md's rationale — and ENUM-SANCTIONED, a GT-non-null count for the case
- * where the schema itself forces an arbitrary pick between equally-fitting members and a run lands
- * on the other lobe (see "sanctioned" below); this is NOT a hallucination and is reported under
- * enum-mapping, not under the hallucination section.
+ * reports, per transcript and aggregate: hallucination, miss, axis-split, enum-mapping,
+ * band-mapping, health-matrix state, sourceSpan validity, confidence separation — plus the
+ * VOCABULARY MIX of a run's TRUE-correct enum matches (API literal strings vs the derived
+ * snake_case alternative — never a wrong or merely sanctioned one), which is the whole
+ * reason this format exists, and ENUM-SANCTIONED for the case where the schema itself
+ * forces an arbitrary pick between equally-fitting members and a run lands on the other
+ * lobe. That is NOT a hallucination and is reported under enum-mapping.
  *
- * A ground-truth file with no "leaves" key is the OLD (pre-rebuild) format. All 14 corpus
- * transcripts have been re-annotated into the new format; the `isNewFormat` check remains as a
- * safety guard so a stale old-format file is reported as PENDING RE-ANNOTATION rather than
- * crashing the run.
+ * A ground-truth file with no "leaves" key is the OLD format. The corpus has been
+ * re-annotated; the `isNewFormat` check remains so a stale old-format file is reported as
+ * PENDING RE-ANNOTATION rather than crashing the run.
  *
- * Robustness: a missing/unparseable/malformed result is scored EXACTLY as if the extractor had
- * emitted an empty object — every GT-non-null leaf becomes a real, counted miss (never a silent
- * zero denominator; see the fix-round-2 note below), and the run keeps going. Missing keys are
- * treated as null; extra keys are reported. Never crashes — including on a malformed ground-truth
- * file, whose validator is wrapped so a defect degrades one transcript's result, not the whole run.
+ * Robustness: a missing/unparseable/malformed result is scored EXACTLY as if the extractor
+ * had emitted an empty object — every GT-non-null leaf becomes a real, counted miss (never
+ * a silent zero denominator), and the run keeps going. Missing keys are treated as null;
+ * extra keys are reported. Never crashes — including on a malformed ground-truth file,
+ * whose validator is wrapped so a defect degrades one transcript's result, not the run.
  *
- * FIX-ROUND-2 (two independent reviews caught real defects; both fixes are load-bearing, not
- * cosmetic — see score.test.mjs's ROBUSTNESS and EITHER-VOCABULARY gates for the mutations proving
- * each):
- *   1. A missing/malformed result used to return immediately after computing GT-side denominators,
- *      so it contributed miss=0 regardless of how much GT actually asserted — an extractor
- *      returning NOTHING scored strictly better than one that tried and got some answers wrong.
- *      Fixed by scoring a null model as `{}` through the exact same per-leaf loop a real result
- *      uses, rather than special-casing it away.
- *   2. `vocabApi`/`vocabSlug` used to increment whenever `compareValue` found ANY real member for a
- *      raw value, before checking whether that member was actually GT's own — so a wrong-but-real
- *      slug-spelled value counted as a "CORRECT match" in the slug column. Fixed by gating strictly
- *      on `cmp.verdict === "correct"`.
+ * FIX-ROUND-2 (two independent reviews caught real defects; both fixes are load-bearing —
+ * see score.test.mjs's ROBUSTNESS and EITHER-VOCABULARY gates for the proving mutations):
+ *   1. A missing/malformed result used to return before scoring any leaf, so it
+ *      contributed miss=0 regardless of what GT asserted — returning NOTHING scored
+ *      strictly better than trying and getting some answers wrong. Fixed by scoring a null
+ *      model as `{}` through the same per-leaf loop a real result uses.
+ *   2. `vocabApi`/`vocabSlug` used to increment whenever `compareValue` found ANY real
+ *      member, before checking whether it was GT's own — so a wrong-but-real slug-spelled
+ *      value counted as a "CORRECT match". Fixed by gating strictly on
+ *      `cmp.verdict === "correct"`.
  *
- * Node 24 built-ins only, plus the two sibling spike modules (schema-leaves.mjs, ground-truth.mjs)
- * — nothing here hand-lists a leaf path or an enum member; both come from introspecting the real,
- * built adapter schema. Two small tables ARE still hand-kept, and are called out where they live
- * (BAND_LEAVES, AXIS_PAIRS): "this enum's members form an ordered band" and "these two leaves are
- * one thing's two axes" are not visible in a zod enum's shape, so they cannot be derived — but they
- * are two short, named tables, not a 469-entry parallel enum list.
+ * Node 24 built-ins only, plus the two sibling spike modules (schema-leaves.mjs,
+ * ground-truth.mjs) — nothing here hand-lists a leaf path or an enum member. Two small
+ * tables ARE still hand-kept and are called out where they live (BAND_LEAVES, AXIS_PAIRS):
+ * "this enum's members form an ordered band" and "these two leaves are one thing's two
+ * axes" are not visible in a zod enum's shape, so they cannot be derived.
  */
 
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -71,9 +65,8 @@ import {
 export { HEALTH_TEST_PATHS };
 
 // ---------------------------------------------------------------------------
-// Domain knowledge NOT visible in a zod enum's shape, kept as two short,
-// named, hand-written tables (not a parallel copy of the 469 members — see
-// the file header). Everything else below is derived from LEAVES.
+// Domain knowledge NOT visible in a zod enum's shape, kept as two short, named,
+// hand-written tables. Everything else below is derived from LEAVES.
 // ---------------------------------------------------------------------------
 
 /** Leaves whose enum members form an ORDERED band, where an adjacent-member mismatch is a
@@ -94,10 +87,10 @@ const HEALTH_TEST_SET = new Set(HEALTH_TEST_PATHS);
  * Transcripts that must NOT be graded, and why.
  *
  * `02-oil-boiler-basement` is **byte-for-byte identical** to the few-shot example
- * transcript in `packages/ribo-adapter-snuggpro/src/examples.ts` — 1094 characters, the
- * same 1094. So the model is shown that transcript's exact answer in the prompt and then
- * scored on producing it. Grading it measures copying, and it silently inflated every
- * published figure that included it (docs/implementation/18).
+ * transcript in `packages/ribo-adapter-snuggpro/src/examples.ts`. The model is shown that
+ * transcript's exact answer in the prompt and then scored on producing it: grading it
+ * measures copying, and it silently inflated every published figure that included it
+ * (docs/implementation/18).
  *
  * Excluded rather than deleted: the transcript is a perfectly good few-shot example and a
  * useful sanity check. It is simply not evidence.
@@ -109,9 +102,9 @@ export const CONTAMINATED_SLUGS = new Map([
   ],
 ]);
 
-/** Every leaf EXCEPT the 13 health-matrix tests — these get the generic hallucination/miss/enum/
- * band treatment; the 13 get their own section (hallucinated-pass is the crux there, not a generic
- * "wrong enum"). Derived, not hand-counted: 51 - 13 = 38. */
+/** Every leaf EXCEPT the health-matrix tests — these get the generic hallucination/miss/
+ * enum/band treatment; the health tests get their own section (hallucinated-pass is the
+ * crux there, not a generic "wrong enum"). Derived, not hand-counted. */
 export const GENERIC_LEAF_PATHS = LEAF_PATHS.filter((p) => !HEALTH_TEST_SET.has(p));
 
 /** Ordered band members for a band leaf, excluding "Don't Know" (uncertainty, not a position). */
@@ -233,11 +226,10 @@ export function spanIsVerbatim(span, transcript) {
 /** Classify a non-verbatim span as near-miss (paraphrase/cleaned/joined) vs wholly fabricated. */
 export function classifySpan(span, transcript) {
   if (spanIsVerbatim(span, transcript)) return { status: "verbatim", detail: "exact substring" };
-  // An empty span must fall straight through to "fabricated": every one of the near-miss checks
-  // below is a variant of `haystack.includes(needle)`, which `"".includes("")` (and every fold of
-  // it) trivially satisfies for ANY transcript — the same hazard `spanIsVerbatim` above guards
-  // against, but the near-miss path has its own independent `.includes()` calls that need the same
-  // guard, not a shared one.
+  // An empty span must fall straight through to "fabricated": every near-miss check below
+  // is a variant of `haystack.includes(needle)`, which `"".includes("")` trivially
+  // satisfies for ANY transcript — the same hazard `spanIsVerbatim` guards, but these
+  // `.includes()` calls need their own guard, not a shared one.
   if (typeof span !== "string" || span.length === 0) {
     return { status: "fabricated", detail: "empty span — grounds for nothing" };
   }
@@ -591,12 +583,12 @@ function scoreLeaf(path, leafPath, leafTruth, modelLeaf, isHealth, rvalueOnly, t
   const isSanctioned = (raw) =>
     matchesAlternative(leafPath, gtc.kind, raw, arguable?.acceptableAlternatives);
 
-  // Counted ONCE here, unconditionally on GT alone — never inside a branch keyed on what the
-  // model emitted. The denominator for "N of GT-passed dropped/kept" must count every GT-passed
-  // leaf regardless of whether the model missed it, got it wrong, or got it right; counting it
-  // only in the both-non-null branch (as a previous version did) meant a MISSED "Passed" bumped
-  // the numerator (hCleanDropped, in the miss branch below) without ever bumping this
-  // denominator — the denominator could end up smaller than the numerator it's supposed to bound.
+  // Counted ONCE here, unconditionally on GT alone — never inside a branch keyed on what
+  // the model emitted. The denominator for "N of GT-passed dropped/kept" must count every
+  // GT-passed leaf regardless of whether the model missed, wronged, or kept it; counting
+  // it only in the both-non-null branch (as a previous version did) let a MISSED "Passed"
+  // bump the numerator without bumping this denominator — the denominator could end up
+  // smaller than the numerator it's supposed to bound.
   if (isHealth && gtc.member === "Passed") r.counts.hGtPassed++;
 
   if (gtc.isNull && mv === null) {
@@ -606,9 +598,8 @@ function scoreLeaf(path, leafPath, leafTruth, modelLeaf, isHealth, rvalueOnly, t
   } else if (gtc.isNull && mv !== null) {
     // GT null, model asserted something: a hallucination, unless the leaf's own `arguable`
     // sanctions this exact value, OR (health only) the value is the matrix's own mild
-    // "explicitly not tested" member asserted on total silence — a real overreach, but a much
-    // smaller one than inventing a Passed/Failed/Warning result (mirrors the old scorer's
-    // `silentNotTested` bucket).
+    // "explicitly not tested" member asserted on total silence — a real overreach, but a
+    // much smaller one than inventing a Passed/Failed/Warning result.
     const isRvalueConv = path.endsWith(".atticInsulationDepth") && rvalueOnly;
     if (isRvalueConv) r.counts.rvalueConversion++;
     if (isSanctioned(mv)) {
@@ -668,27 +659,23 @@ function scoreLeaf(path, leafPath, leafTruth, modelLeaf, isHealth, rvalueOnly, t
       r.unscorableRows.push({ field: path, got: mv, detail: cmp.detail });
     } else {
       const ok = cmp.verdict === "correct" || sanctioned;
-      // Vocabulary attribution is ONLY meaningful for a TRUE match against GT's own canonical
-      // member — gated strictly on cmp.verdict === "correct", never on `ok` (which also folds in
-      // `sanctioned`). Getting this gate wrong is exactly how a wrong answer ends up counted as a
-      // "CORRECT match": cmp.vocabulary is set by compareValue whenever the raw value resolves to
-      // ANY real member, correct or not, so counting on `ok`/`sanctioned` or on "vocabulary is
-      // non-null" rather than on the verdict itself corrupts the one measurement this whole format
-      // exists to make possible. See score.test.mjs's EITHER-VOCABULARY gate for the mutation that
-      // proves a wrong slug-spelled value is excluded.
+      // Vocabulary attribution is ONLY meaningful for a TRUE match against GT's own
+      // canonical member — gated strictly on cmp.verdict === "correct", never on `ok`
+      // (which also folds in `sanctioned`). cmp.vocabulary is set whenever the raw value
+      // resolves to ANY real member, correct or not, so counting on anything but the
+      // verdict corrupts the one measurement this whole format exists to make possible.
+      // See score.test.mjs's EITHER-VOCABULARY gate for the proving mutation.
       if (cmp.verdict === "correct") {
         if (cmp.vocabulary === "api") r.counts.vocabApi++;
         else if (cmp.vocabulary === "slug") r.counts.vocabSlug++;
       }
 
       if (sanctioned) {
-        // GT is NON-NULL here (this whole branch is "both non-null") — nothing was hallucinated;
-        // the schema itself forced an arbitrary pick between two (or more) equally-fitting
-        // members (the worked example's furnace/cooling axis is the standing case) and the model
-        // landed on the OTHER lobe of that same forced choice. This is categorically different
-        // from the GT-null "sanctioned" branch above (a real soft hallucination, tolerated) and
-        // must not share its counter/bucket or its HALLUCINATION-section reporting — see
-        // IMPORTANT 9 in the fix-round-2 review. Reported under ENUM-MAPPING instead.
+        // GT is NON-NULL here — nothing was hallucinated; the schema itself forced an
+        // arbitrary pick between equally-fitting members and the model landed on the
+        // OTHER lobe. Categorically different from the GT-null "sanctioned" branch above
+        // (a real soft hallucination, tolerated): it must not share that counter/bucket
+        // or the HALLUCINATION-section reporting. Reported under ENUM-MAPPING instead.
         r.counts.enumSanctioned++;
         r.sanctionedRows.push({ field: path, value: mv, confidence, note: arguable.note });
       } else if (isHealth) {
@@ -1065,9 +1052,9 @@ function scoreCollectionGroup(group, gt, model, transcript, r) {
 /**
  * Score one transcript against its new-format ground truth.
  * @param slug transcript slug
- * @param rawGt the parsed, VALIDATED new-format ground-truth object — RAW, i.e. `leaves` may be
- *   sparse and `disclaimers` unresolved; this function resolves it (see `ground-truth.mjs`'s
- *   `resolveGroundTruth`) before scoring anything, so a scope-policy change re-scores every
+ * @param rawGt the parsed, VALIDATED new-format ground-truth object — RAW, i.e. `leaves`
+ *   may be sparse and `disclaimers` unresolved; this function resolves it (see
+ *   `resolveGroundTruth`) before scoring, so a scope-policy change re-scores every
  *   transcript without anyone touching a ground-truth file.
  * @param transcript raw transcript text
  * @param model parsed model output object, or null when missing/malformed
@@ -1144,17 +1131,14 @@ export function scoreTranscript(slug, rawGt, transcript, model, loadProblem = nu
     }
   }
 
-  // A missing/unparseable result is NOT "nothing to score" — it is scored EXACTLY as if the
-  // extractor had emitted an empty object: every leaf reads as absent via `readLeaf`'s existing
-  // `model?.[groupKey]` handling, which correctly turns every GT-non-null leaf into a counted miss
-  // (or hMiss/enumMiss/bandMiss, and an excused miss where `arguable.acceptableMiss` says so) rather
-  // than a silent zero. `status` stays "unscored" (excluded from axis/confidence aggregation and
-  // shown as "NOT SCORED" per-transcript, since there is genuinely no real output to characterize
-  // beyond "missed everything"), but `counts` — which `aggregate()` sums over EVERY report,
-  // regardless of status — now honestly reflects that an extractor returning nothing is exactly as
-  // good as one that returns all-nulls, never better. This is the fix for the specific property:
-  // before it, a missing result scored miss=0 on every leaf, so "return nothing" beat "try and get
-  // some wrong" — see score.test.mjs's ROBUSTNESS gate for the mutation that proves it.
+  // A missing/unparseable result is NOT "nothing to score" — it is scored EXACTLY as if
+  // the extractor had emitted an empty object: every leaf reads as absent via `readLeaf`'s
+  // `model?.[groupKey]` handling, turning every GT-non-null leaf into a counted miss (or
+  // an excused miss where `arguable.acceptableMiss` says so) rather than a silent zero.
+  // `status` stays "unscored" (excluded from axis/confidence aggregation), but `counts` —
+  // which `aggregate()` sums over EVERY report — honestly reflect that an extractor
+  // returning nothing is exactly as good as one returning all-nulls, never better. See
+  // score.test.mjs's ROBUSTNESS gate for the proving mutation.
 
   // ---- score singleton groups (derived — see ground-truth.mjs's SINGLETON_GROUPS) ----
   for (const group of SINGLETON_GROUPS) {
@@ -1205,9 +1189,9 @@ export function buildPerfectModel(rawGt, confidence = 0.9) {
       const leafKey = path.slice(group.length + 1);
       const leafTruth = gt.leaves[path];
       const gtc = gtCanonical(path, leafTruth);
-      // A `noFittingMember` leaf has no single canonical value to copy — score a "perfect" run as
-      // emitting the first sanctioned alternative, since that is what "scores clean" means for a
-      // leaf the ground truth itself says has no one right answer (see the worked example).
+      // A `noFittingMember` leaf has no single canonical value to copy — a "perfect" run
+      // emits the first sanctioned alternative, since that is what "scores clean" means
+      // for a leaf the ground truth itself says has no one right answer.
       const value = gtc.isNull
         ? null
         : gtc.kind !== "enum"
@@ -1309,10 +1293,9 @@ function main() {
     try {
       validation = validateGroundTruth(raw, transcript);
     } catch (err) {
-      // validateGroundTruth is documented never to throw; if it somehow does (a defect in the
-      // validator itself, not in this one file), that must degrade to "this transcript could not
-      // be validated" rather than crashing the whole batch and hiding every other transcript's
-      // result behind it.
+      // validateGroundTruth is documented never to throw; if it somehow does (a defect in
+      // the validator itself), that must degrade to "this transcript could not be
+      // validated" rather than crashing the whole batch.
       pending.push({ slug, reason: `ground-truth validator THREW: ${err.message}` });
       continue;
     }
@@ -1394,11 +1377,11 @@ function main() {
     `   miss rate : ${padL(pct(totals.miss, missDen), 7)}  (${totals.miss}/${missDen} stated values left null; ${totals.missExcused} excused)`,
   );
   // The COMBINED figure, printed here so the partial one above cannot be quoted as the
-  // whole. `gtNonNull` iterates GENERIC_LEAF_PATHS only, so the rate above excludes all
-  // 13 health tests by construction — which is correct for that section and was
-  // misleading the moment it was lifted out of it. doc 18 reported "miss rate 1.5%" from
-  // this number while a materially larger share of stated HEALTH states had been dropped,
-  // because those live in `hMiss` and are counted in section 5.
+  // whole. `gtNonNull` iterates GENERIC_LEAF_PATHS only, so the rate above excludes the
+  // health tests by construction — correct for that section, misleading the moment it is
+  // lifted out of it. doc 18 reported "miss rate 1.5%" from this number while a
+  // materially larger share of stated HEALTH states had been dropped, because those live
+  // in `hMiss` and are counted in section 6.
   const allMissDen =
     totals.gtNonNull - totals.missExcused + (totals.hGtState - totals.hMissExcused);
   const allMiss = totals.miss + totals.hMiss;

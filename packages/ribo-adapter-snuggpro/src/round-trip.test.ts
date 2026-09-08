@@ -33,31 +33,30 @@ import { snuggExtractionSchema, snuggValuesSchema, type SnuggValues } from "./sc
  * ## Why it lives here and not in `ribo-core`
  *
  * Dependencies point inward: `ribo-core` must never import an adapter. Core's own
- * `contracts.test.ts` composes the same pipeline over a four-leaf synthetic field set,
- * which is the right thing for a package that knows no tools. What that cannot do is
- * run the chain over 214 real leaves nested across ten per-endpoint resource groups,
- * with a fixture full of honest `null`s — so that test lives on this side of the
- * boundary, importing core through its public entry point exactly as a consumer would.
+ * `contracts.test.ts` composes the same pipeline over a small synthetic field set,
+ * which is right for a package that knows no tools — but it cannot run the chain over
+ * the real leaf set nested across the per-endpoint resource groups, with a fixture full
+ * of honest `null`s. So that test lives on this side of the boundary, importing core
+ * through its public entry point exactly as a consumer would.
  *
  * ## Why the model's response is the committed fixture
  *
- * `snuggExamples[0].fields` is a real extraction of a real dictation, and it is
- * mostly `null` — every one of the 163 basedata fields, all four duct fields, the whole
- * `wall` and `window` groups, eleven of the thirteen health tests. A hand-built,
- * all-non-null draft would run the same functions and prove nothing: the null path is
- * the one an earlier revision of this design got wrong, because "the reviewer accepted
- * a leaf the model had nothing for" and "the reviewer rejected a leaf" produce
- * different patches and the difference is invisible unless the nulls are there.
+ * `snuggExamples[0].fields` is a real extraction of a real dictation, and it is mostly
+ * `null`. A hand-built, all-non-null draft would run the same functions and prove
+ * nothing: the null path is the one an earlier revision of this design got wrong,
+ * because "the reviewer accepted a leaf the model had nothing for" and "the reviewer
+ * rejected a leaf" produce different patches, and the difference is invisible unless
+ * the nulls are there.
  *
  * ## Why a stub adapter
  *
  * `snuggProAdapter.write` throws by design — Snugg Pro egress is gated on the Helix
- * HMAC ask — so a round trip through the real adapter could only ever assert that the
- * write failed. {@link stubAdapter} shares the REAL `schema`, `extractionSchema`,
- * `ctxSchema`, `instructions` and `examples` by reference, and replaces only `write`
- * with a sink, so everything under test here is the production article. The first test
- * below pins that identity by reference: a stub that drifted onto a copy of the schema
- * would make every assertion after it meaningless.
+ * HMAC ask — so a round trip through the real adapter could only assert that the write
+ * failed. {@link stubAdapter} shares the REAL `schema`, `extractionSchema`, `ctxSchema`,
+ * `instructions` and `examples` by reference and replaces only `write` with a sink, so
+ * everything under test is the production article. The first test below pins that
+ * identity by reference: a stub that drifted onto a copy would make every assertion
+ * after it meaningless.
  */
 
 // --- The stub adapter -------------------------------------------------------
@@ -84,8 +83,8 @@ const stubAdapter = (sink: Write[]): ToolAdapter<SnuggValues, SnuggWriteContext>
 test("the stub shares the real adapter's schemas — only `write` differs", () => {
   const stub = stubAdapter([]);
 
-  // By reference, not by shape: a structural comparison would pass against a copy,
-  // and a copy is exactly what would make this file stop testing production code.
+  // By reference, not by shape: a structural comparison would pass against a copy, and
+  // a copy is exactly what would make this file stop testing production code.
   expect(stub.schema).toBe(snuggProAdapter.schema);
   expect(stub.extractionSchema).toBe(snuggProAdapter.extractionSchema);
   expect(stub.ctxSchema).toBe(snuggProAdapter.ctxSchema);
@@ -147,7 +146,7 @@ const session: SessionItem = sessionItemSchema.parse({
  * The fixture is typed `SnuggExtraction`, so handing it straight to
  * `buildReviewRequest` would skip the parse a real extractor performs — and it is that
  * parse which guarantees the shape `enveloped()` derived, including the health matrix
- * arriving as eleven envelopes rather than one.
+ * arriving as per-test envelopes rather than one blob.
  */
 const extracted: Record<string, unknown> = snuggExtractionSchema.parse(example.fields);
 
@@ -156,7 +155,7 @@ const EDITED_LEAF = "health.healthGasLeak";
 const MODEL_VALUE = "Passed";
 const HUMAN_VALUE = "Warning";
 
-/** Accept all 222 leaves, then apply the given overrides. */
+/** Accept every given leaf path, then apply the given overrides. */
 const decide = (
   paths: readonly string[],
   overrides: Readonly<Record<string, FieldDecision>> = {},
@@ -177,8 +176,7 @@ const flatten = (value: Record<string, unknown>, prefix = ""): string[] =>
 // --- The round trip ---------------------------------------------------------
 
 // The resolved patch is positional (arrays), while review paths are keyed (`k1`, `k2`).
-// Flatten the written fields to positional dotted paths to compare against the expected
-// leaf set.
+// Flatten written fields to positional dotted paths to compare against the expected set.
 
 const positionalPath = (keyedPath: string): string =>
   keyedPath.replace(/\[k(\d+)\]/g, (_, n) => `.${Number(n) - 1}`);
@@ -193,9 +191,8 @@ test("the real field set round-trips: schema → extraction → review → write
   const request = buildReviewRequest(extracted, transcript, adapter.schema);
   const paths = Object.keys(request.fields);
 
-  // 222 review paths across ten resource groups (214 schema leaves; the fixture
-  // carries two hvac instances, +12 paths, and no concern or incentive instance,
-  // −4), each independently reviewable.
+  // Review paths outnumber schema leaves because the fixture carries two hvac instances
+  // and no concern/incentive instances; each path is independently reviewable.
   expect(paths).toHaveLength(222);
   expect(paths).toContain(EDITED_LEAF);
   expect(request.fields[EDITED_LEAF]?.extracted.value).toBe(MODEL_VALUE);
@@ -224,10 +221,8 @@ test("the real field set round-trips: schema → extraction → review → write
   expect(written).toHaveLength(1);
   const write = written[0]!;
 
-  // THE assertion. The edited leaf arrives in its NESTED position carrying the human's
-  // value — not the model's, and not at a dotted key. Everything R1.5 changed is
-  // upstream of this one line: split the schemas, address leaves by path, validate at
-  // submit, reassemble the nesting, parse at the boundary.
+  // THE assertion: the edited leaf arrives in its NESTED position carrying the human's
+  // value — not the model's, and not at a dotted key.
   expect(write.fields.health?.healthGasLeak).toBe(HUMAN_VALUE);
   expect(write.fields.health?.healthGasLeak).not.toBe(MODEL_VALUE);
   // No dotted key survived the reassembly.
@@ -257,9 +252,8 @@ test("the real field set round-trips: schema → extraction → review → write
   expect(write.fields.attic?.[0]?.atticInsulationDepth).toBe("4-6");
   expect(write.fields.dhw?.[0]?.dhwType2).toBe("Sidearm Tank");
 
-  // Nothing is missing: accepting all 222 leaves writes all 222. The resolved patch is
-  // positional, so compare the flattened field paths against positional versions of the
-  // keyed review paths.
+  // Nothing is missing: accepting every leaf writes every leaf. The resolved patch is
+  // positional, so compare flattened field paths against positional review paths.
   expect(flatten(write.fields).sort()).toEqual([...paths].map(positionalPath).sort());
 
   // The destination came off THIS item's recording, and the idempotency key off the queue.
@@ -267,7 +261,7 @@ test("the real field set round-trips: schema → extraction → review → write
   expect(write.meta).toEqual({ idempotencyKey: "idem-item-1" });
 });
 
-test("one rejected leaf of the 222 still writes the other 221", async () => {
+test("one rejected leaf still writes every other leaf", async () => {
   // The test that proves patch semantics, and the one an earlier revision of this design
   // would have failed outright: rejecting a leaf must leave that field alone in Snugg
   // Pro, not fail the write and not blank the field.
@@ -294,15 +288,15 @@ test("one rejected leaf of the 222 still writes the other 221", async () => {
     ctx,
   });
 
-  // The write SUCCEEDED — the rejection did not take the other 221 leaves down with it.
+  // The write SUCCEEDED — the rejection did not take the other leaves down with it.
   expect(written).toHaveLength(1);
   const fields = written[0]!.fields;
 
   // Absent, not null. Absent means "leave the host tool alone"; the whole patch model
-  // rests on that being distinguishable, and `in` is what distinguishes it —
-  // `fields.healthSafety?.asbestos` reads `undefined` either way.
+  // rests on that being distinguishable, and `in` is what distinguishes it — a plain
+  // property read gives `undefined` either way.
   expect("healthAsbestos" in fields.health!).toBe(false);
-  // Every other leaf is present, including the fifteen surviving health fields.
+  // Every other leaf is present, including the surviving health fields.
   expect(flatten(fields).sort()).toEqual(
     paths
       .filter((path) => path !== rejected)

@@ -1,41 +1,25 @@
 /**
- * Everything about the 51-leaf / 7-group Snugg Pro shape that ground-truth
- * authoring and scoring need — LEAF PATHS, LEAF KINDS, and the two enum
- * VOCABULARIES (the API's literal wire strings, and a mechanically-derived
- * snake_case alternative) — derived by walking the REAL, built
- * `snuggValuesSchema` from `@azx/ribo-adapter-snuggpro`. Nothing here is a
- * hand-maintained parallel table: change `schema.ts` (add a leaf, add an enum
- * member, rename a group) and this file's exports change with it, because it
- * reads the schema itself rather than a transcription of it.
+ * Everything about the Snugg Pro schema shape that ground-truth authoring and scoring need —
+ * LEAF PATHS, LEAF KINDS, and the two enum VOCABULARIES (the API's literal wire strings, and a
+ * mechanically-derived snake_case alternative) — derived by walking the REAL, built
+ * `snuggValuesSchema` from `@azx/ribo-adapter-snuggpro`. Nothing here is a hand-maintained
+ * parallel table: change `schema.ts` and this file's exports change with it.
  *
- * WHY THIS EXISTS. The old spike (`spikes/extraction-snuggpro/schema.ts`, now
- * dead — see the README/schema-migration note) hand-declared its own 23-field,
- * snake_case copy of "the Snugg Pro model." That copy silently drifted from
- * the real adapter (packages/ribo-adapter-snuggpro/src/schema.ts): the real
- * schema was rebuilt from Snugg's machine-readable spec into leaves under
- * resource groups (214 across 10 today — `basedata` carries its full 163-field
- * capture surface, `concern`/`incentive` are the first job-collection array
- * groups, and `stage` is a one-leaf job-collection singleton), with the API's
- * literal enum strings, and the spike's schema never moved. This file is the
- * fix for the CLASS of bug, not just today's instance: it reads
- * `snuggValuesSchema` directly, so the ground truth and the scorer can never
- * again describe a schema that doesn't match `schema.ts`.
+ * WHY THIS EXISTS. The old spike (`spikes/extraction-snuggpro/schema.ts`, now dead)
+ * hand-declared its own snake_case copy of "the Snugg Pro model", which silently drifted from
+ * the real adapter schema when that was rebuilt from Snugg's machine-readable spec. This file
+ * is the fix for the CLASS of bug: it reads `snuggValuesSchema` directly, so the ground truth
+ * and the scorer can never again describe a schema that doesn't match `schema.ts`.
  *
- * PRECONDITION: `pnpm build:packages` must have been run at least once (this
- * imports `@azx/ribo-adapter-snuggpro`'s built `dist/index.js`, not its `src/`
- * — see the import below for why source can't be loaded directly by plain
- * Node here). `./check.sh` always runs `build:packages` before `test`, so this
- * is already true in that pipeline; for a standalone `node score.mjs` run,
- * build first or you get the clear error thrown below, not a stale schema.
+ * PRECONDITION: `pnpm build:packages` must have been run at least once (this imports the built
+ * `dist/index.js`, not `src/`). `./check.sh` always builds before `test`; for a standalone
+ * `node score.mjs` run, build first or you get the clear error thrown below.
  *
- * WHY dist/ AND NOT src/schema.ts. Node 24's native TypeScript support strips
- * types but does NOT remap the `./foo.js` specifiers TypeScript's own
- * NodeNext-style source uses to refer to sibling `.ts` files (ribo-core's
- * `src/index.ts` imports "./provenance.js", which has no `.js` file on disk
- * under `src/`) — only a bundler-aware resolver (Vite, tsdown) does that
- * remapping, and adding one here would be a new devDependency this spike does
- * not otherwise need. The built `dist/index.js` has real, correct extensions,
- * and it IS `schema.ts` — tsdown's output, not a second authored copy of it.
+ * WHY dist/ AND NOT src/schema.ts. Node 24's native TypeScript support strips types but does
+ * NOT remap the `./foo.js` specifiers TypeScript's NodeNext-style source uses for sibling `.ts`
+ * files — only a bundler-aware resolver (Vite, tsdown) does that, and adding one here would be
+ * a new devDependency this spike does not need. The built `dist/index.js` has real, correct
+ * extensions, and it IS `schema.ts` — tsdown's output, not a second authored copy.
  */
 
 import { existsSync } from "node:fs";
@@ -89,9 +73,9 @@ function walk(node, path) {
     return;
   }
   if (def.type === "array") {
-    // The five per-instance groups are arrays of instance records. One `items`
-    // schema describes every element, so the leaf set is the same regardless of how
-    // many instances a transcript describes.
+    // The per-instance groups are arrays of instance records. One `items` schema
+    // describes every element, so the leaf set is the same regardless of how many
+    // instances a transcript describes.
     walk(bare.element, path);
     return;
   }
@@ -125,13 +109,13 @@ export const LEAF_PATHS = leaves.map((l) => l.path);
 /** @type {Map<string, Leaf>} */
 export const LEAF_BY_PATH = new Map(leaves.map((l) => [l.path, l]));
 
-/** The ten resource-group keys, in schema order. */
+/** The resource-group keys, in schema order. */
 export const GROUPS = Object.keys(snuggValuesSchema.shape);
 
 /**
- * The 13 health-matrix TEST leaves, derived by finding every enum leaf whose exact member set
- * equals schema.ts's `HealthTestState` (Passed/Failed/Warning/Not Tested) — not hand-listed. This
- * is what excludes `health.healthRoofCondition` (a different, 3-member condition enum) without
+ * The health-matrix TEST leaves, derived by finding every enum leaf whose exact member set
+ * equals schema.ts's `HealthTestState` (Passed/Failed/Warning/Not Tested) — not hand-listed.
+ * This is what excludes `health.healthRoofCondition` (a different condition enum) without
  * anyone having to remember it is the one health-group leaf that isn't a "test".
  */
 const HEALTH_STATE_SHAPE = JSON.stringify(["Passed", "Failed", "Warning", "Not Tested"]);
@@ -146,22 +130,15 @@ export const HEALTH_TEST_PATHS = leaves
 
 // ---------------------------------------------------------------------------
 // Vocabulary B: a mechanically-derived snake_case alternative. NOT a
-// reproduction of the pre-rebuild spike schema's hand-chosen tokens (that
-// schema hand-added unit suffixes like "in" and hand-dropped "(shared ducts)"
-// qualifiers — genuine editorial judgment, i.e. exactly the kind of
-// hand-maintained table this file exists to avoid). Instead this is a FORMULA
-// applied uniformly to every member: drop a leading "<N>% - " qualifier
-// (Snugg's duct-leakage labels), lowercase, strip quote/apostrophe/inch marks,
-// and collapse every other run of non-alphanumerics to one underscore. Two
-// members of the SAME enum are asserted never to collide (score.test.mjs) —
-// collision across DIFFERENT enums is fine, since resolution is always
-// leaf-scoped.
+// reproduction of the pre-rebuild spike schema's hand-chosen tokens — that was
+// editorial judgment, exactly the kind of hand-maintained table this file
+// exists to avoid. Instead this is a FORMULA applied uniformly to every member
+// (see `slugifyMember`). Two members of the SAME enum are asserted never to
+// collide (score.test.mjs) — collision across DIFFERENT enums is fine, since
+// resolution is always leaf-scoped.
 //
-// A future slug-vocabulary extraction run (asking a model for these tokens
-// instead of the API strings) must generate ITS enum list with this exact
-// function, so its output matches this vocabulary by construction. This file
-// does not, and cannot, guess what token style an unconstrained model would
-// invent on its own.
+// A future slug-vocabulary extraction run must generate ITS enum list with this
+// exact function, so its output matches this vocabulary by construction.
 // ---------------------------------------------------------------------------
 
 /** @param {string} raw */
@@ -209,28 +186,22 @@ for (const leaf of leaves) {
 
 // ---------------------------------------------------------------------------
 // The resolver: match a run's raw enum output, in EITHER vocabulary, back to
-// the canonical API member — so ground truth (which stores the API member;
-// see ground-truth-format.md) can be scored against a run regardless of which
-// vocabulary that run's extraction schema used.
+// the canonical API member — so ground truth (which stores the API member) can
+// be scored against a run regardless of which vocabulary that run used.
 //
 // EXACT MATCH ONLY, in both directions. `raw` (trimmed) must equal either the
 // literal API string or one of the precomputed slugs character-for-character —
 // it is NOT re-slugified before the slug check. An earlier version slugified
-// every non-API-matching input before comparing it to the slug set, which
-// meant ANY string that happened to slugify to a real slug — a mis-cased or
-// re-punctuated near-miss of the API string itself, not the deliberately
-// generated token — was labelled "slug" regardless of whether it actually was
-// one. That made vocabulary ATTRIBUTION unreliable even though CORRECTNESS
-// (whether the value matched GT) was unaffected. Exact matching removes the
-// ambiguity: a near-miss now correctly resolves to `null` (unrecognized)
-// rather than being silently attributed to a vocabulary it did not use.
+// every non-API-matching input before comparing, so ANY string that happened to
+// slugify to a real slug — a mis-cased near-miss of the API string, not the
+// generated token — was labelled "slug". That made vocabulary ATTRIBUTION
+// unreliable even though CORRECTNESS was unaffected. Exact matching removes the
+// ambiguity: a near-miss now resolves to `null` (unrecognized).
 //
-// Residual, irreducible case: a member whose literal API spelling already IS
-// its own slug (`AtticInsulationDepth`'s `"0"` — slugifyMember("0") === "0")
-// makes the two vocabularies coincide for that one string. Such a value is
-// reported as "api" (the apiSet check runs first) — this is not a resolution
-// failure, the two vocabularies are genuinely indistinguishable for that
-// specific member, and no exact-match scheme can attribute it either way.
+// Residual case: a member whose literal API spelling already IS its own slug
+// (`AtticInsulationDepth`'s `"0"`) makes the two vocabularies coincide for that
+// one string; it is reported as "api" (the apiSet check runs first). No
+// exact-match scheme can attribute it either way.
 // ---------------------------------------------------------------------------
 
 /**
