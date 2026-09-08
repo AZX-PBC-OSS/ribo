@@ -56,41 +56,67 @@ of the scaffolding are not touched, matching `r1.6-instance-extraction-design.md
 §5.3's deliberate "roster is internal" decision. Only this one new signal crosses the
 boundary (§2.2).
 
-### 2.2 One new `ExtractionResult` field, not the whole roster
+### 2.2 One new `ExtractionResult` field, and one new session field to carry it
 
 `scopedInstanceExtractor` (`instance-fill.ts:400`) already computes
 `const roster = await inventory(transcript)` and discards it after building
-`FillScope` objects. This design adds one line: for any group whose roster value is
-`{ stated: "none" }`, record `(group, span)` into a new field on the extractor's
-return value:
+`FillScope` objects. This design adds a small accumulator: for any collection group
+whose roster value is `{ stated: "none" }` rather than an array, record `(group, span)`
+into a new field on the extractor's return value:
 
 ```
 statedEmptyGroups?: Readonly<Record<string /* group */, string /* verbatim span */>>
 ```
 
-This is additive to `ExtractionResult` and requires **no sessions schema migration** —
-`session-schema.ts:134,263` stores `extracted` as `z.record(z.string(), z.unknown())`
-/ `{ type: "object" }`, opaque and unpinned at the nested level (confirmed: no test in
-`session-schema.test.ts` constructs or asserts a shaped `extracted` payload). A new
-`ExtractionResult` field is invisible to RxDB's schema validation.
+`ExtractionResult<F>` (`ribo-core/src/extractor.ts:61-84`) gains this as a new,
+optional, sibling field to `fields`/`raw`/`usage` — metadata about the extraction, not
+part of the enveloped field values themselves, so it does not go anywhere near the
+per-adapter `Enveloped<V>` schema.
+
+**This does need a session field, and it rides the same sessions v2 migration the
+instance-write-receipts design already introduces.** The pattern this codebase already
+uses for extraction metadata is a *dedicated* session field, not folding into the
+opaque `extracted` blob: `extractedBy` and `extractionUsage` (`session-schema.ts:136-158`)
+are both their own fields, populated by `relay.ts`'s `#sessionExtract`
+(`queue/relay.ts:391-411`) from the corresponding members of `ExtractStepResult`
+(`queue/relay.ts:37-50`) — never merged into `extracted` itself. `statedEmptyGroups`
+follows the same shape: `toSessionExtractStep` (`extractor.ts:132-140`) forwards
+`result.statedEmptyGroups` onto a new `ExtractStepResult.statedEmptyGroups` member,
+`#sessionExtract` persists it onto a new, optional `SessionDocument.statedEmptyGroups`
+field the same way it already persists `extractedBy`. This is purely additive (a v1
+document simply lacks it) — no backfill is needed, unlike `instanceKeys` in the sibling
+design, because there is no historical roster-absence signal to recover for a session
+extracted before this ships.
 
 ### 2.3 A fourth `ReviewGroupState` value
 
 `ReviewGroupState` (`review.ts:186`) gains a fourth value, `"statedEmpty"`.
-`ReviewCollectionNode` (`review.ts:219-226`) gains a nullable field,
-`emptyQuote: string | null`, populated only when `state === "statedEmpty"`.
-`buildReviewRequest`'s collection-state computation (`review.ts:497-504`) changes from
+`ReviewCollectionNode` (`review.ts:219-226`) gains a field, `emptyQuote: string | null`
+(always present, like the interface's other members — `null` except when
+`state === "statedEmpty"`, matching the always-present style already used for
+`ExtractedFieldMap`-adjacent sentinels elsewhere in this file).
+
+`buildReviewRequest`'s public signature is unchanged in its required parameters, but
+`BuildReviewRequestOptions` (`review.ts:603-618`) gains a new optional member,
+`statedEmptyGroups?: Readonly<Record<string, string>>` — supplied by whoever calls
+`buildReviewRequest` (the review hook), reading it off `session.statedEmptyGroups`.
+`buildReviewRequest` threads it down into `collectFields` as a new parameter, alongside
+the existing `requiredOnCreate` (the same threading pattern, not a new mechanism).
+
+The collection-state computation (`review.ts:497-504`) changes from
 
 ```
 state = arrayNode === undefined ? "absent" : elements.length === 0 ? "empty" : "populated"
 ```
 
-to consult `extractionResult.statedEmptyGroups?.[group]` when `elements.length === 0`:
-present → `"statedEmpty"` with `emptyQuote` set to the span; absent → `"empty"` as
-today, `emptyQuote: null`. `"absent"` (no array node at all) is unaffected — "there are
-none of these" and "never mentioned" stay different claims, per the existing doc
-comment at `ReviewPanel.tsx:76-79`, and this design adds a third claim distinct from
-both: "never mentioned, but *this specific absence* was affirmatively stated."
+to consult `statedEmptyGroups[key]` (the group's own top-level key — every roster
+group is top-level by construction, so this is not a full dotted path) when
+`elements.length === 0`: present → `"statedEmpty"` with `emptyQuote` set to the span;
+absent → `"empty"` as today, `emptyQuote: null`. `"absent"` (no array node at all) is
+unaffected — "there are none of these" and "never mentioned" stay different claims, per
+the existing doc comment at `ReviewPanel.tsx:76-79`, and this design adds a third claim
+distinct from both: "never mentioned, but *this specific absence* was affirmatively
+stated."
 
 ### 2.4 Canvas rendering
 
@@ -123,8 +149,11 @@ group) is unchanged.
   correctly when the injected `inventory` callback returns a stated-none group, and
   omits the key when the roster group is a genuinely empty array (no assertion made).
 - `review.test.ts`: `buildReviewRequest` produces `state: "statedEmpty"` with the
-  correct `emptyQuote` when `extractionResult.statedEmptyGroups` has an entry for that
-  group, and confirms `"absent"` and plain `"empty"` are unaffected.
+  correct `emptyQuote` when `options.statedEmptyGroups` has an entry for that group,
+  and confirms `"absent"` and plain `"empty"` are unaffected.
+- `session-schema.test.ts`: pin the (already-bumped, by the sibling design) v2 schema
+  to also include `statedEmptyGroups`; confirm a v1 document with no
+  `statedEmptyGroups` migrates cleanly (identity for this field).
 - A `ReviewPanel` test (or Storybook story, matching whatever this component already
   uses) confirming the quote renders in place of "none described" when
   `emptyQuote` is present.
