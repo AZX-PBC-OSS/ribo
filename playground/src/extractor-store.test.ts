@@ -7,10 +7,19 @@ import {
   type Transcript,
 } from "@azx/ribo-core";
 import { ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
-import type { ChatClient, ChatCompletion, ChatRequest } from "@azx/ribo-extractor-openai";
+import {
+  MAX_ENVELOPED_LEAVES_PER_GROUP,
+  splitExtractionSchema,
+  type ChatClient,
+  type ChatCompletion,
+  type ChatRequest,
+  type ExtractionGroup,
+} from "@azx/ribo-extractor-openai";
+import { z } from "zod";
 import {
   SNUGGPRO_ADAPTER_NAME,
   snuggExamples,
+  snuggExtractionSchema,
   snuggProInstructions,
 } from "@azx/ribo-adapter-snuggpro";
 
@@ -29,9 +38,11 @@ import {
  * and assert two things that only the per-group wiring provides:
  *
  *   1. The status identifies the `"per-group"` strategy (not `"single-shot"`).
- *   2. Running the step makes one call per top-level group (7, not 1), and each
- *      call's system message is a per-group prompt — not the full
- *      `snuggProInstructions` the single-shot extractor sends.
+ *   2. Running the step makes one call per top-level group, or more for a group
+ *      whose leaves exceed the per-call cap (9, not 1 — `hvac` and `health` each
+ *      split into two calls; see `snuggPieces` below), and each call's system
+ *      message is a per-group prompt — not the full `snuggProInstructions` the
+ *      single-shot extractor sends.
  *
  * Deleting the wiring — reverting to `singleShotExtractor`, or dropping
  * `groupInstructions: snuggGroupInstructions` — turns at least one of these red.
@@ -58,30 +69,79 @@ const session: SessionItem = {
 };
 
 /**
- * A fake {@link ChatClient} that returns a valid per-group response for each
- * request, projected from the Delgado fixture. The per-group extractor names each
- * request `"{adapter}-{groupKey}"`, so the fake parses the group key off the
- * `response_format.json_schema.name` and returns that group's enveloped fields
- * from the fixture — the same shape `projectExample` produces.
+ * The real per-group split, including leaf-count partitioning — the same list
+ * `perGroupExtractor` builds internally for the Snugg target (see
+ * `ribo-extractor-openai/src/per-group.ts`). `hvac` (12 leaves) and `health` (14)
+ * each exceed {@link MAX_ENVELOPED_LEAVES_PER_GROUP} (8) and so are split into two
+ * entries sharing one key; every other group is untouched. Building this here
+ * (rather than assuming "one entry per group") is what keeps the fake's request
+ * naming and response shaping honest as that split evolves.
+ */
+const snuggPieces = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
+
+/**
+ * The `response_format.json_schema.name` `perGroupExtractor` sends for one
+ * prepared entry — mirrors its own construction exactly (`per-group.ts`):
+ * `${target.name}-${group.key}` for an unpartitioned group, with a `-${part}`
+ * suffix appended for a partitioned piece.
+ */
+function groupRequestName(group: ExtractionGroup): string {
+  const suffix = group.part !== undefined ? `-${group.part}` : "";
+  return group.key ? `${SNUGGPRO_ADAPTER_NAME}-${group.key}${suffix}` : SNUGGPRO_ADAPTER_NAME;
+}
+
+/**
+ * The leaf keys ONE prepared entry asks for — the whole group's keys when
+ * unpartitioned, or just this piece's subset when partitioned. Mirrors
+ * `per-group.ts`'s own `partitionedLeafKeys`, reading it back out of the entry's
+ * own schema so it can never drift from what the real call is pinned to.
+ */
+function entryLeafKeys(group: ExtractionGroup): readonly string[] {
+  const shape = (group.schema as z.ZodObject).shape;
+  const value = shape[group.key]!;
+  const candidate = value instanceof z.ZodArray ? (value.element as z.ZodType) : value;
+  return Object.keys((candidate as z.ZodObject).shape);
+}
+
+/** Narrow one instance object (or singleton group object) down to `leafKeys`. */
+function narrowToLeaves(value: unknown, leafKeys: readonly string[]): unknown {
+  if (Array.isArray(value)) return value.map((element) => narrowToLeaves(element, leafKeys));
+  const source = value as Record<string, unknown>;
+  const narrowed: Record<string, unknown> = {};
+  for (const key of leafKeys) if (key in source) narrowed[key] = source[key];
+  return narrowed;
+}
+
+/**
+ * A fake {@link ChatClient} that returns a valid response for each request,
+ * projected from the Delgado fixture. Dispatches by
+ * `response_format.json_schema.name` against {@link snuggPieces}, so a
+ * partitioned piece (e.g. `hvac`'s two calls) gets back exactly its own leaf
+ * subset — the same shape `perGroupExtractor` narrows its few-shot examples to,
+ * and the only shape a `z.strictObject` piece schema accepts. The single-shot
+ * extractor's un-suffixed, whole-schema name still falls through to the full
+ * fixture, so this fake serves both strategies.
  */
 function fakeGroupChat(): { chat: ChatClient; requests: ChatRequest[] } {
   const requests: ChatRequest[] = [];
   const fixtureFields = snuggExamples[0]!.fields as Record<string, unknown>;
+  const byName = new Map(snuggPieces.map((group) => [groupRequestName(group), group]));
+
   const chat: ChatClient = {
     complete: (request: ChatRequest): Promise<ChatCompletion> => {
       requests.push(request);
       const name = request.response_format.json_schema.name;
-      // The per-group extractor names each request `"{adapter}-{groupKey}"`;
-      // the single-shot extractor names it just `"{adapter}"`. Return the
-      // one-key projection for per-group, the full fixture for single-shot.
-      const sepIdx = name.indexOf("-", SNUGGPRO_ADAPTER_NAME.length);
+      const group = byName.get(name);
       const response =
-        sepIdx >= 0
-          ? (() => {
-              const groupKey = name.slice(sepIdx + 1);
-              return groupKey in fixtureFields ? { [groupKey]: fixtureFields[groupKey] } : {};
-            })()
-          : fixtureFields;
+        group === undefined
+          ? fixtureFields // the single-shot extractor's whole-schema name
+          : (() => {
+              const full = fixtureFields[group.key];
+              if (full === undefined) return {};
+              const value =
+                group.part === undefined ? full : narrowToLeaves(full, entryLeafKeys(group));
+              return { [group.key]: value };
+            })();
       return Promise.resolve({
         content: JSON.stringify(response),
         finishReason: "stop",
@@ -108,10 +168,14 @@ test("with an API key, the live extractor is the per-group strategy", async () =
   // the extraction succeeds and the call count is observable.
   await extractStep({ session, transcript: transcript.text, recordingIds: ["rec-1"] });
 
-  // 7 groups → 7 calls. The single-shot extractor makes 1 — this is the
-  // assertion that catches a wiring change the status alone might miss (e.g.
-  // always constructing `singleShotExtractor` regardless of `strategy`).
-  expect(requests).toHaveLength(7);
+  // 7 groups, 9 calls: `hvac` (12 leaves) and `health` (14) each exceed the
+  // 8-enveloped-leaf cap and split into two calls apiece; the other five groups
+  // make one call each — see `snuggPieces` above. The single-shot extractor
+  // makes 1 call total — this is the assertion that catches a wiring change the
+  // status alone might miss (e.g. always constructing `singleShotExtractor`
+  // regardless of `strategy`).
+  expect(requests).toHaveLength(snuggPieces.length);
+  expect(requests).toHaveLength(9);
 
   // Each call's system message is a per-group prompt, not the full
   // `snuggProInstructions` the single-shot extractor sends. This catches

@@ -140,6 +140,25 @@ rather than rediscovered.
   adapter — see the corpus item below. The bet is that a model reproducing a listed literal string is
   no harder than a model reproducing a listed token; that bet is untested, and the corpus is how it
   gets settled.
+- **~~Which model family, and which extraction strategy, for the managed path?~~ Answered:
+  OpenAI-family, `perGroupExtractor` (2026-09-08).** A spike ported the on-device three-phase
+  strategy onto the managed transport to see whether it should replace `perGroupExtractor` as the
+  vehicle for scaling past today's 51-leaf schema. It is NO-GO on quality and cost at current
+  scale, but it surfaced the real constraint: on this route, Anthropic-family models reject any
+  response schema with more than 16 nullable unions (8 enveloped leaves per call) — `hvac` (12
+  leaves) and `health` (14 leaves) are already over that today, invisible only because the managed
+  path has always run an OpenAI model in practice. Decision: pin managed extraction to
+  OpenAI-family models (matches what's deployed); partition `hvac`/`health` to ≤8 leaves anyway, as
+  groundwork for a possible Anthropic-compatible path later rather than in response to a live
+  break. → [doc 21](../implementation/21-managed-three-phase-extraction.md).
+- **Job collections beyond `basedata` are now curated.** 837 distinct writable wire fields exist
+  across the whole API; 293 are `basedata`'s, 544 are not. Under a broad dictation-plausible stance,
+  378 of those 544 are candidates, organized into 18 build tranches. Findings that change the
+  `basedata` playbook: the `*Improved`-field exclusion rule doesn't transfer (some `Improved`-side
+  fields carry primary information, not retrofit echoes), most repeating resources have no instance
+  label at all (worse than a matching problem), and `recDefinitionId` has no listing endpoint —
+  recommendations cannot be created via the API regardless of extraction quality.
+  → [doc 20](../implementation/20-job-collections-field-reconciliation.md).
 - **The spike corpus no longer grades this adapter, and the acceptance gate is blocked.**
   `spikes/extraction-snuggpro/ground-truth/*.json` is hand-annotated in the old flat, snake_cased field
   set. `packages/ribo-adapter-snuggpro/acceptance/gate.manual.ts` runs the current adapter against it,

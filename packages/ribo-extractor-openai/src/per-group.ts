@@ -90,7 +90,8 @@ import {
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
-import { splitExtractionSchema } from "./split-schema.js";
+import { MAX_ENVELOPED_LEAVES_PER_GROUP, splitExtractionSchema } from "./split-schema.js";
+import type { ExtractionGroup } from "./split-schema.js";
 
 /** Options for {@link perGroupExtractor}. */
 export interface PerGroupOptions<V extends Record<string, unknown>> extends BackoffOptions {
@@ -296,10 +297,69 @@ async function mapWithPool<T, R>(
   return results;
 }
 
+/**
+ * The leaf keys one partitioned piece of a group asks the model for — read back
+ * out of `group.schema` rather than threaded through as separate state, so this
+ * can never drift from the schema the call is actually pinned to.
+ *
+ * `group.schema` is `z.strictObject({ [group.key]: value })`, where `value` is
+ * either the piece's narrowed group object (a singleton group, e.g. `health`) or
+ * a `ZodArray` of it (a collection group, e.g. `hvac`) — {@link partitionGroup}'s
+ * output shape. This unwraps the same way `splitExtractionSchema`'s own
+ * `groupCandidate` does, to reach the object whose keys are this piece's leaves.
+ */
+function partitionedLeafKeys(group: ExtractionGroup): readonly string[] {
+  const shape = (group.schema as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodType>;
+  const value = shape[group.key]!;
+  const candidate = value instanceof z.ZodArray ? (value.element as z.ZodType) : value;
+  return Object.keys((candidate as z.ZodObject<z.ZodRawShape>).shape);
+}
+
+/**
+ * Recombine two group values that are both pieces of the SAME key (a
+ * partitioned group's leaves, split across two or more calls) into one.
+ *
+ * A singleton group's pieces are each a plain leaf-envelope object; they combine
+ * by shallow merge, since every piece carries a disjoint subset of leaf keys.
+ *
+ * A collection group's pieces are each a full array of instances, one element
+ * per instance, but each element carries only that piece's leaf subset (per the
+ * file header: split within one instance's fields, never across instances or the
+ * array wrapper). Recombining is therefore element-WISE by index: index `i` in
+ * every piece is the same instance. This assumes every piece's call agreed on the
+ * same instance count and order — both calls extract from the identical
+ * transcript, so in practice they do — but if they disagree (a real model
+ * inconsistency, not a code defect), the merge does not hide it: a short instance
+ * is missing the other piece's keys, which the full extraction schema requires,
+ * so the second trust-boundary parse (`parseWithSchema` below) rejects the merge
+ * with a `SchemaParseError` rather than silently emitting a partial instance.
+ */
+function mergeGroupPieces(existing: unknown, incoming: unknown): unknown {
+  if (Array.isArray(existing) && Array.isArray(incoming)) {
+    const length = Math.max(existing.length, incoming.length);
+    const merged: unknown[] = [];
+    for (let i = 0; i < length; i++) {
+      merged.push({
+        ...(existing[i] as Record<string, unknown> | undefined),
+        ...(incoming[i] as Record<string, unknown> | undefined),
+      });
+    }
+    return merged;
+  }
+  return {
+    ...(existing as Record<string, unknown>),
+    ...(incoming as Record<string, unknown>),
+  };
+}
+
 /** A group with its JSON Schema and error-context pre-computed at construction time. */
 interface PreparedGroup {
-  /** The original group key and schema from {@link splitExtractionSchema}. */
-  readonly group: { readonly key: string; readonly schema: z.ZodType };
+  /**
+   * The original group entry from {@link splitExtractionSchema}, including
+   * `part`/`parts` when the group's leaves were partitioned across multiple
+   * calls (see the file header's "Leaf-count partitioning" in `split-schema.ts`).
+   */
+  readonly group: ExtractionGroup;
   /**
    * The schema this call is parsed against. Under singleton mode this may be a
    * narrowed single-element schema; otherwise it is the same as `group.schema`.
@@ -317,6 +377,14 @@ interface PreparedGroup {
    * one-element array before the full schema sees it.
    */
   readonly wrapToArray: boolean;
+  /**
+   * The leaf keys THIS piece asks the model for, present only when `group.part`
+   * is defined (the group was partitioned). Passed to {@link buildGroupMessages}
+   * so a few-shot example narrows to the same subset the `response_format`
+   * constrains this call to, rather than showing the model an example carrying
+   * fields this call cannot produce.
+   */
+  readonly leafKeys?: readonly string[];
 }
 
 /**
@@ -345,8 +413,12 @@ interface PreparedGroup {
  *        misreported as invalid JSON. Terminal, not retried.
  *      - **First trust-boundary parse** ({@link parseWithSchema}): parse the
  *        response against its own group schema.
- *   4. Merge the parsed responses by shallow assignment — each has exactly one
- *      top-level key, so the union is the whole.
+ *   4. Merge the parsed responses by top-level key: ordinarily each response has
+ *      exactly one key so assignment produces the whole, but a group whose leaves
+ *      exceeded {@link MAX_ENVELOPED_LEAVES_PER_GROUP} was partitioned by
+ *      {@link splitExtractionSchema} into multiple entries sharing one key
+ *      (`ExtractionGroup.part`/`parts`) — those pieces' responses are recombined
+ *      (see {@link mergeGroupPieces}) rather than one overwriting the other.
  *   5. **Second trust-boundary parse**: parse the merged whole against the full
  *      `extractionSchema`. Catches a merge that produced a shape no single call
  *      would have.
@@ -374,7 +446,16 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
   // Split at construction time — the group list is a pure function of the schema
   // and does not depend on the transcript. A non-grouped schema yields one entry
   // covering the whole schema (key: ""), which makes one call — today's behaviour.
-  const groups = splitExtractionSchema(target.extractionSchema);
+  //
+  // The leaf cap is always requested here, unconditionally — not a caller-tunable
+  // PerGroupOptions knob. It costs nothing on the OpenAI-family route this is
+  // pinned to today (a group under the cap is returned unpartitioned, so the
+  // Snugg target still makes 7 calls, not 9, unless hvac/health's actual leaf
+  // counts change): the two groups that DO exceed it become 2 calls each instead
+  // of 1, which is strictly safe groundwork for a future Anthropic-compatible
+  // route rather than a live behaviour change today. See `split-schema.ts`'s file
+  // header ("Leaf-count partitioning") for the 8-leaf derivation.
+  const groups = splitExtractionSchema(target.extractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
 
   // Pre-compute each group's JSON Schema and error-context at construction time.
   // The JSON Schema generation (`z.toJSONSchema`) is not cheap, and the schema
@@ -387,6 +468,10 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
     // model emits a single object and the response is wrapped back into an array
     // before the full schema sees it — so the result still validates against the
     // original collection schema while being unable to represent a second instance.
+    // This operates on `group.schema` regardless of whether it is a whole group or
+    // one partitioned piece — a piece's schema has the identical
+    // `{ [key]: ZodArray | ZodObject }` shape, just over fewer leaves, so this
+    // narrowing needs no change to see a piece.
     if (singleton && group.key !== "" && group.schema instanceof z.ZodObject) {
       const shape = (group.schema as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodType>;
       const value = shape[group.key];
@@ -404,12 +489,19 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
     // [A-Za-z0-9_-] by at least one platform route (Helix rejects a colon with a
     // generic `400 validation_failed`, which reads identically to an over-cap
     // schema and costs an afternoon to tell apart). Keep the separator inside the
-    // charset every route accepts.
-    const name = group.key ? `${target.name}-${group.key}` : target.name;
+    // charset every route accepts. A partitioned piece appends `-<part>` so two
+    // calls sharing a group key (e.g. `hvac`) still get distinct names.
+    const partSuffix = group.part !== undefined ? `-${group.part}` : "";
+    const name = group.key ? `${target.name}-${group.key}${partSuffix}` : target.name;
     const context = group.key
-      ? `perGroupExtractor: model response for "${target.name}" group "${group.key}"`
+      ? group.part !== undefined
+        ? `perGroupExtractor: model response for "${target.name}" group "${group.key}" (part ${group.part + 1}/${group.parts})`
+        : `perGroupExtractor: model response for "${target.name}" group "${group.key}"`
       : `perGroupExtractor: model response for "${target.name}"`;
-    return { group, schema, jsonSchema, name, context, wrapToArray };
+    // Only a partitioned piece needs its few-shot example narrowed — an
+    // unpartitioned group's example already carries exactly its leaves.
+    const leafKeys = group.part !== undefined ? partitionedLeafKeys(group) : undefined;
+    return { group, schema, jsonSchema, name, context, wrapToArray, leafKeys };
   });
 
   // The relay wraps extract() in withTimeout(stepTimeoutMs). All group calls
@@ -476,6 +568,7 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
             transcript,
             groupInstructions,
             singleton,
+            entry.leafKeys,
           );
           const request = {
             model,
@@ -551,21 +644,38 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
         abort,
       );
 
-      // Merge by shallow assignment — each response has exactly one top-level
-      // key, so assigning in sequence produces the whole without re-keying.
-      // In singleton mode, collection-group responses are wrapped back into a
-      // one-element array so the merged shape still validates against the original
-      // extraction schema.
+      // Merge by shallow assignment — each grouped response has exactly one
+      // top-level key, so assigning in sequence produces the whole without
+      // re-keying. In singleton mode, collection-group responses are wrapped back
+      // into a one-element array so the merged shape still validates against the
+      // original extraction schema. `responses` is index-aligned with `prepared`
+      // (mapWithPool preserves order), so pairing them by index — rather than
+      // reading each response's own keys — is what lets two entries share the
+      // same `group.key` (a partitioned group's pieces) without one clobbering
+      // the other.
       const merged: Record<string, unknown> = {};
-      for (const response of responses) {
+      for (let i = 0; i < prepared.length; i++) {
+        const entry = prepared[i]!;
         // Each response parsed against a strict object schema is a record with
         // string keys. The cast is safe because the first trust-boundary parse
         // already validated the shape.
-        const record = response as Record<string, unknown>;
-        for (const [key, value] of Object.entries(record)) {
-          const entry = prepared.find((e) => e.group.key === key);
-          merged[key] = entry?.wrapToArray ? [value] : value;
+        const response = responses[i] as Record<string, unknown>;
+
+        if (entry.group.key === "") {
+          // The non-grouped fallback: the response IS the whole merged object
+          // already (its schema is the full extraction schema, not a one-key
+          // slice) — assign its keys directly rather than nesting under "".
+          Object.assign(merged, response);
+          continue;
         }
+
+        const key = entry.group.key;
+        const raw = response[key];
+        const value = entry.wrapToArray ? [raw] : raw;
+        // A key already present in `merged` means an earlier piece of the SAME
+        // partitioned group already contributed its slice — recombine rather
+        // than overwrite. See `mergeGroupPieces`.
+        merged[key] = key in merged ? mergeGroupPieces(merged[key], value) : value;
       }
 
       // Second trust-boundary parse: validate the merged whole against the full

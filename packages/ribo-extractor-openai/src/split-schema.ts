@@ -20,6 +20,29 @@
  * groups (a flat enveloped schema whose top-level properties are leaves, or a
  * top-level array of envelopes) gets one entry covering the whole schema — today's
  * behaviour, and the fallback rather than an error.
+ *
+ * Leaf-count partitioning: a model-family investigation on the managed route found
+ * that Anthropic-family models reject a response schema carrying more than 16
+ * nullable unions, and `Enveloped<V>` emits two nullable-union members per leaf
+ * (`value` and `sourceSpan`, both `X.nullable()`) — so the real per-call ceiling is
+ * 8 enveloped leaves, independent of the byte-size and nesting-depth caps this
+ * module already respects. That ceiling is invisible today because the managed
+ * route is pinned to OpenAI-family models, which accept far more, but two of
+ * Snugg Pro's seven groups (`hvac` at 12 leaves, `health` at 14) already exceed
+ * it — a live break the moment that pin changes. `splitExtractionSchema` fixes
+ * this at the source: when a caller passes `maxLeavesPerGroup`, a group whose leaf
+ * count exceeds it is further partitioned into multiple entries that all carry the
+ * SAME `key` (so the response still lands under the one top-level property
+ * consumers expect) and are distinguished by `part`/`parts`. A collection group is
+ * split within one instance's leaf set, never across instances or the array
+ * wrapper — every partitioned entry for `hvac` still carries `z.array(...)`, just
+ * with a narrower per-instance shape; the same instance index across two calls is
+ * the same instance. The caller (`perGroupExtractor`) makes one call per entry and
+ * recombines the pieces sharing a key back into one document/instance array — see
+ * its merge step. This partitioning is opt-in (omit `maxLeavesPerGroup` for
+ * today's one-entry-per-group behaviour, unchanged), so a caller with no such cap
+ * — `instance-fill.ts`'s `scopedInstanceExtractor`, which is not the shipped
+ * strategy — is unaffected.
  */
 
 import { z } from "zod";
@@ -43,9 +66,80 @@ export interface ExtractionGroup {
   /**
    * A zod schema carrying exactly this group's top-level key (or the whole schema
    * for the fallback). Strict/closed so a response carrying another group's key is
-   * rejected — the split narrows rather than relabels.
+   * rejected — the split narrows rather than relabels. When `part` is present,
+   * this carries only that piece's subset of `key`'s leaves, not all of them.
    */
   readonly schema: z.ZodType;
+  /**
+   * This entry's 0-based position among the pieces sharing `key`, present only
+   * when `key`'s leaves were partitioned across multiple calls (see the file
+   * header's "Leaf-count partitioning"). Undefined for a group under the cap, and
+   * always undefined unless a caller opted in via `maxLeavesPerGroup`.
+   */
+  readonly part?: number;
+  /** The total number of pieces sharing `key`, present exactly when `part` is. */
+  readonly parts?: number;
+}
+
+/**
+ * The default per-call leaf ceiling this module partitions against — 8 enveloped
+ * leaves, derived from the Anthropic-family 16-nullable-union cap and
+ * `Enveloped<V>`'s two nullable unions per leaf (`value`, `sourceSpan`). See the
+ * file header. Exported so a caller and its tests share one number rather than
+ * two that can drift.
+ */
+export const MAX_ENVELOPED_LEAVES_PER_GROUP = 8;
+
+/**
+ * Split one top-level group's leaves into pieces of at most `maxLeaves` each, as
+ * evenly sized as possible. `Object.keys` order is preserved, so which leaves land
+ * in which piece is a pure, deterministic function of the schema's own declaration
+ * order — no adapter knowledge, no hard-coded field names, matching the rest of
+ * this module's derive-don't-configure approach.
+ *
+ * `value` is the group's raw top-level property — either the group object
+ * directly (a singleton group, e.g. `health`) or a `ZodArray` of it (a collection
+ * group, e.g. `hvac`). `candidate` is `value` with any array wrapper already
+ * peeled off (by the caller, via {@link groupCandidate}) — the object whose keys
+ * are this group's enveloped leaves. The split narrows only `candidate`'s shape; a
+ * collection group's array wrapper is rebuilt around each piece unchanged, so a
+ * partition never spans instances or unwraps the array itself.
+ */
+function partitionGroup(
+  key: string,
+  value: z.ZodType,
+  candidate: z.ZodObject,
+  maxLeaves: number,
+): ExtractionGroup[] {
+  const leafKeys = Object.keys(candidate.shape);
+
+  if (leafKeys.length <= maxLeaves) {
+    return [{ key, schema: z.strictObject({ [key]: value }) }];
+  }
+
+  const isArray = value instanceof z.ZodArray;
+  const partCount = Math.ceil(leafKeys.length / maxLeaves);
+  // Evenly sized pieces, not "maxLeaves then a small remainder" — 12 leaves at a
+  // cap of 8 becomes 6+6, not 8+4. Both fit under the cap, but even pieces make
+  // per-call cost more predictable and avoid a piece sized suspiciously close to
+  // the ceiling.
+  const pieceSize = Math.ceil(leafKeys.length / partCount);
+
+  const pieces: ExtractionGroup[] = [];
+  for (let part = 0, start = 0; start < leafKeys.length; part++, start += pieceSize) {
+    const pieceKeys = leafKeys.slice(start, start + pieceSize);
+    const pieceShape: Record<string, z.ZodType> = {};
+    for (const leafKey of pieceKeys) pieceShape[leafKey] = candidate.shape[leafKey];
+    const pieceCandidate = z.strictObject(pieceShape);
+    const pieceValue = isArray ? z.array(pieceCandidate) : pieceCandidate;
+    pieces.push({
+      key,
+      schema: z.strictObject({ [key]: pieceValue }),
+      part,
+      parts: partCount,
+    });
+  }
+  return pieces;
 }
 
 /**
@@ -96,8 +190,18 @@ const isGroupObject = (obj: z.ZodObject): boolean => {
  * non-object schema, or an empty object — yields a single entry whose `key` is
  * `""` and whose `schema` is the whole input. That is today's behaviour (one call
  * carrying everything) and the correct fallback, not an error.
+ *
+ * @param maxLeavesPerGroup - When supplied, a group whose leaf count exceeds this
+ *   is further partitioned into multiple entries sharing its `key` (see the file
+ *   header's "Leaf-count partitioning" and {@link partitionGroup}). Omitted by
+ *   default, which keeps every existing caller's one-entry-per-group behaviour —
+ *   the cap is opt-in, not a new universal default, so a caller with no notion of
+ *   it (`instance-fill.ts`) is unaffected.
  */
-export function splitExtractionSchema(schema: z.ZodType): readonly ExtractionGroup[] {
+export function splitExtractionSchema(
+  schema: z.ZodType,
+  maxLeavesPerGroup?: number,
+): readonly ExtractionGroup[] {
   if (!(schema instanceof z.ZodObject)) {
     return [{ key: "", schema }];
   }
@@ -121,8 +225,14 @@ export function splitExtractionSchema(schema: z.ZodType): readonly ExtractionGro
     return [{ key: "", schema }];
   }
 
-  return keys.map((key) => ({
-    key,
-    schema: z.strictObject({ [key]: shape[key] }),
-  }));
+  if (maxLeavesPerGroup === undefined) {
+    return keys.map((key) => ({
+      key,
+      schema: z.strictObject({ [key]: shape[key] }),
+    }));
+  }
+
+  return keys.flatMap((key) =>
+    partitionGroup(key, shape[key], groupCandidate(shape[key]) as z.ZodObject, maxLeavesPerGroup),
+  );
 }
