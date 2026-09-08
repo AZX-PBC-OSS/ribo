@@ -37,7 +37,9 @@ _same_ real clip, which had never been measured before (the two engines had neve
 same audio). Neither transcript is ground truth here, so read it as a disagreement measure: a floor
 on how much the choice of engine can move the transcript, nothing more.
 
-Full method, reproduce steps, and the underlying numbers: [doc 14, Part D](/implementation/14-transcription-measurement#part-d-real-field-audio).
+Full method, reproduce steps, and the underlying numbers: [doc 14, Part D](https://github.com/AZX-PBC-OSS/ribo/blob/main/docs/implementation/14-transcription-measurement.md#part-d--real-field-audio)
+— the implementation notes this page repackages live in the repo, not on this site (`docs/implementation/` is
+process documentation, not published here).
 
 ## Extraction: ran, not yet scored
 
