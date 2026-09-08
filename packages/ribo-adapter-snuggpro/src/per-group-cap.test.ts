@@ -168,7 +168,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     const health = unpartitioned.find((g) => g.key === "health")!;
 
     expect(groupLeafCount(basedata)).toBe(163);
-    expect(groupLeafCount(hvac)).toBe(12);
+    expect(groupLeafCount(hvac)).toBe(46);
     expect(groupLeafCount(health)).toBe(16);
     expect(groupLeafCount(basedata)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(hvac)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
@@ -215,7 +215,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     ]);
 
     expect(byKey.get("basedata")).toHaveLength(21);
-    expect(byKey.get("hvac")).toHaveLength(2);
+    expect(byKey.get("hvac")).toHaveLength(6);
     expect(byKey.get("health")).toHaveLength(2);
     for (const key of ["attic", "wall", "window", "dhw", "concern", "incentive", "stage"]) {
       const pieces = byKey.get(key)!;
@@ -227,7 +227,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     // counts sum back to the original — no leaf lost or duplicated across the split.
     for (const [key, expectedTotal] of [
       ["basedata", 163],
-      ["hvac", 12],
+      ["hvac", 46],
       ["health", 16],
     ] as const) {
       const pieces = byKey.get(key)!;

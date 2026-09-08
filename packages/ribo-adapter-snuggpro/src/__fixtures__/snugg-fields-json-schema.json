@@ -5915,6 +5915,1101 @@
             },
             "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
+          },
+          "hvacSystemName": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Give this system a name that you can use to easily differentiate it from the others like: Old Heat Pump or Basement Furnace. The name the auditor gave this system — only when one was actually spoken; never an invented label."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingIsCondensing": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Is this furnace or boiler a condensing unit? If you see PVC pipes for the combustion venting as opposed to a gravity vent, then this unit is likely a condensing unit that runs at 90 AFUE or higher. Setting this to true will set the default a calibrated number between 90 and 96 AFUE automatically."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacPercentOfTotalHeatingLoad": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the proportion of the total load for heating or cooling that this system represents. The combined heating load percentage for all heating systems specified must add up to 100%. Share of the home's total heating load this system covers; heating shares across all systems must add up to 100."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacPercentOfTotalCoolingLoad": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the proportion of the total load for heating or cooling that this system represents. The combined cooling load percentage for all cooling systems specified DOES NOT need to add up to 100%. If you set the cooling load to 70% and don't add any other cooling system, then the model assumes you're not conditioning 30% of the home's cooling load. Share of the home's total cooling load this system covers; unlike heating shares, cooling shares need not add up to 100 — the remainder is modelled as unconditioned."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemManufacturer": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Unknown",
+                      "AirEase",
+                      "Amana",
+                      "American Standard",
+                      "Bosch",
+                      "Bryant",
+                      "Carrier",
+                      "Coleman",
+                      "Comfort Maker",
+                      "Coolerado",
+                      "Daikin",
+                      "Day & Night",
+                      "Frigidaire",
+                      "Fujitsu",
+                      "General Electric",
+                      "Goodman",
+                      "Janitrol",
+                      "Lennox",
+                      "LG",
+                      "Luxaire",
+                      "Mitsubishi",
+                      "Panasonic",
+                      "Payne",
+                      "Peerless",
+                      "Rheem",
+                      "RUUD",
+                      "Samsung",
+                      "Sears Kenmore",
+                      "Tappan",
+                      "Trane",
+                      "Utica",
+                      "York",
+                      "Other",
+                      "Fridgidaire"
+                    ],
+                    "description": "Enter the Manufacturer of the Cooling Equipment. Manufacturer from this closed list. Use \"Other\" when the auditor named a make that is not on it, and \"Unknown\" only when they did not state one."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Model # of the Cooling Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemIndoorModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Indoor Model # of the Cooling Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemOutdoorModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Outdoor Model # of the Cooling Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemModelYear": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Year the Cooling Equipment was built. The cooling unit's model year — never the home's year built, which is a separate field."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemIndoorModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Indoor Model # of the Heating Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemOutdoorModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Outdoor Model # of the Heating Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemIndoorSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemOutdoorSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemIndoorSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemOutdoorSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacDuctInsulationValue": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "If you know the actual R-value of the duct insulation, you may enter it here. The duct insulation R-value as a measured number — only meaningful when hvacDuctInsulation is \"Measured (R Value)\"."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatPumpInverter": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if this heat pump has a variable speed or Inverter driven compressor. These extremely high efficiency units perform to much lower outside air temperatures than single speed units and require much less or no electric resistance backup heat."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "energyStarColdClimateHeatPump": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Choose Yes if Energy Star Cold Climate Heat Pump. Field options: 1 → Yes 0 → No Whether this system is an ENERGY STAR Cold Climate Heat Pump; the wire value is integer 1 (yes) or 0 (no)."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingMaintenanceStarRating": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["1", "2", "3"],
+                    "description": "Field options: null → 1 → Observable issues need to be addressed 2 → Standard condition based on the age of the system 3 → Well maintained and/or pristine condition Maintenance condition as the wire string — \"1\" observable issues need to be addressed, \"2\" standard condition based on the age of the system, \"3\" well maintained and/or pristine; a system whose condition was never judged is null."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingMaintenanceStarRating": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["1", "2", "3"],
+                    "description": "Field options: null → 1 → Observable issues need to be addressed 2 → Standard condition based on the age of the system 3 → Well maintained and/or pristine condition Maintenance condition as the wire string — \"1\" observable issues need to be addressed, \"2\" standard condition based on the age of the system, \"3\" well maintained and/or pristine; a system whose condition was never judged is null."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacSteadyStateEfficiency": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Measured steady state efficiency as calculated with a combustion gas analyze Steady-state efficiency measured on site with a combustion gas analyzer — a field reading, not a nameplate rating; set it only when the auditor actually ran and stated one."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemEfficiency": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Annual Fuel Utilization Efficiency (AFUE) is a percentage representing the ratio of heat energy units provided to the total energy value of fuel consumed in identical units. It is most commonly used for combustion based heating as well as electric resistance heating. Heating Seasonal Performance Factor (HSPF) is the ratio of Btus of heat energy provided to the watt-hours of electricity consumed. It is most commonly used for air and ground source heat pumps. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. AFUE or HSPF as a stated number only — Snugg normally derives efficiency from make/model/year, so never estimate one; which rating the number means goes in hvacHeatingSystemEfficiencyRatingUnit."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemEfficiency": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "The Seasonal Energy Efficiency Ratio (SEER) is the average annual cooling efficiency of an air-conditioning or heat pump system as a weighted average of EERs over a range of rate outside air conditions following a standard test method. It includes energy of auxiliary systems such as the indoor and outdoor fans. Units: Btu/Wh. The Energy Efficiency Ratio (EER) is the measurement of the cooling capacity for a unit (in Btu/hour) divided by electrical energy it uses (in watts) at a specific temperature of 95ºF. Units: Btu/Wh. EER is only used for Room AC units. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. SEER, or EER for a Room AC, as a stated number only — never estimated; the unit goes in hvacCoolingSystemEfficiencyRatingUnit."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemEfficiencyRatingUnit": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "The unit hvacHeatingSystemEfficiency is expressed in (AFUE or HSPF), as free text — the vendor publishes no value list for this field."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemEfficiencyRatingUnit": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "The unit hvacCoolingSystemEfficiency is expressed in (SEER or EER), as free text — the vendor publishes no value list for this field."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingEnergySourceImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "This is the primary fuel source. It is used to set prices and energy content. The proposed system's fuel as spoken, free text — the vendor publishes no value list for this field. A recommended fuel switch is dictated intent; never leave it null just because there is no list to match against."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingCapacityImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the output capacity of the heating equipment in (Btu/hr). **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000. Proposed heating output in Btu per hour — the sizing half of a dictated recommendation. Auditors say tons, not Btu/hr; the tons-to-Btu/hr conversion is a deterministic pass, so the stated size belongs here rather than nowhere."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingCapacityImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the output capacity of the cooling equipment in (Btu/hr). Reminder: cooling systems are often rated in tons. 1 ton = 12,000 Btu/hr. **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000. Proposed cooling output in Btu per hour — the sizing half of a dictated recommendation. Auditors say tons, not Btu/hr; the tons-to-Btu/hr conversion is a deterministic pass, so the stated size belongs here rather than nowhere."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacPercentOfTotalHeatingLoadImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the proportion of the total load for heating or cooling that this system represents. The combined heating load percentage for all heating systems specified must add up to 100%. Share of the home's heating load the proposed system would carry — a stated allocation of intent; improved heating shares across systems must add up to 100."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacPercentOfTotalCoolingLoadImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the proportion of the total load for heating or cooling that this system represents. The combined cooling load percentage for all cooling systems specified DOES NOT need to add up to 100%. If you set the cooling load to 70% and don't add any other cooling system, then the model assumes you're not conditioning 30% of the home's cooling load. Share of the home's cooling load the proposed system would carry; like the base side, improved cooling shares need not add up to 100."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatPumpInverterImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if this heat pump has a variable speed or Inverter driven compressor. These extremely high efficiency units perform to much lower outside air temperatures than single speed units and require much less or no electric resistance backup heat. Whether the proposed heat pump is variable-speed / inverter-driven — \"get a variable-speed unit\" is dictated intent, not a desk spec."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "energyStarColdClimateHeatPumpImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Choose Yes if Energy Star Cold Climate Heat Pump. Field options: 1 → Yes 0 → No Whether the proposed system is an ENERGY STAR Cold Climate Heat Pump — a product-class recommendation; the wire value is integer 1 (yes) or 0 (no)."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -5929,7 +7024,41 @@
           "hvacDuctLocation",
           "hvacDuctLeakage",
           "hvacDuctLeakageValue",
-          "hvacDuctInsulation"
+          "hvacDuctInsulation",
+          "hvacSystemName",
+          "hvacHeatingIsCondensing",
+          "hvacPercentOfTotalHeatingLoad",
+          "hvacPercentOfTotalCoolingLoad",
+          "hvacCoolingSystemManufacturer",
+          "hvacCoolingSystemModel",
+          "hvacCoolingSystemIndoorModel",
+          "hvacCoolingSystemOutdoorModel",
+          "hvacCoolingSystemModelYear",
+          "hvacHeatingSystemIndoorModel",
+          "hvacHeatingSystemOutdoorModel",
+          "hvacCoolingSystemSerialNumber",
+          "hvacCoolingSystemIndoorSerialNumber",
+          "hvacCoolingSystemOutdoorSerialNumber",
+          "hvacHeatingSystemSerialNumber",
+          "hvacHeatingSystemIndoorSerialNumber",
+          "hvacHeatingSystemOutdoorSerialNumber",
+          "hvacDuctInsulationValue",
+          "hvacHeatPumpInverter",
+          "energyStarColdClimateHeatPump",
+          "hvacHeatingMaintenanceStarRating",
+          "hvacCoolingMaintenanceStarRating",
+          "hvacSteadyStateEfficiency",
+          "hvacHeatingSystemEfficiency",
+          "hvacCoolingSystemEfficiency",
+          "hvacHeatingSystemEfficiencyRatingUnit",
+          "hvacCoolingSystemEfficiencyRatingUnit",
+          "hvacHeatingEnergySourceImproved",
+          "hvacHeatingCapacityImproved",
+          "hvacCoolingCapacityImproved",
+          "hvacPercentOfTotalHeatingLoadImproved",
+          "hvacPercentOfTotalCoolingLoadImproved",
+          "hvacHeatPumpInverterImproved",
+          "energyStarColdClimateHeatPumpImproved"
         ],
         "additionalProperties": false
       }

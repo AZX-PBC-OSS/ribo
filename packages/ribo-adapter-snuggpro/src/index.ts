@@ -61,6 +61,7 @@ export {
   HealthCondition,
   HealthFields,
   HealthTestState,
+  HvacCoolingSystemManufacturer,
   HvacDuctInsulation,
   HvacDuctLeakage,
   HvacFields,

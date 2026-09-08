@@ -59,9 +59,12 @@
  *   3. HEALTH & SAFETY IS A FIXED-STATE MATRIX, not free text. Each named test
  *      is `"Passed"` / `"Failed"` / `"Warning"` / `"Not Tested"`; "CO was clean"
  *      is `"Passed"`, and a test never mentioned is `null`.
- *   4. EQUIPMENT EFFICIENCY (AFUE / SEER / HSPF) IS NOT A CAPTURE FIELD. The
- *      vendor derives it by lookup from make / model / year, not dictated. We
- *      capture the inputs and deliberately have no efficiency slot.
+ *   4. EQUIPMENT EFFICIENCY (AFUE / SEER / HSPF) IS LOOKED UP, NOT DICTATED.
+ *      The vendor derives it from make / model / year, so the hvac efficiency
+ *      leaves are `capture?` in doc 20's verdicts: they hold a STATED number
+ *      only, never an estimated one. The exception is
+ *      `hvacSteadyStateEfficiency` — a combustion-analyzer reading measured on
+ *      site, which is an ordinary capture.
  *
  * ---
  *
@@ -571,6 +574,53 @@ export const HvacHeatingSystemManufacturer = z
     "Utica",
     "York",
     "Other",
+  ])
+  .describe(
+    'Manufacturer from this closed list. Use "Other" when the auditor named a make that is not on it, and "Unknown" only when they did not state one.',
+  );
+
+/**
+ * `hvacCoolingSystemManufacturer` (`hvac`) — the COOLING brand list, a separate
+ * closed enum from the heating one: the two lists genuinely differ (cooling
+ * has `Coolerado` and `Comfort Maker` where heating has `Comfort Master`), and
+ * both carry the vendor's `Frigidaire`/`Fridgidaire` typo pair verbatim.
+ */
+export const HvacCoolingSystemManufacturer = z
+  .enum([
+    "Unknown",
+    "AirEase",
+    "Amana",
+    "American Standard",
+    "Bosch",
+    "Bryant",
+    "Carrier",
+    "Coleman",
+    "Comfort Maker",
+    "Coolerado",
+    "Daikin",
+    "Day & Night",
+    "Frigidaire",
+    "Fujitsu",
+    "General Electric",
+    "Goodman",
+    "Janitrol",
+    "Lennox",
+    "LG",
+    "Luxaire",
+    "Mitsubishi",
+    "Panasonic",
+    "Payne",
+    "Peerless",
+    "Rheem",
+    "RUUD",
+    "Samsung",
+    "Sears Kenmore",
+    "Tappan",
+    "Trane",
+    "Utica",
+    "York",
+    "Other",
+    "Fridgidaire",
   ])
   .describe(
     'Manufacturer from this closed list. Use "Other" when the auditor named a make that is not on it, and "Unknown" only when they did not state one.',
@@ -1493,11 +1543,19 @@ export const BasedataFields = z
   .strict();
 
 /**
- * `POST /jobs/{jobId}/hvac` — one heating/cooling system record, a bounded
- * dictation-density subset of the endpoint. The writable surface carries this
- * as an array because a job may have several systems; each element is one
- * record. The API's required capture fields live here — see `adapter.ts`'s
- * `requiredOnCreate`.
+ * `POST /jobs/{jobId}/hvac` — one heating/cooling system record. The writable
+ * surface carries this as an array because a job may have several systems;
+ * each element is one record. The API's required capture fields live here —
+ * see `adapter.ts`'s `requiredOnCreate`.
+ *
+ * Coverage (doc 20 §5.4): the base side is the endpoint's full
+ * dictation-plausible surface. The improved side carries ONLY intent-bearing
+ * fields — a fuel switch, a sizing, a load share, an equipment-class
+ * preference are the dictated recommendation itself, and for an
+ * `hvacUpgradeAction` of `"Install a new non-existing system"` the improved
+ * side is the only place the new system exists at all. The rest of the
+ * improved side is desk-side purchase specs of equipment not yet bought
+ * (serials, model numbers, ratings of a proposed unit) and stays excluded.
  */
 export const HvacFields = z
   .object(
@@ -1569,6 +1627,265 @@ export const HvacFields = z
 
       /** Duct insulation, the Snugg material/thickness member. */
       hvacDuctInsulation: HvacDuctInsulation.nullable().optional(),
+
+      /**
+       * The human instance label ("Old Heat Pump", "Basement Furnace") — the
+       * only hvac handle an auditor actually says out loud, and the first
+       * natural name field on any array-shaped group.
+       */
+      hvacSystemName: z
+        .string()
+        .describe(
+          "The name the auditor gave this system — only when one was actually spoken; never an invented label.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Condensing furnace/boiler — PVC combustion venting is the field tell. */
+      hvacHeatingIsCondensing: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** This system's share of the home's heating load. */
+      hvacPercentOfTotalHeatingLoad: z
+        .number()
+        .describe(
+          "Share of the home's total heating load this system covers; heating shares across all systems must add up to 100.",
+        )
+        .nullable()
+        .optional(),
+
+      /** This system's share of the home's cooling load. */
+      hvacPercentOfTotalCoolingLoad: z
+        .number()
+        .describe(
+          "Share of the home's total cooling load this system covers; unlike heating shares, cooling shares need not add up to 100 — the remainder is modelled as unconditioned.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Cooling manufacturer, from Snugg's closed COOLING list — a different list from heating's. */
+      hvacCoolingSystemManufacturer: HvacCoolingSystemManufacturer.nullable().optional(),
+
+      /** Cooling model number / model name as stated, free text in the spec too. */
+      hvacCoolingSystemModel: z.string().nullable().optional(),
+
+      /** Indoor cooling model number (the air-handler/coil side of a split system). */
+      hvacCoolingSystemIndoorModel: z.string().nullable().optional(),
+
+      /** Outdoor cooling model number (the condenser side of a split system). */
+      hvacCoolingSystemOutdoorModel: z.string().nullable().optional(),
+
+      /** The UNIT's model year — never the home's year. Stringified at write. */
+      hvacCoolingSystemModelYear: z
+        .number()
+        .describe(
+          "The cooling unit's model year — never the home's year built, which is a separate field.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Indoor heating model number. */
+      hvacHeatingSystemIndoorModel: z.string().nullable().optional(),
+
+      /** Outdoor heating model number. */
+      hvacHeatingSystemOutdoorModel: z.string().nullable().optional(),
+
+      /** Cooling serial number(s), comma-separated when several. */
+      hvacCoolingSystemSerialNumber: z.string().nullable().optional(),
+
+      /** Indoor cooling serial number(s), comma-separated when several. */
+      hvacCoolingSystemIndoorSerialNumber: z.string().nullable().optional(),
+
+      /** Outdoor cooling serial number(s), comma-separated when several. */
+      hvacCoolingSystemOutdoorSerialNumber: z.string().nullable().optional(),
+
+      /** Heating serial number(s), comma-separated when several. */
+      hvacHeatingSystemSerialNumber: z.string().nullable().optional(),
+
+      /** Indoor heating serial number(s), comma-separated when several. */
+      hvacHeatingSystemIndoorSerialNumber: z.string().nullable().optional(),
+
+      /** Outdoor heating serial number(s), comma-separated when several. */
+      hvacHeatingSystemOutdoorSerialNumber: z.string().nullable().optional(),
+
+      /** The measured duct-insulation R-value — pairs with `"Measured (R Value)"` above. */
+      hvacDuctInsulationValue: z
+        .number()
+        .describe(
+          'The duct insulation R-value as a measured number — only meaningful when hvacDuctInsulation is "Measured (R Value)".',
+        )
+        .nullable()
+        .optional(),
+
+      /** Variable-speed / inverter-driven compressor on the heat pump. */
+      hvacHeatPumpInverter: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /**
+       * Whether this is an ENERGY STAR Cold Climate Heat Pump. The spec
+       * publishes an INTEGER enum `[1, 0]` on a `type: string` field — the
+       * same shape as `hasEv`, so `z.number()` and the vocabulary travels in
+       * the description.
+       */
+      energyStarColdClimateHeatPump: z
+        .number()
+        .describe(
+          "Whether this system is an ENERGY STAR Cold Climate Heat Pump; the wire value is integer 1 (yes) or 0 (no).",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Heating-side maintenance/condition star rating. The spec's enum is
+       * `[null, "1", "2", "3"]` — a literal `null` plus numeric STRINGS: the
+       * null is this leaf's `.nullable()` (the `WallCavityInsulationType`
+       * rule) and the numeric strings stay strings (the `WindZone` rule).
+       */
+      hvacHeatingMaintenanceStarRating: z
+        .enum(["1", "2", "3"])
+        .describe(
+          'Maintenance condition as the wire string — "1" observable issues need to be addressed, "2" standard condition based on the age of the system, "3" well maintained and/or pristine; a system whose condition was never judged is null.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Cooling-side maintenance/condition star rating — same wire shape as the heating twin. */
+      hvacCoolingMaintenanceStarRating: z
+        .enum(["1", "2", "3"])
+        .describe(
+          'Maintenance condition as the wire string — "1" observable issues need to be addressed, "2" standard condition based on the age of the system, "3" well maintained and/or pristine; a system whose condition was never judged is null.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Steady-state efficiency measured on site with a combustion gas
+       * analyzer — a real reading, so HAZARD 4's lookup rule does not apply.
+       */
+      hvacSteadyStateEfficiency: z
+        .number()
+        .describe(
+          "Steady-state efficiency measured on site with a combustion gas analyzer — a field reading, not a nameplate rating; set it only when the auditor actually ran and stated one.",
+        )
+        .nullable()
+        .optional(),
+
+      /** AFUE (combustion / electric resistance) or HSPF (heat pump) — a stated number only, per HAZARD 4. */
+      hvacHeatingSystemEfficiency: z
+        .number()
+        .describe(
+          "AFUE or HSPF as a stated number only — Snugg normally derives efficiency from make/model/year, so never estimate one; which rating the number means goes in hvacHeatingSystemEfficiencyRatingUnit.",
+        )
+        .nullable()
+        .optional(),
+
+      /** SEER (EER for Room AC) — same stated-number-only rule as the heating twin. */
+      hvacCoolingSystemEfficiency: z
+        .number()
+        .describe(
+          "SEER, or EER for a Room AC, as a stated number only — never estimated; the unit goes in hvacCoolingSystemEfficiencyRatingUnit.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Which rating `hvacHeatingSystemEfficiency` is expressed in. The spec
+       * declares `enum: []` — the value list is unpublished — so this stays
+       * free text, the `hvacDuctLocation` precedent.
+       */
+      hvacHeatingSystemEfficiencyRatingUnit: z
+        .string()
+        .describe(
+          "The unit hvacHeatingSystemEfficiency is expressed in (AFUE or HSPF), as free text — the vendor publishes no value list for this field.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Which rating `hvacCoolingSystemEfficiency` is expressed in — free text, unpublished value list. */
+      hvacCoolingSystemEfficiencyRatingUnit: z
+        .string()
+        .describe(
+          "The unit hvacCoolingSystemEfficiency is expressed in (SEER or EER), as free text — the vendor publishes no value list for this field.",
+        )
+        .nullable()
+        .optional(),
+
+      // --- Improved side: dictated INTENT only -------------------------------
+      // For `hvacUpgradeAction: "Install a new non-existing system"` the
+      // improved side is the only place the new system exists, and these are
+      // the fields a recommendation is dictated in — fuel, sizing, load
+      // share, equipment class. Everything else on the improved side is a
+      // desk-side purchase spec of unbought equipment and is excluded.
+
+      /**
+       * The proposed system's fuel — a fuel switch ("get off the oil") is
+       * dictated retrofit intent. The spec declares `enum: []` here and,
+       * unlike the base-side twin, there is no sanctioned list to borrow —
+       * the spoken fuel lands as free text.
+       */
+      hvacHeatingEnergySourceImproved: z
+        .string()
+        .describe(
+          "The proposed system's fuel as spoken, free text — the vendor publishes no value list for this field. A recommended fuel switch is dictated intent; never leave it null just because there is no list to match against.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Proposed heating output in Btu/h — sizing intent. Auditors say tons; the conversion is `normalization.ts`'s, same as the base side. */
+      hvacHeatingCapacityImproved: z
+        .number()
+        .describe(
+          "Proposed heating output in Btu per hour — the sizing half of a dictated recommendation. Auditors say tons, not Btu/hr; the tons-to-Btu/hr conversion is a deterministic pass, so the stated size belongs here rather than nowhere.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Proposed cooling output in Btu/h — sizing intent; "three-ton" is 36000, a conversion `normalization.ts` owns. */
+      hvacCoolingCapacityImproved: z
+        .number()
+        .describe(
+          "Proposed cooling output in Btu per hour — the sizing half of a dictated recommendation. Auditors say tons, not Btu/hr; the tons-to-Btu/hr conversion is a deterministic pass, so the stated size belongs here rather than nowhere.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Share of heating load the improved system would carry — dictated intent expressed as a cross-instance allocation. */
+      hvacPercentOfTotalHeatingLoadImproved: z
+        .number()
+        .describe(
+          "Share of the home's heating load the proposed system would carry — a stated allocation of intent; improved heating shares across systems must add up to 100.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Share of cooling load the improved system would carry. */
+      hvacPercentOfTotalCoolingLoadImproved: z
+        .number()
+        .describe(
+          "Share of the home's cooling load the proposed system would carry; like the base side, improved cooling shares need not add up to 100.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Whether the PROPOSED heat pump is variable-speed / inverter-driven — a dictated preference, not a purchase spec. */
+      hvacHeatPumpInverterImproved: z
+        .enum(["Yes", "No"])
+        .describe(
+          'Whether the proposed heat pump is variable-speed / inverter-driven — "get a variable-speed unit" is dictated intent, not a desk spec.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Whether the proposed system is an ENERGY STAR Cold Climate Heat Pump —
+       * a named product-class recommendation. Same integer-on-string wire
+       * shape as the base-side twin.
+       */
+      energyStarColdClimateHeatPumpImproved: z
+        .number()
+        .describe(
+          "Whether the proposed system is an ENERGY STAR Cold Climate Heat Pump — a product-class recommendation; the wire value is integer 1 (yes) or 0 (no).",
+        )
+        .nullable()
+        .optional(),
     }),
   )
   .strict();
