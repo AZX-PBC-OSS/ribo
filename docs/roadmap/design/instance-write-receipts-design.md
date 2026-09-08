@@ -127,14 +127,31 @@ to survive across reviews so a later amend pass can find the vendor id to update
 against. This is the field a future "write step updates rather than creates" change
 (explicitly out of scope here, see §5) will read.
 
-Per session-ownership-plan.md Task 3's own note ("The receipts work will need a
-durable channel again and should re-add it deliberately rather than inherit an unused
-dependency" — `ToInstanceWriteStepOptions` lost its `outbox` option when
-`writtenInstances` was deleted), this design adds a **new** dependency to
-`toInstanceWriteStep`'s options — a callback invoked after each successful write with
-`(group, instanceKey | "singleton", uuid)` — rather than reviving the deleted
-`outbox` option. The caller (wherever sessions are persisted) is responsible for
-merging that into the session's `receipts` field.
+**Mechanism: the existing `SessionWriteStep` return channel, not a new dependency.**
+`relay.ts`'s `#sessionWrite` (`queue/relay.ts:433-452`) already persists whatever
+`sessionWrite` (the function `toWriteStep`/`toInstanceWriteStep` produce) resolves
+with, into the session's `writeResult` field: "Anything returned is persisted as
+`writeResult`" (`SessionWriteStep`'s own doc comment, `relay.ts:74`). Both real
+compositions currently resolve `void` (`write-step.ts:90`,
+`instance-write-step.ts:66-114`), so `writeResult` is presently always absent in
+practice — this channel is unused, not spoken for. `session-ownership-plan.md` Task 3
+flagged that the receipts work "will need a durable channel again and should re-add it
+deliberately rather than inherit an unused dependency" (the deleted `outbox` option on
+`ToInstanceWriteStepOptions`); this design's answer is: reuse the return channel that
+already exists for exactly this purpose, rather than adding a callback dependency.
+
+`SessionWriteStep`'s return type changes from `Promise<ExtractedFieldMap | void>` to
+`Promise<SessionWriteResult | void>`, where `SessionWriteResult` carries `fields`
+(renamed from today's bare `ExtractedFieldMap`, unchanged meaning) and the new
+`receipts` alongside it. `toWriteStep` captures the single `write` call's `uuid` as
+`receipts.singleton`. `toInstanceWriteStep` accumulates a `receipts.instances[group][instanceKey]`
+entry per successful instance write (plus `receipts.singleton` for the singleton
+patch, if any), and returns the accumulated object once the loop finishes. `relay.ts`'s
+`#sessionWrite` then persists `result.fields` into `writeResult` as today, and merges
+`result.receipts` into the session's `receipts` field — additively (existing groups'
+instance ids are kept, only the keys present in this pass's result are overwritten) so
+a receipt from an earlier pass is never silently lost if a later pass's reviewed patch
+happens not to touch that instance.
 
 ### 3.5 Sessions schema v1 → v2
 
