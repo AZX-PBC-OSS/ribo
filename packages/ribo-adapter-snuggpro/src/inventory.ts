@@ -6,13 +6,14 @@
  * The roster is **scaffolding for prompt assembly**, not part of the write patch
  * or the extraction contract (design §5.3). It lists, per collection group, the
  * candidate instances the auditor introduced, with the verbatim spans that ground
- * existence, separation and exclusion. It is not persisted and does not reach
- * review.
+ * existence, separation, exclusion and absence. It is not persisted and does not
+ * reach review.
  *
- * The three span requirements are one mechanism used three times (design §3):
- * existence, separation and exclusion each require a verbatim quote, making the
- * unsafe direction cost evidence. A model cannot invent a system, split one into
- * two, or drop a live one without quoting the auditor doing it.
+ * The four span requirements are one mechanism used four times (design §3):
+ * existence, separation, exclusion and absence each require a verbatim quote,
+ * making the unsafe direction cost evidence. A model cannot invent a system,
+ * split one into two, drop a live one, or claim there are none without quoting
+ * the auditor doing it.
  *
  * `discriminator` is a prompting artifact only — a short auditor-language handle
  * with no write target — so there is no schema leaf for it beyond this roster.
@@ -57,16 +58,25 @@ export type RosterCandidate = z.infer<typeof rosterCandidateSchema>;
  * One group of candidates, ordered by first mention. The first candidate may
  * carry `distinguishedBy: null`; every later candidate must carry a non-null
  * span that separates it from the ones before it.
+ *
+ * The union also admits a `{ stated: "none", span }` value — the fourth
+ * grounding mechanism (absence) — for when the auditor explicitly states a
+ * component type does not exist in the property. An empty array still means
+ * "the model found nothing to report," used when the transcript never brings
+ * the group up at all.
  */
-const rosterGroupSchema = z
-  .array(rosterCandidateSchema)
-  .refine(
-    (candidates) =>
-      candidates.every((candidate, index) => index === 0 || candidate.distinguishedBy !== null),
-    {
-      message: "every candidate after the first must have a non-null distinguishedBy span",
-    },
-  );
+export const rosterGroupSchema = z.union([
+  z
+    .array(rosterCandidateSchema)
+    .refine(
+      (candidates) =>
+        candidates.every((candidate, index) => index === 0 || candidate.distinguishedBy !== null),
+      {
+        message: "every candidate after the first must have a non-null distinguishedBy span",
+      },
+    ),
+  z.strictObject({ stated: z.literal("none"), span: z.string().min(1) }),
+]);
 
 /** The house-wide inventory roster, one ordered list per collection group. */
 export const rosterSchema = z.strictObject({
@@ -131,7 +141,15 @@ carry a non-null \`distinguishedBy\` span. Without that span, the two candidates
 If \`eligibility\` is not \`current\`, \`eligibilitySpan\` must be a verbatim substring where the auditor
 excluded the component. A mentioned-but-excluded component is different from one never mentioned.
 
-**5. Granularity — one record per group as the vendor counts it.**
+**5. Absence needs a span.**
+
+When the auditor explicitly states a component type does not exist in the property (e.g. "there's no
+attic," "no supplemental heating"), emit \`{ "stated": "none", "span": "<verbatim quote>" }\` for that
+group instead of an empty array. An empty array still means "the model found nothing to report," used
+when the transcript never brings the group up at all. The \`span\` must be a verbatim substring of the
+transcript, same discipline as every other span.
+
+**7. Granularity — one record per group as the vendor counts it.**
 
 - \`hvac\`: equipment sharing a distribution system is one record, even when it is several physical
   boxes. An air handler, a condenser and a plenum are parts of a system, not systems. Equipment with
@@ -141,7 +159,7 @@ excluded the component. A mentioned-but-excluded component is different from one
 - \`window\`: one record per distinct window type or area.
 - \`dhw\`: one record per water heating system.
 
-**6. Self-correction at the instance level.**
+**8. Self-correction at the instance level.**
 
 Rule 5 of the leaf-level instructions says the last assertion wins for values. A retraction that
 changes the **count** of instances resolves to the post-correction enumeration. "There's an air
@@ -153,8 +171,12 @@ the corrected count, not the first one.
 Return a **single JSON object** conforming exactly to the roster schema.
 
 - The object has exactly five top-level keys — \`hvac\`, \`attic\`, \`wall\`, \`window\`, \`dhw\` — each
-  an array of candidate instances in **first-mention order**.
-- A group the transcript never mentions is an **empty array**, not an invented candidate.
+  one of three shapes:
+  - An **array of candidate instances** in **first-mention order**, when the auditor introduced at
+    least one.
+  - An **empty array**, when the transcript never brings the group up at all.
+  - \`{ "stated": "none", "span": "<verbatim quote>" }\`, when the auditor explicitly states the
+    component type does not exist in the property.
 - No prose, no explanation, no markdown fence, no commentary before or after. The response is the
   JSON object and nothing else.`;
 
