@@ -142,6 +142,32 @@ export function projectSingletonExample<F extends Record<string, unknown>>(
 }
 
 /**
+ * Narrow a projected example's group value down to a subset of leaf keys —
+ * the per-group counterpart of {@link splitExtractionSchema}'s leaf-count
+ * partitioning (`ExtractionGroup.part`). A collection group's value is an array
+ * of instance objects; each instance is narrowed the same way so the projection
+ * still spans every instance, just with fewer fields per instance. A singleton
+ * group's value is narrowed directly. Object identity for a key absent from the
+ * source value is skipped rather than inserting `undefined`, so a partial
+ * few-shot example (missing a leaf) narrows to a partial result rather than a
+ * spurious explicit `undefined`.
+ */
+function narrowToLeaves(value: unknown, leafKeys: readonly string[]): unknown {
+  if (Array.isArray(value)) {
+    return value.map((element) => narrowToLeaves(element, leafKeys));
+  }
+  if (value !== null && typeof value === "object") {
+    const source = value as Record<string, unknown>;
+    const narrowed: Record<string, unknown> = {};
+    for (const key of leafKeys) {
+      if (key in source) narrowed[key] = source[key];
+    }
+    return narrowed;
+  }
+  return value;
+}
+
+/**
  * Assemble per-group chat messages — the per-group counterpart of
  * {@link buildMessages}.
  *
@@ -164,6 +190,15 @@ export function projectSingletonExample<F extends Record<string, unknown>>(
  *   example to a single element (via {@link projectSingletonExample}) so the
  *   assistant turn imitates the singleton response the model is asked for. The
  *   default (`false`) keeps the array shape.
+ * @param leafKeys - When supplied, the projected example's group value (and, for
+ *   a collection group, every instance in it) is further narrowed to exactly
+ *   these keys via {@link narrowToLeaves} — the shape a partitioned piece
+ *   (`ExtractionGroup.part`) actually asks the model for. Without this, a
+ *   partitioned call's few-shot example would show the model an assistant turn
+ *   carrying the WHOLE group's fields while its `response_format` accepts only a
+ *   subset — a strict-mode schema mismatch between what the example imitates and
+ *   what the call is pinned to. Omitted (or `undefined`) keeps today's behaviour:
+ *   the example carries every leaf of the group.
  */
 export function buildGroupMessages<V extends Record<string, unknown>>(
   target: ExtractionTarget<V>,
@@ -171,6 +206,7 @@ export function buildGroupMessages<V extends Record<string, unknown>>(
   transcript: string,
   groupInstructions?: (key: string) => string,
   singleton?: boolean,
+  leafKeys?: readonly string[],
 ): ChatMessage[] {
   const perGroup = groupInstructions !== undefined && groupKey !== "";
   const instructions = perGroup ? groupInstructions!(groupKey) : target.instructions;
@@ -181,8 +217,11 @@ export function buildGroupMessages<V extends Record<string, unknown>>(
         ? projectSingletonExample(example, groupKey)
         : projectExample(example, groupKey);
       if (projected === null) continue;
+      const fields = leafKeys
+        ? { [groupKey]: narrowToLeaves(projected.fields[groupKey], leafKeys) }
+        : projected.fields;
       messages.push({ role: "user", content: projected.transcript });
-      messages.push({ role: "assistant", content: JSON.stringify(projected.fields) });
+      messages.push({ role: "assistant", content: JSON.stringify(fields) });
     } else {
       messages.push({ role: "user", content: example.transcript });
       messages.push({ role: "assistant", content: JSON.stringify(example.fields) });

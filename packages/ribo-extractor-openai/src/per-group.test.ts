@@ -1053,3 +1053,289 @@ test("every per-group schema name is within the structured-output name charset",
     expect(request.response_format.json_schema.name).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
   }
 });
+
+// --- Leaf-count partitioning --------------------------------------------------
+
+/**
+ * Two must-fail tests demonstrating and then fixing the Anthropic-family
+ * 16-nullable-union cap: `Enveloped<V>` emits two nullable unions per leaf, so a
+ * group over 8 leaves overflows a single call on that model family. Real Snugg
+ * groups this affects (`hvac` at 12, `health` at 14) live in `ribo-adapter-snuggpro`,
+ * which this tool-agnostic package cannot reference — these fixtures are the
+ * synthetic stand-ins: a 10-leaf singleton group (mirrors `health`) and a 9-leaf
+ * collection group with two instances (mirrors `hvac`, R1.6-style).
+ *
+ * `perGroupExtractor` always requests the 8-leaf cap internally (not a caller
+ * knob — see its comment above `splitExtractionSchema`), so a group over the cap
+ * is partitioned into multiple calls with no test setup beyond "make a group with
+ * more than 8 leaves".
+ */
+describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-leaf cap)", () => {
+  /** A 10-leaf singleton group — mirrors `health`'s shape, over the 8-leaf cap. */
+  const bigPatch = z
+    .object({
+      big: z
+        .object({
+          f1: z.string().nullable().optional(),
+          f2: z.string().nullable().optional(),
+          f3: z.string().nullable().optional(),
+          f4: z.string().nullable().optional(),
+          f5: z.string().nullable().optional(),
+          f6: z.string().nullable().optional(),
+          f7: z.string().nullable().optional(),
+          f8: z.string().nullable().optional(),
+          f9: z.string().nullable().optional(),
+          f10: z.string().nullable().optional(),
+        })
+        .strict()
+        .optional(),
+    })
+    .strict();
+  const bigExtraction = enveloped(bigPatch);
+  type BigValues = z.infer<typeof bigPatch>;
+  type BigExtraction = Enveloped<BigValues>;
+
+  const envelope = (
+    value: string,
+    span: string,
+  ): { value: string; confidence: number; sourceSpan: string } => ({
+    value,
+    confidence: 0.9,
+    sourceSpan: span,
+  });
+
+  const bigTarget: ExtractionTarget<BigValues> = {
+    name: "demo-big",
+    extractionSchema: bigExtraction,
+    instructions: "Extract the big group's ten fields.",
+    examples: [],
+  };
+
+  test("a singleton group over the leaf cap is split into two calls (5+5) and recombined into one 10-field object", async () => {
+    // 10 leaves at a cap of 8 -> ceil(10/8) = 2 pieces, evenly sized: 5 + 5.
+    const piece0Response = {
+      big: {
+        f1: envelope("a1", "s1"),
+        f2: envelope("a2", "s2"),
+        f3: envelope("a3", "s3"),
+        f4: envelope("a4", "s4"),
+        f5: envelope("a5", "s5"),
+      },
+    };
+    const piece1Response = {
+      big: {
+        f6: envelope("a6", "s6"),
+        f7: envelope("a7", "s7"),
+        f8: envelope("a8", "s8"),
+        f9: envelope("a9", "s9"),
+        f10: envelope("a10", "s10"),
+      },
+    };
+    const { chat, requests } = fakeGroupChat({
+      "demo-big-big-0": JSON.stringify(piece0Response),
+      "demo-big-big-1": JSON.stringify(piece1Response),
+    });
+
+    const result = await perGroupExtractor({ target: bigTarget, chat, model: "m" }).extract("t");
+
+    // Exactly two calls for the one group — not one (over cap) and not more than
+    // the two pieces the split produces.
+    expect(requests).toHaveLength(2);
+    expect(result.usage.calls).toBe(2);
+
+    // Each call's response_format schema carries only its own 5 leaves, not all 10
+    // — the whole point of the partition.
+    for (const request of requests) {
+      const schema = request.response_format.json_schema.schema as {
+        properties: { big: { properties: Record<string, unknown> } };
+      };
+      expect(Object.keys(schema.properties.big.properties)).toHaveLength(5);
+    }
+
+    // Recombined into one coherent 10-field document.
+    const fields = result.fields as unknown as BigExtraction;
+    for (let i = 1; i <= 10; i++) {
+      const key = `f${i}` as keyof BigExtraction["big"];
+      expect(fields.big[key].value, `big.f${i}`).toBe(`a${i}`);
+    }
+  });
+
+  /**
+   * A 9-leaf-per-instance collection group — mirrors `hvac`'s array shape
+   * (R1.6 instance modeling). Splitting stays WITHIN one instance's leaf set:
+   * every piece still carries the full array, just with a narrower per-instance
+   * shape, and the same array index across both calls is the same instance.
+   */
+  const itemsPatch = z
+    .object({
+      items: z
+        .array(
+          z
+            .object({
+              f1: z.string().nullable().optional(),
+              f2: z.string().nullable().optional(),
+              f3: z.string().nullable().optional(),
+              f4: z.string().nullable().optional(),
+              f5: z.string().nullable().optional(),
+              f6: z.string().nullable().optional(),
+              f7: z.string().nullable().optional(),
+              f8: z.string().nullable().optional(),
+              f9: z.string().nullable().optional(),
+            })
+            .strict(),
+        )
+        .optional(),
+    })
+    .strict();
+  const itemsExtraction = enveloped(itemsPatch);
+  type ItemsValues = z.infer<typeof itemsPatch>;
+  type ItemsExtraction = Enveloped<ItemsValues>;
+
+  const itemsTarget: ExtractionTarget<ItemsValues> = {
+    name: "demo-items",
+    extractionSchema: itemsExtraction,
+    instructions: "Extract every item's nine fields.",
+    examples: [],
+  };
+
+  test("a collection group over the per-instance leaf cap is split within each instance (5+4), not across instances, and recombined element-wise", async () => {
+    // 9 leaves at a cap of 8 -> ceil(9/8) = 2 pieces, evenly sized: 5 + 4. Two
+    // instances (roster order preserved), each piece emitting the FULL array with
+    // only its own leaf subset per element.
+    const piece0Response = {
+      items: [
+        {
+          f1: envelope("i0-a1", "s"),
+          f2: envelope("i0-a2", "s"),
+          f3: envelope("i0-a3", "s"),
+          f4: envelope("i0-a4", "s"),
+          f5: envelope("i0-a5", "s"),
+        },
+        {
+          f1: envelope("i1-a1", "s"),
+          f2: envelope("i1-a2", "s"),
+          f3: envelope("i1-a3", "s"),
+          f4: envelope("i1-a4", "s"),
+          f5: envelope("i1-a5", "s"),
+        },
+      ],
+    };
+    const piece1Response = {
+      items: [
+        {
+          f6: envelope("i0-a6", "s"),
+          f7: envelope("i0-a7", "s"),
+          f8: envelope("i0-a8", "s"),
+          f9: envelope("i0-a9", "s"),
+        },
+        {
+          f6: envelope("i1-a6", "s"),
+          f7: envelope("i1-a7", "s"),
+          f8: envelope("i1-a8", "s"),
+          f9: envelope("i1-a9", "s"),
+        },
+      ],
+    };
+    const { chat, requests } = fakeGroupChat({
+      "demo-items-items-0": JSON.stringify(piece0Response),
+      "demo-items-items-1": JSON.stringify(piece1Response),
+    });
+
+    const result = await perGroupExtractor({ target: itemsTarget, chat, model: "m" }).extract("t");
+
+    expect(requests).toHaveLength(2);
+    expect(result.usage.calls).toBe(2);
+
+    // Each call's schema still carries the array wrapper — the split narrows the
+    // per-instance leaf set, never the array itself.
+    for (const request of requests) {
+      const schema = request.response_format.json_schema.schema as {
+        properties: { items: { type: string; items: { properties: Record<string, unknown> } } };
+      };
+      expect(schema.properties.items.type).toBe("array");
+      expect(Object.keys(schema.properties.items.items.properties).length).toBeLessThanOrEqual(5);
+    }
+
+    // Recombined element-wise: two full 9-field instances, in roster order, each
+    // built from the SAME array index across both calls.
+    const fields = result.fields as unknown as ItemsExtraction;
+    expect(fields.items).toHaveLength(2);
+    for (let instance = 0; instance < 2; instance++) {
+      for (let leaf = 1; leaf <= 9; leaf++) {
+        const key = `f${leaf}` as keyof ItemsExtraction["items"][number];
+        expect(fields.items[instance]![key].value, `items[${instance}].f${leaf}`).toBe(
+          `i${instance}-a${leaf}`,
+        );
+      }
+    }
+  });
+
+  test("with groupInstructions, a partitioned piece's few-shot example is narrowed to only that piece's leaves", async () => {
+    const groupInstructions = (): string => "Extract only this piece's leaves.";
+    const bigExample: ToolAdapterExample<BigExtraction> = {
+      transcript: "All ten fields were mentioned.",
+      fields: {
+        big: {
+          f1: envelope("a1", "s1"),
+          f2: envelope("a2", "s2"),
+          f3: envelope("a3", "s3"),
+          f4: envelope("a4", "s4"),
+          f5: envelope("a5", "s5"),
+          f6: envelope("a6", "s6"),
+          f7: envelope("a7", "s7"),
+          f8: envelope("a8", "s8"),
+          f9: envelope("a9", "s9"),
+          f10: envelope("a10", "s10"),
+        },
+      },
+    };
+    const bigTargetWithExample: ExtractionTarget<BigValues> = {
+      ...bigTarget,
+      examples: [bigExample],
+    };
+    const piece0Response = {
+      big: {
+        f1: envelope("a1", "s1"),
+        f2: envelope("a2", "s2"),
+        f3: envelope("a3", "s3"),
+        f4: envelope("a4", "s4"),
+        f5: envelope("a5", "s5"),
+      },
+    };
+    const piece1Response = {
+      big: {
+        f6: envelope("a6", "s6"),
+        f7: envelope("a7", "s7"),
+        f8: envelope("a8", "s8"),
+        f9: envelope("a9", "s9"),
+        f10: envelope("a10", "s10"),
+      },
+    };
+    const { chat, requests } = fakeGroupChat({
+      "demo-big-big-0": JSON.stringify(piece0Response),
+      "demo-big-big-1": JSON.stringify(piece1Response),
+    });
+
+    await perGroupExtractor({
+      target: bigTargetWithExample,
+      chat,
+      model: "m",
+      groupInstructions,
+    }).extract("t");
+
+    expect(requests).toHaveLength(2);
+    for (const request of requests) {
+      const assistantTurn = request.messages[2]!;
+      expect(assistantTurn.role).toBe("assistant");
+      const exampleFields = JSON.parse(assistantTurn.content) as { big: Record<string, unknown> };
+      const name = request.response_format.json_schema.name;
+      const expectedKeys = name.endsWith("-0")
+        ? ["f1", "f2", "f3", "f4", "f5"]
+        : ["f6", "f7", "f8", "f9", "f10"];
+      // The example carries EXACTLY this piece's leaves — not all ten, which
+      // would show the model an assistant turn its own response_format (pinned
+      // to 5 leaves) could never actually produce.
+      expect(Object.keys(exampleFields.big).sort()).toEqual([...expectedKeys].sort());
+    }
+  });
+});

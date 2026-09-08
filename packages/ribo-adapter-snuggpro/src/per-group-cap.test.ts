@@ -1,7 +1,8 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
-import { splitExtractionSchema } from "@azx/ribo-extractor-openai";
+import { MAX_ENVELOPED_LEAVES_PER_GROUP, splitExtractionSchema } from "@azx/ribo-extractor-openai";
+import type { ExtractionGroup } from "@azx/ribo-extractor-openai";
 
 import {
   SCHEMA_NESTING_DEPTH_CAP,
@@ -122,4 +123,134 @@ test("the real derived schema splits collection groups as arrays and stays under
       SCHEMA_NESTING_DEPTH_CAP,
     );
   }
+});
+
+/**
+ * Guard the managed-route MODEL-FAMILY cap — Anthropic-family models reject a
+ * response schema carrying more than 16 nullable unions on the managed route, and
+ * `Enveloped<V>` emits two nullable unions per leaf (`value`, `sourceSpan`), so
+ * the real per-call ceiling is 8 enveloped leaves. This is a DIFFERENT limit from
+ * the byte-size/nesting-depth caps above: `hvac` (12 leaves) and `health` (14)
+ * both sit comfortably under 32,768 characters and 12 nesting levels, so the two
+ * tests above never catch this. It is invisible in production today because the
+ * managed route is pinned to OpenAI-family models, which accept far more — but
+ * fixing it now, rather than when that pin changes, is the point of this guard.
+ *
+ * `splitExtractionSchema`'s `maxLeavesPerGroup` partitions a group whose leaves
+ * exceed the cap into multiple entries sharing one key (`ExtractionGroup.part`/
+ * `parts`); `perGroupExtractor` (ribo-extractor-openai) makes one call per entry
+ * and recombines the pieces. This file only exercises the pure split — the
+ * recombination itself is exercised in `ribo-extractor-openai`'s
+ * `per-group.test.ts`, which is tool-agnostic and cannot reference the real
+ * Snugg schema.
+ */
+describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union cap", () => {
+  /**
+   * Count the enveloped leaves ONE group (or partitioned piece of one) asks the
+   * model for: unwrap the group's top-level key, unwrap a collection group's
+   * array to its per-instance element, and count that object's own keys — one
+   * key per leaf, since `enveloped()` recurses only one level (see schema.ts's
+   * file header), so a group's own properties are always leaf envelopes, never
+   * further nested sub-groups.
+   */
+  function groupLeafCount(group: ExtractionGroup): number {
+    const shape = (group.schema as z.ZodObject).shape;
+    const value = shape[group.key]!;
+    const candidate = value instanceof z.ZodArray ? (value.element as z.ZodType) : value;
+    return Object.keys((candidate as z.ZodObject).shape).length;
+  }
+
+  test("before partitioning, hvac and health both exceed the 8-leaf cap — the bug this guard exists to catch", () => {
+    // No `maxLeavesPerGroup` — today's one-entry-per-group split, exactly what
+    // `perGroupExtractor` would send if it never partitioned. This pins the
+    // starting problem: without the fix below, two of Snugg's seven groups
+    // would send an over-cap schema to an Anthropic-family model.
+    const unpartitioned = splitExtractionSchema(snuggExtractionSchema);
+    const hvac = unpartitioned.find((g) => g.key === "hvac")!;
+    const health = unpartitioned.find((g) => g.key === "health")!;
+
+    expect(groupLeafCount(hvac)).toBe(12);
+    expect(groupLeafCount(health)).toBe(14);
+    expect(groupLeafCount(hvac)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
+    expect(groupLeafCount(health)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
+  });
+
+  test("every partitioned entry stays at or under the 8-leaf cap (16 nullable unions)", () => {
+    const groups = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
+
+    expect(groups.length).toBeGreaterThan(0);
+    for (const group of groups) {
+      const leaves = groupLeafCount(group);
+      expect(
+        leaves,
+        `group "${group.key}"${group.part !== undefined ? ` part ${group.part}` : ""} carries ${leaves} leaves`,
+      ).toBeLessThanOrEqual(MAX_ENVELOPED_LEAVES_PER_GROUP);
+      // Enveloped<V> emits exactly two nullable unions per leaf (value,
+      // sourceSpan) — the cap this leaf count stands in for.
+      expect(leaves * 2).toBeLessThanOrEqual(16);
+    }
+  });
+
+  test("hvac (12 leaves) and health (14 leaves) are each split into two pieces sharing one key, and every other group is untouched", () => {
+    const groups = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
+
+    const byKey = new Map<string, ExtractionGroup[]>();
+    for (const group of groups) {
+      byKey.set(group.key, [...(byKey.get(group.key) ?? []), group]);
+    }
+
+    // The seven top-level keys as seen by consumers are unchanged — partitioning
+    // is purely about call count, never about the resource model.
+    expect([...byKey.keys()]).toEqual([
+      "basedata",
+      "hvac",
+      "attic",
+      "wall",
+      "window",
+      "dhw",
+      "health",
+    ]);
+
+    expect(byKey.get("hvac")).toHaveLength(2);
+    expect(byKey.get("health")).toHaveLength(2);
+    for (const key of ["basedata", "attic", "wall", "window", "dhw"]) {
+      const pieces = byKey.get(key)!;
+      expect(pieces, `group "${key}"`).toHaveLength(1);
+      expect(pieces[0]!.part, `group "${key}" should not be partitioned`).toBeUndefined();
+    }
+
+    // Each partitioned key's pieces are labelled 0/2 and 1/2, in order, and their
+    // leaf counts sum back to the original 12 (hvac) / 14 (health) — no leaf lost
+    // or duplicated across the split.
+    for (const [key, expectedTotal] of [
+      ["hvac", 12],
+      ["health", 14],
+    ] as const) {
+      const pieces = byKey.get(key)!;
+      expect(pieces.map((p) => p.part)).toEqual([0, 1]);
+      expect(pieces.every((p) => p.parts === 2)).toBe(true);
+      const total = pieces.reduce((sum, p) => sum + groupLeafCount(p), 0);
+      expect(total).toBe(expectedTotal);
+
+      // No leaf key is duplicated across the two pieces.
+      const allLeafKeys = pieces.flatMap((p) => {
+        const shape = (p.schema as z.ZodObject).shape;
+        const value = shape[p.key]!;
+        const candidate = value instanceof z.ZodArray ? (value.element as z.ZodType) : value;
+        return Object.keys((candidate as z.ZodObject).shape);
+      });
+      expect(new Set(allLeafKeys).size).toBe(allLeafKeys.length);
+    }
+  });
+
+  test("a partitioned piece still serializes under the byte-size and nesting-depth caps", () => {
+    const groups = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
+
+    for (const group of groups) {
+      const jsonSchema = z.toJSONSchema(group.schema, { target: "draft-2020-12" });
+      const serialized = JSON.stringify(jsonSchema);
+      expect(serialized.length).toBeLessThan(SCHEMA_SERIALIZED_CHAR_CAP);
+      expect(maxNestingDepth(jsonSchema, 0)).toBeLessThanOrEqual(SCHEMA_NESTING_DEPTH_CAP);
+    }
+  });
 });

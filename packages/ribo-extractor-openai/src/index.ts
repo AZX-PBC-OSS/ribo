@@ -14,7 +14,7 @@ export type { SingleShotOptions } from "./single-shot.js";
 // The per-group schema split — the pure, model-free half of R3. Takes a target's
 // `extractionSchema` and returns one entry per top-level group (or one fallback
 // entry covering the whole schema). The per-group extractor consumes this.
-export { splitExtractionSchema } from "./split-schema.js";
+export { MAX_ENVELOPED_LEAVES_PER_GROUP, splitExtractionSchema } from "./split-schema.js";
 export type { ExtractionGroup } from "./split-schema.js";
 
 // The per-group managed-LLM extractor (R3 Task 2) — one chat call per top-level
