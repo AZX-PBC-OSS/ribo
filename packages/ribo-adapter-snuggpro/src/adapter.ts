@@ -34,10 +34,10 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
    * so the same leaves apply to every emitted instance.
    *
    * `POST /jobs/{jobId}/hvac` is the **only** component endpoint with required
-   * capture fields — every other component (attic, wall, window, DHW, health,
-   * and the base-data singleton) has none, which is why a partial dictation
-   * writes cleanly (doc 17 §"The required-field surface"). It requires exactly
-   * two, and both are now extracted.
+   * capture fields — every other endpoint (attic, wall, window, DHW, health,
+   * concern, and the base-data singleton) has none, which is why a partial
+   * dictation writes cleanly (doc 17 §"The required-field surface", doc 20 §5.7).
+   * It requires exactly two, and both are now extracted.
    *
    * Declared per group rather than as full paths because `hvac` is a collection:
    * a house with N systems has N × 2 required fields, and the instance keys

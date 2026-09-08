@@ -347,6 +347,12 @@ const fields: SnuggExtraction = {
     // an attestation — never inferred from the draft/leak tests having been run.
     healthSafetyQuestionsDisclosed: env(null, null),
   },
+
+  // This dictation is the auditor walking the basement alone — no homeowner worry
+  // is voiced anywhere in it, so the concern collection is honestly EMPTY. The
+  // empty array is itself the demonstration for this group: a transcript with no
+  // voiced concern produces `[]`, never an invented one (rule 14).
+  concern: [],
 };
 
 export const snuggExamples: readonly ToolAdapterExample<SnuggExtraction>[] = [

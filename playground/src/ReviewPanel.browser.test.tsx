@@ -39,10 +39,10 @@ import { ReviewPanel } from "./ReviewPanel.js";
  *
  * `ReviewPanel` imports the real `snuggValuesSchema` at module scope — that is
  * the point of Task 17's design, and this file does not work around it with a
- * smaller fake schema. So every fixture below has to account for all 51 leaves,
+ * smaller fake schema. So every fixture below has to account for all 209 leaves,
  * not just the one or two a test cares about: `fullExtraction()` walks the real
  * schema (two levels — group, then leaf; `schema.ts`'s own file header says the
- * seven groups are flat, so this walker does not need to recurse further) and
+ * eight groups are flat, so this walker does not need to recurse further) and
  * fills every leaf with a GROUNDED filler envelope (a quote that really is in
  * the fixture transcript) except the specific paths a test overrides. That
  * keeps the gate-blocking test honest — only the leaves a test names are

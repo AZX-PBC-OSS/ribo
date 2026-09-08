@@ -21,8 +21,8 @@ import type { SnuggExtraction, SnuggValues } from "./schema.js";
  *     BOTH: they are declared on the patch and must survive the derivation.
  */
 
-// A known-valid, fully-populated ENVELOPED field set (all 209 leaves across the
-// seven resource groups), reused as the base for the mutation tests below.
+// A known-valid, fully-populated ENVELOPED field set (all 211 leaves across the
+// eight resource groups), reused as the base for the mutation tests below.
 const fixture = snuggExamples[0];
 if (!fixture) throw new Error("expected a Snugg Pro few-shot example fixture");
 const valid = (): SnuggExtraction => structuredClone(fixture.fields);
@@ -120,7 +120,7 @@ describe("snuggExtractionSchema — what the model is asked to produce", () => {
 
   test("a group is NOT itself an envelope — the derivation recursed instead of wrapping", () => {
     // If `enveloped()` had wrapped each group whole, this would parse and the
-    // review card would show 7 fields instead of 209 — one verdict for all 13 health
+    // review card would show 8 fields instead of 211 — one verdict for all 13 health
     // tests at once, which is the exact failure field-level review exists to avoid.
     const fields = valid() as unknown as Record<string, unknown>;
     fields.health = { value: null, confidence: 1, sourceSpan: null };

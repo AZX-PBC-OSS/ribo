@@ -30,13 +30,13 @@
  * groups — the same text appears in both groups' prompts, driven by the data.
  *
  * The output section is **wrong per group, not merely verbose**: the full
- * instructions assert "exactly seven top-level keys" and name them, but a per-group
+ * instructions assert "exactly eight top-level keys" and name them, but a per-group
  * call must assert its one key. `groupOutputSection(key)` generates the per-group
- * version; `fullOutputSection()` keeps the seven-key version for the single-shot
+ * version; `fullOutputSection()` keeps the eight-key version for the single-shot
  * extractor.
  */
 
-/** The seven top-level groups of the Snugg Pro extraction schema. */
+/** The eight top-level groups of the Snugg Pro extraction schema. */
 export const SNUGG_GROUP_KEYS = [
   "basedata",
   "hvac",
@@ -45,6 +45,7 @@ export const SNUGG_GROUP_KEYS = [
   "window",
   "dhw",
   "health",
+  "concern",
 ] as const;
 
 /**
@@ -88,7 +89,7 @@ where most of the value is, and where a schema alone would leave you guessing.
 
 `;
 
-// --- The thirteen rules ------------------------------------------------------
+// --- The fourteen rules ------------------------------------------------------
 
 export const SNUGG_RULES: readonly SnuggRule[] = [
   {
@@ -291,12 +292,33 @@ it for hedged speech, for a value you picked between readings, for a garbled pas
 member that is an approximate fit. For \`value: null\`, express your confidence that nothing was stated
 — a transcript that never mentions the attic supports a high-confidence \`null\`.`,
   },
+  {
+    number: 14,
+    groups: ["concern"],
+    text: `**14. A concern is the HOMEOWNER's — capture the worry that was voiced, not the auditor's findings.**
+
+The \`concern\` group records what the homeowner is worried about, in the homeowner's own terms:
+comfort, health and safety, energy savings, aesthetics, noise — "she says the back bedroom is always
+freezing", "they're worried about the oil bills", "the boiler noise keeps them up". This is the one
+group where a second speaker's words ARE the content: rule 6 still governs every other group, but
+here the homeowner's voiced concern — or the auditor relaying one in their own words — is exactly
+what the field is for. The \`sourceSpan\` quotes the utterance that voices the concern.
+
+Do NOT record the auditor's own observations, findings or recommendations as concerns. "The furnace
+needs replacing" is a finding; "she's afraid the furnace won't last the winter" is a concern. If
+nobody voiced a worry, every concern field is \`null\`.
+
+One record per DISTINCT concern — a noise worry and a cost worry are two concerns even when they
+share a cause. \`concernSummary\` is one short sentence, the concern as it was stated;
+\`concernDetail\` is the longer telling of the SAME concern, when one was spoken — when only a
+one-liner came out, leave the detail \`null\` rather than padding it out.`,
+  },
 ];
 
 // --- Output section ----------------------------------------------------------
 
 /**
- * The output section for the full (single-shot) prompt — asserts all seven
+ * The output section for the full (single-shot) prompt — asserts all eight
  * top-level keys. Kept for `snuggProInstructions` and the single-shot extractor.
  */
 function fullOutputSection(): string {
@@ -306,9 +328,9 @@ function fullOutputSection(): string {
 
 Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` in \`schema.ts\`.
 
-- The object has exactly seven top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`wall\`, \`window\`,
-  \`dhw\`, \`health\` — each a nested object grouping the fields for one part of the house. They are not
-  themselves fields and carry no envelope of their own.
+- The object has exactly eight top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`wall\`, \`window\`,
+  \`dhw\`, \`health\`, \`concern\` — each a nested object grouping the fields for one part of the house.
+  They are not themselves fields and carry no envelope of their own.
 - Every field in the schema must be present as a key inside its group. Never omit a key — "not
   mentioned" is expressed by \`value: null\`, not by absence. This includes every one of the 16 keys
   inside \`health\`, and every field of a group the auditor never touched.
@@ -323,7 +345,7 @@ Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` 
 /**
  * The output section for a per-group prompt — asserts the single top-level key.
  * Each per-group call must be instructed to produce the shape it is being asked
- * for, not the full seven-key object.
+ * for, not the full eight-key object.
  */
 function groupOutputSection(key: string): string {
   return `
@@ -367,7 +389,7 @@ act on it.
  *
  * Rules 1–6 go under `### The rules`; rules 7+ go under `### Normalization`. The
  * normalization section is omitted when no normalization rules are present (not
- * the case for any of the seven Snugg groups — all get at least the universal
+ * the case for any of the eight Snugg groups — all get at least the universal
  * rules 11–13 — but the guard keeps the assembly correct for any future subset).
  */
 function assembleInstructions(rules: readonly SnuggRule[], outputSection: string): string {
@@ -381,7 +403,7 @@ function assembleInstructions(rules: readonly SnuggRule[], outputSection: string
 }
 
 /**
- * The full extraction instructions — all thirteen rules plus the seven-key output
+ * The full extraction instructions — all fourteen rules plus the eight-key output
  * section. Used by the single-shot extractor and the adapter's `instructions`
  * field; the per-group extractor uses {@link snuggGroupInstructions} instead.
  */

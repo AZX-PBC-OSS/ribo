@@ -4,7 +4,10 @@
  * reconciled field-by-field in
  * docs/implementation/17-snuggpro-field-reconciliation.md). The `basedata` group
  * is the FULL honest capture surface of that endpoint (doc 17 §Scoping); the six
- * component groups remain bounded, representative subsets of theirs.
+ * component groups remain bounded, representative subsets of theirs; and
+ * `concern` — the first job-collection resource beyond basedata's own
+ * sub-resources (doc 20 §5.7, tranche 2) — carries BOTH of its fields, which is
+ * its whole endpoint surface.
  *
  * "Representative" is the design goal and it has three concrete parts. Every one
  * of them was false in the previous version of this file, which was built from a
@@ -23,9 +26,11 @@
  *   3. **The nesting is the resource layout.** Snugg Pro has no single "audit
  *      data" write; the surface is one singleton (`POST /jobs/{jobId}/basedata`)
  *      plus per-instance component resources (`hvac`, `attic`, `wall`, `window`,
- *      `dhw`, `health`), each its own endpoint. The seven groups below ARE those
- *      endpoints, so `write` dispatches on the group key rather than routing 209
- *      flat fields by hand.
+ *      `dhw`, `health`), each its own endpoint, plus — since the job-collections
+ *      tranche — per-instance job-collection resources (`concern`, doc 20),
+ *      which are more endpoints of the same kind. The eight groups below ARE
+ *      those endpoints, so `write` dispatches on the group key rather than
+ *      routing 211 flat fields by hand.
  *
  * The `basedata` group is the FULL honest capture surface of doc 17 §Scoping:
  * the endpoint's 294 form fields minus the 122 `*Improved` retrofit twins and
@@ -49,8 +54,8 @@
  *         as empty" is a different instruction from "leave this field alone".
  *       * `.optional()` because a REJECTED field must be absent from the patch
  *         entirely. `resolveReview` omits a rejected leaf, and a patch is what
- *         makes that well-defined: rejecting one leaf of 209 must still write
- *         the other 208, not fail the whole write.
+ *         makes that well-defined: rejecting one leaf of 211 must still write
+ *         the other 210, not fail the whole write.
  *
  *   - `snuggExtractionSchema` — what the MODEL is asked to produce. NOT
  *     hand-written: `enveloped()` derives it from the patch, stripping the
@@ -58,8 +63,8 @@
  *     leaf in `ribo-core`'s provenance envelope. The result is closed and fully
  *     required at every level, because `provenance.ts`'s anti-hallucination rule
  *     needs the model to emit an explicit `null` rather than omit a key. The
- *     derivation recurses into the seven groups, so the model produces 209
- *     independent envelopes and review presents 209 dotted leaf paths
+ *     derivation recurses into the eight groups, so the model produces 211
+ *     independent envelopes and review presents 211 dotted leaf paths
  *     (`"hvac.hvacDuctLeakage"`, `"health.healthAmbientCarbonMonoxide"`) — never
  *     one envelope per group, which would make a group un-reviewable field by
  *     field.
@@ -876,7 +881,7 @@ export const HealthTestState = z
  */
 export const HealthCondition = z.enum(["Good", "Potential Issues", "NA"]);
 
-// --- The seven resource groups ----------------------------------------------
+// --- The eight resource groups ----------------------------------------------
 // One group per write endpoint. Each is `.strict()` and each leaf is
 // `X.nullable().optional()`; the group itself is `.optional()` so a review that
 // rejected every leaf in a group writes no request to that endpoint at all.
@@ -1803,13 +1808,55 @@ export const HealthFields = z
   )
   .strict();
 
+/**
+ * `POST /jobs/{jobId}/concern` — one homeowner-concern record. BOTH of its 2
+ * fields, which is the endpoint's entire writable surface: doc 20 §5.7 calls it
+ * "the purest extraction target in the whole surface" — two free-text fields, no
+ * enum, no foreign key, no template reference, no required field, and a
+ * `POST /jobs/concern/{uuid}` update twin taking the same two fields.
+ *
+ * The FIRST job-collection resource in this schema (doc 20 tranche 2,
+ * `job-collections-foundation-design.md` decision 1): a top-level key of `V`
+ * following the exact per-instance pattern basedata's own sub-resources already
+ * use — an array with one element per real-world occurrence, not a new
+ * abstraction. Like them it repeats per job (0..n), and like them it has no
+ * natural name field, so instance identity rides the roster's discriminator
+ * mechanism (decision 2) — the SUBJECT of the concern, e.g. noise vs. comfort
+ * vs. cost — rather than any leaf declared here. See `inventory.ts`.
+ */
+export const ConcernFields = z
+  .object(
+    withVendorDescriptions({
+      /** A short sentence stating the concern. `maxLength: 255` in the spec. */
+      concernSummary: z
+        .string()
+        .describe(
+          "One short sentence stating the homeowner's concern in the words it was spoken in — the longer telling of the same concern goes in concernDetail, and an auditor's own finding is not a concern unless it was voiced as one.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The longer description of the same concern, when one was spoken. */
+      concernDetail: z
+        .string()
+        .describe(
+          "The more detailed description of the same concern — only what was actually said; when only a one-liner was spoken, leave this null rather than padding it out.",
+        )
+        .nullable()
+        .optional(),
+    }),
+  )
+  .strict();
+
 // --- The field set, as a writable patch --------------------------------------
-// 209 leaves across 7 resource groups — the full 163-field `basedata` capture
-// surface plus the 46 bounded component-group leaves. Every leaf is
+// 211 leaves across 8 resource groups — the full 163-field `basedata` capture
+// surface, the 46 bounded component-group leaves (including health's 2
+// job-collection completions, doc 20 §5.8), and `concern`'s 2 free-text
+// leaves (doc 20 §5.7, the first job-collection tranche). Every leaf is
 // `X.nullable().optional()` and every object is `.strict()`; see the file header
 // for why both halves of that are load-bearing.
 //
-// Five groups are per-instance child resources (API creates one record per element
+// Six groups are per-instance child resources (API creates one record per element
 // with `POST /jobs/{jobId}/<type>`), so they are `z.array(...).optional()`.
 // `basedata` and `health` are genuine singletons and stay objects.
 
@@ -1822,6 +1869,7 @@ export const snuggValuesSchema = z
     window: z.array(WindowFields).optional(),
     dhw: z.array(DhwFields).optional(),
     health: HealthFields.optional(),
+    concern: z.array(ConcernFields).optional(),
   })
   .strict();
 
@@ -1836,7 +1884,7 @@ export type SnuggValues = z.infer<typeof snuggValuesSchema>;
 /**
  * What the MODEL is asked to produce, derived from the patch — never hand-written.
  * `enveloped()` strips the patch's `.optional()`/`.nullable()`, wraps each leaf in
- * `ribo-core`'s provenance envelope, recurses into the seven resource groups rather
+ * `ribo-core`'s provenance envelope, recurses into the eight resource groups rather
  * than swallowing each into one envelope, and closes every object with every key
  * required. See the file header, and `extraction-shape.test.ts` for the frozen
  * JSON Schema this derivation must keep producing.

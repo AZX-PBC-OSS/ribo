@@ -39,7 +39,7 @@ import {
  *
  *   1. The status identifies the `"per-group"` strategy (not `"single-shot"`).
  *   2. Running the step makes one call per top-level group, or more for a group
- *      whose leaves exceed the per-call cap (29, not 1 — `basedata` splits into 21
+ *      whose leaves exceed the per-call cap (30, not 1 — `basedata` splits into 21
  *      calls, `hvac` and `health` into two each; see `snuggPieces` below), and each
  *      call's system message is a per-group prompt — not the full
  *      `snuggProInstructions` the single-shot extractor sends.
@@ -169,19 +169,19 @@ test("with an API key, the live extractor is the per-group strategy", async () =
   // the extraction succeeds and the call count is observable.
   await extractStep({ session, transcript: transcript.text, recordingIds: ["rec-1"] });
 
-  // 7 groups, 29 calls: `basedata` (163 leaves) exceeds the 8-enveloped-leaf cap
+  // 8 groups, 30 calls: `basedata` (163 leaves) exceeds the 8-enveloped-leaf cap
   // and splits into 21 calls, `hvac` (12) and `health` (14) into two each; the
-  // other four groups make one call each — see `snuggPieces` above. The
-  // single-shot extractor makes 1 call total — this is the assertion that catches
-  // a wiring change the status alone might miss (e.g. always constructing
-  // `singleShotExtractor` regardless of `strategy`).
+  // other five groups (attic, wall, window, dhw, concern) make one call each —
+  // see `snuggPieces` above. The single-shot extractor makes 1 call total — this
+  // is the assertion that catches a wiring change the status alone might miss
+  // (e.g. always constructing `singleShotExtractor` regardless of `strategy`).
   expect(requests).toHaveLength(snuggPieces.length);
-  expect(requests).toHaveLength(29);
+  expect(requests).toHaveLength(30);
 
   // Each call's system message is a per-group prompt, not the full
   // `snuggProInstructions` the single-shot extractor sends. This catches
   // `groupInstructions: snuggGroupInstructions` being dropped from the
-  // `perGroupExtractor` call — the extractor would still make 29 calls, but
+  // `perGroupExtractor` call — the extractor would still make 30 calls, but
   // every call would carry the full 14 KB prompt instead of its own slice.
   for (const req of requests) {
     const system = req.messages[0]!;
@@ -224,8 +224,8 @@ test("strategy: 'single-shot' is reachable as the alternative (Task 6's baseline
 
 // --- Task 10: the two extraction delegates and their timing model --------------
 
-/** Snugg Pro's schema splits into seven top-level groups. */
-const SNUGG_GROUPS = 7;
+/** Snugg Pro's schema splits into eight top-level groups. */
+const SNUGG_GROUPS = 8;
 
 /**
  * Worst-case accumulated backoff when every retry draws the un-jittered cap.

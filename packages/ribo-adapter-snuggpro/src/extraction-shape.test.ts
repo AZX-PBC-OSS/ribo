@@ -80,6 +80,19 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  * properties and required list, both new leaves carrying vendor-first
  * descriptions from `pnpm snugg:refresh`.
  *
+ * ## Provenance: the concern job-collection group (tranche 2)
+ *
+ * The fixture was re-captured again when `concern` landed as the first
+ * job-collection resource beyond basedata's own sub-resources (doc 20 §5.7,
+ * `job-collections-foundation-design.md` decision 1): a new top-level group key,
+ * an array of per-instance records exactly like the five component collections,
+ * carrying BOTH of the endpoint's fields (`concernSummary`, `concernDetail`) and
+ * taking the whole schema from 209 to 211 leaves. As in every move above, this is
+ * a deliberate change to the FIELD SET, not to the derivation — the two new
+ * leaves are verbatim wire names with vendor-first descriptions and flow through
+ * the same `enveloped()` pipeline, and the per-group cap test confirms the new
+ * group's single partitioned piece fits the platform ceilings.
+ *
  * Why capture it this way, not by calling `z.toJSONSchema(snuggExtractionSchema, ...)`
  * inline: `singleShotExtractor` (packages/ribo-extractor-openai/src/single-shot.ts)
  * is the ONLY code path that produces the object that actually lands in
@@ -244,10 +257,11 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
   // extraction on exactly these ceilings: 5,000 properties, 1,000 enum values, 10
   // levels of nesting. The bounded field set is meant to sit far inside them, and
   // this asserts the margin rather than assuming it — the field set HAS grown
-  // (doc 17's honest capture surface — all 163 basedata fields — and doc 20 §5.8's
-  // health completion now ship: 209 leaves total, ~843 properties and ~474 enum
-  // values measured), and the failure mode of growing past a ceiling is an API
-  // rejection at extraction time, on a real recording, in the field.
+  // several times (doc 17's honest capture surface — all 163 basedata fields —
+  // doc 20 §5.8's health completion, and doc 20 §5.7's concern tranche now ship:
+  // 211 leaves total, properties and enum values measured fresh below), and the
+  // failure mode of growing past a ceiling is an API rejection at extraction
+  // time, on a real recording, in the field.
   const schema = await captureJsonSchema();
 
   let properties = 0;

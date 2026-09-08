@@ -79,7 +79,8 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
   for (const example of snuggProAdapter.examples ?? []) {
     // Recurses, because the field set nests by resource group now. Counting the
     // envelopes it reaches is the guard against the recursion silently bottoming
-    // out at the seven group objects and checking nothing.
+    // out at the eight group objects and checking nothing. (219, not 209: the
+    // fixture carries two hvac instances; its concern list is empty.)
     let checked = 0;
     const walk = (node: unknown): void => {
       if (typeof node !== "object" || node === null) return;
