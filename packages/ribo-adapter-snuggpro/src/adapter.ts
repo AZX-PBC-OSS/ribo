@@ -68,16 +68,16 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
    * the request server-side (Snugg Pro uses AWS-style signed requests, not a
    * static key). Faking an unsigned write to green a demo teaches the wrong thing
    * (plan §"Split"), so this rejects rather than resolving. The SIGNATURE is
-   * honest now — `(fields, ctx, meta) => Promise<void>`, where `fields` is the
-   * PATCH (rejected keys absent, an accepted `null` present and meaning Snugg's
-   * `Not Tested`) and `meta.idempotencyKey` is what Task 6 sends as
+   * honest now — `(fields, ctx, meta) => Promise<{ uuid }>`, where `fields` is
+   * the PATCH (rejected keys absent, an accepted `null` present and meaning
+   * Snugg's `Not Tested`) and `meta.idempotencyKey` is what Task 6 sends as
    * `Idempotency-Key` — so Task 6 is a wiring change, not a redesign.
    */
   write: async (
     _fields: SnuggValues,
     _ctx: SnuggWriteContext,
     _meta: WriteMetadata,
-  ): Promise<void> => {
+  ) => {
     throw new Error(
       "snuggProAdapter.write is not implemented yet: Snugg Pro egress lands in Phase 4 Task 6, " +
         "gated on A1 (HMAC-SHA256 request signing at the Helix egress layer).",

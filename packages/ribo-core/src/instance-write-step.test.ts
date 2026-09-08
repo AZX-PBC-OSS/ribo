@@ -68,6 +68,7 @@ const makeAdapter = (sink: Write[]): ToolAdapter<Values, JobContext> => ({
   instructions: "test",
   write: async (fields, ctx, meta) => {
     sink.push({ fields, ctx, meta });
+    return { uuid: `uuid-${meta.idempotencyKey}` };
   },
 });
 
@@ -263,7 +264,7 @@ test("a write failing on the second of three instances, then retrying, re-attemp
         instanceOneFailed = false;
         throw Object.assign(new Error("transient"), { status: 503 });
       }
-      await base.write(fields, ctx, meta);
+      return await base.write(fields, ctx, meta);
     },
   };
 
@@ -454,7 +455,7 @@ test("after reopening from dead and removing the first instance, the survivor re
         firstAttempt = false;
         throw Object.assign(new Error("transient"), { status: 503 });
       }
-      await base.write(fields, ctx, meta);
+      return await base.write(fields, ctx, meta);
     },
   };
 

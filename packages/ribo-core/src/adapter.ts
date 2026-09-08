@@ -229,11 +229,15 @@ export interface ToolAdapter<V extends Record<string, unknown>, C> {
   /**
    * Writes accepted fields into the host tool. Rejects if the write fails.
    *
+   * Resolves with the vendor's own identifier for the record it just created —
+   * the id a future amend pass needs in order to update that record rather than
+   * duplicate it.
+   *
    * `meta` is a third parameter rather than a member of `ctx` deliberately: `ctx`
    * is *where to write* and travels with the recording, while `meta` is *how to
    * write safely* and comes from the queue. They have different lifetimes and
    * different sources, and merging them would let a host persist an idempotency
    * key into a recording's context.
    */
-  write: (fields: V, ctx: C, meta: WriteMetadata) => Promise<void>;
+  write: (fields: V, ctx: C, meta: WriteMetadata) => Promise<{ readonly uuid: string }>;
 }
