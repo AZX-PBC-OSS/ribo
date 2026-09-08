@@ -56,6 +56,27 @@ position-indexed arrays before the write step ever sees them
 time, and `resolveReview` flattens them into positions before the write step sees
 anything."). This design carries the key through instead of discarding it.
 
+**Verified, not assumed: instance keys are stable across the amend scenario the ticket
+actually names.** `Outbox.reopenSessionForReview` (`queue/outbox.ts:888-896`) only
+re-extracts (`status: "extracting"`) when the recording set moved since the last
+extraction (`setMoved`); a `done` session being amended with its recording set
+unchanged — "this session completed its write, so amending it means reviewing that
+extraction again" (`outbox.ts:862`) — goes straight to `awaiting-review` with
+`session.extracted` untouched. `collectFields` (`review.ts:453-546`) is a deterministic
+walk that assigns `k1`, `k2`, … by array position in that same, unchanged data, so the
+common amend case (re-review the same recordings) reassigns the *identical* keys in
+the *identical* order. Instance-key-indexed receipts are therefore directly reusable
+by whatever future work reads them, for exactly the scenario the ticket names.
+
+A reopen where the recording set *did* move re-extracts and can reassign keys
+differently — that is a harder, separate identity problem (matching a new instance to
+an old receipt when neither the position nor the key can be trusted to mean the same
+thing twice), and it is not solved by key-indexing alone. This design does not attempt
+it: per §4, nothing consumes `receipts` yet, so no code depends on cross-re-extraction
+key stability. The existing `existingRecords`/`instanceLinks` mechanism (surfacing the
+vendor's own records for a human to re-link against) is the tool built for that harder
+case, and it works independently of anything this design adds.
+
 ## 3. Design
 
 ### 3.1 `ToolAdapter.write` returns the vendor id
