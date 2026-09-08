@@ -149,7 +149,7 @@ group instead of an empty array. An empty array still means "the model found not
 when the transcript never brings the group up at all. The \`span\` must be a verbatim substring of the
 transcript, same discipline as every other span.
 
-**7. Granularity — one record per group as the vendor counts it.**
+**6. Granularity — one record per group as the vendor counts it.**
 
 - \`hvac\`: equipment sharing a distribution system is one record, even when it is several physical
   boxes. An air handler, a condenser and a plenum are parts of a system, not systems. Equipment with
@@ -159,7 +159,7 @@ transcript, same discipline as every other span.
 - \`window\`: one record per distinct window type or area.
 - \`dhw\`: one record per water heating system.
 
-**8. Self-correction at the instance level.**
+**7. Self-correction at the instance level.**
 
 Rule 5 of the leaf-level instructions says the last assertion wins for values. A retraction that
 changes the **count** of instances resolves to the post-correction enumeration. "There's an air
