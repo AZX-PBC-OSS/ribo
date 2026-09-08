@@ -38,11 +38,11 @@ import {
  * and assert two things that only the per-group wiring provides:
  *
  *   1. The status identifies the `"per-group"` strategy (not `"single-shot"`).
- *   2. Running the step makes one call per top-level group, or more for a group
- *      whose leaves exceed the per-call cap (32, not 1 — `basedata` splits into 21
- *      calls, `hvac` and `health` into two each; see `snuggPieces` below), and each
- *      call's system message is a per-group prompt — not the full
- *      `snuggProInstructions` the single-shot extractor sends.
+ *   2. Running the step makes one call per partitioned piece — more than one for
+ *      a group whose leaves exceed the per-call cap (`basedata`, `hvac`, `window`
+ *      and `health`; see `snuggPieces` below) — and each call's system message is
+ *      a per-group prompt, not the full `snuggProInstructions` the single-shot
+ *      extractor sends.
  *
  * Deleting the wiring — reverting to `singleShotExtractor`, or dropping
  * `groupInstructions: snuggGroupInstructions` — turns at least one of these red.
@@ -71,10 +71,9 @@ const session: SessionItem = {
 /**
  * The real per-group split, including leaf-count partitioning — the same list
  * `perGroupExtractor` builds internally for the Snugg target (see
- * `ribo-extractor-openai/src/per-group.ts`). `basedata` (163 leaves), `hvac` (12)
- * and `health` (16) each exceed {@link MAX_ENVELOPED_LEAVES_PER_GROUP} (8) and so
- * are split into entries sharing one key (21 for `basedata`, two each for the
- * others); every other group is untouched. Building this here
+ * `ribo-extractor-openai/src/per-group.ts`). Every group whose leaves exceed
+ * {@link MAX_ENVELOPED_LEAVES_PER_GROUP} is split into entries sharing one key;
+ * every other group is untouched. Building this here
  * (rather than assuming "one entry per group") is what keeps the fake's request
  * naming and response shaping honest as that split evolves.
  */
@@ -169,21 +168,20 @@ test("with an API key, the live extractor is the per-group strategy", async () =
   // the extraction succeeds and the call count is observable.
   await extractStep({ session, transcript: transcript.text, recordingIds: ["rec-1"] });
 
-  // 10 groups, 32 calls: `basedata` (163 leaves) exceeds the 8-enveloped-leaf cap
-  // and splits into 21 calls, `hvac` (12) and `health` (16) into two each; the
-  // other seven groups (attic, wall, window, dhw, concern, incentive, stage) make
-  // one call each — see `snuggPieces` above. The single-shot extractor makes 1
-  // call total — this is the assertion that catches a wiring change the status
-  // alone might miss (e.g. always constructing `singleShotExtractor` regardless of
-  // `strategy`).
+  // One call per partitioned piece: `basedata`, `hvac`, `window` and `health`
+  // exceed the 8-enveloped-leaf cap and split into several calls each; every
+  // other group makes one call — see `snuggPieces` above. The single-shot
+  // extractor makes 1 call total — this is the assertion that catches a wiring
+  // change the status alone might miss (e.g. always constructing
+  // `singleShotExtractor` regardless of `strategy`).
   expect(requests).toHaveLength(snuggPieces.length);
-  expect(requests).toHaveLength(32);
+  expect(requests).toHaveLength(35);
 
   // Each call's system message is a per-group prompt, not the full
   // `snuggProInstructions` the single-shot extractor sends. This catches
   // `groupInstructions: snuggGroupInstructions` being dropped from the
-  // `perGroupExtractor` call — the extractor would still make 32 calls, but
-  // every call would carry the full 14 KB prompt instead of its own slice.
+  // `perGroupExtractor` call — the extractor would still make the same calls, but
+  // every call would carry the full prompt instead of its own slice.
   for (const req of requests) {
     const system = req.messages[0]!;
     expect(system.role).toBe("system");

@@ -11,7 +11,7 @@
 // write, as a `ToolAdapter`.
 export { SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
 
-// The two field schemas, the eight per-endpoint groups they nest, and the enums
+// The two field schemas, the per-endpoint groups they nest, and the enums
 // they are built from. `snuggValuesSchema` is the hand-written writable patch and
 // the source of truth for `SnuggValues`; `snuggExtractionSchema` is DERIVED from it
 // with `enveloped()` and is what the model is constrained to. See schema.ts for why
@@ -86,6 +86,7 @@ export {
   WallExteriorWallSiding,
   WallFields,
   WallsInsulated,
+  WindowExteriorTreatment,
   WindowFields,
   WindowFrame,
   WindowType,

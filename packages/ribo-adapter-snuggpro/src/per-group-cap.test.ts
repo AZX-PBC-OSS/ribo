@@ -158,20 +158,23 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     return Object.keys((candidate as z.ZodObject).shape).length;
   }
 
-  test("before partitioning, basedata, hvac and health all exceed the 8-leaf cap — the bug this guard exists to catch", () => {
+  test("before partitioning, basedata, hvac, window and health all exceed the 8-leaf cap — the bug this guard exists to catch", () => {
     // No `maxLeavesPerGroup` — the one-entry-per-group split `perGroupExtractor` would
     // send if it never partitioned. This pins the starting problem: without the fix
     // below, these groups would send an over-cap schema to an Anthropic-family model.
     const unpartitioned = splitExtractionSchema(snuggExtractionSchema);
     const basedata = unpartitioned.find((g) => g.key === "basedata")!;
     const hvac = unpartitioned.find((g) => g.key === "hvac")!;
+    const windowGroup = unpartitioned.find((g) => g.key === "window")!;
     const health = unpartitioned.find((g) => g.key === "health")!;
 
     expect(groupLeafCount(basedata)).toBe(163);
     expect(groupLeafCount(hvac)).toBe(12);
+    expect(groupLeafCount(windowGroup)).toBe(32);
     expect(groupLeafCount(health)).toBe(16);
     expect(groupLeafCount(basedata)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(hvac)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
+    expect(groupLeafCount(windowGroup)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(health)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
   });
 
@@ -191,7 +194,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     }
   });
 
-  test("basedata, hvac and health are partitioned into pieces sharing one key, and every other group is untouched", () => {
+  test("basedata, hvac, window and health are partitioned into pieces sharing one key, and every other group is untouched", () => {
     const groups = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
 
     const byKey = new Map<string, ExtractionGroup[]>();
@@ -216,8 +219,9 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
 
     expect(byKey.get("basedata")).toHaveLength(21);
     expect(byKey.get("hvac")).toHaveLength(2);
+    expect(byKey.get("window")).toHaveLength(4);
     expect(byKey.get("health")).toHaveLength(2);
-    for (const key of ["attic", "wall", "window", "dhw", "concern", "incentive", "stage"]) {
+    for (const key of ["attic", "wall", "dhw", "concern", "incentive", "stage"]) {
       const pieces = byKey.get(key)!;
       expect(pieces, `group "${key}"`).toHaveLength(1);
       expect(pieces[0]!.part, `group "${key}" should not be partitioned`).toBeUndefined();
@@ -228,6 +232,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     for (const [key, expectedTotal] of [
       ["basedata", 163],
       ["hvac", 12],
+      ["window", 32],
       ["health", 16],
     ] as const) {
       const pieces = byKey.get(key)!;

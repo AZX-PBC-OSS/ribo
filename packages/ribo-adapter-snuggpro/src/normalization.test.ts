@@ -140,7 +140,7 @@ describe("normalizeFields", () => {
       for (const child of Object.values(node)) walk(child);
     };
     walk(normalizeFields(base()));
-    expect(seen).toBe(222);
+    expect(seen).toBe(251);
   });
 
   test("leaves value and sourceSpan untouched — it never converts or invents", () => {

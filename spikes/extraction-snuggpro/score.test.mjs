@@ -156,8 +156,8 @@ heading("0. SCHEMA INTROSPECTION (schema-leaves.mjs) — derived, not hand-count
   // array group in the schema but is deliberately NOT in ground-truth.mjs's
   // COLLECTION_GROUPS yet — the corpus predates it — so its leaves resolve as flat
   // "unmentioned" entries until a corpus tranche says otherwise.)
-  check("214 leaves across the 10 resource groups", LEAVES.length === 214);
-  check("474 total enum members across all enum leaves", totalMembers === 474);
+  check("243 leaves across the 10 resource groups", LEAVES.length === 243);
+  check("556 total enum members across all enum leaves", totalMembers === 556);
   check(
     "ENUM_VOCAB has an entry for every enum leaf (no collisions at import time)",
     ENUM_VOCAB.size === enumLeaves.length,

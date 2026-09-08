@@ -25,8 +25,10 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  * The fixture has been re-captured several times, always for a deliberate FIELD-SET
  * change and never for a derivation change: the spec-derived `schema.ts` rebuild, the
  * move of the per-instance groups to arrays, the basedata capture-surface expansion,
- * the health-endpoint completion, and the concern, incentive and stage job-collection
- * tranches. Any *future* unexplained movement is a regression.
+ * the health-endpoint completion, the concern, incentive and stage job-collection
+ * tranches, and the window remainder tranche (doc 20 §5.5's verdicted capture surface
+ * — the diff confined to the window group's properties and required list). Any
+ * *future* unexplained movement is a regression.
  *
  * Why capture via the real extractor, not `z.toJSONSchema(snuggExtractionSchema, ...)`
  * inline: `singleShotExtractor` (ribo-extractor-openai/src/single-shot.ts) is the ONLY
@@ -216,8 +218,8 @@ test("every leaf reaches the model with the vendor's description and our prohibi
 
   // Every leaf, not a subset: the vendor supplies authoritative text for each (or our own
   // note stands in where the vendor publishes none or junk), so none is deliberately bare.
-  expect(descs.size).toBe(214);
-  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(214);
+  expect(descs.size).toBe(243);
+  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(243);
 
   // The VENDOR half is really there: without this, a generated module that failed to
   // import — or regenerated to an empty map — would still pass a bare "is it described?"

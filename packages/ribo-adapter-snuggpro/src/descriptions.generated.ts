@@ -2,7 +2,7 @@
 //
 // Source:    https://app.snuggpro.com/apidocs/swagger.json
 // Refreshed: 2026-09-08
-// Leaves:    212
+// Leaves:    241
 //
 // The vendor's own description for each field we extract — the same sentence a Snugg Pro
 // user reads in their UI. `schema.ts` composes this with our own note, where we have one,
@@ -367,13 +367,70 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Is there insulation in the wall cavities of this home? If so, how good is it? If unsure, please leave blank. **Well**: All cavities contain insulation at full or near full depth with gaps and voids not exceeding 5%. **Poor**: Majority of cavities contain insulation, but one or more of the following is suspected: low density, low depth, poor installation. **Yes**: You can confirm that insulation exists, but are unsure of the installation quality. **No** - No insulation value is applied to cavities.",
   wholeHomeIsProfessionallyAirSealed: "Choose Yes if Whole home is professionally air sealed.",
   windZone: "Select the Wind Zone from the map.",
+  windowAreaEast:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaEastImproved:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaNorth:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaNorthImproved:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaSouth:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaSouthImproved:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaWest:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaWestImproved:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowEastAreaPercent:
+    "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only.",
+  windowEastOverhangDepth:
+    "Enter the average window overhang width (feet) on the exterior walls for this orientation.",
+  windowEfficiency:
+    'Enter the average gross window (including frame effects) U-value of the windows installed (BASE) or to be installed (IMPROVED). **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowEfficiencyImproved:
+    'Enter the average gross window (including frame effects) U-value of the windows installed (BASE) or to be installed (IMPROVED). **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
   windowEnergyStar: "Select Yes if this window system is ENERGY STAR Certified.",
+  windowEnergyStarImproved: "Select Yes if this window system is ENERGY STAR Certified.",
+  windowExteriorTreatmentEast:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentEastImproved:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentNorth:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentNorthImproved:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentSouth:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentSouthImproved:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentWest:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentWestImproved:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
   windowFrame:
     "Select the type of window frame material that is used for the windows installed in the home. If more than one type of window is installed, add a second window system.",
+  windowNorthAreaPercent:
+    "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only.",
+  windowNorthOverhangDepth:
+    "Enter the average window overhang width (feet) on the exterior walls for this orientation.",
+  windowSolarHeatGainCoefficient:
+    'Enter the average gross window (including frame effects) Solar Heat Gain Coefficient (SHGC) of the windows installed (BASE) or to be installed (IMPROVED). IMPORTANT! Do not adjust this number to account for the affects of solar screens or shades. Use the Exterior Treatment fields below for this and only change the SHGC if the window unit itself is being replaced. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowSolarHeatGainCoefficientImproved:
+    'Enter the average gross window (including frame effects) Solar Heat Gain Coefficient (SHGC) of the windows installed (BASE) or to be installed (IMPROVED). IMPORTANT! Do not adjust this number to account for the affects of solar screens or shades. Use the Exterior Treatment fields below for this and only change the SHGC if the window unit itself is being replaced. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowSouthAreaPercent:
+    "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only.",
+  windowSouthOverhangDepth:
+    "Enter the average window overhang width (feet) on the exterior walls for this orientation.",
   windowType:
     "Select the type of windows that are installed in the home. If more than one type of window is installed, add a second window system.",
   windowVentingUsed:
     "Do the occupants make use of operable windows to cool the home when the outdoor temperature and humidity are favorable? This can eliminate cooling loads during shoulder seasons or even year-round in temperate climates. Turning this feature on will help eliminate scenarios where you previously had negative savings for some air sealing and insulation measures.",
+  windowWestAreaPercent:
+    "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only.",
+  windowWestOverhangDepth:
+    "Enter the average window overhang width (feet) on the exterior walls for this orientation.",
   yearBuilt:
     'Enter the year the home or building was constructed. If there was a major addition made to the home, the "Year built" should be entered as the year the majority of the area that is heated and air conditioned was built.',
 };
