@@ -335,6 +335,11 @@ export type ReviewOutcome =
        * review, so callers can treat it as optional rather than an empty object.
        */
       readonly linkTargets?: LinkTargets;
+      /**
+       * Real per-instance keys (`k1`, `k2`, ...), aligned by position with the same
+       * group's array in `fields` — see {@link buildInstanceKeys}.
+       */
+      readonly instanceKeys?: Readonly<Record<string, readonly string[]>>;
     }
   | {
       readonly status: "edited";
@@ -350,6 +355,11 @@ export type ReviewOutcome =
        * review.
        */
       readonly linkTargets?: LinkTargets;
+      /**
+       * Real per-instance keys (`k1`, `k2`, ...), aligned by position with the same
+       * group's array in `fields` — see {@link buildInstanceKeys}.
+       */
+      readonly instanceKeys?: Readonly<Record<string, readonly string[]>>;
     }
   | { readonly status: "discarded"; readonly reason?: string };
 
@@ -790,6 +800,29 @@ const instanceLinkIssues = (
 };
 
 /**
+ * Build the per-group instance-keys array for every collection group that survives
+ * review, aligned by position with the same group's array in `fields`.
+ *
+ * Simpler than {@link buildLinkTargets}: it takes only the positions map (no link
+ * decisions) and returns the real keys in first-mention order, so a consumer can
+ * address the instance a reviewed outcome actually declared rather than by array
+ * position.
+ */
+const buildInstanceKeys = (
+  positions: Map<string, Map<string, number>>,
+): Readonly<Record<string, readonly string[]>> => {
+  const instanceKeys: Record<string, string[]> = {};
+  for (const [groupPath, indexMap] of positions) {
+    const keys = new Array<string>(indexMap.size);
+    for (const [key, index] of indexMap) {
+      keys[index] = key;
+    }
+    instanceKeys[groupPath] = keys;
+  }
+  return instanceKeys;
+};
+
+/**
  * Build the link-target map for every collection group that survives review.
  *
  * The array length matches the resolved instance count for the group, and indices follow
@@ -1037,15 +1070,30 @@ export const resolveReview = (
   // backward-compatible for callers that only deal with singleton groups.
   const linkTargets = buildLinkTargets(positions, submission.instanceLinks);
   const hasLinkTargets = Object.keys(linkTargets).length > 0;
+  const instanceKeys = buildInstanceKeys(positions);
+  const hasInstanceKeys = Object.keys(instanceKeys).length > 0;
 
   if (editedFields.length === 0 && rejectedFields.length === 0) {
     return hasLinkTargets
-      ? { status: "accepted", fields, linkTargets }
-      : { status: "accepted", fields };
+      ? { status: "accepted", fields, linkTargets, ...(hasInstanceKeys ? { instanceKeys } : {}) }
+      : { status: "accepted", fields, ...(hasInstanceKeys ? { instanceKeys } : {}) };
   }
   return hasLinkTargets
-    ? { status: "edited", fields, editedFields, rejectedFields, linkTargets }
-    : { status: "edited", fields, editedFields, rejectedFields };
+    ? {
+        status: "edited",
+        fields,
+        editedFields,
+        rejectedFields,
+        linkTargets,
+        ...(hasInstanceKeys ? { instanceKeys } : {}),
+      }
+    : {
+        status: "edited",
+        fields,
+        editedFields,
+        rejectedFields,
+        ...(hasInstanceKeys ? { instanceKeys } : {}),
+      };
 };
 
 /**
@@ -1067,24 +1115,42 @@ export const resolveReview = (
  * indistinguishable from `accepted`, and silently under-reporting review effort is
  * exactly the failure `resolveReview`'s doc comment refuses.
  */
-export const reviewOutcomeSchema = z.discriminatedUnion("status", [
-  z.strictObject({
-    status: z.literal("accepted"),
-    fields: z.record(z.string(), z.unknown()),
-    linkTargets: z.record(z.string(), z.array(z.string().nullable())).optional(),
-  }),
-  z.strictObject({
-    status: z.literal("edited"),
-    fields: z.record(z.string(), z.unknown()),
-    editedFields: z.array(z.string()),
-    rejectedFields: z.array(z.string()),
-    linkTargets: z.record(z.string(), z.array(z.string().nullable())).optional(),
-  }),
-  z.strictObject({
-    status: z.literal("discarded"),
-    reason: z.string().optional(),
-  }),
-]);
+export const reviewOutcomeSchema = z
+  .discriminatedUnion("status", [
+    z.strictObject({
+      status: z.literal("accepted"),
+      fields: z.record(z.string(), z.unknown()),
+      linkTargets: z.record(z.string(), z.array(z.string().nullable())).optional(),
+      instanceKeys: z.record(z.string(), z.array(z.string())).optional(),
+    }),
+    z.strictObject({
+      status: z.literal("edited"),
+      fields: z.record(z.string(), z.unknown()),
+      editedFields: z.array(z.string()),
+      rejectedFields: z.array(z.string()),
+      linkTargets: z.record(z.string(), z.array(z.string().nullable())).optional(),
+      instanceKeys: z.record(z.string(), z.array(z.string())).optional(),
+    }),
+    z.strictObject({
+      status: z.literal("discarded"),
+      reason: z.string().optional(),
+    }),
+  ])
+  .superRefine((value, ctx) => {
+    if (value.status !== "accepted" && value.status !== "edited") return;
+    for (const [group, groupFields] of Object.entries(value.fields)) {
+      if (!Array.isArray(groupFields) || groupFields.length === 0) continue;
+      const keys = value.instanceKeys?.[group];
+      if (keys === undefined || keys.length !== groupFields.length) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            `instanceKeys for group "${group}" has ${keys?.length ?? 0} key(s) ` +
+            `but fields has ${groupFields.length} instance(s) — the two must stay in lockstep`,
+        });
+      }
+    }
+  });
 
 /** The persisted, field-set-agnostic outcome. `ReviewOutcome` is the typed form. */
 export type PersistedReviewOutcome = z.infer<typeof reviewOutcomeSchema>;

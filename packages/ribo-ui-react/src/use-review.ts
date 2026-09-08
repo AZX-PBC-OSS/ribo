@@ -230,15 +230,24 @@ const toPersisted = (outcome: ReviewOutcome): PersistedReviewOutcome => {
           editedFields: [...outcome.editedFields],
           rejectedFields: [...outcome.rejectedFields],
         };
+  let result: PersistedReviewOutcome = mutable;
   if (outcome.linkTargets) {
-    return {
-      ...mutable,
+    result = {
+      ...result,
       linkTargets: Object.fromEntries(
         Object.entries(outcome.linkTargets).map(([group, targets]) => [group, [...targets]]),
       ),
     };
   }
-  return mutable;
+  if (outcome.instanceKeys) {
+    result = {
+      ...result,
+      instanceKeys: Object.fromEntries(
+        Object.entries(outcome.instanceKeys).map(([group, keys]) => [group, [...keys]]),
+      ),
+    };
+  }
+  return result;
 };
 
 // ---------------------------------------------------------------------------

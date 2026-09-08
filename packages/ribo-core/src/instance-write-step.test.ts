@@ -103,6 +103,7 @@ const seedSession = async (
   outbox: Outbox,
   ctx: unknown,
   fields: Record<string, unknown>,
+  instanceKeys?: Record<string, string[]>,
 ): Promise<{ session: SessionItem; ctx: unknown }> => {
   const session = await outbox.openSession({ ctx, ref: "job-7" });
   const enqueued = await outbox.enqueue({
@@ -132,6 +133,7 @@ const seedSession = async (
   const reviewed = await outbox.submitSessionReview(session.id, {
     status: "accepted",
     fields,
+    ...(instanceKeys ? { instanceKeys } : {}),
   });
   return { session: reviewed, ctx };
 };
@@ -159,6 +161,7 @@ test("each instance's derived key is stable across retries and distinct between 
     {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }, { hvacSystemEquipmentType: "AC" }],
     },
+    { hvac: ["k1", "k2"] },
   );
 
   const input = {
@@ -195,6 +198,7 @@ test("singleton groups are written once with the session's original idempotency 
       basedata: { yearBuilt: 2004 },
       hvac: [{ hvacSystemEquipmentType: "Furnace" }],
     },
+    { hvac: ["k1"] },
   );
 
   await step({
@@ -299,6 +303,7 @@ test("a write failing on the second of three instances, then retrying, re-attemp
         { hvacSystemEquipmentType: "Heat Pump" },
       ],
     },
+    instanceKeys: { hvac: ["k1", "k2", "k3"] },
   });
 
   const relay = createRelay({
@@ -378,6 +383,7 @@ test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is 
     {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }],
     },
+    { hvac: ["k1"] },
   );
 
   const thrown = await toInstanceWriteStep({
@@ -412,6 +418,7 @@ test("a failing write propagates unchanged — the relay's retry contract is not
     {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }],
     },
+    { hvac: ["k1"] },
   );
 
   const thrown = await toInstanceWriteStep({
@@ -486,6 +493,7 @@ test("after reopening from dead and removing the first instance, the survivor re
     fields: {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }, { hvacSystemEquipmentType: "AC" }],
     },
+    instanceKeys: { hvac: ["k1", "k2"] },
   });
 
   const relay = createRelay({
@@ -514,6 +522,10 @@ test("after reopening from dead and removing the first instance, the survivor re
     fields: {
       hvac: [{ hvacSystemEquipmentType: "AC" }],
     },
+    // Deliberately "k2" (not "k1"): this fixture bypasses the real UI's
+    // remapAfterInstanceRemove (which would renumber the survivor to k1) to
+    // stress-test the write step's keying behavior in isolation.
+    instanceKeys: { hvac: ["k2"] },
   });
 
   // Second drain: the survivor (now index 0) must reach the adapter.

@@ -825,12 +825,14 @@ describe("useReview — instance identity: link-or-create decision", () => {
         hvac: [{ hvacSystemEquipmentType: "Boiler", hvacHeatingSystemManufacturer: "Burnham" }],
       },
       linkTargets: { hvac: ["hvac-1"] },
+      instanceKeys: { hvac: ["k1"] },
     });
 
     const persisted = await outbox.getSession(session.id);
     expect(persisted?.reviewOutcome).toMatchObject({
       status: "accepted",
       linkTargets: { hvac: ["hvac-1"] },
+      instanceKeys: { hvac: ["k1"] },
     });
     await outbox.close();
   });
