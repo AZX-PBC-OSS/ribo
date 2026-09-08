@@ -1,0 +1,281 @@
+{
+  "basedata": {
+    "yearBuilt": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "conditionedArea": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorsAboveGrade": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "numberOfBedrooms": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "typeOfHome": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "blowerDoorReading": {
+      "value": 3200,
+      "confidence": 1,
+      "sourceSpan": "We came in at thirty-two hundred CFM50. Thirty-two hundred."
+    },
+    "blowerDoorTestPerformed": {
+      "value": "Tested",
+      "confidence": 1,
+      "sourceSpan": "Blower door, I set it in the side door."
+    }
+  },
+  "hvac": [
+    {
+      "hvacSystemEquipmentType": {
+        "value": "Furnace / Central AC (shared ducts)",
+        "confidence": 1,
+        "sourceSpan": "Heat's a gas furnace down in the utility closet, forced hot air"
+      },
+      "hvacUpgradeAction": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatingEnergySource": {
+        "value": "Natural Gas",
+        "confidence": 1,
+        "sourceSpan": "Heat's a gas furnace"
+      },
+      "hvacHeatingSystemManufacturer": {
+        "value": "Trane",
+        "confidence": 1,
+        "sourceSpan": "it's a Trane"
+      },
+      "hvacHeatingSystemModel": {
+        "value": "TUD100",
+        "confidence": 1,
+        "sourceSpan": "Model number off the label — it's a TUD100"
+      },
+      "hvacHeatingSystemModelYear": {
+        "value": 2017,
+        "confidence": 1,
+        "sourceSpan": "manufacture date stamped is twenty seventeen"
+      },
+      "hvacHeatingCapacity": {
+        "value": 100000,
+        "confidence": 1,
+        "sourceSpan": "Output's a hundred thousand BTU on the plate"
+      },
+      "hvacCoolingCapacity": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacDuctLocation": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacDuctLeakage": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacDuctLeakageValue": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacDuctInsulation": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      }
+    }
+  ],
+  "attic": [
+    {
+      "atticInsulationDepth": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticInsulationType": {
+        "value": "Fiberglass or Rockwool (batts or blown)",
+        "confidence": 1,
+        "sourceSpan": "Insulation up here is blown fiberglass, kind of pinkish"
+      },
+      "atticInsulation": {
+        "value": 38,
+        "confidence": 1,
+        "sourceSpan": "I'd put it at about R-38 up here"
+      },
+      "atticHasKneeWall": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticRoofType": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      }
+    }
+  ],
+  "wall": [
+    {
+      "wallsInsulated": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": "I didn't open anything up, it's brick veneer, I'd have to drill and I'm not doing that today, so I can't tell you on the wall insulation. Leaving that one blank."
+      },
+      "wallExteriorWallSiding": {
+        "value": "Brick Veneer",
+        "confidence": 1,
+        "sourceSpan": "it's brick veneer"
+      },
+      "wallCavityInsulation": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": "I can't tell you on the wall insulation. Leaving that one blank."
+      },
+      "wallCavityInsulationType": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": "I can't tell you on the wall insulation. Leaving that one blank."
+      }
+    }
+  ],
+  "window": [
+    {
+      "windowType": {
+        "value": "Double pane",
+        "confidence": 1,
+        "sourceSpan": "Windows are all double pane"
+      },
+      "windowFrame": {
+        "value": "Vinyl",
+        "confidence": 1,
+        "sourceSpan": "vinyl frames"
+      },
+      "windowEnergyStar": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      }
+    }
+  ],
+  "dhw": [
+    {
+      "dhwType2": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwFuel2": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwAge": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwLocation": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwTankSize": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwManufacturer": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      }
+    }
+  ],
+  "health": {
+    "healthAmbientCarbonMonoxide": {
+      "value": "Passed",
+      "confidence": 1,
+      "sourceSpan": "Ambient CO right next to the furnace while it was running read zero, so that's clean, no carbon monoxide, good."
+    },
+    "healthNaturalConditionSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthWorstCaseDepressurization": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthWorstCaseSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthUndilutedFlueCo": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthDraftPressure": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthGasLeak": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthVenting": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthMoldMoisture": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthRadon": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthAsbestos": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthLead": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthElectrical": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthRoofCondition": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  }
+}

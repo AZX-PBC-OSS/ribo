@@ -86,3 +86,9 @@ spikes/extraction-snuggpro/results/*-score.json
 # docs/implementation/19-ondevice-extraction-strategies.md. The runner IS committed; its
 # output is not. (Contrast results/codex and results/opencode, which predate this rule.)
 spikes/extraction-snuggpro/results/ondevice*/
+
+# Managed corpus runs (doc 20): model output from a live, keyed run against the Helix LLM
+# route, plus the per-run manifest of calls/tokens/latency. Same rule as the on-device runs
+# above — the harness IS committed (`spikes/managed-three-phase/`), its output is not, and
+# the numbers that matter are in docs/implementation/20-managed-three-phase-extraction.md.
+spikes/extraction-snuggpro/results/managed-*/

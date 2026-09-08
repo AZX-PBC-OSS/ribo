@@ -1,0 +1,35 @@
+{
+  "strategy": "three-phase",
+  "model": "claude-sonnet-5",
+  "transport": "helixChat",
+  "baseUrl": "https://dev-api.azx.helix.azxlabs.io/ribo-extraction-spike",
+  "maxTokens": 8192,
+  "startedAt": "2026-09-08T14:36:53.118Z",
+  "transcripts": [
+    {
+      "slug": "01-attic-r-value-shell",
+      "status": "ok",
+      "wallMs": 109957,
+      "calls": 29,
+      "failures": 0,
+      "promptTokens": 22776,
+      "completionTokens": 3102,
+      "cachedPromptTokens": 0,
+      "cacheCreationPromptTokens": 0,
+      "latencyMsTotal": 109946,
+      "maxSchemaChars": 1163
+    }
+  ],
+  "finishedAt": "2026-09-08T14:38:43.076Z",
+  "wallMs": 109957,
+  "totals": {
+    "calls": 29,
+    "failures": 0,
+    "promptTokens": 22776,
+    "completionTokens": 3102,
+    "cachedPromptTokens": 0,
+    "cacheCreationPromptTokens": 0,
+    "latencyMsTotal": 109946,
+    "maxSchemaChars": 1163
+  }
+}
