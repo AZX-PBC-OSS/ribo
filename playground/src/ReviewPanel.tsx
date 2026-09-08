@@ -154,6 +154,7 @@ function groupFields(tree: readonly ReviewNode[]): readonly ResourceGroup[] {
         name: node.key,
         instances: [{ path: node.path, key: "", label: "", paths: [node.path] }],
         isEmpty: false,
+        emptyQuote: null,
       });
       continue;
     }
@@ -162,6 +163,7 @@ function groupFields(tree: readonly ReviewNode[]): readonly ResourceGroup[] {
         name: node.key,
         instances: [{ path: node.path, key: "", label: "", paths: leafPathsOf(node.children) }],
         isEmpty: false,
+        emptyQuote: null,
       });
       continue;
     }
