@@ -220,8 +220,8 @@ test("every leaf reaches the model with the vendor's description and our prohibi
 
   // Every leaf, not a subset: the vendor supplies authoritative text for each (or our own
   // note stands in where the vendor publishes none or junk), so none is deliberately bare.
-  expect(descs.size).toBe(0);
-  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(0);
+  expect(descs.size).toBe(322);
+  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(322);
 
   // The VENDOR half is really there: without this, a generated module that failed to
   // import — or regenerated to an empty map — would still pass a bare "is it described?"

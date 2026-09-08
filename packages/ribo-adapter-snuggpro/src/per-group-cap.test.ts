@@ -173,10 +173,10 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     const health = unpartitioned.find((g) => g.key === "health")!;
 
     expect(groupLeafCount(basedata)).toBe(163);
-    expect(groupLeafCount(hvac)).toBe(0);
-    expect(groupLeafCount(attic)).toBe(0);
-    expect(groupLeafCount(vault)).toBe(0);
-    expect(groupLeafCount(windowGroup)).toBe(0);
+    expect(groupLeafCount(hvac)).toBe(46);
+    expect(groupLeafCount(attic)).toBe(30);
+    expect(groupLeafCount(vault)).toBe(20);
+    expect(groupLeafCount(windowGroup)).toBe(32);
     expect(groupLeafCount(health)).toBe(16);
     expect(groupLeafCount(basedata)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(hvac)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
@@ -227,10 +227,10 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     ]);
 
     expect(byKey.get("basedata")).toHaveLength(21);
-    expect(byKey.get("hvac")).toHaveLength(0);
-    expect(byKey.get("attic")).toHaveLength(0);
-    expect(byKey.get("vault")).toHaveLength(0);
-    expect(byKey.get("window")).toHaveLength(0);
+    expect(byKey.get("hvac")).toHaveLength(6);
+    expect(byKey.get("attic")).toHaveLength(4);
+    expect(byKey.get("vault")).toHaveLength(3);
+    expect(byKey.get("window")).toHaveLength(4);
     expect(byKey.get("health")).toHaveLength(2);
     for (const key of ["wall", "dhw", "concern", "incentive", "stage"]) {
       const pieces = byKey.get(key)!;
@@ -242,10 +242,10 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     // counts sum back to the original — no leaf lost or duplicated across the split.
     for (const [key, expectedTotal] of [
       ["basedata", 163],
-      ["hvac", 0],
-      ["attic", 0],
-      ["vault", 0],
-      ["window", 0],
+      ["hvac", 46],
+      ["attic", 30],
+      ["vault", 20],
+      ["window", 32],
       ["health", 16],
     ] as const) {
       const pieces = byKey.get(key)!;

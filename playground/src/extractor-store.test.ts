@@ -174,7 +174,7 @@ test("with an API key, the live extractor is the per-group strategy", async () =
   // alone might miss (e.g. always constructing `singleShotExtractor`
   // regardless of `strategy`).
   expect(requests).toHaveLength(snuggPieces.length);
-  expect(requests).toHaveLength(0);
+  expect(requests).toHaveLength(45);
 
   // Each call's system message is a per-group prompt, not the full
   // `snuggProInstructions` the single-shot extractor sends. This catches

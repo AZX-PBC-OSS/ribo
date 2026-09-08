@@ -2,7 +2,7 @@
 //
 // Source:    https://app.snuggpro.com/apidocs/swagger.json
 // Refreshed: 2026-09-08
-// Leaves:    257
+// Leaves:    320
 //
 // The vendor's own description for each field we extract — the same sentence a Snugg Pro
 // user reads in their UI. `schema.ts` composes this with our own note, where we have one,
@@ -198,6 +198,10 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
   dishwasherModelYear: "Enter the Model Year of the Dishwasher.",
   effectiveLeakageArea:
     "Effective (or Equivalent) Leakage Area in square inches. This is the area of a theoretical hole (with rounded edges) in the building envelope that would produce a leakage equivalent to that produced by the actual building at 4 Pascals of pressure.",
+  energyStarColdClimateHeatPump:
+    "Choose Yes if Energy Star Cold Climate Heat Pump. Field options: 1 → Yes 0 → No",
+  energyStarColdClimateHeatPumpImproved:
+    "Choose Yes if Energy Star Cold Climate Heat Pump. Field options: 1 → Yes 0 → No",
   equivalentNach:
     "NACH is the number of times in one hour the entire volume of air inside the building leaks to the outside naturally. It is calculated from the Air Infiltration number in CFM50, the number of stories, the wind zone and type of shielding the house has.",
   evCalculationMethod: "Choose between Simple or Detailed Calculations for EV Charging.",
@@ -291,23 +295,83 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Enter the width of the shortest side of the smallest rectangle into which the home's footprint will fit. **Please note:** This is used only to calculate the surface area of the exterior walls, and has nothing to do with the conditioned square footage, volume, or any other calculations. This should give a fairly precise estimate of wall surface area in all circumstances except when the house is shaped like a U. If the home is shaped like a U, you'll need to override the total wall sqft in the Wall Details section with the additional surface area. See the knowledge base article on this for more information.",
   hvacCoolingCapacity:
     "Enter the output capacity of the cooling equipment in (Btu/hr). Reminder: cooling systems are often rated in tons. 1 ton = 12,000 Btu/hr. **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000.",
+  hvacCoolingCapacityImproved:
+    "Enter the output capacity of the cooling equipment in (Btu/hr). Reminder: cooling systems are often rated in tons. 1 ton = 12,000 Btu/hr. **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000.",
+  hvacCoolingMaintenanceStarRating:
+    "undefined Field options: null → 1 → Observable issues need to be addressed 2 → Standard condition based on the age of the system 3 → Well maintained and/or pristine condition",
+  hvacCoolingSystemEfficiency:
+    'The Seasonal Energy Efficiency Ratio (SEER) is the average annual cooling efficiency of an air-conditioning or heat pump system as a weighted average of EERs over a range of rate outside air conditions following a standard test method. It includes energy of auxiliary systems such as the indoor and outdoor fans. Units: Btu/Wh. The Energy Efficiency Ratio (EER) is the measurement of the cooling capacity for a unit (in Btu/hour) divided by electrical energy it uses (in watts) at a specific temperature of 95ºF. Units: Btu/Wh. EER is only used for Room AC units. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  hvacCoolingSystemEfficiencyRatingUnit: "",
+  hvacCoolingSystemIndoorModel:
+    "Enter the Indoor Model # of the Cooling Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference.",
+  hvacCoolingSystemIndoorSerialNumber:
+    "If there is more than one serial number, each serial number should be separated with a comma,",
+  hvacCoolingSystemManufacturer: "Enter the Manufacturer of the Cooling Equipment.",
+  hvacCoolingSystemModel:
+    "Enter the Model # of the Cooling Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference.",
+  hvacCoolingSystemModelYear: "Enter the Year the Cooling Equipment was built.",
+  hvacCoolingSystemOutdoorModel:
+    "Enter the Outdoor Model # of the Cooling Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference.",
+  hvacCoolingSystemOutdoorSerialNumber:
+    "If there is more than one serial number, each serial number should be separated with a comma,",
+  hvacCoolingSystemSerialNumber:
+    "If there is more than one serial number, each serial number should be separated with a comma,",
   hvacDuctInsulation:
     "Select the type of insulation installed over the duct work for this system. Note: If ducts are covered wholly or partially by incidental insulation present in the cavity in which they are installed, then select the insulation type that most closely matches the average R-value of the insulation. If you know the actual duct insulation R-value, choose Measured (R-Value) and enter the data in the field below.",
+  hvacDuctInsulationValue:
+    "If you know the actual R-value of the duct insulation, you may enter it here.",
   hvacDuctLeakage:
     "Choose the estimated leakage to the outside through the duct system as a percentage of the total air handler flow. If you actually performed a duct blaster test, choose Measured (CFM25) and enter a value in the field below.",
   hvacDuctLeakageValue:
     "If you perform a duct blaster test, please enter the tested leakage to outside at 25 Pa per RESNET Standard Section 803.7.",
   hvacDuctLocation: "Select the location of the duct work for this system.",
+  hvacHeatPumpInverter:
+    "Select Yes if this heat pump has a variable speed or Inverter driven compressor. These extremely high efficiency units perform to much lower outside air temperatures than single speed units and require much less or no electric resistance backup heat.",
+  hvacHeatPumpInverterImproved:
+    "Select Yes if this heat pump has a variable speed or Inverter driven compressor. These extremely high efficiency units perform to much lower outside air temperatures than single speed units and require much less or no electric resistance backup heat.",
   hvacHeatingCapacity:
+    "Enter the output capacity of the heating equipment in (Btu/hr). **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000.",
+  hvacHeatingCapacityImproved:
     "Enter the output capacity of the heating equipment in (Btu/hr). **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000.",
   hvacHeatingEnergySource:
     "This is the primary fuel source. It is used to set prices and energy content.",
+  hvacHeatingEnergySourceImproved:
+    "This is the primary fuel source. It is used to set prices and energy content.",
+  hvacHeatingIsCondensing:
+    "Is this furnace or boiler a condensing unit? If you see PVC pipes for the combustion venting as opposed to a gravity vent, then this unit is likely a condensing unit that runs at 90 AFUE or higher. Setting this to true will set the default a calibrated number between 90 and 96 AFUE automatically.",
+  hvacHeatingMaintenanceStarRating:
+    "undefined Field options: null → 1 → Observable issues need to be addressed 2 → Standard condition based on the age of the system 3 → Well maintained and/or pristine condition",
+  hvacHeatingSystemEfficiency:
+    'Annual Fuel Utilization Efficiency (AFUE) is a percentage representing the ratio of heat energy units provided to the total energy value of fuel consumed in identical units. It is most commonly used for combustion based heating as well as electric resistance heating. Heating Seasonal Performance Factor (HSPF) is the ratio of Btus of heat energy provided to the watt-hours of electricity consumed. It is most commonly used for air and ground source heat pumps. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  hvacHeatingSystemEfficiencyRatingUnit: "",
+  hvacHeatingSystemIndoorModel:
+    "Enter the Indoor Model # of the Heating Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference.",
+  hvacHeatingSystemIndoorSerialNumber:
+    "If there is more than one serial number, each serial number should be separated with a comma,",
   hvacHeatingSystemManufacturer: "Enter the Manufacturer of the Heating Equipment.",
   hvacHeatingSystemModel:
     "Enter the Model # of the Heating Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference.",
   hvacHeatingSystemModelYear: "Enter the Year the Heating Equipment was built.",
+  hvacHeatingSystemOutdoorModel:
+    "Enter the Outdoor Model # of the Heating Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference.",
+  hvacHeatingSystemOutdoorSerialNumber:
+    "If there is more than one serial number, each serial number should be separated with a comma,",
+  hvacHeatingSystemSerialNumber:
+    "If there is more than one serial number, each serial number should be separated with a comma,",
+  hvacPercentOfTotalCoolingLoad:
+    "Enter the proportion of the total load for heating or cooling that this system represents. The combined cooling load percentage for all cooling systems specified DOES NOT need to add up to 100%. If you set the cooling load to 70% and don't add any other cooling system, then the model assumes you're not conditioning 30% of the home's cooling load.",
+  hvacPercentOfTotalCoolingLoadImproved:
+    "Enter the proportion of the total load for heating or cooling that this system represents. The combined cooling load percentage for all cooling systems specified DOES NOT need to add up to 100%. If you set the cooling load to 70% and don't add any other cooling system, then the model assumes you're not conditioning 30% of the home's cooling load.",
+  hvacPercentOfTotalHeatingLoad:
+    "Enter the proportion of the total load for heating or cooling that this system represents. The combined heating load percentage for all heating systems specified must add up to 100%.",
+  hvacPercentOfTotalHeatingLoadImproved:
+    "Enter the proportion of the total load for heating or cooling that this system represents. The combined heating load percentage for all heating systems specified must add up to 100%.",
+  hvacSteadyStateEfficiency:
+    "Measured steady state efficiency as calculated with a combustion gas analyze",
   hvacSystemEquipmentType:
     "Select which type of HVAC system you'd like to describe. This list shows every possible type of heating or cooling system (or combination thereof) that is available in our software. Pay attention to the “shared ducts” vs. “standalone ducts” component. Note: this is very similar to the “Both” option that was available in version 4.",
+  hvacSystemName:
+    "Give this system a name that you can use to easily differentiate it from the others like: Old Heat Pump or Basement Furnace.",
   hvacUpgradeAction:
     "Choose an action that you plan to take for this HVAC system.**Replace with a newer model:** Replace the existing equipment with a new version of the same thing. Eg. replace a 78 AFUE furnace with a new 98 AFUE furnace **Keep an existing system as is:** Do nothing to a system or just change the percent of total load that that old system covers in the house. **Remove a system permanently:** Rip out an entire system and replace it with something completely new, like going from a direct heater and room AC to a central heat pump. In this instance you will have a system that is described on the base side, and the improved side will be blank. **Install a new non-existing system:** A brand new system that replaces the system that was removed when you chose: Remove a system permanently.",
   includesBasement: "Mark this as Yes if the conditioned area above includes the basement area.",
@@ -452,13 +516,70 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Is there insulation in the wall cavities of this home? If so, how good is it? If unsure, please leave blank. **Well**: All cavities contain insulation at full or near full depth with gaps and voids not exceeding 5%. **Poor**: Majority of cavities contain insulation, but one or more of the following is suspected: low density, low depth, poor installation. **Yes**: You can confirm that insulation exists, but are unsure of the installation quality. **No** - No insulation value is applied to cavities.",
   wholeHomeIsProfessionallyAirSealed: "Choose Yes if Whole home is professionally air sealed.",
   windZone: "Select the Wind Zone from the map.",
+  windowAreaEast:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaEastImproved:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaNorth:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaNorthImproved:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaSouth:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaSouthImproved:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaWest:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaWestImproved:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowEastAreaPercent:
+    "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only.",
+  windowEastOverhangDepth:
+    "Enter the average window overhang width (feet) on the exterior walls for this orientation.",
+  windowEfficiency:
+    'Enter the average gross window (including frame effects) U-value of the windows installed (BASE) or to be installed (IMPROVED). **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowEfficiencyImproved:
+    'Enter the average gross window (including frame effects) U-value of the windows installed (BASE) or to be installed (IMPROVED). **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
   windowEnergyStar: "Select Yes if this window system is ENERGY STAR Certified.",
+  windowEnergyStarImproved: "Select Yes if this window system is ENERGY STAR Certified.",
+  windowExteriorTreatmentEast:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentEastImproved:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentNorth:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentNorthImproved:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentSouth:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentSouthImproved:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentWest:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentWestImproved:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
   windowFrame:
     "Select the type of window frame material that is used for the windows installed in the home. If more than one type of window is installed, add a second window system.",
+  windowNorthAreaPercent:
+    "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only.",
+  windowNorthOverhangDepth:
+    "Enter the average window overhang width (feet) on the exterior walls for this orientation.",
+  windowSolarHeatGainCoefficient:
+    'Enter the average gross window (including frame effects) Solar Heat Gain Coefficient (SHGC) of the windows installed (BASE) or to be installed (IMPROVED). IMPORTANT! Do not adjust this number to account for the affects of solar screens or shades. Use the Exterior Treatment fields below for this and only change the SHGC if the window unit itself is being replaced. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowSolarHeatGainCoefficientImproved:
+    'Enter the average gross window (including frame effects) Solar Heat Gain Coefficient (SHGC) of the windows installed (BASE) or to be installed (IMPROVED). IMPORTANT! Do not adjust this number to account for the affects of solar screens or shades. Use the Exterior Treatment fields below for this and only change the SHGC if the window unit itself is being replaced. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowSouthAreaPercent:
+    "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only.",
+  windowSouthOverhangDepth:
+    "Enter the average window overhang width (feet) on the exterior walls for this orientation.",
   windowType:
     "Select the type of windows that are installed in the home. If more than one type of window is installed, add a second window system.",
   windowVentingUsed:
     "Do the occupants make use of operable windows to cool the home when the outdoor temperature and humidity are favorable? This can eliminate cooling loads during shoulder seasons or even year-round in temperate climates. Turning this feature on will help eliminate scenarios where you previously had negative savings for some air sealing and insulation measures.",
+  windowWestAreaPercent:
+    "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only.",
+  windowWestOverhangDepth:
+    "Enter the average window overhang width (feet) on the exterior walls for this orientation.",
   yearBuilt:
     'Enter the year the home or building was constructed. If there was a major addition made to the home, the "Year built" should be entered as the year the majority of the area that is heated and air conditioned was built.',
 };
