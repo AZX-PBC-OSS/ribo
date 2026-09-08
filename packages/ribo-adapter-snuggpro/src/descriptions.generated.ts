@@ -2,7 +2,7 @@
 //
 // Source:    https://app.snuggpro.com/apidocs/swagger.json
 // Refreshed: 2026-09-08
-// Leaves:    205
+// Leaves:    206
 //
 // The vendor's own description for each field we extract — the same sentence a Snugg Pro
 // user reads in their UI. `schema.ts` composes this with our own note, where we have one,
@@ -320,6 +320,8 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Shielding type used to determine NACH N-factor: * **Well-Shielded** - urban areas with high buildings or sheltered areas * **Normal** - surrounded by trees or other buildings * **Exposed** - dwelling is not surrounded by any objects",
   skylightArea:
     "Enter the area of any skylights (in square feet) or roof windows that are installed in the home within the heated or air conditioned space of the home.",
+  stageId:
+    "Current stage ID of the job. Field options: 1 → Lead 2 → Audit 3 → Bid Proposed 4 → Bid Approved 5 → Retrofit In Progress 6 → Retrofit Complete 7 → QA 8 → Uncategorized 9 → Archived Won 10 → Archived Lost",
   thermostatManufacturer: "Enter the manufacturer of the Thermostat.",
   thermostatModel: "Enter the model of the Thermostat.",
   thermostatSerialNumber: "Enter the serial number of the Thermostat.",

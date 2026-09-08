@@ -154,9 +154,13 @@ heading("0. SCHEMA INTROSPECTION (schema-leaves.mjs) — derived, not hand-count
   );
   // Pinned against the real schema, and moved deliberately when the field set moves:
   // `basedata` grew to its full 163-field capture surface (doc 17), taking the schema
-  // from 51 to 207 leaves and the enum vocabulary from 233 to 469 members. The
-  // ground-truth corpus stays sparse by design, so nothing else here needed to move.
-  check("207 leaves across the 7 resource groups", LEAVES.length === 207);
+  // from 51 to 207 leaves and the enum vocabulary from 233 to 469 members; the `stage`
+  // singleton (job collections, doc 20 §5.1) then added one `stageId` leaf and an eighth
+  // group, taking the leaf count to 208. The enum vocabulary is unchanged at 469 — `stageId`
+  // is a NUMBER leaf carrying its ten label→code pairs in its description (the spec publishes
+  // no `enum` key for it), not a zod enum. The ground-truth corpus stays sparse by design, so
+  // nothing else here needed to move.
+  check("208 leaves across the 8 resource groups", LEAVES.length === 208);
   check("469 total enum members across all enum leaves", totalMembers === 469);
   check(
     "ENUM_VOCAB has an entry for every enum leaf (no collisions at import time)",

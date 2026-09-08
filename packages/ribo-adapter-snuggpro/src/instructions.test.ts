@@ -132,15 +132,15 @@ describe("per-group instructions — sole top-level key", () => {
       expect(prompt, `group "${key}"`).toContain("exactly one top-level key");
       // And must name the group's key specifically.
       expect(prompt, `group "${key}"`).toContain(`\`${key}\``);
-      // And must NOT say "seven top-level keys" (the full-prompt output section).
-      expect(prompt, `group "${key}"`).not.toContain("seven top-level keys");
+      // And must NOT say "eight top-level keys" (the full-prompt output section).
+      expect(prompt, `group "${key}"`).not.toContain("eight top-level keys");
     }
   });
 
-  test("the full instructions still assert seven top-level keys", () => {
+  test("the full instructions still assert eight top-level keys", () => {
     // The single-shot path keeps the full output section — this is the guard
     // against accidentally changing the full instructions too.
-    expect(snuggProInstructions).toContain("seven top-level keys");
+    expect(snuggProInstructions).toContain("eight top-level keys");
   });
 });
 

@@ -842,9 +842,9 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
     const worstCase = Math.ceil(G / concurrency) * worstCasePerGroup;
     expect(worstCase).toBeLessThanOrEqual(stepTimeoutMs);
 
-    // Also verify for the production Snugg target (7 groups) — the tighter
+    // Also verify for the production Snugg target (8 groups) — the tighter
     // bound that motivated the default.
-    const snuggGroups = 7;
+    const snuggGroups = 8;
     const snuggWorstCase = Math.ceil(snuggGroups / concurrency) * worstCasePerGroup;
     expect(snuggWorstCase).toBeLessThanOrEqual(stepTimeoutMs);
 

@@ -96,7 +96,7 @@ describe("yearsToDhwAgeBand", () => {
 describe("normalizeFields", () => {
   // The adapter's own few-shot example, with out-of-range confidences poked into
   // three envelopes in three DIFFERENT resource groups. Derived from the fixture
-  // rather than hand-written so it cannot drift from the fixture's 219 leaves — and
+  // rather than hand-written so it cannot drift from the fixture's 220 leaves — and
   // spread across groups because a pass that only recursed one level deep, or that
   // special-cased one group by name, would still pass a single-group probe.
   //
@@ -124,7 +124,7 @@ describe("normalizeFields", () => {
   test("clamps EVERY leaf, not just the ones this test names", () => {
     // The count guard. Three named assertions would also pass if the pass reached
     // exactly those three; this walks the result and insists no envelope anywhere
-    // escaped the range, and that it saw all 219 of them.
+    // escaped the range, and that it saw all 220 of them.
     let seen = 0;
     const walk = (node: unknown): void => {
       if (typeof node !== "object" || node === null) return;
@@ -142,7 +142,7 @@ describe("normalizeFields", () => {
       for (const child of Object.values(node)) walk(child);
     };
     walk(normalizeFields(base()));
-    expect(seen).toBe(219);
+    expect(seen).toBe(220);
   });
 
   test("leaves value and sourceSpan untouched — it never converts or invents", () => {

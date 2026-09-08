@@ -343,6 +343,13 @@ const fields: SnuggExtraction = {
     healthElectrical: env(null, null),
     healthRoofCondition: env(null, null),
   },
+
+  stage: {
+    // Nothing in this transcript moves the job's workflow stage, so the group's one
+    // capture field is an unforced `null` — silence is never an invented stage, the
+    // same discipline as an unmentioned health test.
+    stageId: env(null, null),
+  },
 };
 
 export const snuggExamples: readonly ToolAdapterExample<SnuggExtraction>[] = [

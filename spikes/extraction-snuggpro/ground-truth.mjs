@@ -230,10 +230,10 @@ function validateLeaf(path, leafSpec, truth, errors) {
 /**
  * The five groups the vendor models as per-instance child resources. A job may hold several of
  * each, so ground truth carries an ORDERED LIST per group rather than one flat leaf map.
- * `basedata` and `health` are genuine singletons in the API and stay flat.
+ * `basedata`, `health` and `stage` are genuine singletons in the API and stay flat.
  */
 export const COLLECTION_GROUPS = ["hvac", "attic", "wall", "window", "dhw"];
-export const SINGLETON_GROUPS = ["basedata", "health"];
+export const SINGLETON_GROUPS = ["basedata", "health", "stage"];
 
 /** Eligibility verdicts. Anything other than `current` demands a verbatim exclusion span. */
 const ELIGIBILITY = new Set([
