@@ -1,6 +1,6 @@
 import type { ToolAdapter } from "./adapter.js";
 import { TerminalQueueError } from "./queue/backoff.js";
-import type { SessionWriteStep, SessionWriteInput } from "./queue/relay.js";
+import type { SessionWriteResult, SessionWriteStep, SessionWriteInput } from "./queue/relay.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 
 /**
@@ -19,9 +19,10 @@ import { describeLocated, zodIssues } from "./zod-issues.js";
  * The positional `writtenInstances` marker that used to skip them was deleted
  * because it carried a live data-loss bug (a reopened session with a removed
  * instance silently skipped the survivor), and every repair considered
- * substituted for the vendor identifier `write` discards. The receipts work
- * will need a durable channel again and should re-add it deliberately rather
- * than inherit the old positional one.
+ * substituted for the vendor identifier `write` discards. That durable channel
+ * is now the `SessionWriteResult.receipts` return — keyed by the real instance
+ * key the reviewed outcome declares, not by array position, so the survivor of a
+ * removal keeps its own receipt rather than inheriting the deleted one's.
  *
  * Singleton groups are written together with the session's original idempotency
  * key, which is the correct granularity for one record per patch. A group with
@@ -63,7 +64,7 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
   options: ToInstanceWriteStepOptions<V, C>,
 ): SessionWriteStep {
   const { adapter, collectionGroups } = options;
-  return async ({ session, reviewed, idempotencyKey, ctx }: SessionWriteInput): Promise<void> => {
+  return async ({ session, reviewed, idempotencyKey, ctx }: SessionWriteInput): Promise<SessionWriteResult> => {
     const parsedCtx = adapter.ctxSchema.safeParse(ctx);
     if (!parsedCtx.success) {
       throw new TerminalQueueError(
@@ -95,21 +96,49 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
       }
     }
 
+    const receipts: { singleton?: string; instances: Record<string, Record<string, string>> } = {
+      instances: {},
+    };
+
     if (Object.keys(singletonPatch).length > 0) {
-      await adapter.write(adapter.schema.parse(singletonPatch) as V, parsedCtx.data, {
+      const { uuid } = await adapter.write(adapter.schema.parse(singletonPatch) as V, parsedCtx.data, {
         idempotencyKey,
       });
+      receipts.singleton = uuid;
+    }
+
+    const outcome = session.reviewOutcome;
+    if (outcome === undefined || outcome.status === "discarded") {
+      throw new TerminalQueueError(
+        `session ${session.id} reached the instance write step with no reviewable outcome.`,
+      );
     }
 
     for (const { group, instances } of collections) {
       if (instances.length === 0) continue;
       for (let index = 0; index < instances.length; index += 1) {
         const instancePatch = { [group]: [instances[index]] };
-        const instanceKey = deriveInstanceIdempotencyKey(idempotencyKey, group, index);
-        await adapter.write(adapter.schema.parse(instancePatch) as V, parsedCtx.data, {
-          idempotencyKey: instanceKey,
+        const instanceIdempotencyKey = deriveInstanceIdempotencyKey(idempotencyKey, group, index);
+        const instanceKey = outcome.instanceKeys?.[group]?.[index];
+        if (instanceKey === undefined) {
+          throw new TerminalQueueError(
+            `session ${session.id}: no instance key found for group "${group}" at index ${index} — ` +
+              "receipts cannot be safely recorded without a real key.",
+          );
+        }
+        const { uuid } = await adapter.write(adapter.schema.parse(instancePatch) as V, parsedCtx.data, {
+          idempotencyKey: instanceIdempotencyKey,
         });
+        receipts.instances[group] ??= {};
+        receipts.instances[group][instanceKey] = uuid;
       }
     }
+
+    return {
+      receipts: {
+        ...(receipts.singleton !== undefined ? { singleton: receipts.singleton } : {}),
+        ...(Object.keys(receipts.instances).length > 0 ? { instances: receipts.instances } : {}),
+      },
+    };
   };
 }

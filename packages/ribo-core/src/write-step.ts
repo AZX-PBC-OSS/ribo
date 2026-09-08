@@ -1,6 +1,6 @@
 import type { ToolAdapter } from "./adapter.js";
 import { TerminalQueueError } from "./queue/backoff.js";
-import type { SessionWriteStep, SessionWriteInput } from "./queue/relay.js";
+import type { SessionWriteResult, SessionWriteStep, SessionWriteInput } from "./queue/relay.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 
 /**
@@ -66,7 +66,7 @@ import { describeLocated, zodIssues } from "./zod-issues.js";
 export function toWriteStep<V extends Record<string, unknown>, C>(
   adapter: ToolAdapter<V, C>,
 ): SessionWriteStep {
-  return async ({ session, reviewed, idempotencyKey, ctx }: SessionWriteInput): Promise<void> => {
+  return async ({ session, reviewed, idempotencyKey, ctx }: SessionWriteInput): Promise<SessionWriteResult> => {
     const parsedCtx = adapter.ctxSchema.safeParse(ctx);
     if (!parsedCtx.success) {
       throw new TerminalQueueError(
@@ -87,6 +87,7 @@ export function toWriteStep<V extends Record<string, unknown>, C>(
       );
     }
 
-    await adapter.write(fields.data, parsedCtx.data, { idempotencyKey });
+    const { uuid } = await adapter.write(fields.data, parsedCtx.data, { idempotencyKey });
+    return { receipts: { singleton: uuid } };
   };
 }

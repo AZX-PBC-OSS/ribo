@@ -92,7 +92,7 @@ test("the reviewed patch and the session's ctx reach write, both parsed", async 
   const written: Write[] = [];
   const step = toWriteStep(makeAdapter(written));
 
-  await step({
+  const result = await step({
     session: sessionAt("session-1"),
     // A stray key a UI might have persisted alongside the real leaves.
     reviewed: { rValue: 19, area: 400, notADeclaredLeaf: "🙈" },
@@ -100,6 +100,7 @@ test("the reviewed patch and the session's ctx reach write, both parsed", async 
     ctx: { jobId: "job-7", extra: "the host's own business" },
   });
 
+  expect(result).toEqual({ receipts: { singleton: "uuid-key-session-1" } });
   // Both sides are the PARSED values: the stray leaf and the host's extra ctx key are
   // gone. Passing either through untouched is what "nothing runs schema.parse" looked
   // like, and it is indistinguishable from this without the strays.

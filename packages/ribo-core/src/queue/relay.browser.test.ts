@@ -173,7 +173,7 @@ async function buildRelay(
     overrides.sessionWrite ??
     (async (input) => {
       writeCalls.push(input);
-      return { remoteId: "snugg-1" };
+      return { fields: { remoteId: "snugg-1" } };
     });
 
   const relay = createRelay({
@@ -807,7 +807,7 @@ test("reuses the enqueue-time idempotency key on every retry, never regenerating
       keys.push(idempotencyKey);
       attempt += 1;
       if (attempt < 3) throw Object.assign(new Error("gateway"), { status: 503 });
-      return { remoteId: "snugg-1" };
+      return { fields: { remoteId: "snugg-1" } };
     },
   });
   // Seeded past the gate: the key has to survive three *write* attempts, and a
@@ -1935,7 +1935,7 @@ test("a session that failed a write, then succeeded, reaches done with no lastEr
     sessionWrite: async () => {
       attempt += 1;
       if (attempt < 3) throw Object.assign(new Error("gateway"), { status: 503 });
-      return { remoteId: "snugg-1" };
+      return { fields: { remoteId: "snugg-1" } };
     },
   });
   const { session: item } = await seedReviewedWriting(outbox);
