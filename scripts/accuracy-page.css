@@ -85,6 +85,14 @@ html.dark {
 .ar a:hover {
   text-decoration: underline;
 }
+.ar .ar-realaudio-note {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border-left: 3px solid var(--ar-brand);
+  background: color-mix(in srgb, var(--ar-brand) 8%, transparent);
+  font-size: 0.875rem;
+  max-width: 62ch;
+}
 .ar a:focus-visible,
 .ar button:focus-visible,
 .ar .ar-filter-in:focus-visible + .ar-filter-opt {

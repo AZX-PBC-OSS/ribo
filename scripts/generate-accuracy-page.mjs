@@ -299,6 +299,11 @@ function intro(run) {
     and wrong across ${nTx} transcripts, checked field by field against a form a human filled in from
     the same recording.
   </p>
+  <p class="ar-lede ar-realaudio-note">
+    Every transcript here is synthesized speech (TTS) — a floor, not a forecast. See
+    <a href="/deep-dives/real-audio">Real Field Audio</a> for what changes running this same
+    pipeline against two actual field recordings.
+  </p>
 </header>`;
 }
 

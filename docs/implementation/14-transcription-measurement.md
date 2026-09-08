@@ -251,9 +251,11 @@ against these as field numbers.
 **Measured 2026-09-08.** Everything above was TTS. This section is the first run against actual
 recordings — two field clips (3 m 44 s and 19 m 14 s), transcribed whole through both the real
 `OnDeviceTranscriber` and the real `ManagedTranscriber` (Azure Fast Transcription), the same
-production classes the app uses. Numbers only; the audio and its transcripts are real speech from
-inside a customer's home and are **not** in this repo — see
+production classes the app uses. Numbers only; the audio and its transcripts are real speech and are
+**not** in this repo — see
 [`spikes/transcription-measurement/testdata/real/README.md`](../../spikes/transcription-measurement/testdata/real/README.md).
+The public-friendly writeup, with the extraction half of the pipeline, is on the docs site:
+[Real Field Audio](/deep-dives/real-audio).
 
 **No harness-level chunking was needed this time.** Doc 14's original Part A had to split every
 synthetic transcript into ≤24 s segments because the transcriber didn't chunk past Whisper's 30 s
