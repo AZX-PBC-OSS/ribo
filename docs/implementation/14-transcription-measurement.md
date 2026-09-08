@@ -12,9 +12,10 @@ number could not be produced in this environment it is called out and a manual r
 - **[measured]** — produced by a run of this repo's harness on this machine, on the date below.
 - **[from Task 2/3]** — established earlier in this phase (download size, fp32 decision); repeated
   here as context, not re-measured.
-- **[unmeasured]** — no number exists, including ours. Notably: **WebGPU**, and **real field audio**.
+- **[unmeasured]** — no number exists, including ours. Notably: **WebGPU**.
 
-Runs performed 2026-07-23, macOS (darwin), Node 24, headless Chromium via Playwright.
+Runs performed 2026-07-23, macOS (darwin), Node 24, headless Chromium via Playwright. Part D (real
+field audio) was added later — see its own date stamp.
 
 ---
 
@@ -34,7 +35,11 @@ Runs performed 2026-07-23, macOS (darwin), Node 24, headless Chromium via Playwr
   mis-transcribed **manufacturer/model name** (Trane→"train", Lennox→"**Linux**", Weil-McLain→"wheel
   McLean", Burnham→"burnum"). **[measured]**
 - **These are a floor.** TTS audio has no noise, mic handling, disfluency, or cross-talk. Do not read
-  8 % WER as a field forecast; the real-recording gate is still owed (consent, out of scope).
+  8 % WER as a field forecast.
+- **On two real field recordings, on-device runs at RTF ≈0.10–0.11** (a little faster than the
+  TTS-corpus 0.16 — real speech has more silence, which the transcriber's VAD-based chunking skips).
+  **Word-error rate against real speech is not yet measured** — that needs a human-corrected
+  transcript, still pending (Part D). **[measured: timing only]**
 
 ---
 
@@ -238,6 +243,46 @@ on clean speech, and integrates through extraction without new hallucination haz
 retire the _field-readiness_ question. That needs the **real-recording gate** — recordings of actual
 audits — which remains **gated on recording consent and is out of scope for Phase 3**. Do not plan
 against these as field numbers.
+
+---
+
+## Part D — real field audio
+
+**Measured 2026-09-08.** Everything above was TTS. This section is the first run against actual
+recordings — two field clips (3 m 44 s and 19 m 14 s), transcribed whole through both the real
+`OnDeviceTranscriber` and the real `ManagedTranscriber` (Azure Fast Transcription), the same
+production classes the app uses. Numbers only; the audio and its transcripts are real speech from
+inside a customer's home and are **not** in this repo — see
+[`spikes/transcription-measurement/testdata/real/README.md`](../../spikes/transcription-measurement/testdata/real/README.md).
+
+**No harness-level chunking was needed this time.** Doc 14's original Part A had to split every
+synthetic transcript into ≤24 s segments because the transcriber didn't chunk past Whisper's 30 s
+window on its own. That's since changed: the worker now segments long audio itself (VAD-based
+`planChunks`), so both real clips — including the 19-minute one — were handed to `transcribe()` whole.
+
+| clip                | duration | on-device RTF | managed RTF | on-device↔managed word-diff rate |
+| ------------------- | -------: | ------------: | ----------: | -------------------------------: |
+| real-01 (3 m 44 s)  |    224 s |         0.101 |       0.030 |                            7.5 % |
+| real-02 (19 m 14 s) |   1154 s |         0.108 |       0.015 |                           11.5 % |
+
+- **RTF.** Both engines comfortably beat real time on real audio; on-device lands close to the
+  synthetic-corpus figure (0.16), a little faster — plausibly because real dictation carries more
+  silence than continuous TTS, and the VAD-based chunking skips it. Managed's RTF here is dominated by
+  network round-trip, not model speed, and shouldn't be read as a compute comparison.
+- **Word-diff rate is not WER.** It's how far apart the two engines' transcripts land from each
+  other on the _same_ real clip — the comparison the ticket calls out as previously impossible ("the
+  two engines have never transcribed the same clip"). Neither transcript is ground truth, so this
+  is a disagreement measure, not an accuracy measure — a floor on how different the choice of engine
+  can make the transcript, nothing more.
+- **Word Error Rate against real speech is still unmeasured.** That needs a transcript nobody has
+  guessed at — a human correcting one of the two engines' drafts by ear. The harness
+  (`score-real.mjs`) recomputes WER for both engines automatically the moment that file exists; this
+  section will be updated with those numbers once it does.
+- **Container format was a non-issue.** The two files arrived as `.m4a` (AAC) and `.mp3` — neither is
+  the `audio/webm;codecs=opus` the app records in production. Both decoded on-device via
+  `AudioContext.decodeAudioData` and posted to Azure with no transcoding, exactly as recorded.
+
+Reproduce: `spikes/transcription-measurement/testdata/real/README.md`.
 
 ---
 

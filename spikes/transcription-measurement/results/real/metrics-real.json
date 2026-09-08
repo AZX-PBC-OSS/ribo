@@ -1,0 +1,60 @@
+{
+  "generatedAt": "2026-09-08T09:40:15.437Z",
+  "note": "Real field recordings — 2 clips, not a statistically meaningful sample. See doc 14 for the TTS-corpus floor these are checked against.",
+  "perFile": [
+    {
+      "slug": "real-01-recording",
+      "hasGroundTruth": false,
+      "ondevice": {
+        "audioSec": 224.43,
+        "processMs": 22570,
+        "rtf": 0.101,
+        "wer": null,
+        "sub": null,
+        "del": null,
+        "ins": null,
+        "refWords": null
+      },
+      "managed": {
+        "audioSec": 224.43,
+        "processMs": 6761,
+        "rtf": 0.03,
+        "wer": null,
+        "sub": null,
+        "del": null,
+        "ins": null,
+        "refWords": null
+      },
+      "ondeviceVsManagedWordDiffRate": 0.0747
+    },
+    {
+      "slug": "real-02-test-ai-audit",
+      "hasGroundTruth": false,
+      "ondevice": {
+        "audioSec": 1154.4,
+        "processMs": 124672,
+        "rtf": 0.108,
+        "wer": null,
+        "sub": null,
+        "del": null,
+        "ins": null,
+        "refWords": null
+      },
+      "managed": {
+        "audioSec": 1154.4,
+        "processMs": 17550,
+        "rtf": 0.015,
+        "wer": null,
+        "sub": null,
+        "del": null,
+        "ins": null,
+        "refWords": null
+      },
+      "ondeviceVsManagedWordDiffRate": 0.1149
+    }
+  ],
+  "groundTruthPending": [
+    "real-01-recording",
+    "real-02-test-ai-audit"
+  ]
+}
