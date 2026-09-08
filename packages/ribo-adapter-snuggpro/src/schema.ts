@@ -1,8 +1,10 @@
 /**
- * The Snugg Pro energy-audit capture field set — a bounded, *representative*
- * subset of the real API, built directly from the machine-readable spec
- * (`https://app.snuggpro.com/apidocs/swagger.json`, reconciled field-by-field in
- * docs/implementation/17-snuggpro-field-reconciliation.md).
+ * The Snugg Pro energy-audit capture field set, built directly from the
+ * machine-readable spec (`https://app.snuggpro.com/apidocs/swagger.json`,
+ * reconciled field-by-field in
+ * docs/implementation/17-snuggpro-field-reconciliation.md). The `basedata` group
+ * is the FULL honest capture surface of that endpoint (doc 17 §Scoping); the six
+ * component groups remain bounded, representative subsets of theirs.
  *
  * "Representative" is the design goal and it has three concrete parts. Every one
  * of them was false in the previous version of this file, which was built from a
@@ -22,15 +24,16 @@
  *      data" write; the surface is one singleton (`POST /jobs/{jobId}/basedata`)
  *      plus per-instance component resources (`hvac`, `attic`, `wall`, `window`,
  *      `dhw`, `health`), each its own endpoint. The seven groups below ARE those
- *      endpoints, so `write` dispatches on the group key rather than routing 51
+ *      endpoints, so `write` dispatches on the group key rather than routing 207
  *      flat fields by hand.
  *
- * The subset is deliberate and stays deliberate. `basedata` alone takes 294 form
- * fields; the honest capture surface after removing `*Improved` retrofit twins and
- * self-described auto-calculated fields is ~163 (doc 17 §Scoping). The 51 leaves
- * here are chosen for *dictation density* — what an auditor actually says walking a
- * house — not for coverage. Which 51 is a question for real fill-rate data, not
- * for judgement; the roadmap parks that as R1.6.
+ * The `basedata` group is the FULL honest capture surface of doc 17 §Scoping:
+ * the endpoint's 294 form fields minus the 122 `*Improved` retrofit twins and
+ * the 9 self-described auto-calculated fields — exactly 163 leaves, every one a
+ * verbatim wire name with verbatim enum strings. The other six groups remain
+ * bounded, *dictation-density* subsets of their own endpoints — what an auditor
+ * actually says walking a house — and which leaves they grow next is a question
+ * for real fill-rate data, not for judgement.
  *
  * ---
  *
@@ -46,8 +49,8 @@
  *         as empty" is a different instruction from "leave this field alone".
  *       * `.optional()` because a REJECTED field must be absent from the patch
  *         entirely. `resolveReview` omits a rejected leaf, and a patch is what
- *         makes that well-defined: rejecting one leaf of 51 must still write
- *         the other 50, not fail the whole write.
+ *         makes that well-defined: rejecting one leaf of 207 must still write
+ *         the other 206, not fail the whole write.
  *
  *   - `snuggExtractionSchema` — what the MODEL is asked to produce. NOT
  *     hand-written: `enveloped()` derives it from the patch, stripping the
@@ -55,8 +58,8 @@
  *     leaf in `ribo-core`'s provenance envelope. The result is closed and fully
  *     required at every level, because `provenance.ts`'s anti-hallucination rule
  *     needs the model to emit an explicit `null` rather than omit a key. The
- *     derivation recurses into the seven groups, so the model produces 51
- *     independent envelopes and review presents 51 dotted leaf paths
+ *     derivation recurses into the seven groups, so the model produces 207
+ *     independent envelopes and review presents 207 dotted leaf paths
  *     (`"hvac.hvacDuctLeakage"`, `"health.healthAmbientCarbonMonoxide"`) — never
  *     one envelope per group, which would make a group un-reviewable field by
  *     field.
@@ -123,13 +126,19 @@
  *
  * ---
  *
- * ONE KNOWN DIVERGENCE from the spec, recorded rather than hidden:
+ * KNOWN DIVERGENCES from the spec, recorded rather than hidden:
  *
- *   - **Numeric year/size fields.** The spec types `yearBuilt`,
- *     `hvacHeatingSystemModelYear` and friends as `string` (they are form inputs).
- *     They are modelled as `z.number()` here because that is what they mean and
- *     what a reviewer should be editing; `write` stringifies. Doc 17 rows 5/12
- *     record the same call.
+ *   - **Numeric year/size/temperature fields.** The spec types `yearBuilt`,
+ *     `hvacHeatingSystemModelYear` and friends — including the `basedata`
+ *     thermostat setpoints, design temperatures, appliance model years and
+ *     `demandKWSavings` — as `string` (they are form inputs). They are modelled
+ *     as `z.number()` here because that is what they mean and what a reviewer
+ *     should be editing; `write` stringifies. Doc 17 rows 5/12 record the same
+ *     call.
+ *   - **`hasEv` is an INTEGER enum `[1, 0]` in the spec.** `enveloped()` has no
+ *     numeric-enum leaf (zod's `z.enum` is strings-only and a literal union is
+ *     not a supported leaf), so it is a `z.number()` and the 1/0 vocabulary
+ *     travels in its description instead of its type.
  */
 
 import { enveloped } from "@azx/ribo-core";
@@ -168,6 +177,329 @@ export const TypeOfHome = z.enum([
  * so it is a genuine capture field and not bookkeeping.
  */
 export const BlowerDoorTestPerformed = z.enum(["Tested", "Estimate"]);
+
+/** `frontOfBuildingOrientation` — `POST /jobs/{jobId}/basedata`. */
+export const FrontOfBuildingOrientation = z.enum([
+  "North",
+  "North East",
+  "East",
+  "South East",
+  "South",
+  "South West",
+  "West",
+  "North West",
+]);
+
+/** `garageSize` — `POST /jobs/{jobId}/basedata`. */
+export const GarageSize = z.enum(["1-car", "2-car", "3-car", "4-car", "5-car"]);
+
+/** `basementWallInsulation` — `POST /jobs/{jobId}/basedata`. */
+export const BasementWallInsulation = z.enum([
+  "None or Bare Walls",
+  "Fiberglass blanket",
+  "Unfinished frame wall with fiberglass batts",
+  "Finished wall without Insulation",
+  "Finished wall with Insulation",
+  "Don't Know",
+]);
+
+/** `crawlspaceInsulation` — `POST /jobs/{jobId}/basedata`. */
+export const CrawlspaceInsulation = z.enum([
+  "Crawlspace has insulation installed on the exterior wall area",
+  "Crawlspace has insulation installed under only the living space floor",
+  "Crawlspace is uninsulated",
+  "Don't Know",
+]);
+
+/** `percentCflsOrLeds` — `POST /jobs/{jobId}/basedata`. */
+export const PercentCflsOrLeds = z.enum([
+  "0%",
+  "1-25%",
+  "26-50%",
+  "51-75%",
+  "76-99%",
+  "100%",
+  "Don't Know",
+]);
+
+/** `crawlspaceType` — `POST /jobs/{jobId}/basedata`. */
+export const CrawlspaceType = z.enum([
+  "Unvented - Unconditioned Crawl",
+  "Vented - Year Round",
+  "Vented - Summer Only",
+  "Conditioned Crawl",
+]);
+
+/** `clothesWasherType` — `POST /jobs/{jobId}/basedata`. */
+export const ClothesWasherType = z.enum(["Front Load", "Top Load", "No Clothes Washer"]);
+
+/**
+ * `clothesWasherManufacturer` — `POST /jobs/{jobId}/basedata`. The vendor list carries
+ * both "Frigidaire" and its own "Fridgidaire" typo — both are verbatim wire members
+ * and both stay.
+ */
+export const ClothesWasherManufacturer = z.enum([
+  "Unknown",
+  "Amana",
+  "Asko",
+  "Bosch",
+  "Frigidaire",
+  "GE",
+  "Hotpoint",
+  "LG",
+  "Maytag",
+  "Samsung",
+  "Sears",
+  "Westinghouse",
+  "Whirlpool",
+  "Other",
+  "Fridgidaire",
+]);
+
+/**
+ * `windZone` — `POST /jobs/{jobId}/basedata`. The wire members are numeric STRINGS —
+ * they stay strings, not numbers.
+ */
+export const WindZone = z.enum(["1", "2", "3", "4"]);
+
+/** `shielding` — `POST /jobs/{jobId}/basedata`. */
+export const Shielding = z.enum(["Well-Shielded", "Normal", "Exposed"]);
+
+/**
+ * `dishwasherManufacturer` — `POST /jobs/{jobId}/basedata`. The vendor list carries
+ * both "Frigidaire" and its own "Fridgidaire" typo — both are verbatim wire members
+ * and both stay.
+ */
+export const DishwasherManufacturer = z.enum([
+  "Unknown",
+  "Amana",
+  "Asko",
+  "Bosch",
+  "Frigidaire",
+  "GE",
+  "Hotpoint",
+  "KitchenAid",
+  "LG",
+  "Maytag",
+  "Samsung",
+  "Sears",
+  "Thermador",
+  "Whirlpool",
+  "Other",
+  "Fridgidaire",
+]);
+
+/**
+ * `poolPumpType` — `POST /jobs/{jobId}/basedata`. The spec's list leads with a literal
+ * `null` member; that is the field's empty state and is expressed by the leaf's
+ * `.nullable()`, not by an enum member — the same rule `WallCavityInsulationType`
+ * records.
+ */
+export const PoolPumpType = z.enum(["Single Speed", "Two Speed", "Variable Speed", "No Pool Pump"]);
+
+/**
+ * `poolPumpHorsepower` — `POST /jobs/{jobId}/basedata`. The wire members are numeric
+ * STRINGS — they stay strings, not numbers.
+ */
+export const PoolPumpHorsepower = z.enum(["0.5", "0.75", "1", "1.5", "2", "3"]);
+
+/** `basementHeating` — `POST /jobs/{jobId}/basedata`. */
+export const BasementHeating = z.enum([
+  "Intentional",
+  "Intentional w/ continuous circulation",
+  "Incidental-Desired (e.g. leaky ducts)",
+  "None or Undesired Incidental",
+]);
+
+/** `basementCooling` — `POST /jobs/{jobId}/basedata`. */
+export const BasementCooling = z.enum([
+  "Intentional",
+  "Intentional w/ continuous circulation",
+  "Incidental-Desired (e.g. leaky ducts)",
+  "None or Undesired Incidental",
+]);
+
+/** `poolPumpManufacturer` — `POST /jobs/{jobId}/basedata`. */
+export const PoolPumpManufacturer = z.enum(["Pentair", "Other"]);
+
+/** `crawlspaceRimJoistTreatment` — `POST /jobs/{jobId}/basedata`. */
+export const CrawlspaceRimJoistTreatment = z.enum(["Same as Crawl Wall", "Separately"]);
+
+/** `basementRimJoistTreatment` — `POST /jobs/{jobId}/basedata`. */
+export const BasementRimJoistTreatment = z.enum(["Same as Basement Wall", "Separately"]);
+
+/**
+ * `ashraeNumberOfBathrooms` — `POST /jobs/{jobId}/basedata`. The wire members are
+ * numeric STRINGS — they stay strings, not numbers.
+ */
+export const AshraeNumberOfBathrooms = z.enum(["1", "2", "3", "4"]);
+
+/** `floorCavityInsulationType` — `POST /jobs/{jobId}/basedata`. */
+export const FloorCavityInsulationType = z.enum([
+  "Fiberglass or Rockwool Batt",
+  "Blown Fiberglass or Rockwool",
+  "Cellulose",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Rigid XPS",
+  "Rigid EPS",
+  "Rigid Polyisocyanurate",
+  "Other",
+]);
+
+/** `floorContinuousInsulationType` — `POST /jobs/{jobId}/basedata`. */
+export const FloorContinuousInsulationType = z.enum([
+  "Fiberglass or Rockwool Batt",
+  "Blown Fiberglass or Rockwool",
+  "Cellulose",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Rigid XPS",
+  "Rigid EPS",
+  "Rigid Polyisocyanurate",
+  "Other",
+]);
+
+/** `floorWingInsulationCondition` — `POST /jobs/{jobId}/basedata`. */
+export const FloorWingInsulationCondition = z.enum([
+  "Perfect",
+  "Good",
+  "Average",
+  "Poor",
+  "Critical",
+]);
+
+/** `floorBellyInsulationCondition` — `POST /jobs/{jobId}/basedata`. */
+export const FloorBellyInsulationCondition = z.enum([
+  "Perfect",
+  "Good",
+  "Average",
+  "Poor",
+  "Critical",
+]);
+
+/**
+ * `floorFrameFloorType` — `POST /jobs/{jobId}/basedata`. The spec publishes exactly
+ * one member for this list.
+ */
+export const FloorFrameFloorType = z.enum(["Manufactured Home Belly"]);
+
+/** `floorInsulationLocation` — `POST /jobs/{jobId}/basedata`. */
+export const FloorInsulationLocation = z.enum(["Insulation above ducts", "Insulation below ducts"]);
+
+/** `crawlCavityInsulationType` — `POST /jobs/{jobId}/basedata`. */
+export const CrawlCavityInsulationType = z.enum([
+  "Fiberglass or Rockwool Batt",
+  "Blown Fiberglass or Rockwool",
+  "Cellulose",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
+/** `crawlWallInsulationType` — `POST /jobs/{jobId}/basedata`. */
+export const CrawlWallInsulationType = z.enum([
+  "Fiberglass Drape",
+  "Rigid XPS",
+  "Rigid EPS",
+  "Rigid Polyisocyanurate",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
+/** `crawlspaceRimJoistInsulationType` — `POST /jobs/{jobId}/basedata`. */
+export const CrawlspaceRimJoistInsulationType = z.enum([
+  "Fiberglass or Rockwool Batt",
+  "Blown Fiberglass or Rockwool",
+  "Cellulose",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Rigid XPS",
+  "Rigid EPS",
+  "Rigid Polyisocyanurate",
+  "Other",
+]);
+
+/**
+ * `basementCavityInsulationType` — `POST /jobs/{jobId}/basedata`. The spec's list
+ * leads with a literal `null` member; that is the field's empty state and is expressed
+ * by the leaf's `.nullable()`, not by an enum member — the same rule
+ * `WallCavityInsulationType` records.
+ */
+export const BasementCavityInsulationType = z.enum([
+  "Fiberglass or Rockwool Batt",
+  "Blown Fiberglass or Rockwool",
+  "Cellulose",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
+/** `basementContinuousInsulationType` — `POST /jobs/{jobId}/basedata`. */
+export const BasementContinuousInsulationType = z.enum([
+  "Fiberglass Drape",
+  "Rigid XPS",
+  "Rigid EPS",
+  "Rigid Polyisocyanurate",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
+/** `basementRimJoistInsulationType` — `POST /jobs/{jobId}/basedata`. */
+export const BasementRimJoistInsulationType = z.enum([
+  "Fiberglass or Rockwool Batt",
+  "Blown Fiberglass or Rockwool",
+  "Cellulose",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Rigid XPS",
+  "Rigid EPS",
+  "Rigid Polyisocyanurate",
+  "Other",
+]);
+
+/** `evCalculationMethod` — `POST /jobs/{jobId}/basedata`. */
+export const EvCalculationMethod = z.enum(["Detailed", "Simple"]);
+
+/** `basementCeilingCavityInsulationType` — `POST /jobs/{jobId}/basedata`. */
+export const BasementCeilingCavityInsulationType = z.enum([
+  "Fiberglass or Rockwool Batt",
+  "Blown Fiberglass or Rockwool",
+  "Cellulose",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
+/**
+ * `basementCeilingContinuousInsulationType` — `POST /jobs/{jobId}/basedata`. The
+ * spec's list leads with a literal `null` member; that is the field's empty state and
+ * is expressed by the leaf's `.nullable()`, not by an enum member — the same rule
+ * `WallCavityInsulationType` records.
+ */
+export const BasementCeilingContinuousInsulationType = z.enum([
+  "Fiberglass Drape",
+  "Rigid XPS",
+  "Rigid EPS",
+  "Rigid Polyisocyanurate",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
+/** `ventilationType` — `POST /jobs/{jobId}/basedata`. */
+export const VentilationType = z.enum([
+  "None",
+  "Exhaust",
+  "Supply",
+  "Heat Recovery Ventilator",
+  "Energy Recovery Ventilator",
+]);
+
+/** `ventilationSchedule` — `POST /jobs/{jobId}/basedata`. */
+export const VentilationSchedule = z.enum(["Continuous", "Intermittent"]);
 
 // == hvac ====================================================================
 
@@ -549,12 +881,31 @@ export const HealthCondition = z.enum(["Good", "Potential Issues", "NA"]);
 // rejected every leaf in a group writes no request to that endpoint at all.
 //
 // `enveloped()` RECURSES into these rather than wrapping each whole, so the
-// derived extraction schema carries 51 independent provenance envelopes and the
+// derived extraction schema carries 207 independent provenance envelopes and the
 // review card can show the auditor the exact quote behind each one. One envelope
 // per group would make its leaves un-reviewable individually, which is the point
 // of field-level review.
 
-/** `POST /jobs/{jobId}/basedata` — the house-level singleton. 7 of its 294 fields. */
+/**
+ * `POST /jobs/{jobId}/basedata` — the house-level singleton. 163 of its 294
+ * fields: the FULL honest capture surface of doc 17 §Scoping (294 form fields
+ * minus the 122 `*Improved` retrofit twins and the 9 self-described
+ * auto-calculated fields). This group is no longer a dictation-density subset.
+ */
+/**
+ * Some vendor descriptions are a stringified JS `undefined` — the spec carries
+ * one that is literally `"undefined"` and one prefixed `"undefined Field
+ * options: ..."`. Strip the artifact so it never reaches the model's prompt;
+ * whatever survives the strip ("Field options: 1 → Yes 0 → No") is real vendor
+ * text and stays. `descriptions.generated.ts` stays vendor-faithful — the
+ * filtering happens here, not in `pnpm snugg:refresh`.
+ */
+function cleanVendorDescription(text: string | undefined): string | undefined {
+  if (text === undefined) return undefined;
+  const cleaned = text.replace(/^undefined\s*/i, "").trim();
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
 /**
  * Compose the vendor's own description with ours, per leaf.
  *
@@ -566,14 +917,14 @@ export const HealthCondition = z.enum(["Good", "Potential Issues", "NA"]);
  *
  * Vendor first: the definition orients the model before the prohibition constrains it.
  *
- * Applied to the whole group at once rather than at 51 call sites — the leaf's own
+ * Applied to the whole group at once rather than at 207 call sites — the leaf's own
  * `.describe()` is read back out and appended, so a note written the obvious way is
  * picked up automatically. Leaves the vendor does not describe keep their note alone.
  */
 function withVendorDescriptions<T extends z.ZodRawShape>(shape: T): T {
   const described: Record<string, z.ZodType> = {};
   for (const [name, field] of Object.entries(shape) as [string, z.ZodType][]) {
-    const vendor = VENDOR_DESCRIPTIONS[name];
+    const vendor = cleanVendorDescription(VENDOR_DESCRIPTIONS[name]);
     // Read through the `.nullable().optional()` wrapper: a leaf's own note is written on
     // the inner type, which is where it has to be to survive `enveloped()`.
     const ours = stripOptionalNullable(field).description;
@@ -628,6 +979,586 @@ export const BasedataFields = z
 
       /** Whether `blowerDoorReading` was measured or estimated. */
       blowerDoorTestPerformed: BlowerDoorTestPerformed.nullable().optional(),
+
+      /** Average interior floor-to-ceiling wall height, in feet. */
+      averageWallHeight: z.number().nullable().optional(),
+
+      /** Length of the longest side of the footprint's bounding rectangle, in feet. */
+      houseLength: z.number().nullable().optional(),
+
+      /** Width of the shortest side of the footprint's bounding rectangle, in feet. */
+      houseWidth: z.number().nullable().optional(),
+
+      /** Number of people living full-time in the home. */
+      numberOfOccupants: z.number().nullable().optional(),
+
+      /** Compass direction the length of the house faces. */
+      frontOfBuildingOrientation: FrontOfBuildingOrientation.nullable().optional(),
+
+      /** Conditioned living space over an unconditioned garage, cantilever or frame floor. */
+      tuckUnderGarage: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Garage capacity, in cars. */
+      garageSize: GarageSize.nullable().optional(),
+
+      /**
+       * Whether a programmable (setback) thermostat is installed — installed-but-unused
+       * still counts.
+       */
+      programmableThermostatInstalled: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /**
+       * Heating setpoint in °F most often used when OCCUPIED. Spec types this `string`;
+       * `write` stringifies.
+       */
+      heatingSetpointHigh: z.number().nullable().optional(),
+
+      /** Heating setpoint in °F most often used when unoccupied (the setback). */
+      heatingSetpointLow: z.number().nullable().optional(),
+
+      /**
+       * Cooling setpoint in °F most often used when UNOCCUPIED — the vendor's own pairing,
+       * inverted from heating.
+       */
+      coolingSetpointHigh: z.number().nullable().optional(),
+
+      /** Cooling setpoint in °F most often used when occupied. */
+      coolingSetpointLow: z.number().nullable().optional(),
+
+      /** Thermostat manufacturer — free text in the spec too, not a closed list. */
+      thermostatManufacturer: z.string().nullable().optional(),
+
+      /** Thermostat model. */
+      thermostatModel: z.string().nullable().optional(),
+
+      /** Thermostat serial number. */
+      thermostatSerialNumber: z.string().nullable().optional(),
+
+      /** Count of light bulbs in the home, closets and hidden areas included. */
+      totalNumberOfLightBulbs: z.number().nullable().optional(),
+
+      /** Percent of the north wall shared with another unit (assumed adiabatic). */
+      sharedWallsNorth: z.number().nullable().optional(),
+
+      /** Percent of conditioned space with another separately-metered unit above. */
+      percentOfCeilingsShared: z.number().nullable().optional(),
+
+      /** Percent of conditioned space with another separately-metered unit below. */
+      percentOfFloorsShared: z.number().nullable().optional(),
+
+      /**
+       * Percent of foundation that is basement — the foundation shares cannot total more
+       * than 100.
+       */
+      foundationBasement: z.number().nullable().optional(),
+
+      /** Average height in feet of the foundation wall exposed above grade. */
+      foundationAboveGradeHeight: z.number().nullable().optional(),
+
+      /** Basement wall insulation material/assembly. */
+      basementWallInsulation: BasementWallInsulation.nullable().optional(),
+
+      /** Where crawlspace insulation is installed — or that the crawlspace is uninsulated. */
+      crawlspaceInsulation: CrawlspaceInsulation.nullable().optional(),
+
+      /** Skylight / roof-window area within conditioned space, in ft². */
+      skylightArea: z.number().nullable().optional(),
+
+      /** The UNMODELED baseline airflow at 50 Pa. */
+      unmodeledBlowerDoorReading: z
+        .number()
+        .describe(
+          "The unmodeled variant of the blower-door reading — the primary measured result goes in blowerDoorReading, not here.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Equivalent natural air changes per hour. */
+      equivalentNach: z
+        .number()
+        .describe(
+          "Natural air changes per hour (NACH) — never ACH50, and never the blower-door CFM50 of blowerDoorReading.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Conditioned air volume — the vendor derives it from area × wall height; a stated
+       * value overrides.
+       */
+      conditionedAirVolume: z.number().nullable().optional(),
+
+      /**
+       * Effective leakage area in square inches — the theoretical hole equal to the
+       * envelope's leaks.
+       */
+      effectiveLeakageArea: z.number().nullable().optional(),
+
+      /** Exposed basement wall area eligible for insulation, in ft². */
+      modeledBasementWallArea: z.number().nullable().optional(),
+
+      /** Cavity insulation R-value of the framed basement walls. */
+      basementCavityInsulation: z.number().nullable().optional(),
+
+      /** Continuous insulation R-value on the basement walls (fiberglass drape or rigid). */
+      basementContinuousInsulation: z.number().nullable().optional(),
+
+      /** Total assembly R-value of the basement wall system. */
+      basementWallAssemblyRValue: z.number().nullable().optional(),
+
+      /** Cavity insulation R-value of the frame floor. */
+      floorCavityInsulation: z.number().nullable().optional(),
+
+      /** Continuous insulation R-value under the frame floor. */
+      floorContinuousInsulation: z.number().nullable().optional(),
+
+      /** Total assembly R-value of the frame floor system. */
+      floorAssemblyRValue: z.number().nullable().optional(),
+
+      /** Percent of the east wall shared with another unit (assumed adiabatic). */
+      sharedWallsEast: z.number().nullable().optional(),
+
+      /** Percent of the south wall shared with another unit (assumed adiabatic). */
+      sharedWallsSouth: z.number().nullable().optional(),
+
+      /** Percent of the west wall shared with another unit (assumed adiabatic). */
+      sharedWallsWest: z.number().nullable().optional(),
+
+      /** Percent of foundation that is crawlspace. */
+      foundationCrawlspace: z.number().nullable().optional(),
+
+      /** Percent of foundation that is slab on grade. */
+      foundationSlab: z.number().nullable().optional(),
+
+      /** Percent of foundation that is frame floor. */
+      foundationFramefloor: z.number().nullable().optional(),
+
+      /**
+       * BANDED share of lamps that are CFL/LED — an exact numeric percentage is
+       * percentCflOrLed.
+       */
+      percentCflsOrLeds: PercentCflsOrLeds.nullable().optional(),
+
+      /** Cavity insulation R-value of the crawlspace ceiling. */
+      crawlCavityInsulation: z.number().nullable().optional(),
+
+      /** R-value of insulation on the crawlspace walls. */
+      crawlWallInsulation: z.number().nullable().optional(),
+
+      /** Total assembly R-value of the crawlspace ceiling system. */
+      crawlAssemblyRValue: z.number().nullable().optional(),
+
+      /** Crawlspace venting and conditioning type. */
+      crawlspaceType: CrawlspaceType.nullable().optional(),
+
+      /** Clothes washer type. */
+      clothesWasherType: ClothesWasherType.nullable().optional(),
+
+      /** Whether the clothes washer is an ENERGY STAR model. */
+      clothesWasherEnergyStar: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Clothes washer manufacturer, from Snugg's closed list. */
+      clothesWasherManufacturer: ClothesWasherManufacturer.nullable().optional(),
+
+      /** Clothes washer model number. */
+      clothesWasherModel: z.string().nullable().optional(),
+
+      /** Clothes washer serial number(s), comma-separated when several. */
+      clothesWasherSerialNumber: z.string().nullable().optional(),
+
+      /** Clothes washer Integrated Modified Energy Factor (IMEF). */
+      clothesWasherMef: z.number().nullable().optional(),
+
+      /** Whether the dishwasher is an ENERGY STAR model. */
+      dishwasherEnergyStar: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Dishwasher Energy Factor (EF). */
+      dishwasherEnergyFactor: z.number().nullable().optional(),
+
+      /** Exact-percentage numeric override — the banded answer is percentCflsOrLeds. */
+      percentCflOrLed: z
+        .number()
+        .describe(
+          "Exact override percentage as a number — the banded answer is percentCflsOrLeds, not this field.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Wind zone from the vendor's map. */
+      windZone: WindZone.nullable().optional(),
+
+      /** Site shielding, used with the N-factor to derive NACH. */
+      shielding: Shielding.nullable().optional(),
+
+      /** Lawrence Berkeley Laboratory correlation factor used to calculate NACH. */
+      nFactor: z.number().nullable().optional(),
+
+      /** Dishwasher model number. */
+      dishwasherModel: z.string().nullable().optional(),
+
+      /** Dishwasher manufacturer, from Snugg's closed list. */
+      dishwasherManufacturer: DishwasherManufacturer.nullable().optional(),
+
+      /** Dishwasher model year. Spec types this `string`; `write` stringifies. */
+      dishwasherModelYear: z.number().nullable().optional(),
+
+      /** Clothes washer model year. Spec types this `string`; `write` stringifies. */
+      clothesWasherModelYear: z.number().nullable().optional(),
+
+      /** Number of incandescent bulbs in the home before the retrofit. */
+      numberOfIncandescents: z.number().nullable().optional(),
+
+      /** Override count of CFLs installed. */
+      numberOfCflsInstalled: z.number().nullable().optional(),
+
+      /** Override count of CFLs or LEDs. */
+      numberOfCflsOrLeds: z.number().nullable().optional(),
+
+      /** Override count of outdoor incandescents. */
+      numberOfOutdoorIncandescents: z.number().nullable().optional(),
+
+      /** Override count of outdoor CFLs. */
+      numberOfOutdoorCfls: z.number().nullable().optional(),
+
+      /** Override count of outdoor LEDs. */
+      numberOfOutdoorLeds: z.number().nullable().optional(),
+
+      /** Whether the home has an electrically heated hot tub. */
+      hotTub: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Whether the home has a pool. */
+      pool: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Pool pump speed type. */
+      poolPumpType: PoolPumpType.nullable().optional(),
+
+      /** Pool pump horsepower. */
+      poolPumpHorsepower: PoolPumpHorsepower.nullable().optional(),
+
+      /** How the basement receives heat. */
+      basementHeating: BasementHeating.nullable().optional(),
+
+      /** How the basement receives cooling. */
+      basementCooling: BasementCooling.nullable().optional(),
+
+      /** Pool water volume, in gallons. */
+      poolSize: z.number().nullable().optional(),
+
+      /**
+       * Daily pool-water turnovers through the filter — only meaningful for variable-speed
+       * pumps.
+       */
+      poolPumpTurnover: z.number().nullable().optional(),
+
+      /** Pool pump run hours per day — only meaningful for single/two-speed pumps. */
+      poolPumpHours: z.number().nullable().optional(),
+
+      /** Pool pump manufacturer, from Snugg's closed list. */
+      poolPumpManufacturer: PoolPumpManufacturer.nullable().optional(),
+
+      /** Pool pump model number. */
+      poolPumpModel: z.string().nullable().optional(),
+
+      /** Pool pump serial number(s), comma-separated when several. */
+      poolPumpSerialNumber: z.string().nullable().optional(),
+
+      /** Days per year the pool is used. */
+      poolPumpDaysPerYear: z.number().nullable().optional(),
+
+      /** Whether an automatic dishwasher is installed. */
+      dishwasherInstalled: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Whether `conditionedArea` includes the basement area. */
+      includesBasement: z
+        .enum(["Yes", "No"])
+        .describe(
+          "Whether the conditioned area includes the basement — the qualifier on that number, not an area of its own.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Heating design load. The vendor publishes an empty description for this field. */
+      heatingDesignLoad: z
+        .number()
+        .describe("Heating design load for the home.")
+        .nullable()
+        .optional(),
+
+      /** Sensible cooling design load. The vendor publishes an empty description for this field. */
+      coolingSensibleDesignLoad: z
+        .string()
+        .describe("Sensible cooling design load for the home.")
+        .nullable()
+        .optional(),
+
+      /** Latent cooling design load. The vendor publishes an empty description for this field. */
+      coolingLatentDesignLoad: z
+        .string()
+        .describe("Latent cooling design load for the home.")
+        .nullable()
+        .optional(),
+
+      /**
+       * Winter outdoor design temperature in °F — the vendor's regional default unless
+       * overridden.
+       */
+      designTempWinterOutdoor: z.number().nullable().optional(),
+
+      /** Summer outdoor design temperature in °F. */
+      designTempSummerOutdoor: z.number().nullable().optional(),
+
+      /** Winter indoor design temperature in °F. */
+      designTempWinterIndoor: z.number().nullable().optional(),
+
+      /** Summer indoor design temperature in °F. */
+      designTempSummerIndoor: z.number().nullable().optional(),
+
+      /** Total units in the multi-family building this unit belongs to. */
+      numberOfUnits: z.number().nullable().optional(),
+
+      /** Override count of LEDs. */
+      numberOfLeds: z.number().nullable().optional(),
+
+      /**
+       * Whether the crawlspace rim joist is treated the same as the crawl wall, or
+       * separately.
+       */
+      crawlspaceRimJoistTreatment: CrawlspaceRimJoistTreatment.nullable().optional(),
+
+      /** Rim-joist insulation R-value in the crawlspace. */
+      crawlspaceRimJoistInsulation: z.number().nullable().optional(),
+
+      /** Total assembly R-value of the crawlspace rim joists. */
+      crawlRimJoistAssemblyRValue: z.number().nullable().optional(),
+
+      /**
+       * Whether the basement rim joist is treated the same as the basement wall, or
+       * separately.
+       */
+      basementRimJoistTreatment: BasementRimJoistTreatment.nullable().optional(),
+
+      /** Rim-joist insulation R-value in the basement. */
+      basementRimJoistInsulation: z.number().nullable().optional(),
+
+      /** Total assembly R-value of the basement rim joists. */
+      basementRimJoistAssemblyRValue: z.number().nullable().optional(),
+
+      /**
+       * Electrical demand in kW. The WRITE endpoint spells this `demandKW` with a capital W;
+       * the response schema spells it `demandKw` — a vendor casing bug, and a mapping keyed
+       * on the response name silently drops the field.
+       */
+      demandKW: z.number().describe("Electrical demand in kilowatts.").nullable().optional(),
+
+      /**
+       * Electrical demand savings in kW — same capital-W wire spelling as `demandKW`. Spec
+       * types this `string`; `write` stringifies.
+       */
+      demandKWSavings: z
+        .number()
+        .describe("Electrical demand savings in kilowatts.")
+        .nullable()
+        .optional(),
+
+      /** Ambient CO monitored through the whole assessment, in ppm. */
+      cazMaxAmbientCo: z
+        .number()
+        .describe(
+          "Ambient carbon monoxide in parts per million — a reading; the pass/fail verdict of the same test is health.healthAmbientCarbonMonoxide, never here.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Whether the ASHRAE 62.2 ventilation-standard controls are turned on. */
+      ashrae622: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Kitchen ventilation fan CFM rating. */
+      ashraeKitchenFanCfm: z.number().nullable().optional(),
+
+      /** Whether the kitchen has an operable window. */
+      ashraeKitchenWindow: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Number of bathrooms WITH ventilation fans. */
+      ashraeNumberOfBathrooms: AshraeNumberOfBathrooms.nullable().optional(),
+
+      /** Bathroom 1 ventilation fan CFM rating. */
+      ashraeBathroomFan1Cfm: z.number().nullable().optional(),
+
+      /** Whether bathroom 1 has an operable window. */
+      ashraeBathroom1Window: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Bathroom 2 ventilation fan CFM rating. */
+      ashraeBathroomFan2Cfm: z.number().nullable().optional(),
+
+      /** Whether bathroom 2 has an operable window. */
+      ashraeBathroom2Window: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Bathroom 3 ventilation fan CFM rating. */
+      ashraeBathroomFan3Cfm: z.number().nullable().optional(),
+
+      /** Whether bathroom 3 has an operable window. */
+      ashraeBathroom3Window: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Bathroom 4 ventilation fan CFM rating. */
+      ashraeBathroomFan4Cfm: z.number().nullable().optional(),
+
+      /** Whether bathroom 4 has an operable window. */
+      ashraeBathroom4Window: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Additional continuous whole-house ventilation required by ASHRAE 62.2-2013, in CFM. */
+      ashraeRequiredAdditionalCfm: z
+        .number()
+        .describe(
+          'Required continuous whole-house ventilation in CFM; the vendor\'s "N/A" state (no additional requirement) stays null.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Floor cavity insulation material. */
+      floorCavityInsulationType: FloorCavityInsulationType.nullable().optional(),
+
+      /** Floor continuous insulation material. */
+      floorContinuousInsulationType: FloorContinuousInsulationType.nullable().optional(),
+
+      /** Whether the frame-floor skirt is present. */
+      floorSkirtPresent: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Condition of the wing insulation. */
+      floorWingInsulationCondition: FloorWingInsulationCondition.nullable().optional(),
+
+      /** Condition of the belly insulation. */
+      floorBellyInsulationCondition: FloorBellyInsulationCondition.nullable().optional(),
+
+      /** Frame floor type. */
+      floorFrameFloorType: FloorFrameFloorType.nullable().optional(),
+
+      /** Whether the floor insulation sits above or below the ducts. */
+      floorInsulationLocation: FloorInsulationLocation.nullable().optional(),
+
+      /** Crawlspace ceiling cavity insulation material. */
+      crawlCavityInsulationType: CrawlCavityInsulationType.nullable().optional(),
+
+      /** Crawlspace wall continuous insulation material. */
+      crawlWallInsulationType: CrawlWallInsulationType.nullable().optional(),
+
+      /** Crawlspace rim-joist cavity insulation material. */
+      crawlspaceRimJoistInsulationType: CrawlspaceRimJoistInsulationType.nullable().optional(),
+
+      /** Basement wall cavity insulation material. */
+      basementCavityInsulationType: BasementCavityInsulationType.nullable().optional(),
+
+      /** Basement wall continuous insulation material. */
+      basementContinuousInsulationType: BasementContinuousInsulationType.nullable().optional(),
+
+      /** Basement rim-joist cavity insulation material. */
+      basementRimJoistInsulationType: BasementRimJoistInsulationType.nullable().optional(),
+
+      /**
+       * Whether occupants use operable windows to cool the home when outdoor conditions
+       * allow.
+       */
+      windowVentingUsed: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Slab area below conditioned space, in ft². */
+      modeledSlabFloorArea: z.number().nullable().optional(),
+
+      /** Total heat-tape length, in feet. */
+      heatTapeLength: z.number().nullable().optional(),
+
+      /** Heat-tape load, in watts per foot. */
+      heatTapeLoad: z.number().nullable().optional(),
+
+      /** Hours per day the heat tape is on. */
+      heatTapeDailyFrequency: z.number().nullable().optional(),
+
+      /** Days per year the heat tape is on. */
+      heatTapeAnnualFrequency: z.number().nullable().optional(),
+
+      /**
+       * Whether the household has an EV. The spec publishes an INTEGER enum `[1, 0]`;
+       * `enveloped()` has no numeric-enum leaf, so this is `z.number()` and the 1/0
+       * vocabulary travels in the description.
+       */
+      hasEv: z
+        .number()
+        .describe("Whether the household has an EV; the wire value is integer 1 (yes) or 0 (no).")
+        .nullable()
+        .optional(),
+
+      /** Total miles driven by the household's EVs per year. */
+      evMilesDrive: z.number().nullable().optional(),
+
+      /** Average EV efficiency in kWh per 100 miles driven. */
+      evEfficiency: z.number().nullable().optional(),
+
+      /** Percent of EV charging that happens on this home's meter. */
+      evHomeChargingPercent: z.number().nullable().optional(),
+
+      /** kWh per year of EV home charging on this home's meter. */
+      evHomeChargingAmount: z.number().nullable().optional(),
+
+      /** Simple vs. detailed EV-charging calculation. */
+      evCalculationMethod: EvCalculationMethod.nullable().optional(),
+
+      /**
+       * Whether the EV charger is ENERGY STAR certified. The vendor's published
+       * description is a stringified `undefined`, which `cleanVendorDescription` strips.
+       */
+      evEnergyStarCharger: z
+        .enum(["Yes", "No"])
+        .describe("Whether the EV charger is ENERGY STAR certified.")
+        .nullable()
+        .optional(),
+
+      /** Main service panel capacity, in amps. */
+      mainServicePanelMaxAmps: z.number().nullable().optional(),
+
+      /** Number of open breaker spots in the main panel. */
+      openBreakerSpots: z.number().nullable().optional(),
+
+      /** Cavity insulation R-value of the basement ceiling. */
+      basementCeilingCavityInsulation: z.number().nullable().optional(),
+
+      /** Basement ceiling cavity insulation material. */
+      basementCeilingCavityInsulationType:
+        BasementCeilingCavityInsulationType.nullable().optional(),
+
+      /** Continuous insulation R-value on the basement ceiling. */
+      basementCeilingContinuousInsulation: z.number().nullable().optional(),
+
+      /** Basement ceiling continuous insulation material. */
+      basementCeilingContinuousInsulationType:
+        BasementCeilingContinuousInsulationType.nullable().optional(),
+
+      /** Total assembly R-value of the basement ceiling system. */
+      basementCeilingAssemblyRValue: z.number().nullable().optional(),
+
+      /** Mechanical ventilation type. */
+      ventilationType: VentilationType.nullable().optional(),
+
+      /** Whether the ventilation runs continuously or intermittently. */
+      ventilationSchedule: VentilationSchedule.nullable().optional(),
+
+      /** Hours between ventilation cycles — the every-N-hours of an intermittent schedule. */
+      ventilationCycleFrequency: z.number().nullable().optional(),
+
+      /** Hours each ventilation cycle runs — the for-N-hours of an intermittent schedule. */
+      ventilationCycleDuration: z.number().nullable().optional(),
+
+      /** Mechanical ventilation fan flow rate, in CFM. */
+      ventilationFlowRate: z.number().nullable().optional(),
+
+      /** Max rated sensible recovery efficiency, per the HVI product directory. */
+      ventilationSensibleRecoveryEfficiency: z.number().nullable().optional(),
+
+      /** Latent recovery / moisture transfer, per the HVI product directory. */
+      ventilationTotalRecoveryEfficiency: z.number().nullable().optional(),
+
+      /** Ventilation fan input power at max rated SRE, per the HVI product directory. */
+      ventilationFanPower: z.number().nullable().optional(),
+
+      /** Whether the whole home is professionally air sealed. */
+      wholeHomeIsProfessionallyAirSealed: z.enum(["Yes", "No"]).nullable().optional(),
     }),
   )
   .strict();
@@ -848,10 +1779,11 @@ export const HealthFields = z
   )
   .strict();
 
-// --- The bounded field set, as a writable patch -----------------------------
-// 51 leaves across 7 resource groups. Every leaf is `X.nullable().optional()` and
-// every object is `.strict()`; see the file header for why both halves of that are
-// load-bearing.
+// --- The field set, as a writable patch --------------------------------------
+// 207 leaves across 7 resource groups — the full 163-field `basedata` capture
+// surface plus the 44 bounded component-group leaves. Every leaf is
+// `X.nullable().optional()` and every object is `.strict()`; see the file header
+// for why both halves of that are load-bearing.
 //
 // Five groups are per-instance child resources (API creates one record per element
 // with `POST /jobs/{jobId}/<type>`), so they are `z.array(...).optional()`.
@@ -902,12 +1834,15 @@ export type SnuggExtraction = Enveloped<SnuggValues>;
 // The structured-output route the extractor sends to rejects a schema that is too
 // big or too deep, with an HTTP 400 whose text names both limits verbatim. The
 // whole R3 per-group increment exists because the full `snuggExtractionSchema`
-// with vendor descriptions is 39,741 characters against the character cap — one
-// call carrying it is over; seven calls each carrying one group are not. These
-// constants turn that production HTTP 400 into a failing build: the per-group
-// cap test (per-group-cap.test.ts) asserts every group's serialized JSON Schema
-// sits under both ceilings, so a future field that breaks one fails the test
-// rather than a real extraction in the field.
+// with vendor descriptions is 128,858 characters against the character cap — one
+// call carrying it is over, and with the full 163-field `basedata` group even one
+// call per top-level group is over (`basedata` alone is ~94k). What fits is the
+// partitioned piece: `perGroupExtractor` always splits at 8 enveloped leaves, and
+// the largest resulting piece measures ~7.4k. These constants turn that
+// production HTTP 400 into a failing build: the per-group cap test
+// (per-group-cap.test.ts) asserts every partitioned piece's serialized JSON
+// Schema sits under both ceilings, so a future field that breaks one fails the
+// test rather than a real extraction in the field.
 
 /**
  * The maximum serialized character count the structured-output route accepts in
@@ -917,8 +1852,11 @@ export type SnuggExtraction = Enveloped<SnuggValues>;
  * nest <= 12 levels`. Both limits are named in that one message, and only the
  * nesting one was ever checked (by `extraction-shape.test.ts` against OpenAI's
  * documented 10-level ceiling — a different, stricter source). This constant
- * guards the character half. Measured today: the largest per-group schema is
- * `health` at ~13.3k characters, comfortably under.
+ * guards the character half. Measured today: the largest PER-CALL schema is the
+ * largest 8-leaf partitioned piece at ~7.4k characters, comfortably under. The
+ * whole unpartitioned `basedata` group is ~94k and the full schema ~129k — over
+ * the cap — which is why the guard runs on the partitioned pieces
+ * `perGroupExtractor` actually sends, never on a group as a whole.
  */
 export const SCHEMA_SERIALIZED_CHAR_CAP = 32_768;
 

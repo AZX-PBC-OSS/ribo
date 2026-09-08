@@ -3,7 +3,7 @@
  * rest of the shell next visit"). See `ground-truth-format.md`'s "Disclaimers" section for the full
  * rationale; the short version:
  *
- * An annotator does NOT decide which of the 51 leaves a blanket disclaimer reaches — that is a
+ * An annotator does NOT decide which leaves a blanket disclaimer reaches — that is a
  * judgment call, and judgment calls do not converge across 26 independent, blind annotators. A
  * split where half read a disclaimer broadly and half narrowly produces files that look like
  * ordinary careful disagreement but are actually a SYSTEMATIC scope split, which is invisible to a
@@ -67,7 +67,7 @@ for (const [name, paths] of Object.entries(NAMED_SETS)) {
     if (!LEAF_PATHS.includes(p)) {
       throw new Error(
         `disclaimer-policy.mjs: NAMED_SETS.${name} contains "${p}", which is not one of schema.ts's ` +
-          "51 real leaf paths (typo?). Fix it here — this module re-scores every transcript that " +
+          "real leaf paths (typo?). Fix it here — this module re-scores every transcript that " +
           "uses this named set, so a bad path here is not a one-file bug.",
       );
     }

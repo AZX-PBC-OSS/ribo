@@ -231,6 +231,5056 @@
           },
           "required": ["value", "confidence", "sourceSpan"],
           "additionalProperties": false
+        },
+        "averageWallHeight": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the average floor to ceiling wall height (internal measurement). This is used to calculate the volume of the home as well as the wall surface area. **Please note:** When we calculate the volume of the house, we add an additional foot of height for the basement rim joists (if there is a basement), and an additional foot of height for every story above one (if there are any)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "houseLength": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the length of the longest side of the smallest rectangle into which the home's footprint will fit. **Please note:** This is used only to calculate the surface area of the exterior walls, and has nothing to do with the conditioned square footage, volume, or any other calculations. This should give a fairly precise estimate of wall surface area in all circumstances except when the house is shaped like a U. If the home is shaped like a U, you'll need to override the total wall sqft in the Wall Details section with the additional surface area. See the knowledge base article on this for more information."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "houseWidth": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the width of the shortest side of the smallest rectangle into which the home's footprint will fit. **Please note:** This is used only to calculate the surface area of the exterior walls, and has nothing to do with the conditioned square footage, volume, or any other calculations. This should give a fairly precise estimate of wall surface area in all circumstances except when the house is shaped like a U. If the home is shaped like a U, you'll need to override the total wall sqft in the Wall Details section with the additional surface area. See the knowledge base article on this for more information."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "numberOfOccupants": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the number of people that live full-time in the home. If there are people that live in the home only part of the year (e.g., a student away at college or an adult that travels for business a significant amount each year) then for purposes of this audit count that individual as only 1/2 (0.5) of a person. This field directly affects human internal gains. If you don't set the bedrooms, then the occupants are used to estimate the bedrooms. Only the bedrooms field impact appliance usage levels. Occupants also impact the ASHRAE 62.2-2013 minimum ventilation."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "frontOfBuildingOrientation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "North",
+                    "North East",
+                    "East",
+                    "South East",
+                    "South",
+                    "South West",
+                    "West",
+                    "North West"
+                  ],
+                  "description": "Select the closest direction that the Length of the house as designated above faces (either of the opposite directions is fine). If the home is square, then choose the direction the main entry door of the home faces."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "tuckUnderGarage": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "Is there any conditioned living space over an unconditioned garage, cantilever, or frame floor that might need floor insulation? This data is used for the \"Insulate Floors\" recommendation. For cantilevers, adjust the total sqft on the refine screen or the details section."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "garageSize": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["1-car", "2-car", "3-car", "4-car", "5-car"],
+                  "description": "Enter the number of cars that could fit in the the parking area of the garage. The software assumes an extra 100 sqft of storage and other space and each car takes up 200 sqft of space. This data is used for the \"Insulate Floors\" recommendation. For cantilevers, adjust the total sqft on the refine screen or the details section."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "programmableThermostatInstalled": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "Is a programmable (setback) thermostat installed in the house? If it is installed, but not used, still check this box and adjust the thermostat settings accordingly. This button determines if a cost is added to the Programmable Thermostat recommendation. If you check Yes, then no cost will be added, but the software will still recommend ideal setpoints for the home for energy savings. If you check No, then a cost will be added to the recommendation and the ideal setpoints will also be shown in the recommendation."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "heatingSetpointHigh": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the heating thermostat temperature setting (°F) that is used most often when the home is occupied and used by people for normal daily activities. This is often the setting used when people are at home in the mornings before going to school or work and again when they return home from school and work in the afternoon or evening before they go to sleep for the night. **Note:** The goal of this is to determine the average temperature of the home for this time period and situation (cooling or heating). If the heating system just can't keep up and never meets the setpoint on cold days or similar for the cooling system, then adjust the setpoint to closer resemble the actual temperature of the home. Since this is hard to determine, you may enter a range of temperatures for each of the setpoints separated by a dash (no spaces). For example, you can set the Low temp setpoint for heating at 60-65 and the High temp setpoint at 68-71."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "heatingSetpointLow": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the heating thermostat temperature setting (°F) that is used most often when the home is not occupied. This is often the setting used when people have left the home in the mornings to go to school or work and again when they have gone to sleep for the night. **Note:** The goal of this is to determine the average temperature of the home for this time period and situation (cooling or heating). If the heating system just can't keep up and never meets the setpoint on cold days or similar for the cooling system, then adjust the setpoint to closer resemble the actual temperature of the home. Since this is hard to determine, you may enter a range of temperatures for each of the setpoints separated by a dash (no spaces). For example, you can set the Low temp setpoint for heating at 60-65 and the High temp setpoint at 68-71."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "coolingSetpointHigh": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the cooling thermostat temperature setting (°F) that is used most often when the home is not occupied. This is often the setting used when people have left the home in the mornings to go to school or work and again when they have gone to sleep for the night. **Note:** The goal of this is to determine the average temperature of the home for this time period and situation (cooling or heating). If the heating system just can't keep up and never meets the setpoint on cold days or similar for the cooling system, then adjust the setpoint to closer resemble the actual temperature of the home. Since this is hard to determine, you may enter a range of temperatures for each of the setpoints separated by a dash (no spaces). For example, you can set the Low temp setpoint for heating at 60-65 and the High temp setpoint at 68-71."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "coolingSetpointLow": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the cooling thermostat temperature setting (°F) that is used most often when the home is occupied and used by people for normal daily activities. This is often the setting used when people are at home in the mornings before going to school or work and again when they return home from school and work in the afternoon or evening before they go to sleep for the night. **Note:** The goal of this is to determine the average temperature of the home for this time period and situation (cooling or heating). If the heating system just can't keep up and never meets the setpoint on cold days or similar for the cooling system, then adjust the setpoint to closer resemble the actual temperature of the home. Since this is hard to determine, you may enter a range of temperatures for each of the setpoints separated by a dash (no spaces). For example, you can set the Low temp setpoint for heating at 60-65 and the High temp setpoint at 68-71."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "thermostatManufacturer": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the manufacturer of the Thermostat."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "thermostatModel": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the model of the Thermostat."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "thermostatSerialNumber": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the serial number of the Thermostat."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "totalNumberOfLightBulbs": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Count the number of light bulbs in the home. This count assumes an average of 60 watts for each bulb. Remember to look in closets and other hidden areas for lights as well. In the Details section the Base and Improved numbers are calculated as a total of the number of bulbs for each side."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "sharedWallsNorth": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the percent of this wall that is shared with another unit (assumed an adiabatic wall)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "percentOfCeilingsShared": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Select the % of heated or conditioned space (from a seperatly metered apartment or unit) above your apartment / condominium / single-family attached home? If this is a single family detached home, leave this blank or at 0."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "percentOfFloorsShared": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Select the % of heated or conditioned space (from a separately metered apartment or unit) below your apartment / condominium / single-family attached home? If this is a single family detached home, leave this blank or at 0."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "foundationBasement": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Select the percentage of foundation that is **basement**, **crawlspace** or **slab on grade**. Total of all three foundation types cannot exceed 100%."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "foundationAboveGradeHeight": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "For the parts of the basement or crawl space that are above grade (above ground), enter the average height (in feet) of this exposed foundation for the entire perimeter of the home."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementWallInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "None or Bare Walls",
+                    "Fiberglass blanket",
+                    "Unfinished frame wall with fiberglass batts",
+                    "Finished wall without Insulation",
+                    "Finished wall with Insulation",
+                    "Don't Know"
+                  ],
+                  "description": "Select the type of materials used, if any, on the basement walls of this home. If more than one type of material is used on the basement walls, select the type of material that is used on the most wall area of the basement. If the basement walls have insulation installed on the exterior of the walls, select the option \"Finished walls with insulation\"."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "crawlspaceInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Crawlspace has insulation installed on the exterior wall area",
+                    "Crawlspace has insulation installed under only the living space floor",
+                    "Crawlspace is uninsulated",
+                    "Don't Know"
+                  ],
+                  "description": "What you type here will show up in the details page for \"Insulate Crawl Space\" on the homeowner report."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "skylightArea": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the area of any skylights (in square feet) or roof windows that are installed in the home within the heated or air conditioned space of the home."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "unmodeledBlowerDoorReading": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "The baseline unmodeled airflow, in cubic feet per minute, through leaks in the building when there is a pressure difference between the building and ambient of 50 Pascals. This is the result of your blower door test if you perform one. If you do not enter a number here, the software will determine an appropriate number based on the age and size of the home. On the improved side, the default recommendation is a 25% reduction in the air leakage. You may of course override this to whatever number you feel you'll be able to achieve. The unmodeled variant of the blower-door reading — the primary measured result goes in blowerDoorReading, not here."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "equivalentNach": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "NACH is the number of times in one hour the entire volume of air inside the building leaks to the outside naturally. It is calculated from the Air Infiltration number in CFM50, the number of stories, the wind zone and type of shielding the house has. Natural air changes per hour (NACH) — never ACH50, and never the blower-door CFM50 of blowerDoorReading."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "conditionedAirVolume": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "The conditioned air volume is calculated from the Conditioned Area and the Average Wall Height. This is really available for informational purposes and in most cases should not be edited."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "effectiveLeakageArea": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Effective (or Equivalent) Leakage Area in square inches. This is the area of a theoretical hole (with rounded edges) in the building envelope that would produce a leakage equivalent to that produced by the actual building at 4 Pascals of pressure."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "modeledBasementWallArea": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This is the total wall area along the exposed perimeter (i.e. wall area eligible for insulation improvements). Warning: Changing the wall area will not effect the model. Wall area is only used in calculating improvement costs."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementCavityInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in the framed cavity of the basement walls. If there is no framing, use Continuous Insulation below to specify insulation types such as fiberglass drape or rigid insulation. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementContinuousInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in on the basement walls such as a fiberglass drape or rigid insulation. If the basement walls are framed out, then specify the R-value in the Cavity Insulation field above. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementWallAssemblyRValue": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This is the total assembly R-value for the entire basement wall system. We take the data from the Cavity and Continuous R-value fields and add factors for wood framing, drywall, air film, etc. to calculate the overall assembly R-value. This field is not editable since it is calculated from the other fields."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "floorCavityInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in the Floor Cavity. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "floorContinuousInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the total R-value of continuous insulation installed or to be installed under the Frame Floor. Continuous insulation is any insulation like spray foam or rigid foam that is continuous and consistent in R-value across studs, joists, or any framing member. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "floorAssemblyRValue": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This is the total assembly R-value for the entire frame floor system. We take the data from the Cavity and Continuous R-value fields and add factors for wood framing, drywall, air film, sheathing, etc. to calculate the overall assembly R-value. This field is not editable since it is calculated from the other fields."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "sharedWallsEast": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the percent of this wall that is shared with another unit (assumed an adiabatic wall)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "sharedWallsSouth": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the percent of this wall that is shared with another unit (assumed an adiabatic wall)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "sharedWallsWest": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the percent of this wall that is shared with another unit (assumed an adiabatic wall)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "foundationCrawlspace": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Select the percentage of foundation that is **basement**, **crawlspace** or **slab on grade**. Total of all three foundation types cannot exceed 100%."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "foundationSlab": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Select the percentage of foundation that is **basement**, **crawlspace** or **slab on grade**. Total of all three foundation types cannot exceed 100%."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "foundationFramefloor": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Select the percentage of foundation that is **basement**, **crawlspace**, **slab on grade** or **frame floor**. Total of the foundation type cannot exceed 100%."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "percentCflsOrLeds": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["0%", "1-25%", "26-50%", "51-75%", "76-99%", "100%", "Don't Know"],
+                  "description": "Select the percentage range that most closely represents the percentage of lamps and fixtures on the home that are fitted with compact fluorescent lights (CLFs)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "crawlCavityInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in the framed cavity of the crawlspace ceiling. This field is active only if you are treating the crawlspace as an unconditioned space. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "crawlWallInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in on the crawlspace walls such as a fiberglass drape or spray foam insulation. This field is active only if you are treating the crawlspace as a conditioned space. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "crawlAssemblyRValue": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This is the total assembly R-value for the entire crawlspace ceiling system. We take the data from the Crawl Cavity R-value field and add factors for wood framing, carpet, air film, sheathing, etc. to calculate the overall assembly R-value. This field is not editable since it is calculated from the other fields."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "crawlspaceType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Unvented - Unconditioned Crawl",
+                    "Vented - Year Round",
+                    "Vented - Summer Only",
+                    "Conditioned Crawl"
+                  ],
+                  "description": "Choose the type of venting and conditioning in the crawlspace. Your choice will enable or disable the Wall and Floor Cavity Insulation fields in the Crawlspace Details section depending on the appropriate situation. **Unvented - Unconditioned Crawl**: This unconditioned crawlspace scenario is where the building floor above the crawl space is the thermal boundary to the home. If there were insulation, it would be applied applied to the building floor (crawlspace ceiling). This crawlspace does not have direct vents to the outside air. **Vented - Year Round**: This is an unconditioned crawlspace where the building floor above the crawl space is the thermal boundary to the home. If there were insulation, it would be applied to the building floor (crawlspace ceiling). This crawlspace has direct vents to the outside air, and those vents remain open all year long. **Vented - Summer Only**: This is an unconditioned crawlspace where the building floor above the crawl space is the thermal boundary to the home. If there were insulation, it would be applied to the building floor (crawlspace ceiling). This crawlspace has direct vents to the outside air, and those vents remain open only during summer months. **Conditioned Crawl**: This is a conditioned crawlspace where the foundation walls and ground/slab of the crawl space are the thermal boundary. If there is insulation, it would be applied to the foundation wall and rim joists. In this scenario, there is no venting to the outside and the crawlspace floor is covered with a vapor barrier on top of the dirt floor. Building code often requires adding a jump vent to the main conditioned space in the house or ducting the furnace and/or A/C into the crawlspace as well. If the crawl does not have a jump vent or supply ducts, you will likely get a slight overestimate of energy use. The model assumes that the crawl temperature is a mixture of 20% ground temp and 80% indoor temp. Note: This field also triggers the Rim Joist options for the Crawlspace. You must set this field to Conditioned Crawl to be able to specify the insulation of the Rim Joists in the Crawlspace."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "clothesWasherType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Front Load", "Top Load", "No Clothes Washer"],
+                  "description": "Enter the type of Clothes Washer, if any, that is installed in the house."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "clothesWasherEnergyStar": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "If a Clothes Washer is installed, choose if it is an ENERGY STAR model."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "clothesWasherManufacturer": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Unknown",
+                    "Amana",
+                    "Asko",
+                    "Bosch",
+                    "Frigidaire",
+                    "GE",
+                    "Hotpoint",
+                    "LG",
+                    "Maytag",
+                    "Samsung",
+                    "Sears",
+                    "Westinghouse",
+                    "Whirlpool",
+                    "Other",
+                    "Fridgidaire"
+                  ],
+                  "description": "Enter the Manufacturer for the Clothes Washer."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "clothesWasherModel": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the Model number for the Clothes Washer."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "clothesWasherSerialNumber": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "clothesWasherMef": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the Clothes Washer's Integrated Modified Energy Factor (IMEF) if available. The higher the IMEF, the more efficient the dishwasher. Search our knowledge base for \"Appliances Product Finder\" for more information."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "dishwasherEnergyStar": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "Choose Yes if the Dishwasher is an ENERGY STAR model."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "dishwasherEnergyFactor": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the Dishwasher's Energy Factor (EF) if available. The higher the EF, the more efficient the dishwasher. Search our knowledge base for \"Appliances Product Finder\" for more information."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "percentCflOrLed": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Use this field to override the number of CFLs or LEDs that exist in the home before the retrofit. Exact override percentage as a number — the banded answer is percentCflsOrLeds, not this field."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "windZone": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["1", "2", "3", "4"],
+                  "description": "Select the Wind Zone from the map."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "shielding": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Well-Shielded", "Normal", "Exposed"],
+                  "description": "Shielding type used to determine NACH N-factor: * **Well-Shielded** - urban areas with high buildings or sheltered areas * **Normal** - surrounded by trees or other buildings * **Exposed** - dwelling is not surrounded by any objects"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "nFactor": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Correlation Factor developed by Lawrence Berkeley Laboratory for the calculation of NACH."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "dishwasherModel": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the Model number for the Dishwasher."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "dishwasherManufacturer": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Unknown",
+                    "Amana",
+                    "Asko",
+                    "Bosch",
+                    "Frigidaire",
+                    "GE",
+                    "Hotpoint",
+                    "KitchenAid",
+                    "LG",
+                    "Maytag",
+                    "Samsung",
+                    "Sears",
+                    "Thermador",
+                    "Whirlpool",
+                    "Other",
+                    "Fridgidaire"
+                  ],
+                  "description": "Enter the Manufacturer of the Dishwasher."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "dishwasherModelYear": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the Model Year of the Dishwasher."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "clothesWasherModelYear": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the Model Year of the Clothes Washer."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "numberOfIncandescents": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This field displays the number of Incandescents that exist in the home before the retrofit. It is calculated based on the number of CFLs or LEDs and the Total # of Light Fixtures."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "numberOfCflsInstalled": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Use this field to override the number of LEDs that exist in the home before (Base) or after (Improved) the retrofit."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "numberOfCflsOrLeds": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Use this field to override the number of CFLs that exist in the home before (Base) or after (Improved) the retrofit."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "numberOfOutdoorIncandescents": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Use this field to override the number of outdoor Incandescents that exist in the home before (Base) or after (Improved) the retrofit."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "numberOfOutdoorCfls": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Use this field to override the number of outdoor CFLs that exist in the home before (Base) or after (Improved) the retrofit."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "numberOfOutdoorLeds": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Use this field to override the number of outdoor LEDs that exist in the home before (Base) or after (Improved) the retrofit."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hotTub": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "Does this house have an electrically heated hot tub? If yes, 2,040 kWh/yr of electricity consumption is added to the baseload."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "pool": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "Does the home have a pool?"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "poolPumpType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Single Speed", "Two Speed", "Variable Speed", "No Pool Pump"],
+                  "description": "Select the Pump Type from Single Speed, Two Speed, or Variable Speed (or No Improvement or None). Enter the HP (or leave blank for the default) for a Single Speed or Two Speed pump, or Turnover for a variable speed pump. Wattage of variable speed pumps depends on the speed the pump is running, and the speed will depend on the turnover, so electrical usage is determined by turnover (number of times all the water in the pool circulates through the filter in a day). The Variable Speed Pump analysis includes an optimization routine that calculates the minimal electrical usage for a variable speed pump for the selected turnover. Therefore proper setup of the pump is required to achieve these results."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "poolPumpHorsepower": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["1", "2", "3", "0.5", "0.75", "1.5"],
+                  "description": "Select the Horsepower for this Pool Pump. Only necessary for Single-Speed or Two-Speed pumps."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementHeating": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Intentional",
+                    "Intentional w/ continuous circulation",
+                    "Incidental-Desired (e.g. leaky ducts)",
+                    "None or Undesired Incidental"
+                  ],
+                  "description": "Please describe the heating situation in the basement. **Intentional:** * Basement receives heat in the same manner as the rest of the house. **Intentional w/ continuous circulation:** * Basement air is continuously exchanged with upper floors, equalizing temperatures. **Incidental-Desired (e.g. leaky ducts):** * Basement is semi-conditioned by presence of HVAC equipment. * Semi-conditioning is desired and measures will not be taken to eliminate it. * Thermal boundary for model will be located at basement walls and floor. **None or Undesired Incidental:** * Basement is not intentionally conditioned. * Incidental conditioning is undesired and considered wasted energy. * Thermal boundary for model will be the building floor above the basement."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementCooling": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Intentional",
+                    "Intentional w/ continuous circulation",
+                    "Incidental-Desired (e.g. leaky ducts)",
+                    "None or Undesired Incidental"
+                  ],
+                  "description": "Please describe the cooling situation in the basement. **Intentional:** * Basement receives cooling in the same manner as the rest of the house. **Intentional w/ continuous circulation:** * Basement air is continuously exchanged with upper floors, equalizing temperatures. **Incidental-Desired (e.g. leaky ducts):** * Basement is semi-conditioned by presence of HVAC equipment. * Semi-conditioning is desired and measures will not be taken to eliminate it. * Thermal boundary for model will be located at basement walls and floor. **None or Undesired Incidental:** * Basement is not intentionally conditioned. * Incidental conditioning is undesired and considered wasted energy. * Thermal boundary for model will be the building floor above the basement. **Note:** If you choose \"None or Undesired Incidental\", then be sure to NOT include the basement square footage in the conditioned area of the home under the Building inputs."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "poolSize": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Pool water volume in gallons."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "poolPumpTurnover": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Number of times all the water in the pool circulates through the filter in a day. Must be used to set variable speed pump usage. It is ignored for all other pump types."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "poolPumpHours": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Number of hours the pump runs per day. This is only applicable to single speed and two speed pumps. It can be ignored for all other pump types."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "poolPumpManufacturer": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Pentair", "Other"],
+                  "description": "Enter the Manufacturer of the Pool Pump."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "poolPumpModel": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the model number of the Pool Pump."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "poolPumpSerialNumber": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "poolPumpDaysPerYear": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Number of days the pool is used per year."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "dishwasherInstalled": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "Choose Yes if an automatic dishwasher is installed in the home."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "includesBasement": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "Mark this as Yes if the conditioned area above includes the basement area. Whether the conditioned area includes the basement — the qualifier on that number, not an area of its own."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "heatingDesignLoad": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Heating design load for the home."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "coolingSensibleDesignLoad": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Sensible cooling design load for the home."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "coolingLatentDesignLoad": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Latent cooling design load for the home."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "designTempWinterOutdoor": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This field defaults to Snugg Pro's region specific default for the heating outdoor design temp. It can be manually overriden if needed."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "designTempSummerOutdoor": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This field defaults to Snugg Pro's region specific default for the cooling indoor design temp. It can be manually overriden if needed."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "designTempWinterIndoor": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This field defaults to Snugg Pro's region specific default for the heating indoor design temp. It can be manually overriden if needed."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "designTempSummerIndoor": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This field defaults to Snugg Pro's region specific default for the cooling indoor design temp. It can be manually overriden if needed."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "numberOfUnits": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "If this unit is part of a multi-family building, enter the total number of units in the building."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "numberOfLeds": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Use this field to override the number of LEDs that exist in the home before (Base) or after (Improved) the retrofit."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "crawlspaceRimJoistTreatment": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Same as Crawl Wall", "Separately"],
+                  "description": "Choose whether or not the Rim Joist is treated in the same was as the Crawlspace Wall or separately. **Note**: This field is triggered by the Crawlspace Type. In order for the Rim Joist to be counted in the modeling and be designated in the HPXML output, the Crawlspace Type must be set as Conditioned Crawl. Otherwise, the Rim Joist is counted as part of the Frame Floor (the crawlspace ceiling)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "crawlspaceRimJoistInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the R-value of the insulation for the Base or Improved Rim Joist in the Crawlspace. **Note**: This field is triggered by the Crawlspace Type. In order for the Rim Joist to be counted in the modeling and be designated in the HPXML output, the Crawlspace Type must be set as Conditioned Crawl. Otherwise, the Rim Joist is counted as part of the Frame Floor (the crawlspace ceiling)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "crawlRimJoistAssemblyRValue": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This is the total assembly R-value for the crawlspace im joists. We take the data from the Crawlspace Rim Joist Insulation field and add factors for wood framing, air film, sheathing, etc. to calculate the overall assembly R-value. This field is not editable since it is calculated from the other fields."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementRimJoistTreatment": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Same as Basement Wall", "Separately"],
+                  "description": "Choose whether or not the Rim Joist is treated in the same way as the Basement Wall or separately."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementRimJoistInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the R-value of the insulation for the Base or Improved Rim Joist in the Crawlspace."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementRimJoistAssemblyRValue": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This is the total assembly R-value for the basement rim joists. We take the data from the Basement Rim Joist Insulation field and add factors for wood framing, air film, sheathing, etc. to calculate the overall assembly R-value. This field is not editable since it is calculated from the other fields."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "demandKW": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Electrical demand in kilowatts."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "demandKWSavings": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Electrical demand savings in kilowatts."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "cazMaxAmbientCo": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Ambient Carbon Monoxide in Parts Per Million. Monitored throughout assessment, not just appliance testing Ambient carbon monoxide in parts per million — a reading; the pass/fail verdict of the same test is health.healthAmbientCarbonMonoxide, never here."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashrae622": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "Mark this as Yes if wish to turn on controls for the ASHRAE 62.2 ventilation standard."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashraeKitchenFanCfm": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the CFM rating of the kitchen ventilation fan."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashraeKitchenWindow": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "If there is an operable window in the Kitchen, then choose yes."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashraeNumberOfBathrooms": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["1", "2", "3", "4"],
+                  "description": "Enter the number of bathrooms with ventilation fans."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashraeBathroomFan1Cfm": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the CFM rating of the bathroom ventilation fan."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashraeBathroom1Window": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "If there is an operable window in this bathroom, then choose yes."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashraeBathroomFan2Cfm": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the CFM rating of the bathroom ventilation fan."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashraeBathroom2Window": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "If there is an operable window in this bathroom, then choose yes."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashraeBathroomFan3Cfm": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the CFM rating of the bathroom ventilation fan."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashraeBathroom3Window": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "If there is an operable window in this bathroom, then choose yes."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashraeBathroomFan4Cfm": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the CFM rating of the bathroom ventilation fan."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashraeBathroom4Window": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "If there is an operable window in this bathroom, then choose yes."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ashraeRequiredAdditionalCfm": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Minimum ventilation flow rate in CFM of continuous whole house ventilation required to satisfy the ASHRAE 62.2-2013 standard. If this field shows \"N/A\", then you likely did not fill out all of the AHSHRAE fields below. You must choose Yes or No for the Operable windows and set the Fan CFM to 0 or more. Required continuous whole-house ventilation in CFM; the vendor's \"N/A\" state (no additional requirement) stays null."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "floorCavityInsulationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Fiberglass or Rockwool Batt",
+                    "Blown Fiberglass or Rockwool",
+                    "Cellulose",
+                    "Open Cell Spray Foam",
+                    "Closed Cell Spray Foam",
+                    "Rigid XPS",
+                    "Rigid EPS",
+                    "Rigid Polyisocyanurate",
+                    "Other"
+                  ],
+                  "description": "Select the type of insulation that is installed in the floor cavity. If more than one type of insulation is installed, select the type that covers that largest area."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "floorContinuousInsulationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Fiberglass or Rockwool Batt",
+                    "Blown Fiberglass or Rockwool",
+                    "Cellulose",
+                    "Open Cell Spray Foam",
+                    "Closed Cell Spray Foam",
+                    "Rigid XPS",
+                    "Rigid EPS",
+                    "Rigid Polyisocyanurate",
+                    "Other"
+                  ],
+                  "description": "Select the type of continuous insulation that is installed in the floor. If more than one type of insulation is installed, select the type that covers that largest area."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "floorSkirtPresent": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "Is the frame floor skirt present?"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "floorWingInsulationCondition": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Perfect", "Good", "Average", "Poor", "Critical"],
+                  "description": "Select the condition of the belly insulation."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "floorBellyInsulationCondition": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Perfect", "Good", "Average", "Poor", "Critical"],
+                  "description": "Select the condition of the belly insulation."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "floorFrameFloorType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Manufactured Home Belly"],
+                  "description": "Select the frame floor's floor type"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "floorInsulationLocation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Insulation above ducts", "Insulation below ducts"],
+                  "description": "Select the insulation location."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "crawlCavityInsulationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Fiberglass or Rockwool Batt",
+                    "Blown Fiberglass or Rockwool",
+                    "Cellulose",
+                    "Open Cell Spray Foam",
+                    "Closed Cell Spray Foam",
+                    "Other"
+                  ],
+                  "description": "Select the type of insulation that is installed in the crawlspace ceiling cavity. If more than one type of insulation is installed, select the type that covers that largest area."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "crawlWallInsulationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Fiberglass Drape",
+                    "Rigid XPS",
+                    "Rigid EPS",
+                    "Rigid Polyisocyanurate",
+                    "Open Cell Spray Foam",
+                    "Closed Cell Spray Foam",
+                    "Other"
+                  ],
+                  "description": "Select the type of continuous insulation that is installed on the crawlspace walls. If more than one type of insulation is installed, select the type that covers that largest area."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "crawlspaceRimJoistInsulationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Fiberglass or Rockwool Batt",
+                    "Blown Fiberglass or Rockwool",
+                    "Cellulose",
+                    "Open Cell Spray Foam",
+                    "Closed Cell Spray Foam",
+                    "Rigid XPS",
+                    "Rigid EPS",
+                    "Rigid Polyisocyanurate",
+                    "Other"
+                  ],
+                  "description": "Select the type of insulation that is installed in the crawlspace rim joist cavities. If more than one type of insulation is installed, select the type that covers that largest area."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementCavityInsulationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Fiberglass or Rockwool Batt",
+                    "Blown Fiberglass or Rockwool",
+                    "Cellulose",
+                    "Open Cell Spray Foam",
+                    "Closed Cell Spray Foam",
+                    "Other"
+                  ],
+                  "description": "Select the type of insulation that is installed in the crawlspace ceiling cavity. If more than one type of insulation is installed, select the type that covers that largest area."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementContinuousInsulationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Fiberglass Drape",
+                    "Rigid XPS",
+                    "Rigid EPS",
+                    "Rigid Polyisocyanurate",
+                    "Open Cell Spray Foam",
+                    "Closed Cell Spray Foam",
+                    "Other"
+                  ],
+                  "description": "Select the type of continuous insulation that is installed on the basement walls. If more than one type of insulation is installed, select the type that covers that largest area."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementRimJoistInsulationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Fiberglass or Rockwool Batt",
+                    "Blown Fiberglass or Rockwool",
+                    "Cellulose",
+                    "Open Cell Spray Foam",
+                    "Closed Cell Spray Foam",
+                    "Rigid XPS",
+                    "Rigid EPS",
+                    "Rigid Polyisocyanurate",
+                    "Other"
+                  ],
+                  "description": "Select the type of insulation that is installed in the basement rim joist cavities. If more than one type of insulation is installed, select the type that covers that largest area."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "windowVentingUsed": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "Do the occupants make use of operable windows to cool the home when the outdoor temperature and humidity are favorable? This can eliminate cooling loads during shoulder seasons or even year-round in temperate climates. Turning this feature on will help eliminate scenarios where you previously had negative savings for some air sealing and insulation measures."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "modeledSlabFloorArea": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the square footage of any slab area for the home below conditioned space."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "heatTapeLength": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the total length of the heat tape in feet."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "heatTapeLoad": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the heat tape load in watts per foot."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "heatTapeDailyFrequency": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the hours per day heat tape is on."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "heatTapeAnnualFrequency": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the days per year heat tape is on."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "hasEv": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Field options: 1 → Yes 0 → No Whether the household has an EV; the wire value is integer 1 (yes) or 0 (no)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "evMilesDrive": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter total miles driven by electric vehicles in the household per year."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "evEfficiency": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the average efficiency of the EV in kWh per 100 miles driven. You can find this information on most EV's built in displays or from https://www.fueleconomy.gov/."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "evHomeChargingPercent": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the percent of EV charging that occurrs or will occurr (improved side) on this home's meter."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "evHomeChargingAmount": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "The total amount of kWH that EV home charging consumes (or will consume) in one year on this home's meter. If EV Calculation Method is set to Detailed, then this field will be calculated by the other data points and set to read only. If EV Calculation Method is set to Simple, then you can directly set this field and the other fields will be ignored."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "evCalculationMethod": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Detailed", "Simple"],
+                  "description": "Choose between Simple or Detailed Calculations for EV Charging."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "evEnergyStarCharger": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "Whether the EV charger is ENERGY STAR certified."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "mainServicePanelMaxAmps": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Main Service Panel Max Amps"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "openBreakerSpots": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Open Breaker Spots"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementCeilingCavityInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in the framed cavity of the basement ceiling. This field is active only if you are treating the basement as an unconditioned space and have the Basement Heating or Basement Cooling fields set to \"None or Undesired Incidnetal\". **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementCeilingCavityInsulationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Fiberglass or Rockwool Batt",
+                    "Blown Fiberglass or Rockwool",
+                    "Cellulose",
+                    "Open Cell Spray Foam",
+                    "Closed Cell Spray Foam",
+                    "Other"
+                  ],
+                  "description": "Select the type of insulation that is installed in the crawlspace ceiling cavity. If more than one type of insulation is installed, select the type that covers that largest area."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementCeilingContinuousInsulation": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the total R-value of continuous insulation installed or to be installed on the basement ceiling. Continuous insulation is any insulation like spray foam or rigid foam that is continuous and consistent in R-value across studs, joists, or any framing member. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementCeilingContinuousInsulationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Fiberglass Drape",
+                    "Rigid XPS",
+                    "Rigid EPS",
+                    "Rigid Polyisocyanurate",
+                    "Open Cell Spray Foam",
+                    "Closed Cell Spray Foam",
+                    "Other"
+                  ],
+                  "description": "Select the type of continuous insulation that is installed in the basement ceiling. If more than one type of insulation is installed, select the type that covers that largest area."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "basementCeilingAssemblyRValue": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This is the total assembly R-value for the entire basement ceiling system. We take the data from the Basement Ceiling Cavity R-value field and the Basement Ceiling Continuous Insulation R-value field add factors for wood framing, carpet, air film, sheathing, etc. to calculate the overall assembly R-value. This field is not editable since it is calculated from the other fields."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ventilationType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "None",
+                    "Exhaust",
+                    "Supply",
+                    "Heat Recovery Ventilator",
+                    "Energy Recovery Ventilator"
+                  ],
+                  "description": "Select the type of mechanical ventilation that is installed in the home such as an HRV or exhaust fan hardwired to a timer that runs for a fixed amount of time throughout the day. Do not enter spot ventilation systems here such as bath or kitchen fans that are controlled by the occupant."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ventilationSchedule": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Continuous", "Intermittent"],
+                  "description": "Choose whether the mechanical ventilation system runs continuously or intermittently throughout the day"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ventilationCycleFrequency": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "How often does the ventilation system turn on in hours? For instance, if the ventilation system runs for 15 minutes every 4 hours, enter 4 in this field and 0.25 in the Ventilation Cycle Duration field. This field is hidden if the ventilation system runs continuously."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ventilationCycleDuration": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "When the ventilation system turns on, how long does it run for each time? For instance, if the ventilation system runs for 15 minutes every 4 hours, enter 4 in the Ventilation Cycle Frequency field and 0.25 in this field. This field is hidden if the ventilation system runs continuously."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ventilationFlowRate": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "What is the flow rate of the mechanical ventilation fan in CFM?"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ventilationSensibleRecoveryEfficiency": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the Max Rated Sensible Recovery Efficiency as listed in the Home Ventilating Industry (HVI) Product Directory. https://www.hvi.org/hvi-certified-products-directory. This field is hidden unless Energy Recovery Ventilator or Heat Recovery Ventilator is chosen as the Ventilation Type."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ventilationTotalRecoveryEfficiency": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the Latent Recovery / Moisture Transfer (LRMT) as listed in the Home Ventilating Industry (HVI) Product Directory. You may have to click on the \"More Details\" button in the directory to find this column in the Energy Ratings section. https://www.hvi.org/hvi-certified-products-directory. This field is hidden unless Energy Recovery Ventilator is chosen as the Ventilation Type."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "ventilationFanPower": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the Input Power or the Power Consumed @ Max Rated SRE as listed in the Home Ventilating Industry (HVI) Product Directory: https://www.hvi.org/hvi-certified-products-directory."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "wholeHomeIsProfessionallyAirSealed": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Yes", "No"],
+                  "description": "Choose Yes if Whole home is professionally air sealed."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -240,7 +5290,163 @@
         "numberOfBedrooms",
         "typeOfHome",
         "blowerDoorReading",
-        "blowerDoorTestPerformed"
+        "blowerDoorTestPerformed",
+        "averageWallHeight",
+        "houseLength",
+        "houseWidth",
+        "numberOfOccupants",
+        "frontOfBuildingOrientation",
+        "tuckUnderGarage",
+        "garageSize",
+        "programmableThermostatInstalled",
+        "heatingSetpointHigh",
+        "heatingSetpointLow",
+        "coolingSetpointHigh",
+        "coolingSetpointLow",
+        "thermostatManufacturer",
+        "thermostatModel",
+        "thermostatSerialNumber",
+        "totalNumberOfLightBulbs",
+        "sharedWallsNorth",
+        "percentOfCeilingsShared",
+        "percentOfFloorsShared",
+        "foundationBasement",
+        "foundationAboveGradeHeight",
+        "basementWallInsulation",
+        "crawlspaceInsulation",
+        "skylightArea",
+        "unmodeledBlowerDoorReading",
+        "equivalentNach",
+        "conditionedAirVolume",
+        "effectiveLeakageArea",
+        "modeledBasementWallArea",
+        "basementCavityInsulation",
+        "basementContinuousInsulation",
+        "basementWallAssemblyRValue",
+        "floorCavityInsulation",
+        "floorContinuousInsulation",
+        "floorAssemblyRValue",
+        "sharedWallsEast",
+        "sharedWallsSouth",
+        "sharedWallsWest",
+        "foundationCrawlspace",
+        "foundationSlab",
+        "foundationFramefloor",
+        "percentCflsOrLeds",
+        "crawlCavityInsulation",
+        "crawlWallInsulation",
+        "crawlAssemblyRValue",
+        "crawlspaceType",
+        "clothesWasherType",
+        "clothesWasherEnergyStar",
+        "clothesWasherManufacturer",
+        "clothesWasherModel",
+        "clothesWasherSerialNumber",
+        "clothesWasherMef",
+        "dishwasherEnergyStar",
+        "dishwasherEnergyFactor",
+        "percentCflOrLed",
+        "windZone",
+        "shielding",
+        "nFactor",
+        "dishwasherModel",
+        "dishwasherManufacturer",
+        "dishwasherModelYear",
+        "clothesWasherModelYear",
+        "numberOfIncandescents",
+        "numberOfCflsInstalled",
+        "numberOfCflsOrLeds",
+        "numberOfOutdoorIncandescents",
+        "numberOfOutdoorCfls",
+        "numberOfOutdoorLeds",
+        "hotTub",
+        "pool",
+        "poolPumpType",
+        "poolPumpHorsepower",
+        "basementHeating",
+        "basementCooling",
+        "poolSize",
+        "poolPumpTurnover",
+        "poolPumpHours",
+        "poolPumpManufacturer",
+        "poolPumpModel",
+        "poolPumpSerialNumber",
+        "poolPumpDaysPerYear",
+        "dishwasherInstalled",
+        "includesBasement",
+        "heatingDesignLoad",
+        "coolingSensibleDesignLoad",
+        "coolingLatentDesignLoad",
+        "designTempWinterOutdoor",
+        "designTempSummerOutdoor",
+        "designTempWinterIndoor",
+        "designTempSummerIndoor",
+        "numberOfUnits",
+        "numberOfLeds",
+        "crawlspaceRimJoistTreatment",
+        "crawlspaceRimJoistInsulation",
+        "crawlRimJoistAssemblyRValue",
+        "basementRimJoistTreatment",
+        "basementRimJoistInsulation",
+        "basementRimJoistAssemblyRValue",
+        "demandKW",
+        "demandKWSavings",
+        "cazMaxAmbientCo",
+        "ashrae622",
+        "ashraeKitchenFanCfm",
+        "ashraeKitchenWindow",
+        "ashraeNumberOfBathrooms",
+        "ashraeBathroomFan1Cfm",
+        "ashraeBathroom1Window",
+        "ashraeBathroomFan2Cfm",
+        "ashraeBathroom2Window",
+        "ashraeBathroomFan3Cfm",
+        "ashraeBathroom3Window",
+        "ashraeBathroomFan4Cfm",
+        "ashraeBathroom4Window",
+        "ashraeRequiredAdditionalCfm",
+        "floorCavityInsulationType",
+        "floorContinuousInsulationType",
+        "floorSkirtPresent",
+        "floorWingInsulationCondition",
+        "floorBellyInsulationCondition",
+        "floorFrameFloorType",
+        "floorInsulationLocation",
+        "crawlCavityInsulationType",
+        "crawlWallInsulationType",
+        "crawlspaceRimJoistInsulationType",
+        "basementCavityInsulationType",
+        "basementContinuousInsulationType",
+        "basementRimJoistInsulationType",
+        "windowVentingUsed",
+        "modeledSlabFloorArea",
+        "heatTapeLength",
+        "heatTapeLoad",
+        "heatTapeDailyFrequency",
+        "heatTapeAnnualFrequency",
+        "hasEv",
+        "evMilesDrive",
+        "evEfficiency",
+        "evHomeChargingPercent",
+        "evHomeChargingAmount",
+        "evCalculationMethod",
+        "evEnergyStarCharger",
+        "mainServicePanelMaxAmps",
+        "openBreakerSpots",
+        "basementCeilingCavityInsulation",
+        "basementCeilingCavityInsulationType",
+        "basementCeilingContinuousInsulation",
+        "basementCeilingContinuousInsulationType",
+        "basementCeilingAssemblyRValue",
+        "ventilationType",
+        "ventilationSchedule",
+        "ventilationCycleFrequency",
+        "ventilationCycleDuration",
+        "ventilationFlowRate",
+        "ventilationSensibleRecoveryEfficiency",
+        "ventilationTotalRecoveryEfficiency",
+        "ventilationFanPower",
+        "wholeHomeIsProfessionallyAirSealed"
       ],
       "additionalProperties": false
     },

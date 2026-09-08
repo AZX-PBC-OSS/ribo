@@ -46,7 +46,7 @@
  * built adapter schema. Two small tables ARE still hand-kept, and are called out where they live
  * (BAND_LEAVES, AXIS_PAIRS): "this enum's members form an ordered band" and "these two leaves are
  * one thing's two axes" are not visible in a zod enum's shape, so they cannot be derived — but they
- * are two short, named tables, not a 233-entry parallel enum list.
+ * are two short, named tables, not a 469-entry parallel enum list.
  */
 
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -72,7 +72,7 @@ export { HEALTH_TEST_PATHS };
 
 // ---------------------------------------------------------------------------
 // Domain knowledge NOT visible in a zod enum's shape, kept as two short,
-// named, hand-written tables (not a parallel copy of the 233 members — see
+// named, hand-written tables (not a parallel copy of the 469 members — see
 // the file header). Everything else below is derived from LEAVES.
 // ---------------------------------------------------------------------------
 
@@ -1403,7 +1403,7 @@ function main() {
     totals.gtNonNull - totals.missExcused + (totals.hGtState - totals.hMissExcused);
   const allMiss = totals.miss + totals.hMiss;
   console.log(
-    `   miss rate, ALL 51 leaves : ${padL(pct(allMiss, allMissDen), 7)}  (${allMiss}/${allMissDen}) <- quote THIS one`,
+    `   miss rate, ALL leaves    : ${padL(pct(allMiss, allMissDen), 7)}  (${allMiss}/${allMissDen}) <- quote THIS one`,
   );
   console.log(
     `   accuracy on both-non-null : ${padL(pct(totals.correct, totals.correct + totals.wrong), 7)}  (${totals.correct}/${totals.correct + totals.wrong} correct)`,

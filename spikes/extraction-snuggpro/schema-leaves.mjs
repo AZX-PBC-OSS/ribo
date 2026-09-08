@@ -12,8 +12,9 @@
  * dead — see the README/schema-migration note) hand-declared its own 23-field,
  * snake_case copy of "the Snugg Pro model." That copy silently drifted from
  * the real adapter (packages/ribo-adapter-snuggpro/src/schema.ts): the real
- * schema was rebuilt from Snugg's machine-readable spec into 51 leaves under 7
- * resource groups, with the API's literal enum strings, and the spike's schema
+ * schema was rebuilt from Snugg's machine-readable spec into leaves under 7
+ * resource groups (207 today — `basedata` carries its full 163-field capture
+ * surface), with the API's literal enum strings, and the spike's schema
  * never moved. This file is the fix for the CLASS of bug, not just today's
  * instance: it reads `snuggValuesSchema` directly, so the ground truth and the
  * scorer can never again describe a schema that doesn't match `schema.ts`.
@@ -113,7 +114,7 @@ function walk(node, path) {
 
 for (const [group, node] of Object.entries(snuggValuesSchema.shape)) walk(node, [group]);
 
-/** All 51 leaves, in `schema.ts` declaration order. The count is asserted, not hard-coded — see score.test.mjs. */
+/** All leaves, in `schema.ts` declaration order. The count is asserted, not hard-coded — see score.test.mjs. */
 export const LEAVES = leaves;
 
 /** Just the dotted paths, same order. */
