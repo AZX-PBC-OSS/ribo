@@ -14,12 +14,12 @@
  * §Scoping — the form fields minus the `*Improved` retrofit twins and the
  * self-described auto-calculated fields). The component groups are bounded
  * dictation-density subsets — what an auditor actually says walking a house —
- * grown from real fill-rate data, not judgement; `attic` has since grown to doc 20
- * §5.5's full verdicted capture surface (every field but the computed ones, and the
- * `capture?` fields described with the caveat that makes them borderline). The
- * job-collection groups each carry every field of their endpoint in extraction
- * scope minus the computed ones (`incentive`'s `recommendations` is excluded by
- * design — see the group).
+ * grown from real fill-rate data, not judgement; `attic` and `window` have since
+ * grown to doc 20 §5.5's full verdicted capture surface (every field but the
+ * computed ones, and the `capture?` fields described with the caveat that makes
+ * them borderline — see the groups). The job-collection groups each carry every
+ * field of their endpoint in extraction scope minus the computed ones
+ * (`incentive`'s `recommendations` is excluded by design — see the group).
  *
  * ---
  *
@@ -789,6 +789,26 @@ export const WindowType = z.enum([
 
 /** `windowFrame` (`window`). "Clad" -> `"Wood or metal clad"`. */
 export const WindowFrame = z.enum(["Metal", "Vinyl", "Wood or metal clad", "Don't Know"]);
+
+/**
+ * `windowExteriorTreatment{North,East,South,West}` and their `*Improved` twins
+ * (`window`) — ONE list shared by all four orientations and all four upgrade
+ * intents (doc 20 §5.0 WINDOW-EXTERIOR-TREATMENT); the spec publishes the
+ * identical member set on all eight fields. The treatment is what the SHGC
+ * fields must NOT be adjusted for — see `windowSolarHeatGainCoefficient`.
+ */
+export const WindowExteriorTreatment = z.enum([
+  "Insect Screen (full)",
+  "Insect Screen (half)",
+  "Solar Screen (summer only)",
+  "Solar Screen (all year)",
+  "Solar Shades, Vertical Roller (summer only)",
+  "Solar Shades, Vertical Roller (all year)",
+  "Solar Shades, Louvered (summer only)",
+  "Solar Shades, Louvered (all year)",
+  "Solar Film (all year)",
+  "No Treatment",
+]);
 
 // == dhw =====================================================================
 
@@ -2035,7 +2055,26 @@ export const WallFields = z
   )
   .strict();
 
-/** `POST /jobs/{jobId}/window` — one window group record, a bounded subset of the endpoint. */
+/**
+ * `POST /jobs/{jobId}/window` — one window-system record, carrying doc 20 §5.5's
+ * verdicted capture surface of the endpoint: everything but the three
+ * already-covered fields and `windowHesSpecs`, which is EXCLUDED because it is a
+ * product-MODE flag ("Snugg Score jobs, not audits") that switches which other
+ * fields the API demands — it is set by the writer, never extracted from a
+ * transcript (doc 20 §5.5, §4.5).
+ *
+ * THE SPATIAL AXIS IS A FIELD SUFFIX, NOT AN INSTANCE: window is the one resource
+ * with orientation baked into the wire names, so "the west windows" IS
+ * addressable — as `windowAreaWest` and its siblings — while "the front bedroom
+ * windows" is not addressable at all. A dictated orientation never becomes a
+ * second instance; multiple window SYSTEMS per job ("if more than one type of
+ * window is installed, add a second window system") are unnamed, and instance
+ * identity stays the roster's job (`inventory.ts`).
+ *
+ * The `*Improved` area fields are NOT retrofit echoes of their base twins: they
+ * are how the vendor encodes WHICH windows get replaced — dictated intent, kept
+ * per the foundation design's decision 3.
+ */
 export const WindowFields = z
   .object(
     withVendorDescriptions({
@@ -2047,6 +2086,165 @@ export const WindowFields = z
 
       /** Energy Star rated. */
       windowEnergyStar: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Average gross U-value incl. frame effects — a sticker reading or a modelled number. */
+      windowEfficiency: z
+        .number()
+        .describe(
+          "Average gross window U-value including frame effects — off an NFRC sticker if the auditor read one, otherwise a modelled number; set it only when one was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Total EXISTING window area on the north elevation of this system. */
+      windowAreaNorth: z.number().nullable().optional(),
+
+      /** Total EXISTING window area on the east elevation. */
+      windowAreaEast: z.number().nullable().optional(),
+
+      /** Total EXISTING window area on the south elevation. */
+      windowAreaSouth: z.number().nullable().optional(),
+
+      /** Total EXISTING window area on the west elevation. */
+      windowAreaWest: z.number().nullable().optional(),
+
+      /** % of EXPOSED north wall area that is glass — the alternative to the absolute area field. */
+      windowNorthAreaPercent: z
+        .number()
+        .describe(
+          "Percentage of the EXPOSED north wall area that is glass — the alternative to the absolute area field; auditors give window counts and sizes, not percentages, so set this only when a percentage was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** % of EXPOSED east wall area that is glass. */
+      windowEastAreaPercent: z
+        .number()
+        .describe(
+          "Percentage of the EXPOSED east wall area that is glass — the alternative to the absolute area field; set it only when a percentage was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** % of EXPOSED south wall area that is glass. */
+      windowSouthAreaPercent: z
+        .number()
+        .describe(
+          "Percentage of the EXPOSED south wall area that is glass — the alternative to the absolute area field; set it only when a percentage was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** % of EXPOSED west wall area that is glass. */
+      windowWestAreaPercent: z
+        .number()
+        .describe(
+          "Percentage of the EXPOSED west wall area that is glass — the alternative to the absolute area field; set it only when a percentage was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Average gross SHGC — NEVER adjusted for screens or shades. */
+      windowSolarHeatGainCoefficient: z
+        .number()
+        .describe(
+          'Average gross Solar Heat Gain Coefficient. Never adjust it for screens or shades — a dictated "it has solar screens" is that orientation\'s windowExteriorTreatment field, not an adjustment to this number.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Average overhang width in feet, north elevation. */
+      windowNorthOverhangDepth: z.number().nullable().optional(),
+
+      /** Average overhang width in feet, east elevation. */
+      windowEastOverhangDepth: z.number().nullable().optional(),
+
+      /** Average overhang width in feet, south elevation. */
+      windowSouthOverhangDepth: z.number().nullable().optional(),
+
+      /** Average overhang width in feet, west elevation. */
+      windowWestOverhangDepth: z.number().nullable().optional(),
+
+      /** Exterior shading device on the north windows — highly dictatable. */
+      windowExteriorTreatmentNorth: WindowExteriorTreatment.nullable().optional(),
+
+      /** Exterior shading device on the east windows. */
+      windowExteriorTreatmentEast: WindowExteriorTreatment.nullable().optional(),
+
+      /** Exterior shading device on the south windows. */
+      windowExteriorTreatmentSouth: WindowExteriorTreatment.nullable().optional(),
+
+      /** Exterior shading device on the west windows ("solar screens on the west side"). */
+      windowExteriorTreatmentWest: WindowExteriorTreatment.nullable().optional(),
+
+      /** Target U-value of the replacement glazing — improved spec. */
+      windowEfficiencyImproved: z
+        .number()
+        .describe(
+          "Target U-value of the replacement glazing — the spec side of an upgrade; set it only when a replacement U-value was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Area of north windows ACTUALLY BEING REPLACED — dictated intent, not a spec. */
+      windowAreaNorthImproved: z
+        .number()
+        .describe(
+          "Area of the north windows actually being replaced — dictated replacement intent, not a retrofit spec; whatever is not named here is assumed unchanged.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Area of east windows actually being replaced — intent encoding. */
+      windowAreaEastImproved: z
+        .number()
+        .describe(
+          "Area of the east windows actually being replaced — dictated replacement intent, not a retrofit spec; whatever is not named here is assumed unchanged.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Area of south windows actually being replaced — intent encoding. */
+      windowAreaSouthImproved: z
+        .number()
+        .describe(
+          "Area of the south windows actually being replaced — dictated replacement intent, not a retrofit spec; whatever is not named here is assumed unchanged.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Area of west windows actually being replaced — intent encoding. */
+      windowAreaWestImproved: z
+        .number()
+        .describe(
+          "Area of the west windows actually being replaced — dictated replacement intent, not a retrofit spec; whatever is not named here is assumed unchanged.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Target SHGC of the replacement glazing — improved spec. */
+      windowSolarHeatGainCoefficientImproved: z
+        .number()
+        .describe(
+          "Target Solar Heat Gain Coefficient of the replacement glazing — the spec side of an upgrade; set it only when a replacement SHGC was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Shading device to be ADDED on the north — upgrade intent. */
+      windowExteriorTreatmentNorthImproved: WindowExteriorTreatment.nullable().optional(),
+
+      /** Shading device to be ADDED on the east — upgrade intent. */
+      windowExteriorTreatmentEastImproved: WindowExteriorTreatment.nullable().optional(),
+
+      /** Shading device to be ADDED on the south — upgrade intent. */
+      windowExteriorTreatmentSouthImproved: WindowExteriorTreatment.nullable().optional(),
+
+      /** Shading device to be ADDED on the west — upgrade intent. */
+      windowExteriorTreatmentWestImproved: WindowExteriorTreatment.nullable().optional(),
+
+      /** "Replace with ENERGY STAR windows" — upgrade intent. */
+      windowEnergyStarImproved: z.enum(["Yes", "No"]).nullable().optional(),
     }),
   )
   .strict();

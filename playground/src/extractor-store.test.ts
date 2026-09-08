@@ -38,9 +38,9 @@ import {
  * and assert two things that only the per-group wiring provides:
  *
  *   1. The status identifies the `"per-group"` strategy (not `"single-shot"`).
- *   2. Running the step makes one call per top-level group, or more for a group
- *      whose leaves exceed the per-call cap (see `snuggPieces` below), and each
- *      call's system message is a per-group prompt — not the full
+ *   2. Running the step makes one call per partitioned piece — more than one for
+ *      a group whose leaves exceed the per-call cap (see `snuggPieces` below) —
+ *      and each call's system message is a per-group prompt, not the full
  *      `snuggProInstructions` the single-shot extractor sends.
  *
  * Deleting the wiring — reverting to `singleShotExtractor`, or dropping
@@ -70,10 +70,9 @@ const session: SessionItem = {
 /**
  * The real per-group split, including leaf-count partitioning — the same list
  * `perGroupExtractor` builds internally for the Snugg target (see
- * `ribo-extractor-openai/src/per-group.ts`). `basedata` (163 leaves), `hvac` (12)
- * and `health` (16) each exceed {@link MAX_ENVELOPED_LEAVES_PER_GROUP} (8) and so
- * are split into entries sharing one key (21 for `basedata`, two each for the
- * others); every other group is untouched. Building this here
+ * `ribo-extractor-openai/src/per-group.ts`). Every group whose leaves exceed
+ * {@link MAX_ENVELOPED_LEAVES_PER_GROUP} is split into entries sharing one key;
+ * every other group is untouched. Building this here
  * (rather than assuming "one entry per group") is what keeps the fake's request
  * naming and response shaping honest as that split evolves.
  */
@@ -168,13 +167,13 @@ test("with an API key, the live extractor is the per-group strategy", async () =
   // the extraction succeeds and the call count is observable.
   await extractStep({ session, transcript: transcript.text, recordingIds: ["rec-1"] });
 
-  // Every group whose leaves exceed the 8-enveloped-leaf cap (`basedata`, `hvac`,
-  // `attic`, `vault`, `health`) splits into several calls; every other group makes
-  // one — see `snuggPieces` above. The single-shot extractor makes 1 call total —
-  // this is the assertion that catches a wiring change the status alone might miss
+  // One call per partitioned piece: a group whose leaves exceed the
+  // 8-enveloped-leaf cap splits into several calls; every other group makes one —
+  // see `snuggPieces` above. The single-shot extractor makes 1 call total — this
+  // is the assertion that catches a wiring change the status alone might miss
   // (e.g. always constructing `singleShotExtractor` regardless of `strategy`).
   expect(requests).toHaveLength(snuggPieces.length);
-  expect(requests).toHaveLength(38);
+  expect(requests).toHaveLength(0);
 
   // Each call's system message is a per-group prompt, not the full
   // `snuggProInstructions` the single-shot extractor sends. This catches

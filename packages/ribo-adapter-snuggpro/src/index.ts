@@ -93,6 +93,7 @@ export {
   WallExteriorWallSiding,
   WallFields,
   WallsInsulated,
+  WindowExteriorTreatment,
   WindowFields,
   WindowFrame,
   WindowType,
