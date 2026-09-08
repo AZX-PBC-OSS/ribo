@@ -14,7 +14,7 @@
  *     specifically — plus `disclaimers`, a list of blanket/generic negations recorded as data (a
  *     verbatim span + a mechanical scope), never resolved by the annotator's own judgment. See
  *     `disclaimer-policy.mjs` for why, and for the scope vocabulary.
- *   - The RESOLVED ground truth `score.mjs` actually scores against: all 51 leaves, filled in by
+ *   - The RESOLVED ground truth `score.mjs` actually scores against: every leaf, filled in by
  *     applying every disclaimer's scope through the CURRENT policy, then overlaid with the
  *     annotator's explicit `leaves` entries (which always win — the most specific statement about a
  *     leaf beats a blanket one covering it). `resolveGroundTruth` is the only place this happens,
@@ -220,7 +220,7 @@ function validateLeaf(path, leafSpec, truth, errors) {
 }
 
 /**
- * Materialize the full 51-leaf ground truth a disclaimer-bearing raw file implies, under the
+ * Materialize the full-leaf ground truth a disclaimer-bearing raw file implies, under the
  * CURRENT disclaimer policy (`disclaimer-policy.mjs`). Precedence, most to least specific:
  *   1. an explicit `leaves[path]` entry the annotator wrote
  *   2. a disclaimer whose scope covers `path`
@@ -400,7 +400,7 @@ export function resolveGroundTruth(raw) {
 
 /**
  * Validate a whole new-format ground-truth document: the RAW shape (sparse `leaves`, `disclaimers`,
- * no overlapping scopes), then — if the raw shape is clean — the fully RESOLVED 51-leaf map, so a
+ * no overlapping scopes), then — if the raw shape is clean — the fully RESOLVED full-leaf map, so a
  * bug in the disclaimer policy itself (not just in one file) is still caught. Never throws: every
  * branch that reads a field off a value of unknown shape checks that shape first, so a malformed
  * file (e.g. `arguable: "oops"`, a primitive where an object is expected) becomes a reported error,
@@ -433,7 +433,7 @@ export function validateGroundTruth(raw, transcriptText = null) {
 
   for (const [path, truth] of Object.entries(raw.leaves)) {
     if (!LEAF_BY_PATH.has(path)) {
-      errors.push(`unknown leaf key "${path}" — not one of schema.ts's 51 leaves (typo?)`);
+      errors.push(`unknown leaf key "${path}" — not one of schema.ts's leaves (typo?)`);
       continue;
     }
     const group = path.split(".")[0];
@@ -517,7 +517,7 @@ export function validateGroundTruth(raw, transcriptText = null) {
 
   if (errors.length > 0) return { ok: false, errors, warnings };
 
-  // Defense in depth: resolve and re-validate the full 51-leaf map, catching a bug in the
+  // Defense in depth: resolve and re-validate the full-leaf map, catching a bug in the
   // disclaimer POLICY itself (disclaimer-policy.mjs), not just in one annotator's file.
   const resolved = resolveGroundTruth(raw);
   for (const path of LEAF_PATHS) {
