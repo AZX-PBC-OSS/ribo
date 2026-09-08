@@ -53,8 +53,5 @@
       "ondeviceVsManagedWordDiffRate": 0.1149
     }
   ],
-  "groundTruthPending": [
-    "real-01-recording",
-    "real-02-test-ai-audit"
-  ]
+  "groundTruthPending": ["real-01-recording", "real-02-test-ai-audit"]
 }
