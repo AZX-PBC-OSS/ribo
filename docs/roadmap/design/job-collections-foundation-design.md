@@ -58,13 +58,13 @@ quote — rather than inventing a second identity mechanism.
 (`packages/ribo-extractor-openai/src/instance-fill.ts:46-52`) already carries `mentionSpan`,
 `discriminator`, and `distinguishedBy` (plus `eligibility`/`eligibilitySpan` from the
 roster-absence work), and `Roster` is keyed by `groupKey: string` generically — it assumes
-nothing about what a group *is*. Extending this to, say, estimates or contacts means: the
+nothing about what a group _is_. Extending this to, say, estimates or contacts means: the
 adapter gains an `inventory` function and a `buildFillInstructions` entry for that group. That is
 adapter-side content work in `ribo-adapter-snuggpro`, not a change to the roster's shape or to
 `instance-fill.ts`'s mechanism.
 
 **What tranche building still has to do, per resource:** write the natural-language
-`buildFillInstructions` text that tells the model what distinguishes one instance of *this*
+`buildFillInstructions` text that tells the model what distinguishes one instance of _this_
 resource from another (an estimate by its total and scope; a contact by name and role) — this is
 real per-resource content, not mechanical, and is scoped into each tranche's own build task
 rather than solved once here.
@@ -79,7 +79,7 @@ precedent), or does it carry information with no equivalent on the base side (ke
 **Why no blanket rule works here.** Doc 20 §1 gives concrete counterexamples basedata never had:
 `hvacUpgradeAction: "Install a new non-existing system"` puts an entirely new system's
 description on the Improved side with nothing on the base side to echo, and
-`windowAreaNorthImproved` is how the vendor encodes *which* windows are being replaced — not a
+`windowAreaNorthImproved` is how the vendor encodes _which_ windows are being replaced — not a
 retrofit twin of `windowAreaNorth`, a distinct fact. A blanket exclusion would silently drop both.
 Doc 20's per-resource notes are the starting list of pairs already known to need this judgment;
 tranche building should check every pair against that list, not assume silence means "safe to
