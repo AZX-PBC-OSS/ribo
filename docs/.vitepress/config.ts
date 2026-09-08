@@ -93,6 +93,7 @@ export default defineConfig({
               link: "/deep-dives/transcription-measurement",
             },
             { text: "Extraction: Measured", link: "/deep-dives/accuracy" },
+            { text: "Real Field Audio", link: "/deep-dives/real-audio" },
             { text: "The Snugg Pro Data Model", link: "/deep-dives/snuggpro-data-model" },
           ],
         },

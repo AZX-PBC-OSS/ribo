@@ -48,6 +48,14 @@ playground/public/ort/
 spikes/transcription-measurement/testdata/manifest.json
 spikes/transcription-measurement/results/ondevice/
 spikes/transcription-measurement/results/extract/
+# Real field recordings (Asana: add real audio to accuracy documentation) — real speech, not for the
+# public repo, unlike the synthesized fixtures above. See testdata/real/README.md.
+spikes/transcription-measurement/testdata/real/*.m4a
+spikes/transcription-measurement/testdata/real/*.mp3
+spikes/transcription-measurement/testdata/real/*.wav
+spikes/transcription-measurement/testdata/real/ground-truth/
+spikes/transcription-measurement/results/real/_raw/
+spikes/transcription-measurement/results/real/extract/
 
 # Snugg Pro's proprietary API artifacts — NEVER commit. Kept only in the private
 # integration notes outside this repo. Both are third-party vendor IP:
