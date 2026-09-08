@@ -805,8 +805,12 @@ const withCollectionsSchema = z.object({
 const collectionRequestFor = (
   extracted: Record<string, unknown>,
   existingRecords?: Record<string, readonly ExistingRecord[]>,
+  statedEmptyGroups?: Readonly<Record<string, string>>,
 ): ReviewRequest =>
-  buildReviewRequest(extracted, transcript, withCollectionsSchema, { existingRecords });
+  buildReviewRequest(extracted, transcript, withCollectionsSchema, {
+    existingRecords,
+    statedEmptyGroups,
+  });
 
 describe("buildReviewRequest — collections: data counts instances, schema counts leaves", () => {
   test("two HVAC instances produce two full sets of HVAC leaf paths, each addressing a distinct key", () => {
@@ -941,6 +945,93 @@ describe("buildReviewRequest — collections: data counts instances, schema coun
     expect(request.fields["healthSafety.ambientCo"]?.required).toBe(true);
     expect(request.fields.rValue?.required).toBe(false);
     expect(request.fields.notes?.required).toBe(false);
+  });
+});
+
+describe("buildReviewRequest — statedEmptyGroups: a grounded 'stated empty' group state", () => {
+  test("a group with an empty array and a statedEmptyGroups entry gets state statedEmpty with the quote", () => {
+    const request = collectionRequestFor(
+      { hvac: [], dhw: [{ dhwType2: { value: "Tank", confidence: 1, sourceSpan: "tank" } }] },
+      undefined,
+      { hvac: "there's no HVAC in this unit" },
+    );
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind).toBe("collection");
+    expect(hvac?.kind === "collection" && hvac.state).toBe("statedEmpty");
+    expect(hvac?.kind === "collection" && hvac.emptyQuote).toBe("there's no HVAC in this unit");
+  });
+
+  test("the same empty array with no statedEmptyGroups entry stays state empty with null quote", () => {
+    const request = collectionRequestFor({ hvac: [] });
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind === "collection" && hvac.state).toBe("empty");
+    expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
+  });
+
+  test("a group absent from the extraction stays absent even with a statedEmptyGroups entry", () => {
+    const request = collectionRequestFor(
+      { dhw: [{ dhwType2: { value: "Tank", confidence: 1, sourceSpan: "tank" } }] },
+      undefined,
+      { hvac: "there's no HVAC" },
+    );
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind === "collection" && hvac.state).toBe("absent");
+    expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
+  });
+
+  test("a malformed present-but-non-array value stays absent even with a statedEmptyGroups entry", () => {
+    const request = collectionRequestFor(
+      { hvac: null, dhw: [{ dhwType2: { value: "Tank", confidence: 1, sourceSpan: "tank" } }] },
+      undefined,
+      { hvac: "there's no HVAC" },
+    );
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind === "collection" && hvac.state).toBe("absent");
+    expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
+  });
+
+  test("a populated group is unaffected regardless of statedEmptyGroups", () => {
+    const request = collectionRequestFor(
+      {
+        hvac: [
+          {
+            hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+            hvacHeatingEnergySource: { value: "Oil", confidence: 1, sourceSpan: "oil" },
+            hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+          },
+        ],
+      },
+      undefined,
+      { hvac: "there's no HVAC" },
+    );
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind === "collection" && hvac.state).toBe("populated");
+    expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
+  });
+});
+
+describe("resolveReview — a statedEmpty group resolves to an empty array, same as empty", () => {
+  test("a statedEmpty group writes an empty array, not 'touch nothing'", () => {
+    const request = collectionRequestFor(
+      { hvac: [], dhw: [{ dhwType2: { value: "Tank Water Heater", confidence: 1, sourceSpan: "tank" } }] },
+      undefined,
+      { hvac: "there's no HVAC" },
+    );
+    const paths = Object.keys(request.fields);
+
+    const outcome = resolveReview(request, {
+      status: "submitted",
+      decisions: decisionsFor(paths),
+    });
+
+    if (outcome.status !== "accepted") throw new Error("unreachable");
+    expect(outcome.fields.hvac).toEqual([]);
+    expect(outcome.fields.dhw).toEqual([{ dhwType2: "Tank Water Heater" }]);
   });
 });
 
