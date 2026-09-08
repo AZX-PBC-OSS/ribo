@@ -17,7 +17,7 @@
 - `linkTargets` (`instance-identity.ts`, `review.ts`) is **not** touched by this plan. It stays array-positional exactly as it is today.
 - Every schema change to the sessions collection needs a version bump and an exercised migration strategy — this repo shares one RxDB database between `outbox` and `sessions`, and a schema mismatch on either collection makes the whole database (including captured audio) unreachable on open (`session-schema.ts:226-239`).
 - `deriveInstanceIdempotencyKey` (`instance-write-step.ts:50-56`) stays positional and unchanged — its job (stable across retries of the same queue item) is a different concern from instance identity.
-- **This plan's Task 3 is the one that bumps the sessions schema to v2 and lands first.** `docs/superpowers/plans/2026-09-08-roster-absence.md`'s own Task 3 adds a further field (`statedEmptyGroups`) to the same v2 schema/migration this plan introduces, and assumes this plan's Task 3 has already landed — implement this plan's Task 3 before that one.
+- **This plan's Task 3 is the one that bumps the sessions schema to v2 and lands first.** `docs/roadmap/design/roster-absence-plan.md`'s own Task 3 adds a further field (`statedEmptyGroups`) to the same v2 schema/migration this plan introduces, and assumes this plan's Task 3 has already landed — implement this plan's Task 3 before that one.
 - Tests run from the repo root via Vitest's own path filtering, **not** a per-package `test` script (none of these packages define one — only `typecheck`/`build`). Use `pnpm vitest run packages/<dir>` (whole package) or `pnpm vitest run packages/<dir>/src/<file>.test.ts` (one file), per `AGENTS.md`'s own example. `pnpm --filter @azx/<pkg> typecheck` remains correct as written — only `test` invocations change.
 
 ---
