@@ -16,33 +16,20 @@ import type { FillScope } from "./instructions.js";
 import type { SnuggValues } from "./schema.js";
 
 /**
- * @file R3 Task 4 — per-group prompt tests.
+ * @file Per-group prompt tests: each group's prompt carries its own rules (not another
+ * group's), the universal rules, and that group as the sole top-level key; the projected
+ * example carries only that group's fields; and no rule is lost — a rule belonging to no
+ * group is a silent accuracy regression.
  *
- * Five tests that must be able to FAIL, one per plan requirement. Each covers a
- * distinct correctness property of the per-group prompt assembly; the "prove they
- * can fail" step (breaking the implementation and confirming the test goes red)
- * is reported separately in the task report.
- *
- *   1. A group's prompt contains its own rules and **not** another group's.
- *   2. **Every** group's prompt contains the universal rules.
- *   3. A group's prompt names that group as the **sole** top-level key.
- *   4. The projected example carries only that group's fields, transcript unchanged.
- *   5. **No rule is lost** — every numbered rule appears in at least one group's
- *      prompt. A rule belonging to no group is a silent accuracy regression.
- *
- * These tests live on the adapter side because the rule-to-group mapping is
- * adapter-specific knowledge (`snuggGroupInstructions`). The generic projection
- * and message assembly (`buildGroupMessages`, `projectExample`) are tested in
+ * These live on the adapter side because the rule-to-group mapping is adapter-specific
+ * (`snuggGroupInstructions`). The generic projection and message assembly are tested in
  * `per-group.test.ts` on the extractor side.
  */
 
 // --- Helpers ------------------------------------------------------------------
 
-/**
- * A distinctive phrase from each rule — unique enough to identify the rule's
- * presence in a prompt without matching unrelated text. Drawn from the rule's
- * bold heading, which is the first thing in the rule's text.
- */
+/** A distinctive phrase per rule — drawn from the rule's bold heading, unique enough to
+ * identify the rule's presence without matching unrelated text. */
 const RULE_MARKERS: readonly string[] = [
   "Extract only what was actually said",
   "is a correct answer",
@@ -61,7 +48,7 @@ const RULE_MARKERS: readonly string[] = [
   "is the SPOKEN rebate name",
 ];
 
-/** The group-specific rules (7–10, 14–15) and the groups they belong to. */
+/** The group-specific rules and the groups they belong to. */
 const GROUP_SPECIFIC_RULES: ReadonlyArray<{
   readonly rule: number;
   readonly marker: string;
@@ -132,18 +119,15 @@ describe("per-group instructions — sole top-level key", () => {
   test("each group's output section asserts exactly one top-level key", () => {
     for (const key of SNUGG_GROUP_KEYS) {
       const prompt = snuggGroupInstructions(key);
-      // The per-group output section must say "exactly one top-level key".
       expect(prompt, `group "${key}"`).toContain("exactly one top-level key");
-      // And must name the group's key specifically.
       expect(prompt, `group "${key}"`).toContain(`\`${key}\``);
-      // And must NOT say "ten top-level keys" (the full-prompt output section).
+      // The per-group prompt must not carry the full-prompt output section's wording.
       expect(prompt, `group "${key}"`).not.toContain("ten top-level keys");
     }
   });
 
   test("the full instructions still assert ten top-level keys", () => {
-    // The single-shot path keeps the full output section — this is the guard
-    // against accidentally changing the full instructions too.
+    // The single-shot path keeps the full output section — guard against changing it too.
     expect(snuggProInstructions).toContain("ten top-level keys");
   });
 });
@@ -163,11 +147,9 @@ describe("per-group instructions — projected example", () => {
       //   [3] user    — live transcript
       expect(messages).toHaveLength(4);
 
-      // The system message is the per-group instructions, not the full ones.
       expect(messages[0]!.content).toBe(snuggGroupInstructions(key));
       expect(messages[0]!.content).not.toBe(snuggProInstructions);
 
-      // The example transcript (user turn) is unchanged.
       expect(messages[1]).toEqual({ role: "user", content: example.transcript });
 
       // The assistant turn carries only this group's key.
@@ -176,7 +158,6 @@ describe("per-group instructions — projected example", () => {
       const expectedFields = (example.fields as Record<string, unknown>)[key];
       expect(assistantContent[key]).toEqual(expectedFields);
 
-      // The live transcript is the final user message.
       expect(messages[3]).toEqual({ role: "user", content: liveTranscript });
     }
   });
@@ -186,10 +167,8 @@ describe("per-group instructions — projected example", () => {
 
 describe("per-group instructions — no rule is lost", () => {
   test("every numbered rule appears in at least one group's prompt", () => {
-    // A rule that belongs to no group — dropped from the mapping or assigned to
-    // a non-existent group — is a silent accuracy regression: nothing fails, the
-    // model just gets worse. This test catches that by checking every rule in
-    // SNUGG_RULES appears in at least one group's prompt.
+    // A rule dropped from the mapping or assigned to a non-existent group is a silent
+    // accuracy regression: nothing fails, the model just gets worse.
     for (const rule of SNUGG_RULES) {
       const marker = RULE_MARKERS[rule.number - 1];
       if (!marker) throw new Error(`no marker for rule ${rule.number}`);
@@ -205,10 +184,9 @@ describe("per-group instructions — no rule is lost", () => {
     }
   });
 
-  test("the rule count is 15 — adding or removing a rule is a conscious decision", () => {
-    // A guard against accidentally deleting a rule entry: the count is pinned so
-    // a dropped entry makes this test fail before the "no rule lost" test even
-    // needs to identify which one.
+  test("the rule count is pinned — adding or removing a rule is a conscious decision", () => {
+    // A dropped rule entry fails here before the "no rule lost" test even needs to
+    // identify which one.
     expect(SNUGG_RULES).toHaveLength(15);
     expect(SNUGG_RULES.map((r) => r.number)).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,

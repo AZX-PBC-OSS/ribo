@@ -7,15 +7,12 @@ import { snuggExtractionSchema } from "./schema.js";
 
 /**
  * Snugg-specific tests for `splitExtractionSchema` against the real
- * `snuggExtractionSchema` — 214 enveloped leaves across ten resource groups.
- * The pure function lives in `@azx/ribo-extractor-openai` (tool-agnostic, no
- * adapter dependency); these tests live here because the real schema lives here,
- * and this package already depends on the extractor for testing
- * (`extraction-shape.test.ts`).
+ * `snuggExtractionSchema`. The pure function lives in `@azx/ribo-extractor-openai`
+ * (tool-agnostic); these tests live here because the real schema lives here.
  */
 
-// The ten resource groups are the top-level keys of `snuggValuesSchema`, which
-// `enveloped()` preserves — see schema.ts's file header.
+// The resource groups are the top-level keys of `snuggValuesSchema`, which `enveloped()`
+// preserves.
 const TEN_GROUPS = [
   "basedata",
   "hvac",
@@ -33,9 +30,8 @@ const ENVELOPE_KEYS = new Set(["value", "confidence", "sourceSpan"]);
 
 /**
  * Walk a zod object schema and collect the dotted paths to every envelope — every
- * `{ value, confidence, sourceSpan }` leaf. An envelope is identified by its key
- * set, which is the shape `extractedSchema` always produces, independent of the
- * split implementation's own group-detection heuristic.
+ * `{ value, confidence, sourceSpan }` leaf. An envelope is identified by its key set,
+ * independent of the split implementation's own group-detection heuristic.
  */
 function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
   if (schema instanceof z.ZodArray) {
@@ -57,7 +53,7 @@ function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
   return leaves;
 }
 
-test("the ten Snugg groups are derived from snuggExtractionSchema, each carrying exactly its own key", () => {
+test("the Snugg groups are derived from snuggExtractionSchema, each carrying exactly its own key", () => {
   const groups = splitExtractionSchema(snuggExtractionSchema);
 
   expect(groups.map((g) => g.key)).toEqual([...TEN_GROUPS]);
@@ -74,10 +70,6 @@ test("every leaf of snuggExtractionSchema appears in exactly one group schema, a
   const originalLeaves = enumerateLeaves(snuggExtractionSchema).sort();
   const groupLeaves = groups.flatMap((g) => enumerateLeaves(g.schema)).sort();
 
-  // 214 leaves across 10 groups — the full 163-field basedata capture surface,
-  // the 46 bounded component-group leaves (health completion included), the
-  // job-collection groups' 4 (concern's 2 free-text leaves, incentive's 2), and
-  // the stage singleton's 1.
   expect(originalLeaves).toHaveLength(214);
 
   // No leaf is lost: the union of per-group leaves equals the original's.

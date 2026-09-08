@@ -94,15 +94,13 @@ describe("yearsToDhwAgeBand", () => {
 });
 
 describe("normalizeFields", () => {
-  // The adapter's own few-shot example, with out-of-range confidences poked into
-  // three envelopes in three DIFFERENT resource groups. Derived from the fixture
-  // rather than hand-written so it cannot drift from the fixture's 222 leaves — and
-  // spread across groups because a pass that only recursed one level deep, or that
-  // special-cased one group by name, would still pass a single-group probe.
+  // The adapter's own few-shot example, with out-of-range confidences poked into three
+  // envelopes in three DIFFERENT resource groups. Derived from the fixture so it cannot
+  // drift from it, and spread across groups because a pass that only recursed one level,
+  // or special-cased one group by name, would still pass a single-group probe.
   //
-  // ENVELOPED, because that is what `normalizeFields` runs on: it sits between the
-  // model's response and review, and `confidence` — the only thing it touches — is
-  // an envelope field that exists nowhere in the writable patch.
+  // ENVELOPED, because that is what `normalizeFields` runs on: `confidence` — the only
+  // thing it touches — is an envelope field that exists nowhere in the writable patch.
   const fixture = snuggExamples[0];
   if (!fixture) throw new Error("expected a Snugg Pro few-shot example fixture");
 
@@ -122,9 +120,9 @@ describe("normalizeFields", () => {
   });
 
   test("clamps EVERY leaf, not just the ones this test names", () => {
-    // The count guard. Three named assertions would also pass if the pass reached
-    // exactly those three; this walks the result and insists no envelope anywhere
-    // escaped the range, and that it saw all 222 of them.
+    // The count guard: the named assertions would also pass if the pass reached exactly
+    // those; this walks the result and insists no envelope anywhere escaped the range,
+    // and that it saw every one of them.
     let seen = 0;
     const walk = (node: unknown): void => {
       if (typeof node !== "object" || node === null) return;
@@ -163,17 +161,14 @@ describe("normalizeFields", () => {
   });
 
   test("output still satisfies the EXTRACTION schema", () => {
-    // The extraction schema and not the patch: normalization runs inside the
-    // extractor's trust boundary, so both its input and its output are the shape
-    // the model emits. A patch-shaped assertion here would not even type-check,
-    // which is the point — the pass has no values-shaped signature to have.
+    // The extraction schema and not the patch: normalization runs inside the extractor's
+    // trust boundary, so both its input and its output are the shape the model emits.
     expect(() => snuggExtractionSchema.parse(normalizeFields(base()))).not.toThrow();
   });
 
-  // R1.6 Task 4 — `clampDeep` must preserve arrays. The current schema is still
-  // singleton groups, so these inputs are cast to the extraction shape; the cast
-  // is only to satisfy the type system — the pass is a structural walk and does
-  // not validate against the schema.
+  // `clampDeep` must preserve arrays. The inputs are cast to the extraction shape only
+  // to satisfy the type system — the pass is a structural walk and does not validate
+  // against the schema.
   describe("array preservation (R1.6 Task 4)", () => {
     const makeArrayExtraction = (): SnuggExtraction =>
       ({

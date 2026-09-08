@@ -3,45 +3,39 @@
  * rest of the shell next visit"). See `ground-truth-format.md`'s "Disclaimers" section for the full
  * rationale; the short version:
  *
- * An annotator does NOT decide which leaves a blanket disclaimer reaches — that is a
- * judgment call, and judgment calls do not converge across 26 independent, blind annotators. A
- * split where half read a disclaimer broadly and half narrowly produces files that look like
- * ordinary careful disagreement but are actually a SYSTEMATIC scope split, which is invisible to a
- * disagreement count and far worse than noise.
+ * An annotator does NOT decide which leaves a blanket disclaimer reaches — that is a judgment
+ * call, and judgment calls do not converge across independent, blind annotators. A split where
+ * half read a disclaimer broadly and half narrowly produces files that look like ordinary careful
+ * disagreement but are actually a SYSTEMATIC scope split, invisible to a disagreement count.
  *
  * Instead, an annotator records a disclaimer as DATA — a verbatim span plus a scope drawn from a
  * small, closed, mechanical vocabulary (see `Scope` below) — and never touches a leaf the
- * disclaimer covers directly. This module is the ONE place that turns a scope into leaf paths and a
- * default truth. Change it, and every ground-truth file's SCORED meaning changes with it — no
- * re-annotation, exactly the same property vocabulary-neutrality gets us for enums, one level up.
+ * disclaimer covers directly. This module is the ONE place that turns a scope into leaf paths and
+ * a default truth. Change it, and every ground-truth file's SCORED meaning changes with it — no
+ * re-annotation, exactly the property vocabulary-neutrality gets us for enums, one level up.
  */
 
 import { GROUPS, HEALTH_TEST_PATHS, LEAF_PATHS } from "./schema-leaves.mjs";
 
 /**
  * A FEW named leaf-sets that recur across the corpus but are narrower than a whole resource group,
- * so a bare group name would over-reach. Each entry here is a short, deliberate, hand-named fact —
- * exactly like `BAND_LEAVES`/`AXIS_PAIRS` in `score.mjs` — not a parallel enumeration of leaves that
- * could instead be derived from `schema.ts`'s shape.
+ * so a bare group name would over-reach. Hand-named facts, not a parallel enumeration of leaves.
  *
- *   - `healthTests`  — the 13 pass/fail/warning/not-tested matrix leaves. Narrower than `group:
- *     "health"`, which would also sweep in `healthRoofCondition` (a visual condition judgement, not
- *     a "test" — a blanket "no tests" should not touch it). Derived from HEALTH_TEST_PATHS, itself
- *     derived from the schema, so this entry never needs hand-updating even if a 14th test is added.
- *   - `blowerDoor`   — the two `basedata` leaves that are specifically about the blower-door
- *     reading. `basedata` also holds `yearBuilt`, `numberOfBedrooms` and other leaves with nothing
- *     to do with a blower door; `group: "basedata"` would incorrectly sweep those in too.
+ *   - `healthTests`  — the pass/fail/warning/not-tested matrix leaves. Narrower than `group:
+ *     "health"`, which would also sweep in `healthRoofCondition` (a visual condition judgement,
+ *     not a "test"). Derived from HEALTH_TEST_PATHS, itself derived from the schema, so this
+ *     entry never needs hand-updating when a test is added.
+ *   - `blowerDoor`   — the two `basedata` leaves specifically about the blower-door reading;
+ *     `group: "basedata"` would incorrectly sweep in `yearBuilt` and friends.
  *   - `shell`        — the building envelope: attic + wall + window leaves, plus the blower-door
  *     pair. Justified by real corpus text (06-homeowner-crosstalk.txt: "Attic and the REST OF THE
- *     SHELL we'll do on the next visit" — naming attic as one part of a larger "shell" the auditor
- *     is visibly treating as one deferred unit) and by this spike's own README, which names "shell /
- *     mechanicals / safety" as the three sections a real audit visit splits into.
+ *     SHELL we'll do on the next visit") and by this spike's README, which names "shell /
+ *     mechanicals / safety" as the sections a real audit visit splits into.
  *
  * This list is deliberately short. If a future transcript's disclaimer needs a scope that is
  * neither a full group nor one of these, do not force it into the nearest one — see `"unresolved"`
- * below, and add a new named set here only when a second real transcript needs the SAME one (one
- * occurrence is not evidence of a recurring pattern; see the report for why none of the 13 pending
- * transcripts has needed a set beyond these three, on inspection).
+ * below, and add a new named set only when a second real transcript needs the SAME one (one
+ * occurrence is not evidence of a recurring pattern).
  */
 export const NAMED_SETS = {
   healthTests: HEALTH_TEST_PATHS,
@@ -56,12 +50,10 @@ export const NAMED_SETS = {
   ),
 };
 
-// Since this module is the SINGLE place that re-scores every transcript using a given named set, a
-// typo'd path here (e.g. "basedata.blowerdoorReading") would silently affect every transcript that
-// uses that set — and the defense-in-depth re-validation in ground-truth.mjs only ever walks the
-// REAL LEAF_PATHS, so it can never notice a bad path sitting unused inside NAMED_SETS itself. Assert
-// the invariant here, at import time, so a typo fails LOUDLY the moment anything loads this module,
-// rather than silently validating every ground-truth file that happens not to exercise it.
+// This module is the SINGLE place that re-scores every transcript using a given named set, so a
+// typo'd path here would silently affect all of them — and ground-truth.mjs's re-validation only
+// walks the REAL LEAF_PATHS, so it can never notice a bad path sitting unused inside NAMED_SETS.
+// Assert the invariant at import time so a typo fails LOUDLY the moment anything loads this module.
 for (const [name, paths] of Object.entries(NAMED_SETS)) {
   for (const p of paths) {
     if (!LEAF_PATHS.includes(p)) {
@@ -77,19 +69,18 @@ for (const [name, paths] of Object.entries(NAMED_SETS)) {
 /**
  * A disclaimer's scope, in the closed vocabulary annotators choose from:
  *
- *   - `{ kind: "group", group: <one of the 10 schema.ts resource groups> }` — every leaf under that
- *     group. Mechanical: a prefix match on LEAF_PATHS, needs no named list at all.
- *   - `{ kind: "namedSet", set: <a key of NAMED_SETS> }` — for a recurring scope narrower than a
+ *   - `{ kind: "group", group: <a schema.ts resource group> }` — every leaf under that group.
+ *     Mechanical: a prefix match on LEAF_PATHS.
+ *   - `{ kind: "namedSet", set: <a key of NAMED_SETS> }` — a recurring scope narrower than a
  *     whole group.
- *   - `{ kind: "unresolved" }` — the disclaimer is real and worth recording (a future annotator or a
- *     future NAMED_SETS entry may resolve it), but it does not reach any leaf today. Every leaf that
- *     might plausibly be "covered" stays at its default ("unmentioned" unless something else says
- *     otherwise) rather than being guessed at.
+ *   - `{ kind: "unresolved" }` — the disclaimer is real and worth recording, but it does not
+ *     reach any leaf today; every leaf it might plausibly cover stays at its default rather
+ *     than being guessed at.
  *
- * Free text ("topic") is NOT part of the mechanical scope — see ground-truth-format.md for why: it
- * is the easiest thing for an annotator to write and the hardest thing to apply the same way twice.
- * `topic` still travels on the disclaimer object as a human-readable gloss; it is documentation, not
- * an input to `leavesInScope`.
+ * Free text ("topic") is NOT part of the mechanical scope — it is the easiest thing for an
+ * annotator to write and the hardest to apply the same way twice. `topic` travels on the
+ * disclaimer object as a human-readable gloss; it is documentation, not an input to
+ * `leavesInScope`.
  */
 export function leavesInScope(scope) {
   if (!scope || typeof scope !== "object") return [];
@@ -111,7 +102,7 @@ export function scopeError(scope) {
   if (scope.kind === "group") {
     return GROUPS.includes(scope.group)
       ? null
-      : `scope.group ${JSON.stringify(scope.group)} is not one of the 10 resource groups`;
+      : `scope.group ${JSON.stringify(scope.group)} is not a schema.ts resource group`;
   }
   if (scope.kind === "namedSet") {
     return scope.set in NAMED_SETS
@@ -124,14 +115,11 @@ export function scopeError(scope) {
 
 /**
  * A cheap, deliberately loose keyword table for the ONE thing `scope` cannot self-check: whether
- * `topic` (free text) actually describes the same thing `scope` (mechanical) points at. Nothing
- * stops an annotator from writing `topic: "the water heater"` next to `scope: { group: "attic" }` —
- * a copy-paste mistake, or a scope picked for the wrong disclaimer in a multi-disclaimer sentence
- * (rule 4's `14-rapid-recap`-style compound case). This is NOT a semantic check (that would need
- * real language understanding, which is exactly the judgment call disclaimers exist to avoid) — it
- * is a keyword substring test, loose on purpose, meant to catch the OBVIOUS mismatch, not to
- * adjudicate a subtle one. A miss here is a warning, never a hard validation failure — the keyword
- * lists are incomplete by construction and will never cover every honest phrasing.
+ * `topic` (free text) actually describes the same thing `scope` (mechanical) points at — e.g. a
+ * copy-paste mistake, or a scope picked for the wrong disclaimer in a multi-disclaimer sentence.
+ * NOT a semantic check (that is exactly the judgment call disclaimers exist to avoid): a keyword
+ * substring test, loose on purpose, meant to catch the OBVIOUS mismatch. A miss here is a
+ * warning, never a hard validation failure — the lists are incomplete by construction.
  */
 const SCOPE_KEYWORDS = {
   group: {
@@ -183,9 +171,9 @@ const normalizeForKeywordMatch = (s) =>
 /**
  * @param {{kind: string, group?: string, set?: string}} scope
  * @param {string} topic
- * @returns {string | null} a warning message, or null if `topic` plausibly matches `scope` (or the
- *   scope kind has no keyword table at all — `"unresolved"` never warns on topic, since there is no
- *   mechanical target to compare it against).
+ * @returns {string | null} a warning message, or null if `topic` plausibly matches `scope` (or
+ *   the scope kind has no keyword table — `"unresolved"` never warns, having no mechanical
+ *   target to compare against).
  */
 export function topicScopeMismatchWarning(scope, topic) {
   if (!scope || typeof topic !== "string") return null;
@@ -210,11 +198,11 @@ export function topicScopeMismatchWarning(scope, topic) {
  * annotator-supplied `leaves` entry for that same leaf (which always wins — see
  * `ground-truth.mjs`'s `resolveGroundTruth`). THE mechanical rule, stated once:
  *
- *   - The 13 health-matrix tests have their OWN "explicitly did not happen" member (`"Not
- *     Tested"` — a real, gradable value, not a null). A blanket disclaimer covering a health test
- *     asserts that member.
- *   - Every other leaf kind (number/string/other enums) has no such member — an explicit group
- *     negation means the leaf has nothing to report, i.e. `declared_absent`.
+ *   - The health-matrix tests have their OWN "explicitly did not happen" member (`"Not
+ *     Tested"` — a real, gradable value, not a null). A blanket disclaimer covering a
+ *     health test asserts that member.
+ *   - Every other leaf kind has no such member — an explicit group negation means the leaf
+ *     has nothing to report, i.e. `declared_absent`.
  */
 export function defaultTruthForDisclaimer(path, disclaimer) {
   if (HEALTH_TEST_PATHS.includes(path)) {

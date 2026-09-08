@@ -27,8 +27,8 @@ describe("rosterCandidateSchema", () => {
   });
 
   test("rejects a non-current eligibility without eligibilitySpan", () => {
-    // The discriminated union requires eligibilitySpan to be a string when
-    // eligibility is not "current".
+    // The discriminated union requires a string eligibilitySpan when eligibility is not
+    // "current".
     const candidate = {
       mentionSpan: "the old boiler",
       discriminator: "the old boiler",
@@ -193,12 +193,12 @@ describe("rosterGroupSchema — stated none union value", () => {
 
 describe("snuggInventoryInstructions", () => {
   test("keeps the transcript injection boundary last", () => {
-    // The instructions must end with the exact transcript section, so a
-    // transcript appended after it is strictly data and never instructions.
+    // Ending with the exact transcript section makes an appended transcript strictly
+    // data, never instructions.
     expect(snuggInventoryInstructions.endsWith(TRANSCRIPT_SECTION)).toBe(true);
   });
 
-  test("mentions all six collection groups and the roster fields", () => {
+  test("mentions every collection group and the roster fields", () => {
     expect(snuggInventoryInstructions).toContain("hvac");
     expect(snuggInventoryInstructions).toContain("attic");
     expect(snuggInventoryInstructions).toContain("wall");
