@@ -109,8 +109,30 @@ export type {
   TranscriberHedgeEvent,
 } from "./hedged.js";
 
+// Transcription arbitration: the decision vocabulary that lets a host
+// classify transcriber candidate outcomes — the sibling of the extractor
+// arbitration exports above. The core accumulates outcomes in settlement
+// order; the host decides whether to accept, continue, or give up. The default
+// arbiter (unsupportedFallsThrough) accepts the first success, continues past
+// UnsupportedItemError and TranscriberUnavailableError, and at exhaustion gives
+// up with the first retryable error if there is one (D7 rule 2).
+export { unsupportedFallsThrough } from "./transcription-arbitration.js";
+export type {
+  TranscriptionArbiter,
+  TranscriptionArbiterInput,
+  TranscriptionArbiterVerdict,
+  TranscriptionOutcome,
+} from "./transcription-arbitration.js";
+
+// Transcriber fallback: try transcribers in order without consulting
+// capability(), letting an arbiter decide whether each outcome is acceptable.
+// The per-item sibling of firstCapable — a reader who thinks it is
+// "firstCapable with retries" will wire it wrongly.
+export { fallbackTranscriber } from "./fallback-transcriber.js";
+export type { FallbackTranscriberOptions } from "./fallback-transcriber.js";
+
 // The fake that lets later phases run the pipeline — and drive every capability
-// state and both failure kinds — without a model.
+// state and all three failure kinds — without a model.
 export {
   DEFAULT_FAKE_TRANSCRIBER_ENGINE,
   DEFAULT_FAKE_TRANSCRIPT_TEXT,
