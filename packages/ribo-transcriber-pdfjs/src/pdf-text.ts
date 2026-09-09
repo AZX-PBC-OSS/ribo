@@ -2,7 +2,8 @@ import { UnsupportedItemError } from "@azx/ribo-core";
 
 import { layoutPageText, type PageLayoutOptions } from "./page-layout.js";
 
-import type { PdfDocumentProxy, PdfjsModule, PdfTextItem } from "./config.js";
+import { isPdfTextItem } from "./config.js";
+import type { PdfDocumentProxy, PdfjsModule } from "./config.js";
 
 /**
  * @file pdf.js text extraction: the lazy import, the page-marker format, the
@@ -189,13 +190,14 @@ export async function openDocument(
             i +
             " =====\n" +
             layoutPageText(
-              content.items.map((it: PdfTextItem) => ({
-                str: it.str ?? "",
-                // `transform` is [a, b, c, d, e, f]; e and f are the origin.
-                x: it.transform?.[4] ?? 0,
-                y: it.transform?.[5] ?? 0,
-                width: it.width ?? 0,
-                height: it.height ?? 0,
+              // Marked-content boundaries carry no text and no geometry, so they
+              // are filtered out rather than defaulted to the page origin.
+              content.items.filter(isPdfTextItem).map((it) => ({
+                str: it.str,
+                x: it.transform[4],
+                y: it.transform[5],
+                width: it.width,
+                height: it.height,
               })),
               options.layout ?? {},
             ) +

@@ -34,7 +34,15 @@ import {
 import { readDocumentText } from "./pdf-text.js";
 
 export { DEFAULT_NO_TEXT_LAYER_THRESHOLD, PDFJS_ENGINE } from "./config.js";
-export type { PdfjsModule, PdfjsTranscriberOptions } from "./config.js";
+export { isPdfTextItem } from "./config.js";
+export type {
+  PdfContentItem,
+  PdfjsModule,
+  PdfjsTranscriberOptions,
+  PdfMarkedContentItem,
+  PdfTextItem,
+  PdfTransformMatrix,
+} from "./config.js";
 export { openDocument, readDocumentText, PAGE_MARKER, resetPdfjsCache } from "./pdf-text.js";
 export {
   COLUMN_SEPARATOR,

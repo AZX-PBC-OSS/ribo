@@ -40,31 +40,101 @@ export interface PdfDocumentProxy {
  * The handle `doc.getPage(n)` resolves to. Only `getTextContent` is used.
  */
 export interface PdfPageProxy {
-  getTextContent: () => Promise<{ items: readonly PdfTextItem[] }>;
+  getTextContent: () => Promise<{ items: readonly PdfContentItem[] }>;
 }
 
 /**
- * One item from `getTextContent().items`.
+ * A PDF text-space transformation matrix, exactly six numbers.
  *
- * **The geometry is the important part.** pdf.js emits items in
- * content-stream order, which is not visual order, so `str` alone is not
- * enough to reconstruct a page — see `page-layout.ts`. `transform` is the
- * item's 6-element matrix `[a, b, c, d, e, f]` where `e`/`f` are the origin's
- * x/y in device space (PDF y grows **upward**), and `width`/`height` bound the
- * run. Together they are what lets baseline clustering rebuild rows.
+ * The PDF and canvas specs call these `[a, b, c, d, e, f]`, which is what you
+ * will see in pdf.js's own source and in the spec — but those names say nothing
+ * at a call site, so the tuple labels them by what they do. The mapping, for
+ * anyone cross-referencing:
  *
- * `hasEOL` signals a line break in the **drawing** order. It is no longer read:
- * geometry supersedes it, and on a real invoice it was actively misleading.
- * Kept on the interface because pdf.js returns it and removing it from the
- * structural type would be a lie about the shape.
+ * ```
+ * a = scaleX   b = skewY    ⎡ a  b  0 ⎤     x′ = a·x + c·y + e
+ * c = skewX    d = scaleY   ⎢ c  d  0 ⎥     y′ = b·x + d·y + f
+ * e = translateX  f = translateY  ⎣ e  f  1 ⎦
+ * ```
+ *
+ * `page-layout.ts` reads only the translation — the item's origin, `[4]`
+ * horizontally and `[5]` on the baseline — which now reads as `translateX` and
+ * `translateY` in a tooltip rather than as two anonymous numbers.
+ *
+ * A **labelled tuple** rather than `number[]`, for a reason that bites under
+ * this repo's `noUncheckedIndexedAccess`: indexing an array yields
+ * `number | undefined`, so every read needs a defensive `?? 0` that can never
+ * fire. A fixed-length tuple has known indices, so `transform[4]` is plainly
+ * `number`, and passing five numbers is a compile error. Both verified against
+ * TypeScript 6.0.3 with this repo's flags.
+ */
+export type PdfTransformMatrix = readonly [
+  scaleX: number,
+  skewY: number,
+  skewX: number,
+  scaleY: number,
+  translateX: number,
+  translateY: number,
+];
+
+/**
+ * A run of text with its placement.
+ *
+ * **The geometry is the important part.** pdf.js emits items in content-stream
+ * order, which is not visual order, so `str` alone is not enough to reconstruct
+ * a page — `transform`'s translation plus `width` are what let baseline
+ * clustering rebuild rows. See `page-layout.ts` for the measurement.
+ *
+ * Every field is **required**: pdf.js supplies all of them on a text item, and
+ * an optional one here would only be modelling the *other* branch of
+ * {@link PdfContentItem}, which is what {@link isPdfTextItem} is for.
+ *
+ * `hasEOL` signals a line break in the **drawing** order. It is no longer read —
+ * geometry supersedes it, and on a real invoice it was actively misleading — but
+ * it stays on the interface because pdf.js returns it, and omitting a field the
+ * runtime provides would make this a lie about the shape rather than a subset
+ * of it.
  */
 export interface PdfTextItem {
   str: string;
   hasEOL: boolean;
-  /** `[a, b, c, d, e, f]` — `e` is x, `f` is the baseline y. */
-  transform?: number[];
-  width?: number;
-  height?: number;
+  transform: PdfTransformMatrix;
+  width: number;
+  height: number;
+}
+
+/**
+ * The other thing `getTextContent().items` yields: a structure-tag boundary,
+ * carrying no text and no geometry.
+ */
+export interface PdfMarkedContentItem {
+  type: string;
+  id?: string | null;
+}
+
+/**
+ * One entry from `getTextContent().items` — **a union, because pdf.js returns
+ * two different shapes.**
+ *
+ * Modelling this as a single interface with optional geometry was the
+ * expedient thing and it was wrong: it pushed a `?? 0` onto every read, and a
+ * marked-content boundary then mapped to `{ str: "", x: 0, y: 0 }` — a
+ * fabricated item at the page origin that survived only because a later
+ * whitespace filter happened to drop it. Discriminating instead means the
+ * defaults disappear and nothing invents coordinates it does not have.
+ */
+export type PdfContentItem = PdfTextItem | PdfMarkedContentItem;
+
+/**
+ * Narrow a content item to a text run.
+ *
+ * Discriminates on `str` rather than on `type`, because `type` is present only
+ * on the marked-content branch — testing for its **absence** would make every
+ * future pdf.js item shape default to "this is text", which is the failure
+ * direction that hurts.
+ */
+export function isPdfTextItem(item: PdfContentItem): item is PdfTextItem {
+  return typeof (item as PdfTextItem).str === "string";
 }
 
 /**
