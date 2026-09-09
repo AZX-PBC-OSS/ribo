@@ -14,9 +14,12 @@
  * §Scoping — the form fields minus the `*Improved` retrofit twins and the
  * self-described auto-calculated fields). The component groups are bounded
  * dictation-density subsets — what an auditor actually says walking a house —
- * grown from real fill-rate data, not judgement. The job-collection groups each
- * carry every field of their endpoint in extraction scope (`incentive`'s
- * `recommendations` is excluded by design — see the group).
+ * grown from real fill-rate data, not judgement; `attic` and `window` have since
+ * grown to doc 20 §5.5's full verdicted capture surface (every field but the
+ * computed ones, and the `capture?` fields described with the caveat that makes
+ * them borderline — see the groups). The job-collection groups each carry every
+ * field of their endpoint in extraction scope minus the computed ones
+ * (`incentive`'s `recommendations` is excluded by design — see the group).
  *
  * ---
  *
@@ -59,9 +62,12 @@
  *   3. HEALTH & SAFETY IS A FIXED-STATE MATRIX, not free text. Each named test
  *      is `"Passed"` / `"Failed"` / `"Warning"` / `"Not Tested"`; "CO was clean"
  *      is `"Passed"`, and a test never mentioned is `null`.
- *   4. EQUIPMENT EFFICIENCY (AFUE / SEER / HSPF) IS NOT A CAPTURE FIELD. The
- *      vendor derives it by lookup from make / model / year, not dictated. We
- *      capture the inputs and deliberately have no efficiency slot.
+ *   4. EQUIPMENT EFFICIENCY (AFUE / SEER / HSPF) IS LOOKED UP, NOT DICTATED.
+ *      The vendor derives it from make / model / year, so the hvac efficiency
+ *      leaves are `capture?` in doc 20's verdicts: they hold a STATED number
+ *      only, never an estimated one. The exception is
+ *      `hvacSteadyStateEfficiency` — a combustion-analyzer reading measured on
+ *      site, which is an ordinary capture.
  *
  * ---
  *
@@ -577,6 +583,53 @@ export const HvacHeatingSystemManufacturer = z
   );
 
 /**
+ * `hvacCoolingSystemManufacturer` (`hvac`) — the COOLING brand list, a separate
+ * closed enum from the heating one: the two lists genuinely differ (cooling
+ * has `Coolerado` and `Comfort Maker` where heating has `Comfort Master`), and
+ * both carry the vendor's `Frigidaire`/`Fridgidaire` typo pair verbatim.
+ */
+export const HvacCoolingSystemManufacturer = z
+  .enum([
+    "Unknown",
+    "AirEase",
+    "Amana",
+    "American Standard",
+    "Bosch",
+    "Bryant",
+    "Carrier",
+    "Coleman",
+    "Comfort Maker",
+    "Coolerado",
+    "Daikin",
+    "Day & Night",
+    "Frigidaire",
+    "Fujitsu",
+    "General Electric",
+    "Goodman",
+    "Janitrol",
+    "Lennox",
+    "LG",
+    "Luxaire",
+    "Mitsubishi",
+    "Panasonic",
+    "Payne",
+    "Peerless",
+    "Rheem",
+    "RUUD",
+    "Samsung",
+    "Sears Kenmore",
+    "Tappan",
+    "Trane",
+    "Utica",
+    "York",
+    "Other",
+    "Fridgidaire",
+  ])
+  .describe(
+    'Manufacturer from this closed list. Use "Other" when the auditor named a make that is not on it, and "Unknown" only when they did not state one.',
+  );
+
+/**
  * `hvacDuctLeakage` (`hvac`) — qualitative duct tightness, labelled by leakage
  * percentage. The auditor says "pretty leaky" / "well sealed"; the model maps to
  * the member. `"Measured (CFM25)"` is the escape hatch that pairs with
@@ -644,12 +697,88 @@ export const AtticInsulationType = z
     'Insulation material — there is no "None" member; an uninsulated attic is atticInsulationDepth: "0", not a material here.',
   );
 
-/** `atticRoofType` (`attic`). */
+/** `atticRoofType` (`attic`). `vaultRoofType` publishes the same list — one export. */
 export const AtticRoofType = z.enum([
   "Composition Shingles",
   "Concrete Tile",
   "Wood Shakes",
   "Tar and Gravel",
+]);
+
+/**
+ * `atticKneeWallInsulationType` (`attic`). The cavity-insulation vocabulary of doc 20
+ * §5.0, copied verbatim; `largest-area wins` when several materials are installed.
+ */
+export const AtticKneeWallInsulationType = z.enum([
+  "Fiberglass or Rockwool Batt",
+  "Blown Fiberglass or Rockwool",
+  "Cellulose",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
+/**
+ * `atticKneeWallContinuousInsulationType` (`attic`). The rigid-insulation vocabulary of
+ * doc 20 §5.0, copied verbatim; largest-area wins.
+ */
+export const AtticKneeWallContinuousInsulationType = z.enum([
+  "Rigid XPS",
+  "Rigid EPS",
+  "Rigid Polyisocyanurate",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
+/**
+ * `atticRoofColor` (`attic`). The vendor's list stops at `Medium` — there is no Dark
+ * member, so a dictated dark roof has no member and stays `null` (rule 11).
+ * `vaultRoofColor` publishes the same list — one export.
+ */
+export const AtticRoofColor = z.enum(["White", "Light", "Medium"]);
+
+// == vault ===================================================================
+
+/**
+ * `vault` (`POST /jobs/{jobId}/vault`) — insulation quality of the vaulted cavities,
+ * on a wire field named bare `vault`, identical to its resource name. The sibling of
+ * `wallsInsulated`: identical member DESCRIPTIONS, but the vendor publishes the
+ * members in a DIFFERENT ORDER here (`Well` · `Yes` · `Poorly` · `No` vs. the wall's
+ * `Well` · `Poorly` · `Yes` · `No`). The two lists are therefore declared separately
+ * and never shared — anything treating enum position as ordinal would silently swap
+ * `Poorly` and `Yes` (doc 20 §5.5 cross-cutting notes).
+ */
+export const VaultInsulationQuality = z
+  .enum(["Well", "Yes", "Poorly", "No"])
+  .describe(
+    'Four graded states, chosen by meaning: "Well" is full depth with few voids, "Poorly" is majority-filled but low density or depth is suspected, "Yes" is confirmed present with quality unknown, "No" is no insulation. Leave null if the auditor was unsure.',
+  );
+
+/**
+ * `vaultCavityInsulationType` (`vault`). The cavity-insulation vocabulary of doc 20
+ * §5.0, copied verbatim; largest-area wins.
+ */
+export const VaultCavityInsulationType = z.enum([
+  "Fiberglass or Rockwool Batt",
+  "Blown Fiberglass or Rockwool",
+  "Cellulose",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
+/**
+ * `vaultContinuousInsulationType` (`vault`). The rigid-insulation vocabulary of doc 20
+ * §5.0, copied verbatim; largest-area wins.
+ */
+export const VaultContinuousInsulationType = z.enum([
+  "Rigid XPS",
+  "Rigid EPS",
+  "Rigid Polyisocyanurate",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
 ]);
 
 // == wall ====================================================================
@@ -710,6 +839,26 @@ export const WindowType = z.enum([
 
 /** `windowFrame` (`window`). "Clad" -> `"Wood or metal clad"`. */
 export const WindowFrame = z.enum(["Metal", "Vinyl", "Wood or metal clad", "Don't Know"]);
+
+/**
+ * `windowExteriorTreatment{North,East,South,West}` and their `*Improved` twins
+ * (`window`) — ONE list shared by all four orientations and all four upgrade
+ * intents (doc 20 §5.0 WINDOW-EXTERIOR-TREATMENT); the spec publishes the
+ * identical member set on all eight fields. The treatment is what the SHGC
+ * fields must NOT be adjusted for — see `windowSolarHeatGainCoefficient`.
+ */
+export const WindowExteriorTreatment = z.enum([
+  "Insect Screen (full)",
+  "Insect Screen (half)",
+  "Solar Screen (summer only)",
+  "Solar Screen (all year)",
+  "Solar Shades, Vertical Roller (summer only)",
+  "Solar Shades, Vertical Roller (all year)",
+  "Solar Shades, Louvered (summer only)",
+  "Solar Shades, Louvered (all year)",
+  "Solar Film (all year)",
+  "No Treatment",
+]);
 
 // == dhw =====================================================================
 
@@ -1493,11 +1642,19 @@ export const BasedataFields = z
   .strict();
 
 /**
- * `POST /jobs/{jobId}/hvac` — one heating/cooling system record, a bounded
- * dictation-density subset of the endpoint. The writable surface carries this
- * as an array because a job may have several systems; each element is one
- * record. The API's required capture fields live here — see `adapter.ts`'s
- * `requiredOnCreate`.
+ * `POST /jobs/{jobId}/hvac` — one heating/cooling system record. The writable
+ * surface carries this as an array because a job may have several systems;
+ * each element is one record. The API's required capture fields live here —
+ * see `adapter.ts`'s `requiredOnCreate`.
+ *
+ * Coverage (doc 20 §5.4): the base side is the endpoint's full
+ * dictation-plausible surface. The improved side carries ONLY intent-bearing
+ * fields — a fuel switch, a sizing, a load share, an equipment-class
+ * preference are the dictated recommendation itself, and for an
+ * `hvacUpgradeAction` of `"Install a new non-existing system"` the improved
+ * side is the only place the new system exists at all. The rest of the
+ * improved side is desk-side purchase specs of equipment not yet bought
+ * (serials, model numbers, ratings of a proposed unit) and stays excluded.
  */
 export const HvacFields = z
   .object(
@@ -1569,11 +1726,281 @@ export const HvacFields = z
 
       /** Duct insulation, the Snugg material/thickness member. */
       hvacDuctInsulation: HvacDuctInsulation.nullable().optional(),
+
+      /**
+       * The human instance label ("Old Heat Pump", "Basement Furnace") — the
+       * only hvac handle an auditor actually says out loud, and the first
+       * natural name field on any array-shaped group.
+       */
+      hvacSystemName: z
+        .string()
+        .describe(
+          "The name the auditor gave this system — only when one was actually spoken; never an invented label.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Condensing furnace/boiler — PVC combustion venting is the field tell. */
+      hvacHeatingIsCondensing: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** This system's share of the home's heating load. */
+      hvacPercentOfTotalHeatingLoad: z
+        .number()
+        .describe(
+          "Share of the home's total heating load this system covers; heating shares across all systems must add up to 100.",
+        )
+        .nullable()
+        .optional(),
+
+      /** This system's share of the home's cooling load. */
+      hvacPercentOfTotalCoolingLoad: z
+        .number()
+        .describe(
+          "Share of the home's total cooling load this system covers; unlike heating shares, cooling shares need not add up to 100 — the remainder is modelled as unconditioned.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Cooling manufacturer, from Snugg's closed COOLING list — a different list from heating's. */
+      hvacCoolingSystemManufacturer: HvacCoolingSystemManufacturer.nullable().optional(),
+
+      /** Cooling model number / model name as stated, free text in the spec too. */
+      hvacCoolingSystemModel: z.string().nullable().optional(),
+
+      /** Indoor cooling model number (the air-handler/coil side of a split system). */
+      hvacCoolingSystemIndoorModel: z.string().nullable().optional(),
+
+      /** Outdoor cooling model number (the condenser side of a split system). */
+      hvacCoolingSystemOutdoorModel: z.string().nullable().optional(),
+
+      /** The UNIT's model year — never the home's year. Stringified at write. */
+      hvacCoolingSystemModelYear: z
+        .number()
+        .describe(
+          "The cooling unit's model year — never the home's year built, which is a separate field.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Indoor heating model number. */
+      hvacHeatingSystemIndoorModel: z.string().nullable().optional(),
+
+      /** Outdoor heating model number. */
+      hvacHeatingSystemOutdoorModel: z.string().nullable().optional(),
+
+      /** Cooling serial number(s), comma-separated when several. */
+      hvacCoolingSystemSerialNumber: z.string().nullable().optional(),
+
+      /** Indoor cooling serial number(s), comma-separated when several. */
+      hvacCoolingSystemIndoorSerialNumber: z.string().nullable().optional(),
+
+      /** Outdoor cooling serial number(s), comma-separated when several. */
+      hvacCoolingSystemOutdoorSerialNumber: z.string().nullable().optional(),
+
+      /** Heating serial number(s), comma-separated when several. */
+      hvacHeatingSystemSerialNumber: z.string().nullable().optional(),
+
+      /** Indoor heating serial number(s), comma-separated when several. */
+      hvacHeatingSystemIndoorSerialNumber: z.string().nullable().optional(),
+
+      /** Outdoor heating serial number(s), comma-separated when several. */
+      hvacHeatingSystemOutdoorSerialNumber: z.string().nullable().optional(),
+
+      /** The measured duct-insulation R-value — pairs with `"Measured (R Value)"` above. */
+      hvacDuctInsulationValue: z
+        .number()
+        .describe(
+          'The duct insulation R-value as a measured number — only meaningful when hvacDuctInsulation is "Measured (R Value)".',
+        )
+        .nullable()
+        .optional(),
+
+      /** Variable-speed / inverter-driven compressor on the heat pump. */
+      hvacHeatPumpInverter: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /**
+       * Whether this is an ENERGY STAR Cold Climate Heat Pump. The spec
+       * publishes an INTEGER enum `[1, 0]` on a `type: string` field — the
+       * same shape as `hasEv`, so `z.number()` and the vocabulary travels in
+       * the description.
+       */
+      energyStarColdClimateHeatPump: z
+        .number()
+        .describe(
+          "Whether this system is an ENERGY STAR Cold Climate Heat Pump; the wire value is integer 1 (yes) or 0 (no).",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Heating-side maintenance/condition star rating. The spec's enum is
+       * `[null, "1", "2", "3"]` — a literal `null` plus numeric STRINGS: the
+       * null is this leaf's `.nullable()` (the `WallCavityInsulationType`
+       * rule) and the numeric strings stay strings (the `WindZone` rule).
+       */
+      hvacHeatingMaintenanceStarRating: z
+        .enum(["1", "2", "3"])
+        .describe(
+          'Maintenance condition as the wire string — "1" observable issues need to be addressed, "2" standard condition based on the age of the system, "3" well maintained and/or pristine; a system whose condition was never judged is null.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Cooling-side maintenance/condition star rating — same wire shape as the heating twin. */
+      hvacCoolingMaintenanceStarRating: z
+        .enum(["1", "2", "3"])
+        .describe(
+          'Maintenance condition as the wire string — "1" observable issues need to be addressed, "2" standard condition based on the age of the system, "3" well maintained and/or pristine; a system whose condition was never judged is null.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Steady-state efficiency measured on site with a combustion gas
+       * analyzer — a real reading, so HAZARD 4's lookup rule does not apply.
+       */
+      hvacSteadyStateEfficiency: z
+        .number()
+        .describe(
+          "Steady-state efficiency measured on site with a combustion gas analyzer — a field reading, not a nameplate rating; set it only when the auditor actually ran and stated one.",
+        )
+        .nullable()
+        .optional(),
+
+      /** AFUE (combustion / electric resistance) or HSPF (heat pump) — a stated number only, per HAZARD 4. */
+      hvacHeatingSystemEfficiency: z
+        .number()
+        .describe(
+          "AFUE or HSPF as a stated number only — Snugg normally derives efficiency from make/model/year, so never estimate one; which rating the number means goes in hvacHeatingSystemEfficiencyRatingUnit.",
+        )
+        .nullable()
+        .optional(),
+
+      /** SEER (EER for Room AC) — same stated-number-only rule as the heating twin. */
+      hvacCoolingSystemEfficiency: z
+        .number()
+        .describe(
+          "SEER, or EER for a Room AC, as a stated number only — never estimated; the unit goes in hvacCoolingSystemEfficiencyRatingUnit.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Which rating `hvacHeatingSystemEfficiency` is expressed in. The spec
+       * declares `enum: []` — the value list is unpublished — so this stays
+       * free text, the `hvacDuctLocation` precedent.
+       */
+      hvacHeatingSystemEfficiencyRatingUnit: z
+        .string()
+        .describe(
+          "The unit hvacHeatingSystemEfficiency is expressed in (AFUE or HSPF), as free text — the vendor publishes no value list for this field.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Which rating `hvacCoolingSystemEfficiency` is expressed in — free text, unpublished value list. */
+      hvacCoolingSystemEfficiencyRatingUnit: z
+        .string()
+        .describe(
+          "The unit hvacCoolingSystemEfficiency is expressed in (SEER or EER), as free text — the vendor publishes no value list for this field.",
+        )
+        .nullable()
+        .optional(),
+
+      // --- Improved side: dictated INTENT only -------------------------------
+      // For `hvacUpgradeAction: "Install a new non-existing system"` the
+      // improved side is the only place the new system exists, and these are
+      // the fields a recommendation is dictated in — fuel, sizing, load
+      // share, equipment class. Everything else on the improved side is a
+      // desk-side purchase spec of unbought equipment and is excluded.
+
+      /**
+       * The proposed system's fuel — a fuel switch ("get off the oil") is
+       * dictated retrofit intent. The spec declares `enum: []` here and,
+       * unlike the base-side twin, there is no sanctioned list to borrow —
+       * the spoken fuel lands as free text.
+       */
+      hvacHeatingEnergySourceImproved: z
+        .string()
+        .describe(
+          "The proposed system's fuel as spoken, free text — the vendor publishes no value list for this field. A recommended fuel switch is dictated intent; never leave it null just because there is no list to match against.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Proposed heating output in Btu/h — sizing intent. Auditors say tons; the conversion is `normalization.ts`'s, same as the base side. */
+      hvacHeatingCapacityImproved: z
+        .number()
+        .describe(
+          "Proposed heating output in Btu per hour — the sizing half of a dictated recommendation. Auditors say tons, not Btu/hr; the tons-to-Btu/hr conversion is a deterministic pass, so the stated size belongs here rather than nowhere.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Proposed cooling output in Btu/h — sizing intent; "three-ton" is 36000, a conversion `normalization.ts` owns. */
+      hvacCoolingCapacityImproved: z
+        .number()
+        .describe(
+          "Proposed cooling output in Btu per hour — the sizing half of a dictated recommendation. Auditors say tons, not Btu/hr; the tons-to-Btu/hr conversion is a deterministic pass, so the stated size belongs here rather than nowhere.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Share of heating load the improved system would carry — dictated intent expressed as a cross-instance allocation. */
+      hvacPercentOfTotalHeatingLoadImproved: z
+        .number()
+        .describe(
+          "Share of the home's heating load the proposed system would carry — a stated allocation of intent; improved heating shares across systems must add up to 100.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Share of cooling load the improved system would carry. */
+      hvacPercentOfTotalCoolingLoadImproved: z
+        .number()
+        .describe(
+          "Share of the home's cooling load the proposed system would carry; like the base side, improved cooling shares need not add up to 100.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Whether the PROPOSED heat pump is variable-speed / inverter-driven — a dictated preference, not a purchase spec. */
+      hvacHeatPumpInverterImproved: z
+        .enum(["Yes", "No"])
+        .describe(
+          'Whether the proposed heat pump is variable-speed / inverter-driven — "get a variable-speed unit" is dictated intent, not a desk spec.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Whether the proposed system is an ENERGY STAR Cold Climate Heat Pump —
+       * a named product-class recommendation. Same integer-on-string wire
+       * shape as the base-side twin.
+       */
+      energyStarColdClimateHeatPumpImproved: z
+        .number()
+        .describe(
+          "Whether the proposed system is an ENERGY STAR Cold Climate Heat Pump — a product-class recommendation; the wire value is integer 1 (yes) or 0 (no).",
+        )
+        .nullable()
+        .optional(),
     }),
   )
   .strict();
 
-/** `POST /jobs/{jobId}/attic` — one attic record, a bounded subset of the endpoint. */
+/**
+ * `POST /jobs/{jobId}/attic` — one attic record. Now the full verdicted capture
+ * surface of doc 20 §5.5: every field of the endpoint except the self-described
+ * computed ones (`atticAssemblyRValue`, `atticKneeWallAssemblyRValue` and their
+ * improved twins — "not editable since it is calculated from the other fields").
+ *
+ * The vendor's own `atticInsulationDepth` description routes VAULTED-ceiling depth
+ * here too ("If there is no attic and instead vaulted ceilings, enter an estimate of
+ * the thickness of insulation in the vaulted cavity") — the vault resource has no
+ * depth field, so dictated vault depth lands on this attic leaf (doc 20 §5.5
+ * cross-cutting notes; rule 8 of the extraction instructions).
+ */
 export const AtticFields = z
   .object(
     withVendorDescriptions({
@@ -1600,6 +2027,324 @@ export const AtticFields = z
 
       /** Roof covering. */
       atticRoofType: AtticRoofType.nullable().optional(),
+
+      /**
+       * Interior ceiling surface area in ft². Auto-calculated from conditioned area ×
+       * stories but overridable — writing it replaces the model default, so set it only
+       * from a stated number ("the attic is about twelve hundred square feet").
+       */
+      atticModeledAtticArea: z
+        .number()
+        .describe(
+          "Interior ceiling surface area in square feet; auto-calculated by the vendor, so set it only when the auditor states an actual number — a stated value overrides the model default.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Total surface area of the knee wall adjoining this attic space, in ft². */
+      atticKneeWallArea: z.number().nullable().optional(),
+
+      /** Total R-value installed (BASE) in the knee wall cavity. */
+      atticKneeWallInsulation: z.number().nullable().optional(),
+
+      /**
+       * Total R-value of continuous insulation on the knee wall. The vendor reuses the
+       * cavity description verbatim here — treat the description as approximate (doc 20
+       * §5.5 cross-cutting notes).
+       */
+      atticKneeWallContinuousInsulation: z
+        .number()
+        .describe(
+          "Total R-value of the CONTINUOUS insulation on the knee wall — a separate field from the knee wall cavity R-value, despite the vendor's copy-pasted description.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Whether the attic has a radiant barrier — directly observable, commonly called out. */
+      atticRadiantBarrier: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /**
+       * % of total footprint attributed to this attic/vault area. Only meaningful with
+       * multiple attic/vault instances, and it is a proportion, not an identity —
+       * auditors say "about half the attic" rather than a number.
+       */
+      atticPercent: z
+        .number()
+        .describe(
+          "Share of the total footprint attributed to this attic area, as a percentage; only meaningful when several attic/vault instances split the house.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Solar absorptance of the roofing above (1 − reflectance). An auto-defaulted lab
+       * coefficient nobody dictates — only in play with a cool-roof spec.
+       */
+      atticRoofAbsorptance: z
+        .number()
+        .describe(
+          "Solar absorptance of the roofing above; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Thermal emittance of the roofing above — same auto-defaulted coefficient story. */
+      atticRoofEmissivity: z
+        .number()
+        .describe(
+          "Thermal emittance of the roofing above; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Whether to specify cool-roof characteristics — auditors do say "it is a cool roof". */
+      atticCoolRoof: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Insulation type in the knee wall cavity (largest-area wins). */
+      atticKneeWallInsulationType: AtticKneeWallInsulationType.nullable().optional(),
+
+      /** Continuous insulation type on the knee wall (largest-area wins). */
+      atticKneeWallContinuousInsulationType:
+        AtticKneeWallContinuousInsulationType.nullable().optional(),
+
+      /** Roofing colour for this roof section; the list has no Dark member. */
+      atticRoofColor: AtticRoofColor.nullable().optional(),
+
+      /**
+       * Retrofit insulation type — "we will blow cellulose" is dictated upgrade INTENT,
+       * which is captured; the improved spec numbers below are the borderline side.
+       */
+      atticInsulationTypeImproved: AtticInsulationType.nullable().optional(),
+
+      /**
+       * New attic sqft after retrofit — used to model attic→conditioned conversions.
+       * Structural intent, but a modelled number rather than speech; set only from a
+       * stated figure.
+       */
+      atticModeledAtticAreaImproved: z
+        .number()
+        .describe(
+          "Attic area in square feet after the retrofit; a modelled number, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Target R-value to be installed. Borders on intent ("bring it to R-49") but is
+       * the spec side of it — set only when a target number is actually stated.
+       */
+      atticInsulationImproved: z
+        .number()
+        .describe(
+          "Target R-value to be installed as a number; set only when the auditor states the target ('bring it to R-49'), never derived from the base value.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Improved knee wall area — spec side; set only from a stated figure. */
+      atticKneeWallAreaImproved: z.number().nullable().optional(),
+
+      /** Target knee wall cavity R-value — spec side; set only when stated. */
+      atticKneeWallInsulationImproved: z.number().nullable().optional(),
+
+      /** Target knee wall continuous R-value — spec side; set only when stated. */
+      atticKneeWallContinuousInsulationImproved: z.number().nullable().optional(),
+
+      /**
+       * Knee wall present on the improved side. An odd field: a retrofit rarely creates
+       * or removes a knee wall — likely a modelling artefact of the base/improved
+       * doubling, so set it only from an explicit statement.
+       */
+      atticHasKneeWallImproved: z
+        .enum(["Yes", "No"])
+        .describe(
+          "Knee wall on the improved side; a retrofit rarely adds or removes one, so set this only from an explicit statement.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Add a radiant barrier — clean upgrade intent. */
+      atticRadiantBarrierImproved: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Cool-roof spec coefficient — auto-defaulted, not dictated. */
+      atticRoofAbsorptanceImproved: z
+        .number()
+        .describe(
+          "Solar absorptance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Cool-roof spec coefficient — auto-defaulted, not dictated. */
+      atticRoofEmissivityImproved: z
+        .number()
+        .describe(
+          "Thermal emittance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Specify a cool roof as the improvement. Intent-shaped, but only used when a roof
+       * replacement is actually in the package.
+       */
+      atticCoolRoofImproved: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Retrofit knee wall cavity insulation type — spec side. */
+      atticKneeWallInsulationTypeImproved: AtticKneeWallInsulationType.nullable().optional(),
+
+      /** Retrofit knee wall continuous insulation type — spec side. */
+      atticKneeWallContinuousInsulationTypeImproved:
+        AtticKneeWallContinuousInsulationType.nullable().optional(),
+    }),
+  )
+  .strict();
+
+/**
+ * `POST /jobs/{jobId}/vault` — one vaulted / cathedral ceiling record: the
+ * job-collections tranche 12 group (doc 20 §5.5; target model per
+ * `docs/roadmap/design/job-collections-foundation-design.md`). A top-level key of `V`
+ * following the per-instance pattern — an array with one element per real-world
+ * occurrence, repeating per job (0..n). Every field of the endpoint except the
+ * computed `vaultAssemblyRValue`/`Improved`.
+ *
+ * Like attic, the resource has NO name/label field — only `uuid` in the response — so
+ * instance identity rides the roster's discriminator mechanism, with `vaultPercent`
+ * (share of footprint) as the sole positional discriminator (foundation design
+ * decision 2; see `inventory.ts`).
+ *
+ * The vault has no insulation DEPTH field at all: dictated vault depth is routed to
+ * `attic.atticInsulationDepth` by the vendor's own field description — a
+ * cross-resource leak extraction must know about (doc 20 §5.5 cross-cutting notes;
+ * rule 8 of the extraction instructions), not a vault-group bug.
+ */
+export const VaultFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * Interior surface area of the vaulted ceiling in ft²; auto-calculated with a
+       * default 5/12 roof pitch, overridable — set only from a stated number.
+       */
+      vaultModeledVaultArea: z
+        .number()
+        .describe(
+          "Interior surface area of the vaulted ceiling in square feet; auto-calculated by the vendor, so set it only when the auditor states an actual number.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Total R-value installed in the vaulted ceiling cavity. */
+      vaultCavityInsulation: z
+        .number()
+        .describe(
+          "Total installed R-value in the vaulted ceiling cavity as a number — a stated DEPTH has no field on this resource; it routes to attic.atticInsulationDepth.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Total R-value of continuous insulation on the vaulted ceiling. */
+      vaultContinuousInsulation: z.number().nullable().optional(),
+
+      /**
+       * Insulation quality of the vaulted cavities — the sibling of `wallsInsulated`,
+       * on a wire field named bare `vault`. Same member descriptions, DIFFERENT
+       * published member order; pick by meaning, never by position.
+       */
+      vault: VaultInsulationQuality.nullable().optional(),
+
+      /**
+       * % of total footprint attributed to this attic/vault area (the vendor shares the
+       * description with `atticPercent`). The only positional discriminator between
+       * vault instances — a proportion, not an identity.
+       */
+      vaultPercent: z
+        .number()
+        .describe(
+          "Share of the total footprint attributed to this vaulted area, as a percentage; only meaningful when several attic/vault instances split the house.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Solar absorptance of roofing above the vault — auto-defaulted coefficient. */
+      vaultRoofAbsorptance: z
+        .number()
+        .describe(
+          "Solar absorptance of the roofing above the vault; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Thermal emittance of roofing above the vault — auto-defaulted coefficient. */
+      vaultRoofEmissivity: z
+        .number()
+        .describe(
+          "Thermal emittance of the roofing above the vault; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Specify cool-roof characteristics for this vault section. */
+      vaultCoolRoof: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Insulation type in the vault cavity (largest-area wins). */
+      vaultCavityInsulationType: VaultCavityInsulationType.nullable().optional(),
+
+      /** Continuous insulation type on the vault. */
+      vaultContinuousInsulationType: VaultContinuousInsulationType.nullable().optional(),
+
+      /** Roofing material for this roof section — the same published list `atticRoofType` uses. */
+      vaultRoofType: AtticRoofType.nullable().optional(),
+
+      /** Roofing colour for this roof section — the same published list `atticRoofColor` uses. */
+      vaultRoofColor: AtticRoofColor.nullable().optional(),
+
+      /**
+       * New vault sqft; increased when converting an unconditioned attic to conditioned
+       * vaulted space. A modelled number — set only from a stated figure.
+       */
+      vaultModeledVaultAreaImproved: z
+        .number()
+        .describe(
+          "Vaulted ceiling area in square feet after the retrofit; a modelled number, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Target cavity R-value — spec side; set only when stated. */
+      vaultCavityInsulationImproved: z.number().nullable().optional(),
+
+      /** Target continuous R-value — spec side; set only when stated. */
+      vaultContinuousInsulationImproved: z.number().nullable().optional(),
+
+      /** Cool-roof spec coefficient — not dictated. */
+      vaultRoofAbsorptanceImproved: z
+        .number()
+        .describe(
+          "Solar absorptance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Cool-roof spec coefficient — not dictated. */
+      vaultRoofEmissivityImproved: z
+        .number()
+        .describe(
+          "Thermal emittance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Cool roof as the improvement — only with an actual roof replacement in the package. */
+      vaultCoolRoofImproved: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /**
+       * Retrofit cavity insulation type — "spray foam the vault" is dictated upgrade
+       * intent, which is captured.
+       */
+      vaultCavityInsulationTypeImproved: VaultCavityInsulationType.nullable().optional(),
+
+      /** Retrofit continuous insulation type — spec side. */
+      vaultContinuousInsulationTypeImproved: VaultContinuousInsulationType.nullable().optional(),
     }),
   )
   .strict();
@@ -1627,7 +2372,26 @@ export const WallFields = z
   )
   .strict();
 
-/** `POST /jobs/{jobId}/window` — one window group record, a bounded subset of the endpoint. */
+/**
+ * `POST /jobs/{jobId}/window` — one window-system record, carrying doc 20 §5.5's
+ * verdicted capture surface of the endpoint: everything but the three
+ * already-covered fields and `windowHesSpecs`, which is EXCLUDED because it is a
+ * product-MODE flag ("Snugg Score jobs, not audits") that switches which other
+ * fields the API demands — it is set by the writer, never extracted from a
+ * transcript (doc 20 §5.5, §4.5).
+ *
+ * THE SPATIAL AXIS IS A FIELD SUFFIX, NOT AN INSTANCE: window is the one resource
+ * with orientation baked into the wire names, so "the west windows" IS
+ * addressable — as `windowAreaWest` and its siblings — while "the front bedroom
+ * windows" is not addressable at all. A dictated orientation never becomes a
+ * second instance; multiple window SYSTEMS per job ("if more than one type of
+ * window is installed, add a second window system") are unnamed, and instance
+ * identity stays the roster's job (`inventory.ts`).
+ *
+ * The `*Improved` area fields are NOT retrofit echoes of their base twins: they
+ * are how the vendor encodes WHICH windows get replaced — dictated intent, kept
+ * per the foundation design's decision 3.
+ */
 export const WindowFields = z
   .object(
     withVendorDescriptions({
@@ -1639,6 +2403,165 @@ export const WindowFields = z
 
       /** Energy Star rated. */
       windowEnergyStar: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Average gross U-value incl. frame effects — a sticker reading or a modelled number. */
+      windowEfficiency: z
+        .number()
+        .describe(
+          "Average gross window U-value including frame effects — off an NFRC sticker if the auditor read one, otherwise a modelled number; set it only when one was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Total EXISTING window area on the north elevation of this system. */
+      windowAreaNorth: z.number().nullable().optional(),
+
+      /** Total EXISTING window area on the east elevation. */
+      windowAreaEast: z.number().nullable().optional(),
+
+      /** Total EXISTING window area on the south elevation. */
+      windowAreaSouth: z.number().nullable().optional(),
+
+      /** Total EXISTING window area on the west elevation. */
+      windowAreaWest: z.number().nullable().optional(),
+
+      /** % of EXPOSED north wall area that is glass — the alternative to the absolute area field. */
+      windowNorthAreaPercent: z
+        .number()
+        .describe(
+          "Percentage of the EXPOSED north wall area that is glass — the alternative to the absolute area field; auditors give window counts and sizes, not percentages, so set this only when a percentage was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** % of EXPOSED east wall area that is glass. */
+      windowEastAreaPercent: z
+        .number()
+        .describe(
+          "Percentage of the EXPOSED east wall area that is glass — the alternative to the absolute area field; set it only when a percentage was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** % of EXPOSED south wall area that is glass. */
+      windowSouthAreaPercent: z
+        .number()
+        .describe(
+          "Percentage of the EXPOSED south wall area that is glass — the alternative to the absolute area field; set it only when a percentage was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** % of EXPOSED west wall area that is glass. */
+      windowWestAreaPercent: z
+        .number()
+        .describe(
+          "Percentage of the EXPOSED west wall area that is glass — the alternative to the absolute area field; set it only when a percentage was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Average gross SHGC — NEVER adjusted for screens or shades. */
+      windowSolarHeatGainCoefficient: z
+        .number()
+        .describe(
+          'Average gross Solar Heat Gain Coefficient. Never adjust it for screens or shades — a dictated "it has solar screens" is that orientation\'s windowExteriorTreatment field, not an adjustment to this number.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Average overhang width in feet, north elevation. */
+      windowNorthOverhangDepth: z.number().nullable().optional(),
+
+      /** Average overhang width in feet, east elevation. */
+      windowEastOverhangDepth: z.number().nullable().optional(),
+
+      /** Average overhang width in feet, south elevation. */
+      windowSouthOverhangDepth: z.number().nullable().optional(),
+
+      /** Average overhang width in feet, west elevation. */
+      windowWestOverhangDepth: z.number().nullable().optional(),
+
+      /** Exterior shading device on the north windows — highly dictatable. */
+      windowExteriorTreatmentNorth: WindowExteriorTreatment.nullable().optional(),
+
+      /** Exterior shading device on the east windows. */
+      windowExteriorTreatmentEast: WindowExteriorTreatment.nullable().optional(),
+
+      /** Exterior shading device on the south windows. */
+      windowExteriorTreatmentSouth: WindowExteriorTreatment.nullable().optional(),
+
+      /** Exterior shading device on the west windows ("solar screens on the west side"). */
+      windowExteriorTreatmentWest: WindowExteriorTreatment.nullable().optional(),
+
+      /** Target U-value of the replacement glazing — improved spec. */
+      windowEfficiencyImproved: z
+        .number()
+        .describe(
+          "Target U-value of the replacement glazing — the spec side of an upgrade; set it only when a replacement U-value was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Area of north windows ACTUALLY BEING REPLACED — dictated intent, not a spec. */
+      windowAreaNorthImproved: z
+        .number()
+        .describe(
+          "Area of the north windows actually being replaced — dictated replacement intent, not a retrofit spec; whatever is not named here is assumed unchanged.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Area of east windows actually being replaced — intent encoding. */
+      windowAreaEastImproved: z
+        .number()
+        .describe(
+          "Area of the east windows actually being replaced — dictated replacement intent, not a retrofit spec; whatever is not named here is assumed unchanged.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Area of south windows actually being replaced — intent encoding. */
+      windowAreaSouthImproved: z
+        .number()
+        .describe(
+          "Area of the south windows actually being replaced — dictated replacement intent, not a retrofit spec; whatever is not named here is assumed unchanged.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Area of west windows actually being replaced — intent encoding. */
+      windowAreaWestImproved: z
+        .number()
+        .describe(
+          "Area of the west windows actually being replaced — dictated replacement intent, not a retrofit spec; whatever is not named here is assumed unchanged.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Target SHGC of the replacement glazing — improved spec. */
+      windowSolarHeatGainCoefficientImproved: z
+        .number()
+        .describe(
+          "Target Solar Heat Gain Coefficient of the replacement glazing — the spec side of an upgrade; set it only when a replacement SHGC was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Shading device to be ADDED on the north — upgrade intent. */
+      windowExteriorTreatmentNorthImproved: WindowExteriorTreatment.nullable().optional(),
+
+      /** Shading device to be ADDED on the east — upgrade intent. */
+      windowExteriorTreatmentEastImproved: WindowExteriorTreatment.nullable().optional(),
+
+      /** Shading device to be ADDED on the south — upgrade intent. */
+      windowExteriorTreatmentSouthImproved: WindowExteriorTreatment.nullable().optional(),
+
+      /** Shading device to be ADDED on the west — upgrade intent. */
+      windowExteriorTreatmentWestImproved: WindowExteriorTreatment.nullable().optional(),
+
+      /** "Replace with ENERGY STAR windows" — upgrade intent. */
+      windowEnergyStarImproved: z.enum(["Yes", "No"]).nullable().optional(),
     }),
   )
   .strict();
@@ -1860,6 +2783,7 @@ export const snuggValuesSchema = z
     basedata: BasedataFields.optional(),
     hvac: z.array(HvacFields).optional(),
     attic: z.array(AtticFields).optional(),
+    vault: z.array(VaultFields).optional(),
     wall: z.array(WallFields).optional(),
     window: z.array(WindowFields).optional(),
     dhw: z.array(DhwFields).optional(),

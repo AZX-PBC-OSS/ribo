@@ -76,7 +76,7 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
     // Recurses, because the field set nests by resource group. Counting the envelopes
     // reached guards against the recursion silently bottoming out at the group objects
     // and checking nothing. The count exceeds the schema's leaf count because the
-    // fixture carries two hvac instances and no concern/incentive instances.
+    // fixture carries two hvac instances and no concern/incentive/vault instances.
     let checked = 0;
     const walk = (node: unknown): void => {
       if (typeof node !== "object" || node === null) return;
@@ -95,7 +95,7 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
       for (const child of Object.values(node)) walk(child);
     };
     walk(example.fields);
-    expect(checked).toBe(222);
+    expect(checked).toBe(344);
   }
 });
 

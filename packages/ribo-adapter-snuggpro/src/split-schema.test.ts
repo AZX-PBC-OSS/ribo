@@ -13,10 +13,11 @@ import { snuggExtractionSchema } from "./schema.js";
 
 // The resource groups are the top-level keys of `snuggValuesSchema`, which `enveloped()`
 // preserves.
-const TEN_GROUPS = [
+const SNUGG_GROUPS = [
   "basedata",
   "hvac",
   "attic",
+  "vault",
   "wall",
   "window",
   "dhw",
@@ -56,7 +57,7 @@ function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
 test("the Snugg groups are derived from snuggExtractionSchema, each carrying exactly its own key", () => {
   const groups = splitExtractionSchema(snuggExtractionSchema);
 
-  expect(groups.map((g) => g.key)).toEqual([...TEN_GROUPS]);
+  expect(groups.map((g) => g.key)).toEqual([...SNUGG_GROUPS]);
 
   for (const group of groups) {
     const shape = (group.schema as z.ZodObject).shape;
@@ -70,7 +71,7 @@ test("every leaf of snuggExtractionSchema appears in exactly one group schema, a
   const originalLeaves = enumerateLeaves(snuggExtractionSchema).sort();
   const groupLeaves = groups.flatMap((g) => enumerateLeaves(g.schema)).sort();
 
-  expect(originalLeaves).toHaveLength(214);
+  expect(originalLeaves).toHaveLength(322);
 
   // No leaf is lost: the union of per-group leaves equals the original's.
   expect(groupLeaves).toEqual(originalLeaves);

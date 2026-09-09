@@ -81,6 +81,7 @@ export const rosterGroupSchema = z.union([
 export const rosterSchema = z.strictObject({
   hvac: rosterGroupSchema,
   attic: rosterGroupSchema,
+  vault: rosterGroupSchema,
   wall: rosterGroupSchema,
   window: rosterGroupSchema,
   dhw: rosterGroupSchema,
@@ -95,11 +96,11 @@ export type Roster = z.infer<typeof rosterSchema>;
 const INVENTORY_PREAMBLE = `## System
 
 You are doing an inventory pass over a home energy auditor's dictated transcript. Your job is to
-list every recordable instance of the following resource types: \`hvac\`, \`attic\`, \`wall\`,
-\`window\`, \`dhw\`, \`concern\`, and \`incentive\` — the first five are components of the house;
-\`concern\` is a worry the homeowner voiced; \`incentive\` is a rebate or program the auditor
-introduces. Do not fill any leaf fields yet — only decide which instances exist, which
-are excluded, and how to refer to them.
+list every recordable instance of the following resource types: \`hvac\`, \`attic\`, \`vault\`,
+\`wall\`, \`window\`, \`dhw\`, \`concern\`, and \`incentive\` — the first six are components of the
+house (\`vault\` is a vaulted / cathedral ceiling space); \`concern\` is a worry the homeowner
+voiced; \`incentive\` is a rebate or program the auditor introduces. Do not fill any leaf fields
+yet — only decide which instances exist, which are excluded, and how to refer to them.
 
 For each candidate instance emit exactly these five fields:
 
@@ -159,6 +160,11 @@ model found nothing to report," used when the transcript never brings the group 
   boxes. An air handler, a condenser and a plenum are parts of a system, not systems. Equipment with
   its own distribution is another record.
 - \`attic\`: one record per thermally distinct attic space.
+- \`vault\`: one record per thermally distinct vaulted / cathedral ceiling space. A vault has no name
+  or location field — one is distinguished from another by the share of the footprint it covers (its
+  \`vaultPercent\`, captured later), so "the vaulted ceiling over the great room" and "the cathedral
+  ceiling in the bedroom wing" are two records only when the auditor describes them as separate
+  areas of the house. A re-mention of the same ceiling is the same record.
 - \`wall\`: one record per distinct wall construction assembly.
 - \`window\`: one record per distinct window type or area.
 - \`dhw\`: one record per water heating system.
@@ -184,8 +190,8 @@ the corrected count, not the first one.
 
 Return a **single JSON object** conforming exactly to the roster schema.
 
-- The object has exactly seven top-level keys — \`hvac\`, \`attic\`, \`wall\`, \`window\`, \`dhw\`,
-  \`concern\`, \`incentive\` — each one of three shapes:
+- The object has exactly eight top-level keys — \`hvac\`, \`attic\`, \`vault\`, \`wall\`, \`window\`,
+  \`dhw\`, \`concern\`, \`incentive\` — each one of three shapes:
   - An **array of candidate instances** in **first-mention order**, when the auditor introduced at
     least one.
   - An **empty array**, when the transcript never brings the group up at all.

@@ -31,6 +31,8 @@ test("re-exports the adapter, both schemas, the ctx schema, instructions, exampl
   // The concern job-collection group is in the barrel as well — the first
   // job-collection resource (doc 20 tranche 2) must not fall out of the exports.
   expect(typeof api.ConcernFields.parse).toBe("function");
+  // The vault job-collection group (doc 20 tranche 12) must not fall out either.
+  expect(typeof api.VaultFields.parse).toBe("function");
   // The platform-route caps are exported as runtime constants so the per-group
   // cap test and any consumer can guard against the vendor's HTTP 400.
   expect(api.SCHEMA_SERIALIZED_CHAR_CAP).toBe(32_768);

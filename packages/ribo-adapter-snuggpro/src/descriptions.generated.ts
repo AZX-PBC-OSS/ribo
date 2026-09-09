@@ -2,7 +2,7 @@
 //
 // Source:    https://app.snuggpro.com/apidocs/swagger.json
 // Refreshed: 2026-09-08
-// Leaves:    212
+// Leaves:    320
 //
 // The vendor's own description for each field we extract — the same sentence a Snugg Pro
 // user reads in their UI. `schema.ts` composes this with our own note, where we have one,
@@ -30,13 +30,60 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
   ashraeNumberOfBathrooms: "Enter the number of bathrooms with ventilation fans.",
   ashraeRequiredAdditionalCfm:
     'Minimum ventilation flow rate in CFM of continuous whole house ventilation required to satisfy the ASHRAE 62.2-2013 standard. If this field shows "N/A", then you likely did not fill out all of the AHSHRAE fields below. You must choose Yes or No for the Operable windows and set the Fan CFM to 0 or more.',
+  atticCoolRoof:
+    "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package.",
+  atticCoolRoofImproved:
+    "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package.",
   atticHasKneeWall: "Choose Yes if there is a knee wall in this attic space.",
+  atticHasKneeWallImproved: "Choose Yes if there is a knee wall in this attic space.",
   atticInsulation:
     'Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Attic. Framing factors have already been taken into account, so specify the R-value of the insulation within the cavity. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
   atticInsulationDepth:
     "Enter the depth of all installed attic or ceiling insulation. If the insulation is not evenly distributed, estimate an average depth for the area. If the insulation is evenly distributed but has different depths installed in different area, use the depth of insulation that covers the largest area. If there is no attic and instead vaulted ceilings, enter an estimate of the thickness of insulation in the vaulted cavity.",
+  atticInsulationImproved:
+    'Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Attic. Framing factors have already been taken into account, so specify the R-value of the insulation within the cavity. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
   atticInsulationType:
     "Select the type of insulation that is installed in the attic or ceiling. If more than one type of insulation is installed, select the type that covers that largest area.",
+  atticInsulationTypeImproved:
+    "Select the type of insulation that is installed in the attic or ceiling. If more than one type of insulation is installed, select the type that covers that largest area.",
+  atticKneeWallArea: "Enter the total surface area of knee wall adjoining this attic space.",
+  atticKneeWallAreaImproved:
+    "Enter the total surface area of knee wall adjoining this attic space.",
+  atticKneeWallContinuousInsulation:
+    "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity.",
+  atticKneeWallContinuousInsulationImproved:
+    "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity.",
+  atticKneeWallContinuousInsulationType:
+    "Select the type of continuous insulation that is installed on the knee wall. If more than one type of insulation is installed, select the type that covers that largest area.",
+  atticKneeWallContinuousInsulationTypeImproved:
+    "Select the type of continuous insulation that is installed on the knee wall. If more than one type of insulation is installed, select the type that covers that largest area.",
+  atticKneeWallInsulation:
+    "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity.",
+  atticKneeWallInsulationImproved:
+    "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity.",
+  atticKneeWallInsulationType:
+    "Select the type of insulation that is installed in the knee wall cavity. If more than one type of insulation is installed, select the type that covers that largest area.",
+  atticKneeWallInsulationTypeImproved:
+    "Select the type of insulation that is installed in the knee wall cavity. If more than one type of insulation is installed, select the type that covers that largest area.",
+  atticModeledAtticArea:
+    "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This field designates the actual interior surface area of the ceiling. On the improved side, this is the new total sqft of the attic. Reduce this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch).",
+  atticModeledAtticAreaImproved:
+    "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This field designates the actual interior surface area of the ceiling. On the improved side, this is the new total sqft of the attic. Reduce this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch).",
+  atticPercent:
+    "Enter the % of the total footprint that is attributed to each attic or vault area.",
+  atticRadiantBarrier:
+    "Please designate if the base or improved attic has a radiant barrier. Costs will not be adjusted for this nor will the R-Value of the attic insulation. The energy savings will be calculated in addition to the R-Value of the attic.",
+  atticRadiantBarrierImproved:
+    "Please designate if the base or improved attic has a radiant barrier. Costs will not be adjusted for this nor will the R-Value of the attic insulation. The energy savings will be calculated in addition to the R-Value of the attic.",
+  atticRoofAbsorptance:
+    "Enter the Solar Absorptance of the roofing material above this attic space. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  atticRoofAbsorptanceImproved:
+    "Enter the Solar Absorptance of the roofing material above this attic space. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  atticRoofColor: "Select the color of roofing material for this roof section.",
+  atticRoofEmissivity:
+    "Enter the Thermal Emittance or Emissivity of the roofing material above this attic space. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  atticRoofEmissivityImproved:
+    "Enter the Thermal Emittance or Emissivity of the roofing material above this attic space. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
   atticRoofType: "Select the type of roofing material for this roof section.",
   averageWallHeight:
     "Enter the average floor to ceiling wall height (internal measurement). This is used to calculate the volume of the home as well as the wall surface area. **Please note:** When we calculate the volume of the house, we add an additional foot of height for the basement rim joists (if there is a basement), and an additional foot of height for every story above one (if there are any).",
@@ -151,6 +198,10 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
   dishwasherModelYear: "Enter the Model Year of the Dishwasher.",
   effectiveLeakageArea:
     "Effective (or Equivalent) Leakage Area in square inches. This is the area of a theoretical hole (with rounded edges) in the building envelope that would produce a leakage equivalent to that produced by the actual building at 4 Pascals of pressure.",
+  energyStarColdClimateHeatPump:
+    "Choose Yes if Energy Star Cold Climate Heat Pump. Field options: 1 → Yes 0 → No",
+  energyStarColdClimateHeatPumpImproved:
+    "Choose Yes if Energy Star Cold Climate Heat Pump. Field options: 1 → Yes 0 → No",
   equivalentNach:
     "NACH is the number of times in one hour the entire volume of air inside the building leaks to the outside naturally. It is calculated from the Air Infiltration number in CFM50, the number of stories, the wind zone and type of shielding the house has.",
   evCalculationMethod: "Choose between Simple or Detailed Calculations for EV Charging.",
@@ -244,23 +295,83 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Enter the width of the shortest side of the smallest rectangle into which the home's footprint will fit. **Please note:** This is used only to calculate the surface area of the exterior walls, and has nothing to do with the conditioned square footage, volume, or any other calculations. This should give a fairly precise estimate of wall surface area in all circumstances except when the house is shaped like a U. If the home is shaped like a U, you'll need to override the total wall sqft in the Wall Details section with the additional surface area. See the knowledge base article on this for more information.",
   hvacCoolingCapacity:
     "Enter the output capacity of the cooling equipment in (Btu/hr). Reminder: cooling systems are often rated in tons. 1 ton = 12,000 Btu/hr. **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000.",
+  hvacCoolingCapacityImproved:
+    "Enter the output capacity of the cooling equipment in (Btu/hr). Reminder: cooling systems are often rated in tons. 1 ton = 12,000 Btu/hr. **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000.",
+  hvacCoolingMaintenanceStarRating:
+    "undefined Field options: null → 1 → Observable issues need to be addressed 2 → Standard condition based on the age of the system 3 → Well maintained and/or pristine condition",
+  hvacCoolingSystemEfficiency:
+    'The Seasonal Energy Efficiency Ratio (SEER) is the average annual cooling efficiency of an air-conditioning or heat pump system as a weighted average of EERs over a range of rate outside air conditions following a standard test method. It includes energy of auxiliary systems such as the indoor and outdoor fans. Units: Btu/Wh. The Energy Efficiency Ratio (EER) is the measurement of the cooling capacity for a unit (in Btu/hour) divided by electrical energy it uses (in watts) at a specific temperature of 95ºF. Units: Btu/Wh. EER is only used for Room AC units. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  hvacCoolingSystemEfficiencyRatingUnit: "",
+  hvacCoolingSystemIndoorModel:
+    "Enter the Indoor Model # of the Cooling Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference.",
+  hvacCoolingSystemIndoorSerialNumber:
+    "If there is more than one serial number, each serial number should be separated with a comma,",
+  hvacCoolingSystemManufacturer: "Enter the Manufacturer of the Cooling Equipment.",
+  hvacCoolingSystemModel:
+    "Enter the Model # of the Cooling Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference.",
+  hvacCoolingSystemModelYear: "Enter the Year the Cooling Equipment was built.",
+  hvacCoolingSystemOutdoorModel:
+    "Enter the Outdoor Model # of the Cooling Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference.",
+  hvacCoolingSystemOutdoorSerialNumber:
+    "If there is more than one serial number, each serial number should be separated with a comma,",
+  hvacCoolingSystemSerialNumber:
+    "If there is more than one serial number, each serial number should be separated with a comma,",
   hvacDuctInsulation:
     "Select the type of insulation installed over the duct work for this system. Note: If ducts are covered wholly or partially by incidental insulation present in the cavity in which they are installed, then select the insulation type that most closely matches the average R-value of the insulation. If you know the actual duct insulation R-value, choose Measured (R-Value) and enter the data in the field below.",
+  hvacDuctInsulationValue:
+    "If you know the actual R-value of the duct insulation, you may enter it here.",
   hvacDuctLeakage:
     "Choose the estimated leakage to the outside through the duct system as a percentage of the total air handler flow. If you actually performed a duct blaster test, choose Measured (CFM25) and enter a value in the field below.",
   hvacDuctLeakageValue:
     "If you perform a duct blaster test, please enter the tested leakage to outside at 25 Pa per RESNET Standard Section 803.7.",
   hvacDuctLocation: "Select the location of the duct work for this system.",
+  hvacHeatPumpInverter:
+    "Select Yes if this heat pump has a variable speed or Inverter driven compressor. These extremely high efficiency units perform to much lower outside air temperatures than single speed units and require much less or no electric resistance backup heat.",
+  hvacHeatPumpInverterImproved:
+    "Select Yes if this heat pump has a variable speed or Inverter driven compressor. These extremely high efficiency units perform to much lower outside air temperatures than single speed units and require much less or no electric resistance backup heat.",
   hvacHeatingCapacity:
+    "Enter the output capacity of the heating equipment in (Btu/hr). **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000.",
+  hvacHeatingCapacityImproved:
     "Enter the output capacity of the heating equipment in (Btu/hr). **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000.",
   hvacHeatingEnergySource:
     "This is the primary fuel source. It is used to set prices and energy content.",
+  hvacHeatingEnergySourceImproved:
+    "This is the primary fuel source. It is used to set prices and energy content.",
+  hvacHeatingIsCondensing:
+    "Is this furnace or boiler a condensing unit? If you see PVC pipes for the combustion venting as opposed to a gravity vent, then this unit is likely a condensing unit that runs at 90 AFUE or higher. Setting this to true will set the default a calibrated number between 90 and 96 AFUE automatically.",
+  hvacHeatingMaintenanceStarRating:
+    "undefined Field options: null → 1 → Observable issues need to be addressed 2 → Standard condition based on the age of the system 3 → Well maintained and/or pristine condition",
+  hvacHeatingSystemEfficiency:
+    'Annual Fuel Utilization Efficiency (AFUE) is a percentage representing the ratio of heat energy units provided to the total energy value of fuel consumed in identical units. It is most commonly used for combustion based heating as well as electric resistance heating. Heating Seasonal Performance Factor (HSPF) is the ratio of Btus of heat energy provided to the watt-hours of electricity consumed. It is most commonly used for air and ground source heat pumps. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  hvacHeatingSystemEfficiencyRatingUnit: "",
+  hvacHeatingSystemIndoorModel:
+    "Enter the Indoor Model # of the Heating Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference.",
+  hvacHeatingSystemIndoorSerialNumber:
+    "If there is more than one serial number, each serial number should be separated with a comma,",
   hvacHeatingSystemManufacturer: "Enter the Manufacturer of the Heating Equipment.",
   hvacHeatingSystemModel:
     "Enter the Model # of the Heating Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference.",
   hvacHeatingSystemModelYear: "Enter the Year the Heating Equipment was built.",
+  hvacHeatingSystemOutdoorModel:
+    "Enter the Outdoor Model # of the Heating Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference.",
+  hvacHeatingSystemOutdoorSerialNumber:
+    "If there is more than one serial number, each serial number should be separated with a comma,",
+  hvacHeatingSystemSerialNumber:
+    "If there is more than one serial number, each serial number should be separated with a comma,",
+  hvacPercentOfTotalCoolingLoad:
+    "Enter the proportion of the total load for heating or cooling that this system represents. The combined cooling load percentage for all cooling systems specified DOES NOT need to add up to 100%. If you set the cooling load to 70% and don't add any other cooling system, then the model assumes you're not conditioning 30% of the home's cooling load.",
+  hvacPercentOfTotalCoolingLoadImproved:
+    "Enter the proportion of the total load for heating or cooling that this system represents. The combined cooling load percentage for all cooling systems specified DOES NOT need to add up to 100%. If you set the cooling load to 70% and don't add any other cooling system, then the model assumes you're not conditioning 30% of the home's cooling load.",
+  hvacPercentOfTotalHeatingLoad:
+    "Enter the proportion of the total load for heating or cooling that this system represents. The combined heating load percentage for all heating systems specified must add up to 100%.",
+  hvacPercentOfTotalHeatingLoadImproved:
+    "Enter the proportion of the total load for heating or cooling that this system represents. The combined heating load percentage for all heating systems specified must add up to 100%.",
+  hvacSteadyStateEfficiency:
+    "Measured steady state efficiency as calculated with a combustion gas analyze",
   hvacSystemEquipmentType:
     "Select which type of HVAC system you'd like to describe. This list shows every possible type of heating or cooling system (or combination thereof) that is available in our software. Pay attention to the “shared ducts” vs. “standalone ducts” component. Note: this is very similar to the “Both” option that was available in version 4.",
+  hvacSystemName:
+    "Give this system a name that you can use to easily differentiate it from the others like: Old Heat Pump or Basement Furnace.",
   hvacUpgradeAction:
     "Choose an action that you plan to take for this HVAC system.**Replace with a newer model:** Replace the existing equipment with a new version of the same thing. Eg. replace a 78 AFUE furnace with a new 98 AFUE furnace **Keep an existing system as is:** Do nothing to a system or just change the percent of total load that that old system covers in the house. **Remove a system permanently:** Rip out an entire system and replace it with something completely new, like going from a direct heater and room AC to a central heat pump. In this instance you will have a system that is described on the base side, and the improved side will be blank. **Install a new non-existing system:** A brand new system that replaces the system that was removed when you chose: Remove a system permanently.",
   includesBasement: "Mark this as Yes if the conditioned area above includes the basement area.",
@@ -342,6 +453,44 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Select the type of home that most closely resembles this home. Single-family Attached would be a duplex or a townhome with shared walls. **Please note:** that only multi-family units with independently metered fuel and electricity can be modeled with this software.",
   unmodeledBlowerDoorReading:
     "The baseline unmodeled airflow, in cubic feet per minute, through leaks in the building when there is a pressure difference between the building and ambient of 50 Pascals. This is the result of your blower door test if you perform one. If you do not enter a number here, the software will determine an appropriate number based on the age and size of the home. On the improved side, the default recommendation is a 25% reduction in the air leakage. You may of course override this to whatever number you feel you'll be able to achieve.",
+  vault:
+    "Is there insulation in the vaulted ceiling cavities of this home? If so, how good is it? If unsure, please leave blank. **Well**: All cavities contain insulation at full or near full depth with gaps and voids not exceeding 5%. **Poor**: Majority of cavities contain insulation, but one or more of the following is suspected: low density, low depth, poor installation. **Yes**: You can confirm that insulation exists, but are unsure of the installation quality. **No** - No insulation value is applied to cavities.",
+  vaultCavityInsulation:
+    'Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Vaulted Ceiling. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  vaultCavityInsulationImproved:
+    'Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Vaulted Ceiling. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  vaultCavityInsulationType:
+    "Select the type of insulation that is installed in the vault. If more than one type of insulation is installed, select the type that covers that largest area.",
+  vaultCavityInsulationTypeImproved:
+    "Select the type of insulation that is installed in the vault. If more than one type of insulation is installed, select the type that covers that largest area.",
+  vaultContinuousInsulation:
+    'Enter the total R-value of continuous insulation installed or to be installed in this Vaulted Ceiling. Continuous insulation is any insulation like spray foam or rigid foam that is continuous and consistent in R-value across studs, joists, or any framing member. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  vaultContinuousInsulationImproved:
+    'Enter the total R-value of continuous insulation installed or to be installed in this Vaulted Ceiling. Continuous insulation is any insulation like spray foam or rigid foam that is continuous and consistent in R-value across studs, joists, or any framing member. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  vaultContinuousInsulationType:
+    "Select the type of continuous insulation that is installed on the vault. If more than one type of insulation is installed, select the type that covers that largest area.",
+  vaultContinuousInsulationTypeImproved:
+    "Select the type of continuous insulation that is installed on the vault. If more than one type of insulation is installed, select the type that covers that largest area.",
+  vaultCoolRoof:
+    "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package.",
+  vaultCoolRoofImproved:
+    "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package.",
+  vaultModeledVaultArea:
+    "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This is the actual surface area of the vaulted ceiling. It includes a default roof pitch of 5/12. When you override this number, be sure to include the complete sqft of the vault that's covering conditioned space. This field designates the interior surface area of the vaulted ceiling. On the improved side, this is the new total sqft of the vaulted ceiling. Increase this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch).",
+  vaultModeledVaultAreaImproved:
+    "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This is the actual surface area of the vaulted ceiling. It includes a default roof pitch of 5/12. When you override this number, be sure to include the complete sqft of the vault that's covering conditioned space. This field designates the interior surface area of the vaulted ceiling. On the improved side, this is the new total sqft of the vaulted ceiling. Increase this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch).",
+  vaultPercent:
+    "Enter the % of the total footprint that is attributed to each attic or vault area.",
+  vaultRoofAbsorptance:
+    "Enter the Solar Absorptance of the roofing material above this vaulted ceiling. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  vaultRoofAbsorptanceImproved:
+    "Enter the Solar Absorptance of the roofing material above this vaulted ceiling. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  vaultRoofColor: "Select the color of roofing material for this roof section.",
+  vaultRoofEmissivity:
+    "Enter the Thermal Emittance or Emissivity of the roofing material above this vaulted ceiling. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  vaultRoofEmissivityImproved:
+    "Enter the Thermal Emittance or Emissivity of the roofing material above this vaulted ceiling. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement.",
+  vaultRoofType: "Select the type of roofing material for this roof section.",
   ventilationCycleDuration:
     "When the ventilation system turns on, how long does it run for each time? For instance, if the ventilation system runs for 15 minutes every 4 hours, enter 4 in the Ventilation Cycle Frequency field and 0.25 in this field. This field is hidden if the ventilation system runs continuously.",
   ventilationCycleFrequency:
@@ -367,13 +516,70 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Is there insulation in the wall cavities of this home? If so, how good is it? If unsure, please leave blank. **Well**: All cavities contain insulation at full or near full depth with gaps and voids not exceeding 5%. **Poor**: Majority of cavities contain insulation, but one or more of the following is suspected: low density, low depth, poor installation. **Yes**: You can confirm that insulation exists, but are unsure of the installation quality. **No** - No insulation value is applied to cavities.",
   wholeHomeIsProfessionallyAirSealed: "Choose Yes if Whole home is professionally air sealed.",
   windZone: "Select the Wind Zone from the map.",
+  windowAreaEast:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaEastImproved:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaNorth:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaNorthImproved:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaSouth:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaSouthImproved:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaWest:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowAreaWestImproved:
+    'Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowEastAreaPercent:
+    "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only.",
+  windowEastOverhangDepth:
+    "Enter the average window overhang width (feet) on the exterior walls for this orientation.",
+  windowEfficiency:
+    'Enter the average gross window (including frame effects) U-value of the windows installed (BASE) or to be installed (IMPROVED). **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowEfficiencyImproved:
+    'Enter the average gross window (including frame effects) U-value of the windows installed (BASE) or to be installed (IMPROVED). **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
   windowEnergyStar: "Select Yes if this window system is ENERGY STAR Certified.",
+  windowEnergyStarImproved: "Select Yes if this window system is ENERGY STAR Certified.",
+  windowExteriorTreatmentEast:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentEastImproved:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentNorth:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentNorthImproved:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentSouth:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentSouthImproved:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentWest:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
+  windowExteriorTreatmentWestImproved:
+    "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced.",
   windowFrame:
     "Select the type of window frame material that is used for the windows installed in the home. If more than one type of window is installed, add a second window system.",
+  windowNorthAreaPercent:
+    "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only.",
+  windowNorthOverhangDepth:
+    "Enter the average window overhang width (feet) on the exterior walls for this orientation.",
+  windowSolarHeatGainCoefficient:
+    'Enter the average gross window (including frame effects) Solar Heat Gain Coefficient (SHGC) of the windows installed (BASE) or to be installed (IMPROVED). IMPORTANT! Do not adjust this number to account for the affects of solar screens or shades. Use the Exterior Treatment fields below for this and only change the SHGC if the window unit itself is being replaced. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowSolarHeatGainCoefficientImproved:
+    'Enter the average gross window (including frame effects) Solar Heat Gain Coefficient (SHGC) of the windows installed (BASE) or to be installed (IMPROVED). IMPORTANT! Do not adjust this number to account for the affects of solar screens or shades. Use the Exterior Treatment fields below for this and only change the SHGC if the window unit itself is being replaced. **Note:** Edit Base fields in the Details section only if you\'re confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the "effective" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden.',
+  windowSouthAreaPercent:
+    "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only.",
+  windowSouthOverhangDepth:
+    "Enter the average window overhang width (feet) on the exterior walls for this orientation.",
   windowType:
     "Select the type of windows that are installed in the home. If more than one type of window is installed, add a second window system.",
   windowVentingUsed:
     "Do the occupants make use of operable windows to cool the home when the outdoor temperature and humidity are favorable? This can eliminate cooling loads during shoulder seasons or even year-round in temperate climates. Turning this feature on will help eliminate scenarios where you previously had negative savings for some air sealing and insulation measures.",
+  windowWestAreaPercent:
+    "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only.",
+  windowWestOverhangDepth:
+    "Enter the average window overhang width (feet) on the exterior walls for this orientation.",
   yearBuilt:
     'Enter the year the home or building was constructed. If there was a major addition made to the home, the "Year built" should be entered as the year the majority of the area that is heated and air conditioned was built.',
 };

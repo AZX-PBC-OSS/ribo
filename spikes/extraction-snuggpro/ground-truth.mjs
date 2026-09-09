@@ -228,13 +228,13 @@ function validateLeaf(path, leafSpec, truth, errors) {
  * `concern` is a job-collection resource the schema models as an array of instances exactly
  * like the component collections, so the scorer must too.
  *
- * NOTE: `incentive` is an array group in `schema.ts` but is deliberately NOT listed here:
- * the ground-truth corpus predates it and must not be re-annotated as part of that schema
- * tranche, and adding it would make every corpus file invalid ("instances is missing
- * incentive") until each gained an `instances.incentive` key. Until a corpus tranche says
- * otherwise, incentive's leaves ride the flat map below as ordinary singleton leaves —
- * harmless for scoring (no transcript mentions them, so they sit at "unmentioned") and
- * honest about what the corpus can currently express.
+ * NOTE: `incentive` and `vault` are array groups in `schema.ts` but are deliberately NOT
+ * listed here: the ground-truth corpus predates them and must not be re-annotated as part
+ * of those schema tranches, and adding them would make every corpus file invalid
+ * ("instances is missing incentive") until each gained the matching `instances` key. Until
+ * a corpus tranche says otherwise, their leaves ride the flat map below as ordinary
+ * singleton leaves — harmless for scoring (no transcript mentions them, so they sit at
+ * "unmentioned") and honest about what the corpus can currently express.
  */
 export const COLLECTION_GROUPS = ["hvac", "attic", "wall", "window", "dhw", "concern"];
 

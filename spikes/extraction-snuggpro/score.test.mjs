@@ -152,12 +152,12 @@ heading("0. SCHEMA INTROSPECTION (schema-leaves.mjs) — derived, not hand-count
   // Pinned against the real schema, and moved deliberately when the field set moves.
   // `stageId` is a NUMBER leaf carrying its label→code pairs in its description (the
   // spec publishes no `enum` key for it), not a zod enum. The ground-truth corpus stays
-  // sparse by design — unannotated leaves score as "unmentioned". (`incentive` is an
-  // array group in the schema but is deliberately NOT in ground-truth.mjs's
-  // COLLECTION_GROUPS yet — the corpus predates it — so its leaves resolve as flat
+  // sparse by design — unannotated leaves score as "unmentioned". (`incentive` and
+  // `vault` are array groups in the schema but are deliberately NOT in ground-truth.mjs's
+  // COLLECTION_GROUPS yet — the corpus predates them — so their leaves resolve as flat
   // "unmentioned" entries until a corpus tranche says otherwise.)
-  check("214 leaves across the 10 resource groups", LEAVES.length === 214);
-  check("474 total enum members across all enum leaves", totalMembers === 474);
+  check("leaf count matches the merged field set", LEAVES.length === 322);
+  check("enum-member total matches the merged field set", totalMembers === 682);
   check(
     "ENUM_VOCAB has an entry for every enum leaf (no collisions at import time)",
     ENUM_VOCAB.size === enumLeaves.length,

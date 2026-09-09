@@ -5915,6 +5915,1101 @@
             },
             "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
+          },
+          "hvacSystemName": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Give this system a name that you can use to easily differentiate it from the others like: Old Heat Pump or Basement Furnace. The name the auditor gave this system — only when one was actually spoken; never an invented label."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingIsCondensing": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Is this furnace or boiler a condensing unit? If you see PVC pipes for the combustion venting as opposed to a gravity vent, then this unit is likely a condensing unit that runs at 90 AFUE or higher. Setting this to true will set the default a calibrated number between 90 and 96 AFUE automatically."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacPercentOfTotalHeatingLoad": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the proportion of the total load for heating or cooling that this system represents. The combined heating load percentage for all heating systems specified must add up to 100%. Share of the home's total heating load this system covers; heating shares across all systems must add up to 100."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacPercentOfTotalCoolingLoad": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the proportion of the total load for heating or cooling that this system represents. The combined cooling load percentage for all cooling systems specified DOES NOT need to add up to 100%. If you set the cooling load to 70% and don't add any other cooling system, then the model assumes you're not conditioning 30% of the home's cooling load. Share of the home's total cooling load this system covers; unlike heating shares, cooling shares need not add up to 100 — the remainder is modelled as unconditioned."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemManufacturer": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Unknown",
+                      "AirEase",
+                      "Amana",
+                      "American Standard",
+                      "Bosch",
+                      "Bryant",
+                      "Carrier",
+                      "Coleman",
+                      "Comfort Maker",
+                      "Coolerado",
+                      "Daikin",
+                      "Day & Night",
+                      "Frigidaire",
+                      "Fujitsu",
+                      "General Electric",
+                      "Goodman",
+                      "Janitrol",
+                      "Lennox",
+                      "LG",
+                      "Luxaire",
+                      "Mitsubishi",
+                      "Panasonic",
+                      "Payne",
+                      "Peerless",
+                      "Rheem",
+                      "RUUD",
+                      "Samsung",
+                      "Sears Kenmore",
+                      "Tappan",
+                      "Trane",
+                      "Utica",
+                      "York",
+                      "Other",
+                      "Fridgidaire"
+                    ],
+                    "description": "Enter the Manufacturer of the Cooling Equipment. Manufacturer from this closed list. Use \"Other\" when the auditor named a make that is not on it, and \"Unknown\" only when they did not state one."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Model # of the Cooling Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemIndoorModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Indoor Model # of the Cooling Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemOutdoorModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Outdoor Model # of the Cooling Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemModelYear": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Year the Cooling Equipment was built. The cooling unit's model year — never the home's year built, which is a separate field."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemIndoorModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Indoor Model # of the Heating Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemOutdoorModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Outdoor Model # of the Heating Equipment. **Pro-tip**: Always capture an image of the nameplate on the existing equipment and store it in the photos section for future reference."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemIndoorSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemOutdoorSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemIndoorSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemOutdoorSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacDuctInsulationValue": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "If you know the actual R-value of the duct insulation, you may enter it here. The duct insulation R-value as a measured number — only meaningful when hvacDuctInsulation is \"Measured (R Value)\"."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatPumpInverter": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if this heat pump has a variable speed or Inverter driven compressor. These extremely high efficiency units perform to much lower outside air temperatures than single speed units and require much less or no electric resistance backup heat."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "energyStarColdClimateHeatPump": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Choose Yes if Energy Star Cold Climate Heat Pump. Field options: 1 → Yes 0 → No Whether this system is an ENERGY STAR Cold Climate Heat Pump; the wire value is integer 1 (yes) or 0 (no)."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingMaintenanceStarRating": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["1", "2", "3"],
+                    "description": "Field options: null → 1 → Observable issues need to be addressed 2 → Standard condition based on the age of the system 3 → Well maintained and/or pristine condition Maintenance condition as the wire string — \"1\" observable issues need to be addressed, \"2\" standard condition based on the age of the system, \"3\" well maintained and/or pristine; a system whose condition was never judged is null."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingMaintenanceStarRating": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["1", "2", "3"],
+                    "description": "Field options: null → 1 → Observable issues need to be addressed 2 → Standard condition based on the age of the system 3 → Well maintained and/or pristine condition Maintenance condition as the wire string — \"1\" observable issues need to be addressed, \"2\" standard condition based on the age of the system, \"3\" well maintained and/or pristine; a system whose condition was never judged is null."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacSteadyStateEfficiency": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Measured steady state efficiency as calculated with a combustion gas analyze Steady-state efficiency measured on site with a combustion gas analyzer — a field reading, not a nameplate rating; set it only when the auditor actually ran and stated one."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemEfficiency": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Annual Fuel Utilization Efficiency (AFUE) is a percentage representing the ratio of heat energy units provided to the total energy value of fuel consumed in identical units. It is most commonly used for combustion based heating as well as electric resistance heating. Heating Seasonal Performance Factor (HSPF) is the ratio of Btus of heat energy provided to the watt-hours of electricity consumed. It is most commonly used for air and ground source heat pumps. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. AFUE or HSPF as a stated number only — Snugg normally derives efficiency from make/model/year, so never estimate one; which rating the number means goes in hvacHeatingSystemEfficiencyRatingUnit."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemEfficiency": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "The Seasonal Energy Efficiency Ratio (SEER) is the average annual cooling efficiency of an air-conditioning or heat pump system as a weighted average of EERs over a range of rate outside air conditions following a standard test method. It includes energy of auxiliary systems such as the indoor and outdoor fans. Units: Btu/Wh. The Energy Efficiency Ratio (EER) is the measurement of the cooling capacity for a unit (in Btu/hour) divided by electrical energy it uses (in watts) at a specific temperature of 95ºF. Units: Btu/Wh. EER is only used for Room AC units. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. SEER, or EER for a Room AC, as a stated number only — never estimated; the unit goes in hvacCoolingSystemEfficiencyRatingUnit."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingSystemEfficiencyRatingUnit": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "The unit hvacHeatingSystemEfficiency is expressed in (AFUE or HSPF), as free text — the vendor publishes no value list for this field."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingSystemEfficiencyRatingUnit": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "The unit hvacCoolingSystemEfficiency is expressed in (SEER or EER), as free text — the vendor publishes no value list for this field."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingEnergySourceImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "This is the primary fuel source. It is used to set prices and energy content. The proposed system's fuel as spoken, free text — the vendor publishes no value list for this field. A recommended fuel switch is dictated intent; never leave it null just because there is no list to match against."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatingCapacityImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the output capacity of the heating equipment in (Btu/hr). **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000. Proposed heating output in Btu per hour — the sizing half of a dictated recommendation. Auditors say tons, not Btu/hr; the tons-to-Btu/hr conversion is a deterministic pass, so the stated size belongs here rather than nowhere."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacCoolingCapacityImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the output capacity of the cooling equipment in (Btu/hr). Reminder: cooling systems are often rated in tons. 1 ton = 12,000 Btu/hr. **NOTE:** This has changed since v3 of Snugg Pro. v4 and later requires the number be in Btu/hr, not kBtu/hr. All v3 jobs that were migrated to v4 have been converted to the proper number by multiplying it by 1000. Proposed cooling output in Btu per hour — the sizing half of a dictated recommendation. Auditors say tons, not Btu/hr; the tons-to-Btu/hr conversion is a deterministic pass, so the stated size belongs here rather than nowhere."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacPercentOfTotalHeatingLoadImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the proportion of the total load for heating or cooling that this system represents. The combined heating load percentage for all heating systems specified must add up to 100%. Share of the home's heating load the proposed system would carry — a stated allocation of intent; improved heating shares across systems must add up to 100."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacPercentOfTotalCoolingLoadImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the proportion of the total load for heating or cooling that this system represents. The combined cooling load percentage for all cooling systems specified DOES NOT need to add up to 100%. If you set the cooling load to 70% and don't add any other cooling system, then the model assumes you're not conditioning 30% of the home's cooling load. Share of the home's cooling load the proposed system would carry; like the base side, improved cooling shares need not add up to 100."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hvacHeatPumpInverterImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if this heat pump has a variable speed or Inverter driven compressor. These extremely high efficiency units perform to much lower outside air temperatures than single speed units and require much less or no electric resistance backup heat. Whether the proposed heat pump is variable-speed / inverter-driven — \"get a variable-speed unit\" is dictated intent, not a desk spec."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "energyStarColdClimateHeatPumpImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Choose Yes if Energy Star Cold Climate Heat Pump. Field options: 1 → Yes 0 → No Whether the proposed system is an ENERGY STAR Cold Climate Heat Pump — a product-class recommendation; the wire value is integer 1 (yes) or 0 (no)."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -5929,7 +7024,41 @@
           "hvacDuctLocation",
           "hvacDuctLeakage",
           "hvacDuctLeakageValue",
-          "hvacDuctInsulation"
+          "hvacDuctInsulation",
+          "hvacSystemName",
+          "hvacHeatingIsCondensing",
+          "hvacPercentOfTotalHeatingLoad",
+          "hvacPercentOfTotalCoolingLoad",
+          "hvacCoolingSystemManufacturer",
+          "hvacCoolingSystemModel",
+          "hvacCoolingSystemIndoorModel",
+          "hvacCoolingSystemOutdoorModel",
+          "hvacCoolingSystemModelYear",
+          "hvacHeatingSystemIndoorModel",
+          "hvacHeatingSystemOutdoorModel",
+          "hvacCoolingSystemSerialNumber",
+          "hvacCoolingSystemIndoorSerialNumber",
+          "hvacCoolingSystemOutdoorSerialNumber",
+          "hvacHeatingSystemSerialNumber",
+          "hvacHeatingSystemIndoorSerialNumber",
+          "hvacHeatingSystemOutdoorSerialNumber",
+          "hvacDuctInsulationValue",
+          "hvacHeatPumpInverter",
+          "energyStarColdClimateHeatPump",
+          "hvacHeatingMaintenanceStarRating",
+          "hvacCoolingMaintenanceStarRating",
+          "hvacSteadyStateEfficiency",
+          "hvacHeatingSystemEfficiency",
+          "hvacCoolingSystemEfficiency",
+          "hvacHeatingSystemEfficiencyRatingUnit",
+          "hvacCoolingSystemEfficiencyRatingUnit",
+          "hvacHeatingEnergySourceImproved",
+          "hvacHeatingCapacityImproved",
+          "hvacCoolingCapacityImproved",
+          "hvacPercentOfTotalHeatingLoadImproved",
+          "hvacPercentOfTotalCoolingLoadImproved",
+          "hvacHeatPumpInverterImproved",
+          "energyStarColdClimateHeatPumpImproved"
         ],
         "additionalProperties": false
       }
@@ -6107,6 +7236,825 @@
             },
             "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
+          },
+          "atticModeledAtticArea": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This field designates the actual interior surface area of the ceiling. On the improved side, this is the new total sqft of the attic. Reduce this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch). Interior ceiling surface area in square feet; auto-calculated by the vendor, so set it only when the auditor states an actual number — a stated value overrides the model default."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallArea": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total surface area of knee wall adjoining this attic space."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallInsulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallContinuousInsulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity. Total R-value of the CONTINUOUS insulation on the knee wall — a separate field from the knee wall cavity R-value, despite the vendor's copy-pasted description."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRadiantBarrier": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Please designate if the base or improved attic has a radiant barrier. Costs will not be adjusted for this nor will the R-Value of the attic insulation. The energy savings will be calculated in addition to the R-Value of the attic."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticPercent": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the % of the total footprint that is attributed to each attic or vault area. Share of the total footprint attributed to this attic area, as a percentage; only meaningful when several attic/vault instances split the house."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRoofAbsorptance": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Solar Absorptance of the roofing material above this attic space. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Solar absorptance of the roofing above; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRoofEmissivity": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Thermal Emittance or Emissivity of the roofing material above this attic space. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Thermal emittance of the roofing above; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticCoolRoof": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallInsulationType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool Batt",
+                      "Blown Fiberglass or Rockwool",
+                      "Cellulose",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of insulation that is installed in the knee wall cavity. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallContinuousInsulationType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Rigid XPS",
+                      "Rigid EPS",
+                      "Rigid Polyisocyanurate",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of continuous insulation that is installed on the knee wall. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRoofColor": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["White", "Light", "Medium"],
+                    "description": "Select the color of roofing material for this roof section."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticInsulationTypeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool (batts or blown)",
+                      "Cellulose",
+                      "Spray Foam",
+                      "Don't Know"
+                    ],
+                    "description": "Select the type of insulation that is installed in the attic or ceiling. If more than one type of insulation is installed, select the type that covers that largest area. Insulation material — there is no \"None\" member; an uninsulated attic is atticInsulationDepth: \"0\", not a material here."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticModeledAtticAreaImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This field designates the actual interior surface area of the ceiling. On the improved side, this is the new total sqft of the attic. Reduce this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch). Attic area in square feet after the retrofit; a modelled number, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticInsulationImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Attic. Framing factors have already been taken into account, so specify the R-value of the insulation within the cavity. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Target R-value to be installed as a number; set only when the auditor states the target ('bring it to R-49'), never derived from the base value."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallAreaImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total surface area of knee wall adjoining this attic space."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallInsulationImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallContinuousInsulationImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Knee Wall cavity."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticHasKneeWallImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Choose Yes if there is a knee wall in this attic space. Knee wall on the improved side; a retrofit rarely adds or removes one, so set this only from an explicit statement."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRadiantBarrierImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Please designate if the base or improved attic has a radiant barrier. Costs will not be adjusted for this nor will the R-Value of the attic insulation. The energy savings will be calculated in addition to the R-Value of the attic."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRoofAbsorptanceImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Solar Absorptance of the roofing material above this attic space. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Solar absorptance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticRoofEmissivityImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Thermal Emittance or Emissivity of the roofing material above this attic space. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Thermal emittance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticCoolRoofImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallInsulationTypeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool Batt",
+                      "Blown Fiberglass or Rockwool",
+                      "Cellulose",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of insulation that is installed in the knee wall cavity. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "atticKneeWallContinuousInsulationTypeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Rigid XPS",
+                      "Rigid EPS",
+                      "Rigid Polyisocyanurate",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of continuous insulation that is installed on the knee wall. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -6114,7 +8062,725 @@
           "atticInsulationType",
           "atticInsulation",
           "atticHasKneeWall",
-          "atticRoofType"
+          "atticRoofType",
+          "atticModeledAtticArea",
+          "atticKneeWallArea",
+          "atticKneeWallInsulation",
+          "atticKneeWallContinuousInsulation",
+          "atticRadiantBarrier",
+          "atticPercent",
+          "atticRoofAbsorptance",
+          "atticRoofEmissivity",
+          "atticCoolRoof",
+          "atticKneeWallInsulationType",
+          "atticKneeWallContinuousInsulationType",
+          "atticRoofColor",
+          "atticInsulationTypeImproved",
+          "atticModeledAtticAreaImproved",
+          "atticInsulationImproved",
+          "atticKneeWallAreaImproved",
+          "atticKneeWallInsulationImproved",
+          "atticKneeWallContinuousInsulationImproved",
+          "atticHasKneeWallImproved",
+          "atticRadiantBarrierImproved",
+          "atticRoofAbsorptanceImproved",
+          "atticRoofEmissivityImproved",
+          "atticCoolRoofImproved",
+          "atticKneeWallInsulationTypeImproved",
+          "atticKneeWallContinuousInsulationTypeImproved"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "vault": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "vaultModeledVaultArea": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This is the actual surface area of the vaulted ceiling. It includes a default roof pitch of 5/12. When you override this number, be sure to include the complete sqft of the vault that's covering conditioned space. This field designates the interior surface area of the vaulted ceiling. On the improved side, this is the new total sqft of the vaulted ceiling. Increase this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch). Interior surface area of the vaulted ceiling in square feet; auto-calculated by the vendor, so set it only when the auditor states an actual number."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultCavityInsulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Vaulted Ceiling. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Total installed R-value in the vaulted ceiling cavity as a number — a stated DEPTH has no field on this resource; it routes to attic.atticInsulationDepth."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultContinuousInsulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of continuous insulation installed or to be installed in this Vaulted Ceiling. Continuous insulation is any insulation like spray foam or rigid foam that is continuous and consistent in R-value across studs, joists, or any framing member. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vault": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Well", "Yes", "Poorly", "No"],
+                    "description": "Is there insulation in the vaulted ceiling cavities of this home? If so, how good is it? If unsure, please leave blank. **Well**: All cavities contain insulation at full or near full depth with gaps and voids not exceeding 5%. **Poor**: Majority of cavities contain insulation, but one or more of the following is suspected: low density, low depth, poor installation. **Yes**: You can confirm that insulation exists, but are unsure of the installation quality. **No** - No insulation value is applied to cavities. Four graded states, chosen by meaning: \"Well\" is full depth with few voids, \"Poorly\" is majority-filled but low density or depth is suspected, \"Yes\" is confirmed present with quality unknown, \"No\" is no insulation. Leave null if the auditor was unsure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultPercent": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the % of the total footprint that is attributed to each attic or vault area. Share of the total footprint attributed to this vaulted area, as a percentage; only meaningful when several attic/vault instances split the house."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultRoofAbsorptance": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Solar Absorptance of the roofing material above this vaulted ceiling. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Solar absorptance of the roofing above the vault; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultRoofEmissivity": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Thermal Emittance or Emissivity of the roofing material above this vaulted ceiling. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Thermal emittance of the roofing above the vault; the vendor supplies a default automatically, so set it only from an explicitly stated coefficient."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultCoolRoof": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultCavityInsulationType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool Batt",
+                      "Blown Fiberglass or Rockwool",
+                      "Cellulose",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of insulation that is installed in the vault. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultContinuousInsulationType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Rigid XPS",
+                      "Rigid EPS",
+                      "Rigid Polyisocyanurate",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of continuous insulation that is installed on the vault. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultRoofType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Composition Shingles",
+                      "Concrete Tile",
+                      "Wood Shakes",
+                      "Tar and Gravel"
+                    ],
+                    "description": "Select the type of roofing material for this roof section."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultRoofColor": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["White", "Light", "Medium"],
+                    "description": "Select the color of roofing material for this roof section."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultModeledVaultAreaImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form for Conditioned Area and Number of Stories. This is the actual surface area of the vaulted ceiling. It includes a default roof pitch of 5/12. When you override this number, be sure to include the complete sqft of the vault that's covering conditioned space. This field designates the interior surface area of the vaulted ceiling. On the improved side, this is the new total sqft of the vaulted ceiling. Increase this number if you're switching the attic from unconditioned to a conditioned space. For instance, if the original house had 1000 sqft of attic space and you converted it to a fully conditioned attic by spray foaming the roof deck and rafters, then set the base side to 1000 sqft and the improved side to 0. Then create a vaulted ceiling that is 0 on the base side and 1118 sqft on the improved side (adding 118 sqft for a 6/12 roof pitch). Vaulted ceiling area in square feet after the retrofit; a modelled number, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultCavityInsulationImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Vaulted Ceiling. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultContinuousInsulationImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of continuous insulation installed or to be installed in this Vaulted Ceiling. Continuous insulation is any insulation like spray foam or rigid foam that is continuous and consistent in R-value across studs, joists, or any framing member. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultRoofAbsorptanceImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Solar Absorptance of the roofing material above this vaulted ceiling. Solar Absorptance is equal to 1 - Solar Reflectance. For example, if the ENERGY STAR website gives a Initial Solar Reflectance of 0.27, enter 0.73. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Solar absorptance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultRoofEmissivityImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Thermal Emittance or Emissivity of the roofing material above this vaulted ceiling. Default numbers will be supplied automatically, so don't change these settings unless you plan to specify a cool roof as an improvement. Thermal emittance of the improved roofing; an auto-defaulted coefficient, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultCoolRoofImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Choose yes if you would like to specify characteristics of a cool roof (such as Whole Home Energy Solutions Qualified roof products) for either the base or improved home. Default numbers will be supplied automatically. Most contractors will not use this option unless they are actually planning to replace a roof as part of an improvement package."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultCavityInsulationTypeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool Batt",
+                      "Blown Fiberglass or Rockwool",
+                      "Cellulose",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of insulation that is installed in the vault. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "vaultContinuousInsulationTypeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Rigid XPS",
+                      "Rigid EPS",
+                      "Rigid Polyisocyanurate",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of continuous insulation that is installed on the vault. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "vaultModeledVaultArea",
+          "vaultCavityInsulation",
+          "vaultContinuousInsulation",
+          "vault",
+          "vaultPercent",
+          "vaultRoofAbsorptance",
+          "vaultRoofEmissivity",
+          "vaultCoolRoof",
+          "vaultCavityInsulationType",
+          "vaultContinuousInsulationType",
+          "vaultRoofType",
+          "vaultRoofColor",
+          "vaultModeledVaultAreaImproved",
+          "vaultCavityInsulationImproved",
+          "vaultContinuousInsulationImproved",
+          "vaultRoofAbsorptanceImproved",
+          "vaultRoofEmissivityImproved",
+          "vaultCoolRoofImproved",
+          "vaultCavityInsulationTypeImproved",
+          "vaultContinuousInsulationTypeImproved"
         ],
         "additionalProperties": false
       }
@@ -6385,9 +9051,1038 @@
             },
             "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
+          },
+          "windowEfficiency": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the average gross window (including frame effects) U-value of the windows installed (BASE) or to be installed (IMPROVED). **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Average gross window U-value including frame effects — off an NFRC sticker if the auditor read one, otherwise a modelled number; set it only when one was actually stated."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowAreaNorth": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowAreaEast": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowAreaSouth": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowAreaWest": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowNorthAreaPercent": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only. Percentage of the EXPOSED north wall area that is glass — the alternative to the absolute area field; auditors give window counts and sizes, not percentages, so set this only when a percentage was actually stated."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowEastAreaPercent": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only. Percentage of the EXPOSED east wall area that is glass — the alternative to the absolute area field; set it only when a percentage was actually stated."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowSouthAreaPercent": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only. Percentage of the EXPOSED south wall area that is glass — the alternative to the absolute area field; set it only when a percentage was actually stated."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowWestAreaPercent": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the % of EXPOSED wall area for each orientation that is made up of window glass area. If some of the wall is shared with another conditioned unit (multi-family, townhome, etc.) put in the % of the exposed area only. Percentage of the EXPOSED west wall area that is glass — the alternative to the absolute area field; set it only when a percentage was actually stated."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowSolarHeatGainCoefficient": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the average gross window (including frame effects) Solar Heat Gain Coefficient (SHGC) of the windows installed (BASE) or to be installed (IMPROVED). IMPORTANT! Do not adjust this number to account for the affects of solar screens or shades. Use the Exterior Treatment fields below for this and only change the SHGC if the window unit itself is being replaced. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Average gross Solar Heat Gain Coefficient. Never adjust it for screens or shades — a dictated \"it has solar screens\" is that orientation's windowExteriorTreatment field, not an adjustment to this number."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowNorthOverhangDepth": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the average window overhang width (feet) on the exterior walls for this orientation."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowEastOverhangDepth": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the average window overhang width (feet) on the exterior walls for this orientation."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowSouthOverhangDepth": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the average window overhang width (feet) on the exterior walls for this orientation."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowWestOverhangDepth": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the average window overhang width (feet) on the exterior walls for this orientation."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowExteriorTreatmentNorth": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Insect Screen (full)",
+                      "Insect Screen (half)",
+                      "Solar Screen (summer only)",
+                      "Solar Screen (all year)",
+                      "Solar Shades, Vertical Roller (summer only)",
+                      "Solar Shades, Vertical Roller (all year)",
+                      "Solar Shades, Louvered (summer only)",
+                      "Solar Shades, Louvered (all year)",
+                      "Solar Film (all year)",
+                      "No Treatment"
+                    ],
+                    "description": "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowExteriorTreatmentEast": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Insect Screen (full)",
+                      "Insect Screen (half)",
+                      "Solar Screen (summer only)",
+                      "Solar Screen (all year)",
+                      "Solar Shades, Vertical Roller (summer only)",
+                      "Solar Shades, Vertical Roller (all year)",
+                      "Solar Shades, Louvered (summer only)",
+                      "Solar Shades, Louvered (all year)",
+                      "Solar Film (all year)",
+                      "No Treatment"
+                    ],
+                    "description": "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowExteriorTreatmentSouth": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Insect Screen (full)",
+                      "Insect Screen (half)",
+                      "Solar Screen (summer only)",
+                      "Solar Screen (all year)",
+                      "Solar Shades, Vertical Roller (summer only)",
+                      "Solar Shades, Vertical Roller (all year)",
+                      "Solar Shades, Louvered (summer only)",
+                      "Solar Shades, Louvered (all year)",
+                      "Solar Film (all year)",
+                      "No Treatment"
+                    ],
+                    "description": "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowExteriorTreatmentWest": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Insect Screen (full)",
+                      "Insect Screen (half)",
+                      "Solar Screen (summer only)",
+                      "Solar Screen (all year)",
+                      "Solar Shades, Vertical Roller (summer only)",
+                      "Solar Shades, Vertical Roller (all year)",
+                      "Solar Shades, Louvered (summer only)",
+                      "Solar Shades, Louvered (all year)",
+                      "Solar Film (all year)",
+                      "No Treatment"
+                    ],
+                    "description": "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowEfficiencyImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the average gross window (including frame effects) U-value of the windows installed (BASE) or to be installed (IMPROVED). **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Target U-value of the replacement glazing — the spec side of an upgrade; set it only when a replacement U-value was actually stated."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowAreaNorthImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Area of the north windows actually being replaced — dictated replacement intent, not a retrofit spec; whatever is not named here is assumed unchanged."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowAreaEastImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Area of the east windows actually being replaced — dictated replacement intent, not a retrofit spec; whatever is not named here is assumed unchanged."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowAreaSouthImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Area of the south windows actually being replaced — dictated replacement intent, not a retrofit spec; whatever is not named here is assumed unchanged."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowAreaWestImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total area of windows for this orientation of this Window System. BASE values determine the area of the existing windows in the house. The IMPROVED values represent the area of windows in this orientation that are actually going to be improved. The difference in sqft between BASE and IMPROVED will be assumed as unchanged. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Area of the west windows actually being replaced — dictated replacement intent, not a retrofit spec; whatever is not named here is assumed unchanged."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowSolarHeatGainCoefficientImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the average gross window (including frame effects) Solar Heat Gain Coefficient (SHGC) of the windows installed (BASE) or to be installed (IMPROVED). IMPORTANT! Do not adjust this number to account for the affects of solar screens or shades. Use the Exterior Treatment fields below for this and only change the SHGC if the window unit itself is being replaced. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Target Solar Heat Gain Coefficient of the replacement glazing — the spec side of an upgrade; set it only when a replacement SHGC was actually stated."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowExteriorTreatmentNorthImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Insect Screen (full)",
+                      "Insect Screen (half)",
+                      "Solar Screen (summer only)",
+                      "Solar Screen (all year)",
+                      "Solar Shades, Vertical Roller (summer only)",
+                      "Solar Shades, Vertical Roller (all year)",
+                      "Solar Shades, Louvered (summer only)",
+                      "Solar Shades, Louvered (all year)",
+                      "Solar Film (all year)",
+                      "No Treatment"
+                    ],
+                    "description": "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowExteriorTreatmentEastImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Insect Screen (full)",
+                      "Insect Screen (half)",
+                      "Solar Screen (summer only)",
+                      "Solar Screen (all year)",
+                      "Solar Shades, Vertical Roller (summer only)",
+                      "Solar Shades, Vertical Roller (all year)",
+                      "Solar Shades, Louvered (summer only)",
+                      "Solar Shades, Louvered (all year)",
+                      "Solar Film (all year)",
+                      "No Treatment"
+                    ],
+                    "description": "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowExteriorTreatmentSouthImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Insect Screen (full)",
+                      "Insect Screen (half)",
+                      "Solar Screen (summer only)",
+                      "Solar Screen (all year)",
+                      "Solar Shades, Vertical Roller (summer only)",
+                      "Solar Shades, Vertical Roller (all year)",
+                      "Solar Shades, Louvered (summer only)",
+                      "Solar Shades, Louvered (all year)",
+                      "Solar Film (all year)",
+                      "No Treatment"
+                    ],
+                    "description": "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowExteriorTreatmentWestImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Insect Screen (full)",
+                      "Insect Screen (half)",
+                      "Solar Screen (summer only)",
+                      "Solar Screen (all year)",
+                      "Solar Shades, Vertical Roller (summer only)",
+                      "Solar Shades, Vertical Roller (all year)",
+                      "Solar Shades, Louvered (summer only)",
+                      "Solar Shades, Louvered (all year)",
+                      "Solar Film (all year)",
+                      "No Treatment"
+                    ],
+                    "description": "Choose the type of exterior shading device that's attached to windows on this side of the home. IMPORTANT! Do not adjust the SHGC number to account for the affects of solar screens or shades and only change the SHGC if the window unit itself is being replaced."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "windowEnergyStarImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if this window system is ENERGY STAR Certified."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
           }
         },
-        "required": ["windowType", "windowFrame", "windowEnergyStar"],
+        "required": [
+          "windowType",
+          "windowFrame",
+          "windowEnergyStar",
+          "windowEfficiency",
+          "windowAreaNorth",
+          "windowAreaEast",
+          "windowAreaSouth",
+          "windowAreaWest",
+          "windowNorthAreaPercent",
+          "windowEastAreaPercent",
+          "windowSouthAreaPercent",
+          "windowWestAreaPercent",
+          "windowSolarHeatGainCoefficient",
+          "windowNorthOverhangDepth",
+          "windowEastOverhangDepth",
+          "windowSouthOverhangDepth",
+          "windowWestOverhangDepth",
+          "windowExteriorTreatmentNorth",
+          "windowExteriorTreatmentEast",
+          "windowExteriorTreatmentSouth",
+          "windowExteriorTreatmentWest",
+          "windowEfficiencyImproved",
+          "windowAreaNorthImproved",
+          "windowAreaEastImproved",
+          "windowAreaSouthImproved",
+          "windowAreaWestImproved",
+          "windowSolarHeatGainCoefficientImproved",
+          "windowExteriorTreatmentNorthImproved",
+          "windowExteriorTreatmentEastImproved",
+          "windowExteriorTreatmentSouthImproved",
+          "windowExteriorTreatmentWestImproved",
+          "windowEnergyStarImproved"
+        ],
         "additionalProperties": false
       }
     },
@@ -7361,6 +11056,7 @@
     "basedata",
     "hvac",
     "attic",
+    "vault",
     "wall",
     "window",
     "dhw",
