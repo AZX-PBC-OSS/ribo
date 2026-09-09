@@ -152,7 +152,7 @@ export function projectSingletonExample<F extends Record<string, unknown>>(
  * few-shot example (missing a leaf) narrows to a partial result rather than a
  * spurious explicit `undefined`.
  */
-function narrowToLeaves(value: unknown, leafKeys: readonly string[]): unknown {
+export function narrowToLeaves(value: unknown, leafKeys: readonly string[]): unknown {
   if (Array.isArray(value)) {
     return value.map((element) => narrowToLeaves(element, leafKeys));
   }

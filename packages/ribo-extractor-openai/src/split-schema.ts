@@ -37,12 +37,13 @@
  * split within one instance's leaf set, never across instances or the array
  * wrapper — every partitioned entry for `hvac` still carries `z.array(...)`, just
  * with a narrower per-instance shape; the same instance index across two calls is
- * the same instance. The caller (`perGroupExtractor`) makes one call per entry and
- * recombines the pieces sharing a key back into one document/instance array — see
- * its merge step. This partitioning is opt-in (omit `maxLeavesPerGroup` for
- * today's one-entry-per-group behaviour, unchanged), so a caller with no such cap
- * — `instance-fill.ts`'s `scopedInstanceExtractor`, which is not the shipped
- * strategy — is unaffected.
+ * the same instance. The caller (`perGroupExtractor`, or `scopedInstanceExtractor`
+ * at its own `(group, instance)` slots) makes one call per entry and recombines
+ * the pieces sharing a key back into one document/instance array — see their
+ * merge steps. This partitioning is opt-in at this layer (omit
+ * `maxLeavesPerGroup` for one-entry-per-group behaviour); both extractor callers
+ * default it to {@link MAX_ENVELOPED_LEAVES_PER_GROUP} and let their own callers
+ * tune the number.
  */
 
 import { z } from "zod";
@@ -193,10 +194,10 @@ const isGroupObject = (obj: z.ZodObject): boolean => {
  *
  * @param maxLeavesPerGroup - When supplied, a group whose leaf count exceeds this
  *   is further partitioned into multiple entries sharing its `key` (see the file
- *   header's "Leaf-count partitioning" and {@link partitionGroup}). Omitted by
- *   default, which keeps every existing caller's one-entry-per-group behaviour —
- *   the cap is opt-in, not a new universal default, so a caller with no notion of
- *   it (`instance-fill.ts`) is unaffected.
+ *   header's "Leaf-count partitioning" and {@link partitionGroup}). Omitted, the
+ *   split keeps one-entry-per-group behaviour; both extractor callers pass a
+ *   value (defaulting to {@link MAX_ENVELOPED_LEAVES_PER_GROUP}) so their
+ *   per-call schemas stay under the provider limits regardless.
  */
 export function splitExtractionSchema(
   schema: z.ZodType,

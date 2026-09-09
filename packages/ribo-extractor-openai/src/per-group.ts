@@ -176,6 +176,17 @@ export interface PerGroupOptions<V extends Record<string, unknown>> extends Back
    * responses, Tier 2).
    */
   readonly singleton?: boolean;
+  /**
+   * Max enveloped leaves per call before a group is partitioned across multiple
+   * calls sharing its key ({@link splitExtractionSchema}'s `maxLeavesPerGroup`).
+   * Defaults to {@link MAX_ENVELOPED_LEAVES_PER_GROUP}, which is sized for the
+   * Anthropic-family nullable-union limit (see `split-schema.ts`'s file header).
+   * A caller whose route is bound by a different limit — the pinned
+   * OpenAI-compatible route's constraint is a byte cap, not a union count —
+   * supplies its own number rather than inheriting one sized for another
+   * provider.
+   */
+  readonly maxLeavesPerGroup?: number;
 }
 
 /**
@@ -308,7 +319,7 @@ async function mapWithPool<T, R>(
  * output shape. This unwraps the same way `splitExtractionSchema`'s own
  * `groupCandidate` does, to reach the object whose keys are this piece's leaves.
  */
-function partitionedLeafKeys(group: ExtractionGroup): readonly string[] {
+export function partitionedLeafKeys(group: ExtractionGroup): readonly string[] {
   const shape = (group.schema as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodType>;
   const value = shape[group.key]!;
   const candidate = value instanceof z.ZodArray ? (value.element as z.ZodType) : value;
@@ -334,7 +345,7 @@ function partitionedLeafKeys(group: ExtractionGroup): readonly string[] {
  * so the second trust-boundary parse (`parseWithSchema` below) rejects the merge
  * with a `SchemaParseError` rather than silently emitting a partial instance.
  */
-function mergeGroupPieces(existing: unknown, incoming: unknown): unknown {
+export function mergeGroupPieces(existing: unknown, incoming: unknown): unknown {
   if (Array.isArray(existing) && Array.isArray(incoming)) {
     const length = Math.max(existing.length, incoming.length);
     const merged: unknown[] = [];
@@ -442,20 +453,21 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
   random,
   groupInstructions,
   singleton = false,
+  maxLeavesPerGroup,
 }: PerGroupOptions<V>): Extractor<Enveloped<V>> {
   // Split at construction time — the group list is a pure function of the schema
   // and does not depend on the transcript. A non-grouped schema yields one entry
   // covering the whole schema (key: ""), which makes one call — today's behaviour.
   //
-  // The leaf cap is always requested here, unconditionally — not a caller-tunable
-  // PerGroupOptions knob. It costs nothing on the OpenAI-family route this is
-  // pinned to today (a group under the cap is returned unpartitioned, so the
-  // Snugg target still makes 7 calls, not 9, unless hvac/health's actual leaf
-  // counts change): the two groups that DO exceed it become 2 calls each instead
-  // of 1, which is strictly safe groundwork for a future Anthropic-compatible
-  // route rather than a live behaviour change today. See `split-schema.ts`'s file
-  // header ("Leaf-count partitioning") for the 8-leaf derivation.
-  const groups = splitExtractionSchema(target.extractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
+  // The leaf cap is always supplied (defaulting to MAX_ENVELOPED_LEAVES_PER_GROUP)
+  // so a group that would overflow one call's response schema is partitioned here
+  // rather than rejected provider-side — see split-schema.ts's file header for
+  // the limit the default is derived from. A caller whose route is bound by a
+  // different limit opts into its own number via `maxLeavesPerGroup`.
+  const groups = splitExtractionSchema(
+    target.extractionSchema,
+    maxLeavesPerGroup ?? MAX_ENVELOPED_LEAVES_PER_GROUP,
+  );
 
   // Pre-compute each group's JSON Schema and error-context at construction time.
   // The JSON Schema generation (`z.toJSONSchema`) is not cheap, and the schema

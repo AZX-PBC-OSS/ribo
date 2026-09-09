@@ -37,10 +37,12 @@ import {
   assertStopFinishReason,
   buildMessages,
   completeOrClassify,
+  narrowToLeaves,
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
-import { splitExtractionSchema } from "./split-schema.js";
+import { mergeGroupPieces, partitionedLeafKeys } from "./per-group.js";
+import { MAX_ENVELOPED_LEAVES_PER_GROUP, splitExtractionSchema } from "./split-schema.js";
 
 /** One candidate returned by the inventory pass. */
 export interface RosterCandidate {
@@ -116,6 +118,17 @@ export interface ScopedFillOptions<V extends Record<string, unknown>> extends Ba
    * Defaults to 10.
    */
   readonly instanceCap?: number;
+  /**
+   * Max enveloped leaves per fill call before a group is partitioned across
+   * multiple calls sharing its key, one per piece per instance
+   * ({@link splitExtractionSchema}'s `maxLeavesPerGroup`). Defaults to
+   * {@link MAX_ENVELOPED_LEAVES_PER_GROUP}, which is sized for the
+   * Anthropic-family nullable-union limit; a caller whose route is bound by a
+   * different limit (the pinned OpenAI-compatible route's is a byte cap)
+   * supplies its own number. Partitioning multiplies fill calls per instance,
+   * never the instance count — the roster and `instanceCap` are unaffected.
+   */
+  readonly maxLeavesPerGroup?: number;
 }
 
 /**
@@ -214,7 +227,12 @@ interface PreparedGroup {
    * `z.array(ElementSchema)`; singleton groups are a single element schema.
    */
   readonly isCollection: boolean;
-  /** The schema the fill response is parsed against — one object with one top-level key. */
+  /**
+   * The schema the fill response is parsed against — one object with one
+   * top-level key. For a partitioned piece this carries only that piece's leaf
+   * subset, because `splitExtractionSchema` hands back each piece as its own
+   * entry and the array-vs-singleton narrowing is blind to partitioning.
+   */
   readonly schema: z.ZodType;
   /** The JSON Schema sent to the model in `response_format`. */
   readonly jsonSchema: Record<string, unknown>;
@@ -222,6 +240,22 @@ interface PreparedGroup {
   readonly name: string;
   /** The descriptive prefix for error messages from this group's calls. */
   readonly context: string;
+  /**
+   * This entry's 0-based position among the pieces sharing `key`, present only
+   * when the group's leaves were partitioned across multiple calls. Pieces of
+   * one key are filled independently and recombined per instance at assembly —
+   * see the merge step in {@link scopedInstanceExtractor}.
+   */
+  readonly part?: number;
+  /** The total number of pieces sharing `key`, present exactly when `part` is. */
+  readonly parts?: number;
+  /**
+   * The leaf keys THIS piece asks the model for, present only when `part` is
+   * defined. Passed to {@link buildFillMessages} so a partitioned piece's
+   * few-shot example is narrowed to the same subset its `response_format`
+   * accepts, rather than showing an assistant turn wider than the call allows.
+   */
+  readonly leafKeys?: readonly string[];
 }
 
 /**
@@ -246,21 +280,30 @@ interface FillJob {
  * first element if the example has fewer instances. If the example is not an array,
  * the value is used unchanged. Returns `null` when the group key is absent or the
  * array is empty.
+ *
+ * When `leafKeys` is supplied (a partitioned piece), the projected instance is
+ * further narrowed to exactly those leaves — the same narrowing
+ * {@link buildGroupMessages} applies for the per-group extractor, so the
+ * example's assistant turn never carries fields the piece's `response_format`
+ * rejects.
  */
 export function projectFillExample<F extends Record<string, unknown>>(
   example: { readonly transcript: string; readonly fields: F },
   groupKey: string,
   instanceIndex: number,
+  leafKeys?: readonly string[],
 ): { readonly transcript: string; readonly fields: Record<string, unknown> } | null {
   const fields = example.fields as Record<string, unknown>;
   if (!(groupKey in fields)) return null;
   const groupValue = fields[groupKey];
+  const narrow = (element: unknown): unknown =>
+    leafKeys ? narrowToLeaves(element, leafKeys) : element;
   if (Array.isArray(groupValue)) {
     const element = groupValue[instanceIndex] ?? groupValue[0];
     if (element === undefined) return null;
-    return { transcript: example.transcript, fields: { [groupKey]: element } };
+    return { transcript: example.transcript, fields: { [groupKey]: narrow(element) } };
   }
-  return { transcript: example.transcript, fields: { [groupKey]: groupValue } };
+  return { transcript: example.transcript, fields: { [groupKey]: narrow(groupValue) } };
 }
 
 /**
@@ -271,6 +314,10 @@ export function projectFillExample<F extends Record<string, unknown>>(
  * assistant turn so the model does not imitate the array shape of a multi-instance
  * example. The transcript is the final user message — the injection boundary is
  * preserved.
+ *
+ * `leafKeys` is supplied for a partitioned piece (`ExtractionGroup.part`) so the
+ * example's assistant turn is narrowed to the same leaf subset the piece's
+ * `response_format` accepts — mirroring {@link buildGroupMessages}' `leafKeys`.
  */
 export function buildFillMessages<V extends Record<string, unknown>>(
   target: ExtractionTarget<V>,
@@ -279,12 +326,13 @@ export function buildFillMessages<V extends Record<string, unknown>>(
   scope: FillScope,
   transcript: string,
   buildFillInstructions: (groupKey: string, scope: FillScope) => string,
+  leafKeys?: readonly string[],
 ): ChatMessage[] {
   const messages: ChatMessage[] = [
     { role: "system", content: buildFillInstructions(groupKey, scope) },
   ];
   for (const example of target.examples ?? []) {
-    const projected = projectFillExample(example, groupKey, instanceIndex);
+    const projected = projectFillExample(example, groupKey, instanceIndex, leafKeys);
     if (projected === null) continue;
     messages.push({ role: "user", content: projected.transcript });
     messages.push({ role: "assistant", content: JSON.stringify(projected.fields) });
@@ -332,15 +380,24 @@ function singletonFillScope(groupKey: string): FillScope {
  *
  * On each `extract`:
  *   1. Run `inventory(transcript)` to get a roster of candidates per group.
- *   2. For each top-level group from {@link splitExtractionSchema}:
- *      - Collection groups (`z.array(...)`): one fill call per `current` candidate.
- *        A group with no `current` candidates yields an empty array and makes no
- *        calls. The instance cap is enforced before any call is made.
- *      - Singleton groups: one fill call, unchanged.
+ *      One call, regardless of how any group's leaves are partitioned below.
+ *   2. For each top-level group from {@link splitExtractionSchema} — called
+ *      with the leaf cap, so a group whose per-instance leaf count exceeds it
+ *      arrives as one entry per piece, each carrying only its piece's leaves:
+ *      - Collection groups (`z.array(...)`): one fill call per `current`
+ *        candidate PER PIECE. A group with no `current` candidates yields an
+ *        empty array and makes no calls. The instance cap is enforced before
+ *        any call is made — partitioning changes leaf count per call, never
+ *        instance count.
+ *      - Singleton groups: one fill call per piece, otherwise unchanged.
  *   3. Run fill calls concurrently with a bounded pool. For each response:
  *      - Pre-parse `finishReason` check.
- *      - Parse against the single-instance wrapper schema for that group.
+ *      - Parse against the single-instance wrapper schema for that group piece.
  *   4. Merge per-instance responses into their group's array in roster order.
+ *      Pieces sharing one `(group, instance)` slot are recombined with
+ *      {@link mergeGroupPieces} — the same recombination the per-group
+ *      extractor applies at group level — rather than the last piece
+ *      overwriting the others' leaves.
  *   5. Second trust-boundary parse against the full `extractionSchema`, then normalize.
  */
 export function scopedInstanceExtractor<V extends Record<string, unknown>>(
@@ -363,6 +420,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
     inventory,
     buildFillInstructions,
     instanceCap = DEFAULT_INSTANCE_CAP,
+    maxLeavesPerGroup,
   } = options;
 
   const backoffOpts: BackoffOptions = {
@@ -371,7 +429,14 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
     random,
   };
 
-  const groups = splitExtractionSchema(target.extractionSchema);
+  // The leaf cap defaults to the same ceiling the per-group extractor applies,
+  // for the same reason: an over-cap per-instance schema is rejected
+  // provider-side, and tier 1 was the one strategy still sending every group
+  // whole. `maxLeavesPerGroup` lets a caller tune it to its route's real limit.
+  const groups = splitExtractionSchema(
+    target.extractionSchema,
+    maxLeavesPerGroup ?? MAX_ENVELOPED_LEAVES_PER_GROUP,
+  );
   const prepared: readonly PreparedGroup[] = groups.map((group) => {
     let schema: z.ZodType;
     let isCollection = false;
@@ -393,11 +458,32 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
       string,
       unknown
     >;
-    const name = group.key ? `${target.name}-${group.key}-fill` : `${target.name}-fill`;
+    // A partitioned piece appends `-<part>` so fill calls sharing a group key
+    // still get distinct schema names — the same charset-safe suffixing
+    // perGroupExtractor uses, and for the same reason.
+    const partSuffix = group.part !== undefined ? `-${group.part}` : "";
+    const name = group.key
+      ? `${target.name}-${group.key}-fill${partSuffix}`
+      : `${target.name}-fill`;
     const context = group.key
-      ? `scopedInstanceExtractor: fill for "${target.name}" group "${group.key}"`
+      ? group.part !== undefined
+        ? `scopedInstanceExtractor: fill for "${target.name}" group "${group.key}" (part ${group.part + 1}/${group.parts})`
+        : `scopedInstanceExtractor: fill for "${target.name}" group "${group.key}"`
       : `scopedInstanceExtractor: fill for "${target.name}"`;
-    return { key: group.key, isCollection, schema, jsonSchema, name, context };
+    // Only a partitioned piece needs its few-shot example narrowed — an
+    // unpartitioned group's example already carries exactly its leaves.
+    const leafKeys = group.part !== undefined ? partitionedLeafKeys(group) : undefined;
+    return {
+      key: group.key,
+      isCollection,
+      schema,
+      jsonSchema,
+      name,
+      context,
+      part: group.part,
+      parts: group.parts,
+      leafKeys,
+    };
   });
 
   return {
@@ -415,12 +501,21 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
         const rosterGroup = roster[group.key] ?? [];
 
         if (!group.isCollection || group.key === "") {
-          // Singleton or non-grouped fallback: one fill call, no scope semantics.
+          // Singleton or non-grouped fallback: one fill call per piece, no
+          // scope semantics.
           const scope = singletonFillScope(group.key || "fields");
           const messages =
             group.key === ""
               ? buildMessages(target, transcript)
-              : buildFillMessages(target, group.key, 0, scope, transcript, buildFillInstructions);
+              : buildFillMessages(
+                  target,
+                  group.key,
+                  0,
+                  scope,
+                  transcript,
+                  buildFillInstructions,
+                  group.leafKeys,
+                );
           jobs.push({
             group,
             instanceIndex: 0,
@@ -451,7 +546,9 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
           );
         }
 
-        collectionArrays[group.key] = new Array(current.length);
+        // `??=`, not `=`: a partitioned group visits this loop once per piece,
+        // and re-allocating would wipe the slots an earlier piece's jobs fill.
+        collectionArrays[group.key] ??= new Array(current.length);
 
         for (let i = 0; i < current.length; i++) {
           const candidate = current[i]!;
@@ -463,6 +560,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
             scope,
             transcript,
             buildFillInstructions,
+            group.leafKeys,
           );
           jobs.push({
             group,
@@ -547,9 +645,19 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
         const response = fillResponses[i]!;
         const value = (response as Record<string, unknown>)[job.group.key];
         if (job.group.isCollection) {
-          collectionArrays[job.group.key]![job.instanceIndex] = value;
+          // A slot already holding a value means an earlier piece of the SAME
+          // partitioned group already contributed its leaf subset for this
+          // instance — recombine via mergeGroupPieces (the per-group extractor's
+          // own recombination) rather than letting the last piece overwrite the
+          // rest. Jobs for one key are issued in piece order and `mapWithPool`
+          // preserves it, so the merge sees the pieces in the order issued.
+          const arr = collectionArrays[job.group.key]!;
+          const existing = arr[job.instanceIndex];
+          arr[job.instanceIndex] =
+            existing === undefined ? value : mergeGroupPieces(existing, value);
         } else {
-          groupResult[job.group.key] = value;
+          const key = job.group.key;
+          groupResult[key] = key in groupResult ? mergeGroupPieces(groupResult[key], value) : value;
         }
       }
       for (const [key, arr] of Object.entries(collectionArrays)) {

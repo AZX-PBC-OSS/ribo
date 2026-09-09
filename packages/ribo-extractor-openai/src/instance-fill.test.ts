@@ -537,3 +537,269 @@ describe("buildFillMessages", () => {
     });
   });
 });
+
+// --- Leaf-count partitioning: groups over the default per-call leaf cap ------
+//
+// A collection group (`systems`) whose per-instance leaf count exceeds the
+// default cap is filled as one call per PIECE per instance, and a singleton
+// group (`profile`) as one call per piece; the pieces' responses must be
+// recombined per (group, instance), not last-piece-wins.
+
+const tenLeafValues = z
+  .object({
+    f1: z.string().nullable().optional(),
+    f2: z.string().nullable().optional(),
+    f3: z.string().nullable().optional(),
+    f4: z.string().nullable().optional(),
+    f5: z.string().nullable().optional(),
+    f6: z.string().nullable().optional(),
+    f7: z.string().nullable().optional(),
+    f8: z.string().nullable().optional(),
+    f9: z.string().nullable().optional(),
+    f10: z.string().nullable().optional(),
+  })
+  .strict();
+
+const nineLeafValues = z
+  .object({
+    f1: z.string().nullable().optional(),
+    f2: z.string().nullable().optional(),
+    f3: z.string().nullable().optional(),
+    f4: z.string().nullable().optional(),
+    f5: z.string().nullable().optional(),
+    f6: z.string().nullable().optional(),
+    f7: z.string().nullable().optional(),
+    f8: z.string().nullable().optional(),
+    f9: z.string().nullable().optional(),
+  })
+  .strict();
+
+const bigValuesSchema = z
+  .object({
+    systems: z.array(tenLeafValues).optional(),
+    profile: nineLeafValues.optional(),
+  })
+  .strict();
+
+type BigValues = z.infer<typeof bigValuesSchema>;
+
+const bigTarget: ExtractionTarget<BigValues> = {
+  name: "demo-big",
+  extractionSchema: enveloped(bigValuesSchema),
+  instructions: "Demo big instructions.",
+  examples: [],
+};
+
+/** The leaf keys of each piece the default cap partitions each group into. */
+const SYSTEMS_PIECES = [
+  ["f1", "f2", "f3", "f4", "f5"],
+  ["f6", "f7", "f8", "f9", "f10"],
+];
+const PROFILE_PIECES = [
+  ["f1", "f2", "f3", "f4", "f5"],
+  ["f6", "f7", "f8", "f9"],
+];
+
+/** One piece's worth of enveloped leaves: `f3` → `{ value: "<prefix>-f3", ... }`. */
+function leafPiece(leaves: readonly string[], prefix: string): Record<string, unknown> {
+  return Object.fromEntries(leaves.map((leaf) => [leaf, env(`${prefix}-${leaf}`, `${leaf} span`)]));
+}
+
+function currentCandidate(name: string): {
+  mentionSpan: string;
+  discriminator: string;
+  distinguishedBy: string | null;
+  eligibility: string;
+  eligibilitySpan: string | null;
+} {
+  return {
+    mentionSpan: name,
+    discriminator: name,
+    distinguishedBy: null,
+    eligibility: "current",
+    eligibilitySpan: null,
+  };
+}
+
+const bigRoster: Roster = {
+  systems: [currentCandidate("system one"), currentCandidate("system two")],
+  profile: [],
+};
+
+/**
+ * Fake chat dispatching on the partitioned request names: a collection piece's
+ * fill is `...-fill-<part>-<instance>`, a singleton piece's `...-fill-<part>`.
+ * Each response carries ONLY that piece's leaves for that instance — the split
+ * the merge step must reassemble.
+ */
+function fakeBigChat(): { chat: ChatClient; requests: ChatRequest[] } {
+  return fakeChat((request) => {
+    const name = request.response_format.json_schema.name;
+    const systems = /^demo-big-systems-fill-(\d+)-(\d+)$/.exec(name);
+    if (systems) {
+      const [, part, instance] = systems;
+      return {
+        content: JSON.stringify({
+          systems: leafPiece(SYSTEMS_PIECES[Number(part)]!, `i${instance}`),
+        }),
+        finishReason: "stop",
+      };
+    }
+    const profile = /^demo-big-profile-fill-(\d+)$/.exec(name);
+    if (profile) {
+      return {
+        content: JSON.stringify({ profile: leafPiece(PROFILE_PIECES[Number(profile[1])]!, "p") }),
+        finishReason: "stop",
+      };
+    }
+    throw new Error(`Unexpected request: ${name}`);
+  });
+}
+
+describe("scopedInstanceExtractor — leaf-count partitioning", () => {
+  test("pieces of one over-cap group are recombined per (group, instance) — every leaf from every piece survives for every instance", async () => {
+    // THE regression test for partitioned fills: with a plain overwrite at
+    // assembly, only the last piece's leaves would survive per instance — and
+    // because every leaf is optional in the schema, the closing parse would
+    // not catch it. Both a collection group (per-instance merge) and a
+    // singleton group (per-group merge) are exercised in one extraction.
+    const { chat, requests } = fakeBigChat();
+
+    const extractor = scopedInstanceExtractor({
+      target: bigTarget,
+      chat,
+      model: "demo-model",
+      inventory: async () => bigRoster,
+      buildFillInstructions,
+    });
+
+    const result = await extractor.extract("the full transcript");
+
+    // One call per piece per instance for the collection group, one per piece
+    // for the singleton group, plus the inventory call.
+    expect(requests).toHaveLength(6);
+    expect(result.usage.calls).toBe(7);
+
+    // Each request was actually pinned to one piece's leaf subset — the merge
+    // assertions below are meaningless if nothing was partitioned.
+    for (const request of requests) {
+      const name = request.response_format.json_schema.name;
+      const schema = request.response_format.json_schema.schema as {
+        properties: Record<string, { properties: Record<string, unknown> }>;
+      };
+      const groupKey = name.includes("systems") ? "systems" : "profile";
+      expect(
+        Object.keys(schema.properties[groupKey]!.properties).length,
+        `${name} leaf count`,
+      ).toBeLessThanOrEqual(5);
+    }
+
+    // Every instance carries every leaf, from BOTH pieces.
+    const systems = result.fields.systems!;
+    expect(systems).toHaveLength(2);
+    for (let instance = 0; instance < 2; instance++) {
+      for (let leaf = 1; leaf <= 10; leaf++) {
+        const key = `f${leaf}` as keyof (typeof systems)[number];
+        expect(systems[instance]![key].value, `systems[${instance}].f${leaf}`).toBe(
+          `i${instance}-f${leaf}`,
+        );
+      }
+    }
+
+    // The singleton group's pieces are likewise recombined.
+    const profile = result.fields.profile!;
+    for (let leaf = 1; leaf <= 9; leaf++) {
+      const key = `f${leaf}` as keyof typeof profile;
+      expect(profile[key].value, `profile.f${leaf}`).toBe(`p-f${leaf}`);
+    }
+  });
+
+  test("a partitioned piece's few-shot example is narrowed to that piece's leaves", async () => {
+    // The same rationale as buildGroupMessages' leafKeys: the assistant turn a
+    // piece imitates must not carry fields its own response_format rejects.
+    const targetWithExample: ExtractionTarget<BigValues> = {
+      ...bigTarget,
+      examples: [
+        {
+          transcript: "Every field was mentioned.",
+          fields: {
+            systems: [leafPiece([...SYSTEMS_PIECES[0]!, ...SYSTEMS_PIECES[1]!], "ex")],
+            profile: leafPiece([...PROFILE_PIECES[0]!, ...PROFILE_PIECES[1]!], "ex"),
+          } as unknown as Enveloped<BigValues>,
+        },
+      ],
+    };
+    const { chat, requests } = fakeBigChat();
+
+    await scopedInstanceExtractor({
+      target: targetWithExample,
+      chat,
+      model: "demo-model",
+      inventory: async () => bigRoster,
+      buildFillInstructions,
+    }).extract("the full transcript");
+
+    expect(requests).toHaveLength(6);
+    for (const request of requests) {
+      const name = request.response_format.json_schema.name;
+      const part = Number(/-(\d+)(?:-\d+)?$/.exec(name)![1]);
+      const assistant = request.messages.find((m) => m.role === "assistant")!;
+      const fields = JSON.parse(assistant.content) as Record<string, Record<string, unknown>>;
+      const groupKey = name.includes("systems") ? "systems" : "profile";
+      const pieces = groupKey === "systems" ? SYSTEMS_PIECES : PROFILE_PIECES;
+      // The example carries EXACTLY this piece's leaves — a single-instance
+      // object (collection group projected to one element), narrowed further.
+      expect(Object.keys(fields[groupKey]!).sort(), name).toEqual([...pieces[part]!].sort());
+    }
+  });
+
+  test("the instance cap is enforced per group regardless of partitioning — it throws before any fill call", async () => {
+    const { chat, requests } = fakeBigChat();
+
+    const extractor = scopedInstanceExtractor({
+      target: bigTarget,
+      chat,
+      model: "demo-model",
+      inventory: async () => bigRoster,
+      buildFillInstructions,
+      instanceCap: 1,
+    });
+
+    await expect(extractor.extract("the full transcript")).rejects.toThrow("cap");
+    expect(requests).toHaveLength(0);
+  });
+
+  test("a group under the cap is not partitioned — same calls, same request names as before", async () => {
+    const roster = makeRoster({
+      widgets: [currentCandidate("the red widget")],
+    });
+    const { chat, requests } = fakeChat((request) => {
+      const name = request.response_format.json_schema.name;
+      if (name === "demo-widgets-fill-0") {
+        return { content: JSON.stringify(widgetResponse("red", null)), finishReason: "stop" };
+      }
+      if (name === "demo-house-fill") {
+        return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
+      }
+      throw new Error(`Unexpected request: ${name}`);
+    });
+
+    const extractor = scopedInstanceExtractor({
+      target,
+      chat,
+      model: "demo-model",
+      inventory: async () => roster,
+      buildFillInstructions,
+    });
+
+    const result = await extractor.extract("the full transcript");
+
+    expect(requests.map((r) => r.response_format.json_schema.name)).toEqual([
+      "demo-widgets-fill-0",
+      "demo-house-fill",
+    ]);
+    expect(result.usage.calls).toBe(3); // inventory + 2 fills
+    expect(result.fields.widgets?.[0]?.color.value).toBe("red");
+    expect(result.fields.house?.name.value).toBe("main");
+  });
+});
