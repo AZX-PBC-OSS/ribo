@@ -8,7 +8,8 @@
  *      slashes, percent signs and all, so no write-time lookup table.
  *   3. **Nesting is the resource layout** — one group per write endpoint
  *      (`basedata` singleton, per-instance component and job-collection
- *      resources, `stage` singleton), so `write` dispatches on the group key.
+ *      resources, `stage` and `job` singletons), so `write` dispatches on the
+ *      group key.
  *
  * Scoping: `basedata` is the FULL honest capture surface of its endpoint (doc 17
  * §Scoping — the form fields minus the `*Improved` retrofit twins and the
@@ -108,6 +109,18 @@
  *     prose** — `POST /jobs/{jobId}/stage` publishes no `enum` key (doc 20
  *     §5.1). Same constraint as `hasEv`: `z.number()`, codes in the
  *     description.
+ *   - **The `job` group's numeric enums** — `POST /jobs` publishes real
+ *     INTEGER enums for `stageId` and `jobType`, and `type: string` fields
+ *     with integer members for `renterOwner` and
+ *     `useStrictBpi2400Calibration` (doc 20 §4.5). Same constraint again —
+ *     `enveloped()` has no numeric-enum leaf — so all four are `z.number()`
+ *     with their vocabularies in their descriptions, the treatment
+ *     `energyStarColdClimateHeatPump` established.
+ *   - **`job.accountId` and `job.programId` are integer ids on the wire but
+ *     PLAIN FREE TEXT here** — the spoken assignee/program name, resolved
+ *     against the real id lists at review/write time per
+ *     `runtime-reference-resolution-design.md`, the treatment
+ *     `incentive.fromTemplateUuid` established.
  */
 
 import { enveloped } from "@azx/ribo-core";
@@ -958,6 +971,84 @@ export const HealthTestState = z
  * — both said out loud from the driveway.
  */
 export const HealthCondition = z.enum(["Good", "Potential Issues", "NA"]);
+
+// == job =====================================================================
+
+/**
+ * The doc 20 §5.1 **STATES** vocabulary — the state enum declared ONCE and
+ * shared by every field that carries it (`job.state` and
+ * `job.propertyOwnerState`; the spec's `company.state` carries the same list
+ * but is outside the capture surface). Spoken as a full state name ("the home
+ * is in Massachusetts"); the wire member is the two-letter code.
+ */
+export const UsState = z.enum([
+  "AL",
+  "AK",
+  "AZ",
+  "AR",
+  "CA",
+  "CO",
+  "CT",
+  "DE",
+  "DC",
+  "FL",
+  "GA",
+  "HI",
+  "ID",
+  "IL",
+  "IN",
+  "IA",
+  "KS",
+  "KY",
+  "LA",
+  "ME",
+  "MD",
+  "MA",
+  "MI",
+  "MN",
+  "MS",
+  "MO",
+  "MT",
+  "NE",
+  "NV",
+  "NH",
+  "NJ",
+  "NM",
+  "NY",
+  "NC",
+  "ND",
+  "OH",
+  "OK",
+  "OR",
+  "PA",
+  "RI",
+  "SC",
+  "SD",
+  "TN",
+  "TX",
+  "UT",
+  "VT",
+  "VA",
+  "WA",
+  "WV",
+  "WI",
+  "WY",
+]);
+
+/**
+ * `householdIncomeTier` (`job`) — the doc 20 §5.0 **INCOME-TIERS** vocabulary.
+ * The members carry `%` signs, spaces and a spaced hyphen (`LMI 80 - 120`) —
+ * verbatim, like every wire string.
+ */
+export const HouseholdIncomeTier = z.enum([
+  "Any",
+  "Less than 80% AMI",
+  "Between 80% and 150% AMI",
+  "80% AMI and Greater",
+  "Greater than 150% AMI",
+  "LMI",
+  "LMI 80 - 120",
+]);
 
 // --- The resource groups ----------------------------------------------------
 // One group per write endpoint. Each is `.strict()` and each leaf is
@@ -2769,6 +2860,321 @@ export const StageFields = z
   )
   .strict();
 
+// == job =====================================================================
+// A job-collection group (doc 20 §5.1; target model per
+// `docs/roadmap/design/job-collections-foundation-design.md`) — and a SINGLETON,
+// like `basedata`, `health` and `stage`: one job per recording session, so no
+// roster/instance-identity wiring.
+
+/**
+ * `POST /jobs` (createJob) plus its `PUT /jobs/{jobId}` update twin — the job
+ * itself: identity, contacts, scheduling and program wiring. The update twin is
+ * a strict subset of the create (`serviceTime`, `accountId`, `note`,
+ * `householdIncomeTier`), so one flat group covers both operations; name,
+ * address and the property-owner block are create-only (doc 20 §5.1).
+ *
+ * Every field of the two operations in extraction scope minus the two excluded
+ * ones: `fromTemplateId` (a job template is picked in setup, never dictated)
+ * and `companyId` (system/tenancy fk, fixed per credential).
+ *
+ * This is the one job-collection resource with REQUIRED fields: `POST /jobs`
+ * refuses a create without the customer's name and address, the state, zip,
+ * assignee, stage, job type and program (doc 20 §4.6). Requiredness lives in
+ * `adapter.ts`'s `requiredOnCreate` — the repo's per-group mechanism surfaced
+ * at review — not in the patch shape, whose leaves stay
+ * `.nullable().optional()` by construction like every other group's.
+ *
+ * The nine `propertyOwner*` leaves are a singleton sub-group, not a collection:
+ * a second contact on the same job, distinguished from the occupant only by the
+ * field-name prefix. The disambiguation hazard is doc 20's: the same utterance
+ * ("her number is …") can target either the occupant or the owner, and
+ * `renterOwner` is the hint — see rule 17 of the instructions.
+ */
+export const JobFields = z
+  .object(
+    withVendorDescriptions({
+      /** The customer's first name — the occupant/contact, not the property owner. */
+      firstName: z
+        .string()
+        .describe(
+          "The customer's first name — the occupant or job contact. The property owner's name, when a different person, goes in propertyOwnerFirstName.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The customer's last name. */
+      lastName: z
+        .string()
+        .describe(
+          "The customer's last name — the occupant or job contact. The property owner's name, when a different person, goes in propertyOwnerLastName.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Own vs. rent. The spec types this `string` but publishes INTEGER enum
+       * members — the same divergence `energyStarColdClimateHeatPump` has, and
+       * the same treatment: `z.number()`, vocabulary in the description.
+       */
+      renterOwner: z
+        .number()
+        .describe(
+          'Whether the customer owns or rents this property; the wire value is integer 0 (Renter) or 1 (Owner). Set it only from an explicit statement — "she owns it" → 1, "it\'s a rental" / "there\'s a tenant" → 0 — never inferred from who answered the door.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Appointment time; the wire format is `YYYY-MM-DD HH:MM:SS`. */
+      serviceTime: z
+        .string()
+        .describe(
+          'The appointment time, wire format YYYY-MM-DD HH:MM:SS. Fill it only when the transcript states an absolute date and time; a purely relative day ("Thursday at nine") stays null with the quote as sourceSpan — anchoring it to a calendar date is a later step, never a guess.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Email of the homeowner (or tenant). */
+      email: z
+        .string()
+        .describe(
+          "Email of the homeowner or tenant — the job's regular contact. The property owner's own email, when different, goes in propertyOwnerEmail.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Phone of the home, wire format `(555) 555-5555`. */
+      homePhone: z
+        .string()
+        .describe(
+          "Phone of the home, wire format (555) 555-5555. The property owner's own phone, when different, goes in propertyOwnerPhone.",
+        )
+        .nullable()
+        .optional(),
+
+      /** First line of the home address. */
+      address1: z
+        .string()
+        .describe(
+          "First line of the HOME address — the property being audited, street number and name.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Second line of the home address. */
+      address2: z
+        .string()
+        .describe("Second line of the home address (unit, apartment, suite).")
+        .nullable()
+        .optional(),
+
+      /** City of the home. */
+      city: z
+        .string()
+        .describe("City of the home — the property being audited.")
+        .nullable()
+        .optional(),
+
+      /** State of the home — spoken as a full state name, stored as the code. */
+      state: UsState.describe(
+        'State of the home, as the two-letter code — map the spoken full state name onto it ("the home is in Massachusetts" → "MA").',
+      )
+        .nullable()
+        .optional(),
+
+      /** Zip code of the home. */
+      zip: z
+        .string()
+        .describe("Zip code of the home — the property being audited.")
+        .nullable()
+        .optional(),
+
+      /**
+       * REQUIRED by the API at create, and captured as PLAIN FREE TEXT despite
+       * the integer wire type: the spoken assignee name, per
+       * `runtime-reference-resolution-design.md`. The name→account-id lookup is
+       * a review/write-time step that must be able to fail visibly — the model
+       * never invents the integer.
+       */
+      accountId: z
+        .string()
+        .describe(
+          'The Snugg Pro user this job is assigned to, as the spoken name in free text ("give this one to Dave") — despite the integer wire type, never an invented id: resolving the name against the real account list is a later, human-supervised step, not extraction\'s.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * The job's stage as an integer code. `POST /jobs` publishes a real
+       * INTEGER enum here — but `enveloped()` has no numeric-enum leaf (the
+       * constraint `hasEv` and `stage.stageId` record), so this is
+       * `z.number()` and the label→code vocabulary travels in the description.
+       */
+      stageId: z
+        .number()
+        .describe(
+          "The job's workflow stage; the wire value is an integer code — 1 (Lead), 2 (Audit), 3 (Bid Proposed), 4 (Bid Approved), 5 (Retrofit In Progress), 6 (Retrofit Complete), 7 (QA), 8 (Uncategorized), 9 (Archived Won), 10 (Archived Lost).",
+        )
+        .nullable()
+        .optional(),
+
+      /** Job type as an integer code — the same numeric-enum treatment. */
+      jobType: z
+        .number()
+        .describe(
+          'The job type; the wire value is an integer code — 1 (Audit) or 2 (Score). Set it only from an explicit statement ("this is a score job" → 2), never assumed because an audit is the common case.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * REQUIRED by the API at create, and captured as PLAIN FREE TEXT despite
+       * the integer wire type: the spoken program name, same treatment as
+       * `accountId`. The spec documents `1` as the "no program" sentinel — that
+       * mapping is a write-time concern, never an extracted value.
+       */
+      programId: z
+        .string()
+        .describe(
+          'The program this job is in, as the spoken program name in free text ("this one\'s NYSERDA") — despite the integer wire type, never an invented id. An explicit "no program" statement is captured as spoken; matching the name against the real program list is a later, human-supervised step.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Your own alternate job ID; `maxLength: 44` in the spec. */
+      altId: z
+        .string()
+        .describe(
+          'The company\'s own alternate job or work-order number, read aloud ("work order four-oh-two"). Does not affect the Snugg Pro job ID.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Arbitrary external building ID; `maxLength: 44` in the spec. */
+      buildingId: z
+        .string()
+        .describe(
+          "An externally-assigned building ID when one was read aloud — emitted as the HPXML external building ID (used for DOE Home Energy Score).",
+        )
+        .nullable()
+        .optional(),
+
+      /** Property owner's first name — a different person from the occupant. */
+      propertyOwnerFirstName: z
+        .string()
+        .describe(
+          "The PROPERTY OWNER's first name — filled only when the owner is a distinct person from the occupant/job contact and was named as the owner.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Property owner's last name. */
+      propertyOwnerLastName: z
+        .string()
+        .describe(
+          "The PROPERTY OWNER's last name — filled only when the owner is a distinct person from the occupant/job contact and was named as the owner.",
+        )
+        .nullable()
+        .optional(),
+
+      /** First line of the property owner's address. */
+      propertyOwnerAddress1: z
+        .string()
+        .describe(
+          "First line of the property OWNER's address — for a non-owner-occupied home, or when the owner wants a different contact address.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Second line of the property owner's address. */
+      propertyOwnerAddress2: z
+        .string()
+        .describe("Second line of the property owner's address.")
+        .nullable()
+        .optional(),
+
+      /** Property owner's email — when the job email holds the tenant's. */
+      propertyOwnerEmail: z
+        .string()
+        .describe(
+          "The property OWNER's email — used when the job's regular email holds the tenant's.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Property owner's phone, wire format `(555) 555-5555`. */
+      propertyOwnerPhone: z
+        .string()
+        .describe(
+          "The property OWNER's phone, wire format (555) 555-5555 — used when the job's regular phone holds the tenant's.",
+        )
+        .nullable()
+        .optional(),
+
+      /** City of the property owner (tenant-occupied homes). */
+      propertyOwnerCity: z
+        .string()
+        .describe("City of the property owner — for tenant-occupied homes.")
+        .nullable()
+        .optional(),
+
+      /** State of the property owner — the same STATES vocabulary. */
+      propertyOwnerState: UsState.describe(
+        "State of the property owner, as the two-letter code — map the spoken full state name onto it.",
+      )
+        .nullable()
+        .optional(),
+
+      /** Zip of the property owner. */
+      propertyOwnerZip: z
+        .string()
+        .describe("Zip code of the property owner — for tenant-occupied homes.")
+        .nullable()
+        .optional(),
+
+      /**
+       * Declared `enum: []` in the spec — a named enum with NO published
+       * members, "only enabled for select programs". Per the project
+       * convention that is free-text-into-review, not an invented value list.
+       */
+      auditType: z
+        .string()
+        .describe(
+          "The audit type — Snugg publishes no value list for this field (it is only enabled for select programs), so capture what was said as free text for review rather than choosing from a list that does not exist.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Note to the assignee — the most obviously dictated field here. */
+      note: z
+        .string()
+        .describe(
+          "The note to the assignee or assigned user, dictated verbatim — the natural dictation target of this endpoint.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Enhanced BPI 2400 calibration. `type: string` with INTEGER enum members
+       * — the `renterOwner` divergence, and the same `z.number()` treatment.
+       */
+      useStrictBpi2400Calibration: z
+        .number()
+        .describe(
+          'Whether to use enhanced calibration for BPI 2400; the wire value is integer 1 (Yes) or 0 (No). A jargon toggle ("use strict 2400 cal") — set it only from an explicit statement; it is usually a program setting, not a dictated one.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Household income tier for the job. */
+      householdIncomeTier: HouseholdIncomeTier.describe(
+        'Household income tier for the job — reproduce the member character for character, including the spaced hyphen in "LMI 80 - 120".',
+      )
+        .nullable()
+        .optional(),
+    }),
+  )
+  .strict();
+
 // --- The field set, as a writable patch --------------------------------------
 // Every leaf is `X.nullable().optional()` and every object is `.strict()`; see
 // the file header for why both halves are load-bearing.
@@ -2776,7 +3182,7 @@ export const StageFields = z
 // Per-instance child resources (the component resources plus `concern` and
 // `incentive` — the API creates one record per element with
 // `POST /jobs/{jobId}/<type>`) are `z.array(...).optional()`. `basedata`,
-// `health` and `stage` are genuine singletons and stay objects.
+// `health`, `stage` and `job` are genuine singletons and stay objects.
 
 export const snuggValuesSchema = z
   .object({
@@ -2791,6 +3197,7 @@ export const snuggValuesSchema = z
     concern: z.array(ConcernFields).optional(),
     incentive: z.array(IncentiveFields).optional(),
     stage: StageFields.optional(),
+    job: JobFields.optional(),
   })
   .strict();
 

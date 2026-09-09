@@ -39,6 +39,7 @@ export const SNUGG_GROUP_KEYS = [
   "concern",
   "incentive",
   "stage",
+  "job",
 ] as const;
 
 /**
@@ -356,6 +357,45 @@ A dictated insulation DEPTH for a vault has no field in this group — it is cap
 \`attic.atticInsulationDepth\` (rule 8). Here, \`vaultCavityInsulation\` and
 \`vaultContinuousInsulation\` take only stated R-values.`,
   },
+  {
+    number: 17,
+    groups: ["job"],
+    text: `**17. The \`job\` group is the job itself — ONE job, two distinct contacts, and never an invented id.**
+
+The \`job\` group records the job's own identity, contacts, scheduling and program wiring. It is a
+SINGLETON: one recording session is one job, so there is never a second instance to tell apart.
+
+**Two people, one set of bare contact fields.** The bare contact leaves (\`firstName\`, \`lastName\`,
+\`email\`, \`homePhone\`, \`address1\`/\`address2\`, \`city\`, \`state\`, \`zip\`) are the OCCUPANT — the
+customer or job contact at the audited property. The \`propertyOwner*\` leaves are a SECOND, distinct
+person: the owner, when the auditor explicitly identifies the owner as someone else ("the owner lives
+in Akron, her number is five-five-five…"). A contact fact goes on the person being spoken about,
+never on both: "her number is …" during a tenant conversation is the tenant's phone on \`homePhone\`,
+and the same words about the out-of-state owner are \`propertyOwnerPhone\`. \`renterOwner\` is the
+hint — a rental means the occupant is the tenant — but fill the owner side only from speech that
+identifies the owner, never from \`renterOwner\` alone.
+
+**Spoken forms map to wire codes.** A full state name becomes its two-letter code ("the home is in
+Massachusetts" → \`state: "MA"\`, and the same mapping on \`propertyOwnerState\`). \`renterOwner\` is
+integer 0 (Renter) or 1 (Owner) from an explicit statement — "she owns it" → 1, "there's a tenant" →
+0 — never inferred from who answered the door. \`stageId\` and \`jobType\` are label→code integers
+("mark it bid proposed" → \`stageId: 3\`; "this is a score job" → \`jobType: 2\`), set only when the
+label was actually said — never a default because audits are the common case.
+
+**Names, not ids.** \`accountId\` and \`programId\` are integer ids on the wire, but you capture the
+SPOKEN NAME as free text — "give this one to Dave" → \`accountId: "Dave"\`; "this one's NYSERDA" →
+\`programId: "NYSERDA"\` — exactly the discipline of rule 15. Never emit, invent or guess a numeric
+id; resolving the name against the real account/program list is a later, human-supervised step.
+
+**Scheduling without a calendar.** \`serviceTime\` takes the wire format \`YYYY-MM-DD HH:MM:SS\`, and
+you fill it only when the transcript itself states an absolute date and time. A purely relative day
+("I'll come back Thursday at nine") stays \`value: null\` with the quote as \`sourceSpan\` — anchoring
+it to a calendar date is a later step, and a date you compute is a date you invented.
+
+**Verbatim strings.** \`householdIncomeTier\` members carry percent signs, spaces and a spaced hyphen
+(\`"LMI 80 - 120"\`) — reproduce them character for character. \`auditType\` has NO published value
+list ("only enabled for select programs"): capture what was said as free text, never a picked value.`,
+  },
 ];
 
 // --- Output section ----------------------------------------------------------
@@ -371,10 +411,10 @@ function fullOutputSection(): string {
 
 Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` in \`schema.ts\`.
 
-- The object has exactly eleven top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`vault\`, \`wall\`,
-  \`window\`, \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\` — each a nested object grouping
-  the fields for one part of the house or one job-collection resource. They are not themselves fields
-  and carry no envelope of their own.
+- The object has exactly twelve top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`vault\`, \`wall\`,
+  \`window\`, \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\`, \`job\` — each a nested object
+  grouping the fields for one part of the house or one job-collection resource. They are not
+  themselves fields and carry no envelope of their own.
 - Every field in the schema must be present as a key inside its group. Never omit a key — "not
   mentioned" is expressed by \`value: null\`, not by absence. This includes every one of the 16 keys
   inside \`health\`, and every field of a group the auditor never touched.
