@@ -44,13 +44,27 @@ export interface PdfPageProxy {
 }
 
 /**
- * One item from `getTextContent().items`. `str` is the text run, `hasEOL`
- * signals a line break — preserving it is what keeps line structure, and the
- * measured extraction accuracy was measured **with** it (D8).
+ * One item from `getTextContent().items`.
+ *
+ * **The geometry is the important part.** pdf.js emits items in
+ * content-stream order, which is not visual order, so `str` alone is not
+ * enough to reconstruct a page — see `page-layout.ts`. `transform` is the
+ * item's 6-element matrix `[a, b, c, d, e, f]` where `e`/`f` are the origin's
+ * x/y in device space (PDF y grows **upward**), and `width`/`height` bound the
+ * run. Together they are what lets baseline clustering rebuild rows.
+ *
+ * `hasEOL` signals a line break in the **drawing** order. It is no longer read:
+ * geometry supersedes it, and on a real invoice it was actively misleading.
+ * Kept on the interface because pdf.js returns it and removing it from the
+ * structural type would be a lie about the shape.
  */
 export interface PdfTextItem {
   str: string;
   hasEOL: boolean;
+  /** `[a, b, c, d, e, f]` — `e` is x, `f` is the baseline y. */
+  transform?: number[];
+  width?: number;
+  height?: number;
 }
 
 /**

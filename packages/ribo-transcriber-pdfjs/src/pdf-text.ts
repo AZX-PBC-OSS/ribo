@@ -1,5 +1,7 @@
 import { UnsupportedItemError } from "@azx/ribo-core";
 
+import { layoutPageText, type PageLayoutOptions } from "./page-layout.js";
+
 import type { PdfDocumentProxy, PdfjsModule, PdfTextItem } from "./config.js";
 
 /**
@@ -133,6 +135,12 @@ export interface OpenDocumentOptions {
   readonly loadPdfjs?: () => Promise<PdfjsModule>;
   /** The engine id, stamped onto `UnsupportedItemError` for exception mapping. */
   readonly engine: string;
+  /**
+   * Thresholds for rebuilding visual reading order from item geometry. Every
+   * field is optional and defaulted; see `page-layout.ts` for what each does
+   * and why its default is provisional.
+   */
+  readonly layout?: PageLayoutOptions;
 }
 
 /**
@@ -169,15 +177,29 @@ export async function openDocument(
       for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i);
         const content = await page.getTextContent();
-        // Preserve `item.hasEOL` — it is what keeps line structure, and the
-        // measured extraction accuracy was measured with it (D8).
+        // Rebuild visual reading order from each item's geometry rather than
+        // concatenating in content-stream order. `item.hasEOL` is deliberately
+        // NOT used any more: it reports a line break in the drawing order,
+        // which on a real invoice put `Subtotal` about a thousand characters
+        // from `$70,903.33`. Baseline clustering derives line structure from
+        // where the text actually sits, which is the thing hasEOL was standing
+        // in for. See `page-layout.ts` for the measurement and the trade-offs.
         pages.push(
           PAGE_MARKER +
             i +
             " =====\n" +
-            content.items
-              .map((it: PdfTextItem) => (it.str ?? "") + (it.hasEOL ? "\n" : ""))
-              .join(""),
+            layoutPageText(
+              content.items.map((it: PdfTextItem) => ({
+                str: it.str ?? "",
+                // `transform` is [a, b, c, d, e, f]; e and f are the origin.
+                x: it.transform?.[4] ?? 0,
+                y: it.transform?.[5] ?? 0,
+                width: it.width ?? 0,
+                height: it.height ?? 0,
+              })),
+              options.layout ?? {},
+            ) +
+            "\n",
         );
       }
       return pages.join("");
