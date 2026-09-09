@@ -8,7 +8,8 @@
  *      slashes, percent signs and all, so no write-time lookup table.
  *   3. **Nesting is the resource layout** — one group per write endpoint
  *      (`basedata` singleton, per-instance component and job-collection
- *      resources, `stage` singleton), so `write` dispatches on the group key.
+ *      resources, the `stage` and `report` singletons), so `write` dispatches on
+ *      the group key.
  *
  * Scoping: `basedata` is the FULL honest capture surface of its endpoint (doc 17
  * §Scoping — the form fields minus the `*Improved` retrofit twins and the
@@ -19,7 +20,9 @@
  * computed ones, and the `capture?` fields described with the caveat that makes
  * them borderline — see the groups). The job-collection groups each carry every
  * field of their endpoint in extraction scope minus the computed ones
- * (`incentive`'s `recommendations` is excluded by design — see the group).
+ * (`incentive`'s `recommendations` is excluded by design — see the group;
+ * `report` carries its authored-text half only, its display-flag tranche being
+ * separately deferred — see that group).
  *
  * ---
  *
@@ -2769,6 +2772,111 @@ export const StageFields = z
   )
   .strict();
 
+/**
+ * `POST /jobs/{jobId}/report` — the authored text of the homeowner-facing
+ * report. A job-collection resource (design `job-collections-foundation-design.md`)
+ * but a per-job SINGLETON, like `basedata`, `health` and `stage`, not an array:
+ * the path terminates at the resource name with no `{reportUuid}` sub-path, the
+ * one verb is a `POST` summarised "Update Report" (upsert-on-the-job), and there
+ * is no delete and no list (doc 20 §5.3 "Cardinality: per-job singleton").
+ *
+ * Scope is doc 20 §5.3's (a1)+(a2) verdicted `capture`/`capture?` surface only —
+ * the genuine long-form prose fields and the short single-line labels. The
+ * (b1)/(b2) `element*` display-mode and `page*` visibility flags are a
+ * separately deferred tranche (opaque integers whose meanings live only in the
+ * response definition), the presentation-only titles doc 20 verdicts `exclude`
+ * stay out, and `customFields` is response-only.
+ *
+ * The length caps are carried in the leaf descriptions because some look wrong
+ * at a glance and would mislead a generator: `concernsSidebar` reads like it
+ * wants the homeowner's concerns in prose but the API caps it at 32 characters,
+ * and `solutionsTitle` is uncapped yet is a subheader — treat it as short (doc
+ * 20 §5.3 "Free-text inventory and expected length").
+ */
+export const ReportFields = z
+  .object(
+    withVendorDescriptions({
+      // --- (a1) Long-form narrative prose: the only strings in the endpoint's
+      // definition with NO `maxLength` (doc 20 §5.3). ---
+
+      /** The cover-page introduction, dictated for the homeowner. */
+      coverTextArea: z
+        .string()
+        .describe(
+          "Long-form prose — multi-sentence to multi-paragraph. Capture the introduction the auditor dictated for the cover page in their own words; never compose one yourself, and null when nothing was dictated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The additional-notes sidebar text; often the longest dictated block. */
+      additionalNotesOverview: z
+        .string()
+        .describe(
+          "Long-form prose — multi-sentence. Capture the catch-all notes the auditor dictated for the additional-notes sidebar in their own words; never compose notes yourself, and null when nothing was dictated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The health-and-safety narrative — prose, not the test matrix. */
+      safetyOverview: z
+        .string()
+        .describe(
+          "Long-form prose — one to several sentences. The health-and-safety narrative the auditor dictated for the report; a named test RESULT is a `health` leaf, and this narrative is never synthesized from the tests.",
+        )
+        .nullable()
+        .optional(),
+
+      // --- (a2) Short single-line labels / section titles. All are one-line
+      // labels; the ones the API caps say so in the description. ---
+
+      /** The report's own title, when the auditor named the deliverable. */
+      titleCover: z
+        .string()
+        .describe(
+          "A short single-line label — the API caps it at 32 characters. Capture it only when the auditor actually named the report; never a sentence.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The concerns-page sidebar caption — 32 characters despite the name. */
+      concernsSidebar: z
+        .string()
+        .describe(
+          "Despite reading like it wants the homeowner's concerns, the API caps this at 32 characters — a short single-line sidebar caption only, never a paragraph. A concern the homeowner voiced is a `concern` instance, not this field.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The solutions-page subheader — uncapped in the API, still short. */
+      solutionsTitle: z
+        .string()
+        .describe(
+          "A subheader title — a short single-line label even though the API publishes no length cap for it. Capture it only when the auditor actually named the section; it is usually a template default.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The first custom program section's title, when one was named. */
+      titleCustom1: z
+        .string()
+        .describe(
+          "A short single-line label — the API caps it at 32 characters. Custom sections have no template default, so capture the name only when the auditor gave one.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The second custom program section's title, when one was named. */
+      titleCustom2: z
+        .string()
+        .describe(
+          "A short single-line label — the API caps it at 32 characters. Custom sections have no template default, so capture the name only when the auditor gave one.",
+        )
+        .nullable()
+        .optional(),
+    }),
+  )
+  .strict();
+
 // --- The field set, as a writable patch --------------------------------------
 // Every leaf is `X.nullable().optional()` and every object is `.strict()`; see
 // the file header for why both halves are load-bearing.
@@ -2776,7 +2884,7 @@ export const StageFields = z
 // Per-instance child resources (the component resources plus `concern` and
 // `incentive` — the API creates one record per element with
 // `POST /jobs/{jobId}/<type>`) are `z.array(...).optional()`. `basedata`,
-// `health` and `stage` are genuine singletons and stay objects.
+// `health`, `stage` and `report` are genuine singletons and stay objects.
 
 export const snuggValuesSchema = z
   .object({
@@ -2791,6 +2899,7 @@ export const snuggValuesSchema = z
     concern: z.array(ConcernFields).optional(),
     incentive: z.array(IncentiveFields).optional(),
     stage: StageFields.optional(),
+    report: ReportFields.optional(),
   })
   .strict();
 

@@ -500,6 +500,22 @@ const fields: SnuggExtraction = {
     // same discipline as an unmentioned health test.
     stageId: env(null, null),
   },
+
+  report: {
+    // Nothing in this transcript is dictated AS REPORT COPY — no cover-page intro, no
+    // notes narrative, no section labels — so every authored-text field is an unforced
+    // `null`. The demonstration for this group is the same as the stage group's: the
+    // model never composes report prose itself (rule 17), so a transcript with no
+    // dictated report text produces all `null`s, never a written paragraph.
+    coverTextArea: env(null, null),
+    additionalNotesOverview: env(null, null),
+    safetyOverview: env(null, null),
+    titleCover: env(null, null),
+    concernsSidebar: env(null, null),
+    solutionsTitle: env(null, null),
+    titleCustom1: env(null, null),
+    titleCustom2: env(null, null),
+  },
 };
 
 export const snuggExamples: readonly ToolAdapterExample<SnuggExtraction>[] = [

@@ -39,6 +39,7 @@ export const SNUGG_GROUP_KEYS = [
   "concern",
   "incentive",
   "stage",
+  "report",
 ] as const;
 
 /**
@@ -356,6 +357,30 @@ A dictated insulation DEPTH for a vault has no field in this group — it is cap
 \`attic.atticInsulationDepth\` (rule 8). Here, \`vaultCavityInsulation\` and
 \`vaultContinuousInsulation\` take only stated R-values.`,
   },
+  {
+    number: 17,
+    groups: ["report"],
+    text: `**17. The \`report\` group is AUTHORED report copy — dictated words only, never prose you compose.**
+
+The \`report\` group carries text written for the homeowner-facing report: the cover-page
+introduction (\`coverTextArea\`), the additional-notes sidebar text (\`additionalNotesOverview\`), the
+health-and-safety narrative (\`safetyOverview\`), and a handful of short section labels. These fields
+invite composition — do NOT compose. A field is filled only with text the auditor actually dictated,
+kept in the words it was spoken in, with the dictation quoted as \`sourceSpan\`. A well-written
+paragraph you generated for the report is a hallucination like any invented number. Nothing
+dictated for a field is \`null\`.
+
+The prose fields (\`coverTextArea\`, \`additionalNotesOverview\`, \`safetyOverview\`) take the
+multi-sentence blocks an auditor dictates for the report. The rest are short single-line labels and
+section titles, and most are HARD-CAPPED BY THE API at 32 characters — a dictated paragraph does
+not fit and the write would be rejected or truncated. \`concernsSidebar\` is the trap: it reads like
+it wants the homeowner's concerns in prose, but it holds only a short caption. \`solutionsTitle\` has
+no cap yet is still a subheader — treat it as short.
+
+Do not double-book other groups' content here: a worry the homeowner voiced is a \`concern\` instance
+(rule 14), never \`concernsSidebar\`; a named test result is a \`health\` leaf (rule 9), and
+\`safetyOverview\` is the dictated safety NARRATIVE — never synthesized from the test matrix.`,
+  },
 ];
 
 // --- Output section ----------------------------------------------------------
@@ -371,8 +396,8 @@ function fullOutputSection(): string {
 
 Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` in \`schema.ts\`.
 
-- The object has exactly eleven top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`vault\`, \`wall\`,
-  \`window\`, \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\` — each a nested object grouping
+- The object has exactly twelve top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`vault\`, \`wall\`,
+  \`window\`, \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\`, \`report\` — each a nested object grouping
   the fields for one part of the house or one job-collection resource. They are not themselves fields
   and carry no envelope of their own.
 - Every field in the schema must be present as a key inside its group. Never omit a key — "not

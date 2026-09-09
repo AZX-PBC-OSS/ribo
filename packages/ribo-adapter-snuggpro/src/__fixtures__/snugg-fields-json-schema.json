@@ -11050,6 +11050,270 @@
       },
       "required": ["stageId"],
       "additionalProperties": false
+    },
+    "report": {
+      "type": "object",
+      "properties": {
+        "coverTextArea": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Introduction text that appears on the cover page. Long-form prose — multi-sentence to multi-paragraph. Capture the introduction the auditor dictated for the cover page in their own words; never compose one yourself, and null when nothing was dictated."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "additionalNotesOverview": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The text in the sidebar of the additional notes page(s). Long-form prose — multi-sentence. Capture the catch-all notes the auditor dictated for the additional-notes sidebar in their own words; never compose notes yourself, and null when nothing was dictated."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "safetyOverview": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Notes about the health and safety of the home. Long-form prose — one to several sentences. The health-and-safety narrative the auditor dictated for the report; a named test RESULT is a `health` leaf, and this narrative is never synthesized from the tests."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "titleCover": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The title of the cover page. A short single-line label — the API caps it at 32 characters. Capture it only when the auditor actually named the report; never a sentence."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "concernsSidebar": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The text in the sidebar of the concerns page. Despite reading like it wants the homeowner's concerns, the API caps this at 32 characters — a short single-line sidebar caption only, never a paragraph. A concern the homeowner voiced is a `concern` instance, not this field."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "solutionsTitle": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Subheader title on the solutions page. A subheader title — a short single-line label even though the API publishes no length cap for it. Capture it only when the auditor actually named the section; it is usually a template default."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "titleCustom1": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The title of the custom program section in the report. This is an optional section which may not be visible in all programs. A short single-line label — the API caps it at 32 characters. Custom sections have no template default, so capture the name only when the auditor gave one."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "titleCustom2": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The title of the second custom program section in the report. This is an optional section which may not be visible in all programs. A short single-line label — the API caps it at 32 characters. Custom sections have no template default, so capture the name only when the auditor gave one."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "coverTextArea",
+        "additionalNotesOverview",
+        "safetyOverview",
+        "titleCover",
+        "concernsSidebar",
+        "solutionsTitle",
+        "titleCustom1",
+        "titleCustom2"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [
@@ -11063,7 +11327,8 @@
     "health",
     "concern",
     "incentive",
-    "stage"
+    "stage",
+    "report"
   ],
   "additionalProperties": false
 }

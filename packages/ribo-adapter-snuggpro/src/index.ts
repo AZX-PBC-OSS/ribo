@@ -77,6 +77,7 @@ export {
   PoolPumpHorsepower,
   PoolPumpManufacturer,
   PoolPumpType,
+  ReportFields,
   SCHEMA_NESTING_DEPTH_CAP,
   SCHEMA_SERIALIZED_CHAR_CAP,
   Shielding,

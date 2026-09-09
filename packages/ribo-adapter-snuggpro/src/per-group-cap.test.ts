@@ -101,6 +101,7 @@ test("the real derived schema splits collection groups as arrays", () => {
     "concern",
     "incentive",
     "stage",
+    "report",
   ]);
 
   const collectionKeys = new Set([
@@ -224,6 +225,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       "concern",
       "incentive",
       "stage",
+      "report",
     ]);
 
     expect(byKey.get("basedata")).toHaveLength(21);
@@ -232,7 +234,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     expect(byKey.get("vault")).toHaveLength(3);
     expect(byKey.get("window")).toHaveLength(4);
     expect(byKey.get("health")).toHaveLength(2);
-    for (const key of ["wall", "dhw", "concern", "incentive", "stage"]) {
+    for (const key of ["wall", "dhw", "concern", "incentive", "stage", "report"]) {
       const pieces = byKey.get(key)!;
       expect(pieces, `group "${key}"`).toHaveLength(1);
       expect(pieces[0]!.part, `group "${key}" should not be partitioned`).toBeUndefined();
