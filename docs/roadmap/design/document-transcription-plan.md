@@ -198,41 +198,55 @@ not.
 `arbitration.ts` carries a comment about the version of this that got it backwards and died with a
 `TypeError` instead of the real error on the primary case it existed for. Do not reorder.
 
-### D7a. The mixed queue: one relay, one transcriber, two kinds — put pdf.js first
+### D7a. An audio engine must not fit a slot that can see documents — let the compiler say so
 
-This is the composition consequence nobody states until it bites, so state it here.
+`RelayOptions.transcriber` is **one** transcriber (`relay.ts:121`) draining **one** queue whose
+items are now `CaptureItem`, so its type widens to `Transcriber<CaptureItem>`. The hazard is what
+happens if an audio-only engine is wired into that slot: `OnDeviceTranscriber.transcribe` never
+looks at `kind` — it reads `item.id` and calls `decodeTo16kMono(bytes)` — so handed PDF bytes it
+fails inside `decodeAudioData` as a generic **attempt failure**, indistinguishable from a clip that
+OOMed, which under D7 rule 4 correctly ends the ladder. A document would die at that rung and never
+reach pdf.js.
 
-`RelayOptions.transcriber` is **one** transcriber (`relay.ts:121`) draining **one** queue that may
-hold both dictations and documents. So the host's composition root wires a single
-`fallbackTranscriber` ladder, and **pdf.js must come first in it**.
+**This is a type error, and the only reason it is not caught is how the interface is declared.**
+`transcriber.ts` writes `transcribe` with **method** syntax, and TypeScript exempts method
+parameters from `strictFunctionTypes`, comparing them bivariantly — a deliberate concession for
+things like `Array<T>.push`, and the reason `Transcriber<Recording>` slides into a
+`Transcriber<CaptureItem>` slot unchallenged. Declared as a function-typed **property** instead, the
+same assignment is rejected: `TS2322: Type 'CaptureItem' is not assignable to type 'Recording'`.
 
-**Why the order is not arbitrary.** Nothing in this tranche makes the existing audio engines reject
-a document — the global constraint forbids changing them, and they never look at `kind`.
-`OnDeviceTranscriber.transcribe` reads only `item.id` and then calls `decodeTo16kMono(bytes)`;
-handed PDF bytes it fails in `decodeAudioData`, which is an **attempt failure**, not
-`UnsupportedItemError`. Under D7 rule 4 an attempt failure gives up immediately — so in the order
-`[ondevice, pdfjs]` a PDF dies at the first rung and pdf.js is never reached. In the order
-`[pdfjs, ondevice]` a dictation reaches pdf.js first, which throws `UnsupportedItemError`
-(`unsupported-format` — the bytes are not a PDF), and the ladder routes on to the audio engine
-exactly as designed.
+Measured on this tree under TypeScript 6.0.3 with the repo's own `strict` settings:
 
-**The cost, stated rather than discovered later.** In a `[pdfjs, ondevice]` ladder a _scanned_ PDF
-produces `no-text-layer` (terminal) from pdf.js and then a decode failure (retryable) from the audio
-engine, so D7 rule 2 prefers the retryable one and the item is retried for the full budget before
-landing in `dead` — the very waste D5's terminal classification exists to avoid, reintroduced one
-composition removed. This is accepted for now: it costs a few pointless attempts on a document
-nothing can currently read, and it disappears the moment an OCR rung joins the ladder, which is the
-next tranche. Say so in the module doc comment; do not let a future reader think it was missed.
+| `transcribe` declared as | `Transcriber<Recording>` → `Transcriber<CaptureItem>` |
+| ------------------------ | ----------------------------------------------------- |
+| method                   | accepted, silently                                    |
+| function-typed property  | **TS2322**                                            |
 
-**The alternative, not taken.** Two lines at the top of each audio engine's `transcribe` — refuse a
-non-audio `kind` with `UnsupportedItemError` — would make the ladder order-independent and remove
-the scanned-PDF retry cost. It is rejected only because it changes existing implementations, which
-this tranche is explicitly forbidden to do. If that constraint is relaxed, take it; it is the better
-design.
+**So Task 2 declares it as a property.** Two further results from the same probe say this is cheap
+rather than disruptive: a class written with an ordinary `async transcribe(…)` **method** still
+satisfies the property-typed interface (variance only matters when comparing two _instantiations_
+of the interface), so `OnDeviceTranscriber`, `ManagedTranscriber` and `FakeTranscriber` need no
+edit; and the safe direction — a `Transcriber<CaptureItem>` into a `Transcriber<Recording>` slot —
+still compiles, as it should.
 
-Also note `hedged()`'s delay policy is typed `(recording: Recording) => number | undefined`
-(`hedged.ts:66`), so a document reaching a hedged composite yields no predicted duration. Do not
-compose `hedged` into a ladder that can see documents.
+**What a host does about it: `restrictToKind`.** A composition root wiring an audio-only roster into
+a queue that can hold documents now gets a compile error, and the fix is one core-provided
+combinator that lifts a narrow transcriber into a wide one by refusing other kinds with
+`UnsupportedItemError`:
+`relay({ transcriber: restrictToKind("audio", firstCapable([ondevice, managed])) })`. It lives in
+core beside `firstCapable`, it edits no engine, and — this is the point — the compiler is what
+sends the host to it. Nothing relies on remembering an ordering rule.
+
+**What is deliberately NOT built here.** Mixed audio-and-document queues are not a real workload
+today, so this tranche adds no ladder-ordering rule, no per-engine `kind` guards, and no test for a
+mixed roster beyond the combinator's own. The type change is worth making now only because it is one
+character and it makes the contract honest; the machinery that would sit on top of it is not, and an
+earlier draft of this plan carried a page of it. If a mixed queue becomes real, the compiler will
+raise it at the composition root, which is the right place and the right time.
+
+One related note, unchanged by any of this: `hedged()`'s delay policy is typed
+`(recording: Recording) => number | undefined` (`hedged.ts:66`), so `hedged` is audio-shaped by
+construction and needs `restrictToKind` for the same reason.
 
 ### D8. The pdf.js package
 
@@ -328,6 +342,8 @@ Every task inherits these.
 - `packages/ribo-core/src/transcription-arbitration.ts` (+ test) — the transcriber-side arbiter
   vocabulary and `unsupportedFallsThrough`.
 - `packages/ribo-core/src/fallback-transcriber.ts` (+ test) — the ladder.
+- `packages/ribo-core/src/restrict-to-kind.ts` (+ test) — lifts a narrow transcriber into a slot
+  that can see any `CaptureItem`, refusing other kinds. See D7a.
 - `packages/ribo-transcriber-pdfjs/` — the new package (see Task 6 for its file list).
 
 **Modified**
@@ -466,26 +482,43 @@ call sites — including both in `recorder.ts` — unchanged.
 ## Task 2 — `Transcriber` becomes generic over its item
 
 **Files.** Modify `transcriber.ts`, `transcriber.test.ts`, `queue/relay.ts` (the injected
-transcriber's type only).
+transcriber's type only), `restrict-to-kind.ts` + test (new, but it needs Task 3's error — see
+Ordering below).
 
-**Intent.** `Transcriber<S extends CaptureItem = Recording>`, with `transcribe(item: S, bytes: Blob)`.
+**Intent.** `Transcriber<S extends CaptureItem = Recording>`, declaring
+`transcribe: (item: S, bytes: Blob) => Promise<Transcript>` — **a function-typed property, not a
+method.** Per D7a that one character is what makes the contract enforceable: method parameters are
+exempt from `strictFunctionTypes` and compared bivariantly, so with method syntax an audio-only
+engine slides unchallenged into a slot that can see documents.
 
 The default type argument means bare `Transcriber` keeps meaning **exactly** what it means today, so
 `ribo-transcriber-ondevice`, `ribo-transcriber-managed`, `firstCapable`, `hedged` and
-`FakeTranscriber` satisfy it **unchanged**. Rename the parameter `audio` → `bytes`: a parameter
-name, not an exported symbol, so nothing importing this breaks, and the Blob was always just bytes.
+`FakeTranscriber` satisfy it **unchanged** — a class written with an ordinary `async transcribe(…)`
+method still satisfies a property-typed interface, verified. Rename the parameter `audio` → `bytes`:
+a parameter name, not an exported symbol, so nothing importing this breaks, and the Blob was always
+just bytes.
 
-`RelayOptions.transcriber` widens to the union instantiation, because `OutboxItem.recording` is now
-the union. Note in a comment that TypeScript compares **method** parameters bivariantly, so an
-audio-only `Transcriber` still satisfies the widened field — the type system will not catch a host
-that wires an audio engine and then enqueues a PDF, and the honest answer to that is
-`UnsupportedItemError` at runtime (Task 3), not a type trick.
+`RelayOptions.transcriber` widens to `Transcriber<CaptureItem>`, because `OutboxItem.recording` is
+now the union — and with property syntax that widening now **rejects** an audio-only roster, which
+is the entire point. Existing relay tests and any host wiring `firstCapable([…])` into a relay must
+wrap it: `restrictToKind("audio", firstCapable([…]))`.
+
+**`restrictToKind(kind, transcriber)`** is a small combinator beside `firstCapable`: it takes a
+`Transcriber<S>` and returns a `Transcriber<CaptureItem>` that throws `UnsupportedItemError` for any
+item of another kind and otherwise delegates. It changes no engine, and the compiler is what sends a
+host to it. Keep its doc comment short and point it at D7a's reasoning.
 
 **Do not** add `"no-text-layer"` to the _capability_ reason vocabulary. The per-item case is Task 3
 and is not a capability reason. Only add it there if a genuinely engine-level use turns up, and say
 so if it does.
 
-**Interfaces produced.** `Transcriber<S>` with the default argument; `transcribe(item, bytes)`.
+**Ordering.** `restrictToKind` throws `UnsupportedItemError`, which Task 3 defines. Land Task 3
+first if you prefer, or fold the error's definition into this task and let Task 3 add only its tests
+and doc cross-references — but Tasks 1 and 2 still commit together (the relay error), so in practice
+this is one commit spanning 1–3. Say which shape you used.
+
+**Interfaces produced.** `Transcriber<S>` with the default argument and a property-declared
+`transcribe`; `restrictToKind(kind, transcriber)`.
 
 **Must-fail tests.** These are type-level properties, so assert them the way
 `queue/schema.test.ts:235-256` asserts unpatchable fields — with `@ts-expect-error`, where the
@@ -495,12 +528,22 @@ unused-directive error (TS2578) _is_ the assertion. A runtime test cannot reach 
 are invisible to `pnpm test`. A green test run says nothing about them. That is the same deal the
 existing precedent makes, but it is worth knowing before you go looking for a red test.
 
-- A `Transcriber<DocumentCapture>` **cannot** be constructed from a function taking a `Recording`
-  (and vice versa) — the constraint is doing work.
+- **A `Transcriber<Recording>` is NOT assignable to `Transcriber<CaptureItem>`.** This is the D7a
+  property and the reason for the property-syntax declaration. Write it, then flip the declaration
+  back to method syntax once and watch the `@ts-expect-error` go unused — that is the only way to
+  know the test is testing the syntax choice rather than something incidental.
+- A `Transcriber<CaptureItem>` **is** assignable to `Transcriber<Recording>`. The safe direction must
+  keep working; a test that only pins the rejection would also pass if the type were simply broken.
 - Bare `Transcriber` still accepts a `Recording` and still **rejects** a `DocumentCapture`, so the
   default argument has not silently widened the existing contract.
+- A class written with an ordinary `async transcribe(…)` **method** satisfies the property-typed
+  interface. Pin it: it is what makes this change cost nothing at every existing implementation, and
+  a reader who knows variance will assume the opposite.
+- `restrictToKind("audio", audioOnly)` produces something assignable to `Transcriber<CaptureItem>`,
+  and at runtime throws `UnsupportedItemError` for a document while delegating for a recording.
 - Something that satisfies `Transcriber` today (construct it inline, or reuse `FakeTranscriber`)
-  still satisfies it with no type arguments written.
+  still satisfies it with no type arguments written. **Passes today** — a regression fence, not a
+  must-fail.
 
 ---
 
@@ -633,12 +676,12 @@ substitutes in with zero changes elsewhere is non-negotiable #3, and it is what 
   model), and without this test a ladder that reported `unavailable` beside a ready delegate would
   pass every other test in this list.
 - The composite's own `engine` defaults to `"fallback"` and is overridable.
-- **Ladder ordering, per D7a.** With `[documentEngine, audioEngine]` and an audio item, the document
-  engine throws `UnsupportedItemError` and the audio engine produces the transcript. With the order
-  reversed and a document item, the audio engine's _attempt_ failure ends the ladder and the
-  document engine is never called. Assert **both**, including the second — it is the failure the
-  host's composition root has to be ordered to avoid, and pinning it is what stops someone
-  "improving" D7 rule 4 into continuing on attempt failures.
+- **An attempt failure ends the ladder even when a later rung could have succeeded.** With
+  `[a, b]` where `a` throws a plain error and `b` would have produced a transcript, `b` is never
+  called. This looks like a missed opportunity and is not: it is D7 rule 4 and non-negotiable #2,
+  and pinning it is what stops someone "improving" the arbiter into continuing on attempt failures.
+  Per D7a this is now the compiler's problem rather than an ordering rule — a rung that cannot read
+  an item does not typecheck into the ladder — so this test guards the arbiter, not composition.
 - `FakeTranscriber` with no type argument still compiles against everything that used it before —
   run the existing `first-capable`, `hedged` and `relay` suites as the assertion.
 
@@ -816,14 +859,14 @@ incomplete. Add the entry; do not claim it makes typedoc current.
 | 1 — `Recording` gains `kind`; migration verified | 1 (D1, D2, D3)                                                        |
 | 2 — `Transcriber` generic; `audio` → `bytes`     | 2 — **committed together with Task 1**                                |
 | 3 — third failure class                          | 3 (D4, D5)                                                            |
-| 3 — `fallbackTranscriber` + arbiter + Fake       | 4 (D6, D7, D7a)                                                       |
+| 3 — `fallbackTranscriber` + arbiter + Fake       | 4 (D6, D7)                                                            |
 | 4 — `@azx/ribo-transcriber-pdfjs`                | 5 (skeleton, cheap `capability()`) and 6 (extraction, markers, guard) |
 | Changeset                                        | every task                                                            |
 
 **This plan was reviewed before execution** by a second model (kimi-k3, cross-family, 2026-09-09),
 and revised against that review. Five of its findings are folded in above: the real typecheck
 fallout (five production sites, not two), the two hard-coded `EXPECTED_PUBLISHED_COUNT = 7` gates
-plus the playground-resolution requirement in Task 5, the mixed-queue ladder-ordering gap (D7a), the
+plus the playground-resolution requirement in Task 5, the mixed-queue gap (D7a, closed by the type system rather than a rule), the
 missing `capability()`-precedence and round-trip tests, and the `pageCount` API shape (D8).
 
 **One review finding was checked and rejected**: it asserted that `commitRecording`'s spread _does_
