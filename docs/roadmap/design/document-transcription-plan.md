@@ -472,6 +472,19 @@ the compiler to have your back here. The guard's test needs a cast to construct 
 `beginRecording`'s signature makes it unreachable through the public API; say so in a comment, so
 the cast does not read as laziness.
 
+**As executed (Tasks 1-3 landed 2026-09-09), this section was wrong in four places.** Corrected
+here so the enumeration is usable rather than merely historical:
+
+- `playground/src/TranscribePanel.tsx` is a **sixth** production site, not listed below — it wires
+  `firstCapable([…])` straight into `createRelay` and needs the same `restrictToKind` wrap.
+- `transcribe.manual.ts` is a **fifth** `.manual.ts` site.
+- Adding `kind: "audio"` is only mechanical where the literal has a contextual type. An unannotated
+  `const recording = { … }` widens `"audio"` to `string`; those need `as const`. That covers the
+  five manual files and the `ribo-ui-react` / playground test helpers.
+- Every `createRelay` call taking a bare `FakeTranscriber` needs a `restrictToKind("audio", …)`
+  wrap — eight call sites, spanning `write-step.test.ts`, `instance-write-step.test.ts` and
+  `extractor.browser.test.ts` as well as the relay and playground files named below.
+
 Finally, roughly twenty test fixtures declare `const recording: Recording = { … }` with no `kind`
 and need `kind: "audio"` added, because `z.infer` gives the _output_ type where `kind` is required.
 Mechanical. The branch default (D3) is what keeps the far larger number of `schema.parse({ … })`
