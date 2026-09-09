@@ -34,6 +34,7 @@ export const SNUGG_GROUP_KEYS = [
   "vault",
   "wall",
   "window",
+  "door",
   "dhw",
   "health",
   "concern",
@@ -356,6 +357,34 @@ A dictated insulation DEPTH for a vault has no field in this group — it is cap
 \`attic.atticInsulationDepth\` (rule 8). Here, \`vaultCavityInsulation\` and
 \`vaultContinuousInsulation\` take only stated R-values.`,
   },
+  {
+    number: 17,
+    groups: ["door"],
+    text: `**17. A door has no name and no count — the group is closer to an aggregate than an instance.**
+
+The \`door\` group is the weakest instance of the per-record pattern in this schema: a door record
+carries no name, no location and no count field, and \`door.doorArea\` is a single AGGREGATE area —
+the vendor describes it as overridable "with the actual door sizes for the home" (plural). So "the
+front door" has nowhere to land as an identity. One record per distinct door the auditor describes
+as its own thing, told apart by its construction ("the front door is steel, the back one is wood"
+is two records); doors spoken of only collectively ("the doors are all old steel ones") are ONE
+record, and a re-mention of the same door is the same record (the leaf-level rules on merging and
+self-correction apply unchanged).
+
+\`door.doorType\` fuses material, insulation, half-lite glazing and storm door into ONE member:
+"an insulated steel door with a storm door on it" → \`"Steel, insulated with Storm"\`; "a half-lite
+wood door" → \`"1/2-Lite Wood"\`. The auditor says these as separate facts — combine what was stated
+into the single member that matches, character for character including the vendor's inconsistent
+storm casing ("Steel, hollow with storm" but "Steel, insulated with Storm"). When the stated
+combination fits no member, emit \`null\` with the quote (rule 11) — never force the nearest one.
+
+\`doorUValue\` and \`doorArea\` are auto-calculated by the vendor: set them only from actually
+stated numbers. A door with glazing covering half or more of its rough opening is modelled as a
+WINDOW at rough-opening area — when the auditor says that ("that glass door is really a window"),
+the fact belongs to the \`window\` group, never to \`doorArea\`. The \`*Improved\` leaves follow the
+usual discipline: dictated upgrade intent is captured ("put in an ENERGY STAR door" →
+\`doorEnergyStarImproved: "Yes"\`); improved spec numbers only when actually stated.`,
+  },
 ];
 
 // --- Output section ----------------------------------------------------------
@@ -371,10 +400,10 @@ function fullOutputSection(): string {
 
 Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` in \`schema.ts\`.
 
-- The object has exactly eleven top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`vault\`, \`wall\`,
-  \`window\`, \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\` — each a nested object grouping
-  the fields for one part of the house or one job-collection resource. They are not themselves fields
-  and carry no envelope of their own.
+- The object has exactly twelve top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`vault\`, \`wall\`,
+  \`window\`, \`door\`, \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\` — each a nested object
+  grouping the fields for one part of the house or one job-collection resource. They are not
+  themselves fields and carry no envelope of their own.
 - Every field in the schema must be present as a key inside its group. Never omit a key — "not
   mentioned" is expressed by \`value: null\`, not by absence. This includes every one of the 16 keys
   inside \`health\`, and every field of a group the auditor never touched.

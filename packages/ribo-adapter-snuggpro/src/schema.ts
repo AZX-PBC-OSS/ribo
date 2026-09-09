@@ -14,12 +14,12 @@
  * §Scoping — the form fields minus the `*Improved` retrofit twins and the
  * self-described auto-calculated fields). The component groups are bounded
  * dictation-density subsets — what an auditor actually says walking a house —
- * grown from real fill-rate data, not judgement; `attic` and `window` have since
- * grown to doc 20 §5.5's full verdicted capture surface (every field but the
- * computed ones, and the `capture?` fields described with the caveat that makes
- * them borderline — see the groups). The job-collection groups each carry every
- * field of their endpoint in extraction scope minus the computed ones
- * (`incentive`'s `recommendations` is excluded by design — see the group).
+ * grown from real fill-rate data, not judgement; `attic`, `wall`, `window` and
+ * `door` have since grown to doc 20 §5.5's full verdicted capture surface (every
+ * field but the computed ones, and the `capture?` fields described with the
+ * caveat that makes them borderline — see the groups). The job-collection groups
+ * each carry every field of their endpoint in extraction scope minus the computed
+ * ones (`incentive`'s `recommendations` is excluded by design — see the group).
  *
  * ---
  *
@@ -822,6 +822,20 @@ export const WallCavityInsulationType = z.enum([
   "Other",
 ]);
 
+/**
+ * `wallContinuousInsulationType` (`wall`). The rigid-insulation vocabulary of doc 20
+ * §5.0, copied verbatim; largest-area wins. The spec publishes the identical list on
+ * the `*Improved` twin — one export.
+ */
+export const WallContinuousInsulationType = z.enum([
+  "Rigid XPS",
+  "Rigid EPS",
+  "Rigid Polyisocyanurate",
+  "Open Cell Spray Foam",
+  "Closed Cell Spray Foam",
+  "Other",
+]);
+
 // == window ==================================================================
 
 /**
@@ -859,6 +873,37 @@ export const WindowExteriorTreatment = z.enum([
   "Solar Film (all year)",
   "No Treatment",
 ]);
+
+// == door ====================================================================
+
+/**
+ * `doorType` (`POST /jobs/{jobId}/door`) — door construction, on a rich enum that
+ * fuses material, insulation, half-lite glazing and storm door into ONE string. An
+ * auditor says these as separate facts ("an insulated steel door with a storm");
+ * the member folds them back together. Note the vendor's own inconsistent storm
+ * casing ("Steel, hollow with storm" vs. "Steel, insulated with Storm") — every
+ * member stays verbatim.
+ */
+export const DoorType = z
+  .enum([
+    "Steel, hollow",
+    "Steel, hollow with storm",
+    "Steel, insulated",
+    "Steel, insulated with Storm",
+    "Wood",
+    "Wood with Storm",
+    "Fiberglass",
+    "Fiberglass with Storm",
+    "1/2-Lite Steel, insulated",
+    "1/2-Lite Steel, insulated with Storm",
+    "1/2-Lite Wood",
+    "1/2-Lite Wood with Storm",
+    "1/2-Lite Fiberglass",
+    "1/2-Lite Fiberglass with Storm",
+  ])
+  .describe(
+    'Door construction — one member fuses material, insulation, half-lite glazing and storm door, which the auditor says as separate facts ("an insulated steel door with a storm" → "Steel, insulated with Storm"). Combine what was stated into the single member that matches; when the stated combination fits no member, emit null with the quote rather than forcing the nearest one.',
+  );
 
 // == dhw =====================================================================
 
@@ -2349,7 +2394,19 @@ export const VaultFields = z
   )
   .strict();
 
-/** `POST /jobs/{jobId}/wall` — one wall assembly record, a bounded subset of the endpoint. */
+/**
+ * `POST /jobs/{jobId}/wall` — one wall-system record. Now the full verdicted capture
+ * surface of doc 20 §5.5: every field of the endpoint except the self-described
+ * computed ones (`wallAssemblyRValue` and its improved twin — "not editable since it
+ * is calculated from the other fields", on a description the vendor copy-pasted from
+ * the BASEMENT wall field; treat it as approximate, doc 20 §5.5 cross-cutting notes).
+ *
+ * The spec expects multiple wall SYSTEMS per job (`wallSystemPercentOfTotal` must sum
+ * to 100% across them, and a partial wall retrofit requires building "a second wall
+ * system" rather than a partial area), yet gives them no human-facing identity — only
+ * `uuid` in the response. "The north wall" becomes an anonymous system distinguished
+ * by a percentage, so instance identity stays the roster's job (`inventory.ts`).
+ */
 export const WallFields = z
   .object(
     withVendorDescriptions({
@@ -2368,6 +2425,94 @@ export const WallFields = z
 
       /** Cavity insulation material. */
       wallCavityInsulationType: WallCavityInsulationType.nullable().optional(),
+
+      /**
+       * Above-grade exterior wall construction material. UNPUBLISHED ENUM: the spec
+       * declares a named dropdown with `enum: []` and no member list, so a dictated
+       * construction is captured as free text and goes through review rather than
+       * being validated against a vocabulary.
+       */
+      wallExteriorWallConstruction: z
+        .string()
+        .describe(
+          'Construction material of the above-grade exterior walls ("two-by-four stick frame", "block"). Snugg publishes no value list for this dropdown, so capture the construction as spoken free text — never invent a member of some other field\'s enum for it.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Total R-value of continuous insulation (foam/rigid, unbroken across framing). */
+      wallContinuousInsulation: z
+        .number()
+        .describe(
+          "Total R-value of the CONTINUOUS insulation (spray foam or rigid foam, unbroken across framing) in this wall system — a separate field from the cavity R-value.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Gross exterior wall area incl. openings, in ft². Auto-calculated from house
+       * length × width × average wall height but overridable — writing it replaces the
+       * model default, so set it only from a stated number. (The vendor auto-adds an
+       * extra foot of wall height per storey for rim joists.)
+       */
+      wallModeledWallArea: z
+        .number()
+        .describe(
+          "Gross exterior wall area in square feet, including window and door openings; auto-calculated by the vendor, so set it only when the auditor states an actual number — a stated value overrides the model default.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * % of all walls this system represents; the systems must total 100%. Only
+       * meaningful with more than one wall system, and it is a proportion, not an
+       * identity — set it only when a share was actually stated.
+       */
+      wallSystemPercentOfTotal: z
+        .number()
+        .describe(
+          "Share of all walls this wall system represents, as a percentage; only meaningful when several wall systems split the house, and the vendor expects them to total 100%.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Type of continuous insulation on the wall (largest-area wins). */
+      wallContinuousInsulationType: WallContinuousInsulationType.nullable().optional(),
+
+      /** Target cavity R-value — the spec side of a dictated intent; set only when stated. */
+      wallCavityInsulationImproved: z
+        .number()
+        .describe(
+          "Target cavity R-value to be installed as a number; set only when the auditor states the target ('bring the walls to R-21'), never derived from the base value.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Target continuous R-value — spec side; set only when stated. */
+      wallContinuousInsulationImproved: z.number().nullable().optional(),
+
+      /**
+       * Improved wall sqft. A partial wall retrofit requires building a SECOND wall
+       * system rather than a partial area — an instance-modelling constraint, not a
+       * leaf rule; set only from a stated figure.
+       */
+      wallModeledWallAreaImproved: z
+        .number()
+        .describe(
+          "Wall area in square feet after the retrofit; a modelled number, so set it only from an explicitly stated figure.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Retrofit cavity insulation type — "dense-pack the walls with cellulose" is
+       * dictated intent. The spec publishes the identical list as the base-side field,
+       * leading `null` included — the same `.nullable()` rule, one export.
+       */
+      wallCavityInsulationTypeImproved: WallCavityInsulationType.nullable().optional(),
+
+      /** Retrofit continuous insulation type — spec side. */
+      wallContinuousInsulationTypeImproved: WallContinuousInsulationType.nullable().optional(),
     }),
   )
   .strict();
@@ -2562,6 +2707,83 @@ export const WindowFields = z
 
       /** "Replace with ENERGY STAR windows" — upgrade intent. */
       windowEnergyStarImproved: z.enum(["Yes", "No"]).nullable().optional(),
+    }),
+  )
+  .strict();
+
+/**
+ * `POST /jobs/{jobId}/door` — one door record: the job-collections tranche 6 group
+ * (doc 20 §5.5; target model per
+ * `docs/roadmap/design/job-collections-foundation-design.md`). A top-level key of `V`
+ * following the per-instance pattern — an array with one element per real-world
+ * occurrence, repeating per job (0..n). Every field of the endpoint; doc 20 excludes
+ * none of them.
+ *
+ * INSTANCE IDENTITY IS THE WEAKEST FIT IN THE FAMILY, and this group may need real
+ * design attention later: door has no name or label AND no count field — `doorArea`
+ * is a single aggregate area the vendor says may be overridden "with the actual door
+ * sizes for the home" (plural). The resource is therefore closer to a door AGGREGATE
+ * than a true instance, and "the front door" cannot be identified — or even separated
+ * from the back door — without creating two instances that look identical on the
+ * wire. Identity still rides the roster's discriminator mechanism (foundation design
+ * decision 2; `inventory.ts`), using whatever content is available — the door
+ * type/construction — as the handle. That is weaker than the usual "no natural label
+ * but the content itself distinguishes" case the other groups have: two same-type
+ * doors have no wire-visible separation at all.
+ *
+ * A routing rule travels with `doorArea`: a door with glazing at or above half its
+ * rough opening is modelled as a WINDOW at rough-opening area — that fact lands in
+ * the `window` group, never here (doc 20 §5.5).
+ */
+export const DoorFields = z
+  .object(
+    withVendorDescriptions({
+      /** Door construction — material, insulation, half-lite and storm fused into one member. */
+      doorType: DoorType.nullable().optional(),
+
+      /**
+       * Door U-value. Auto-calculated by the vendor from the input form, overridable
+       * with the actual U-value — set it only when one was actually stated.
+       */
+      doorUValue: z
+        .number()
+        .describe(
+          "Door U-value; auto-calculated by the vendor, so set it only when the auditor states an actual number.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Door area in ft². Auto-calculated, overridable with the actual door sizes —
+       * and on this resource an aggregate rather than one door's measurement. A door
+       * with glazing at or above half its rough opening is modelled as a WINDOW at
+       * rough-opening area — that fact belongs to the window group, never here.
+       */
+      doorArea: z
+        .number()
+        .describe(
+          "Door area in square feet; auto-calculated by the vendor, so set it only when the auditor states an actual number. A door with glazing covering half or more of its rough opening is modelled as a window at rough-opening area — capture that in the window group instead, never here.",
+        )
+        .nullable()
+        .optional(),
+
+      /** This door is ENERGY STAR certified. */
+      doorEnergyStar: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Target U-value of the replacement door — improved spec; set only when stated. */
+      doorUValueImproved: z
+        .number()
+        .describe(
+          "Target U-value of the replacement door — the spec side of an upgrade; set it only when a replacement U-value was actually stated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Door area on the improved side — improved spec; set only from a stated figure. */
+      doorAreaImproved: z.number().nullable().optional(),
+
+      /** "Put in an ENERGY STAR door" — upgrade intent. */
+      doorEnergyStarImproved: z.enum(["Yes", "No"]).nullable().optional(),
     }),
   )
   .strict();
@@ -2786,6 +3008,7 @@ export const snuggValuesSchema = z
     vault: z.array(VaultFields).optional(),
     wall: z.array(WallFields).optional(),
     window: z.array(WindowFields).optional(),
+    door: z.array(DoorFields).optional(),
     dhw: z.array(DhwFields).optional(),
     health: HealthFields.optional(),
     concern: z.array(ConcernFields).optional(),

@@ -98,6 +98,7 @@ describe("rosterSchema", () => {
       vault: emptyGroup(),
       wall: emptyGroup(),
       window: emptyGroup(),
+      door: emptyGroup(),
       dhw: emptyGroup(),
       concern: emptyGroup(),
       incentive: emptyGroup(),
@@ -122,6 +123,7 @@ describe("rosterSchema", () => {
       vault: emptyGroup(),
       wall: emptyGroup(),
       window: emptyGroup(),
+      door: emptyGroup(),
       dhw: emptyGroup(),
       concern: emptyGroup(),
       incentive: emptyGroup(),
@@ -151,6 +153,7 @@ describe("rosterSchema", () => {
       vault: emptyGroup(),
       wall: emptyGroup(),
       window: emptyGroup(),
+      door: emptyGroup(),
       dhw: emptyGroup(),
       concern: emptyGroup(),
       incentive: emptyGroup(),
@@ -165,6 +168,7 @@ describe("rosterSchema", () => {
       vault: [],
       wall: [],
       window: [],
+      door: [],
       dhw: [],
       concern: [],
       incentive: [],
@@ -208,6 +212,7 @@ describe("snuggInventoryInstructions", () => {
     expect(snuggInventoryInstructions).toContain("vault");
     expect(snuggInventoryInstructions).toContain("wall");
     expect(snuggInventoryInstructions).toContain("window");
+    expect(snuggInventoryInstructions).toContain("door");
     expect(snuggInventoryInstructions).toContain("dhw");
     expect(snuggInventoryInstructions).toContain("concern");
     expect(snuggInventoryInstructions).toContain("incentive");

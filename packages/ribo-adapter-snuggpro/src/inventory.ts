@@ -84,6 +84,7 @@ export const rosterSchema = z.strictObject({
   vault: rosterGroupSchema,
   wall: rosterGroupSchema,
   window: rosterGroupSchema,
+  door: rosterGroupSchema,
   dhw: rosterGroupSchema,
   concern: rosterGroupSchema,
   incentive: rosterGroupSchema,
@@ -97,10 +98,10 @@ const INVENTORY_PREAMBLE = `## System
 
 You are doing an inventory pass over a home energy auditor's dictated transcript. Your job is to
 list every recordable instance of the following resource types: \`hvac\`, \`attic\`, \`vault\`,
-\`wall\`, \`window\`, \`dhw\`, \`concern\`, and \`incentive\` — the first six are components of the
-house (\`vault\` is a vaulted / cathedral ceiling space); \`concern\` is a worry the homeowner
-voiced; \`incentive\` is a rebate or program the auditor introduces. Do not fill any leaf fields
-yet — only decide which instances exist, which are excluded, and how to refer to them.
+\`wall\`, \`window\`, \`door\`, \`dhw\`, \`concern\`, and \`incentive\` — the first seven are
+components of the house (\`vault\` is a vaulted / cathedral ceiling space); \`concern\` is a worry
+the homeowner voiced; \`incentive\` is a rebate or program the auditor introduces. Do not fill any
+leaf fields yet — only decide which instances exist, which are excluded, and how to refer to them.
 
 For each candidate instance emit exactly these five fields:
 
@@ -167,6 +168,12 @@ model found nothing to report," used when the transcript never brings the group 
   areas of the house. A re-mention of the same ceiling is the same record.
 - \`wall\`: one record per distinct wall construction assembly.
 - \`window\`: one record per distinct window type or area.
+- \`door\`: one record per distinct door the auditor describes as its own thing. A door has no name,
+  no location and no count field — its area field is a single AGGREGATE ("override with the actual
+  door sizes for the home") — so "the front door" and "the back door" are two records only when the
+  auditor describes them separately, typically by their construction ("the front is steel, the back
+  is wood"). Doors spoken of only collectively ("the doors are all old steel ones") are ONE record.
+  A re-mention of the same door is the same record.
 - \`dhw\`: one record per water heating system.
 - \`concern\`: one record per DISTINCT concern the homeowner voiced, distinguished by its SUBJECT —
   a noise worry, a comfort worry and a cost worry are three records even when they share one cause.
@@ -190,8 +197,8 @@ the corrected count, not the first one.
 
 Return a **single JSON object** conforming exactly to the roster schema.
 
-- The object has exactly eight top-level keys — \`hvac\`, \`attic\`, \`vault\`, \`wall\`, \`window\`,
-  \`dhw\`, \`concern\`, \`incentive\` — each one of three shapes:
+- The object has exactly nine top-level keys — \`hvac\`, \`attic\`, \`vault\`, \`wall\`, \`window\`,
+  \`door\`, \`dhw\`, \`concern\`, \`incentive\` — each one of three shapes:
   - An **array of candidate instances** in **first-mention order**, when the auditor introduced at
     least one.
   - An **empty array**, when the transcript never brings the group up at all.

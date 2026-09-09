@@ -403,6 +403,19 @@ const fields: SnuggExtraction = {
       wallExteriorWallSiding: env(null, null),
       wallCavityInsulation: env(null, null),
       wallCavityInsulationType: env(null, null),
+      // The remainder of the endpoint's verdicted capture surface (doc 20 §5.5):
+      // nothing in this transcript states a construction, a continuous insulation,
+      // an area, a share or any wall retrofit, so every one of them is an unforced null.
+      wallExteriorWallConstruction: env(null, null),
+      wallContinuousInsulation: env(null, null),
+      wallModeledWallArea: env(null, null),
+      wallSystemPercentOfTotal: env(null, null),
+      wallContinuousInsulationType: env(null, null),
+      wallCavityInsulationImproved: env(null, null),
+      wallContinuousInsulationImproved: env(null, null),
+      wallModeledWallAreaImproved: env(null, null),
+      wallCavityInsulationTypeImproved: env(null, null),
+      wallContinuousInsulationTypeImproved: env(null, null),
     },
   ],
 
@@ -442,6 +455,11 @@ const fields: SnuggExtraction = {
       windowEnergyStarImproved: env(null, null),
     },
   ],
+
+  // No door is ever brought up in this transcript, so the honest roster-driven output
+  // is an empty array — the "transcript never brings the group up at all" case, not one
+  // all-null instance.
+  door: [],
 
   dhw: [
     {

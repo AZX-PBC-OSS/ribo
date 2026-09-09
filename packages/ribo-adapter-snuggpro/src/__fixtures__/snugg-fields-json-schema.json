@@ -8933,13 +8933,357 @@
             },
             "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
+          },
+          "wallExteriorWallConstruction": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Select the type of construction material used to build the exterior walls of the home that are above grade (above ground). Construction material of the above-grade exterior walls (\"two-by-four stick frame\", \"block\"). Snugg publishes no value list for this dropdown, so capture the construction as spoken free text — never invent a member of some other field's enum for it."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "wallContinuousInsulation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of continuous insulation installed or to be installed in this Wall System. Continuous insulation is any insulation like spray foam or rigid foam that is continuous and consistent in R-value across studs, joists, or any framing member. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Total R-value of the CONTINUOUS insulation (spray foam or rigid foam, unbroken across framing) in this wall system — a separate field from the cavity R-value."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "wallModeledWallArea": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form for House Length, House Width, and Average Wall Height. This field designates the total gross exterior wall area, including all window and door openings. It does not include walls shared in common with other conditioned dwelling units. An additional 1' of wall height is automatically included for every story beyond the first to account for rim joists. First floor (foundation) rim joists are included separately in the basement or crawl space wall areas. The BASE area designates the sqft of this wall system on the house. The IMPROVED area is the actual sqft of surface area in the new home. Changing the IMPROVED area will reduce or increase the sqft of wall area in the home. If you want to improve only a portion of the walls, then you must build a second wall system where you improve one of the systems, but not the other. Gross exterior wall area in square feet, including window and door openings; auto-calculated by the vendor, so set it only when the auditor states an actual number — a stated value overrides the model default."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "wallSystemPercentOfTotal": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "If there is more than one wall system type, enter the % of all walls that this system represents. Both wall systems must add up to 100%. If there is only one type of wall system in the house, then enter 100%. Share of all walls this wall system represents, as a percentage; only meaningful when several wall systems split the house, and the vendor expects them to total 100%."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "wallContinuousInsulationType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Rigid XPS",
+                      "Rigid EPS",
+                      "Rigid Polyisocyanurate",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of continuous insulation that is installed on the wall. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "wallCavityInsulationImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of insulation installed (BASE) or to be installed (IMPROVED) in this Wall System. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Target cavity R-value to be installed as a number; set only when the auditor states the target ('bring the walls to R-21'), never derived from the base value."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "wallContinuousInsulationImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the total R-value of continuous insulation installed or to be installed in this Wall System. Continuous insulation is any insulation like spray foam or rigid foam that is continuous and consistent in R-value across studs, joists, or any framing member. **Note:** Edit Base fields in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "wallModeledWallAreaImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form for House Length, House Width, and Average Wall Height. This field designates the total gross exterior wall area, including all window and door openings. It does not include walls shared in common with other conditioned dwelling units. An additional 1' of wall height is automatically included for every story beyond the first to account for rim joists. First floor (foundation) rim joists are included separately in the basement or crawl space wall areas. The BASE area designates the sqft of this wall system on the house. The IMPROVED area is the actual sqft of surface area in the new home. Changing the IMPROVED area will reduce or increase the sqft of wall area in the home. If you want to improve only a portion of the walls, then you must build a second wall system where you improve one of the systems, but not the other. Wall area in square feet after the retrofit; a modelled number, so set it only from an explicitly stated figure."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "wallCavityInsulationTypeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Fiberglass or Rockwool Batt",
+                      "Blown Fiberglass or Rockwool",
+                      "Cellulose",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of insulation that is installed in the wall cavity. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "wallContinuousInsulationTypeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Rigid XPS",
+                      "Rigid EPS",
+                      "Rigid Polyisocyanurate",
+                      "Open Cell Spray Foam",
+                      "Closed Cell Spray Foam",
+                      "Other"
+                    ],
+                    "description": "Select the type of continuous insulation that is installed on the wall. If more than one type of insulation is installed, select the type that covers that largest area."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
           }
         },
         "required": [
           "wallsInsulated",
           "wallExteriorWallSiding",
           "wallCavityInsulation",
-          "wallCavityInsulationType"
+          "wallCavityInsulationType",
+          "wallExteriorWallConstruction",
+          "wallContinuousInsulation",
+          "wallModeledWallArea",
+          "wallSystemPercentOfTotal",
+          "wallContinuousInsulationType",
+          "wallCavityInsulationImproved",
+          "wallContinuousInsulationImproved",
+          "wallModeledWallAreaImproved",
+          "wallCavityInsulationTypeImproved",
+          "wallContinuousInsulationTypeImproved"
         ],
         "additionalProperties": false
       }
@@ -10086,6 +10430,259 @@
         "additionalProperties": false
       }
     },
+    "door": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "doorType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Steel, hollow",
+                      "Steel, hollow with storm",
+                      "Steel, insulated",
+                      "Steel, insulated with Storm",
+                      "Wood",
+                      "Wood with Storm",
+                      "Fiberglass",
+                      "Fiberglass with Storm",
+                      "1/2-Lite Steel, insulated",
+                      "1/2-Lite Steel, insulated with Storm",
+                      "1/2-Lite Wood",
+                      "1/2-Lite Wood with Storm",
+                      "1/2-Lite Fiberglass",
+                      "1/2-Lite Fiberglass with Storm"
+                    ],
+                    "description": "Select the type of door construction used for each door. Door construction — one member fuses material, insulation, half-lite glazing and storm door, which the auditor says as separate facts (\"an insulated steel door with a storm\" → \"Steel, insulated with Storm\"). Combine what was stated into the single member that matches; when the stated combination fits no member, emit null with the quote rather than forcing the nearest one."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "doorUValue": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form. You may override this number with the actual door U-Value. Door U-value; auto-calculated by the vendor, so set it only when the auditor states an actual number."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "doorArea": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form. You may override this number with the actual door sizes for the home. For doors with glazing area of greater than or equal to 50% of the rough frame opening, model the entire door as a window with area equal to the rough frame opening. Note that even full-light swinging doors are usually less than 50% glazing. Door area in square feet; auto-calculated by the vendor, so set it only when the auditor states an actual number. A door with glazing covering half or more of its rough opening is modelled as a window at rough-opening area — capture that in the window group instead, never here."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "doorEnergyStar": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if this door is ENERGY STAR Certified."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "doorUValueImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form. You may override this number with the actual door U-Value. Target U-value of the replacement door — the spec side of an upgrade; set it only when a replacement U-value was actually stated."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "doorAreaImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "This field will be automatically calculated based on the data you entered in the input form. You may override this number with the actual door sizes for the home. For doors with glazing area of greater than or equal to 50% of the rough frame opening, model the entire door as a window with area equal to the rough frame opening. Note that even full-light swinging doors are usually less than 50% glazing."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "doorEnergyStarImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if this door is ENERGY STAR Certified."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "doorType",
+          "doorUValue",
+          "doorArea",
+          "doorEnergyStar",
+          "doorUValueImproved",
+          "doorAreaImproved",
+          "doorEnergyStarImproved"
+        ],
+        "additionalProperties": false
+      }
+    },
     "dhw": {
       "type": "array",
       "items": {
@@ -11059,6 +11656,7 @@
     "vault",
     "wall",
     "window",
+    "door",
     "dhw",
     "health",
     "concern",
