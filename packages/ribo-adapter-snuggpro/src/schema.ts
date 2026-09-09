@@ -901,6 +901,26 @@ export const DhwLocation = z.enum([
   "Don't Know",
 ]);
 
+/**
+ * `dhwTemperatureSettings` (`dhw`) — the water heater's dial setting as a
+ * temperature BAND. The numeric twin is `dhwTemp`: a stated exact temperature
+ * is a number there, a stated setting word is a member here.
+ */
+export const DhwTemperatureSettings = z.enum([
+  "Low (120-130 F)",
+  "Medium (130-140 F)",
+  "High (140-150 F)",
+  "Very High (150+ F)",
+  "Don't Know",
+]);
+
+/**
+ * `dhwEnergyFactorType` (`dhw`) — which energy-factor scale the water heater's
+ * rated efficiency is expressed in; the number itself is `dhwEnergyFactor` or
+ * `dhwUnifiedEnergyFactor`.
+ */
+export const DhwEnergyFactorType = z.enum(["EF", "UEF"]);
+
 /** `dhwManufacturer` (`dhw`) — closed enum, like the HVAC one. */
 export const DhwManufacturer = z
   .enum([
@@ -2566,7 +2586,30 @@ export const WindowFields = z
   )
   .strict();
 
-/** `POST /jobs/{jobId}/dhw` — one water heater record, a bounded subset of the endpoint. */
+/**
+ * `POST /jobs/{jobId}/dhw` — one water heater record, grown to the full
+ * verdicted capture surface of doc 20 §5.4. The base side is the endpoint's
+ * dictation-plausible surface: the dial setting and its numeric twin, the
+ * nameplate model/serial/year, the load share, the ENERGY STAR label, the
+ * input capacity, the tank/pipe wrap observations, the condition star rating,
+ * and the `capture?` efficiency family (EF/UEF, recovery, the decimal HES
+ * factor) — stated values only, never estimated.
+ *
+ * The improved side carries ONLY intent-bearing fields (the foundation
+ * design's decision 3): proposed type, fuel, size, temperature, ENERGY STAR
+ * class, load share and the wrap measures are the dictated recommendation
+ * itself — the vendor's own rule is that improved values "are only used if
+ * the item is Recommended". The rest of the improved side is desk-side
+ * purchase specs of unbought equipment (manufacturer, model, year, serial,
+ * efficiency specs) and stays excluded.
+ *
+ * The doubling is asymmetric in both directions (doc 20 §5.4 pair census):
+ * the base-side age, location, temperature setting, wrap R-values, condition
+ * rating and HES factor have NO improved twins (you cannot rate the condition
+ * of a thing not yet installed), while `dhwPipeWrapLengthImproved` and
+ * `dhwPipeWrapPercentageImproved` are improved-ONLY — the recommended
+ * pipe-wrap measure's quantities, with no base counterpart.
+ */
 export const DhwFields = z
   .object(
     withVendorDescriptions({
@@ -2593,6 +2636,261 @@ export const DhwFields = z
 
       /** Manufacturer, from Snugg's closed list. */
       dhwManufacturer: DhwManufacturer.nullable().optional(),
+
+      /** Temperature setting BAND — the dial position. A stated exact temperature goes in `dhwTemp`. */
+      dhwTemperatureSettings: DhwTemperatureSettings.nullable().optional(),
+
+      /** The water temperature itself, in °F — the numeric twin of the setting band above. */
+      dhwTemp: z
+        .number()
+        .describe(
+          "The temperature of the water produced, in °F as a number — a stated setting word (low, medium) goes in dhwTemperatureSettings, not here.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Model number / model name as stated, free text in the spec too. */
+      dhwModel: z.string().nullable().optional(),
+
+      /** The UNIT's model year, e.g. 2011 — never the home's year. Spec types this `string`; `write` stringifies. */
+      dhwModelYear: z
+        .number()
+        .describe(
+          "The water heater's model year — never the home's year built, which is a separate field.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Serial number(s), comma-separated when several. */
+      dhwSerialNumber: z.string().nullable().optional(),
+
+      /** This system's share of the home's annual hot-water load. */
+      dhwPercentLoad: z
+        .number()
+        .describe(
+          "Share of the home's annual DHW load this system meets, as a percentage; the shares across a home's water heaters must add up to 100.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Whether the water heater is ENERGY STAR certified — a label read off the tank. */
+      dhwEnergyStar: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Rated INPUT capacity in BTU/h — the input rating, unlike the hvac output capacities. */
+      dhwHeatingCapacity: z
+        .number()
+        .describe(
+          "Rated input capacity of the water heater in BTU per hour — the INPUT rating, unlike the hvac capacities, which are output ratings.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Whether a tank wrap (insulation blanket) has been applied — a pure visual observation. */
+      dhwTankWrap: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** R-value of the tank wrap applied. */
+      dhwTankWrapRValue: z.number().nullable().optional(),
+
+      /** Whether the pipes from this water heater are wrapped. */
+      dhwPipeWrap: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** R-value of the pipe wrap applied. */
+      dhwPipeWrapRValue: z.number().nullable().optional(),
+
+      /**
+       * Maintenance/condition star rating. The spec's enum is `[null, "1", "2", "3"]`
+       * — a literal `null` plus numeric STRINGS: the null is this leaf's
+       * `.nullable()` (the `WallCavityInsulationType` rule) and the numeric strings
+       * stay strings (the `WindZone` rule), the same wire shape as the hvac star
+       * ratings.
+       */
+      dhwMaintenanceStarRating: z
+        .enum(["1", "2", "3"])
+        .describe(
+          'Maintenance condition as the wire string — "1" observable issues need to be addressed, "2" standard condition based on the age of the system, "3" well maintained and/or pristine; a water heater whose condition was never judged is null.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * The boiler an indirect (sidearm) tank is attached to — a CROSS-RESOURCE
+       * reference to an hvac instance. The spec declares `enum: []` and publishes
+       * no value list, so this stays free text (the `hvacDuctLocation` precedent):
+       * the boiler as the auditor referred to it. Matching that reference against
+       * the job's hvac systems is a later, human-supervised step, not extraction's
+       * (the `fromTemplateUuid` pattern).
+       */
+      dhwSidearmBoiler: z
+        .string()
+        .describe(
+          "The boiler from the HVAC section this indirect water heater tank is attached to, as the auditor referred to it — free text; the vendor publishes no value list, and resolving the reference against the job's hvac systems is a later human-supervised step.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Standby loss of a sidearm/indirect tank. The vendor's own description of
+       * this field is a copy-paste error (it reads as the water-temperature one),
+       * and the units and scale are unpublished (doc 20 §5.4) — stated numbers
+       * only.
+       */
+      dhwSidearmStandbyLoss: z
+        .number()
+        .describe(
+          "Standby loss of the sidearm tank as a stated number only — the vendor's description of this field is a copy-paste error and its units and scale are unpublished, so set it only from an explicitly stated number.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Which energy-factor scale the rated efficiency is expressed in. */
+      dhwEnergyFactorType: DhwEnergyFactorType.nullable().optional(),
+
+      /**
+       * Rated Energy Factor — `capture?` per the efficiency precedent (looked up
+       * from make/model, per the vendor's own AHRI-directory note). The wire
+       * encoding has NO decimal: 0.56 is stored as 56.
+       */
+      dhwEnergyFactor: z
+        .number()
+        .describe(
+          "Rated Energy Factor as a stated number only — never estimated; Snugg looks these up from make and model. The wire stores the factor without a decimal (0.56 as 56); any rescaling is a deterministic pass after extraction, so the number as stated belongs here.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Rated Uniform Energy Factor — same stated-only rule and same no-decimal wire encoding. */
+      dhwUnifiedEnergyFactor: z
+        .number()
+        .describe(
+          "Rated Uniform Energy Factor as a stated number only — never estimated. The wire stores the factor without a decimal (0.56 as 56); any rescaling is a deterministic pass after extraction, so the number as stated belongs here.",
+        )
+        .nullable()
+        .optional(),
+
+      /** System recovery efficiency — stated only; the vendor notes some utility programs require it. */
+      dhwRecoveryEfficiency: z
+        .number()
+        .describe(
+          "System recovery efficiency as a stated number only — never estimated; the vendor notes it is optional for modeling but required by some utility programs.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * The Home Energy Score EF field — a DECIMAL (0.55), not the no-decimal
+       * encoding of `dhwEnergyFactor`, and the one efficiency field the vendor
+       * says to read off the EnergyGuide label in the field (doc 20 §6).
+       */
+      hesDhwEnergyFactor: z
+        .number()
+        .describe(
+          "Energy Factor of a storage water heater as a decimal (e.g. 0.55) — the Home Energy Score input, read off the EnergyGuide label on the tank; a different scale from dhwEnergyFactor's no-decimal encoding. Stated or label-read values only, never estimated.",
+        )
+        .nullable()
+        .optional(),
+
+      // --- Improved side: dictated INTENT only -------------------------------
+      // The improved side is what the vendor recommends be installed ("only
+      // used if the item is Recommended"), and these are the fields a
+      // recommendation is dictated in — type, fuel, sizing, temperature,
+      // ENERGY STAR, load share, wrap measures. Everything else on the
+      // improved side is a desk-side purchase spec of unbought equipment and
+      // is excluded.
+
+      /** The PROPOSED water heater type — "swap it for a heat pump water heater" is retrofit intent. */
+      dhwType2Improved: DhwType.describe(
+        'The proposed water heater type — a recommended swap ("put in a heat pump water heater") is dictated intent, not a purchase spec.',
+      )
+        .nullable()
+        .optional(),
+
+      /** The proposed unit's fuel — a fuel switch ("get off the oil") is dictated retrofit intent. */
+      dhwFuel2Improved: DhwFuel.describe(
+        "The proposed water heater's fuel — a recommended fuel switch is dictated intent, not a purchase spec.",
+      )
+        .nullable()
+        .optional(),
+
+      /** Proposed tank size in gallons — "go up to an eighty" is spoken sizing intent. */
+      dhwTankSizeImproved: z
+        .number()
+        .describe(
+          "Proposed tank size in gallons — spoken sizing intent; a tankless proposal has no tank, so leave it null.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Proposed INPUT capacity in BTU/h — sizing intent; auditors rarely speak BTU/h for water heaters. */
+      dhwHeatingCapacityImproved: z
+        .number()
+        .describe(
+          "Proposed input capacity of the water heater in BTU per hour — sizing intent, stated only; auditors rarely speak BTU/hr for water heaters.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Share of hot-water load the proposed system would carry — dictated allocation intent. */
+      dhwPercentLoadImproved: z
+        .number()
+        .describe(
+          "Share of the home's annual DHW load the proposed system would meet, as a percentage — a stated allocation of intent; improved shares across systems must add up to 100.",
+        )
+        .nullable()
+        .optional(),
+
+      /** "Make sure it's an ENERGY STAR one" — a product-class recommendation. */
+      dhwEnergyStarImproved: z
+        .enum(["Yes", "No"])
+        .describe(
+          "Whether the proposed water heater is ENERGY STAR certified — a named product-class recommendation, routinely spoken.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Proposed water temperature in °F — "turn it down to 120" is dictated behavioural advice. */
+      dhwTempImproved: z
+        .number()
+        .describe(
+          'Proposed water temperature in °F — a setback recommendation ("turn it down to 120") is dictated advice, not a purchase spec.',
+        )
+        .nullable()
+        .optional(),
+
+      /** "We should wrap that tank" — a dictated measure, not a purchase spec. */
+      dhwTankWrapImproved: z
+        .enum(["Yes", "No"])
+        .describe(
+          "Whether to add tank wrap to the water heater — a dictated measure, not a purchase spec.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Wrap the pipes — the same dictated measure. */
+      dhwPipeWrapImproved: z
+        .enum(["Yes", "No"])
+        .describe(
+          "Whether to add pipe wrap to the pipes from this water heater — a dictated measure, not a purchase spec.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Length in feet of pipe wrap to apply — improved-ONLY, no base twin. */
+      dhwPipeWrapLengthImproved: z
+        .number()
+        .describe(
+          "Length in feet of pipe wrap to apply — the quantity of a dictated measure; this field exists only on the improved side.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Percent of the water pipes supplied by this heater that get insulation — improved-ONLY, no base twin. */
+      dhwPipeWrapPercentageImproved: z
+        .number()
+        .describe(
+          "Percent of the water pipes supplied by this heater that are covered by pipe insulation — the quantity of a dictated measure; this field exists only on the improved side.",
+        )
+        .nullable()
+        .optional(),
     }),
   )
   .strict();
