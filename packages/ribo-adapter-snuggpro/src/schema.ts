@@ -24,7 +24,9 @@
  * `report` carries its authored-text half only, its display-flag tranche being
  * separately deferred — see that group; `utilities` is a deliberately bounded
  * CORE subset of its endpoint — the per-period delivery windows and the
- * 12-month bill series are separate, out-of-scope tranches — see that group).
+ * 12-month bill series are separate, out-of-scope tranches — see that group;
+ * the appliances-and-pv groups defer their `*Improved` twins to the
+ * improved-side tranche per the foundation design's decision 3).
  *
  * ---
  *
@@ -1023,6 +1025,138 @@ export const FuelBillUnits = z.enum([
   "Pounds",
   "Tons",
 ]);
+
+// == clothesDryer, freezer, range, refrigerator, pv ===========================
+// The appliances-and-PV job-collection resources (doc 20 §5.6). Every field
+// doc 20 verdicts capture or capture? is here; the `*Improved` twins are
+// DEFERRED to the improved-side tranche per the foundation design's decision 3
+// — dictated retrofit intent ("I'd swap that for a heat-pump dryer"), not
+// excluded. No field on these five resources publishes `enum: []`, and there
+// is deliberately no `oven` group: the oven has no write endpoint anywhere in
+// the spec, so there is nothing to write its fields to (doc 20 §5.6 "Oven: a
+// no-write-target finding") — `rangeFuelType` is the oven fuel's only writable
+// home.
+
+/**
+ * `clothesDryerFuelType` / `rangeFuelType` — one vendor list shared by the
+ * dryer and the range: identical member sets, so one exported enum, declared
+ * once and reused. On the range it covers the oven too (see `RangeFields`).
+ */
+export const ApplianceFuelType = z.enum([
+  "Natural Gas",
+  "Electricity",
+  "Propane",
+  "None",
+  "Don't Know",
+]);
+
+/**
+ * `freezerManufacturer` — doc 20 §5.0 FREEZER-BRANDS. The vendor list carries
+ * both "Frigidaire" and its own "Fridgidaire" typo — both stay verbatim — and
+ * it is NOT the refrigerator list: the two are genuinely different sets, and
+ * normalising one onto the other is exactly the bug doc 20 §4.5 warns about.
+ */
+export const FreezerManufacturer = z
+  .enum([
+    "Amana",
+    "Unknown",
+    "Asko",
+    "Bosch",
+    "Frigidaire",
+    "GE",
+    "Igloo",
+    "LG",
+    "Maytag",
+    "Samsung",
+    "Sears",
+    "Sub-Zero",
+    "Thermador",
+    "Whirlpool",
+    "Other",
+    "Fridgidaire",
+  ])
+  .describe(
+    'Manufacturer from this closed list — the freezer list, which is NOT the refrigerator list. Use "Other" when the auditor names a make that is not on it, quoting the spoken name in the span.',
+  );
+
+/**
+ * `refrigeratorManufacturer` — doc 20 §5.0 FRIDGE-BRANDS. Again both
+ * "Frigidaire" and the vendor's own "Fridgidaire" typo, verbatim; again a
+ * different set from the freezer list (this one adds Hotpoint, KitchenAid,
+ * Fisher & Paykel, Ikea and Liebherr, and drops Igloo).
+ */
+export const RefrigeratorManufacturer = z
+  .enum([
+    "Unknown",
+    "Amana",
+    "Asko",
+    "Bosch",
+    "Frigidaire",
+    "GE",
+    "Hotpoint",
+    "KitchenAid",
+    "LG",
+    "Maytag",
+    "Samsung",
+    "Sears",
+    "Sub-Zero",
+    "Thermador",
+    "Whirlpool",
+    "Fisher & Paykel",
+    "Ikea",
+    "Liebherr",
+    "Other",
+    "Fridgidaire",
+  ])
+  .describe(
+    'Manufacturer from this closed list — the refrigerator list, which is NOT the freezer list. Use "Other" when the auditor names a make that is not on it, quoting the spoken name in the span.',
+  );
+
+/**
+ * `refrigeratorAge` — a banded age range, speech-shaped. The vendor's bands
+ * are irregular in width and OVERLAP: both `"35-42"` and `"42+"` contain 42
+ * (doc 20 §4.7). A stated age maps to the band containing it; a stated 42
+ * resolves to `"35-42"`, the earlier of the two, deterministically.
+ */
+export const RefrigeratorAge = z.enum([
+  "0-14",
+  "15-21",
+  "22-24",
+  "25-26",
+  "27-30",
+  "31-34",
+  "35-42",
+  "42+",
+  "Don't Know",
+]);
+
+/**
+ * `refrigeratorSize` — a banded size range in cubic feet (the unit is stated
+ * only in the vendor's `refrigeratorName` description — itself a copy-paste
+ * bug; see `RefrigeratorFields`).
+ */
+export const RefrigeratorSize = z.enum([
+  "1-5",
+  "6-12",
+  "13-15",
+  "16-18",
+  "19-21",
+  "22+",
+  "Don't Know",
+]);
+
+/**
+ * `refrigeratorMaintenanceStarRating` — the spec's list leads with a literal
+ * `null` member; that empty state is the leaf's `.nullable()`, not an enum
+ * member — the rule `WallCavityInsulationType` records. The create endpoint
+ * publishes no meanings for the members; the response definition does, and
+ * that text travels on the leaf's own description.
+ */
+export const RefrigeratorMaintenanceStarRating = z
+  .enum(["1", "2", "3"])
+  .describe(
+    'Maintenance condition, only from the auditor\'s own stated assessment: "1" when they describe observable issues that need addressing, "2" for standard condition given the system\'s age, "3" for well maintained and/or pristine. Never inferred, and never a rating for a refrigerator nobody assessed.',
+  );
 
 // --- The resource groups ----------------------------------------------------
 // One group per write endpoint. Each is `.strict()` and each leaf is
@@ -2805,6 +2939,358 @@ export const IncentiveFields = z
   )
   .strict();
 
+// == clothesDryer, freezer, range, refrigerator, pv ===========================
+// The appliances-and-PV job-collection groups (doc 20 §5.6; target model per
+// `docs/roadmap/design/job-collections-foundation-design.md`). Each is an
+// array of per-instance records — a house can have more than one of most of
+// these, and a job can genuinely have zero or more of each. None of the five
+// has a natural instance key on the wire except the freezer's and
+// refrigerator's Name fields, so instance identity rides the roster's
+// discriminator mechanism (`inventory.ts`) for all five; the per-resource
+// discriminator content lives there. There is deliberately NO `oven` group —
+// the oven has no write endpoint anywhere in the spec (doc 20 §5.6 "Oven: a
+// no-write-target finding").
+
+/**
+ * `POST /jobs/{jobId}/clothesDryer` — one clothes dryer record.
+ *
+ * Cardinality / instance label: NONE. No name, label or location field — two
+ * dryers on one job are indistinguishable on the wire except by fuel,
+ * manufacturer and model, and a dictated "the dryer in the basement" has no
+ * writable home. Instance identity is the roster's job (`inventory.ts`); the
+ * spoken location rides its discriminator, never a leaf here.
+ */
+export const ClothesDryerFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * The dryer's fuel axis. "A gas dryer" decomposes into `"Natural Gas"`
+       * here — never a fused token, the same discipline as the hvac fuel axis.
+       */
+      clothesDryerFuelType: ApplianceFuelType.nullable().optional(),
+
+      /** Yes when this is a ventless / heat-pump dryer. */
+      clothesDryerHeatPump: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /**
+       * Rated Combined Energy Factor — a pure spec-sheet value with an inline
+       * hand-computation in the vendor's own help text (CEF=EF/1.15). Record a
+       * STATED number only; never look one up and never run the vendor's
+       * computation.
+       */
+      clothesDryerEfficiency: z
+        .number()
+        .describe(
+          "Rated Combined Energy Factor: record only a number the auditor stated out loud — never look one up from the Energy Star website and never compute it from an EF.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Manufacturer — FREE TEXT here, unlike freezer/refrigerator, which are
+       * closed enums. The spoken make lands as said, no list to miss.
+       */
+      clothesDryerManufacturer: z.string().nullable().optional(),
+
+      /** Model — a nameplate read-aloud, alphanumeric; capture it as spoken. */
+      clothesDryerModel: z.string().nullable().optional(),
+
+      /**
+       * Serial number — a nameplate read-aloud and the worst ASR case in this
+       * group. Capture it as spoken with the read-aloud quoted; lower the
+       * confidence on a garbled passage rather than dropping or "fixing" it.
+       */
+      clothesDryerSerialNumber: z.string().nullable().optional(),
+    }),
+  )
+  .strict();
+
+/**
+ * `POST /jobs/{jobId}/freezer` — one freezer record.
+ *
+ * Cardinality / instance label: YES — `freezerName`, an undocumented free-text
+ * field with no length cap, doing double duty as the label AND the missing
+ * location field AND the missing type field (there is no chest-vs-upright
+ * field anywhere): "garage chest freezer" all lands in that one string.
+ * Instance identity still rides the roster (`inventory.ts`); the spoken label
+ * lands on `freezerName`.
+ */
+export const FreezerFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * Annual consumption in kWh/yr — the vendor's modeling engine supplies
+       * this and its own help text warns against overriding it. Record only a
+       * value the auditor explicitly states; never estimate an annual kWh.
+       */
+      freezerUsage: z
+        .number()
+        .describe(
+          "Annual energy consumption in kWh/yr — normally supplied by the vendor's modeling engine, so record it only when the auditor explicitly states a number; never estimate one.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Manufacturer — the closed FREEZER-BRANDS list (see the enum). */
+      freezerManufacturer: FreezerManufacturer.nullable().optional(),
+
+      /**
+       * Model year. Spec types this `string`; `write` stringifies. A STATED
+       * year only — "probably from the nineties" is a decade, not a year:
+       * leave the value `null` and carry the decade in the `sourceSpan` for
+       * the reviewer to resolve.
+       */
+      freezerModelYear: z
+        .number()
+        .describe(
+          'Model year as a number, only when a specific year was stated. A decade ("probably from the nineties") is not a year — leave this null and let the decade ride in the sourceSpan.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Model number — a nameplate read-aloud. */
+      freezerModel: z.string().nullable().optional(),
+
+      /**
+       * The instance label — the only human-facing one on this resource. The
+       * vendor publishes NO description for it; this note is all the model
+       * gets.
+       */
+      freezerName: z
+        .string()
+        .describe(
+          'The freezer\'s spoken label, e.g. "the garage chest freezer" — there is no separate location field and no chest/upright type field, so the label as spoken (location and type included) is the whole of it.',
+        )
+        .nullable()
+        .optional(),
+
+      /** ENERGY STAR flag, when stated. */
+      freezerEnergyStar: z.enum(["Yes", "No"]).nullable().optional(),
+    }),
+  )
+  .strict();
+
+/**
+ * `POST /jobs/{jobId}/range` — one range record: the combined range+oven
+ * cooking appliance.
+ *
+ * The oven has no write endpoint anywhere in the spec, and `rangeFuelType`'s
+ * own vendor description says it covers "the range and oven" — so this record
+ * is the oven fuel's only writable home. The loss, recorded rather than
+ * fixable here: a genuinely dual-fuel kitchen (gas cooktop, electric wall
+ * oven) cannot be expressed — the fuel collapses to whichever side cooks most
+ * often, and the discarded half survives only in the span. Likewise a standing
+ * pilot ("gas range with a standing pilot") degrades to `"Natural Gas"` with
+ * the pilot detail lost.
+ *
+ * Cardinality / instance label: NONE — no name, label or location field;
+ * instance identity rides the roster (`inventory.ts`).
+ */
+export const RangeFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * Fuel for the range AND its oven — one value. A dictated dual-fuel
+       * split ("gas cooktop but the wall oven is electric") takes the side
+       * used to cook most often, with the whole utterance quoted.
+       */
+      rangeFuelType: ApplianceFuelType.nullable().optional(),
+
+      /** Yes when the electric cooktop is induction, not electric resistance. */
+      rangeInduction: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Manufacturer — FREE TEXT, unlike freezer/refrigerator. */
+      rangeManufacturer: z.string().nullable().optional(),
+
+      /** Model — a nameplate read-aloud. */
+      rangeModel: z.string().nullable().optional(),
+
+      /** Serial number — a nameplate read-aloud, rarely dictated. */
+      rangeSerialNumber: z.string().nullable().optional(),
+    }),
+  )
+  .strict();
+
+/**
+ * `POST /jobs/{jobId}/refrigerator` — one refrigerator record.
+ *
+ * Cardinality / instance label: YES — `refrigeratorName`, free text capped at
+ * 30 characters, whose vendor description is a copy-paste bug (it carries the
+ * Age/Size help text). That wrong text contains one real constraint: for
+ * HPXML, the house's PRIMARY refrigerator must be created first — a
+ * write-ordering concern, recorded here so whoever implements egress does not
+ * miss it. No location field (kitchen vs. garage beer fridge fits only inside
+ * the Name string) and no type field (no mini-fridge distinction; the size
+ * bands are the only proxy). Instance identity rides the roster
+ * (`inventory.ts`).
+ */
+export const RefrigeratorFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * Banded age — a stated age maps to the band containing it ("about
+       * twelve years old" → `"0-14"`); the bands overlap at 42, and a stated
+       * 42 resolves to `"35-42"` (see the enum).
+       */
+      refrigeratorAge: RefrigeratorAge.nullable().optional(),
+
+      /** Banded size in cubic feet — "an eighteen cubic foot" → `"16-18"`. */
+      refrigeratorSize: RefrigeratorSize.nullable().optional(),
+
+      /**
+       * The instance label — "the kitchen fridge", "the garage beer fridge".
+       * The vendor's own description of this field is the Age/Size help text
+       * (a copy-paste bug); this is the LABEL field.
+       */
+      refrigeratorName: z
+        .string()
+        .describe(
+          'The refrigerator\'s spoken label — "the kitchen fridge", "the garage beer fridge". Ignore the vendor description on this field (it is the Age/Size help text, a copy-paste bug): this is the label field, and the spoken location fits only here.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Annual consumption in kWh/yr — same modeling-engine caveat as
+       * `freezerUsage`: a stated number only, never an estimate.
+       */
+      refrigeratorUsage: z
+        .number()
+        .describe(
+          "Annual energy consumption in kWh/yr — normally supplied by the vendor's modeling engine, so record it only when the auditor explicitly states a number; never estimate one.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Manufacturer — the closed FRIDGE-BRANDS list (see the enum). */
+      refrigeratorManufacturer: RefrigeratorManufacturer.nullable().optional(),
+
+      /** Model number — a nameplate read-aloud. */
+      refrigeratorModel: z.string().nullable().optional(),
+
+      /** ENERGY STAR flag, when stated. */
+      refrigeratorEnergyStar: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /**
+       * Model year — redundant with `refrigeratorAge`, and the two can
+       * contradict. Fill whichever the auditor actually stated: a stated age
+       * fills the age band, a stated year fills this; both stated fills both
+       * and the contradiction is the reviewer's to resolve. Spec types this
+       * `string`; `write` stringifies.
+       */
+      refrigeratorModelYear: z
+        .number()
+        .describe(
+          "Model year as a number, only when a specific year was stated. Redundant with the age band: never derive one from the other — a stated age fills refrigeratorAge, a stated year fills this, and a contradiction between the two is the reviewer's to resolve.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Condition rating (see the enum for the vendor's response-side
+       * meanings). Narrated constantly ("it's in rough shape"), but the
+       * create endpoint publishes no meaning for the members — the meanings
+       * travel on the enum's description, and only a stated assessment fills
+       * it.
+       */
+      refrigeratorMaintenanceStarRating: RefrigeratorMaintenanceStarRating.nullable().optional(),
+    }),
+  )
+  .strict();
+
+/**
+ * `POST /jobs/{jobId}/pv` — one rooftop solar PV array record.
+ *
+ * Cardinality / instance label: NONE — the sharpest gap of the five.
+ * `pvArraySlope` and `pvArrayOrientation` are PER RECORD, which is the schema
+ * saying a home can have several arrays on different roof planes, yet there is
+ * no name, label, roof-plane or location field: "six kilowatt on the south
+ * slope, another two on the garage" produces two records indistinguishable on
+ * the wire. Instance identity rides the roster (`inventory.ts`), keyed by
+ * array size and the roof plane / orientation the auditor places it on.
+ */
+export const PvFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * A whole-home presence flag living on a per-instance resource — treat
+       * it as "this array exists". A record is only created for an array the
+       * auditor introduced, so this is `"Yes"` grounded in that introduction;
+       * a house with no solar is the roster's stated-none mechanism, never a
+       * `pv: "No"` record.
+       */
+      pv: z
+        .enum(["Yes", "No"])
+        .describe(
+          'Whether the home has a Solar PV System — a whole-home presence flag the vendor put on a per-instance resource. Treat it as "this array exists": a record exists only because an array was introduced, so this is "Yes"; a house with no solar produces no record at all, never a "No" here.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Array size in kW — "a six kilowatt array" → 6. A dictated panel count
+       * × wattage is NOT multiplied into this field; the product is a
+       * deterministic pass nobody has written, so the numbers ride the span
+       * and the value stays `null`.
+       */
+      pvArraySize: z
+        .number()
+        .describe(
+          'Array system size in kW, only as stated ("a six kilowatt array" → 6). When the auditor gives a panel count and a per-panel wattage instead, do NOT multiply them into this field — leave it null and let both numbers ride in the sourceSpan.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Annual production in kWh — comes off a bill or a monitoring app;
+       * record it only when stated.
+       */
+      pvAnnualProduction: z.number().nullable().optional(),
+
+      /**
+       * Collector-surface slope in DEGREES, only as stated in degrees. A
+       * spoken roof pitch ("four-twelve") is not degrees, and pitch→degrees is
+       * arithmetic the model never does: the value stays `null` and the pitch
+       * rides the `sourceSpan` for the reviewer.
+       */
+      pvArraySlope: z
+        .number()
+        .describe(
+          'Slope of the collector surface in degrees, only when stated in degrees. A spoken roof pitch ("four-twelve") is not degrees and converting it is arithmetic you never do — leave this null and let the pitch ride in the sourceSpan.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Orientation in degrees from North — a spoken cardinal maps to its
+       * degrees (south → 180, southwest → 225). A mapping table, not a
+       * passthrough; the cardinal→degrees vocabulary travels in the
+       * description.
+       */
+      pvArrayOrientation: z
+        .number()
+        .describe(
+          "Orientation of the array in degrees from North: north → 0, northeast → 45, east → 90, southeast → 135, south → 180, southwest → 225, west → 270, northwest → 315. Mapping a spoken cardinal to its degrees is semantic mapping, like picking an enum member; a stated number of degrees stays itself.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Module manufacture year — commonly narrated as the install vintage.
+       * Spec types this `string`; `write` stringifies. A stated year only,
+       * never derived from an age.
+       */
+      pvModuleYear: z
+        .number()
+        .describe(
+          "Year the PV modules were manufactured, only when a specific year was stated (the install vintage counts when the auditor states it as the module year); never derived from a stated age.",
+        )
+        .nullable()
+        .optional(),
+    }),
+  )
+  .strict();
+
 /**
  * `POST /jobs/{jobId}/stage` — the job's current workflow stage. A
  * job-collection resource (design `job-collections-foundation-design.md`) but a
@@ -3240,8 +3726,9 @@ export const UtilitiesFields = z
 // Every leaf is `X.nullable().optional()` and every object is `.strict()`; see
 // the file header for why both halves are load-bearing.
 //
-// Per-instance child resources (the component resources plus `concern` and
-// `incentive` — the API creates one record per element with
+// Per-instance child resources (the component resources plus the
+// job-collection groups — `concern`, `incentive`, the four appliance resources
+// and `pv`; the API creates one record per element with
 // `POST /jobs/{jobId}/<type>`) are `z.array(...).optional()`. `basedata`,
 // `health`, `stage`, `report` and `utilities` are genuine singletons and stay
 // objects.
@@ -3258,6 +3745,11 @@ export const snuggValuesSchema = z
     health: HealthFields.optional(),
     concern: z.array(ConcernFields).optional(),
     incentive: z.array(IncentiveFields).optional(),
+    clothesDryer: z.array(ClothesDryerFields).optional(),
+    freezer: z.array(FreezerFields).optional(),
+    range: z.array(RangeFields).optional(),
+    refrigerator: z.array(RefrigeratorFields).optional(),
+    pv: z.array(PvFields).optional(),
     stage: StageFields.optional(),
     report: ReportFields.optional(),
     utilities: UtilitiesFields.optional(),

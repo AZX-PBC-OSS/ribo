@@ -494,6 +494,19 @@ const fields: SnuggExtraction = {
   // group up at all" case, not one all-null instance.
   incentive: [],
 
+  // This basement walk-through names no appliance — no dryer, freezer, range or
+  // refrigerator comes up — so every appliance collection is honestly EMPTY,
+  // the same never-brought-up case as incentive above, not one all-null
+  // instance per appliance.
+  clothesDryer: [],
+  freezer: [],
+  range: [],
+  refrigerator: [],
+
+  // No solar PV either. An empty array — NOT a one-instance record carrying
+  // `pv: "No"`: a house with no solar produces no pv record at all (rule 18).
+  pv: [],
+
   stage: {
     // Nothing in this transcript moves the job's workflow stage, so the group's one
     // capture field is an unforced `null` — silence is never an invented stage, the

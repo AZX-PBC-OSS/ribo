@@ -17,6 +17,7 @@ export { SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
 // with `enveloped()` and is what the model is constrained to. See schema.ts for why
 // one shape could not be both, and why every enum member is a verbatim wire string.
 export {
+  ApplianceFuelType,
   AshraeNumberOfBathrooms,
   AtticFields,
   AtticInsulationDepth,
@@ -37,6 +38,7 @@ export {
   BasementWallInsulation,
   BillEntryType,
   BlowerDoorTestPerformed,
+  ClothesDryerFields,
   ClothesWasherManufacturer,
   ClothesWasherType,
   ConcernFields,
@@ -62,6 +64,8 @@ export {
   FloorFrameFloorType,
   FloorInsulationLocation,
   FloorWingInsulationCondition,
+  FreezerFields,
+  FreezerManufacturer,
   FrontOfBuildingOrientation,
   FuelBillUnits,
   GarageSize,
@@ -82,6 +86,13 @@ export {
   PoolPumpManufacturer,
   PoolPumpType,
   PrimaryHeatingFuelType,
+  PvFields,
+  RangeFields,
+  RefrigeratorAge,
+  RefrigeratorFields,
+  RefrigeratorMaintenanceStarRating,
+  RefrigeratorManufacturer,
+  RefrigeratorSize,
   ReportFields,
   SCHEMA_NESTING_DEPTH_CAP,
   SCHEMA_SERIALIZED_CHAR_CAP,

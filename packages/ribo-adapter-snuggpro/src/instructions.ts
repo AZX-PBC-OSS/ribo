@@ -38,6 +38,11 @@ export const SNUGG_GROUP_KEYS = [
   "health",
   "concern",
   "incentive",
+  "clothesDryer",
+  "freezer",
+  "range",
+  "refrigerator",
+  "pv",
   "stage",
   "report",
   "utilities",
@@ -382,6 +387,71 @@ Do not double-book other groups' content here: a worry the homeowner voiced is a
 (rule 14), never \`concernsSidebar\`; a named test result is a \`health\` leaf (rule 9), and
 \`safetyOverview\` is the dictated safety NARRATIVE — never synthesized from the test matrix.`,
   },
+  {
+    number: 18,
+    groups: ["clothesDryer", "freezer", "range", "refrigerator"],
+    text: `**18. Appliances: one record per appliance, the range record is also the oven record, and only a STATED year is a model year.**
+
+Each of these groups carries one record per physical appliance. None of them has a location field —
+"the dryer in the basement", "the garage chest freezer", "the beer fridge in the garage" tell
+instances apart, and on \`freezer\` and \`refrigerator\` that spoken label lands in the Name leaf
+(\`freezerName\` / \`refrigeratorName\`) as it was said, location included. \`clothesDryer\` and \`range\`
+have no Name leaf at all: a spoken location grounds the instance but has no writable home, so it
+never becomes a field value.
+
+- \`rangeFuelType\` covers the range AND its oven — the oven has no fields of its own. A dual-fuel
+  kitchen ("gas cooktop but the wall oven is electric") collapses into the one fuel used to cook most
+  often, with the whole utterance quoted in the \`sourceSpan\`; the discarded half is recorded nowhere.
+  A range and its oven are ONE record, never two. A standing pilot ("gas range with a standing
+  pilot") is \`"Natural Gas"\` — the pilot detail has no field and survives only in the quote.
+- Manufacturer is a CLOSED list on \`freezer\` and \`refrigerator\` — two DIFFERENT lists, never
+  interchangeable. A stated make that is not on the list is \`"Other"\` with the spoken brand quoted in
+  the \`sourceSpan\` (rule 11). On \`clothesDryer\` and \`range\` the manufacturer is plain free text:
+  the spoken make lands as said.
+- Model year takes a STATED year only: "installed in twenty fifteen" → 2015. A decade is not a year —
+  "probably from the nineties" leaves the value \`null\` with the decade quote in the \`sourceSpan\` for
+  the reviewer to resolve. Never derive a model year from an age or a move-in date.
+- \`refrigeratorAge\` and \`refrigeratorModelYear\` are redundant and can contradict. Fill whichever the
+  auditor actually stated — a stated age maps to the band containing it ("about twelve years old" →
+  \`"0-14"\`, the same banding discipline as rule 8; a stated 42 goes in \`"35-42"\`, the earlier of the
+  two bands it fits), a stated year fills the model year — and when both were stated, fill both even
+  if they disagree; the contradiction is the reviewer's to resolve.
+- \`refrigeratorSize\` is a cubic-feet band, mapped the same way ("an eighteen cubic foot" → \`"16-18"\`).
+- \`refrigeratorMaintenanceStarRating\` takes the auditor's own condition assessment: observable issues
+  that need addressing → \`"1"\`, standard condition for its age → \`"2"\`, well maintained / pristine →
+  \`"3"\`. "It's in rough shape" is \`"1"\` with the quote; a refrigerator nobody assessed is \`null\`.
+- Model and serial numbers are nameplate read-alouds: capture them as spoken, verbatim quote in the
+  \`sourceSpan\`, and lower \`confidence\` on a garbled passage rather than dropping or "fixing" the
+  reading.`,
+  },
+  {
+    number: 19,
+    groups: ["pv"],
+    text: `**19. PV: one record per array, orientation maps cardinals to degrees, and size/slope are stated numbers only.**
+
+The \`pv\` group carries one record per distinct solar PV array — a house can have several arrays on
+different roof planes. The group has no name or roof-plane field, so instances are told apart by
+their size and where the auditor puts them ("six kilowatt on the south slope, another two on the
+garage" is two records); the leaf-level rules on merging and self-correction apply unchanged.
+
+- The bare \`pv\` leaf is a whole-home presence flag the vendor parked on a per-instance resource.
+  Treat it as "this array exists": a record exists only because an array was introduced, so \`pv\` is
+  \`"Yes"\` grounded in that introduction. A house with no solar produces NO record — never a record
+  with \`pv: "No"\`.
+- \`pvArraySize\` is the array size in kW AS STATED: "a six kilowatt array" → 6. When the auditor gives
+  a panel count and a per-panel wattage instead ("fifteen two-sixty-five watt panels"), do NOT
+  multiply them into this field — the product is arithmetic you never do (rule 12); leave it \`null\`
+  with both numbers riding in the \`sourceSpan\`.
+- \`pvArrayOrientation\` is degrees from North, and mapping a spoken cardinal onto it is your semantic
+  job, the same as picking an enum member: north → 0, northeast → 45, east → 90, southeast → 135,
+  south → 180, southwest → 225, west → 270, northwest → 315. "South-facing" → 180. A stated number of
+  degrees stays itself.
+- \`pvArraySlope\` is the collector slope in DEGREES, and only degrees: a spoken roof pitch
+  ("four-twelve") is not degrees, and pitch→degrees is a conversion you never do — leave it \`null\`
+  with the pitch quote in the \`sourceSpan\` for the reviewer.
+- \`pvModuleYear\` is a stated year only — the install vintage when the auditor states it ("went in in
+  twenty nineteen") — and is never derived from a stated age.`,
+  },
 ];
 
 // --- Output section ----------------------------------------------------------
@@ -397,10 +467,9 @@ function fullOutputSection(): string {
 
 Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` in \`schema.ts\`.
 
-- The object has exactly thirteen top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`vault\`,
-  \`wall\`, \`window\`, \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\`, \`report\` and
-  \`utilities\` — each a nested object grouping the fields for one part of the house or one
-  job-collection resource. They are not themselves fields and carry no envelope of their own.
+- The object has one top-level key per resource group in \`schema.ts\`'s \`snuggValuesSchema\` — each
+  a nested object grouping the fields for one part of the house or one job-collection resource.
+  They are not themselves fields and carry no envelope of their own.
 - Every field in the schema must be present as a key inside its group. Never omit a key — "not
   mentioned" is expressed by \`value: null\`, not by absence. This includes every one of the 16 keys
   inside \`health\`, and every field of a group the auditor never touched.
