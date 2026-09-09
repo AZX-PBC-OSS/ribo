@@ -8,8 +8,8 @@
  *      slashes, percent signs and all, so no write-time lookup table.
  *   3. **Nesting is the resource layout** — one group per write endpoint
  *      (`basedata` singleton, per-instance component and job-collection
- *      resources, `stage` and `job` singletons), so `write` dispatches on the
- *      group key.
+ *      resources, the `stage`, `job`, `report` and `utilities` singletons), so
+ *      `write` dispatches on the group key.
  *
  * Scoping: `basedata` is the FULL honest capture surface of its endpoint (doc 17
  * §Scoping — the form fields minus the `*Improved` retrofit twins and the
@@ -20,7 +20,13 @@
  * field but the computed ones, and the `capture?` fields described with the
  * caveat that makes them borderline — see the groups). The job-collection groups
  * each carry every field of their endpoint in extraction scope minus the computed
- * ones (`incentive`'s `recommendations` is excluded by design — see the group).
+ * ones (`incentive`'s `recommendations` is excluded by design — see the group;
+ * `report` carries its authored-text half only, its display-flag tranche being
+ * separately deferred — see that group; `utilities` is a deliberately bounded
+ * CORE subset of its endpoint — the per-period delivery windows and the
+ * 12-month bill series are separate, out-of-scope tranches — see that group;
+ * the appliances-and-pv groups defer their `*Improved` twins to the
+ * improved-side tranche per the foundation design's decision 3).
  *
  * ---
  *
@@ -1114,6 +1120,198 @@ export const HouseholdIncomeTier = z.enum([
   "LMI",
   "LMI 80 - 120",
 ]);
+
+// == utilities ===============================================================
+
+/**
+ * `billEntryType` (`POST /jobs/{jobId}/utilities`) — which of the endpoint's two
+ * mutually-exclusive bill-entry families is live. A CONTROL field, not a fact
+ * about the home: doc 20 §5.2 3.1 verdicts it `capture?` precisely because an
+ * auditor never utters it — the note on the leaf says when it may be set.
+ */
+export const BillEntryType = z.enum(["Detailed", "Simple", "No Bills"]);
+
+/**
+ * `detailedElectricDataSource` / `detailedFuelDataSource` (`utilities`) — the
+ * provenance of a detailed-bill import, one list shared by both streams. Only
+ * meaningful when `billEntryType` is `"Detailed"`.
+ */
+export const DetailedBillDataSource = z.enum(["Manual", "Green Button"]);
+
+/**
+ * `simpleFuelUnits` (`utilities`) — whether the simple-mode fuel total is
+ * counted in delivered gallons or in dollars spent.
+ */
+export const SimpleFuelUnits = z.enum(["Gallons", "Dollars"]);
+
+/**
+ * `primaryHeatingFuelType` (`utilities`) — the home's PRIMARY heating fuel, the
+ * field that tells the endpoint's generic "fuel" stream which fuel it describes.
+ * A wider list than the hvac/dhw fuel axes: it adds `Coal` and `Kerosene` and
+ * drops `None`, so it is declared on its own rather than shared.
+ */
+export const PrimaryHeatingFuelType = z.enum([
+  "Natural Gas",
+  "Electricity",
+  "Fuel Oil",
+  "Propane",
+  "Wood",
+  "Pellets",
+  "Solar",
+  "Coal",
+  "Kerosene",
+]);
+
+/** `electricBillUnits` (`utilities`) — the unit the electric bill figures are entered in. */
+export const ElectricBillUnits = z.enum(["kWh", "Dollars"]);
+
+/**
+ * `fuelBillUnits` (`utilities`) — the unit the fuel bill figures are entered in.
+ * The vendor's own description for this field is a copy-paste bug (it tells the
+ * reader to "utilize the kWh option"; `kWh` is not a member — doc 20 §4.7). The
+ * members above are the whole vocabulary.
+ */
+export const FuelBillUnits = z.enum([
+  "Therms",
+  "Gallons",
+  "Dollars",
+  "MCFs",
+  "Cords",
+  "Pounds",
+  "Tons",
+]);
+
+// == clothesDryer, freezer, range, refrigerator, pv ===========================
+// The appliances-and-PV job-collection resources (doc 20 §5.6). Every field
+// doc 20 verdicts capture or capture? is here; the `*Improved` twins are
+// DEFERRED to the improved-side tranche per the foundation design's decision 3
+// — dictated retrofit intent ("I'd swap that for a heat-pump dryer"), not
+// excluded. No field on these five resources publishes `enum: []`, and there
+// is deliberately no `oven` group: the oven has no write endpoint anywhere in
+// the spec, so there is nothing to write its fields to (doc 20 §5.6 "Oven: a
+// no-write-target finding") — `rangeFuelType` is the oven fuel's only writable
+// home.
+
+/**
+ * `clothesDryerFuelType` / `rangeFuelType` — one vendor list shared by the
+ * dryer and the range: identical member sets, so one exported enum, declared
+ * once and reused. On the range it covers the oven too (see `RangeFields`).
+ */
+export const ApplianceFuelType = z.enum([
+  "Natural Gas",
+  "Electricity",
+  "Propane",
+  "None",
+  "Don't Know",
+]);
+
+/**
+ * `freezerManufacturer` — doc 20 §5.0 FREEZER-BRANDS. The vendor list carries
+ * both "Frigidaire" and its own "Fridgidaire" typo — both stay verbatim — and
+ * it is NOT the refrigerator list: the two are genuinely different sets, and
+ * normalising one onto the other is exactly the bug doc 20 §4.5 warns about.
+ */
+export const FreezerManufacturer = z
+  .enum([
+    "Amana",
+    "Unknown",
+    "Asko",
+    "Bosch",
+    "Frigidaire",
+    "GE",
+    "Igloo",
+    "LG",
+    "Maytag",
+    "Samsung",
+    "Sears",
+    "Sub-Zero",
+    "Thermador",
+    "Whirlpool",
+    "Other",
+    "Fridgidaire",
+  ])
+  .describe(
+    'Manufacturer from this closed list — the freezer list, which is NOT the refrigerator list. Use "Other" when the auditor names a make that is not on it, quoting the spoken name in the span.',
+  );
+
+/**
+ * `refrigeratorManufacturer` — doc 20 §5.0 FRIDGE-BRANDS. Again both
+ * "Frigidaire" and the vendor's own "Fridgidaire" typo, verbatim; again a
+ * different set from the freezer list (this one adds Hotpoint, KitchenAid,
+ * Fisher & Paykel, Ikea and Liebherr, and drops Igloo).
+ */
+export const RefrigeratorManufacturer = z
+  .enum([
+    "Unknown",
+    "Amana",
+    "Asko",
+    "Bosch",
+    "Frigidaire",
+    "GE",
+    "Hotpoint",
+    "KitchenAid",
+    "LG",
+    "Maytag",
+    "Samsung",
+    "Sears",
+    "Sub-Zero",
+    "Thermador",
+    "Whirlpool",
+    "Fisher & Paykel",
+    "Ikea",
+    "Liebherr",
+    "Other",
+    "Fridgidaire",
+  ])
+  .describe(
+    'Manufacturer from this closed list — the refrigerator list, which is NOT the freezer list. Use "Other" when the auditor names a make that is not on it, quoting the spoken name in the span.',
+  );
+
+/**
+ * `refrigeratorAge` — a banded age range, speech-shaped. The vendor's bands
+ * are irregular in width and OVERLAP: both `"35-42"` and `"42+"` contain 42
+ * (doc 20 §4.7). A stated age maps to the band containing it; a stated 42
+ * resolves to `"35-42"`, the earlier of the two, deterministically.
+ */
+export const RefrigeratorAge = z.enum([
+  "0-14",
+  "15-21",
+  "22-24",
+  "25-26",
+  "27-30",
+  "31-34",
+  "35-42",
+  "42+",
+  "Don't Know",
+]);
+
+/**
+ * `refrigeratorSize` — a banded size range in cubic feet (the unit is stated
+ * only in the vendor's `refrigeratorName` description — itself a copy-paste
+ * bug; see `RefrigeratorFields`).
+ */
+export const RefrigeratorSize = z.enum([
+  "1-5",
+  "6-12",
+  "13-15",
+  "16-18",
+  "19-21",
+  "22+",
+  "Don't Know",
+]);
+
+/**
+ * `refrigeratorMaintenanceStarRating` — the spec's list leads with a literal
+ * `null` member; that empty state is the leaf's `.nullable()`, not an enum
+ * member — the rule `WallCavityInsulationType` records. The create endpoint
+ * publishes no meanings for the members; the response definition does, and
+ * that text travels on the leaf's own description.
+ */
+export const RefrigeratorMaintenanceStarRating = z
+  .enum(["1", "2", "3"])
+  .describe(
+    'Maintenance condition, only from the auditor\'s own stated assessment: "1" when they describe observable issues that need addressing, "2" for standard condition given the system\'s age, "3" for well maintained and/or pristine. Never inferred, and never a rating for a refrigerator nobody assessed.',
+  );
 
 // --- The resource groups ----------------------------------------------------
 // One group per write endpoint. Each is `.strict()` and each leaf is
@@ -3358,6 +3556,337 @@ export const IncentiveFields = z
  * endpoint is a state transition on the job, not an instance create (doc 20
  * §5.1). Its sibling `stageChangeReason` is deliberately out of scope.
  */
+export const ClothesDryerFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * The dryer's fuel axis. "A gas dryer" decomposes into `"Natural Gas"`
+       * here — never a fused token, the same discipline as the hvac fuel axis.
+       */
+      clothesDryerFuelType: ApplianceFuelType.nullable().optional(),
+
+      /** Yes when this is a ventless / heat-pump dryer. */
+      clothesDryerHeatPump: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /**
+       * Rated Combined Energy Factor — a pure spec-sheet value with an inline
+       * hand-computation in the vendor's own help text (CEF=EF/1.15). Record a
+       * STATED number only; never look one up and never run the vendor's
+       * computation.
+       */
+      clothesDryerEfficiency: z
+        .number()
+        .describe(
+          "Rated Combined Energy Factor: record only a number the auditor stated out loud — never look one up from the Energy Star website and never compute it from an EF.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Manufacturer — FREE TEXT here, unlike freezer/refrigerator, which are
+       * closed enums. The spoken make lands as said, no list to miss.
+       */
+      clothesDryerManufacturer: z.string().nullable().optional(),
+
+      /** Model — a nameplate read-aloud, alphanumeric; capture it as spoken. */
+      clothesDryerModel: z.string().nullable().optional(),
+
+      /**
+       * Serial number — a nameplate read-aloud and the worst ASR case in this
+       * group. Capture it as spoken with the read-aloud quoted; lower the
+       * confidence on a garbled passage rather than dropping or "fixing" it.
+       */
+      clothesDryerSerialNumber: z.string().nullable().optional(),
+    }),
+  )
+  .strict();
+
+/**
+ * `POST /jobs/{jobId}/freezer` — one freezer record.
+ *
+ * Cardinality / instance label: YES — `freezerName`, an undocumented free-text
+ * field with no length cap, doing double duty as the label AND the missing
+ * location field AND the missing type field (there is no chest-vs-upright
+ * field anywhere): "garage chest freezer" all lands in that one string.
+ * Instance identity still rides the roster (`inventory.ts`); the spoken label
+ * lands on `freezerName`.
+ */
+export const FreezerFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * Annual consumption in kWh/yr — the vendor's modeling engine supplies
+       * this and its own help text warns against overriding it. Record only a
+       * value the auditor explicitly states; never estimate an annual kWh.
+       */
+      freezerUsage: z
+        .number()
+        .describe(
+          "Annual energy consumption in kWh/yr — normally supplied by the vendor's modeling engine, so record it only when the auditor explicitly states a number; never estimate one.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Manufacturer — the closed FREEZER-BRANDS list (see the enum). */
+      freezerManufacturer: FreezerManufacturer.nullable().optional(),
+
+      /**
+       * Model year. Spec types this `string`; `write` stringifies. A STATED
+       * year only — "probably from the nineties" is a decade, not a year:
+       * leave the value `null` and carry the decade in the `sourceSpan` for
+       * the reviewer to resolve.
+       */
+      freezerModelYear: z
+        .number()
+        .describe(
+          'Model year as a number, only when a specific year was stated. A decade ("probably from the nineties") is not a year — leave this null and let the decade ride in the sourceSpan.',
+        )
+        .nullable()
+        .optional(),
+
+      /** Model number — a nameplate read-aloud. */
+      freezerModel: z.string().nullable().optional(),
+
+      /**
+       * The instance label — the only human-facing one on this resource. The
+       * vendor publishes NO description for it; this note is all the model
+       * gets.
+       */
+      freezerName: z
+        .string()
+        .describe(
+          'The freezer\'s spoken label, e.g. "the garage chest freezer" — there is no separate location field and no chest/upright type field, so the label as spoken (location and type included) is the whole of it.',
+        )
+        .nullable()
+        .optional(),
+
+      /** ENERGY STAR flag, when stated. */
+      freezerEnergyStar: z.enum(["Yes", "No"]).nullable().optional(),
+    }),
+  )
+  .strict();
+
+/**
+ * `POST /jobs/{jobId}/range` — one range record: the combined range+oven
+ * cooking appliance.
+ *
+ * The oven has no write endpoint anywhere in the spec, and `rangeFuelType`'s
+ * own vendor description says it covers "the range and oven" — so this record
+ * is the oven fuel's only writable home. The loss, recorded rather than
+ * fixable here: a genuinely dual-fuel kitchen (gas cooktop, electric wall
+ * oven) cannot be expressed — the fuel collapses to whichever side cooks most
+ * often, and the discarded half survives only in the span. Likewise a standing
+ * pilot ("gas range with a standing pilot") degrades to `"Natural Gas"` with
+ * the pilot detail lost.
+ *
+ * Cardinality / instance label: NONE — no name, label or location field;
+ * instance identity rides the roster (`inventory.ts`).
+ */
+export const RangeFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * Fuel for the range AND its oven — one value. A dictated dual-fuel
+       * split ("gas cooktop but the wall oven is electric") takes the side
+       * used to cook most often, with the whole utterance quoted.
+       */
+      rangeFuelType: ApplianceFuelType.nullable().optional(),
+
+      /** Yes when the electric cooktop is induction, not electric resistance. */
+      rangeInduction: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /** Manufacturer — FREE TEXT, unlike freezer/refrigerator. */
+      rangeManufacturer: z.string().nullable().optional(),
+
+      /** Model — a nameplate read-aloud. */
+      rangeModel: z.string().nullable().optional(),
+
+      /** Serial number — a nameplate read-aloud, rarely dictated. */
+      rangeSerialNumber: z.string().nullable().optional(),
+    }),
+  )
+  .strict();
+
+/**
+ * `POST /jobs/{jobId}/refrigerator` — one refrigerator record.
+ *
+ * Cardinality / instance label: YES — `refrigeratorName`, free text capped at
+ * 30 characters, whose vendor description is a copy-paste bug (it carries the
+ * Age/Size help text). That wrong text contains one real constraint: for
+ * HPXML, the house's PRIMARY refrigerator must be created first — a
+ * write-ordering concern, recorded here so whoever implements egress does not
+ * miss it. No location field (kitchen vs. garage beer fridge fits only inside
+ * the Name string) and no type field (no mini-fridge distinction; the size
+ * bands are the only proxy). Instance identity rides the roster
+ * (`inventory.ts`).
+ */
+export const RefrigeratorFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * Banded age — a stated age maps to the band containing it ("about
+       * twelve years old" → `"0-14"`); the bands overlap at 42, and a stated
+       * 42 resolves to `"35-42"` (see the enum).
+       */
+      refrigeratorAge: RefrigeratorAge.nullable().optional(),
+
+      /** Banded size in cubic feet — "an eighteen cubic foot" → `"16-18"`. */
+      refrigeratorSize: RefrigeratorSize.nullable().optional(),
+
+      /**
+       * The instance label — "the kitchen fridge", "the garage beer fridge".
+       * The vendor's own description of this field is the Age/Size help text
+       * (a copy-paste bug); this is the LABEL field.
+       */
+      refrigeratorName: z
+        .string()
+        .describe(
+          'The refrigerator\'s spoken label — "the kitchen fridge", "the garage beer fridge". Ignore the vendor description on this field (it is the Age/Size help text, a copy-paste bug): this is the label field, and the spoken location fits only here.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Annual consumption in kWh/yr — same modeling-engine caveat as
+       * `freezerUsage`: a stated number only, never an estimate.
+       */
+      refrigeratorUsage: z
+        .number()
+        .describe(
+          "Annual energy consumption in kWh/yr — normally supplied by the vendor's modeling engine, so record it only when the auditor explicitly states a number; never estimate one.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Manufacturer — the closed FRIDGE-BRANDS list (see the enum). */
+      refrigeratorManufacturer: RefrigeratorManufacturer.nullable().optional(),
+
+      /** Model number — a nameplate read-aloud. */
+      refrigeratorModel: z.string().nullable().optional(),
+
+      /** ENERGY STAR flag, when stated. */
+      refrigeratorEnergyStar: z.enum(["Yes", "No"]).nullable().optional(),
+
+      /**
+       * Model year — redundant with `refrigeratorAge`, and the two can
+       * contradict. Fill whichever the auditor actually stated: a stated age
+       * fills the age band, a stated year fills this; both stated fills both
+       * and the contradiction is the reviewer's to resolve. Spec types this
+       * `string`; `write` stringifies.
+       */
+      refrigeratorModelYear: z
+        .number()
+        .describe(
+          "Model year as a number, only when a specific year was stated. Redundant with the age band: never derive one from the other — a stated age fills refrigeratorAge, a stated year fills this, and a contradiction between the two is the reviewer's to resolve.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Condition rating (see the enum for the vendor's response-side
+       * meanings). Narrated constantly ("it's in rough shape"), but the
+       * create endpoint publishes no meaning for the members — the meanings
+       * travel on the enum's description, and only a stated assessment fills
+       * it.
+       */
+      refrigeratorMaintenanceStarRating: RefrigeratorMaintenanceStarRating.nullable().optional(),
+    }),
+  )
+  .strict();
+
+/**
+ * `POST /jobs/{jobId}/pv` — one rooftop solar PV array record.
+ *
+ * Cardinality / instance label: NONE — the sharpest gap of the five.
+ * `pvArraySlope` and `pvArrayOrientation` are PER RECORD, which is the schema
+ * saying a home can have several arrays on different roof planes, yet there is
+ * no name, label, roof-plane or location field: "six kilowatt on the south
+ * slope, another two on the garage" produces two records indistinguishable on
+ * the wire. Instance identity rides the roster (`inventory.ts`), keyed by
+ * array size and the roof plane / orientation the auditor places it on.
+ */
+export const PvFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * A whole-home presence flag living on a per-instance resource — treat
+       * it as "this array exists". A record is only created for an array the
+       * auditor introduced, so this is `"Yes"` grounded in that introduction;
+       * a house with no solar is the roster's stated-none mechanism, never a
+       * `pv: "No"` record.
+       */
+      pv: z
+        .enum(["Yes", "No"])
+        .describe(
+          'Whether the home has a Solar PV System — a whole-home presence flag the vendor put on a per-instance resource. Treat it as "this array exists": a record exists only because an array was introduced, so this is "Yes"; a house with no solar produces no record at all, never a "No" here.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Array size in kW — "a six kilowatt array" → 6. A dictated panel count
+       * × wattage is NOT multiplied into this field; the product is a
+       * deterministic pass nobody has written, so the numbers ride the span
+       * and the value stays `null`.
+       */
+      pvArraySize: z
+        .number()
+        .describe(
+          'Array system size in kW, only as stated ("a six kilowatt array" → 6). When the auditor gives a panel count and a per-panel wattage instead, do NOT multiply them into this field — leave it null and let both numbers ride in the sourceSpan.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Annual production in kWh — comes off a bill or a monitoring app;
+       * record it only when stated.
+       */
+      pvAnnualProduction: z.number().nullable().optional(),
+
+      /**
+       * Collector-surface slope in DEGREES, only as stated in degrees. A
+       * spoken roof pitch ("four-twelve") is not degrees, and pitch→degrees is
+       * arithmetic the model never does: the value stays `null` and the pitch
+       * rides the `sourceSpan` for the reviewer.
+       */
+      pvArraySlope: z
+        .number()
+        .describe(
+          'Slope of the collector surface in degrees, only when stated in degrees. A spoken roof pitch ("four-twelve") is not degrees and converting it is arithmetic you never do — leave this null and let the pitch ride in the sourceSpan.',
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Orientation in degrees from North — a spoken cardinal maps to its
+       * degrees (south → 180, southwest → 225). A mapping table, not a
+       * passthrough; the cardinal→degrees vocabulary travels in the
+       * description.
+       */
+      pvArrayOrientation: z
+        .number()
+        .describe(
+          "Orientation of the array in degrees from North: north → 0, northeast → 45, east → 90, southeast → 135, south → 180, southwest → 225, west → 270, northwest → 315. Mapping a spoken cardinal to its degrees is semantic mapping, like picking an enum member; a stated number of degrees stays itself.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Module manufacture year — commonly narrated as the install vintage.
+       * Spec types this `string`; `write` stringifies. A stated year only,
+       * never derived from an age.
+       */
+      pvModuleYear: z
+        .number()
+        .describe(
+          "Year the PV modules were manufactured, only when a specific year was stated (the install vintage counts when the auditor states it as the module year); never derived from a stated age.",
+        )
+        .nullable()
+        .optional(),
+    }),
+  )
+  .strict();
+
 export const StageFields = z
   .object(
     withVendorDescriptions({
@@ -3695,6 +4224,407 @@ export const JobFields = z
   )
   .strict();
 
+ * `POST /jobs/{jobId}/report` — the authored text of the homeowner-facing
+ * report. A job-collection resource (design `job-collections-foundation-design.md`)
+ * but a per-job SINGLETON, like `basedata`, `health` and `stage`, not an array:
+ * the path terminates at the resource name with no `{reportUuid}` sub-path, the
+ * one verb is a `POST` summarised "Update Report" (upsert-on-the-job), and there
+ * is no delete and no list (doc 20 §5.3 "Cardinality: per-job singleton").
+ *
+ * Scope is doc 20 §5.3's (a1)+(a2) verdicted `capture`/`capture?` surface only —
+ * the genuine long-form prose fields and the short single-line labels. The
+ * (b1)/(b2) `element*` display-mode and `page*` visibility flags are a
+ * separately deferred tranche (opaque integers whose meanings live only in the
+ * response definition), the presentation-only titles doc 20 verdicts `exclude`
+ * stay out, and `customFields` is response-only.
+ *
+ * `concernsSidebar` reads like it wants the homeowner's concerns in prose but
+ * is a short caption (doc 20 §5.3 "Free-text inventory and expected length") —
+ * the live spec's `maxLength` hints doc 20 recorded are gone as of this
+ * writing, so leaf descriptions state "short label," not a specific length.
+ */
+export const ReportFields = z
+  .object(
+    withVendorDescriptions({
+      // --- (a1) Long-form narrative prose (doc 20 §5.3). ---
+
+      /** The cover-page introduction, dictated for the homeowner. */
+      coverTextArea: z
+        .string()
+        .describe(
+          "Long-form prose — multi-sentence to multi-paragraph. Capture the introduction the auditor dictated for the cover page in their own words; never compose one yourself, and null when nothing was dictated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The additional-notes sidebar text; often the longest dictated block. */
+      additionalNotesOverview: z
+        .string()
+        .describe(
+          "Long-form prose — multi-sentence. Capture the catch-all notes the auditor dictated for the additional-notes sidebar in their own words; never compose notes yourself, and null when nothing was dictated.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The health-and-safety narrative — prose, not the test matrix. */
+      safetyOverview: z
+        .string()
+        .describe(
+          "Long-form prose — one to several sentences. The health-and-safety narrative the auditor dictated for the report; a named test RESULT is a `health` leaf, and this narrative is never synthesized from the tests.",
+        )
+        .nullable()
+        .optional(),
+
+      // --- (a2) Short single-line labels / section titles. ---
+
+      /** The report's own title, when the auditor named the deliverable. */
+      titleCover: z
+        .string()
+        .describe(
+          "A short single-line label. Capture it only when the auditor actually named the report; never a sentence.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The concerns-page sidebar caption, despite the name. */
+      concernsSidebar: z
+        .string()
+        .describe(
+          "Despite reading like it wants the homeowner's concerns, this is a short single-line sidebar caption, never a paragraph. A concern the homeowner voiced is a `concern` instance, not this field.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The solutions-page subheader — uncapped in the API, still short. */
+      solutionsTitle: z
+        .string()
+        .describe(
+          "A subheader title — a short single-line label even though the API publishes no length cap for it. Capture it only when the auditor actually named the section; it is usually a template default.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The first custom program section's title, when one was named. */
+      titleCustom1: z
+        .string()
+        .describe(
+          "A short single-line label. Custom sections have no template default, so capture the name only when the auditor gave one.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The second custom program section's title, when one was named. */
+      titleCustom2: z
+        .string()
+        .describe(
+          "A short single-line label. Custom sections have no template default, so capture the name only when the auditor gave one.",
+        )
+        .nullable()
+        .optional(),
+    }),
+  )
+  .strict();
+
+// A job-collection group (doc 20 §5.2; target model per
+// `docs/roadmap/design/job-collections-foundation-design.md`).
+
+/**
+ * `POST /jobs/{jobId}/utilities` — the job's utility-billing record. A
+ * job-collection resource (design `job-collections-foundation-design.md`) but a
+ * SINGLETON, like `basedata` and `health`, not an array of instances: the path
+ * has no `utilityId` segment, the response definition is one flat object of
+ * scalars, and multiple fuels are modelled by name-mangled fields
+ * (`electric*` / `fuel*` / `additionalFuel*`, `utilityPrice<Fuel>`), not by
+ * repetition — one record per job, upserted (doc 20 §5.2).
+ *
+ * This is the endpoint's CORE subset only (doc 20 §8.3, the utilities-core
+ * tranche): the mode/provenance selectors, the provider names, the simple-bill
+ * scalars, the units and primary fuel, the per-fuel price overrides, and the
+ * rate plans. Deliberately absent:
+ *
+ *   - the delivered-fuel windows and the detailed 12-month bill series —
+ *     separate tranches, and the series is an import path, never dictation
+ *     (doc 20 §5.2 3.7–3.8);
+ *   - the three `*AccountNumber` fields — identifier-shaped captures, not
+ *     names: doc 20 verdicts them `capture?` while flagging a 10–16 digit
+ *     spoken string as a high-ASR-error target, and the tranche's scope is the
+ *     provider NAMES;
+ *   - `utilityRatePlanPriceElectricity` — verdicted `capture?` but held by doc
+ *     20 itself: its semantics are unresolved (an annual dollar total, not a
+ *     per-kWh rate) with an explicit "do not map until confirmed" (§5.2 3.6,
+ *     §9 question 5).
+ */
+export const UtilitiesFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * The bill-entry MODE — a control field gating which of the endpoint's
+       * field families apply, not something an auditor utters (doc 20 §5.2 3.1).
+       * Set it only when the auditor explicitly states the mode ("we're on
+       * simple billing for this one"); the write path's own default is to
+       * derive it from which families actually filled, not to trust a guess.
+       */
+      billEntryType: BillEntryType.describe(
+        "Which bill-entry mode the job uses. Set it only when the auditor explicitly states the mode; never derive it from which other fields filled.",
+      )
+        .nullable()
+        .optional(),
+
+      /**
+       * Provenance of the detailed-bill data — the import mechanism, not a fact
+       * about the home (doc 20 §5.2 3.1). Set only from an explicit statement;
+       * a Ribo-driven write defaults this to `"Manual"`.
+       */
+      detailedElectricDataSource: DetailedBillDataSource.describe(
+        "Where the detailed electric bill data came from. Set only when the auditor explicitly states it; never assume an import mechanism.",
+      )
+        .nullable()
+        .optional(),
+
+      /** The fuel stream's provenance — same rule as the electric twin. */
+      detailedFuelDataSource: DetailedBillDataSource.describe(
+        "Where the detailed fuel bill data came from. Set only when the auditor explicitly states it; never assume an import mechanism.",
+      )
+        .nullable()
+        .optional(),
+
+      /** The electric utility's name as spoken ("they're on National Grid") — free text. */
+      electricUtilityProviderName: z
+        .string()
+        .describe("The electric utility provider's name as spoken, free text.")
+        .nullable()
+        .optional(),
+
+      /** The fuel utility's name as spoken — free text. */
+      fuelUtilityProviderName: z
+        .string()
+        .describe("The fuel utility provider's name as spoken, free text.")
+        .nullable()
+        .optional(),
+
+      /**
+       * A SECOND fuel provider's name — the endpoint's only second-fuel
+       * affordance; there is no second full fuel stream (doc 20 §5.2 2).
+       */
+      additionalFuelUtilityProviderName: z
+        .string()
+        .describe(
+          "A second fuel utility provider's name as spoken, free text — the only affordance for a second fuel on this endpoint.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * The highest monthly SUMMER electric bill in dollars, as stated — a bill
+       * total, never a per-unit price (those are the `utilityPrice*` fields).
+       */
+      highestMonthlySummerElectricBill: z
+        .number()
+        .describe(
+          "The highest monthly summer electric bill in dollars as stated — a bill total, not a per-unit price.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The highest monthly WINTER electric bill in dollars, as stated. */
+      highestMonthlyWinterElectricBill: z
+        .number()
+        .describe(
+          "The highest monthly winter electric bill in dollars as stated — a bill total, not a per-unit price.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The lowest monthly electric bill of the past year in dollars, as stated. */
+      lowestMonthlyElectricBill: z
+        .number()
+        .describe("The lowest monthly electric bill in dollars as stated — a bill total.")
+        .nullable()
+        .optional(),
+
+      /**
+       * The highest monthly WINTER bill of the heating fuel in dollars. The
+       * vendor names this field for natural gas but means the fuel heating the
+       * largest area when several are in play.
+       */
+      highestMonthlyWinterNaturalGasBill: z
+        .number()
+        .describe(
+          "The highest monthly winter bill of the heating fuel in dollars as stated — the fuel heating the largest area when several are in play.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The lowest monthly bill of the heating fuel in dollars — typically a summer month. */
+      lowestMonthlyNaturalGasBill: z
+        .number()
+        .describe(
+          "The lowest monthly bill of the heating fuel in dollars as stated — typically a summer, hot-water-and-cooking-only month.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Whether `totalSimpleFuelUsedInLast12Months` counts gallons delivered or dollars spent. */
+      simpleFuelUnits: SimpleFuelUnits.describe(
+        "Whether the simple fuel total is counted in gallons delivered or dollars spent — the unit qualifier on totalSimpleFuelUsedInLast12Months, not a bill figure of its own.",
+      )
+        .nullable()
+        .optional(),
+
+      /** Total fuel used over the past year, in the unit `simpleFuelUnits` names. */
+      totalSimpleFuelUsedInLast12Months: z
+        .number()
+        .describe(
+          "Total fuel used over the past twelve months as a bare number, in whichever unit simpleFuelUnits names — gallons delivered or dollars spent.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * The home's PRIMARY heating fuel. A stated fact about the home, never an
+       * inference from equipment mentions: a house with two systems has not said
+       * which is primary until the auditor says so.
+       */
+      primaryHeatingFuelType: PrimaryHeatingFuelType.describe(
+        "The home's primary heating fuel. Set it only when the auditor says which fuel primarily heats the home — never inferred from which equipment was mentioned.",
+      )
+        .nullable()
+        .optional(),
+
+      /** The unit the electric bill figures are entered in. */
+      electricBillUnits: ElectricBillUnits.nullable().optional(),
+
+      /**
+       * The unit the fuel bill figures are entered in. The vendor's own description
+       * here is a copy-paste bug — it recommends a `kWh` option that is not a member
+       * of this list (doc 20 §4.7); never emit `kWh` for this field.
+       */
+      fuelBillUnits: FuelBillUnits.describe(
+        "The unit the fuel bill figures are entered in. The vendor's description mentions a kWh option, but kWh is NOT a member of this list — never emit it here.",
+      )
+        .nullable()
+        .optional(),
+
+      /**
+       * Per-unit price override for natural gas, as a bare number ("eighty-two
+       * cents a therm" -> 0.82) — the vendor names no unit; it is the fuel's
+       * implicit billing unit. Overrides the EIA regional default.
+       */
+      utilityPriceNaturalGas: z
+        .number()
+        .describe(
+          "Per-unit price for natural gas as a bare number in the fuel's implicit billing unit, stated by the auditor; overrides the software's EIA regional default.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Per-unit price override for propane ("a dollar fifty a gallon" -> 1.5) — same implicit-unit rule. */
+      utilityPricePropane: z
+        .number()
+        .describe(
+          "Per-unit price for propane as a bare number in the fuel's implicit billing unit, stated by the auditor; overrides the software's EIA regional default.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Per-unit price override for fuel oil — same implicit-unit rule. */
+      utilityPriceFuelOil: z
+        .number()
+        .describe(
+          "Per-unit price for fuel oil as a bare number in the fuel's implicit billing unit, stated by the auditor; overrides the software's EIA regional default.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Per-unit price override for electricity ("nine cents a kilowatt hour" -> 0.09) — same implicit-unit rule. */
+      utilityPriceElectricity: z
+        .number()
+        .describe(
+          "Per-unit price for electricity as a bare number in the implicit billing unit, stated by the auditor; overrides the software's EIA regional default.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Per-unit price for wood — the vendor keeps NO default for this fuel, so
+       * it must be filled when wood is in use. Same implicit-unit rule.
+       */
+      utilityPriceWood: z
+        .number()
+        .describe(
+          "Per-unit price for wood as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever wood is in use.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Per-unit price for pellets — no vendor default exists; required when pellets are in use. */
+      utilityPricePellets: z
+        .number()
+        .describe(
+          "Per-unit price for pellets as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever pellets are in use.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Per-unit price for coal — no vendor default exists; required when coal is in use. */
+      utilityPriceCoal: z
+        .number()
+        .describe(
+          "Per-unit price for coal as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever coal is in use.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Per-unit price for kerosene — no vendor default exists; required when kerosene is in use. */
+      utilityPriceKerosene: z
+        .number()
+        .describe(
+          "Per-unit price for kerosene as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever kerosene is in use.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * The electric rate plan's name as spoken, FREE TEXT: the spec declares
+       * this field with `enum: []` and publishes no value list (doc 20 §4.5), so
+       * the spoken name reaches review intact rather than being forced onto an
+       * invented list — the `hvacDuctLocation` precedent.
+       */
+      electricRatePlan: z
+        .string()
+        .describe(
+          "The electric utility rate plan's name as spoken, free text — the vendor publishes no value list for this field.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The fuel rate plan's name as spoken — free text, same unpublished-enum treatment. */
+      fuelRatePlan: z
+        .string()
+        .describe(
+          "The utility fuel rate plan's name as spoken, free text — the vendor publishes no value list for this field.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * The POST-RETROFIT electric rate plan's name — a proposal scenario, not
+       * an observed site condition, which is why doc 20 §5.2 3.6 verdicts it
+       * only `capture?`. Free text (unpublished value list); set it only when a
+       * future rate plan is explicitly proposed, never the current plan
+       * repeated.
+       */
+      electricRatePlanImproved: z
+        .string()
+        .describe(
+          "The post-retrofit electric rate plan's name as spoken, free text — a proposal scenario, not an observed condition; set it only when a future rate plan is explicitly proposed.",
+        )
+        .nullable()
+        .optional(),
+    }),
+  )
+  .strict();
+
 // --- The field set, as a writable patch --------------------------------------
 // Every leaf is `X.nullable().optional()` and every object is `.strict()`; see
 // the file header for why both halves are load-bearing.
@@ -3717,8 +4647,15 @@ export const snuggValuesSchema = z
     health: HealthFields.optional(),
     concern: z.array(ConcernFields).optional(),
     incentive: z.array(IncentiveFields).optional(),
+    clothesDryer: z.array(ClothesDryerFields).optional(),
+    freezer: z.array(FreezerFields).optional(),
+    range: z.array(RangeFields).optional(),
+    refrigerator: z.array(RefrigeratorFields).optional(),
+    pv: z.array(PvFields).optional(),
     stage: StageFields.optional(),
     job: JobFields.optional(),
+    report: ReportFields.optional(),
+    utilities: UtilitiesFields.optional(),
   })
   .strict();
 
