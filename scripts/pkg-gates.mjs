@@ -15,42 +15,25 @@
  *      impossible to detect here.
  */
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
+
+import {
+  discoverPublishablePackages,
+  EXPECTED_PUBLISHED_COUNT,
+  unexpectedCountMessage,
+} from "./lib/publishable-packages.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
 
-// Derive the publishable packages from the workspace rather than hard-coding a
-// list: removing a package fails loudly below (count mismatch), but ADDING one
-// would be silently ungated while the green line still reads as success. The
-// non-private packages under packages/ are the publishable set. We keep both the
-// directory name (for `pnpm pack --dry-run` cwd) and the parsed manifest (for
-// the React peer-dep gate below).
-const packagesDir = path.join(repoRoot, "packages");
-const publishable = [];
-for (const dir of readdirSync(packagesDir, { withFileTypes: true })) {
-  if (!dir.isDirectory()) continue;
-  const manifestPath = path.join(packagesDir, dir.name, "package.json");
-  let manifest;
-  try {
-    manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  } catch {
-    continue;
-  }
-  if (manifest.private) continue;
-  publishable.push({ dir: dir.name, name: manifest.name, manifest });
-}
-publishable.sort((a, b) => a.name.localeCompare(b.name));
-
-const EXPECTED_PUBLISHED_COUNT = 8;
+// The publishable roster and its tripwire count live in one shared module —
+// three scripts used to carry their own copy, and CI found the one that was
+// missed. See scripts/lib/publishable-packages.mjs.
+const publishable = discoverPublishablePackages(repoRoot);
 if (publishable.length !== EXPECTED_PUBLISHED_COUNT) {
-  console.error(
-    `pkg-gates: discovered ${publishable.length} publishable packages, expected ` +
-      `${EXPECTED_PUBLISHED_COUNT} (${publishable.map((p) => p.name).join(", ")}). ` +
-      "If you added or removed a package, update EXPECTED_PUBLISHED_COUNT.",
-  );
+  console.error(`pkg-gates: ${unexpectedCountMessage(publishable)}`);
   process.exit(1);
 }
 
