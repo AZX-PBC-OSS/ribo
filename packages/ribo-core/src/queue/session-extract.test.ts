@@ -4,6 +4,7 @@ import { afterEach, expect, test } from "vitest";
 
 import type { DocumentCapture } from "../capture-item.js";
 import { FakeExtractor, toSessionExtractStep } from "../extractor.js";
+import { isSpanGrounded } from "../provenance.js";
 import type { Recording } from "../recording.js";
 import { removeOutboxDatabase } from "./database.js";
 import { openOutbox, type Outbox } from "./outbox.js";
@@ -153,4 +154,173 @@ test("page markers survive into the extractor's input", async () => {
   expect(extractor.calls).toHaveLength(1);
   expect(extractor.calls[0]).toContain("===== PAGE 1 =====");
   expect(extractor.calls[0]).toContain("===== PAGE 2 =====");
+});
+
+// ---------------------------------------------------------------------------
+// Per-capture attribution markers
+// ---------------------------------------------------------------------------
+//
+// Attribution today is per-session: the joined transcript is one undifferentiated
+// string, so a model cannot cite which capture a value came from, and a human
+// reviewing a flagged field cannot be shown the source. The page markers inside
+// a document's own text are the existing precedent for the fix — a marker in the
+// text is what gives the model something to cite.
+//
+// `joinSessionTranscript(outbox, sessionId, { markCaptures: true })` delimits
+// each capture's text with a per-capture marker in the page-marker family
+// (`\n===== CAPTURE seq:N kind:K id:I =====\n`). The option defaults to off so
+// existing callers see the same text they always have. These tests were verified
+// by mutation: dropping the marker prefix turns the first red, unconditionally
+// emitting markers turns the second red, and wrapping the transcript text inside
+// the marker (instead of beside it) turns the third red.
+
+test("per-capture markers delimit each capture's text when markCaptures is true", async () => {
+  const outbox = await freshOutbox();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+
+  const first = await outbox.enqueue({
+    recording: document("doc-1"),
+    audio: bytes(),
+    sessionId: session.id,
+  });
+  const second = await outbox.enqueue({
+    recording: dictation("rec-1"),
+    audio: bytes(),
+    sessionId: session.id,
+  });
+
+  await outbox.writeTranscript(
+    first.id,
+    { recordingId: "doc-1", text: INVOICE_TEXT, engine: "pdfjs" },
+    { status: "transcribed" },
+  );
+  await outbox.writeTranscript(
+    second.id,
+    { recordingId: "rec-1", text: "the attic insulation is R-19", engine: "fake" },
+    { status: "transcribed" },
+  );
+
+  const joined = await joinSessionTranscript(outbox, session.id, { markCaptures: true });
+
+  // Each capture is preceded by a marker in the page-marker family.
+  expect(joined.text).toContain("===== CAPTURE");
+  // The marker carries the seq, kind, and outbox item id — what a consumer
+  // needs to resolve a citation back to a row via `outbox.get(id)`.
+  expect(joined.text).toContain("seq:0");
+  expect(joined.text).toContain("kind:document");
+  expect(joined.text).toContain(`id:${first.id}`);
+  expect(joined.text).toContain("seq:1");
+  expect(joined.text).toContain("kind:audio");
+  expect(joined.text).toContain(`id:${second.id}`);
+  // The capture's own text still follows its marker.
+  expect(joined.text).toContain("Invoice # 58534");
+  expect(joined.text).toContain("R-19");
+  // Capture order is preserved: the document marker precedes the dictation marker.
+  expect(joined.text.indexOf("kind:document")).toBeLessThan(joined.text.indexOf("kind:audio"));
+});
+
+test("per-capture markers are absent by default", async () => {
+  // The option defaults to off so existing callers see the same text they
+  // always have — changing what every extractor sees unconditionally is a
+  // risk the caller should opt into.
+  const outbox = await freshOutbox();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+
+  const item = await outbox.enqueue({
+    recording: dictation("rec-1"),
+    audio: bytes(),
+    sessionId: session.id,
+  });
+  await outbox.writeTranscript(
+    item.id,
+    { recordingId: "rec-1", text: "the attic insulation is R-19", engine: "fake" },
+    { status: "transcribed" },
+  );
+
+  const joined = await joinSessionTranscript(outbox, session.id);
+
+  expect(joined.text).not.toContain("===== CAPTURE");
+  expect(joined.text).toBe("the attic insulation is R-19");
+});
+
+test("span grounding survives per-capture markers", async () => {
+  // `isSpanGrounded` checks extracted spans against this joined text. The
+  // markers are added AROUND each capture's text, not inside it, so a
+  // verbatim quote from within a single capture remains a substring. This is
+  // the non-negotiable constraint: whatever we add must not break grounding
+  // for values that were already groundable.
+  const outbox = await freshOutbox();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+
+  const first = await outbox.enqueue({
+    recording: document("doc-1"),
+    audio: bytes(),
+    sessionId: session.id,
+  });
+  const second = await outbox.enqueue({
+    recording: dictation("rec-1"),
+    audio: bytes(),
+    sessionId: session.id,
+  });
+
+  await outbox.writeTranscript(
+    first.id,
+    { recordingId: "doc-1", text: INVOICE_TEXT, engine: "pdfjs" },
+    { status: "transcribed" },
+  );
+  await outbox.writeTranscript(
+    second.id,
+    { recordingId: "rec-1", text: "the attic insulation is R-19", engine: "fake" },
+    { status: "transcribed" },
+  );
+
+  const joined = await joinSessionTranscript(outbox, session.id, { markCaptures: true });
+
+  // A verbatim quote from within the dictation's text is still grounded.
+  expect(isSpanGrounded("the attic insulation is R-19", joined.text)).toBe(true);
+  // A verbatim quote from within the document's text is still grounded.
+  expect(isSpanGrounded("Invoice # 58534", joined.text)).toBe(true);
+  // A quote that does not appear is still not grounded.
+  expect(isSpanGrounded("R-38 blown cellulose", joined.text)).toBe(false);
+});
+
+test("per-capture markers survive into the extractor's input", async () => {
+  // The markers exist so a model can attribute a value to the capture it came
+  // from. That is only true if they reach the model — every layer between
+  // `joinSessionTranscript` and the extractor's call is a chance to strip them.
+  const outbox = await freshOutbox();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+
+  const first = await outbox.enqueue({
+    recording: document("doc-1"),
+    audio: bytes(),
+    sessionId: session.id,
+  });
+  const second = await outbox.enqueue({
+    recording: dictation("rec-1"),
+    audio: bytes(),
+    sessionId: session.id,
+  });
+
+  await outbox.writeTranscript(
+    first.id,
+    { recordingId: "doc-1", text: INVOICE_TEXT, engine: "pdfjs" },
+    { status: "transcribed" },
+  );
+  await outbox.writeTranscript(
+    second.id,
+    { recordingId: "rec-1", text: "the attic insulation is R-19", engine: "fake" },
+    { status: "transcribed" },
+  );
+
+  const extractor = new FakeExtractor({ invoiceNumber: "58534" });
+  const step = toSessionExtractStep(extractor);
+  const joined = await joinSessionTranscript(outbox, session.id, { markCaptures: true });
+
+  await step({ session, transcript: joined.text, recordingIds: joined.recordingIds });
+
+  expect(extractor.calls).toHaveLength(1);
+  expect(extractor.calls[0]).toContain("===== CAPTURE");
+  expect(extractor.calls[0]).toContain("kind:document");
+  expect(extractor.calls[0]).toContain("kind:audio");
 });
