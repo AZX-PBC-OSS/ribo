@@ -102,6 +102,7 @@ test("the real derived schema splits collection groups as arrays", () => {
     "concern",
     "incentive",
     "stage",
+    "job",
   ]);
 
   const collectionKeys = new Set([
@@ -162,7 +163,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     return Object.keys((candidate as z.ZodObject).shape).length;
   }
 
-  test("before partitioning, basedata, hvac, attic, vault, wall, window, dhw and health all exceed the 8-leaf cap — the bug this guard exists to catch", () => {
+  test("before partitioning, basedata, hvac, attic, vault, wall, window, dhw, health and job all exceed the 8-leaf cap — the bug this guard exists to catch", () => {
     // No `maxLeavesPerGroup` — the one-entry-per-group split `perGroupExtractor` would
     // send if it never partitioned. This pins the starting problem: without the fix
     // below, these groups would send an over-cap schema to an Anthropic-family model.
@@ -175,6 +176,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     const windowGroup = unpartitioned.find((g) => g.key === "window")!;
     const dhw = unpartitioned.find((g) => g.key === "dhw")!;
     const health = unpartitioned.find((g) => g.key === "health")!;
+    const job = unpartitioned.find((g) => g.key === "job")!;
 
     expect(groupLeafCount(basedata)).toBe(163);
     expect(groupLeafCount(hvac)).toBe(46);
@@ -184,6 +186,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     expect(groupLeafCount(windowGroup)).toBe(32);
     expect(groupLeafCount(dhw)).toBe(37);
     expect(groupLeafCount(health)).toBe(16);
+    expect(groupLeafCount(job)).toBe(30);
     expect(groupLeafCount(basedata)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(hvac)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(attic)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
@@ -192,6 +195,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     expect(groupLeafCount(windowGroup)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(dhw)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(health)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
+    expect(groupLeafCount(job)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
   });
 
   test("every partitioned entry stays at or under the 8-leaf cap (16 nullable unions)", () => {
@@ -233,6 +237,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       "concern",
       "incentive",
       "stage",
+      "job",
     ]);
 
     expect(byKey.get("basedata")).toHaveLength(21);
@@ -243,6 +248,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     expect(byKey.get("window")).toHaveLength(4);
     expect(byKey.get("dhw")).toHaveLength(5);
     expect(byKey.get("health")).toHaveLength(2);
+    expect(byKey.get("job")).toHaveLength(4);
     for (const key of ["door", "concern", "incentive", "stage"]) {
       const pieces = byKey.get(key)!;
       expect(pieces, `group "${key}"`).toHaveLength(1);
@@ -260,6 +266,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       ["window", 32],
       ["dhw", 37],
       ["health", 16],
+      ["job", 30],
     ] as const) {
       const pieces = byKey.get(key)!;
       expect(pieces.map((p) => p.part)).toEqual(pieces.map((_, i) => i));

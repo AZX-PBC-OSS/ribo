@@ -48,6 +48,7 @@ const RULE_MARKERS: readonly string[] = [
   "is the SPOKEN rebate name",
   "A vault is a vaulted / cathedral ceiling",
   "closer to an aggregate than an instance",
+  "The `job` group is the job itself",
 ];
 
 /** The group-specific rules and the groups they belong to. */
@@ -64,6 +65,7 @@ const GROUP_SPECIFIC_RULES: ReadonlyArray<{
   { rule: 15, marker: RULE_MARKERS[14]!, groups: ["incentive"] },
   { rule: 16, marker: RULE_MARKERS[15]!, groups: ["vault"] },
   { rule: 17, marker: RULE_MARKERS[16]!, groups: ["door"] },
+  { rule: 18, marker: RULE_MARKERS[17]!, groups: ["job"] },
 ];
 
 /** Groups that should NOT see a given group-specific rule. */
@@ -126,13 +128,16 @@ describe("per-group instructions — sole top-level key", () => {
       expect(prompt, `group "${key}"`).toContain("exactly one top-level key");
       expect(prompt, `group "${key}"`).toContain(`\`${key}\``);
       // The per-group prompt must not carry the full-prompt output section's wording.
-      expect(prompt, `group "${key}"`).not.toContain("twelve top-level keys");
+      expect(prompt, `group "${key}"`).not.toContain("exactly these top-level keys");
     }
   });
 
-  test("the full instructions still assert twelve top-level keys", () => {
+  test("the full instructions still assert the top-level keys", () => {
     // The single-shot path keeps the full output section — guard against changing it too.
-    expect(snuggProInstructions).toContain("twelve top-level keys");
+    expect(snuggProInstructions).toContain("exactly these top-level keys");
+    for (const key of SNUGG_GROUP_KEYS) {
+      expect(snuggProInstructions).toContain(`\`${key}\``);
+    }
   });
 });
 
@@ -191,9 +196,9 @@ describe("per-group instructions — no rule is lost", () => {
   test("the rule count is pinned — adding or removing a rule is a conscious decision", () => {
     // A dropped rule entry fails here before the "no rule lost" test even needs to
     // identify which one.
-    expect(SNUGG_RULES).toHaveLength(17);
+    expect(SNUGG_RULES).toHaveLength(18);
     expect(SNUGG_RULES.map((r) => r.number)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
     ]);
   });
 });

@@ -11,11 +11,11 @@ Pro write is gated on a platform ask.
 The field set is built from Snugg Pro's machine-readable spec: the keys are the API's wire property
 names, the enum members are its literal strings (`"6% - Well sealed"`, `"Not Tested"`), and the shape
 nests by write endpoint — `basedata`, `hvac`, `attic`, `vault`, `wall`, `window`, `door`, `dhw`,
-`health`, plus the `concern`, `incentive` and `stage` job-collection resources. There is no rename or
-token-mapping layer between this schema and the API, by design. `basedata` is its endpoint's full
-honest capture surface, the component groups carry what an auditor actually dictates (`attic`,
-`wall`, `window` and `door` grown to doc 20's verdicted capture surface), and the job-collection
-groups carry their endpoints; see
+`health`, plus the `concern`, `incentive`, `stage` and `job` job-collection resources. There is no
+rename or token-mapping layer between this schema and the API, by design. `basedata` is its
+endpoint's full honest capture surface, the component groups carry what an auditor actually
+dictates (`attic`, `wall`, `window` and `door` grown to doc 20's verdicted capture surface), and
+the job-collection groups carry their endpoints; see
 `docs/implementation/17-snuggpro-field-reconciliation.md` and
 `docs/implementation/20-job-collections-field-reconciliation.md`.
 
@@ -37,9 +37,10 @@ pnpm add @azx/ribo-adapter-snuggpro @azx/ribo-core
   **model** is asked for, derived from the patch with `ribo-core`'s `enveloped()` — every leaf
   wrapped in a provenance envelope, closed and fully required. Plus the per-endpoint groups
   (`BasedataFields`, `HvacFields`, `AtticFields`, `VaultFields`, `WallFields`, `WindowFields`,
-  `DoorFields`, `DhwFields`, `HealthFields`, `ConcernFields`, `IncentiveFields`, `StageFields`)
-  and the enums they are built from (`HvacSystemEquipmentType`, `HvacUpgradeAction`,
-  `HvacDuctLeakage`, `AtticInsulationDepth`, `DoorType`, `HealthTestState`, and the rest).
+  `DoorFields`, `DhwFields`, `HealthFields`, `ConcernFields`, `IncentiveFields`, `StageFields`,
+  `JobFields`) and the enums they are built from (`HvacSystemEquipmentType`, `HvacUpgradeAction`,
+  `HvacDuctLeakage`, `AtticInsulationDepth`, `DoorType`, `HealthTestState`, `UsState`,
+  `HouseholdIncomeTier`, and the rest).
 - **The write context** — `snuggCtxSchema` and the `SnuggWriteContext` inferred from it (the real
   `C` the adapter's `write` needs, parsed rather than merely typed because it comes back out of
   storage).

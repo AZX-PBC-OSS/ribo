@@ -31,9 +31,12 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  * properties and required list), the hvac remainder tranche (doc 20 §5.4 — the
  * diff confined to the hvac group's properties and required list), the
  * wall-remainder + door tranche (doc 20 §5.5 — the diff confined to the wall group's
- * properties and required list plus the new door group), and the dhw
+ * properties and required list plus the new door group), the dhw
  * remainder tranche (doc 20 §5.4 — the diff confined to the dhw group's
- * properties and required list). Any *future* unexplained movement is a regression.
+ * properties and required list), and the job singleton tranche (doc 20 §5.1's
+ * `POST /jobs` + `PUT /jobs/{jobId}` capture surface — the diff confined to the
+ * new job group and the top-level required list). Any *future* unexplained
+ * movement is a regression.
  *
  * Why capture via the real extractor, not `z.toJSONSchema(snuggExtractionSchema, ...)`
  * inline: `singleShotExtractor` (ribo-extractor-openai/src/single-shot.ts) is the ONLY
@@ -223,8 +226,8 @@ test("every leaf reaches the model with the vendor's description and our prohibi
 
   // Every leaf, not a subset: the vendor supplies authoritative text for each (or our own
   // note stands in where the vendor publishes none or junk), so none is deliberately bare.
-  expect(descs.size).toBe(370);
-  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(370);
+  expect(descs.size).toBe(400);
+  expect([...descs.values()].filter((d) => d.length > 0)).toHaveLength(400);
 
   // The VENDOR half is really there: without this, a generated module that failed to
   // import — or regenerated to an empty map — would still pass a bare "is it described?"

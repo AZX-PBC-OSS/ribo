@@ -95,7 +95,7 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
       for (const child of Object.values(node)) walk(child);
     };
     walk(example.fields);
-    expect(checked).toBe(385);
+    expect(checked).toBe(415);
   }
 });
 
@@ -189,12 +189,26 @@ test("every requiredOnCreate group and leaf is declared in the values schema", (
   }
 });
 
-test("the required leaves are exactly HVAC's, declared per group", () => {
-  // POST /jobs/{jobId}/hvac is Snugg Pro's only component endpoint with required capture
-  // fields. A leaf added here — or one from any other group — means someone read the
-  // spec's `required` flags wrong.
+test("the required leaves are exactly hvac's and job's, declared per group", () => {
+  // POST /jobs/{jobId}/hvac is Snugg Pro's only COMPONENT endpoint with required capture
+  // fields, and POST /jobs is the one singleton that genuinely refuses a create without
+  // its required leaves (doc 20 §4.6). A leaf added here — or one from any other group —
+  // means someone read the spec's `required` flags wrong. `companyId` is required on
+  // POST /jobs but excluded from capture (tenancy fk), so it is deliberately absent.
   expect(snuggProAdapter.requiredOnCreate).toEqual({
     hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
+    job: [
+      "firstName",
+      "lastName",
+      "address1",
+      "city",
+      "state",
+      "zip",
+      "accountId",
+      "stageId",
+      "jobType",
+      "programId",
+    ],
   });
 });
 
@@ -202,7 +216,7 @@ test("no other group declares a required leaf — a partial dictation writes cle
   // Every other endpoint accepts a create with nothing set, so an auditor who only did
   // the basement is never blocked on the attic.
   const groups = Object.keys(snuggProAdapter.requiredOnCreate ?? {});
-  expect(groups.filter((g) => g !== "hvac")).toEqual([]);
+  expect(groups.filter((g) => g !== "hvac" && g !== "job")).toEqual([]);
 });
 
 describe("rankCandidates — contradiction check orders existing records", () => {

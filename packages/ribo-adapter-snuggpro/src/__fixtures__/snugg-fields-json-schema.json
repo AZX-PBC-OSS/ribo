@@ -12670,6 +12670,1089 @@
       },
       "required": ["stageId"],
       "additionalProperties": false
+    },
+    "job": {
+      "type": "object",
+      "properties": {
+        "firstName": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The customer's first name — the occupant or job contact. The property owner's name, when a different person, goes in propertyOwnerFirstName."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "lastName": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The customer's last name — the occupant or job contact. The property owner's name, when a different person, goes in propertyOwnerLastName."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "renterOwner": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Does the customer own or rent this property. Field options: 0 → Renter 1 → Owner Whether the customer owns or rents this property; the wire value is integer 0 (Renter) or 1 (Owner). Set it only from an explicit statement — \"she owns it\" → 1, \"it's a rental\" / \"there's a tenant\" → 0 — never inferred from who answered the door."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "serviceTime": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Time at which the appointment will take place. Format: YYYY-MM-DD HH:MM:SS The appointment time, wire format YYYY-MM-DD HH:MM:SS. Fill it only when the transcript states an absolute date and time; a purely relative day (\"Thursday at nine\") stays null with the quote as sourceSpan — anchoring it to a calendar date is a later step, never a guess."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "email": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The email address of the homeowner (or tenant). Email of the homeowner or tenant — the job's regular contact. The property owner's own email, when different, goes in propertyOwnerEmail."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "homePhone": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Phone number of the home in this format (555) 555-5555. Phone of the home, wire format (555) 555-5555. The property owner's own phone, when different, goes in propertyOwnerPhone."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "address1": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "First line of the home address. First line of the HOME address — the property being audited, street number and name."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "address2": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Second line of the home address. Second line of the home address (unit, apartment, suite)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "city": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "City of the home. City of the home — the property being audited."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "state": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "AL",
+                    "AK",
+                    "AZ",
+                    "AR",
+                    "CA",
+                    "CO",
+                    "CT",
+                    "DE",
+                    "DC",
+                    "FL",
+                    "GA",
+                    "HI",
+                    "ID",
+                    "IL",
+                    "IN",
+                    "IA",
+                    "KS",
+                    "KY",
+                    "LA",
+                    "ME",
+                    "MD",
+                    "MA",
+                    "MI",
+                    "MN",
+                    "MS",
+                    "MO",
+                    "MT",
+                    "NE",
+                    "NV",
+                    "NH",
+                    "NJ",
+                    "NM",
+                    "NY",
+                    "NC",
+                    "ND",
+                    "OH",
+                    "OK",
+                    "OR",
+                    "PA",
+                    "RI",
+                    "SC",
+                    "SD",
+                    "TN",
+                    "TX",
+                    "UT",
+                    "VT",
+                    "VA",
+                    "WA",
+                    "WV",
+                    "WI",
+                    "WY"
+                  ],
+                  "description": "State of the home. State of the home, as the two-letter code — map the spoken full state name onto it (\"the home is in Massachusetts\" → \"MA\")."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "zip": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Zip code of the home. Zip code of the home — the property being audited."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "accountId": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Unique identifier of the Snugg Pro user who owns this job. The Snugg Pro user this job is assigned to, as the spoken name in free text (\"give this one to Dave\") — despite the integer wire type, never an invented id: resolving the name against the real account list is a later, human-supervised step, not extraction's."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "stageId": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Current stage ID of the job. Field options: 1 → Lead 2 → Audit 3 → Bid Proposed 4 → Bid Approved 5 → Retrofit In Progress 6 → Retrofit Complete 7 → QA 8 → Uncategorized 9 → Archived Won 10 → Archived Lost The job's workflow stage; the wire value is an integer code — 1 (Lead), 2 (Audit), 3 (Bid Proposed), 4 (Bid Approved), 5 (Retrofit In Progress), 6 (Retrofit Complete), 7 (QA), 8 (Uncategorized), 9 (Archived Won), 10 (Archived Lost)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "jobType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Job Type ID of the job. Field options: 1 → Audit 2 → Score The job type; the wire value is an integer code — 1 (Audit) or 2 (Score). Set it only from an explicit statement (\"this is a score job\" → 2), never assumed because an audit is the common case."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "programId": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Unique identifier for the program that this job is in. Pass the value \"1\" for no program The program this job is in, as the spoken program name in free text (\"this one's NYSERDA\") — despite the integer wire type, never an invented id. An explicit \"no program\" statement is captured as spoken; matching the name against the real program list is a later, human-supervised step."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "altId": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Store your own alternate job ID. This will not affect the Snugg Pro assigned Job ID. The company's own alternate job or work-order number, read aloud (\"work order four-oh-two\"). Does not affect the Snugg Pro job ID."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "buildingId": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Store an arbitrary building ID here if needed. When present, this value will be inserted in the following HPXML node: Building/extension/HESExternalID. This value is used as the external building ID when getting a DOE Home Energy Score. An externally-assigned building ID when one was read aloud — emitted as the HPXML external building ID (used for DOE Home Energy Score)."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "propertyOwnerFirstName": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The PROPERTY OWNER's first name — filled only when the owner is a distinct person from the occupant/job contact and was named as the owner."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "propertyOwnerLastName": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The PROPERTY OWNER's last name — filled only when the owner is a distinct person from the occupant/job contact and was named as the owner."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "propertyOwnerAddress1": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "First line of the property owner's address. This is useful if the property is not owner occupied or if the owner wants to list a different address for contact purposes). First line of the property OWNER's address — for a non-owner-occupied home, or when the owner wants a different contact address."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "propertyOwnerAddress2": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Second line of the property owner's address. This is useful if the property is not owner occupied or if the owner wants to list a different address for contact purposes). Second line of the property owner's address."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "propertyOwnerEmail": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The email address of the property owner. Use this field if the property is tenant-occupied and the job's regular email field is populated with the tenant's email address. The property OWNER's email — used when the job's regular email holds the tenant's."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "propertyOwnerPhone": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Phone number of the property owner in this format (555) 555-5555. Use this field if the property is tenant-occupied and the regular phone number field is populated with the tenant's phone number. The property OWNER's phone, wire format (555) 555-5555 — used when the job's regular phone holds the tenant's."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "propertyOwnerCity": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "City of the property owner. Use this field if home is tenant-occupied and you want to capture the homeowner's address. City of the property owner — for tenant-occupied homes."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "propertyOwnerState": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "AL",
+                    "AK",
+                    "AZ",
+                    "AR",
+                    "CA",
+                    "CO",
+                    "CT",
+                    "DE",
+                    "DC",
+                    "FL",
+                    "GA",
+                    "HI",
+                    "ID",
+                    "IL",
+                    "IN",
+                    "IA",
+                    "KS",
+                    "KY",
+                    "LA",
+                    "ME",
+                    "MD",
+                    "MA",
+                    "MI",
+                    "MN",
+                    "MS",
+                    "MO",
+                    "MT",
+                    "NE",
+                    "NV",
+                    "NH",
+                    "NJ",
+                    "NM",
+                    "NY",
+                    "NC",
+                    "ND",
+                    "OH",
+                    "OK",
+                    "OR",
+                    "PA",
+                    "RI",
+                    "SC",
+                    "SD",
+                    "TN",
+                    "TX",
+                    "UT",
+                    "VT",
+                    "VA",
+                    "WA",
+                    "WV",
+                    "WI",
+                    "WY"
+                  ],
+                  "description": "State of the property owner. Use this field if home is tenant-occupied and you want to capture the homeowner's address. State of the property owner, as the two-letter code — map the spoken full state name onto it."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "propertyOwnerZip": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Zip code of the property owner. Use this field if home is tenant-occupied and you want to capture the homeowner's address. Zip code of the property owner — for tenant-occupied homes."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "auditType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "This field is only enabled for select programs. The audit type — Snugg publishes no value list for this field (it is only enabled for select programs), so capture what was said as free text for review rather than choosing from a list that does not exist."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "note": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Note to assignee or assigned user. The note to the assignee or assigned user, dictated verbatim — the natural dictation target of this endpoint."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "useStrictBpi2400Calibration": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Get enhanced calibration for BPI 2400 calibration. Field options: 1 → Yes 0 → No Whether to use enhanced calibration for BPI 2400; the wire value is integer 1 (Yes) or 0 (No). A jargon toggle (\"use strict 2400 cal\") — set it only from an explicit statement; it is usually a program setting, not a dictated one."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "householdIncomeTier": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Any",
+                    "Less than 80% AMI",
+                    "Between 80% and 150% AMI",
+                    "80% AMI and Greater",
+                    "Greater than 150% AMI",
+                    "LMI",
+                    "LMI 80 - 120"
+                  ],
+                  "description": "Household income tier for the job. Household income tier for the job — reproduce the member character for character, including the spaced hyphen in \"LMI 80 - 120\"."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "firstName",
+        "lastName",
+        "renterOwner",
+        "serviceTime",
+        "email",
+        "homePhone",
+        "address1",
+        "address2",
+        "city",
+        "state",
+        "zip",
+        "accountId",
+        "stageId",
+        "jobType",
+        "programId",
+        "altId",
+        "buildingId",
+        "propertyOwnerFirstName",
+        "propertyOwnerLastName",
+        "propertyOwnerAddress1",
+        "propertyOwnerAddress2",
+        "propertyOwnerEmail",
+        "propertyOwnerPhone",
+        "propertyOwnerCity",
+        "propertyOwnerState",
+        "propertyOwnerZip",
+        "auditType",
+        "note",
+        "useStrictBpi2400Calibration",
+        "householdIncomeTier"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [
@@ -12684,7 +13767,8 @@
     "health",
     "concern",
     "incentive",
-    "stage"
+    "stage",
+    "job"
   ],
   "additionalProperties": false
 }
