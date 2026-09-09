@@ -26,7 +26,7 @@ contract are reusable **untouched**.
   extractor engine. See Task 4's Intent for why that is the right call and not laziness.
 - The recorder, the worklet, capture-lock, chunk-names, work-safety. Genuinely audio and genuinely
   field-capture.
-- Any OCR transcriber. Task 4 makes it *composable*; building it is a separate tranche.
+- Any OCR transcriber. Task 4 makes it _composable_; building it is a separate tranche.
 - Any Abode- or HVAC-specific schema, prompt or validator. Those belong in the consuming app, the
   way `ribo-adapter-snuggpro` holds Snugg Pro's knowledge.
 - A **page router**. One was tried in the abode spike and silently dropped 10 of 19 unmatched
@@ -78,9 +78,9 @@ cheap.
 
 ### D3. The prompt's `.default("audio")` mechanism is **not sufficient** — this is a correction
 
-The prompt said: *"give `kind` a `.default("audio")` so existing rows parse unchanged."* Verified
+The prompt said: _"give `kind` a `.default("audio")` so existing rows parse unchanged."_ Verified
 against zod 4.4.3: **`z.discriminatedUnion` ignores a branch's default on the discriminator.** It
-selects a branch by reading the *raw* discriminator value before any branch's defaults run, so a
+selects a branch by reading the _raw_ discriminator value before any branch's defaults run, so a
 legacy row with no `kind` reaches no branch at all and fails with `"No matching discriminator"`,
 never reaching the default that would have supplied one.
 
@@ -104,15 +104,15 @@ boundary, and "which field is wrong" is the entire value of parsing at one.
 
 The prompt offered `ItemUntranscribableError` and invited a better name. Use `UnsupportedItemError`.
 
-**Why.** "Untranscribable" is a claim about the *item*, and it is a claim that is false: a scanned
+**Why.** "Untranscribable" is a claim about the _item_, and it is a claim that is false: a scanned
 PDF is perfectly transcribable — by OCR, which Task 4 exists to make composable. A name that
 overstates the verdict invites exactly the wrong handling one layer up ("nothing can read this, give
 up") when the correct handling is "this engine cannot, try the next one". "Unsupported" is
-inherently relative to a *supporter*, and the supporter is named in the error's own `engine` field.
+inherently relative to a _supporter_, and the supporter is named in the error's own `engine` field.
 It also echoes vocabulary the file already uses (`unsupported-platform`, and the
 `"unsupported-format"` reason on this very error).
 
-**The confusion risk was weighed and accepted.** `unsupported-platform` is a *capability* reason,
+**The confusion risk was weighed and accepted.** `unsupported-platform` is a _capability_ reason,
 and the whole point of this class is that it is **not** a capability failure — so a reader could
 mis-file `UnsupportedItemError` next to it. The suffix nouns are what keep them apart
 (`-Platform` versus `-Item`) and the reason vocabulary reinforces it: `no-text-layer`, `encrypted`
@@ -122,18 +122,18 @@ do not leave the reader to notice it.
 ### D5. `UnsupportedItemError` extends `TerminalQueueError`, which needs a one-token widening
 
 The required semantics include **"terminal for this engine+item pair — never retry the same engine
-on the same item"**. A relay retry *is* retrying the same engine on the same item, so the error must
+on the same item"**. A relay retry _is_ retrying the same engine on the same item, so the error must
 be non-retryable at the queue level too: without this, a bare pdf.js transcriber handed a scanned
 PDF burns eight backed-off attempts over ~10 minutes before landing in `dead`.
 
 `queue/backoff.ts`'s `isTransientFailure` is the repo's **only** retry classifier
-(`transcriber.ts`: *"there is no second retry classifier here, and there must never be one"*), and
+(`transcriber.ts`: _"there is no second retry classifier here, and there must never be one"_), and
 the single thing it recognises beyond an HTTP status is `TerminalQueueError`. `TerminalQueueError`'s
-own doc comment already names this case — *"a step that has declared the item unprocessable"* — so
+own doc comment already names this case — _"a step that has declared the item unprocessable"_ — so
 subclassing is reuse, not a stretch.
 
 **The obstacle, verified:** `TerminalQueueError` declares `override readonly name =
-"TerminalQueueError"`, which TypeScript infers as the *literal* type `"TerminalQueueError"`, so a
+"TerminalQueueError"`, which TypeScript infers as the _literal_ type `"TerminalQueueError"`, so a
 subclass overriding it with its own name fails with **TS2416: Type `"UnsupportedItemError"` is not
 assignable to type `"TerminalQueueError"`**. Confirmed by compiling a minimal repro under this
 repo's TypeScript 6.0.3 and strict settings.
@@ -146,14 +146,14 @@ the final report.
 Do **not** instead give the error a fake HTTP `status: 415` to slip past the classifier — a field
 that looks like a protocol fact and is not is worse than the problem it solves.
 
-Note the contrast with `TranscriberUnavailableError`, which is deliberately *not* terminal, because
+Note the contrast with `TranscriberUnavailableError`, which is deliberately _not_ terminal, because
 the next attempt re-probes and may route to a different engine. The two errors sit on opposite sides
 of that line on purpose, and each doc comment should point at the other.
 
 ### D6. What the fallback ladder is, and what it is not
 
 `firstCapable` selects on `capability()`, which is engine-level and therefore **cannot** express
-"this engine cannot read *this item*". `fallbackTranscriber` is the per-item sibling: it calls
+"this engine cannot read _this item_". `fallbackTranscriber` is the per-item sibling: it calls
 candidates in order **without consulting `capability()` at all**, and lets a caller-supplied arbiter
 decide from the settled outcomes whether to accept, continue, or give up. That is the distinguishing
 property; state it in the module header, because a reader who thinks it is "firstCapable with
@@ -179,7 +179,7 @@ retries" will wire it wrongly.
 Mirrors `terminalFallsThrough`'s shape and its hard-won ordering. Rules, in this order:
 
 1. First success → **accept** it.
-2. **Exhausted** (every candidate settled) → give up with the first *retryable* error if there is
+2. **Exhausted** (every candidate settled) → give up with the first _retryable_ error if there is
    one, else with the first error. The retryable-first preference matters: a ladder where pdf.js
    said `no-text-layer` (terminal) and OCR then failed on a dropped uplink (retryable) must be
    retried, not buried in `dead` on the strength of the first outcome.
@@ -190,9 +190,49 @@ Mirrors `terminalFallsThrough`'s shape and its hard-won ordering. Rules, in this
 4. Any other error → **give up** with it. That is an attempt failure, the queue already owns it, and
    letting it route to a different engine is precisely the bug non-negotiable #2 exists to prevent.
 
+Rule 2 is a **deliberate divergence** from `terminalFallsThrough`, which at exhaustion gives up with
+the first error full stop (`arbitration.ts:133-138`). Do not describe it as mirroring that; it does
+not.
+
 **Exhaustion is checked before every "keep going" branch**, and the ordering is load-bearing —
 `arbitration.ts` carries a comment about the version of this that got it backwards and died with a
 `TypeError` instead of the real error on the primary case it existed for. Do not reorder.
+
+### D7a. The mixed queue: one relay, one transcriber, two kinds — put pdf.js first
+
+This is the composition consequence nobody states until it bites, so state it here.
+
+`RelayOptions.transcriber` is **one** transcriber (`relay.ts:121`) draining **one** queue that may
+hold both dictations and documents. So the host's composition root wires a single
+`fallbackTranscriber` ladder, and **pdf.js must come first in it**.
+
+**Why the order is not arbitrary.** Nothing in this tranche makes the existing audio engines reject
+a document — the global constraint forbids changing them, and they never look at `kind`.
+`OnDeviceTranscriber.transcribe` reads only `item.id` and then calls `decodeTo16kMono(bytes)`;
+handed PDF bytes it fails in `decodeAudioData`, which is an **attempt failure**, not
+`UnsupportedItemError`. Under D7 rule 4 an attempt failure gives up immediately — so in the order
+`[ondevice, pdfjs]` a PDF dies at the first rung and pdf.js is never reached. In the order
+`[pdfjs, ondevice]` a dictation reaches pdf.js first, which throws `UnsupportedItemError`
+(`unsupported-format` — the bytes are not a PDF), and the ladder routes on to the audio engine
+exactly as designed.
+
+**The cost, stated rather than discovered later.** In a `[pdfjs, ondevice]` ladder a _scanned_ PDF
+produces `no-text-layer` (terminal) from pdf.js and then a decode failure (retryable) from the audio
+engine, so D7 rule 2 prefers the retryable one and the item is retried for the full budget before
+landing in `dead` — the very waste D5's terminal classification exists to avoid, reintroduced one
+composition removed. This is accepted for now: it costs a few pointless attempts on a document
+nothing can currently read, and it disappears the moment an OCR rung joins the ladder, which is the
+next tranche. Say so in the module doc comment; do not let a future reader think it was missed.
+
+**The alternative, not taken.** Two lines at the top of each audio engine's `transcribe` — refuse a
+non-audio `kind` with `UnsupportedItemError` — would make the ladder order-independent and remove
+the scanned-PDF retry cost. It is rejected only because it changes existing implementations, which
+this tranche is explicitly forbidden to do. If that constraint is relaxed, take it; it is the better
+design.
+
+Also note `hedged()`'s delay policy is typed `(recording: Recording) => number | undefined`
+(`hedged.ts:66`), so a document reaching a hedged composite yields no predicted duration. Do not
+compose `hedged` into a ladder that can see documents.
 
 ### D8. The pdf.js package
 
@@ -214,11 +254,26 @@ Mirrors `terminalFallsThrough`'s shape and its hard-won ordering. Rules, in this
   Not so anything can select pages — see "no page router" above. They exist so a value can be
   attributed to the page it came from, which matters when a document contradicts itself: one
   Wrightsoft report specifies equipment on its Manual S pages and again, differently, on page 24.
-- **The package exports its text reader, not just the `Transcriber`.** A `DocumentCapture` requires
-  `pageCount` at enqueue time, and counting pages needs a PDF parser — so without this a host would
-  load a second copy of pdf.js to fill in the field, defeating the memoization. One exported
-  function returning both the text and the page count closes that trap. It is the direct analogue of
-  the spike's `pdfToText` and adds no new concept.
+- **The package exports a way to open a document, not just the `Transcriber`.** A `DocumentCapture`
+  requires `pageCount` at enqueue time, and counting pages needs a PDF parser — so without this a
+  host loads a second copy of pdf.js to fill in one field, defeating the memoization.
+
+  **The shape matters, and the obvious shape is wrong.** A single "return the text and the page
+  count" function makes the host pay a full per-page `getTextContent()` sweep at capture time just
+  to learn a number that `doc.numPages` gives away for free the moment the document is open — on the
+  capture path, for a Manual J report that can run to a hundred pages. So expose an open-handle
+  instead: one call opens the document over the memoized import and yields `pageCount` immediately
+  plus a separate call that reads the marked-up text. `transcribe()` uses both; a host enqueuing a
+  document uses only the first. That is a smaller API than the alternative, not a bigger one.
+
+  **Two consequences to document there.** First, opening now happens on the host's capture path, so
+  the encrypted / invalid-PDF exception mapping below is **not** `transcribe`-only — a host counting
+  pages hits it first, and must get an `UnsupportedItemError` rather than a raw pdf.js exception.
+  Keep the mapping in the open call so both paths inherit it. Second, say what reads `pageCount`: a
+  capture UI listing what is queued, the same way `QueuePanel` reads `durationMs` today. It is
+  required rather than optional for exactly the reason `durationMs` is — an absent count and a
+  count of zero must stay distinguishable.
+
 - **A page-count disagreement between `item.pageCount` and `doc.numPages` is not an error.** The
   bytes are authoritative and the markers follow them; the metadata may have been recorded by a
   different reader. Inventing a failure class for a discrepancy nothing downstream reads would be
@@ -337,35 +392,74 @@ depend on `CaptureItem`, `DocumentCapture` and `Recording` by these exact names.
 - An outbox document whose `recording` is a document capture parses; one whose `recording` predates
   the discriminant parses and reports `kind === "audio"`.
 - `outboxRxSchema.properties.recording` is exactly `{ type: "object" }` and
-  `outboxRxSchema.version` is still `6`. Assert this rather than writing it in prose: it is the
-  evidence for D2, and it is what makes a future v7 an explicit decision.
+  `outboxRxSchema.version` is still `6`. This one **passes today** and is a fence, not a must-fail;
+  it is the pinned evidence for D2 and what makes a future v7 an explicit decision.
+- **A document round-trips real storage.** `enqueue` a `DocumentCapture`, then `get()` and `list()`
+  return it with `kind: "document"` and `pageCount` intact, and `getAudio` returns the bytes.
+  Schema-level `safeParse` tests do **not** cover this: per D2 the zod parse on read is the _only_
+  interior check on `recording`, so this is the test that catches the whole corruption class — the
+  `commitRecording` hazard above included. Put it in `queue/outbox-memory.test.ts`, which already
+  drives the public API over RxDB's in-memory storage in node and needs no IndexedDB.
+- **A document round-trips the relay.** With a `FakeTranscriber` standing in, a document item goes
+  `queued → transcribing → transcribed` and its transcript lands. This proves Task 1's queue changes
+  compose with the relay — which, given the method-bivariance hole Task 2 documents, is exactly
+  where a wiring mistake would live. `queue/relay.browser.test.ts` is the home.
 
-**Fallout to fix in this task.** `pnpm typecheck` after the schema switch reports exactly two
-production errors; both are the union reaching audio-only code, and both want an explicit guard
-rather than a cast.
+**Fallout to fix in this task.** This list was produced by actually making the change on a scratch
+branch and running each package's `typecheck` **individually** — `pnpm typecheck` runs `pnpm -r
+--parallel` and its interleaved output hides sites, which is how an earlier draft of this plan
+undercounted them. Do the same before you believe you are finished. There are **five** production
+sites, four `.manual.ts` sites, and roughly twenty test fixtures.
 
-- `queue/relay.ts` hands `item.recording` to its injected `Transcriber`. **Leave this error
-  standing until Task 2** (it needs the generic) — or land Tasks 1 and 2 as one commit if you prefer
-  a green tree at every commit. Say which you did.
-- `queue/recovery.ts` re-derives `durationMs` by decoding merged audio chunks, which is meaningless
-  for anything else. Guard on `kind`, and on a non-audio item mark the row `dead` with a reason
-  naming the kind — mirroring the file's existing `unrecoverable: no capture.sourceId` branch rather
-  than inventing a new shape.
-- `queue/outbox.ts` needs three separate changes, and the third is the dangerous one.
-  `enqueue` must accept and parse a `CaptureItem` (this is how a document gets into the queue at
-  all). `beginRecording` stays `Recording` and keeps parsing with `baseRecordingSchema` — it is the
-  durable microphone path. `commitRecording` spreads `durationMs` onto `data.recording`, and that
-  spread **typechecks against the union** while producing a document row carrying a bogus
-  `durationMs` that the strict schema would then reject on the next read: silent persistence
-  corruption on a path TypeScript blessed. Add a runtime guard that refuses a non-audio row, and
-  test it — the test needs a cast to construct the state, since `beginRecording`'s signature now
-  makes it unreachable through the public API. Say in a comment why the cast is there.
-- `playground/src/QueuePanel.tsx` reads `item.recording.durationMs` for its elapsed-time line.
-  Narrow on `kind`, and render something honest for a document rather than a zero.
-- Roughly two dozen test fixtures declare `const recording: Recording = { … }` with no `kind`. They
-  need `kind: "audio"` added, because `z.infer` gives the *output* type where `kind` is required.
-  This is mechanical; the branch default is what keeps the far larger number of
-  `schema.parse({ … })` call sites unchanged.
+Production:
+
+- `packages/ribo-core/src/queue/relay.ts:380` (TS2345) hands `item.recording` to its injected
+  `Transcriber`. It needs Task 2's generic, so **land Tasks 1 and 2 as a single commit.** The
+  alternative — leaving the error standing across a commit — conflicts with this plan's own
+  "`./check.sh` green before the final commit of each task" constraint. Not a choice; do it this way.
+- `packages/ribo-core/src/queue/recovery.ts:123` (TS2322) re-derives `durationMs` by decoding merged
+  audio chunks, which is meaningless for anything else. Guard on `kind`, and on a non-audio item
+  mark the row `dead` with a reason naming the kind — mirroring the file's existing
+  `unrecoverable: no capture.sourceId` branch rather than inventing a new shape.
+- `packages/ribo-transcriber-ondevice/src/calibration.ts:25` — a production `const … : Recording`
+  literal. Add `kind: "audio"`.
+- `packages/ribo-transcriber-ondevice/src/live.ts:285` (TS2345) — same, at a call site.
+- `playground/src/QueuePanel.tsx:197` (TS2339) reads `item.recording.durationMs` for its
+  elapsed-time line. Narrow on `kind`, and render something honest for a document rather than a
+  zero.
+
+Also `dtype-probe.manual.ts:101`, `localagreement-spike.manual.ts:315`, `long-audio.manual.ts:80`
+and `moonshine-transcribe.manual.ts:46` in `ribo-transcriber-ondevice`. They never run, but they
+live under `src/` and so are in that package's typecheck — which means they are in the gate.
+
+**`queue/outbox.ts` needs three changes, and the third is the one that matters.**
+
+`enqueue` must accept and parse a `CaptureItem` (this is how a document gets into the queue at
+all). Its input field stays `audio: Blob` and the attachment id stays `AUDIO_ATTACHMENT_ID =
+"audio"`, both persisted names holding PDF bytes now — the same trade as the `recording` key and
+`Transcript.recordingId`, and worth one doc comment saying so, since Task 2 renames the transcriber
+parameter to `bytes` for exactly the reason these two cannot be renamed.
+
+`beginRecording` stays `Recording` and keeps parsing with `baseRecordingSchema` — it is the durable
+microphone path. Then `commitRecording` (line ~370) spreads `durationMs` onto
+`data.recording`, and **that spread produces no typecheck error** while writing a document row
+carrying a bogus `durationMs` — which `outboxDocumentSchema` (strict) then rejects on the next
+read. Silent persistence corruption on a path the compiler blessed.
+
+**This was checked, because it is surprising and because a review of this plan asserted the
+opposite.** A bare object literal assigned to a `CaptureItem`-typed target _does_ get caught, by
+excess-property checking against the matched union member. The real code is not that: it returns
+through RxDB's `incrementalModify` callback, whose contextual type does not trigger the check.
+Measured on the scratch branch, `packages/ribo-core` reports 19 typecheck errors and **none** of
+them is in `queue/outbox.ts`. So: add a runtime guard refusing a non-audio row, and do not expect
+the compiler to have your back here. The guard's test needs a cast to construct the state, since
+`beginRecording`'s signature makes it unreachable through the public API; say so in a comment, so
+the cast does not read as laziness.
+
+Finally, roughly twenty test fixtures declare `const recording: Recording = { … }` with no `kind`
+and need `kind: "audio"` added, because `z.infer` gives the _output_ type where `kind` is required.
+Mechanical. The branch default (D3) is what keeps the far larger number of `schema.parse({ … })`
+call sites — including both in `recorder.ts` — unchanged.
 
 ---
 
@@ -387,15 +481,19 @@ audio-only `Transcriber` still satisfies the widened field — the type system w
 that wires an audio engine and then enqueues a PDF, and the honest answer to that is
 `UnsupportedItemError` at runtime (Task 3), not a type trick.
 
-**Do not** add `"no-text-layer"` to the *capability* reason vocabulary. The per-item case is Task 3
+**Do not** add `"no-text-layer"` to the _capability_ reason vocabulary. The per-item case is Task 3
 and is not a capability reason. Only add it there if a genuinely engine-level use turns up, and say
 so if it does.
 
 **Interfaces produced.** `Transcriber<S>` with the default argument; `transcribe(item, bytes)`.
 
 **Must-fail tests.** These are type-level properties, so assert them the way
-`queue/schema.test.ts` asserts unpatchable fields — with `@ts-expect-error`, where the unused-
-directive error *is* the assertion. A runtime test cannot reach any of them.
+`queue/schema.test.ts:235-256` asserts unpatchable fields — with `@ts-expect-error`, where the
+unused-directive error (TS2578) _is_ the assertion. A runtime test cannot reach any of them.
+
+**Know which gate owns them:** Vitest does not typecheck, so these fire under `pnpm typecheck` and
+are invisible to `pnpm test`. A green test run says nothing about them. That is the same deal the
+existing precedent makes, but it is worth knowing before you go looking for a red test.
 
 - A `Transcriber<DocumentCapture>` **cannot** be constructed from a function taking a `Recording`
   (and vice versa) — the constraint is doing work.
@@ -413,7 +511,7 @@ D5 widening only), `transcriber.ts` (cross-reference in the `transcribe` doc com
 
 **Intent.** Land D4 and D5. Ribo has two failure kinds and a scanned PDF is neither: retrying
 pdf.js will never help, so it is not an attempt failure; but pdf.js is working perfectly, so
-demoting it is wrong. This is *item unsuitability* — "this engine cannot handle this item, and that
+demoting it is wrong. This is _item unsuitability_ — "this engine cannot handle this item, and that
 says nothing about the engine".
 
 The class carries `engine`, a closed `reason` of `"no-text-layer" | "encrypted" |
@@ -454,15 +552,33 @@ contract's whole reason for existing, and it is only as strong as the prose keep
 **Intent.** Land D6 and D7 — give the transcriber side the composition the extractor side already
 has.
 
-**Why this is a sibling vocabulary and not a reuse of the extractor engine.** `arbitration.ts` is
-out of scope, and its engine is typed end-to-end in `Extractor<F>` / `ExtractionResult<F>`: its
-candidates carry admission probes a transcriber ladder has no use for, and its accept path stamps
-`usage[stampKey]`, which a `Transcript` has no equivalent of and does not need (D6). Generalising it
-would mean editing the one file the tranche is told not to touch, in order to add two type
-parameters that no extractor caller wants. So: **mirror the shape and the vocabulary, in a new
-module.** Reuse the *concepts* — outcomes in settlement order, an `exhausted` flag, an
-accept/continue/give-up verdict, exhaustion checked first — not the code. Name the parallel types so
-the correspondence is obvious to a reader who knows the extractor side.
+**Why this is a sibling vocabulary and not a reuse of the extractor engine.** "It is out of scope"
+is this plan's own fence and cannot carry the argument, so here is the argument that does.
+
+1. **The existing vocabulary is parameterised by the wrong thing.** `ExtractionOutcome<F>`,
+   `ArbiterInput<F>` and `ArbiterVerdict<F>` are generic over the _field map_ `F`, via
+   `ExtractionResult<F>`. Reusing them for transcription means first making them generic over the
+   result type — after which the existing exported names survive only as aliases of the form
+   `type ExtractionOutcome<F> = Outcome<ExtractionResult<F>>`. That is precisely the "two names for
+   one thing" shape `extractor.ts:114` calls out, and non-negotiable #1 forbids. Renaming the
+   exports instead breaks the barrel for no gain.
+2. **The engine carries machinery a transcriber ladder has no use for.** Its candidates take an
+   admission `probe`, and its accept path stamps `usage: { …, [stampKey]: candidate }`
+   (`arbitration.ts:272-276`). A `Transcript` has no `usage` bag and needs none, because
+   `Transcript.engine` is already required (`transcript.ts:42`) — non-negotiable #4, satisfied for
+   free. Generalising means parameterising _away_ two features to serve one new caller, on a file
+   with documented battle scars.
+3. **The types are genuinely different things.** A transcription outcome carries a `Transcript`; an
+   extraction outcome carries an `ExtractionResult<F>`. The two arbiters recognise disjoint error
+   vocabularies. What is shared is a _pattern_, not a type.
+
+So: **mirror the shape and the vocabulary, in a new module.** Reuse the concepts — outcomes in
+settlement order, an `exhausted` flag, an accept/continue/give-up verdict, exhaustion checked first
+— not the code. Name the parallel types so the correspondence is obvious.
+
+**The honest residual risk is drift**: a fourth lesson learned on one side now has two homes. Put a
+cross-reference in each module header naming the other, so a reader fixing one is told the other
+exists.
 
 Carry over two specific lessons that `arbitration.ts` learned the hard way and paid for:
 
@@ -511,8 +627,24 @@ substitutes in with zero changes elsewhere is non-negotiable #3, and it is what 
 - An arbiter returning `continue` at exhaustion fails with a message naming the arbiter.
 - An arbiter accepting a transcript no candidate produced fails, rather than returning it.
 - An empty candidate list and a duplicate engine id are both refused at construction.
+- The composite's `capability()` reports the **best** of its delegates: a ladder whose second
+  delegate is `ready` and whose first is `unavailable` reports `ready`, and `ready` beats
+  `needs-download` beats `unavailable`. This is real logic (`first-capable.ts:170-177` is the
+  model), and without this test a ladder that reported `unavailable` beside a ready delegate would
+  pass every other test in this list.
+- The composite's own `engine` defaults to `"fallback"` and is overridable.
+- **Ladder ordering, per D7a.** With `[documentEngine, audioEngine]` and an audio item, the document
+  engine throws `UnsupportedItemError` and the audio engine produces the transcript. With the order
+  reversed and a document item, the audio engine's _attempt_ failure ends the ladder and the
+  document engine is never called. Assert **both**, including the second — it is the failure the
+  host's composition root has to be ordered to avoid, and pinning it is what stops someone
+  "improving" D7 rule 4 into continuing on attempt failures.
 - `FakeTranscriber` with no type argument still compiles against everything that used it before —
   run the existing `first-capable`, `hedged` and `relay` suites as the assertion.
+
+**Two of the tests above pass today and are fences, not must-fails** — the last one, and (in Task 3)
+the `TranscriberUnavailableError`-is-transient pin. Both are deliberate regression guards; the rest
+of every list in this plan genuinely fails first.
 
 ---
 
@@ -520,7 +652,8 @@ substitutes in with zero changes elsewhere is non-negotiable #3, and it is what 
 
 **Files.** Create `packages/ribo-transcriber-pdfjs/` — `package.json`, `tsconfig.json`,
 `tsdown.config.ts`, `README.md`, `src/index.ts`, `src/config.ts` and their colocated tests. Modify
-`pnpm-workspace.yaml` (catalog entry), `docs/typedoc.json` (entry point).
+`pnpm-workspace.yaml` (catalog entry), `playground/package.json`, `scripts/pkg-gates.mjs`,
+`scripts/assert-source-condition.mjs`, `docs/typedoc.json`.
 
 **Intent.** The package, its build wiring, and the **cheap** half of the contract. Splitting the
 skeleton from the pdf.js work is deliberate: the packaging rules in AGENTS.md §6 have their own
@@ -554,15 +687,33 @@ split.
 - `capability()` does not load pdf.js. Assert it, do not assume it: the contract says this method is
   called often, and a probe that quietly pulls in 89 KB is the failure this test exists for. A
   counter on an injected module loader is the cleanest way to see it.
-- `engine` is exactly `"pdfjs"` and is what a produced transcript carries.
+- `engine` is exactly `"pdfjs"`. (That a _transcript_ carries it belongs in Task 6, where
+  `transcribe` exists — do not try to assert it here.)
 - Repeat the workspace-resolution smoke check the other packages carry, so the new package is
   provably importable by name.
 
-**Do not skip `./check.sh` here.** `build:packages` runs publint and attw in-build, `check:resolve`
-asserts both directions of the `@azx/source` condition for **every** package (it enumerates
-`packages/*` from the filesystem, so the new one is covered with no script edit), and `check:pkg`
-asserts no TypeScript source ships in the tarball. Those four gates are the reason this task is
-separate.
+**Three gates will fail unless you edit them, and an earlier draft of this plan wrongly claimed
+otherwise ("covered with no script edit"). Verified in the source:**
+
+- `scripts/pkg-gates.mjs:47` — `const EXPECTED_PUBLISHED_COUNT = 7`. An eighth package fails
+  `check:pkg`. Bump it to 8.
+- `scripts/assert-source-condition.mjs:90` — its own `EXPECTED_PUBLISHED_COUNT = 7`. Same, fails
+  `check:resolve`. Bump it to 8.
+- The same script resolves every package **from `playground/`'s `node_modules`**
+  (`const from = path.join(repoRoot, "playground")`, line ~128). pnpm does not hoist, so
+  `check:resolve` stays red after the count bump unless `@azx/ribo-transcriber-pdfjs` is added to
+  `playground/package.json` as `workspace:*`. Add it — and note this is not merely gate-appeasement:
+  AGENTS.md §6.2 wants a new package consumed by the playground so it is part of the CI build.
+
+Both scripts fail loudly with "update EXPECTED_PUBLISHED_COUNT", so you would recover — but not
+before wondering whether you broke something.
+
+**Then do not skip `./check.sh`.** `build:packages` runs publint and attw in-build, `check:resolve`
+asserts both directions of the `@azx/source` condition for every package, and `check:pkg` asserts no
+TypeScript source ships in the tarball. Those gates are the reason this task is separate from Task 6.
+
+While editing `assert-source-condition.mjs:128`, note its comment says "all five" — one of several
+stale package counts across the repo. See Task 6.
 
 ---
 
@@ -594,19 +745,44 @@ else rethrows unchanged** — that is an attempt failure and the queue owns it. 
 too greedy is how a transient failure becomes a permanent `dead`.
 
 **This must be a `*.browser.test.ts`.** pdf.js needs a real `Worker` and real structured-clone
-behaviour; the root vitest config's `browser` project globs `packages/*/src/**/*.browser.test.{ts,tsx}`,
-so the new package is picked up with no config edit. A node test here would mock the very thing
-under test.
+behaviour; the root vitest config's `browser` project globs
+`packages/*/src/**/*.browser.test.{ts,tsx}` (`vitest.config.ts:102`), so the new package is picked
+up with no config edit — verified. A node test here would mock the very thing under test.
+
+**The test needs a worker URL, and getting it is the first thing that will stop you.** The library
+never constructs one (§5.2), so the _test_ must supply `workerSrc` itself. A `?url` import of
+`pdfjs-dist`'s worker build inside the test file is fine and is the intended shape: a test is not
+library code, so §5.2's injection rule does not bind it, and Vite resolves `?url` in the browser
+project without the library-mode bug that rule exists for.
 
 Two committed fixtures are needed and both can be hand-written as raw PDF bytes — a few hundred
 bytes each, no generator dependency: one two-page document with a real text layer and known
 strings, and one with **no** text layer at all. Commit them with a comment saying how they were
 constructed, because a fixture nobody can regenerate is a fixture nobody can fix.
 
-Finally: AGENTS.md §1 and §3 enumerate the packages, and both say "six publishable packages". That
-count is **already stale** — there are seven (`ribo-extractor-ondevice` is not listed either) — so
-correct the count and add both missing packages while you are in there. Per the repo's own rule, do
-not write a number that a future package will falsify if you can avoid it.
+Finally, the **stale package counts**. There are seven publishable packages today, not six —
+`ribo-extractor-ondevice` exists with a full publishable skeleton, and both gate scripts already
+hard-code `EXPECTED_PUBLISHED_COUNT = 7`. This tranche makes it eight. The literal counts that go
+stale are at these exact lines (checked, because an earlier draft of this plan cited the wrong
+sections):
+
+- `AGENTS.md` lines **53, 66, 240, 483, 516, 530** — "all six publishable packages", "the six",
+  "the six root `exports`", "all six packages". **Not** §1 and §3: §1's prose enumerates the
+  packages without a count, and §3's architecture table has four rows and no count at all. Both
+  still need the new package added to their inventories, and §1 is missing
+  `ribo-extractor-ondevice` and `ribo-transcriber-managed` too.
+- `pnpm-workspace.yaml:76` — "all five publishable packages".
+- `scripts/assert-source-condition.mjs:128` — "all five resolve by name".
+- `scripts/pack-and-consume/app-template.mjs:123` — "all six published packages". That file's
+  `MAIN_JS` also **hard-codes its import list**, so the pack-and-consume tier packs and installs the
+  new package but never imports it. Add the import; otherwise the tier's coverage claim is false for
+  this package. (That tier is not in `./check.sh` but does run on every push.)
+
+Per the repo's own rule about baked-in counts: where a sentence reads as well without the number,
+drop it rather than incrementing it.
+
+`docs/typedoc.json` currently lists 4 of the 7 packages, so adding pdfjs (Task 5) leaves it
+incomplete. Add the entry; do not claim it makes typedoc current.
 
 **Interfaces produced.** The exported text reader (returning the marked-up text and the page count),
 `PAGE_MARKER`-style constant if the marker is referenced from more than one place, and the
@@ -635,14 +811,25 @@ not write a number that a future package will falsify if you can avoid it.
 
 ## Self-review — spec coverage
 
-| Prompt step | Task |
-| --- | --- |
-| 1 — `Recording` gains `kind`; migration verified | 1 (D1, D2, D3) |
-| 2 — `Transcriber` generic; `audio` → `bytes` | 2 |
-| 3 — third failure class | 3 (D4, D5) |
-| 3 — `fallbackTranscriber` + arbiter + Fake | 4 (D6, D7) |
-| 4 — `@azx/ribo-transcriber-pdfjs` | 5 (skeleton, cheap `capability()`) and 6 (extraction, markers, guard) |
-| Changeset | every task |
+| Prompt step                                      | Task                                                                  |
+| ------------------------------------------------ | --------------------------------------------------------------------- |
+| 1 — `Recording` gains `kind`; migration verified | 1 (D1, D2, D3)                                                        |
+| 2 — `Transcriber` generic; `audio` → `bytes`     | 2 — **committed together with Task 1**                                |
+| 3 — third failure class                          | 3 (D4, D5)                                                            |
+| 3 — `fallbackTranscriber` + arbiter + Fake       | 4 (D6, D7, D7a)                                                       |
+| 4 — `@azx/ribo-transcriber-pdfjs`                | 5 (skeleton, cheap `capability()`) and 6 (extraction, markers, guard) |
+| Changeset                                        | every task                                                            |
+
+**This plan was reviewed before execution** by a second model (kimi-k3, cross-family, 2026-09-09),
+and revised against that review. Five of its findings are folded in above: the real typecheck
+fallout (five production sites, not two), the two hard-coded `EXPECTED_PUBLISHED_COUNT = 7` gates
+plus the playground-resolution requirement in Task 5, the mixed-queue ladder-ordering gap (D7a), the
+missing `capability()`-precedence and round-trip tests, and the `pageCount` API shape (D8).
+
+**One review finding was checked and rejected**: it asserted that `commitRecording`'s spread _does_
+produce a typecheck error, so no runtime guard is needed. Measured on a scratch branch, it does not
+— see the Task 1 fallout section for why the simulation and the real code differ. Do not remove
+that guard.
 
 **Report back, when the work is done.**
 
