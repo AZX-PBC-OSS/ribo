@@ -30,6 +30,7 @@ export function scratchPackageJson(tarballPaths) {
       "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
       "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
       "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
+      "@azx/ribo-transcriber-pdfjs": fileSpec("@azx/ribo-transcriber-pdfjs"),
       "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       // Exact versions, matching the workspace catalog (pnpm-workspace.yaml) — this app is NOT a
       // workspace member, so it cannot write `catalog:`; these are hand-pinned to the same values.
@@ -56,6 +57,7 @@ export function scratchPackageJson(tarballPaths) {
         "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
         "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
         "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
+      "@azx/ribo-transcriber-pdfjs": fileSpec("@azx/ribo-transcriber-pdfjs"),
         "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       },
     },
