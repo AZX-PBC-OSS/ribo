@@ -31,9 +31,16 @@ import {
   type PdfjsModule,
   type PdfjsTranscriberOptions,
 } from "./config.js";
+import { readDocumentText } from "./pdf-text.js";
 
 export { DEFAULT_NO_TEXT_LAYER_THRESHOLD, PDFJS_ENGINE } from "./config.js";
-export type { PdfjsTranscriberOptions } from "./config.js";
+export type { PdfjsModule, PdfjsTranscriberOptions } from "./config.js";
+export { openDocument, readDocumentText, PAGE_MARKER, resetPdfjsCache } from "./pdf-text.js";
+export type {
+  OpenDocumentHandle,
+  OpenDocumentOptions,
+  ReadDocumentTextOptions,
+} from "./pdf-text.js";
 
 /**
  * pdf.js document transcription, implementing `Transcriber<DocumentCapture>`.
@@ -71,10 +78,8 @@ export class PdfjsTranscriber implements Transcriber<DocumentCapture> {
   constructor(options: PdfjsTranscriberOptions = {}) {
     this.#workerSrc = options.workerSrc;
     this.#noTextLayerThreshold = options.noTextLayerThreshold ?? DEFAULT_NO_TEXT_LAYER_THRESHOLD;
-    // Memoized lazy import — the real default lives in pdf-text.ts (Task 6) so
-    // the memoization is shared with the open-document export. For Task 5's
-    // stub transcribe, this is never called.
-    this.#loadPdfjs = options.loadPdfjs ?? (() => import("pdfjs-dist"));
+    this.#loadPdfjs =
+      options.loadPdfjs ?? (async () => (await import("pdfjs-dist")) as unknown as PdfjsModule);
   }
 
   async capability(): Promise<TranscriberCapability> {
@@ -94,17 +99,26 @@ export class PdfjsTranscriber implements Transcriber<DocumentCapture> {
       return {
         status: "unavailable",
         reason: "not-configured",
-        detail: "No pdf.js worker URL is configured. Supply workerSrc to enable document transcription.",
+        detail:
+          "No pdf.js worker URL is configured. Supply workerSrc to enable document transcription.",
       };
     }
 
     return { status: "ready" };
   }
 
-  transcribe: (item: DocumentCapture, bytes: Blob) => Promise<Transcript> = async (_item, _bytes) => {
-    // Task 6 wires the real pdf.js text extraction. This stub satisfies the
-    // Transcriber contract structurally so Task 5's typecheck and packaging
-    // gates pass independently.
-    throw new Error("PdfjsTranscriber.transcribe is not yet implemented — see Task 6.");
+  transcribe: (item: DocumentCapture, bytes: Blob) => Promise<Transcript> = async (item, bytes) => {
+    const { text } = await readDocumentText(bytes, {
+      workerSrc: this.#workerSrc!,
+      loadPdfjs: this.#loadPdfjs,
+      noTextLayerThreshold: this.#noTextLayerThreshold,
+      engine: this.engine,
+    });
+
+    return {
+      recordingId: item.id,
+      text,
+      engine: this.engine,
+    };
   };
 }

@@ -50,7 +50,12 @@ import { WorkSafetyPanel } from "./WorkSafetyPanel.js";
  * SDK feature no host turns on is a feature nobody has watched work.
  */
 
-const COMPOSED_NAMES = ["@azx/ribo-ui-react", ADAPTER, "@azx/ribo-transcriber-managed", "@azx/ribo-transcriber-pdfjs"];
+const COMPOSED_NAMES = [
+  "@azx/ribo-ui-react",
+  ADAPTER,
+  "@azx/ribo-transcriber-managed",
+  "@azx/ribo-transcriber-pdfjs",
+];
 
 export function App() {
   const outbox = useOutbox();
