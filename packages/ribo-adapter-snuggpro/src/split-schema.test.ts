@@ -72,7 +72,7 @@ test("every leaf of snuggExtractionSchema appears in exactly one group schema, a
   const originalLeaves = enumerateLeaves(snuggExtractionSchema).sort();
   const groupLeaves = groups.flatMap((g) => enumerateLeaves(g.schema)).sort();
 
-  expect(originalLeaves).toHaveLength(339);
+  expect(originalLeaves).toHaveLength(370);
 
   // No leaf is lost: the union of per-group leaves equals the original's.
   expect(groupLeaves).toEqual(originalLeaves);

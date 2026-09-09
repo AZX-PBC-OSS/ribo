@@ -193,7 +193,7 @@ test("the real field set round-trips: schema → extraction → review → write
 
   // Review paths outnumber schema leaves because the fixture carries two hvac instances
   // and no concern/incentive/vault/door instances; each path is independently reviewable.
-  expect(paths).toHaveLength(354);
+  expect(paths).toHaveLength(385);
   expect(paths).toContain(EDITED_LEAF);
   expect(request.fields[EDITED_LEAF]?.extracted.value).toBe(MODEL_VALUE);
 

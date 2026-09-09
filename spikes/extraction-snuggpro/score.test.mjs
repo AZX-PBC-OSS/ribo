@@ -156,8 +156,8 @@ heading("0. SCHEMA INTROSPECTION (schema-leaves.mjs) — derived, not hand-count
   // and `door` are array groups in the schema but are deliberately NOT in
   // ground-truth.mjs's COLLECTION_GROUPS yet — the corpus predates them — so their
   // leaves resolve as flat "unmentioned" entries until a corpus tranche says otherwise.)
-  check("leaf count matches the merged field set", LEAVES.length === 339);
-  check("enum-member total matches the merged field set", totalMembers === 718);
+  check("leaf count matches the merged field set", LEAVES.length === 370);
+  check("enum-member total matches the merged field set", totalMembers === 752);
   check(
     "ENUM_VOCAB has an entry for every enum leaf (no collisions at import time)",
     ENUM_VOCAB.size === enumLeaves.length,

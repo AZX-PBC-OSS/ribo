@@ -10917,6 +10917,998 @@
             },
             "required": ["value", "confidence", "sourceSpan"],
             "additionalProperties": false
+          },
+          "dhwTemperatureSettings": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Low (120-130 F)",
+                      "Medium (130-140 F)",
+                      "High (140-150 F)",
+                      "Very High (150+ F)",
+                      "Don't Know"
+                    ],
+                    "description": "Select the temperature setting for the hot water system that stores or delivers the domestic hot water for the home. If more than one type of system is used for hot water in the home, select the temperature setting for the one that delivers the most gallons of hot water to the home."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwTemp": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the temperature of the water produced by the water heating system. The temperature of the water produced, in °F as a number — a stated setting word (low, medium) goes in dhwTemperatureSettings, not here."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Model number of the water heater."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwModelYear": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the model year of the water heater. The water heater's model year — never the home's year built, which is a separate field."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "If there is more than one serial number, each serial number should be separated with a comma,"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwPercentLoad": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Percent of the annual DHW load met by this system. Both systems must add up to 100%. Share of the home's annual DHW load this system meets, as a percentage; the shares across a home's water heaters must add up to 100."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwEnergyStar": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if this Water Heater is ENERGY STAR Certified."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwHeatingCapacity": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the rated input capacity of the water heater in BTU/hr. Rated input capacity of the water heater in BTU per hour — the INPUT rating, unlike the hvac capacities, which are output ratings."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwTankWrap": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if tank wrap has been applied to this water heater."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwTankWrapRValue": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the R Value of the tank wrap that has been applied to this water heater."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwPipeWrap": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if pipe wrap has been applied to the pipes from this water heater."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwPipeWrapRValue": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the R Value of the pipe wrap that has been applied to the pipes from this water heater."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwMaintenanceStarRating": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["1", "2", "3"],
+                    "description": "Field options: null → 1 → Observable issues need to be addressed 2 → Standard condition based on the age of the system 3 → Well maintained and/or pristine condition Maintenance condition as the wire string — \"1\" observable issues need to be addressed, \"2\" standard condition based on the age of the system, \"3\" well maintained and/or pristine; a water heater whose condition was never judged is null."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwSidearmBoiler": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Choose the boiler from the HVAC section that this indirect water heater tank is attached to. The boiler from the HVAC section this indirect water heater tank is attached to, as the auditor referred to it — free text; the vendor publishes no value list, and resolving the reference against the job's hvac systems is a later human-supervised step."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwSidearmStandbyLoss": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the temperature of the water produced by the water heating system. Standby loss of the sidearm tank as a stated number only — the vendor's description of this field is a copy-paste error and its units and scale are unpublished, so set it only from an explicitly stated number."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwEnergyFactorType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["EF", "UEF"],
+                    "description": "Enter the type of EnergyFactor"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwEnergyFactor": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the rated Energy Factor of the water heater without a decimal. Sometimes, the Energy Factor of a water heater is expressed as 0.56 or 0.82. Enter it here as 56 or 82. The Min and Max values change based on the type of water heater. Energy Factors for most equipment can be found at ahridirectory.org. Rated Energy Factor as a stated number only — never estimated; Snugg looks these up from make and model. The wire stores the factor without a decimal (0.56 as 56); any rescaling is a deterministic pass after extraction, so the number as stated belongs here."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwUnifiedEnergyFactor": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the rated Uniform Energy Factor of the water heater without a decimal. Sometimes, the Uniform Energy Factor of a water heater is expressed as 0.56 or 0.82. Enter it here as 56 or 82. The Min and Max values change based on the type of water heater. Energy Factors for most equipment can be found at ahridirectory.org. Rated Uniform Energy Factor as a stated number only — never estimated. The wire stores the factor without a decimal (0.56 as 56); any rescaling is a deterministic pass after extraction, so the number as stated belongs here."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwRecoveryEfficiency": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the system recovery efficiency of the water heater. This field is optional for modeling but is required for some utility programs such as NYSERDA. System recovery efficiency as a stated number only — never estimated; the vendor notes it is optional for modeling but required by some utility programs."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "hesDhwEnergyFactor": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "The efficiency of a storage water heater is indicated by its Energy Factor (EF). If you know or have a good idea what the EF is, (check the EnergyGuide label on the water heater) enter it here, otherwise enter an installed year. This number should be entered as a decimal (e.g. 0.55). The allowed range is 0.45 to 4.0. Combustion water heaters are typically between 0.5 and 0.65. Electric are typically between 0.8 and 0.95. Heat pump water heaters may be as high as 4. Energy Factor of a storage water heater as a decimal (e.g. 0.55) — the Home Energy Score input, read off the EnergyGuide label on the tank; a different scale from dhwEnergyFactor's no-decimal encoding. Stated or label-read values only, never estimated."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwType2Improved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Tank Water Heater",
+                      "Tankless Water Heater",
+                      "Heat Pump",
+                      "Sidearm Tank"
+                    ],
+                    "description": "Enter the type of water heater installed (BASE) or to be installed (IMPROVED). The proposed water heater type — a recommended swap (\"put in a heat pump water heater\") is dictated intent, not a purchase spec."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwFuel2Improved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Electricity",
+                      "Natural Gas",
+                      "Fuel Oil",
+                      "Propane",
+                      "Pellets",
+                      "Wood",
+                      "Solar",
+                      "None"
+                    ],
+                    "description": "Select the type of energy source used to provide domestic hot water for the home. Domestic hot water is typically the hot water that comes from the faucets, showers, bathtubs, washing machines and dishwashers in the home. If more than one type of energy source is used to provide hot water, select the type that provides the most gallons of hot water. The proposed water heater's fuel — a recommended fuel switch is dictated intent, not a purchase spec."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwTankSizeImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the tank size the water heater in gallons. Proposed tank size in gallons — spoken sizing intent; a tankless proposal has no tank, so leave it null."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwHeatingCapacityImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the rated input capacity of the water heater in BTU/hr. Proposed input capacity of the water heater in BTU per hour — sizing intent, stated only; auditors rarely speak BTU/hr for water heaters."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwPercentLoadImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Percent of the annual DHW load met by this system. Both systems must add up to 100%. Share of the home's annual DHW load the proposed system would meet, as a percentage — a stated allocation of intent; improved shares across systems must add up to 100."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwEnergyStarImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if this Water Heater is ENERGY STAR Certified. Whether the proposed water heater is ENERGY STAR certified — a named product-class recommendation, routinely spoken."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwTempImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the temperature of the water produced by the water heating system. Proposed water temperature in °F — a setback recommendation (\"turn it down to 120\") is dictated advice, not a purchase spec."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwTankWrapImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if tank wrap has been applied to this water heater. Whether to add tank wrap to the water heater — a dictated measure, not a purchase spec."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwPipeWrapImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select Yes if pipe wrap has been applied to the pipes from this water heater. Whether to add pipe wrap to the pipes from this water heater — a dictated measure, not a purchase spec."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwPipeWrapLengthImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the length in feet of the pipe wrap that has been applied to the pipes from this water heater. Length in feet of pipe wrap to apply — the quantity of a dictated measure; this field exists only on the improved side."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "dhwPipeWrapPercentageImproved": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the percent of total water pipes supplied by this water heater that are covered by pipe insulation. Percent of the water pipes supplied by this heater that are covered by pipe insulation — the quantity of a dictated measure; this field exists only on the improved side."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -10925,7 +11917,38 @@
           "dhwAge",
           "dhwLocation",
           "dhwTankSize",
-          "dhwManufacturer"
+          "dhwManufacturer",
+          "dhwTemperatureSettings",
+          "dhwTemp",
+          "dhwModel",
+          "dhwModelYear",
+          "dhwSerialNumber",
+          "dhwPercentLoad",
+          "dhwEnergyStar",
+          "dhwHeatingCapacity",
+          "dhwTankWrap",
+          "dhwTankWrapRValue",
+          "dhwPipeWrap",
+          "dhwPipeWrapRValue",
+          "dhwMaintenanceStarRating",
+          "dhwSidearmBoiler",
+          "dhwSidearmStandbyLoss",
+          "dhwEnergyFactorType",
+          "dhwEnergyFactor",
+          "dhwUnifiedEnergyFactor",
+          "dhwRecoveryEfficiency",
+          "hesDhwEnergyFactor",
+          "dhwType2Improved",
+          "dhwFuel2Improved",
+          "dhwTankSizeImproved",
+          "dhwHeatingCapacityImproved",
+          "dhwPercentLoadImproved",
+          "dhwEnergyStarImproved",
+          "dhwTempImproved",
+          "dhwTankWrapImproved",
+          "dhwPipeWrapImproved",
+          "dhwPipeWrapLengthImproved",
+          "dhwPipeWrapPercentageImproved"
         ],
         "additionalProperties": false
       }

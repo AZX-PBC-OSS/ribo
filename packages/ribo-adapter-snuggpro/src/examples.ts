@@ -472,6 +472,43 @@ const fields: SnuggExtraction = {
       dhwLocation: env(null, null),
       dhwTankSize: env(40, "a forty-gallon Amtrol"),
       dhwManufacturer: env("Other", "a forty-gallon Amtrol", 0.8),
+      // Nothing in this transcript names a temperature setting, a model or
+      // serial, a load share, an efficiency, a wrap, a condition rating or any
+      // recommendation — every remainder leaf (doc 20 §5.4) is an honest null.
+      // The install-sticker year is an install date, not the model year, so
+      // `dhwModelYear` stays null too (rule 1 — never derive one field from
+      // another).
+      dhwTemperatureSettings: env(null, null),
+      dhwTemp: env(null, null),
+      dhwModel: env(null, null),
+      dhwModelYear: env(null, null),
+      dhwSerialNumber: env(null, null),
+      dhwPercentLoad: env(null, null),
+      dhwEnergyStar: env(null, null),
+      dhwHeatingCapacity: env(null, null),
+      dhwTankWrap: env(null, null),
+      dhwTankWrapRValue: env(null, null),
+      dhwPipeWrap: env(null, null),
+      dhwPipeWrapRValue: env(null, null),
+      dhwMaintenanceStarRating: env(null, null),
+      dhwSidearmBoiler: env(null, null),
+      dhwSidearmStandbyLoss: env(null, null),
+      dhwEnergyFactorType: env(null, null),
+      dhwEnergyFactor: env(null, null),
+      dhwUnifiedEnergyFactor: env(null, null),
+      dhwRecoveryEfficiency: env(null, null),
+      hesDhwEnergyFactor: env(null, null),
+      dhwType2Improved: env(null, null),
+      dhwFuel2Improved: env(null, null),
+      dhwTankSizeImproved: env(null, null),
+      dhwHeatingCapacityImproved: env(null, null),
+      dhwPercentLoadImproved: env(null, null),
+      dhwEnergyStarImproved: env(null, null),
+      dhwTempImproved: env(null, null),
+      dhwTankWrapImproved: env(null, null),
+      dhwPipeWrapImproved: env(null, null),
+      dhwPipeWrapLengthImproved: env(null, null),
+      dhwPipeWrapPercentageImproved: env(null, null),
     },
   ],
 
