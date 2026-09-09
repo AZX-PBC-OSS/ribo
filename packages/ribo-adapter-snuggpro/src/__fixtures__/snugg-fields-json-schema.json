@@ -11154,7 +11154,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "description": "The title of the cover page. A short single-line label — the API caps it at 32 characters. Capture it only when the auditor actually named the report; never a sentence."
+                  "description": "The title of the cover page. A short single-line label. Capture it only when the auditor actually named the report; never a sentence."
                 },
                 {
                   "type": "null"
@@ -11185,7 +11185,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "description": "The text in the sidebar of the concerns page. Despite reading like it wants the homeowner's concerns, the API caps this at 32 characters — a short single-line sidebar caption only, never a paragraph. A concern the homeowner voiced is a `concern` instance, not this field."
+                  "description": "The text in the sidebar of the concerns page. Despite reading like it wants the homeowner's concerns, this is a short single-line sidebar caption, never a paragraph. A concern the homeowner voiced is a `concern` instance, not this field."
                 },
                 {
                   "type": "null"
@@ -11247,7 +11247,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "description": "The title of the custom program section in the report. This is an optional section which may not be visible in all programs. A short single-line label — the API caps it at 32 characters. Custom sections have no template default, so capture the name only when the auditor gave one."
+                  "description": "The title of the custom program section in the report. This is an optional section which may not be visible in all programs. A short single-line label. Custom sections have no template default, so capture the name only when the auditor gave one."
                 },
                 {
                   "type": "null"
@@ -11278,7 +11278,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "description": "The title of the second custom program section in the report. This is an optional section which may not be visible in all programs. A short single-line label — the API caps it at 32 characters. Custom sections have no template default, so capture the name only when the auditor gave one."
+                  "description": "The title of the second custom program section in the report. This is an optional section which may not be visible in all programs. A short single-line label. Custom sections have no template default, so capture the name only when the auditor gave one."
                 },
                 {
                   "type": "null"

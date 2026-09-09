@@ -2787,17 +2787,15 @@ export const StageFields = z
  * response definition), the presentation-only titles doc 20 verdicts `exclude`
  * stay out, and `customFields` is response-only.
  *
- * The length caps are carried in the leaf descriptions because some look wrong
- * at a glance and would mislead a generator: `concernsSidebar` reads like it
- * wants the homeowner's concerns in prose but the API caps it at 32 characters,
- * and `solutionsTitle` is uncapped yet is a subheader — treat it as short (doc
- * 20 §5.3 "Free-text inventory and expected length").
+ * `concernsSidebar` reads like it wants the homeowner's concerns in prose but
+ * is a short caption (doc 20 §5.3 "Free-text inventory and expected length") —
+ * the live spec's `maxLength` hints doc 20 recorded are gone as of this
+ * writing, so leaf descriptions state "short label," not a specific length.
  */
 export const ReportFields = z
   .object(
     withVendorDescriptions({
-      // --- (a1) Long-form narrative prose: the only strings in the endpoint's
-      // definition with NO `maxLength` (doc 20 §5.3). ---
+      // --- (a1) Long-form narrative prose (doc 20 §5.3). ---
 
       /** The cover-page introduction, dictated for the homeowner. */
       coverTextArea: z
@@ -2826,23 +2824,22 @@ export const ReportFields = z
         .nullable()
         .optional(),
 
-      // --- (a2) Short single-line labels / section titles. All are one-line
-      // labels; the ones the API caps say so in the description. ---
+      // --- (a2) Short single-line labels / section titles. ---
 
       /** The report's own title, when the auditor named the deliverable. */
       titleCover: z
         .string()
         .describe(
-          "A short single-line label — the API caps it at 32 characters. Capture it only when the auditor actually named the report; never a sentence.",
+          "A short single-line label. Capture it only when the auditor actually named the report; never a sentence.",
         )
         .nullable()
         .optional(),
 
-      /** The concerns-page sidebar caption — 32 characters despite the name. */
+      /** The concerns-page sidebar caption, despite the name. */
       concernsSidebar: z
         .string()
         .describe(
-          "Despite reading like it wants the homeowner's concerns, the API caps this at 32 characters — a short single-line sidebar caption only, never a paragraph. A concern the homeowner voiced is a `concern` instance, not this field.",
+          "Despite reading like it wants the homeowner's concerns, this is a short single-line sidebar caption, never a paragraph. A concern the homeowner voiced is a `concern` instance, not this field.",
         )
         .nullable()
         .optional(),
@@ -2860,7 +2857,7 @@ export const ReportFields = z
       titleCustom1: z
         .string()
         .describe(
-          "A short single-line label — the API caps it at 32 characters. Custom sections have no template default, so capture the name only when the auditor gave one.",
+          "A short single-line label. Custom sections have no template default, so capture the name only when the auditor gave one.",
         )
         .nullable()
         .optional(),
@@ -2869,7 +2866,7 @@ export const ReportFields = z
       titleCustom2: z
         .string()
         .describe(
-          "A short single-line label — the API caps it at 32 characters. Custom sections have no template default, so capture the name only when the auditor gave one.",
+          "A short single-line label. Custom sections have no template default, so capture the name only when the auditor gave one.",
         )
         .nullable()
         .optional(),
