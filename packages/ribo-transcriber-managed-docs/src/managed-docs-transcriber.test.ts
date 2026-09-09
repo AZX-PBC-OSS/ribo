@@ -12,7 +12,8 @@ import { MANAGED_DOCS_ENGINE } from "./config.js";
  * `ribo-transcriber-managed/src/managed-transcriber.test.ts`.
  */
 
-const SAMPLE_ENDPOINT = "https://example.invalid/documentintelligence/documentModels/prebuilt-read:analyze";
+const SAMPLE_ENDPOINT =
+  "https://example.invalid/documentintelligence/documentModels/prebuilt-read:analyze";
 
 describe("ManagedDocsTranscriber — capability", () => {
   test("a missing endpoint yields not-configured, and isPermanentlyUnavailable is false for it", async () => {

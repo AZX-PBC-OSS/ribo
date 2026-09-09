@@ -21,7 +21,8 @@ import { MANAGED_DOCS_ENGINE } from "./config.js";
  * properties together are what the queue and the fallback ladder read.
  */
 
-const ENDPOINT = "https://example.invalid/documentintelligence/documentModels/prebuilt-read:analyze";
+const ENDPOINT =
+  "https://example.invalid/documentintelligence/documentModels/prebuilt-read:analyze";
 
 const DOC: DocumentCapture = {
   id: "doc-001",

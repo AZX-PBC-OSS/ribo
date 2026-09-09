@@ -64,9 +64,7 @@ describe("flattenDocumentAnalysisResponse", () => {
           content: "Invoice Summary",
           tables: [
             {
-              rows: [
-                [{ text: "Total" }, { text: "$70,903.33" }],
-              ],
+              rows: [[{ text: "Total" }, { text: "$70,903.33" }]],
             },
           ],
         },
@@ -130,9 +128,7 @@ describe("flattenDocumentAnalysisResponse", () => {
       pages: [
         {
           pageNumber: 1,
-          tables: [
-            { rows: [[{ text: "A" }, {}, { text: "C" }]] },
-          ],
+          tables: [{ rows: [[{ text: "A" }, {}, { text: "C" }]] }],
         },
       ],
     };

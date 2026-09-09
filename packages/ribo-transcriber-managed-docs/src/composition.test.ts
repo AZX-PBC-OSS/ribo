@@ -4,7 +4,6 @@ import {
   unsupportedFallsThrough,
   type DocumentCapture,
   type Transcriber,
-  type Transcript,
 } from "@azx/ribo-core";
 import { describe, expect, test } from "vitest";
 
@@ -23,7 +22,8 @@ import { ManagedDocsTranscriber } from "./index.js";
  * and that a successful managed response short-circuits the ladder.
  */
 
-const ENDPOINT = "https://example.invalid/documentintelligence/documentModels/prebuilt-read:analyze";
+const ENDPOINT =
+  "https://example.invalid/documentintelligence/documentModels/prebuilt-read:analyze";
 
 const DOC: DocumentCapture = {
   id: "doc-001",
@@ -104,7 +104,9 @@ describe("fallbackTranscriber composition — managed-docs + pdfjs", () => {
     const managed = new ManagedDocsTranscriber({
       endpoint: ENDPOINT,
       fetchImpl: (() =>
-        Promise.resolve(Response.json({ pages: [{ pageNumber: 1, content: "" }] }))) as typeof fetch,
+        Promise.resolve(
+          Response.json({ pages: [{ pageNumber: 1, content: "" }] }),
+        )) as typeof fetch,
     });
     const pdfjs = fakePdfjs("Pdf.js OCR result.");
 
@@ -163,7 +165,8 @@ describe("fallbackTranscriber composition — managed-docs + pdfjs", () => {
   test("every rung throwing UnsupportedItemError gives up with a terminal error", async () => {
     const managed = new ManagedDocsTranscriber({
       endpoint: ENDPOINT,
-      fetchImpl: (() => Promise.resolve(new Response("Unsupported", { status: 415 }))) as typeof fetch,
+      fetchImpl: (() =>
+        Promise.resolve(new Response("Unsupported", { status: 415 }))) as typeof fetch,
     });
     const pdfjs: Transcriber<DocumentCapture> = {
       engine: "pdfjs",

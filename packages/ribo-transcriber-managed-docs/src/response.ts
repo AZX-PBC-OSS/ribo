@@ -84,9 +84,7 @@ export function flattenDocumentAnalysisResponse(body: DocumentAnalysisResponse):
         for (const table of page.tables) {
           const rows = table.rows ?? [];
           const tableText = rows
-            .map((row) =>
-              row.map((cell) => cell?.text ?? "").join(COLUMN_SEPARATOR),
-            )
+            .map((row) => row.map((cell) => cell?.text ?? "").join(COLUMN_SEPARATOR))
             .join("\n");
           if (tableText) parts.push(tableText);
         }
