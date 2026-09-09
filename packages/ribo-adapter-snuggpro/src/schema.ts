@@ -8,7 +8,8 @@
  *      slashes, percent signs and all, so no write-time lookup table.
  *   3. **Nesting is the resource layout** — one group per write endpoint
  *      (`basedata` singleton, per-instance component and job-collection
- *      resources, `stage` singleton), so `write` dispatches on the group key.
+ *      resources, `stage` and `utilities` singletons), so `write` dispatches on
+ *      the group key.
  *
  * Scoping: `basedata` is the FULL honest capture surface of its endpoint (doc 17
  * §Scoping — the form fields minus the `*Improved` retrofit twins and the
@@ -19,7 +20,10 @@
  * computed ones, and the `capture?` fields described with the caveat that makes
  * them borderline — see the groups). The job-collection groups each carry every
  * field of their endpoint in extraction scope minus the computed ones
- * (`incentive`'s `recommendations` is excluded by design — see the group).
+ * (`incentive`'s `recommendations` is excluded by design — see the group);
+ * `utilities` is the exception — a deliberately bounded CORE subset of its
+ * endpoint (the per-period delivery windows and the 12-month bill series are
+ * separate, out-of-scope tranches — see the group).
  *
  * ---
  *
@@ -958,6 +962,66 @@ export const HealthTestState = z
  * — both said out loud from the driveway.
  */
 export const HealthCondition = z.enum(["Good", "Potential Issues", "NA"]);
+
+// == utilities ===============================================================
+
+/**
+ * `billEntryType` (`POST /jobs/{jobId}/utilities`) — which of the endpoint's two
+ * mutually-exclusive bill-entry families is live. A CONTROL field, not a fact
+ * about the home: doc 20 §5.2 3.1 verdicts it `capture?` precisely because an
+ * auditor never utters it — the note on the leaf says when it may be set.
+ */
+export const BillEntryType = z.enum(["Detailed", "Simple", "No Bills"]);
+
+/**
+ * `detailedElectricDataSource` / `detailedFuelDataSource` (`utilities`) — the
+ * provenance of a detailed-bill import, one list shared by both streams. Only
+ * meaningful when `billEntryType` is `"Detailed"`.
+ */
+export const DetailedBillDataSource = z.enum(["Manual", "Green Button"]);
+
+/**
+ * `simpleFuelUnits` (`utilities`) — whether the simple-mode fuel total is
+ * counted in delivered gallons or in dollars spent.
+ */
+export const SimpleFuelUnits = z.enum(["Gallons", "Dollars"]);
+
+/**
+ * `primaryHeatingFuelType` (`utilities`) — the home's PRIMARY heating fuel, the
+ * field that tells the endpoint's generic "fuel" stream which fuel it describes.
+ * A wider list than the hvac/dhw fuel axes: it adds `Coal` and `Kerosene` and
+ * drops `None`, so it is declared on its own rather than shared.
+ */
+export const PrimaryHeatingFuelType = z.enum([
+  "Natural Gas",
+  "Electricity",
+  "Fuel Oil",
+  "Propane",
+  "Wood",
+  "Pellets",
+  "Solar",
+  "Coal",
+  "Kerosene",
+]);
+
+/** `electricBillUnits` (`utilities`) — the unit the electric bill figures are entered in. */
+export const ElectricBillUnits = z.enum(["kWh", "Dollars"]);
+
+/**
+ * `fuelBillUnits` (`utilities`) — the unit the fuel bill figures are entered in.
+ * The vendor's own description for this field is a copy-paste bug (it tells the
+ * reader to "utilize the kWh option"; `kWh` is not a member — doc 20 §4.7). The
+ * members above are the whole vocabulary.
+ */
+export const FuelBillUnits = z.enum([
+  "Therms",
+  "Gallons",
+  "Dollars",
+  "MCFs",
+  "Cords",
+  "Pounds",
+  "Tons",
+]);
 
 // --- The resource groups ----------------------------------------------------
 // One group per write endpoint. Each is `.strict()` and each leaf is
@@ -2769,6 +2833,306 @@ export const StageFields = z
   )
   .strict();
 
+// A job-collection group (doc 20 §5.2; target model per
+// `docs/roadmap/design/job-collections-foundation-design.md`).
+
+/**
+ * `POST /jobs/{jobId}/utilities` — the job's utility-billing record. A
+ * job-collection resource (design `job-collections-foundation-design.md`) but a
+ * SINGLETON, like `basedata` and `health`, not an array of instances: the path
+ * has no `utilityId` segment, the response definition is one flat object of
+ * scalars, and multiple fuels are modelled by name-mangled fields
+ * (`electric*` / `fuel*` / `additionalFuel*`, `utilityPrice<Fuel>`), not by
+ * repetition — one record per job, upserted (doc 20 §5.2).
+ *
+ * This is the endpoint's CORE subset only (doc 20 §8.3, the utilities-core
+ * tranche): the mode/provenance selectors, the provider names, the simple-bill
+ * scalars, the units and primary fuel, the per-fuel price overrides, and the
+ * rate plans. Deliberately absent:
+ *
+ *   - the delivered-fuel windows and the detailed 12-month bill series —
+ *     separate tranches, and the series is an import path, never dictation
+ *     (doc 20 §5.2 3.7–3.8);
+ *   - the three `*AccountNumber` fields — identifier-shaped captures, not
+ *     names: doc 20 verdicts them `capture?` while flagging a 10–16 digit
+ *     spoken string as a high-ASR-error target, and the tranche's scope is the
+ *     provider NAMES;
+ *   - `utilityRatePlanPriceElectricity` — verdicted `capture?` but held by doc
+ *     20 itself: its semantics are unresolved (an annual dollar total, not a
+ *     per-kWh rate) with an explicit "do not map until confirmed" (§5.2 3.6,
+ *     §9 question 5).
+ */
+export const UtilitiesFields = z
+  .object(
+    withVendorDescriptions({
+      /**
+       * The bill-entry MODE — a control field gating which of the endpoint's
+       * field families apply, not something an auditor utters (doc 20 §5.2 3.1).
+       * Set it only when the auditor explicitly states the mode ("we're on
+       * simple billing for this one"); the write path's own default is to
+       * derive it from which families actually filled, not to trust a guess.
+       */
+      billEntryType: BillEntryType.describe(
+        "Which bill-entry mode the job uses. Set it only when the auditor explicitly states the mode; never derive it from which other fields filled.",
+      )
+        .nullable()
+        .optional(),
+
+      /**
+       * Provenance of the detailed-bill data — the import mechanism, not a fact
+       * about the home (doc 20 §5.2 3.1). Set only from an explicit statement;
+       * a Ribo-driven write defaults this to `"Manual"`.
+       */
+      detailedElectricDataSource: DetailedBillDataSource.describe(
+        "Where the detailed electric bill data came from. Set only when the auditor explicitly states it; never assume an import mechanism.",
+      )
+        .nullable()
+        .optional(),
+
+      /** The fuel stream's provenance — same rule as the electric twin. */
+      detailedFuelDataSource: DetailedBillDataSource.describe(
+        "Where the detailed fuel bill data came from. Set only when the auditor explicitly states it; never assume an import mechanism.",
+      )
+        .nullable()
+        .optional(),
+
+      /** The electric utility's name as spoken ("they're on National Grid") — free text. */
+      electricUtilityProviderName: z
+        .string()
+        .describe("The electric utility provider's name as spoken, free text.")
+        .nullable()
+        .optional(),
+
+      /** The fuel utility's name as spoken — free text. */
+      fuelUtilityProviderName: z
+        .string()
+        .describe("The fuel utility provider's name as spoken, free text.")
+        .nullable()
+        .optional(),
+
+      /**
+       * A SECOND fuel provider's name — the endpoint's only second-fuel
+       * affordance; there is no second full fuel stream (doc 20 §5.2 2).
+       */
+      additionalFuelUtilityProviderName: z
+        .string()
+        .describe(
+          "A second fuel utility provider's name as spoken, free text — the only affordance for a second fuel on this endpoint.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * The highest monthly SUMMER electric bill in dollars, as stated — a bill
+       * total, never a per-unit price (those are the `utilityPrice*` fields).
+       */
+      highestMonthlySummerElectricBill: z
+        .number()
+        .describe(
+          "The highest monthly summer electric bill in dollars as stated — a bill total, not a per-unit price.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The highest monthly WINTER electric bill in dollars, as stated. */
+      highestMonthlyWinterElectricBill: z
+        .number()
+        .describe(
+          "The highest monthly winter electric bill in dollars as stated — a bill total, not a per-unit price.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The lowest monthly electric bill of the past year in dollars, as stated. */
+      lowestMonthlyElectricBill: z
+        .number()
+        .describe("The lowest monthly electric bill in dollars as stated — a bill total.")
+        .nullable()
+        .optional(),
+
+      /**
+       * The highest monthly WINTER bill of the heating fuel in dollars. The
+       * vendor names this field for natural gas but means the fuel heating the
+       * largest area when several are in play.
+       */
+      highestMonthlyWinterNaturalGasBill: z
+        .number()
+        .describe(
+          "The highest monthly winter bill of the heating fuel in dollars as stated — the fuel heating the largest area when several are in play.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The lowest monthly bill of the heating fuel in dollars — typically a summer month. */
+      lowestMonthlyNaturalGasBill: z
+        .number()
+        .describe(
+          "The lowest monthly bill of the heating fuel in dollars as stated — typically a summer, hot-water-and-cooking-only month.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Whether `totalSimpleFuelUsedInLast12Months` counts gallons delivered or dollars spent. */
+      simpleFuelUnits: SimpleFuelUnits.describe(
+        "Whether the simple fuel total is counted in gallons delivered or dollars spent — the unit qualifier on totalSimpleFuelUsedInLast12Months, not a bill figure of its own.",
+      )
+        .nullable()
+        .optional(),
+
+      /** Total fuel used over the past year, in the unit `simpleFuelUnits` names. */
+      totalSimpleFuelUsedInLast12Months: z
+        .number()
+        .describe(
+          "Total fuel used over the past twelve months as a bare number, in whichever unit simpleFuelUnits names — gallons delivered or dollars spent.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * The home's PRIMARY heating fuel. A stated fact about the home, never an
+       * inference from equipment mentions: a house with two systems has not said
+       * which is primary until the auditor says so.
+       */
+      primaryHeatingFuelType: PrimaryHeatingFuelType.describe(
+        "The home's primary heating fuel. Set it only when the auditor says which fuel primarily heats the home — never inferred from which equipment was mentioned.",
+      )
+        .nullable()
+        .optional(),
+
+      /** The unit the electric bill figures are entered in. */
+      electricBillUnits: ElectricBillUnits.nullable().optional(),
+
+      /**
+       * The unit the fuel bill figures are entered in. The vendor's own description
+       * here is a copy-paste bug — it recommends a `kWh` option that is not a member
+       * of this list (doc 20 §4.7); never emit `kWh` for this field.
+       */
+      fuelBillUnits: FuelBillUnits.describe(
+        "The unit the fuel bill figures are entered in. The vendor's description mentions a kWh option, but kWh is NOT a member of this list — never emit it here.",
+      )
+        .nullable()
+        .optional(),
+
+      /**
+       * Per-unit price override for natural gas, as a bare number ("eighty-two
+       * cents a therm" -> 0.82) — the vendor names no unit; it is the fuel's
+       * implicit billing unit. Overrides the EIA regional default.
+       */
+      utilityPriceNaturalGas: z
+        .number()
+        .describe(
+          "Per-unit price for natural gas as a bare number in the fuel's implicit billing unit, stated by the auditor; overrides the software's EIA regional default.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Per-unit price override for propane ("a dollar fifty a gallon" -> 1.5) — same implicit-unit rule. */
+      utilityPricePropane: z
+        .number()
+        .describe(
+          "Per-unit price for propane as a bare number in the fuel's implicit billing unit, stated by the auditor; overrides the software's EIA regional default.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Per-unit price override for fuel oil — same implicit-unit rule. */
+      utilityPriceFuelOil: z
+        .number()
+        .describe(
+          "Per-unit price for fuel oil as a bare number in the fuel's implicit billing unit, stated by the auditor; overrides the software's EIA regional default.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Per-unit price override for electricity ("nine cents a kilowatt hour" -> 0.09) — same implicit-unit rule. */
+      utilityPriceElectricity: z
+        .number()
+        .describe(
+          "Per-unit price for electricity as a bare number in the implicit billing unit, stated by the auditor; overrides the software's EIA regional default.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * Per-unit price for wood — the vendor keeps NO default for this fuel, so
+       * it must be filled when wood is in use. Same implicit-unit rule.
+       */
+      utilityPriceWood: z
+        .number()
+        .describe(
+          "Per-unit price for wood as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever wood is in use.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Per-unit price for pellets — no vendor default exists; required when pellets are in use. */
+      utilityPricePellets: z
+        .number()
+        .describe(
+          "Per-unit price for pellets as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever pellets are in use.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Per-unit price for coal — no vendor default exists; required when coal is in use. */
+      utilityPriceCoal: z
+        .number()
+        .describe(
+          "Per-unit price for coal as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever coal is in use.",
+        )
+        .nullable()
+        .optional(),
+
+      /** Per-unit price for kerosene — no vendor default exists; required when kerosene is in use. */
+      utilityPriceKerosene: z
+        .number()
+        .describe(
+          "Per-unit price for kerosene as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever kerosene is in use.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * The electric rate plan's name as spoken, FREE TEXT: the spec declares
+       * this field with `enum: []` and publishes no value list (doc 20 §4.5), so
+       * the spoken name reaches review intact rather than being forced onto an
+       * invented list — the `hvacDuctLocation` precedent.
+       */
+      electricRatePlan: z
+        .string()
+        .describe(
+          "The electric utility rate plan's name as spoken, free text — the vendor publishes no value list for this field.",
+        )
+        .nullable()
+        .optional(),
+
+      /** The fuel rate plan's name as spoken — free text, same unpublished-enum treatment. */
+      fuelRatePlan: z
+        .string()
+        .describe(
+          "The utility fuel rate plan's name as spoken, free text — the vendor publishes no value list for this field.",
+        )
+        .nullable()
+        .optional(),
+
+      /**
+       * The POST-RETROFIT electric rate plan's name — a proposal scenario, not
+       * an observed site condition, which is why doc 20 §5.2 3.6 verdicts it
+       * only `capture?`. Free text (unpublished value list); set it only when a
+       * future rate plan is explicitly proposed, never the current plan
+       * repeated.
+       */
+      electricRatePlanImproved: z
+        .string()
+        .describe(
+          "The post-retrofit electric rate plan's name as spoken, free text — a proposal scenario, not an observed condition; set it only when a future rate plan is explicitly proposed.",
+        )
+        .nullable()
+        .optional(),
+    }),
+  )
+  .strict();
+
 // --- The field set, as a writable patch --------------------------------------
 // Every leaf is `X.nullable().optional()` and every object is `.strict()`; see
 // the file header for why both halves are load-bearing.
@@ -2776,7 +3140,7 @@ export const StageFields = z
 // Per-instance child resources (the component resources plus `concern` and
 // `incentive` — the API creates one record per element with
 // `POST /jobs/{jobId}/<type>`) are `z.array(...).optional()`. `basedata`,
-// `health` and `stage` are genuine singletons and stay objects.
+// `health`, `stage` and `utilities` are genuine singletons and stay objects.
 
 export const snuggValuesSchema = z
   .object({
@@ -2791,6 +3155,7 @@ export const snuggValuesSchema = z
     concern: z.array(ConcernFields).optional(),
     incentive: z.array(IncentiveFields).optional(),
     stage: StageFields.optional(),
+    utilities: UtilitiesFields.optional(),
   })
   .strict();
 

@@ -11050,6 +11050,895 @@
       },
       "required": ["stageId"],
       "additionalProperties": false
+    },
+    "utilities": {
+      "type": "object",
+      "properties": {
+        "billEntryType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Detailed", "Simple", "No Bills"],
+                  "description": "Choose a method of utility bill entry. Always use detailed bills if you have 13 months of meter read dates with associated fuel and electricity usage. Detailed bills will provide more accurate energy savings estimates. If you can get monthly bills that cover the primary heating and cooling season, then choose detailed bills. Simple Bills can be used if the home has not been occupied by the current occupants for more than 13 months or you don't have access to detailed bills for the current occupants. You can typically get the high and low bills for gas and electric for any address by calling the utility's customer service number and requesting it (even without permission of the tenants at the time). Which bill-entry mode the job uses. Set it only when the auditor explicitly states the mode; never derive it from which other fields filled."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "detailedElectricDataSource": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Manual", "Green Button"],
+                  "description": "Choose a data source of electric utility bill entry. Where the detailed electric bill data came from. Set only when the auditor explicitly states it; never assume an import mechanism."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "detailedFuelDataSource": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Manual", "Green Button"],
+                  "description": "Choose a data source of primary fuel utility bill entry. Where the detailed fuel bill data came from. Set only when the auditor explicitly states it; never assume an import mechanism."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "electricUtilityProviderName": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the name of the electric utility provider. This is an optional field for most users, but could be required for certain efficiency programs. The electric utility provider's name as spoken, free text."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "fuelUtilityProviderName": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the name of the fuel utility provider. This is an optional field for most users, but could be required for certain efficiency programs. The fuel utility provider's name as spoken, free text."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "additionalFuelUtilityProviderName": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the name of an additional fuel utility provider if applicable. This is an optional field for most users, but could be required for certain efficiency programs. A second fuel utility provider's name as spoken, free text — the only affordance for a second fuel on this endpoint."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "highestMonthlySummerElectricBill": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the amount of the highest monthly summertime electricity bill for the home during the past 12 months. Summertime is typically those months when many buildings would use air conditioning to cool the building. If the home is on a budget plan where the monthly electricity bills are all the same, the highest bill can be estimated by looking for the summer month with the highest electricity usage and then multiplying that amount by the electricity rate being charged. **Notes:** Applicable to bills of `Simple` entry type The highest monthly summer electric bill in dollars as stated — a bill total, not a per-unit price."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "highestMonthlyWinterElectricBill": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the amount of the highest monthly winter electric bill for the home during the past 12 months. If the home is on a budget plan where the monthly electricity bills are all the same, the highest bill can be estimated by looking for the winter month with the highest electricity usage and then multiplying that amount by the electricity rate being charged. **Notes:** Applicable to bills of `Simple` entry type The highest monthly winter electric bill in dollars as stated — a bill total, not a per-unit price."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "lowestMonthlyElectricBill": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the amount of the lowest of all the monthly electricity bills for the home during the past 12 months. If the home is on a budget plan where the monthly electricity bills are all the same, the lowest bill can be estimated by looking for the month with the lowest electricity usage and then multiplying that amount by the electricity rate being charged. **Notes:** Applicable to bills of `Simple` entry type The lowest monthly electric bill in dollars as stated — a bill total."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "highestMonthlyWinterNaturalGasBill": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the amount of the highest monthly winter gas bill for the home during the past 12 months. If the home is on a budget plan where the monthly gas bills are all the same, the highest bill can be estimated by looking for the winter month with the highest gas usage and then multiplying that amount by the gas rate being charged. If the home is heated by more than one type of fuel, use the bill from the type which provides the heat for the largest area of the home. **Notes:** Applicable to bills of `Simple` entry type The highest monthly winter bill of the heating fuel in dollars as stated — the fuel heating the largest area when several are in play."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "lowestMonthlyNaturalGasBill": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This is typically in the summer time when you're only using fuel for hot water and cooking. If the home uses more than one type, use the bill from the type which is used the most within the home. **Notes:** Applicable to bills of `Simple` entry type The lowest monthly bill of the heating fuel in dollars as stated — typically a summer, hot-water-and-cooking-only month."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "simpleFuelUnits": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Gallons", "Dollars"],
+                  "description": "**Notes:** Applicable to bills of `Simple` entry type Whether the simple fuel total is counted in gallons delivered or dollars spent — the unit qualifier on totalSimpleFuelUsedInLast12Months, not a bill figure of its own."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "totalSimpleFuelUsedInLast12Months": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Take a look at your delivery receipts and add up the total gallons delivered over the past 12 months. If you don't have information on the gallons, you can look at bank statements, etc. to total up how much you've spent on deliveries over the past 12 months. **Notes:** Applicable to bills of `Simple` entry type Total fuel used over the past twelve months as a bare number, in whichever unit simpleFuelUnits names — gallons delivered or dollars spent."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "primaryHeatingFuelType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Natural Gas",
+                    "Electricity",
+                    "Fuel Oil",
+                    "Propane",
+                    "Wood",
+                    "Pellets",
+                    "Solar",
+                    "Coal",
+                    "Kerosene"
+                  ],
+                  "description": "This is the primary fuel source. It is used to set prices and energy content. **Notes:** Applicable to bills of `Detailed` entry type The home's primary heating fuel. Set it only when the auditor says which fuel primarily heats the home — never inferred from which equipment was mentioned."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "electricBillUnits": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["kWh", "Dollars"],
+                  "description": "Enter the units used for the electric bills. This is a required field if you're going to use Detailed Bills. For best results, utilize the kWh option instead of dollars for more accurate representations of the home. **Notes:** Applicable to bills of `Detailed` entry type"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "fuelBillUnits": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Therms", "Gallons", "Dollars", "MCFs", "Cords", "Pounds", "Tons"],
+                  "description": "The units used for the fuel bills. This is a required field if you're going to use Detailed Bills. For best results, utilize the kWh option instead of dollars for more accurate representations of the home. **Notes:** Applicable to bills of `Detailed` entry type The unit the fuel bill figures are entered in. The vendor's description mentions a kWh option, but kWh is NOT a member of this list — never emit it here."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPriceNaturalGas": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter a your own price for Natural Gas to override the software's existing regional defaults from the EIA. Per-unit price for natural gas as a bare number in the fuel's implicit billing unit, stated by the auditor; overrides the software's EIA regional default."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPricePropane": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter a your own price for Propane to override the software's existing regional defaults from the EIA. Per-unit price for propane as a bare number in the fuel's implicit billing unit, stated by the auditor; overrides the software's EIA regional default."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPriceFuelOil": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter a your own price for Fuel Oil to override the software's existing regional defaults from the EIA. Per-unit price for fuel oil as a bare number in the fuel's implicit billing unit, stated by the auditor; overrides the software's EIA regional default."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPriceElectricity": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter a your own price for Electricity to override the software's existing regional defaults from the EIA. Per-unit price for electricity as a bare number in the implicit billing unit, stated by the auditor; overrides the software's EIA regional default."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPriceWood": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter a your own price for wood. We do not have default costs for wood, therefore this must be filled out unless the wood supply is free. Per-unit price for wood as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever wood is in use."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPricePellets": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter a your own price for wood pellets. We do not have default costs for wood pellets, therefore this must be filled out if pellets are chosen in the heating system fuel options. Per-unit price for pellets as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever pellets are in use."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPriceCoal": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter your own price for coal. We do not have default costs for coal, therefore this must be filled out if coal is chosen in heating fuel options. Per-unit price for coal as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever coal is in use."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPriceKerosene": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter your own price for kerosene. We do not have default costs for kerosene, therefore this must be filled out if kerosene is chosen in heating fuel options. Per-unit price for kerosene as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever kerosene is in use."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "electricRatePlan": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The electric utility rate plan's name as spoken, free text — the vendor publishes no value list for this field."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "fuelRatePlan": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the name of the utility fuel rate plan. For gas, the same rate plan is used for both Base and Improved; separate Improved Fuel Rate Plans are not supported. The utility fuel rate plan's name as spoken, free text — the vendor publishes no value list for this field."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "electricRatePlanImproved": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The post-retrofit electric rate plan's name as spoken, free text — a proposal scenario, not an observed condition; set it only when a future rate plan is explicitly proposed."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "billEntryType",
+        "detailedElectricDataSource",
+        "detailedFuelDataSource",
+        "electricUtilityProviderName",
+        "fuelUtilityProviderName",
+        "additionalFuelUtilityProviderName",
+        "highestMonthlySummerElectricBill",
+        "highestMonthlyWinterElectricBill",
+        "lowestMonthlyElectricBill",
+        "highestMonthlyWinterNaturalGasBill",
+        "lowestMonthlyNaturalGasBill",
+        "simpleFuelUnits",
+        "totalSimpleFuelUsedInLast12Months",
+        "primaryHeatingFuelType",
+        "electricBillUnits",
+        "fuelBillUnits",
+        "utilityPriceNaturalGas",
+        "utilityPricePropane",
+        "utilityPriceFuelOil",
+        "utilityPriceElectricity",
+        "utilityPriceWood",
+        "utilityPricePellets",
+        "utilityPriceCoal",
+        "utilityPriceKerosene",
+        "electricRatePlan",
+        "fuelRatePlan",
+        "electricRatePlanImproved"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [
@@ -11063,7 +11952,8 @@
     "health",
     "concern",
     "incentive",
-    "stage"
+    "stage",
+    "utilities"
   ],
   "additionalProperties": false
 }
