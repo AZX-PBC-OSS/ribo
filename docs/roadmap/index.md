@@ -298,6 +298,13 @@ So nobody re-litigates it:
   `azure-stt` secret is a plain header injection. Container support, latency and the phrase list are
   **measured against the real endpoint**, not assumed (§6, §7). Its
   [plan](design/managed-transcription-plan.md) is 8 tasks, none started.
+- [Photo Capture and Image Transcription — Design](design/photo-capture-design.md) — capturing a
+  photo of a nameplate or meter face and transcribing it to text on-device, flowing through the
+  existing `extract → review → write` pipeline unchanged. Two candidate engines — Chrome's Prompt
+  API with multimodal image input, and transformers.js with a small vision model over WebGPU —
+  compose via `firstCapable` / `fallbackTranscriber`. **Pre-measurement**: the design recommends
+  measuring image-input availability, download size, latency, and nameplate accuracy before
+  building, and does not state any of those as facts.
 
 ## Phase records
 
