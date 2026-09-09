@@ -353,8 +353,8 @@ test("hands the transcriber the recording metadata and the attachment bytes", as
 
   expect(fake(harness).calls).toHaveLength(1);
   const call = fake(harness).calls[0]!;
-  expect(call.recording).toMatchObject({ id: "rec-1", mimeType: "audio/webm;codecs=opus" });
-  expect(new Uint8Array(await call.audio.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
+  expect(call.item).toMatchObject({ id: "rec-1", mimeType: "audio/webm;codecs=opus" });
+  expect(new Uint8Array(await call.bytes.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
 });
 
 test("a document round-trips the relay — queued → transcribing → transcribed", async () => {
@@ -1415,7 +1415,7 @@ test("with dropAudioAfterTranscription, a FAILED transcription retains the audio
 
   expect((await outbox.get(item.id))?.status).toBe("transcribed");
   expect(fake(harness).calls).toHaveLength(2);
-  expect(new Uint8Array(await fake(harness).calls[1]!.audio.arrayBuffer())).toEqual(
+  expect(new Uint8Array(await fake(harness).calls[1]!.bytes.arrayBuffer())).toEqual(
     new Uint8Array([1, 2, 3, 4]),
   );
   // Only now, after the successful attempt, is it gone.

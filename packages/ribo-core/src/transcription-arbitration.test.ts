@@ -121,7 +121,7 @@ describe("unsupportedFallsThrough", () => {
   test("rule 2: at exhaustion, gives up with the retryable error over a terminal one", () => {
     const terminal = unsupported("pdfjs"); // UnsupportedItemError is terminal
     const retryable = new Error("OCR service 503");
-    (retryable as { status: number }).status = 503;
+    Object.assign(retryable, { status: 503 });
     expect(isTransientFailure(terminal)).toBe(false);
     expect(isTransientFailure(retryable)).toBe(true);
 
