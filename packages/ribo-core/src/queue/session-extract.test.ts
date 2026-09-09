@@ -171,8 +171,9 @@ test("page markers survive into the extractor's input", async () => {
 // (`\n===== CAPTURE seq:N kind:K id:I =====\n`). The option defaults to off so
 // existing callers see the same text they always have. These tests were verified
 // by mutation: dropping the marker prefix turns the first red, unconditionally
-// emitting markers turns the second red, and wrapping the transcript text inside
-// the marker (instead of beside it) turns the third red.
+// emitting markers turns the second red, and modifying the transcript text
+// (uppercasing it) turns the third red — `isSpanGrounded` is verbatim and
+// case-sensitive, so the marker must sit beside the text, not alter it.
 
 test("per-capture markers delimit each capture's text when markCaptures is true", async () => {
   const outbox = await freshOutbox();
