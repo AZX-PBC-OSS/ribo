@@ -33,6 +33,17 @@ export type { PerGroupOptions } from "./per-group.js";
 export { instanceLadder } from "./instance-ladder.js";
 export type { InstanceLadderOptions } from "./instance-ladder.js";
 
+// The gap-fill combinator: wraps a base extractor with one bounded follow-up
+// call over leaves that abstained despite quoting evidence. The leaf-walk and
+// merge helpers are exported for testing, as `buildGroupMessages` is.
+export {
+  findAbstainedLeaves,
+  formatLeafPath,
+  gapFillExtractor,
+  mergeGapFilledLeaves,
+} from "./gap-fill.js";
+export type { AbstainedLeaf, GapFillOptions } from "./gap-fill.js";
+
 // Per-group prompt assembly: `buildGroupMessages` builds per-group chat messages
 // (instructions + projected examples + transcript), and `projectExample` narrows
 // a few-shot example to a single group's key. Exported for testing (R3 Task 4).
