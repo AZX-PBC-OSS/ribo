@@ -81,6 +81,7 @@ export type {
 } from "./session-schema.js";
 
 export { joinSessionTranscript } from "./session-extract.js";
+export type { JoinSessionTranscriptOptions } from "./session-extract.js";
 
 export {
   chunkName,
