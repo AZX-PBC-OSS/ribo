@@ -80,6 +80,8 @@ export type {
   SessionStatus,
 } from "./session-schema.js";
 
+export { joinSessionTranscript } from "./session-extract.js";
+
 export {
   chunkName,
   chunkPrefix,

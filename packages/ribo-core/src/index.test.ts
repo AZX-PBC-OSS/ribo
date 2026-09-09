@@ -81,6 +81,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "isPermanentlyUnavailable",
     "isSpanGrounded",
     "isTransientFailure",
+    "joinSessionTranscript",
     "negotiateMimeType",
     "openCaptureSession",
     "openOutbox",
