@@ -10,6 +10,7 @@ import { isTransientFailure, TerminalQueueError } from "./queue/backoff.js";
 import { removeOutboxDatabase } from "./queue/database.js";
 import { openOutbox, type Outbox } from "./queue/outbox.js";
 import { createRelay } from "./queue/relay.js";
+import { restrictToKind } from "./restrict-to-kind.js";
 import { sessionItemSchema, type SessionItem } from "./queue/session-schema.js";
 import { toWriteStep } from "./write-step.js";
 
@@ -319,6 +320,7 @@ test("the relay records a terminal write failure as dead on the first attempt, n
     recording: {
       id: "rec-1",
       capturedAt: "2026-07-23T14:02:00.000Z",
+      kind: "audio",
       durationMs: 8_400,
       mimeType: "audio/webm;codecs=opus",
       ctx: { jobId: "job-7" },
@@ -348,7 +350,7 @@ test("the relay records a terminal write failure as dead on the first attempt, n
 
   const relay = createRelay({
     outbox,
-    transcriber: new FakeTranscriber(),
+    transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: () => Promise.reject(new Error("extraction should not run")),
     sessionWrite: toWriteStep(makeAdapter(written)),
   });

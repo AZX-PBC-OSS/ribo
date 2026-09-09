@@ -25,6 +25,7 @@ import { writeRtfVerdict } from "./rtf-verdict.js";
 const CALIBRATION_RECORDING: Recording = {
   id: "ribo-calibration",
   capturedAt: "2026-08-17T00:00:00.000Z",
+  kind: "audio",
   durationMs: CALIBRATION_CLIP_DURATION_MS,
   mimeType: CALIBRATION_CLIP_MIME_TYPE,
   ctx: {},

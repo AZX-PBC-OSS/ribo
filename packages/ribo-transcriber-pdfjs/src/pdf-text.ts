@@ -1,0 +1,254 @@
+import { UnsupportedItemError } from "@azx/ribo-core";
+
+import { layoutPageText, type PageLayoutOptions } from "./page-layout.js";
+
+import { isPdfTextItem } from "./config.js";
+import type { PdfDocumentProxy, PdfjsModule } from "./config.js";
+
+/**
+ * @file pdf.js text extraction: the lazy import, the page-marker format, the
+ * open-handle shape, and the exception mapping.
+ *
+ * The reference implementation is `pdfToText` in the abode spike
+ * (`~/projects/clients/abode/spike/app/app.js`), already run against 15 real
+ * PDFs. This module is that plus the contract wrapper and the
+ * {@link DEFAULT_NO_TEXT_LAYER_THRESHOLD | no-text-layer} guard.
+ */
+
+/**
+ * The page-marker prefix. The full marker for page `n` is
+ * `` `${PAGE_MARKER}${n} =====\n` ``, numbered from **1**. The markers exist so
+ * a value can be attributed to the page it came from — one real report
+ * specifies equipment on its Manual S pages and again, differently, on page 24.
+ *
+ * A downstream prompt is written against this exact form. Do not change it
+ * without updating every consumer.
+ */
+export const PAGE_MARKER = "\n===== PAGE ";
+
+// ---------------------------------------------------------------------------
+// Memoized lazy import
+// ---------------------------------------------------------------------------
+
+/**
+ * The memoized pdf.js module promise. `undefined` until the first call, then a
+ * single promise reused across all subsequent calls. The memoization is the
+ * whole reason for the dynamic import — pdf.js is ~89 KB gzipped plus a ~387 KB
+ * worker, and neither may load for a consumer that never transcribes a document.
+ */
+let pdfjsPromise: Promise<PdfjsModule> | undefined;
+
+/**
+ * Loads pdf.js via a memoized dynamic `import()`, setting the worker URL on
+ * first load. The `loadFn` parameter is the injection point for tests; the
+ * default lazy-imports `pdfjs-dist`.
+ *
+ * The worker URL is set once on the first load and reused. In practice there is
+ * one worker URL per app (the host serves one worker file), so this is correct.
+ */
+function loadPdfjs(workerSrc: string, loadFn: () => Promise<PdfjsModule>): Promise<PdfjsModule> {
+  pdfjsPromise ??= loadFn().then((m) => {
+    m.GlobalWorkerOptions.workerSrc = workerSrc;
+    return m;
+  });
+  return pdfjsPromise;
+}
+
+/**
+ * Resets the memoized pdf.js promise. Exposed so tests can verify the
+ * memoization: call `resetPdfjsCache()` between assertions to force the next
+ * load to re-invoke the loader.
+ *
+ * @internal Not part of the stable public API.
+ */
+export function resetPdfjsCache(): void {
+  pdfjsPromise = undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Exception mapping
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps pdf.js's own password / invalid-PDF exceptions to
+ * {@link UnsupportedItemError}. **Anything else rethrows unchanged** — that is
+ * an attempt failure and the queue owns it. Getting this mapping too greedy is
+ * how a transient failure becomes a permanent `dead`.
+ *
+ * Identification is by `name` rather than `instanceof`: the exceptions come
+ * from the dynamically imported module, and the class identities in that
+ * module are not the same as any statically imported ones.
+ */
+function mapPdfException(e: unknown, engine: string): never {
+  const name = (e as { name?: string } | null)?.name;
+  if (name === "PasswordException") {
+    throw new UnsupportedItemError({
+      engine,
+      reason: "encrypted",
+      detail: "The document is password-protected and no password was supplied.",
+      cause: e,
+    });
+  }
+  if (name === "InvalidPDFException") {
+    throw new UnsupportedItemError({
+      engine,
+      reason: "unsupported-format",
+      detail: "The bytes are not a valid or readable PDF document.",
+      cause: e,
+    });
+  }
+  throw e;
+}
+
+// ---------------------------------------------------------------------------
+// Open-handle shape (D8)
+// ---------------------------------------------------------------------------
+
+/**
+ * The handle returned by {@link openDocument}. Carries `pageCount` — free the
+ * moment the document is open — plus a separate call that reads the marked-up
+ * text.
+ *
+ * **Why this shape and not "return text and page count" (D8).** A
+ * `DocumentCapture` requires `pageCount` at enqueue time, and counting pages
+ * needs a PDF parser. Without this handle a host loads a second copy of pdf.js
+ * to fill in one field, defeating the memoization. With it, a host calls
+ * {@link openDocument} to get `pageCount` immediately (no per-page
+ * `getTextContent()` sweep), and `transcribe()` calls both `openDocument` and
+ * `readText`. That is a smaller API than the alternative, not a bigger one.
+ *
+ * What reads `pageCount`: a capture UI listing what is queued, the same way
+ * `QueuePanel` reads `durationMs` today. It is required rather than optional
+ * for the same reason — an absent count and a count of zero must stay
+ * distinguishable.
+ */
+export interface OpenDocumentHandle {
+  /** The number of pages in the document, from `doc.numPages`. Free once open. */
+  readonly pageCount: number;
+  /** Read the full document text with page markers. Does the per-page sweep. */
+  readonly readText: () => Promise<string>;
+}
+
+export interface OpenDocumentOptions {
+  /** The pdf.js worker URL — injected by the consumer (AGENTS.md §5.2). */
+  readonly workerSrc: string;
+  /** Injected loader for tests. Defaults to a memoized `import("pdfjs-dist")`. */
+  readonly loadPdfjs?: () => Promise<PdfjsModule>;
+  /** The engine id, stamped onto `UnsupportedItemError` for exception mapping. */
+  readonly engine: string;
+  /**
+   * Thresholds for rebuilding visual reading order from item geometry. Every
+   * field is optional and defaulted; see `page-layout.ts` for what each does
+   * and why its default is provisional.
+   */
+  readonly layout?: PageLayoutOptions;
+}
+
+/**
+ * Opens a PDF over the memoized pdf.js import, yielding {@link pageCount}
+ * immediately plus a {@link OpenDocumentHandle.readText | readText} handle for
+ * the full text sweep.
+ *
+ * The encrypted / invalid-PDF exception mapping lives here so both the
+ * capture-path (a host counting pages) and the transcribe-path inherit it — a
+ * host enqueuing a document hits it first, and must get an
+ * `UnsupportedItemError` rather than a raw pdf.js exception.
+ */
+export async function openDocument(
+  bytes: Blob,
+  options: OpenDocumentOptions,
+): Promise<OpenDocumentHandle> {
+  const pdfjs = await loadPdfjs(
+    options.workerSrc,
+    options.loadPdfjs ?? (async () => (await import("pdfjs-dist")) as unknown as PdfjsModule),
+  );
+
+  const buf = await bytes.arrayBuffer();
+  let doc: PdfDocumentProxy;
+  try {
+    doc = await pdfjs.getDocument({ data: buf }).promise;
+  } catch (e) {
+    mapPdfException(e, options.engine);
+  }
+
+  return {
+    pageCount: doc.numPages,
+    readText: async () => {
+      const pages: string[] = [];
+      for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i);
+        const content = await page.getTextContent();
+        // Rebuild visual reading order from each item's geometry rather than
+        // concatenating in content-stream order. `item.hasEOL` is deliberately
+        // NOT used any more: it reports a line break in the drawing order,
+        // which on a real invoice put `Subtotal` about a thousand characters
+        // from `$70,903.33`. Baseline clustering derives line structure from
+        // where the text actually sits, which is the thing hasEOL was standing
+        // in for. See `page-layout.ts` for the measurement and the trade-offs.
+        pages.push(
+          PAGE_MARKER +
+            i +
+            " =====\n" +
+            layoutPageText(
+              // Marked-content boundaries carry no text and no geometry, so they
+              // are filtered out rather than defaulted to the page origin.
+              content.items.filter(isPdfTextItem).map((it) => ({
+                str: it.str,
+                x: it.transform[4],
+                y: it.transform[5],
+                width: it.width,
+                height: it.height,
+              })),
+              options.layout ?? {},
+            ) +
+            "\n",
+        );
+      }
+      return pages.join("");
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Full text read with no-text-layer guard
+// ---------------------------------------------------------------------------
+
+export interface ReadDocumentTextOptions extends OpenDocumentOptions {
+  /** Minimum non-whitespace characters for the no-text-layer guard. */
+  readonly noTextLayerThreshold: number;
+}
+
+/**
+ * Opens a document and reads its full text with page markers, applying the
+ * no-text-layer guard. This is the convenience function `transcribe()` uses;
+ * a host enqueuing a document uses {@link openDocument} for `pageCount` only.
+ *
+ * The guard strips page markers and all whitespace, and if what remains is
+ * under `noTextLayerThreshold`, throws `UnsupportedItemError` with reason
+ * `"no-text-layer"`. A scanned PDF often yields a handful of stray characters
+ * from a header stamp, so zero is the wrong bar and any specific number is a
+ * guess until it has met real scans.
+ */
+export async function readDocumentText(
+  bytes: Blob,
+  options: ReadDocumentTextOptions,
+): Promise<{ text: string; pageCount: number }> {
+  const handle = await openDocument(bytes, options);
+  const text = await handle.readText();
+
+  // Strip page markers and whitespace; what remains is the real text content.
+  const stripped = text.replace(/===== PAGE \d+ =====/g, "").replace(/\s/g, "");
+  if (stripped.length < options.noTextLayerThreshold) {
+    throw new UnsupportedItemError({
+      engine: options.engine,
+      reason: "no-text-layer",
+      detail:
+        `The document yielded only ${stripped.length} non-whitespace character` +
+        `${stripped.length === 1 ? "" : "s"} ` +
+        `(threshold: ${options.noTextLayerThreshold}). ` +
+        "A scanned PDF with no OCR layer typically produces a few stray characters from a header stamp.",
+    });
+  }
+
+  return { text, pageCount: handle.pageCount };
+}

@@ -163,6 +163,15 @@ export default defineConfig({
             "packages/*/src/**/*.browser.test.{ts,tsx}",
             "playground/src/**/*.browser.test.{ts,tsx}",
           ],
+          // One Chromium instance, shared event loop. Parallel files contend for
+          // that loop, and the live transcription tests are timing-sensitive
+          // (they wait for audio-capture callbacks to fire within a deadline).
+          // Adding a new browser test file (e.g. pdf-text.browser.test.ts)
+          // increases the parallel load enough to make the live tests time out
+          // consistently. Running files sequentially — the same approach the e2e
+          // project takes — eliminates the interference at the cost of a slower
+          // browser stage.
+          fileParallelism: false,
           // Deliberately generous. The FIRST `getUserMedia` call in a cold
           // Chromium takes seconds (measured: ~9.9s cold, ~74ms warm) while the
           // fake-device audio subsystem spins up. CI is cold every run, so the

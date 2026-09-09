@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { FakeExtractor, toSessionExtractStep } from "./extractor.js";
 import { FakeTranscriber } from "./fake-transcriber.js";
+import { restrictToKind } from "./restrict-to-kind.js";
 import { removeOutboxDatabase } from "./queue/database.js";
 import { openOutbox, type Outbox } from "./queue/outbox.js";
 import { createRelay } from "./queue/relay.js";
@@ -25,6 +26,7 @@ interface AtticFields extends Record<string, unknown> {
 const recording: Recording = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
+  kind: "audio",
   durationMs: 1000,
   mimeType: "audio/webm;codecs=opus",
   ctx: { jobId: "job-7" },
@@ -67,7 +69,7 @@ test("a FakeExtractor substitutes into createRelay and its fields land on sessio
   // itself is touched.
   const relay = createRelay({
     outbox,
-    transcriber: new FakeTranscriber({ text: "the attic is R-19" }),
+    transcriber: restrictToKind("audio", new FakeTranscriber({ text: "the attic is R-19" })),
     sessionExtract: toSessionExtractStep(extractor),
     sessionWrite: async () => undefined,
   });

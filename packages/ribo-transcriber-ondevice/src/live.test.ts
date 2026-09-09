@@ -16,6 +16,7 @@ import type { MainToWorkerMessage, WorkerToMainMessage } from "./protocol.js";
 const recording: Recording = {
   id: "rec-live-1",
   capturedAt: "2026-08-12T10:00:00.000Z",
+  kind: "audio",
   durationMs: 0,
   mimeType: "audio/webm;codecs=opus",
   ctx: {},

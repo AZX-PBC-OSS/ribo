@@ -1,3 +1,4 @@
+import type { CaptureItem } from "./capture-item.js";
 import type { Recording } from "./recording.js";
 import type { Transcript } from "./transcript.js";
 
@@ -102,14 +103,50 @@ export function isPermanentlyUnavailable(capability: TranscriberCapability): boo
 }
 
 /**
- * Turns captured audio into a {@link Transcript}.
+ * Turns captured bytes into a {@link Transcript}.
  *
- * The audio bytes are passed separately from the {@link Recording} on purpose: `Recording` is
- * the metadata record, and the blob is held by the queue (see `recording.ts`). An implementation
- * gets both, and returns a transcript whose `recordingId` ties it back to the record it came
- * from and whose `engine` records that this implementation is what produced it.
+ * The bytes are passed separately from the capture record on purpose: the record
+ * is metadata, and the blob is held by the queue (see `recording.ts`). An
+ * implementation gets both, and returns a transcript whose `recordingId` ties it
+ * back to the record it came from and whose `engine` records that this
+ * implementation is what produced it.
+ *
+ * Generic over the capture kind: `Transcriber<Recording>` is an audio-only
+ * engine (the default, so bare `Transcriber` keeps meaning exactly what it did
+ * before documents existed), `Transcriber<DocumentCapture>` is a document
+ * engine, and `Transcriber<CaptureItem>` is an engine that can accept either.
+ *
+ * `transcribe` is declared as a **function-typed property, not a method**.
+ * Method parameters are exempt from `strictFunctionTypes` and compared
+ * bivariantly, so with method syntax an audio-only `Transcriber<Recording>`
+ * would slide unchallenged into a `Transcriber<CaptureItem>` slot — which is
+ * the bug this contract exists to prevent. A property declaration makes that
+ * assignment a type error, which is what sends a host to `restrictToKind`.
+ * A class written with an ordinary `async transcribe(…)` method still satisfies
+ * the property-typed interface — variance only matters when comparing two
+ * _instantiations_ of the interface.
+ *
+ * Three kinds of failure, and **conflating them is the bug this contract exists
+ * to prevent**:
+ *
+ * - **Attempt failure** — this clip OOMed, this inference threw, this request
+ *   503'd. Throw anything (`Error`, a fetch rejection, a `TerminalQueueError`).
+ *   The queue owns it: `isTransientFailure`, jittered backoff and `maxAttempts`
+ *   already do exactly the right thing, and a selection combinator must let it
+ *   straight through. One bad clip must never demote a device to the cloud for
+ *   good.
+ * - **Capability failure** — the runtime would not init, the weights will not
+ *   load, this device cannot do this. Throw {@link TranscriberUnavailableError}.
+ *   That is the signal that falling back is correct and that the earlier
+ *   `capability()` answer was wrong and should be replaced.
+ * - **Item unsuitability** — this engine cannot handle this item, and that says
+ *   nothing about the engine. Throw {@link UnsupportedItemError}. A scanned PDF
+ *   with no text layer is perfectly transcribable — by OCR — so the correct
+ *   response is to try the next engine, not to retry this one. The error is
+ *   terminal for the queue (so it does not burn the retry budget) but not for
+ *   the item (a composition layer routes to the next engine).
  */
-export interface Transcriber {
+export interface Transcriber<S extends CaptureItem = Recording> {
   /**
    * Stable, opaque id for this engine. Goes into every `Transcript.engine` it produces, so it
    * ends up persisted in the outbox — keep it short and stable across versions.
@@ -131,21 +168,12 @@ export interface Transcriber {
   capability(): Promise<TranscriberCapability>;
 
   /**
-   * Transcribe one recording.
+   * Transcribe one capture item.
    *
-   * Two kinds of failure, and **conflating them is the bug this contract exists to prevent**:
-   *
-   * - **Attempt failure** — this clip OOMed, this inference threw, this request 503'd. Throw
-   *   anything (`Error`, a fetch rejection, a `TerminalQueueError`). The queue owns it:
-   *   `isTransientFailure`, jittered backoff and `maxAttempts` already do exactly the right
-   *   thing, and a selection combinator must let it straight through. One bad clip must never
-   *   demote a device to the cloud for good.
-   * - **Capability failure** — the runtime would not init, the weights will not load, this
-   *   device cannot do this. Throw {@link TranscriberUnavailableError}. That is the signal that
-   *   falling back is correct and that the earlier `capability()` answer was wrong and should be
-   *   replaced.
+   * See the interface doc for the three failure kinds and why conflating them is the bug
+   * this contract exists to prevent.
    */
-  transcribe(recording: Recording, audio: Blob): Promise<Transcript>;
+  transcribe: (item: S, bytes: Blob) => Promise<Transcript>;
 }
 
 export interface TranscriberUnavailableInit {
@@ -165,6 +193,10 @@ export interface TranscriberUnavailableInit {
  * which is the correct answer: the item should be retried, because the next attempt re-probes
  * and may route to a different engine entirely. The queue's vocabulary is reused rather than
  * duplicated — there is no second retry classifier here, and there must never be one.
+ *
+ * Contrast {@link UnsupportedItemError}, which _is_ terminal: "this engine cannot handle this
+ * item" will not change on the next attempt, while "this engine cannot run here" might. The two
+ * sit on opposite sides of that line on purpose.
  *
  * The exception is a roster on which *every* engine is permanently unavailable; only
  * {@link firstCapable} can know that, and it throws a `TerminalQueueError` instead.

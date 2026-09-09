@@ -6,11 +6,13 @@ import {
   FakeTranscriber,
 } from "./fake-transcriber.js";
 import type { Recording } from "./recording.js";
+import { UnsupportedItemError } from "./unsupported-item.js";
 import { TranscriberUnavailableError, type Transcriber } from "./transcriber.js";
 
 const recording = (id = "rec-1"): Recording => ({
   id,
   capturedAt: "2026-07-23T10:00:00.000Z",
+  kind: "audio",
   durationMs: 1_200,
   mimeType: "audio/webm",
   ctx: {},
@@ -87,9 +89,9 @@ test("records every call so a pipeline test can assert what it was handed", asyn
   await transcriber.transcribe(recording("rec-2"), blob);
 
   expect(transcriber.calls).toHaveLength(2);
-  expect(transcriber.calls[0]?.recording.id).toBe("rec-1");
-  expect(transcriber.calls[0]?.audio).toBe(blob);
-  expect(transcriber.calls[1]?.recording.id).toBe("rec-2");
+  expect(transcriber.calls[0]?.item.id).toBe("rec-1");
+  expect(transcriber.calls[0]?.bytes).toBe(blob);
+  expect(transcriber.calls[1]?.item.id).toBe("rec-2");
 });
 
 test("failWith makes every subsequent call reject", async () => {
@@ -204,6 +206,31 @@ test("failWithUnavailable simulates a capability failure discovered mid-attempt"
   expect(rejection).toBeInstanceOf(TranscriberUnavailableError);
   expect((rejection as TranscriberUnavailableError).engine).toBe("ondevice-whisper");
   expect((rejection as TranscriberUnavailableError).reason).toBe("unsupported-platform");
+});
+
+test("failWithUnsupported simulates an item-unsuitability failure, leaving capability untouched", async () => {
+  const transcriber = new FakeTranscriber({ engine: "pdfjs" });
+  transcriber.failWithUnsupported("no-text-layer", "scanned PDF");
+
+  // Capability stays ready — the engine is fine, the item is the wrong kind.
+  await expect(transcriber.capability()).resolves.toEqual({ status: "ready" });
+  const rejection = await transcriber.transcribe(recording(), audio()).catch((e: unknown) => e);
+
+  expect(rejection).toBeInstanceOf(UnsupportedItemError);
+  expect((rejection as UnsupportedItemError).engine).toBe("pdfjs");
+  expect((rejection as UnsupportedItemError).reason).toBe("no-text-layer");
+});
+
+test("failNextWithUnsupported rejects once with UnsupportedItemError, then recovers", async () => {
+  const transcriber = new FakeTranscriber({ text: "second time lucky" });
+  transcriber.failNextWithUnsupported("encrypted", "password required");
+
+  await expect(transcriber.transcribe(recording(), audio())).rejects.toBeInstanceOf(
+    UnsupportedItemError,
+  );
+  await expect(transcriber.transcribe(recording(), audio())).resolves.toMatchObject({
+    text: "second time lucky",
+  });
 });
 
 test("reset restores the constructed capability and clears the probe count", async () => {

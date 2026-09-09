@@ -4,6 +4,7 @@ import {
   createRelay,
   openOutbox,
   removeOutboxDatabase,
+  restrictToKind,
   type Outbox,
   type Recording,
   type SessionExtractStep,
@@ -112,6 +113,7 @@ function transcribeReply(text: string) {
 const recording: Recording = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
+  kind: "audio",
   durationMs: 500,
   mimeType: "audio/webm;codecs=opus",
   ctx: { jobId: "job-7" },
@@ -254,7 +256,12 @@ test("the queue relay drives an OnDeviceTranscriber with no changes", async () =
 
   const sessionExtract: SessionExtractStep = () => Promise.resolve({ fields: { ok: true } });
   const sessionWrite: SessionWriteStep = () => Promise.resolve();
-  const relay = createRelay({ outbox, transcriber, sessionExtract, sessionWrite });
+  const relay = createRelay({
+    outbox,
+    transcriber: restrictToKind("audio", transcriber),
+    sessionExtract,
+    sessionWrite,
+  });
 
   await relay.syncNow();
   await relay.settled();

@@ -300,6 +300,7 @@ test("LocalAgreement spike: isolated vs LA-2 vs LA-3 vs batch", async () => {
   const recording = {
     id: "la-spike",
     capturedAt: "2026-08-12T10:00:00.000Z",
+    kind: "audio" as const,
     durationMs: Math.round(audioSeconds * 1000),
     mimeType: "audio/wav",
     ctx: {},

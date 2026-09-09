@@ -168,7 +168,7 @@ const CHROME_PROFILE_DIR = join(REPO_ROOT, ".cache", "pack-and-consume", "chromi
 
 const KEEP_SCRATCH = process.env.RIBO_PACK_AND_CONSUME_KEEP === "1";
 
-const EXPECTED_PUBLISHED_COUNT = 7;
+const EXPECTED_PUBLISHED_COUNT = 8;
 
 function log(message) {
   console.log(`[pack-and-consume] ${message}`);

@@ -2,6 +2,8 @@ import type { MangoQuery, RxAttachmentCreator, RxDocument, RxStorage } from "rxd
 import type { Observable } from "rxjs";
 import { map } from "rxjs";
 
+import { baseCaptureItemSchema } from "../capture-item.js";
+import type { CaptureItem } from "../capture-item.js";
 import type { Recording } from "../recording.js";
 import { baseRecordingSchema } from "../recording.js";
 import type { Transcript } from "../transcript.js";
@@ -36,7 +38,17 @@ import {
 
 /** What a caller hands the queue: capture metadata, the bytes, and the owning session. */
 export interface EnqueueInput {
-  recording: Recording;
+  /**
+   * The capture record — audio (`Recording`) or document (`DocumentCapture`),
+   * discriminated by `kind`. The union is parsed at the boundary; the key stays
+   * `recording` (persisted on the v6 collection) and the input field stays
+   * `audio` (the attachment id `AUDIO_ATTACHMENT_ID` is a persisted name) for
+   * the same reason `Transcript.recordingId` stays: a slightly narrow name is a
+   * far better trade than a migration. Both hold PDF bytes now when the kind is
+   * document; the transcriber parameter is renamed to `bytes` for exactly the
+   * reason these two cannot be renamed.
+   */
+  recording: CaptureItem;
   audio: Blob;
   /** The session this recording belongs to. */
   sessionId: string;
@@ -232,7 +244,7 @@ export class Outbox {
         // Immediately eligible: a fresh recording has no backoff to serve.
         nextAttemptAt: this.#nowIso(),
         enqueuedAt: this.#nowIso(),
-        recording: baseRecordingSchema.parse(recording),
+        recording: baseCaptureItemSchema.parse(recording),
       } satisfies OutboxDocument);
 
       const insert: OutboxInsert = {
@@ -364,6 +376,19 @@ export class Outbox {
     await doc.incrementalModify((data) => {
       if (data.status !== "recording")
         throw new Error(`outbox: ${id} is ${data.status}, not recording — commit refused`);
+      // Runtime guard: commitRecording is the durable microphone path and only
+      // makes sense for audio. The `{ ...data.recording, durationMs }` spread
+      // below produces no typecheck error (the contextual type inside
+      // incrementalModify does not trigger excess-property checking) while
+      // writing a document row carrying a bogus `durationMs` that the strict
+      // schema then rejects on the next read. Silent persistence corruption on
+      // a path the compiler blessed — so the guard is runtime, not type-level.
+      if (data.recording.kind !== "audio") {
+        throw new Error(
+          `outbox: ${id} is a "${data.recording.kind}" capture, not audio — ` +
+            "commitRecording is the microphone path; use enqueue for documents",
+        );
+      }
       return {
         ...data,
         status: "queued" as const,

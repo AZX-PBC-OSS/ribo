@@ -1,7 +1,7 @@
 import type { RxJsonSchema } from "rxdb";
 import { z } from "zod";
 
-import { baseRecordingSchema } from "../recording.js";
+import { baseCaptureItemSchema } from "../capture-item.js";
 import { transcriptSchema } from "../transcript.js";
 
 /** The RxDB collection name. One collection for recordings; sessions have their own. */
@@ -145,8 +145,18 @@ export const outboxDocumentSchema = z
     enqueuedAt: z.iso.datetime(),
     /** Message from the most recent failure, for the "needs attention" UI. */
     lastError: z.string().optional(),
-    /** Capture metadata. The audio bytes live in the attachment, not here. */
-    recording: baseRecordingSchema,
+    /**
+     * Capture metadata — the audio branch (`Recording`) or the document branch
+     * (`DocumentCapture`), discriminated by `kind`. The bytes live in the
+     * attachment, not here.
+     *
+     * The key stays `recording` even though it now holds either kind, for the
+     * same reason `Transcript.recordingId` stays: it is persisted on the v6
+     * collection, and a slightly narrow key name is a far better trade than a
+     * migration. The name that would fit — `capture` — is already taken by the
+     * durable-capture identity on the same document.
+     */
+    recording: baseCaptureItemSchema,
     /**
      * Step output — present once transcription has succeeded.
      *

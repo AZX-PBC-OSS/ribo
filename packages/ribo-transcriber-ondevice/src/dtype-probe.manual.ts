@@ -101,6 +101,7 @@ async function probe(model: string, dtype: string, device: string): Promise<Outc
       {
         id: "dtype-probe",
         capturedAt: "2026-08-17T00:00:00.000Z",
+        kind: "audio",
         durationMs: CALIBRATION_CLIP_DURATION_MS,
         mimeType: "audio/webm;codecs=opus",
         ctx: {},

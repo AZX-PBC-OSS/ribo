@@ -2,6 +2,7 @@ import type { RxStorage } from "rxdb";
 import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 import { afterEach, expect, test } from "vitest";
 
+import type { DocumentCapture } from "../capture-item.js";
 import type { Recording } from "../recording.js";
 import type { PersistedReviewOutcome } from "../review.js";
 import { removeOutboxDatabase } from "./database.js";
@@ -34,6 +35,7 @@ afterEach(async () => {
 const recording: Recording = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
+  kind: "audio",
   durationMs: 4200,
   mimeType: "audio/webm;codecs=opus",
   ctx: { jobId: "job-7" },
@@ -109,4 +111,95 @@ test("a nested review outcome with dotted paths round-trips storage with no migr
   // Nesting survives as nesting, not flattened or stringified, and the dotted paths
   // survive as the strings they are.
   expect(read?.reviewOutcome).toEqual(outcome);
+});
+
+test("a document round-trips real storage — kind and pageCount survive, bytes come back", async () => {
+  // Per D2 the zod parse on read is the only interior check on `recording`, so
+  // this is the test that catches the whole corruption class — the
+  // `commitRecording` hazard included.
+  const storage = getRxStorageMemory();
+  const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
+  const outbox = await openOutbox({ name, storage });
+  opened.push({ outbox, name, storage });
+
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+
+  const doc: DocumentCapture = {
+    id: "doc-1",
+    capturedAt: "2026-07-23T10:00:00.000Z",
+    kind: "document",
+    pageCount: 3,
+    mimeType: "application/pdf",
+    ctx: { jobId: "job-7" },
+  };
+  const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
+  const enqueued = await outbox.enqueue({
+    recording: doc,
+    audio: new Blob([pdfBytes], { type: "application/pdf" }),
+    sessionId: session.id,
+  });
+
+  expect(enqueued.recording.kind).toBe("document");
+  expect(enqueued.audioReady).toBe(true);
+
+  // get() and list() return it with kind and pageCount intact.
+  const read = await outbox.get(enqueued.id);
+  expect(read).toEqual(enqueued);
+  expect(read?.recording.kind).toBe("document");
+  if (read?.recording.kind === "document") {
+    expect(read.recording.pageCount).toBe(3);
+  }
+
+  const listed = await outbox.list();
+  expect(listed.map((item) => item.id)).toEqual([enqueued.id]);
+  expect(listed[0]?.recording.kind).toBe("document");
+
+  // The bytes round-trip unchanged.
+  const audio = await outbox.getAudio(enqueued.id);
+  expect(audio).toBeInstanceOf(Blob);
+  expect(new Uint8Array(await audio!.arrayBuffer())).toEqual(pdfBytes);
+});
+
+test("commitRecording refuses a non-audio row — the spread the compiler does not catch", async () => {
+  // `commitRecording`'s `{ ...data.recording, durationMs }` spread produces no
+  // typecheck error while writing a document row carrying a bogus `durationMs`
+  // that the strict schema then rejects on the next read. Silent persistence
+  // corruption on a path the compiler blessed — so the guard is runtime.
+  // The state is unreachable through the public API (`beginRecording` takes
+  // `Recording`, so a document cannot enter `recording` status that way), so
+  // the test casts to construct it. The cast is not laziness — it is the only
+  // way to reach the code path the guard protects.
+  const storage = getRxStorageMemory();
+  const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
+  const outbox = await openOutbox({ name, storage });
+  opened.push({ outbox, name, storage });
+
+  const session = await outbox.openSession({ ctx: {}, ref: "test" });
+
+  // Begin a real audio recording to get a `recording`-status row.
+  const item = await outbox.beginRecording({
+    recording: { ...recording, id: "rec-commit-guard" },
+    sourceId: "src-1",
+    sessionId: session.id,
+  });
+
+  // Cast the row's recording to a document shape, simulating the unreachable
+  // state the guard exists for. This goes directly through RxDB's internal
+  // modifier, bypassing the public API.
+  const collection = outbox.database.collections.outbox;
+  const doc = await collection.findOne(item.id).exec();
+  await doc!.incrementalModify((data) => ({
+    ...data,
+    recording: {
+      id: "rec-commit-guard",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      kind: "document",
+      pageCount: 1,
+      mimeType: "application/pdf",
+      ctx: {},
+    } as never,
+  }));
+
+  // commitRecording must refuse — not silently corrupt the row.
+  await expect(outbox.commitRecording(item.id, new Blob([]), 1000)).rejects.toThrow(/document/);
 });

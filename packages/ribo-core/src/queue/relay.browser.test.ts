@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
+import type { CaptureItem, DocumentCapture } from "../capture-item.js";
 import type { Recording } from "../recording.js";
 import { FakeTranscriber } from "../fake-transcriber.js";
 import { firstCapable } from "../first-capable.js";
+import { restrictToKind } from "../restrict-to-kind.js";
 import { removeOutboxDatabase } from "./database.js";
 import { TerminalQueueError } from "./backoff.js";
 import { openOutbox, type Outbox } from "./outbox.js";
@@ -31,6 +33,7 @@ import { createConnectivity, type ScheduleTimer } from "../connectivity.js";
 const recording: Recording = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
+  kind: "audio",
   durationMs: 1000,
   mimeType: "audio/webm;codecs=opus",
   ctx: { jobId: "job-7" },
@@ -178,7 +181,7 @@ async function buildRelay(
 
   const relay = createRelay({
     outbox,
-    transcriber,
+    transcriber: restrictToKind("audio", transcriber),
     sessionExtract,
     sessionWrite,
     now: clock.now,
@@ -350,8 +353,62 @@ test("hands the transcriber the recording metadata and the attachment bytes", as
 
   expect(fake(harness).calls).toHaveLength(1);
   const call = fake(harness).calls[0]!;
-  expect(call.recording).toMatchObject({ id: "rec-1", mimeType: "audio/webm;codecs=opus" });
-  expect(new Uint8Array(await call.audio.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
+  expect(call.item).toMatchObject({ id: "rec-1", mimeType: "audio/webm;codecs=opus" });
+  expect(new Uint8Array(await call.bytes.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
+});
+
+test("a document round-trips the relay — queued → transcribing → transcribed", async () => {
+  // Proves Task 1's queue changes compose with the relay. The harness wraps
+  // audio transcribers with `restrictToKind("audio", …)`, so this test builds
+  // a relay directly with a `Transcriber<CaptureItem>` that accepts documents.
+  const outbox = await openTestOutbox(uniqueName());
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+
+  const docTranscriber: Transcriber<CaptureItem> = {
+    engine: "fake-doc",
+    capability: async () => ({ status: "ready" }),
+    transcribe: async (item) => ({
+      recordingId: item.id,
+      text: "fake document text",
+      engine: "fake-doc",
+    }),
+  };
+
+  const relay = createRelay({
+    outbox,
+    transcriber: docTranscriber,
+    sessionExtract: async ({ transcript }) => ({ fields: { result: transcript } }),
+    sessionWrite: () => Promise.resolve({ fields: {} }),
+    now: clock.now,
+    random: () => 1,
+    baseMs: 500,
+    capMs: 60_000,
+  });
+
+  const doc: DocumentCapture = {
+    id: "doc-1",
+    capturedAt: "2026-07-23T10:00:00.000Z",
+    kind: "document",
+    pageCount: 2,
+    mimeType: "application/pdf",
+    ctx: { jobId: "job-7" },
+  };
+  await outbox.enqueue({
+    recording: doc,
+    audio: new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])], { type: "application/pdf" }),
+    sessionId: session.id,
+  });
+
+  await relay.syncNow();
+
+  const item = (await outbox.list())[0]!;
+  expect(item.status).toBe("transcribed");
+  expect(item.recording.kind).toBe("document");
+  if (item.recording.kind === "document") {
+    expect(item.recording.pageCount).toBe(2);
+  }
+  expect(item.transcript?.text).toBe("fake document text");
+  expect(item.transcript?.engine).toBe("fake-doc");
 });
 
 test("passes through the statuses of the 09 state machine, in order", async () => {
@@ -1358,7 +1415,7 @@ test("with dropAudioAfterTranscription, a FAILED transcription retains the audio
 
   expect((await outbox.get(item.id))?.status).toBe("transcribed");
   expect(fake(harness).calls).toHaveLength(2);
-  expect(new Uint8Array(await fake(harness).calls[1]!.audio.arrayBuffer())).toEqual(
+  expect(new Uint8Array(await fake(harness).calls[1]!.bytes.arrayBuffer())).toEqual(
     new Uint8Array([1, 2, 3, 4]),
   );
   // Only now, after the successful attempt, is it gone.
@@ -1588,6 +1645,7 @@ test("two relays over one outbox run each step ONCE, not twice", async () => {
     recording: {
       id: "rec-claim",
       capturedAt: new Date(clock.now()).toISOString(),
+      kind: "audio",
       durationMs: 1000,
       mimeType: "audio/webm",
       ctx: {},
@@ -1654,6 +1712,7 @@ test("a relay that acquires the lock AFTER another finished does not re-run the 
     recording: {
       id: "rec-handoff",
       capturedAt: new Date(clock.now()).toISOString(),
+      kind: "audio",
       durationMs: 1000,
       mimeType: "audio/webm",
       ctx: {},
@@ -1728,7 +1787,7 @@ test("the write step receives the session's ctx, not a recording's", async () =>
   const writeCalls: SessionWriteInput[] = [];
   const relay = createRelay({
     outbox,
-    transcriber: new FakeTranscriber(),
+    transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: async () => {
       throw new Error("must not extract");
     },
@@ -1763,7 +1822,7 @@ test("a session with no transcribed recordings still reaches the write step", as
   const writeCalls: SessionWriteInput[] = [];
   const relay = createRelay({
     outbox,
-    transcriber: new FakeTranscriber(),
+    transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: async () => {
       throw new Error("must not extract");
     },

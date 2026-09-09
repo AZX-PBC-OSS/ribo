@@ -59,6 +59,7 @@ afterEach(async () => {
 const recording: Recording = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
+  kind: "audio",
   durationMs: 4200,
   mimeType: "audio/webm;codecs=opus",
   ctx: { jobId: "job-7" },
@@ -1315,7 +1316,10 @@ test("commitRecording writes canonical audio, transitions to queued, and sweeps 
   expect(committed.status).toBe("queued");
   expect(committed.audioReady).toBe(true);
   expect(committed.audioBytes).toBe(audioBytes.byteLength);
-  expect(committed.recording.durationMs).toBe(4200);
+  expect(committed.recording.kind).toBe("audio");
+  if (committed.recording.kind === "audio") {
+    expect(committed.recording.durationMs).toBe(4200);
+  }
   const audio = await outbox.getAudio(item.id);
   expect(new Uint8Array(await audio!.arrayBuffer())).toEqual(audioBytes);
 

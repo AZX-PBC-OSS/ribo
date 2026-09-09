@@ -37,6 +37,13 @@ export type { Enveloped } from "./enveloped.js";
 // Capture records and their transcripts.
 export { baseRecordingSchema, recordingSchema } from "./recording.js";
 export type { Recording } from "./recording.js";
+export {
+  captureItemSchema,
+  baseCaptureItemSchema,
+  documentCaptureSchema,
+  baseDocumentCaptureSchema,
+} from "./capture-item.js";
+export type { CaptureItem, DocumentCapture } from "./capture-item.js";
 export { transcriptSchema } from "./transcript.js";
 export type { Transcript } from "./transcript.js";
 
@@ -55,6 +62,18 @@ export type {
   TranscriberUnavailableInit,
   TranscriberUnavailableReason,
 } from "./transcriber.js";
+
+// The third failure class: "this engine cannot handle this item, and that says
+// nothing about the engine". Terminal for the queue (so it does not burn the
+// retry budget) but not for the item (a composition layer routes to the next
+// engine). See D4 in the document-transcription plan.
+export { UNSUPPORTED_ITEM_REASONS, UnsupportedItemError } from "./unsupported-item.js";
+export type { UnsupportedItemInit, UnsupportedItemReason } from "./unsupported-item.js";
+
+// restrictToKind: lift a narrow transcriber into a slot that can see any
+// CaptureItem, refusing other kinds with UnsupportedItemError. The compiler is
+// what sends a host to it — see D7a.
+export { restrictToKind } from "./restrict-to-kind.js";
 
 // Live transcription: the streaming seam — utterance-level preview during
 // recording. Defined here, implemented by the on-device engine. Not composed
@@ -90,8 +109,30 @@ export type {
   TranscriberHedgeEvent,
 } from "./hedged.js";
 
+// Transcription arbitration: the decision vocabulary that lets a host
+// classify transcriber candidate outcomes — the sibling of the extractor
+// arbitration exports above. The core accumulates outcomes in settlement
+// order; the host decides whether to accept, continue, or give up. The default
+// arbiter (unsupportedFallsThrough) accepts the first success, continues past
+// UnsupportedItemError and TranscriberUnavailableError, and at exhaustion gives
+// up with the first retryable error if there is one (D7 rule 2).
+export { unsupportedFallsThrough } from "./transcription-arbitration.js";
+export type {
+  TranscriptionArbiter,
+  TranscriptionArbiterInput,
+  TranscriptionArbiterVerdict,
+  TranscriptionOutcome,
+} from "./transcription-arbitration.js";
+
+// Transcriber fallback: try transcribers in order without consulting
+// capability(), letting an arbiter decide whether each outcome is acceptable.
+// The per-item sibling of firstCapable — a reader who thinks it is
+// "firstCapable with retries" will wire it wrongly.
+export { fallbackTranscriber } from "./fallback-transcriber.js";
+export type { FallbackTranscriberOptions } from "./fallback-transcriber.js";
+
 // The fake that lets later phases run the pipeline — and drive every capability
-// state and both failure kinds — without a model.
+// state and all three failure kinds — without a model.
 export {
   DEFAULT_FAKE_TRANSCRIBER_ENGINE,
   DEFAULT_FAKE_TRANSCRIPT_TEXT,

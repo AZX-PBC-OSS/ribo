@@ -53,6 +53,7 @@ const SENTINEL = "zorbulator";
 const recording = {
   id: "manual-long",
   capturedAt: "2026-08-10T10:00:00.000Z",
+  kind: "audio" as const,
   durationMs: 0,
   mimeType: "audio/wav",
   ctx: {},

@@ -1,4 +1,5 @@
 import type { ExtractionUsage } from "../extractor.js";
+import type { CaptureItem } from "../capture-item.js";
 import type { Transcriber } from "../transcriber.js";
 import { transcriptSchema } from "../transcript.js";
 import {
@@ -118,7 +119,15 @@ export interface ConnectivitySource {
 
 export interface RelayOptions extends BackoffOptions {
   outbox: Outbox;
-  transcriber: Transcriber;
+  /**
+   * The transcriber draining the queue. Widened to `Transcriber<CaptureItem>`
+   * because `OutboxItem.recording` is now the union — an audio-only
+   * `Transcriber<Recording>` no longer typechecks into this slot (the
+   * property-typed `transcribe` makes that assignment a type error, which is
+   * the point). Wrap with `restrictToKind("audio", …)` to lift a narrow
+   * engine.
+   */
+  transcriber: Transcriber<CaptureItem>;
   /** Session-level extraction: joined transcripts → structured fields. */
   sessionExtract: SessionExtractStep;
   /** Session-level write: reviewed fields → host tool. */

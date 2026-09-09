@@ -23,6 +23,7 @@ const aRecording = () => ({
   recording: {
     id: crypto.randomUUID(),
     capturedAt: new Date().toISOString(),
+    kind: "audio" as const,
     durationMs: 10,
     mimeType: "audio/webm",
     ctx: {},

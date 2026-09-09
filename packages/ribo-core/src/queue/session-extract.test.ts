@@ -1,0 +1,156 @@
+import type { RxStorage } from "rxdb";
+import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
+import { afterEach, expect, test } from "vitest";
+
+import type { DocumentCapture } from "../capture-item.js";
+import { FakeExtractor, toSessionExtractStep } from "../extractor.js";
+import type { Recording } from "../recording.js";
+import { removeOutboxDatabase } from "./database.js";
+import { openOutbox, type Outbox } from "./outbox.js";
+import { joinSessionTranscript } from "./session-extract.js";
+
+// The premise the whole document-transcription tranche rests on.
+//
+// Scoping that work to the capture → transcribe half was justified by one
+// claim: everything from `extracted` onward already speaks TEXT, so extraction,
+// review and write need no change to accept a PDF. `joinSessionTranscript`
+// reads only `status`, `seq` and `transcript.text` — it never touches
+// `recording.kind`, `durationMs` or the mime type — so the claim holds by
+// construction.
+//
+// "By construction" is exactly the kind of property that stops being true
+// without anyone noticing. These tests pin it. They PASS against the code as
+// written (they are a fence, not a must-fail), which is why each was verified
+// by mutation: filtering `joinSessionTranscript` on `kind === "audio"` turns
+// the first two red, and dropping the page markers from the joined text turns
+// the third red.
+
+const opened: { outbox: Outbox; name: string; storage: RxStorage<unknown, unknown> }[] = [];
+
+afterEach(async () => {
+  for (const { outbox, name, storage } of opened.splice(0)) {
+    if (!outbox.closed) await outbox.close();
+    await removeOutboxDatabase(name, storage);
+  }
+});
+
+async function freshOutbox(): Promise<Outbox> {
+  const storage = getRxStorageMemory();
+  const name = `ribo-session-extract-${crypto.randomUUID()}`;
+  const outbox = await openOutbox({ name, storage });
+  opened.push({ outbox, name, storage });
+  return outbox;
+}
+
+const bytes = (): Blob => new Blob([new Uint8Array(8)], { type: "application/pdf" });
+
+const document = (id: string): DocumentCapture => ({
+  kind: "document",
+  id,
+  capturedAt: "2026-09-09T10:00:00.000Z",
+  pageCount: 2,
+  mimeType: "application/pdf",
+  ctx: { jobId: "job-7" },
+});
+
+const dictation = (id: string): Recording => ({
+  kind: "audio",
+  id,
+  capturedAt: "2026-09-09T10:05:00.000Z",
+  durationMs: 4200,
+  mimeType: "audio/webm;codecs=opus",
+  ctx: { jobId: "job-7" },
+});
+
+/** The shape a real pdf.js transcript has: page markers around each page's text. */
+const INVOICE_TEXT =
+  "\n===== PAGE 1 =====\nInvoice # 58534\nP.O. Number 153787\n" +
+  "\n===== PAGE 2 =====\nINSTALLATION Installation / Service Work 1EA 17,087.70\n";
+
+test("a document's transcript reaches session extraction like any other", async () => {
+  const outbox = await freshOutbox();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+
+  const item = await outbox.enqueue({
+    recording: document("doc-1"),
+    audio: bytes(),
+    sessionId: session.id,
+  });
+  await outbox.writeTranscript(
+    item.id,
+    { recordingId: "doc-1", text: INVOICE_TEXT, engine: "pdfjs" },
+    { status: "transcribed" },
+  );
+
+  const joined = await joinSessionTranscript(outbox, session.id);
+
+  expect(joined.recordingIds).toEqual([item.id]);
+  expect(joined.text).toContain("Invoice # 58534");
+});
+
+test("a session mixing a document and a dictation joins both, in capture order", async () => {
+  // The session is the unit of extraction, and nothing says its members must be
+  // the same medium. A PDF submitted alongside the walkthrough dictation is the
+  // driving use case, so the ordering guarantee has to hold across kinds.
+  const outbox = await freshOutbox();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+
+  const first = await outbox.enqueue({
+    recording: document("doc-1"),
+    audio: bytes(),
+    sessionId: session.id,
+  });
+  const second = await outbox.enqueue({
+    recording: dictation("rec-1"),
+    audio: bytes(),
+    sessionId: session.id,
+  });
+
+  await outbox.writeTranscript(
+    first.id,
+    { recordingId: "doc-1", text: INVOICE_TEXT, engine: "pdfjs" },
+    { status: "transcribed" },
+  );
+  await outbox.writeTranscript(
+    second.id,
+    { recordingId: "rec-1", text: "the attic insulation is R-19", engine: "fake" },
+    { status: "transcribed" },
+  );
+
+  const joined = await joinSessionTranscript(outbox, session.id);
+
+  expect(joined.text).toContain("Invoice # 58534");
+  expect(joined.text).toContain("R-19");
+  // Capture order, by `seq` — the document was enqueued first.
+  expect(joined.text.indexOf("Invoice # 58534")).toBeLessThan(joined.text.indexOf("R-19"));
+});
+
+test("page markers survive into the extractor's input", async () => {
+  // The markers exist so a value can be attributed to the page it came from,
+  // which matters when a document contradicts itself. That is only true if they
+  // are still there by the time the model sees the text — every layer between
+  // `transcribe` and `extract` is a chance to normalise them away.
+  const outbox = await freshOutbox();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+
+  const item = await outbox.enqueue({
+    recording: document("doc-1"),
+    audio: bytes(),
+    sessionId: session.id,
+  });
+  await outbox.writeTranscript(
+    item.id,
+    { recordingId: "doc-1", text: INVOICE_TEXT, engine: "pdfjs" },
+    { status: "transcribed" },
+  );
+
+  const extractor = new FakeExtractor({ invoiceNumber: "58534" });
+  const step = toSessionExtractStep(extractor);
+  const joined = await joinSessionTranscript(outbox, session.id);
+
+  await step({ session, transcript: joined.text, recordingIds: joined.recordingIds });
+
+  expect(extractor.calls).toHaveLength(1);
+  expect(extractor.calls[0]).toContain("===== PAGE 1 =====");
+  expect(extractor.calls[0]).toContain("===== PAGE 2 =====");
+});

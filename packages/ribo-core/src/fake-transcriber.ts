@@ -1,3 +1,4 @@
+import type { CaptureItem } from "./capture-item.js";
 import type { Recording } from "./recording.js";
 import type { Transcript } from "./transcript.js";
 import {
@@ -6,6 +7,7 @@ import {
   type TranscriberCapability,
   type TranscriberUnavailableReason,
 } from "./transcriber.js";
+import { UnsupportedItemError, type UnsupportedItemReason } from "./unsupported-item.js";
 
 /** Text a {@link FakeTranscriber} returns when nothing else is configured. */
 export const DEFAULT_FAKE_TRANSCRIPT_TEXT = "fake transcript";
@@ -29,16 +31,16 @@ export interface FakeTranscriberOptions {
   text?: string;
   /** Confidence attached to the default response. Omitted when unset. */
   confidence?: number;
-  /** Canned responses keyed by `recording.id`. */
+  /** Canned responses keyed by `item.id`. */
   responses?: Readonly<Record<string, FakeTranscriberResponse>>;
   /** Starting capability. Defaults to `{ status: "ready" }`. */
   capability?: TranscriberCapability;
 }
 
 /** One `transcribe` invocation, in call order. */
-export interface FakeTranscribeCall {
-  readonly recording: Recording;
-  readonly audio: Blob;
+export interface FakeTranscribeCall<S extends CaptureItem = Recording> {
+  readonly item: S;
+  readonly bytes: Blob;
 }
 
 /**
@@ -49,17 +51,19 @@ export interface FakeTranscribeCall {
  * retry paths need a transcriber that fails on demand, and Phase 3's download UI needs to render
  * every capability state before there is anything to download.
  *
- * It can simulate all three capability states and **both** kinds of failure, which is the
- * distinction the whole contract turns on:
+ * It can simulate all three capability states and **all three** kinds of
+ * failure, which is the distinction the whole contract turns on:
  *
  * - attempt failure — {@link failWith} / {@link failNextWith} with any error;
  * - capability failure — {@link failWithUnavailable}, or the same setters with a
- *   `TranscriberUnavailableError` for a one-shot.
+ *   `TranscriberUnavailableError` for a one-shot;
+ * - item unsuitability — {@link failWithUnsupported} / {@link failNextWithUnsupported},
+ *   the third failure kind: terminal for the queue but not for the item.
  */
-export class FakeTranscriber implements Transcriber {
+export class FakeTranscriber<S extends CaptureItem = Recording> implements Transcriber<S> {
   readonly engine: string;
 
-  readonly #calls: FakeTranscribeCall[] = [];
+  readonly #calls: FakeTranscribeCall<S>[] = [];
   readonly #responses = new Map<string, FakeTranscriberResponse>();
   readonly #defaultText: string;
   readonly #defaultConfidence: number | undefined;
@@ -81,7 +85,7 @@ export class FakeTranscriber implements Transcriber {
   }
 
   /** Every call so far, including calls that were made to fail. */
-  get calls(): readonly FakeTranscribeCall[] {
+  get calls(): readonly FakeTranscribeCall<S>[] {
     return this.#calls;
   }
 
@@ -136,6 +140,23 @@ export class FakeTranscriber implements Transcriber {
   }
 
   /**
+   * Reject every subsequent call with an **item unsuitability** failure.
+   *
+   * Like {@link failWithUnavailable}, this deliberately leaves `capability()`
+   * alone: the engine stays `ready`, because the problem is the item, not the
+   * engine. One unreadable item must never demote an engine for every future
+   * item.
+   */
+  failWithUnsupported(reason: UnsupportedItemReason, detail: string): this {
+    return this.failWith(new UnsupportedItemError({ engine: this.engine, reason, detail }));
+  }
+
+  /** Reject only the next call with an **item unsuitability** failure. */
+  failNextWithUnsupported(reason: UnsupportedItemReason, detail: string): this {
+    return this.failNextWith(new UnsupportedItemError({ engine: this.engine, reason, detail }));
+  }
+
+  /**
    * Drop recorded calls, the probe count and any queued failure, and restore the capability the
    * fake was constructed with. Canned responses survive.
    */
@@ -152,13 +173,13 @@ export class FakeTranscriber implements Transcriber {
     return Promise.resolve(this.#capability);
   }
 
-  async transcribe(recording: Recording, audio: Blob): Promise<Transcript> {
-    this.#calls.push({ recording, audio });
+  async transcribe(item: S, bytes: Blob): Promise<Transcript> {
+    this.#calls.push({ item, bytes });
 
     const failure = this.#takeFailure();
     if (failure) throw failure;
 
-    return this.#respondTo(recording.id);
+    return this.#respondTo(item.id);
   }
 
   #takeFailure(): Error | undefined {

@@ -87,7 +87,7 @@ for (const dir of readdirSync(packagesDir, { withFileTypes: true })) {
 }
 publishedPackages.sort();
 
-const EXPECTED_PUBLISHED_COUNT = 7;
+const EXPECTED_PUBLISHED_COUNT = 8;
 if (publishedPackages.length !== EXPECTED_PUBLISHED_COUNT) {
   console.error(
     `assert-source-condition: discovered ${publishedPackages.length} publishable packages, ` +
@@ -125,7 +125,7 @@ TARGETS.push({
 });
 
 // Every package is a dependency of `playground`, so its node_modules is the only
-// directory from which all five resolve by name.
+// directory from which all resolve by name.
 const from = path.join(repoRoot, "playground");
 
 /**

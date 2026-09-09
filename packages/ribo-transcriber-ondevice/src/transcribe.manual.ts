@@ -50,6 +50,7 @@ test("real Whisper: decode a spoken clip end-to-end and transcribe it, with and 
   const recording = {
     id: "manual-1",
     capturedAt: "2026-07-23T10:00:00.000Z",
+    kind: "audio" as const,
     durationMs: 0,
     mimeType: "audio/wav",
     ctx: {},
