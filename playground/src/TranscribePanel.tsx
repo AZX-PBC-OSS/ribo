@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { createRelay, firstCapable, type Outbox, type OutboxItem } from "@azx/ribo-core";
+import {
+  createRelay,
+  firstCapable,
+  restrictToKind,
+  type Outbox,
+  type OutboxItem,
+} from "@azx/ribo-core";
 
 import { extractStep } from "./extractor-store.js";
 import { formatBytes, messageOf } from "./format.js";
@@ -339,9 +345,12 @@ async function runOnDeviceRelay(outbox: Outbox): Promise<void> {
     // `onFallback` was designed to make exactly one thing visible — "every recording is
     // silently going to cloud STT while everyone believes the fleet is offline-capable" — and
     // was wired to nothing, here or anywhere else in the app. An unread event is not telemetry.
-    transcriber: firstCapable([getTranscriber(), getManagedTranscriber()], {
-      onFallback: recordFallback,
-    }),
+    transcriber: restrictToKind(
+      "audio",
+      firstCapable([getTranscriber(), getManagedTranscriber()], {
+        onFallback: recordFallback,
+      }),
+    ),
     sessionExtract: extractStep,
     sessionWrite: () => Promise.resolve({ fields: { writtenBy: "playground on-device demo" } }),
   });

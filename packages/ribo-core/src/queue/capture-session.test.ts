@@ -9,6 +9,7 @@ import type { Recording } from "../recording.js";
 const recording: Recording = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
+  kind: "audio",
   durationMs: 0,
   mimeType: "audio/webm",
   ctx: {},

@@ -12,6 +12,7 @@ import { openOutbox, type Outbox } from "./queue/outbox.js";
 import { createRelay } from "./queue/relay.js";
 import type { SessionItem } from "./queue/session-schema.js";
 import { deriveInstanceIdempotencyKey, toInstanceWriteStep } from "./instance-write-step.js";
+import { restrictToKind } from "./restrict-to-kind.js";
 
 /**
  * @file `toInstanceWriteStep` — per-instance write-back and resumability.
@@ -110,6 +111,7 @@ const seedSession = async (
     recording: {
       id: "rec-1",
       capturedAt: "2026-07-23T14:02:00.000Z",
+      kind: "audio",
       durationMs: 8_400,
       mimeType: "audio/webm;codecs=opus",
       ctx,
@@ -286,6 +288,7 @@ test("a write failing on the second of three instances, then retrying, re-attemp
     recording: {
       id: "rec-1",
       capturedAt: "2026-07-23T14:02:00.000Z",
+      kind: "audio",
       durationMs: 8_400,
       mimeType: "audio/webm;codecs=opus",
       ctx: { jobId: "job-7" },
@@ -317,7 +320,7 @@ test("a write failing on the second of three instances, then retrying, re-attemp
 
   const relay = createRelay({
     outbox,
-    transcriber: new FakeTranscriber(),
+    transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: () => Promise.reject(new Error("session extraction should not run")),
     sessionWrite: toInstanceWriteStep({
       adapter: failingAdapter,
@@ -480,6 +483,7 @@ test("after reopening from dead and removing the first instance, the survivor re
     recording: {
       id: "rec-1",
       capturedAt: "2026-07-23T14:02:00.000Z",
+      kind: "audio",
       durationMs: 8_400,
       mimeType: "audio/webm;codecs=opus",
       ctx: { jobId: "job-7" },
@@ -507,7 +511,7 @@ test("after reopening from dead and removing the first instance, the survivor re
 
   const relay = createRelay({
     outbox,
-    transcriber: new FakeTranscriber(),
+    transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: () => Promise.reject(new Error("should not extract")),
     sessionWrite: toInstanceWriteStep({
       adapter,
@@ -544,7 +548,7 @@ test("after reopening from dead and removing the first instance, the survivor re
   });
   const relay2 = createRelay({
     outbox,
-    transcriber: new FakeTranscriber(),
+    transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: () => Promise.reject(new Error("should not extract")),
     sessionWrite: step2,
     now: clock.now,

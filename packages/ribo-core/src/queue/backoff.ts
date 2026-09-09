@@ -57,7 +57,10 @@ export function fullJitterDelay(attempts: number, options: BackoffOptions = {}):
  * declared the item unprocessable.
  */
 export class TerminalQueueError extends Error {
-  override readonly name = "TerminalQueueError";
+  // `: string` is load-bearing: without it TypeScript infers the literal
+  // "TerminalQueueError", and a subclass overriding `name` with its own literal
+  // fails with TS2416. The widening has zero runtime change.
+  override readonly name: string = "TerminalQueueError";
 }
 
 function statusOf(error: unknown): number | undefined {

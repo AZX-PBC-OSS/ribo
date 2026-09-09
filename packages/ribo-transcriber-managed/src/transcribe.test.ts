@@ -23,6 +23,7 @@ const ENDPOINT =
 const RECORDING: Recording = {
   id: "rec-001",
   capturedAt: "2026-08-17T12:00:00.000Z",
+  kind: "audio",
   durationMs: 9000,
   mimeType: "audio/webm;codecs=opus",
   ctx: {},

@@ -150,6 +150,43 @@ test("the RxDB schema is at version 6", () => {
   expect(outboxRxSchema.version).toBe(6);
 });
 
+test("the RxDB recording property is exactly { type: 'object' } — no nested validation, so adding kind needs no version bump", () => {
+  // This is the D2 evidence: RxDB neither validates nor indexes the interior of
+  // `recording`, so the zod schema is the only description and a field added
+  // inside it is invisible to RxDB. This test is what makes a future v7 an
+  // explicit decision.
+  expect(outboxRxSchema.properties.recording).toEqual({ type: "object" });
+});
+
+test("an outbox document whose recording is a document capture parses", () => {
+  const doc = validDocument();
+  const parsed = outboxDocumentSchema.safeParse({
+    ...doc,
+    recording: {
+      id: "doc-1",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      kind: "document",
+      pageCount: 2,
+      mimeType: "application/pdf",
+      ctx: {},
+    },
+  });
+  expect(parsed.success).toBe(true);
+});
+
+test("an outbox document whose recording predates the discriminant parses as audio", () => {
+  const doc = validDocument();
+  const { kind: _kind, ...legacyRecording } = doc.recording;
+  const parsed = outboxDocumentSchema.safeParse({
+    ...doc,
+    recording: legacyRecording,
+  });
+  expect(parsed.success).toBe(true);
+  if (parsed.success) {
+    expect(parsed.data.recording.kind).toBe("audio");
+  }
+});
+
 /** A minimal document that parses, for the negative cases to mutate. */
 function validDocument() {
   return {
@@ -163,6 +200,7 @@ function validDocument() {
     recording: {
       id: "r",
       capturedAt: "2026-07-23T10:00:00.000Z",
+      kind: "audio",
       durationMs: 0,
       mimeType: "audio/webm",
       ctx: {},

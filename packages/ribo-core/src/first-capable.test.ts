@@ -13,6 +13,7 @@ import { TranscriberUnavailableError } from "./transcriber.js";
 const recording = (id = "rec-1"): Recording => ({
   id,
   capturedAt: "2026-07-23T10:00:00.000Z",
+  kind: "audio",
   durationMs: 1_200,
   mimeType: "audio/webm",
   ctx: {},

@@ -91,6 +91,18 @@ async function recoverOne(
     return undefined;
   }
 
+  // Recovery decodes merged audio chunks — meaningless for a non-audio item.
+  // A document in `recording` status is an upstream bug (enqueue, not
+  // beginRecording, is the document path), so mark it dead with a reason
+  // naming the kind rather than trying to decode its bytes as audio.
+  if (item.recording.kind !== "audio") {
+    await outbox.patch(id, {
+      status: "dead",
+      lastError: `unrecoverable: capture kind "${item.recording.kind}" is not audio — recovery decodes audio chunks`,
+    });
+    return undefined;
+  }
+
   // Try to merge and decode. On failure, retry without the last chunk.
   const merged = await outbox.mergeChunks(id);
   let audio: Blob;

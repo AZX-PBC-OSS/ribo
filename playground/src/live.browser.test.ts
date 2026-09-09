@@ -6,7 +6,7 @@ import type {
   LiveTranscriber,
   TranscriberCapability,
 } from "@azx/ribo-core";
-import { FakeTranscriber, createRelay } from "@azx/ribo-core";
+import { FakeTranscriber, createRelay, restrictToKind } from "@azx/ribo-core";
 
 import { getOutbox } from "./outbox-handle.js";
 import { getRecorder } from "./recorder-handle.js";
@@ -334,7 +334,7 @@ test("a preview segment appears during recording and is gone once the transcript
   // verifies the handoff, not the batch transcript's quality.
   const relay = createRelay({
     outbox,
-    transcriber: new FakeTranscriber(),
+    transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: () => Promise.resolve({ fields: {} }),
     sessionWrite: () => Promise.resolve(),
   });
@@ -402,7 +402,7 @@ test("a tail appears in preview.tail, a second tail replaces it, a commit moves 
   // preview in the same committed revision that writes transcript.
   const relay = createRelay({
     outbox,
-    transcriber: new FakeTranscriber(),
+    transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: () => Promise.resolve({ fields: {} }),
     sessionWrite: () => Promise.resolve(),
   });

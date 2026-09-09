@@ -25,6 +25,7 @@ afterEach(async () => {
 const recording: Recording = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
+  kind: "audio",
   durationMs: 4200,
   mimeType: "audio/webm;codecs=opus",
   ctx: { jobId: "job-7" },

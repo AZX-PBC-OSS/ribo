@@ -37,6 +37,13 @@ export type { Enveloped } from "./enveloped.js";
 // Capture records and their transcripts.
 export { baseRecordingSchema, recordingSchema } from "./recording.js";
 export type { Recording } from "./recording.js";
+export {
+  captureItemSchema,
+  baseCaptureItemSchema,
+  documentCaptureSchema,
+  baseDocumentCaptureSchema,
+} from "./capture-item.js";
+export type { CaptureItem, DocumentCapture } from "./capture-item.js";
 export { transcriptSchema } from "./transcript.js";
 export type { Transcript } from "./transcript.js";
 
@@ -55,6 +62,18 @@ export type {
   TranscriberUnavailableInit,
   TranscriberUnavailableReason,
 } from "./transcriber.js";
+
+// The third failure class: "this engine cannot handle this item, and that says
+// nothing about the engine". Terminal for the queue (so it does not burn the
+// retry budget) but not for the item (a composition layer routes to the next
+// engine). See D4 in the document-transcription plan.
+export { UNSUPPORTED_ITEM_REASONS, UnsupportedItemError } from "./unsupported-item.js";
+export type { UnsupportedItemInit, UnsupportedItemReason } from "./unsupported-item.js";
+
+// restrictToKind: lift a narrow transcriber into a slot that can see any
+// CaptureItem, refusing other kinds with UnsupportedItemError. The compiler is
+// what sends a host to it — see D7a.
+export { restrictToKind } from "./restrict-to-kind.js";
 
 // Live transcription: the streaming seam — utterance-level preview during
 // recording. Defined here, implemented by the on-device engine. Not composed

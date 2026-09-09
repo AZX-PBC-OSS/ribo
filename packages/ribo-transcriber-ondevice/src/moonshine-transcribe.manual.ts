@@ -24,6 +24,7 @@ declare const __ORT_WASM_BASE__: string;
 const recording = {
   id: "manual-moonshine",
   capturedAt: "2026-08-11T10:00:00.000Z",
+  kind: "audio" as const,
   durationMs: 0,
   mimeType: "audio/wav",
   ctx: {},

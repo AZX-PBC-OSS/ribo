@@ -285,6 +285,7 @@ export class OnDeviceLiveTranscriber implements LiveTranscriber {
     const session = await this.openSession({
       id: "live-prime",
       capturedAt: new Date(0).toISOString(),
+      kind: "audio",
       durationMs: 0,
       mimeType: "audio/webm",
       ctx: {},

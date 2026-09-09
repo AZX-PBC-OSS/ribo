@@ -8,6 +8,7 @@ const schema = recordingSchema(jobContext);
 const valid = {
   id: "rec_01",
   capturedAt: "2026-07-23T10:15:30.000Z",
+  kind: "audio",
   durationMs: 12_500,
   mimeType: "audio/webm;codecs=opus",
   ctx: { jobId: "job_42" },
@@ -63,6 +64,12 @@ describe("recordingSchema", () => {
 
   test("rejects a ctx that does not match the host's context schema", () => {
     expect(schema.safeParse({ ...valid, ctx: { jobId: 42 } }).success).toBe(false);
+  });
+
+  test("supplies kind: audio via the branch default when the input omits it", () => {
+    const { kind: _kind, ...withoutKind } = valid;
+    const parsed = schema.parse(withoutKind);
+    expect(parsed.kind).toBe("audio");
   });
 
   test("keeps the host context typed through inference", () => {

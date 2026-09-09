@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { createRelay, FakeTranscriber, type Outbox, type OutboxItem } from "@azx/ribo-core";
+import {
+  createRelay,
+  FakeTranscriber,
+  restrictToKind,
+  type Outbox,
+  type OutboxItem,
+} from "@azx/ribo-core";
 import { useConnectivity, useOutboxItems } from "@azx/ribo-ui-react";
 
 import { getEvictionState, subscribeToEviction } from "./eviction-store.js";
@@ -192,10 +198,16 @@ function QueueRow({ outbox, item }: { outbox: Outbox; item: OutboxItem }) {
             "queued <start time> · 0:00.0 long" for a recording that is minutes in. */}
         {item.status === "recording" ? (
           <span style={muted}>started {formatClock(item.enqueuedAt)} · still recording</span>
-        ) : (
+        ) : item.recording.kind === "audio" ? (
           <span style={muted}>
             queued {formatClock(item.enqueuedAt)} · {formatElapsed(item.recording.durationMs)} long
             · attempt{item.attempts === 1 ? "" : "s"} {item.attempts}
+          </span>
+        ) : (
+          <span style={muted}>
+            queued {formatClock(item.enqueuedAt)} · {item.recording.pageCount} page
+            {item.recording.pageCount === 1 ? "" : "s"}· attempt{item.attempts === 1 ? "" : "s"}{" "}
+            {item.attempts}
           </span>
         )}
       </div>
@@ -247,7 +259,7 @@ async function runStubRelay(outbox: Outbox): Promise<void> {
   }
   const relay = createRelay({
     outbox,
-    transcriber: new FakeTranscriber(),
+    transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: extractStep,
     sessionWrite: () => Promise.resolve({ fields: { writtenBy: "playground stub" } }),
   });
