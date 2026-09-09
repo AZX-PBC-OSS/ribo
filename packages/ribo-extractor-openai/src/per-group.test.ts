@@ -1065,10 +1065,10 @@ test("every per-group schema name is within the structured-output name charset",
  * synthetic stand-ins: a 10-leaf singleton group (mirrors `health`) and a 9-leaf
  * collection group with two instances (mirrors `hvac`, R1.6-style).
  *
- * `perGroupExtractor` always requests the 8-leaf cap internally (not a caller
- * knob — see its comment above `splitExtractionSchema`), so a group over the cap
- * is partitioned into multiple calls with no test setup beyond "make a group with
- * more than 8 leaves".
+ * `perGroupExtractor` defaults the leaf cap to `MAX_ENVELOPED_LEAVES_PER_GROUP`,
+ * so a group over the cap is partitioned into multiple calls with no test setup
+ * beyond "make a group with more than 8 leaves"; a caller-supplied
+ * `maxLeavesPerGroup` overrides the default, which the last two tests pin.
  */
 describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-leaf cap)", () => {
   /** A 10-leaf singleton group — mirrors `health`'s shape, over the 8-leaf cap. */
@@ -1337,5 +1337,78 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
       // to 5 leaves) could never actually produce.
       expect(Object.keys(exampleFields.big).sort()).toEqual([...expectedKeys].sort());
     }
+  });
+
+  test("a group that partitions at the default cap stays whole at a higher caller-supplied cap", async () => {
+    // `big`'s leaf count exceeds the default cap but not the supplied one, so
+    // the whole group goes out in a single call named without a part suffix.
+    const wholeResponse = {
+      big: Object.fromEntries(
+        Array.from({ length: 10 }, (_, i) => [`f${i + 1}`, envelope(`a${i + 1}`, `s${i + 1}`)]),
+      ),
+    };
+    const { chat, requests } = fakeGroupChat({
+      "demo-big-big": JSON.stringify(wholeResponse),
+    });
+
+    const result = await perGroupExtractor({
+      target: bigTarget,
+      chat,
+      model: "m",
+      maxLeavesPerGroup: 16,
+    }).extract("t");
+
+    expect(requests).toHaveLength(1);
+    expect(result.usage.calls).toBe(1);
+    expect(requests[0]!.response_format.json_schema.name).toBe("demo-big-big");
+    const schema = requests[0]!.response_format.json_schema.schema as {
+      properties: { big: { properties: Record<string, unknown> } };
+    };
+    expect(Object.keys(schema.properties.big.properties)).toHaveLength(10);
+
+    const fields = result.fields as unknown as BigExtraction;
+    for (let i = 1; i <= 10; i++) {
+      const key = `f${i}` as keyof BigExtraction["big"];
+      expect(fields.big[key].value, `big.f${i}`).toBe(`a${i}`);
+    }
+  });
+
+  test("a group whole at the default cap is partitioned by a lower caller-supplied cap", async () => {
+    // `hvac` is under the default cap but over a supplied cap of 1, so it is
+    // split into one call per leaf and recombined; `attic` partitions too.
+    const { chat, requests } = fakeGroupChat({
+      "demo-grouped-hvac-0": JSON.stringify({
+        hvac: { equipmentType: { value: "Boiler", confidence: 0.9, sourceSpan: "boiler" } },
+      }),
+      "demo-grouped-hvac-1": JSON.stringify({
+        hvac: { fuel: { value: "Natural Gas", confidence: 0.8, sourceSpan: "gas" } },
+      }),
+      "demo-grouped-attic-0": JSON.stringify({
+        attic: {
+          insulationDepth: { value: "10-12", confidence: 0.9, sourceSpan: "ten inches" },
+        },
+      }),
+      "demo-grouped-attic-1": JSON.stringify({
+        attic: { insulationRValue: { value: 30, confidence: 0.7, sourceSpan: "R-30" } },
+      }),
+    });
+
+    const result = await perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      maxLeavesPerGroup: 1,
+    }).extract("t");
+
+    expect(requests).toHaveLength(4);
+    for (const request of requests) {
+      expect(request.response_format.json_schema.name).toMatch(/-([01])$/);
+    }
+
+    // Both groups recombined from their single-leaf pieces.
+    expect(result.fields.hvac.equipmentType.value).toBe("Boiler");
+    expect(result.fields.hvac.fuel.value).toBe("Natural Gas");
+    expect(result.fields.attic.insulationDepth.value).toBe("10-12");
+    expect(result.fields.attic.insulationRValue.value).toBe(30);
   });
 });
