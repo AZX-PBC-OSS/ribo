@@ -79,13 +79,13 @@ test("every per-call schema nests within the depth cap", () => {
 });
 
 /**
- * The per-instance groups (`hvac`, `attic`, `vault`, `wall`, `window`, `dhw`) and the
- * job-collection groups (`concern`, `incentive`) are arrays of instances in the real
- * `snuggExtractionSchema`. This test asserts the split still produces one entry per
- * group and that collection groups are actually arrays in the derived schema. The caps
- * are NOT asserted here: they bind per CALL, and a call carries a partitioned piece —
- * the unpartitioned `basedata` group is over the character cap by design and is never
- * sent.
+ * The per-instance groups (`hvac`, `attic`, `vault`, `wall`, `window`, `door`, `dhw`)
+ * and the job-collection groups (`concern`, `incentive`, and the appliance and `pv`
+ * resources) are arrays of instances in the real `snuggExtractionSchema`. This test
+ * asserts the split still produces one entry per group and that collection groups are
+ * actually arrays in the derived schema. The caps are NOT asserted here: they bind per
+ * CALL, and a call carries a partitioned piece — the unpartitioned `basedata` group is
+ * over the character cap by design and is never sent.
  */
 test("the real derived schema splits collection groups as arrays", () => {
   const groups = splitExtractionSchema(snuggExtractionSchema);
@@ -96,11 +96,20 @@ test("the real derived schema splits collection groups as arrays", () => {
     "vault",
     "wall",
     "window",
+    "door",
     "dhw",
     "health",
     "concern",
     "incentive",
+    "clothesDryer",
+    "freezer",
+    "range",
+    "refrigerator",
+    "pv",
     "stage",
+    "job",
+    "report",
+    "utilities",
   ]);
 
   const collectionKeys = new Set([
@@ -109,9 +118,15 @@ test("the real derived schema splits collection groups as arrays", () => {
     "vault",
     "wall",
     "window",
+    "door",
     "dhw",
     "concern",
     "incentive",
+    "clothesDryer",
+    "freezer",
+    "range",
+    "refrigerator",
+    "pv",
   ]);
   for (const group of groups) {
     const shape = (group.schema as z.ZodObject).shape;
@@ -160,7 +175,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     return Object.keys((candidate as z.ZodObject).shape).length;
   }
 
-  test("before partitioning, basedata, hvac, attic, vault, window and health all exceed the 8-leaf cap — the bug this guard exists to catch", () => {
+  test("before partitioning, basedata, hvac, attic, vault, window, dhw, health, job, utilities and refrigerator all exceed the 8-leaf cap — the bug this guard exists to catch", () => {
     // No `maxLeavesPerGroup` — the one-entry-per-group split `perGroupExtractor` would
     // send if it never partitioned. This pins the starting problem: without the fix
     // below, these groups would send an over-cap schema to an Anthropic-family model.
@@ -169,21 +184,36 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     const hvac = unpartitioned.find((g) => g.key === "hvac")!;
     const attic = unpartitioned.find((g) => g.key === "attic")!;
     const vault = unpartitioned.find((g) => g.key === "vault")!;
+    const wallGroup = unpartitioned.find((g) => g.key === "wall")!;
     const windowGroup = unpartitioned.find((g) => g.key === "window")!;
+    const dhw = unpartitioned.find((g) => g.key === "dhw")!;
     const health = unpartitioned.find((g) => g.key === "health")!;
+    const job = unpartitioned.find((g) => g.key === "job")!;
+    const utilities = unpartitioned.find((g) => g.key === "utilities")!;
+    const refrigerator = unpartitioned.find((g) => g.key === "refrigerator")!;
 
     expect(groupLeafCount(basedata)).toBe(163);
     expect(groupLeafCount(hvac)).toBe(46);
     expect(groupLeafCount(attic)).toBe(30);
     expect(groupLeafCount(vault)).toBe(20);
+    expect(groupLeafCount(wallGroup)).toBe(14);
     expect(groupLeafCount(windowGroup)).toBe(32);
+    expect(groupLeafCount(dhw)).toBe(37);
     expect(groupLeafCount(health)).toBe(16);
+    expect(groupLeafCount(job)).toBe(30);
+    expect(groupLeafCount(utilities)).toBe(27);
+    expect(groupLeafCount(refrigerator)).toBe(9);
     expect(groupLeafCount(basedata)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(hvac)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(attic)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(vault)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
+    expect(groupLeafCount(wallGroup)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(windowGroup)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
+    expect(groupLeafCount(dhw)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
     expect(groupLeafCount(health)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
+    expect(groupLeafCount(job)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
+    expect(groupLeafCount(utilities)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
+    expect(groupLeafCount(refrigerator)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
   });
 
   test("every partitioned entry stays at or under the 8-leaf cap (16 nullable unions)", () => {
@@ -219,20 +249,44 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       "vault",
       "wall",
       "window",
+      "door",
       "dhw",
       "health",
       "concern",
       "incentive",
+      "clothesDryer",
+      "freezer",
+      "range",
+      "refrigerator",
+      "pv",
       "stage",
+      "job",
+      "report",
+      "utilities",
     ]);
 
     expect(byKey.get("basedata")).toHaveLength(21);
     expect(byKey.get("hvac")).toHaveLength(6);
     expect(byKey.get("attic")).toHaveLength(4);
     expect(byKey.get("vault")).toHaveLength(3);
+    expect(byKey.get("wall")).toHaveLength(2);
     expect(byKey.get("window")).toHaveLength(4);
+    expect(byKey.get("dhw")).toHaveLength(5);
     expect(byKey.get("health")).toHaveLength(2);
-    for (const key of ["wall", "dhw", "concern", "incentive", "stage"]) {
+    expect(byKey.get("job")).toHaveLength(4);
+    expect(byKey.get("utilities")).toHaveLength(4);
+    expect(byKey.get("refrigerator")).toHaveLength(2);
+    for (const key of [
+      "door",
+      "concern",
+      "incentive",
+      "clothesDryer",
+      "freezer",
+      "range",
+      "pv",
+      "stage",
+      "report",
+    ]) {
       const pieces = byKey.get(key)!;
       expect(pieces, `group "${key}"`).toHaveLength(1);
       expect(pieces[0]!.part, `group "${key}" should not be partitioned`).toBeUndefined();
@@ -245,8 +299,13 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       ["hvac", 46],
       ["attic", 30],
       ["vault", 20],
+      ["wall", 14],
       ["window", 32],
+      ["dhw", 37],
       ["health", 16],
+      ["job", 30],
+      ["utilities", 27],
+      ["refrigerator", 9],
     ] as const) {
       const pieces = byKey.get(key)!;
       expect(pieces.map((p) => p.part)).toEqual(pieces.map((_, i) => i));

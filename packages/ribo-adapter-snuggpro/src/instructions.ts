@@ -34,11 +34,20 @@ export const SNUGG_GROUP_KEYS = [
   "vault",
   "wall",
   "window",
+  "door",
   "dhw",
   "health",
   "concern",
   "incentive",
+  "clothesDryer",
+  "freezer",
+  "range",
+  "refrigerator",
+  "pv",
   "stage",
+  "job",
+  "report",
+  "utilities",
 ] as const;
 
 /**
@@ -356,6 +365,162 @@ A dictated insulation DEPTH for a vault has no field in this group — it is cap
 \`attic.atticInsulationDepth\` (rule 8). Here, \`vaultCavityInsulation\` and
 \`vaultContinuousInsulation\` take only stated R-values.`,
   },
+  {
+    number: 17,
+    groups: ["door"],
+    text: `**17. A door has no name and no count — the group is closer to an aggregate than an instance.**
+
+The \`door\` group is the weakest instance of the per-record pattern in this schema: a door record
+carries no name, no location and no count field, and \`door.doorArea\` is a single AGGREGATE area —
+the vendor describes it as overridable "with the actual door sizes for the home" (plural). So "the
+front door" has nowhere to land as an identity. One record per distinct door the auditor describes
+as its own thing, told apart by its construction ("the front door is steel, the back one is wood"
+is two records); doors spoken of only collectively ("the doors are all old steel ones") are ONE
+record, and a re-mention of the same door is the same record (the leaf-level rules on merging and
+self-correction apply unchanged).
+
+\`door.doorType\` fuses material, insulation, half-lite glazing and storm door into ONE member:
+"an insulated steel door with a storm door on it" → \`"Steel, insulated with Storm"\`; "a half-lite
+wood door" → \`"1/2-Lite Wood"\`. The auditor says these as separate facts — combine what was stated
+into the single member that matches, character for character including the vendor's inconsistent
+storm casing ("Steel, hollow with storm" but "Steel, insulated with Storm"). When the stated
+combination fits no member, emit \`null\` with the quote (rule 11) — never force the nearest one.
+
+\`doorUValue\` and \`doorArea\` are auto-calculated by the vendor: set them only from actually
+stated numbers. A door with glazing covering half or more of its rough opening is modelled as a
+WINDOW at rough-opening area — when the auditor says that ("that glass door is really a window"),
+the fact belongs to the \`window\` group, never to \`doorArea\`. The \`*Improved\` leaves follow the
+usual discipline: dictated upgrade intent is captured ("put in an ENERGY STAR door" →
+\`doorEnergyStarImproved: "Yes"\`); improved spec numbers only when actually stated.`,
+  },
+  {
+    number: 18,
+    groups: ["job"],
+    text: `**18. The \`job\` group is the job itself — ONE job, two distinct contacts, and never an invented id.**
+
+The \`job\` group records the job's own identity, contacts, scheduling and program wiring. It is a
+SINGLETON: one recording session is one job, so there is never a second instance to tell apart.
+
+**Two people, one set of bare contact fields.** The bare contact leaves (\`firstName\`, \`lastName\`,
+\`email\`, \`homePhone\`, \`address1\`/\`address2\`, \`city\`, \`state\`, \`zip\`) are the OCCUPANT — the
+customer or job contact at the audited property. The \`propertyOwner*\` leaves are a SECOND, distinct
+person: the owner, when the auditor explicitly identifies the owner as someone else ("the owner lives
+in Akron, her number is five-five-five…"). A contact fact goes on the person being spoken about,
+never on both: "her number is …" during a tenant conversation is the tenant's phone on \`homePhone\`,
+and the same words about the out-of-state owner are \`propertyOwnerPhone\`. \`renterOwner\` is the
+hint — a rental means the occupant is the tenant — but fill the owner side only from speech that
+identifies the owner, never from \`renterOwner\` alone.
+
+**Spoken forms map to wire codes.** A full state name becomes its two-letter code ("the home is in
+Massachusetts" → \`state: "MA"\`, and the same mapping on \`propertyOwnerState\`). \`renterOwner\` is
+integer 0 (Renter) or 1 (Owner) from an explicit statement — "she owns it" → 1, "there's a tenant" →
+0 — never inferred from who answered the door. \`stageId\` and \`jobType\` are label→code integers
+("mark it bid proposed" → \`stageId: 3\`; "this is a score job" → \`jobType: 2\`), set only when the
+label was actually said — never a default because audits are the common case.
+
+**Names, not ids.** \`accountId\` and \`programId\` are integer ids on the wire, but you capture the
+SPOKEN NAME as free text — "give this one to Dave" → \`accountId: "Dave"\`; "this one's NYSERDA" →
+\`programId: "NYSERDA"\` — exactly the discipline of rule 15. Never emit, invent or guess a numeric
+id; resolving the name against the real account/program list is a later, human-supervised step.
+
+**Scheduling without a calendar.** \`serviceTime\` takes the wire format \`YYYY-MM-DD HH:MM:SS\`, and
+you fill it only when the transcript itself states an absolute date and time. A purely relative day
+("I'll come back Thursday at nine") stays \`value: null\` with the quote as \`sourceSpan\` — anchoring
+it to a calendar date is a later step, and a date you compute is a date you invented.
+
+**Verbatim strings.** \`householdIncomeTier\` members carry percent signs, spaces and a spaced hyphen
+(\`"LMI 80 - 120"\`) — reproduce them character for character. \`auditType\` has NO published value
+list ("only enabled for select programs"): capture what was said as free text, never a picked value.`,
+  },
+  {
+    number: 19,
+    groups: ["report"],
+    text: `**19. The \`report\` group is AUTHORED report copy — dictated words only, never prose you compose.**
+
+The \`report\` group carries text written for the homeowner-facing report: the cover-page
+introduction (\`coverTextArea\`), the additional-notes sidebar text (\`additionalNotesOverview\`), the
+health-and-safety narrative (\`safetyOverview\`), and a handful of short section labels. These fields
+invite composition — do NOT compose. A field is filled only with text the auditor actually dictated,
+kept in the words it was spoken in, with the dictation quoted as \`sourceSpan\`. A well-written
+paragraph you generated for the report is a hallucination like any invented number. Nothing
+dictated for a field is \`null\`.
+
+The prose fields (\`coverTextArea\`, \`additionalNotesOverview\`, \`safetyOverview\`) take the
+multi-sentence blocks an auditor dictates for the report. The rest are short single-line labels and
+section titles, and most are HARD-CAPPED BY THE API at 32 characters — a dictated paragraph does
+not fit and the write would be rejected or truncated. \`concernsSidebar\` is the trap: it reads like
+it wants the homeowner's concerns in prose, but it holds only a short caption. \`solutionsTitle\` has
+no cap yet is still a subheader — treat it as short.
+
+Do not double-book other groups' content here: a worry the homeowner voiced is a \`concern\` instance
+(rule 14), never \`concernsSidebar\`; a named test result is a \`health\` leaf (rule 9), and
+\`safetyOverview\` is the dictated safety NARRATIVE — never synthesized from the test matrix.`,
+  },
+  {
+    number: 20,
+    groups: ["clothesDryer", "freezer", "range", "refrigerator"],
+    text: `**20. Appliances: one record per appliance, the range record is also the oven record, and only a STATED year is a model year.**
+
+Each of these groups carries one record per physical appliance. None of them has a location field —
+"the dryer in the basement", "the garage chest freezer", "the beer fridge in the garage" tell
+instances apart, and on \`freezer\` and \`refrigerator\` that spoken label lands in the Name leaf
+(\`freezerName\` / \`refrigeratorName\`) as it was said, location included. \`clothesDryer\` and \`range\`
+have no Name leaf at all: a spoken location grounds the instance but has no writable home, so it
+never becomes a field value.
+
+- \`rangeFuelType\` covers the range AND its oven — the oven has no fields of its own. A dual-fuel
+  kitchen ("gas cooktop but the wall oven is electric") collapses into the one fuel used to cook most
+  often, with the whole utterance quoted in the \`sourceSpan\`; the discarded half is recorded nowhere.
+  A range and its oven are ONE record, never two. A standing pilot ("gas range with a standing
+  pilot") is \`"Natural Gas"\` — the pilot detail has no field and survives only in the quote.
+- Manufacturer is a CLOSED list on \`freezer\` and \`refrigerator\` — two DIFFERENT lists, never
+  interchangeable. A stated make that is not on the list is \`"Other"\` with the spoken brand quoted in
+  the \`sourceSpan\` (rule 11). On \`clothesDryer\` and \`range\` the manufacturer is plain free text:
+  the spoken make lands as said.
+- Model year takes a STATED year only: "installed in twenty fifteen" → 2015. A decade is not a year —
+  "probably from the nineties" leaves the value \`null\` with the decade quote in the \`sourceSpan\` for
+  the reviewer to resolve. Never derive a model year from an age or a move-in date.
+- \`refrigeratorAge\` and \`refrigeratorModelYear\` are redundant and can contradict. Fill whichever the
+  auditor actually stated — a stated age maps to the band containing it ("about twelve years old" →
+  \`"0-14"\`, the same banding discipline as rule 8; a stated 42 goes in \`"35-42"\`, the earlier of the
+  two bands it fits), a stated year fills the model year — and when both were stated, fill both even
+  if they disagree; the contradiction is the reviewer's to resolve.
+- \`refrigeratorSize\` is a cubic-feet band, mapped the same way ("an eighteen cubic foot" → \`"16-18"\`).
+- \`refrigeratorMaintenanceStarRating\` takes the auditor's own condition assessment: observable issues
+  that need addressing → \`"1"\`, standard condition for its age → \`"2"\`, well maintained / pristine →
+  \`"3"\`. "It's in rough shape" is \`"1"\` with the quote; a refrigerator nobody assessed is \`null\`.
+- Model and serial numbers are nameplate read-alouds: capture them as spoken, verbatim quote in the
+  \`sourceSpan\`, and lower \`confidence\` on a garbled passage rather than dropping or "fixing" the
+  reading.`,
+  },
+  {
+    number: 21,
+    groups: ["pv"],
+    text: `**21. PV: one record per array, orientation maps cardinals to degrees, and size/slope are stated numbers only.**
+
+The \`pv\` group carries one record per distinct solar PV array — a house can have several arrays on
+different roof planes. The group has no name or roof-plane field, so instances are told apart by
+their size and where the auditor puts them ("six kilowatt on the south slope, another two on the
+garage" is two records); the leaf-level rules on merging and self-correction apply unchanged.
+
+- The bare \`pv\` leaf is a whole-home presence flag the vendor parked on a per-instance resource.
+  Treat it as "this array exists": a record exists only because an array was introduced, so \`pv\` is
+  \`"Yes"\` grounded in that introduction. A house with no solar produces NO record — never a record
+  with \`pv: "No"\`.
+- \`pvArraySize\` is the array size in kW AS STATED: "a six kilowatt array" → 6. When the auditor gives
+  a panel count and a per-panel wattage instead ("fifteen two-sixty-five watt panels"), do NOT
+  multiply them into this field — the product is arithmetic you never do (rule 12); leave it \`null\`
+  with both numbers riding in the \`sourceSpan\`.
+- \`pvArrayOrientation\` is degrees from North, and mapping a spoken cardinal onto it is your semantic
+  job, the same as picking an enum member: north → 0, northeast → 45, east → 90, southeast → 135,
+  south → 180, southwest → 225, west → 270, northwest → 315. "South-facing" → 180. A stated number of
+  degrees stays itself.
+- \`pvArraySlope\` is the collector slope in DEGREES, and only degrees: a spoken roof pitch
+  ("four-twelve") is not degrees, and pitch→degrees is a conversion you never do — leave it \`null\`
+  with the pitch quote in the \`sourceSpan\` for the reviewer.
+- \`pvModuleYear\` is a stated year only — the install vintage when the auditor states it ("went in in
+  twenty nineteen") — and is never derived from a stated age.`,
+  },
 ];
 
 // --- Output section ----------------------------------------------------------
@@ -371,10 +536,9 @@ function fullOutputSection(): string {
 
 Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` in \`schema.ts\`.
 
-- The object has exactly eleven top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`vault\`, \`wall\`,
-  \`window\`, \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\` — each a nested object grouping
-  the fields for one part of the house or one job-collection resource. They are not themselves fields
-  and carry no envelope of their own.
+- The object has one top-level key per resource group in \`schema.ts\`'s \`snuggValuesSchema\` — each
+  a nested object grouping the fields for one part of the house or one job-collection resource.
+  They are not themselves fields and carry no envelope of their own.
 - Every field in the schema must be present as a key inside its group. Never omit a key — "not
   mentioned" is expressed by \`value: null\`, not by absence. This includes every one of the 16 keys
   inside \`health\`, and every field of a group the auditor never touched.

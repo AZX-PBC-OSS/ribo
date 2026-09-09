@@ -403,6 +403,19 @@ const fields: SnuggExtraction = {
       wallExteriorWallSiding: env(null, null),
       wallCavityInsulation: env(null, null),
       wallCavityInsulationType: env(null, null),
+      // The remainder of the endpoint's verdicted capture surface (doc 20 §5.5):
+      // nothing in this transcript states a construction, a continuous insulation,
+      // an area, a share or any wall retrofit, so every one of them is an unforced null.
+      wallExteriorWallConstruction: env(null, null),
+      wallContinuousInsulation: env(null, null),
+      wallModeledWallArea: env(null, null),
+      wallSystemPercentOfTotal: env(null, null),
+      wallContinuousInsulationType: env(null, null),
+      wallCavityInsulationImproved: env(null, null),
+      wallContinuousInsulationImproved: env(null, null),
+      wallModeledWallAreaImproved: env(null, null),
+      wallCavityInsulationTypeImproved: env(null, null),
+      wallContinuousInsulationTypeImproved: env(null, null),
     },
   ],
 
@@ -443,6 +456,11 @@ const fields: SnuggExtraction = {
     },
   ],
 
+  // No door is ever brought up in this transcript, so the honest roster-driven output
+  // is an empty array — the "transcript never brings the group up at all" case, not one
+  // all-null instance.
+  door: [],
+
   dhw: [
     {
       // Indirect off the boiler — Snugg's name for that is "Sidearm Tank".
@@ -454,6 +472,43 @@ const fields: SnuggExtraction = {
       dhwLocation: env(null, null),
       dhwTankSize: env(40, "a forty-gallon Amtrol"),
       dhwManufacturer: env("Other", "a forty-gallon Amtrol", 0.8),
+      // Nothing in this transcript names a temperature setting, a model or
+      // serial, a load share, an efficiency, a wrap, a condition rating or any
+      // recommendation — every remainder leaf (doc 20 §5.4) is an honest null.
+      // The install-sticker year is an install date, not the model year, so
+      // `dhwModelYear` stays null too (rule 1 — never derive one field from
+      // another).
+      dhwTemperatureSettings: env(null, null),
+      dhwTemp: env(null, null),
+      dhwModel: env(null, null),
+      dhwModelYear: env(null, null),
+      dhwSerialNumber: env(null, null),
+      dhwPercentLoad: env(null, null),
+      dhwEnergyStar: env(null, null),
+      dhwHeatingCapacity: env(null, null),
+      dhwTankWrap: env(null, null),
+      dhwTankWrapRValue: env(null, null),
+      dhwPipeWrap: env(null, null),
+      dhwPipeWrapRValue: env(null, null),
+      dhwMaintenanceStarRating: env(null, null),
+      dhwSidearmBoiler: env(null, null),
+      dhwSidearmStandbyLoss: env(null, null),
+      dhwEnergyFactorType: env(null, null),
+      dhwEnergyFactor: env(null, null),
+      dhwUnifiedEnergyFactor: env(null, null),
+      dhwRecoveryEfficiency: env(null, null),
+      hesDhwEnergyFactor: env(null, null),
+      dhwType2Improved: env(null, null),
+      dhwFuel2Improved: env(null, null),
+      dhwTankSizeImproved: env(null, null),
+      dhwHeatingCapacityImproved: env(null, null),
+      dhwPercentLoadImproved: env(null, null),
+      dhwEnergyStarImproved: env(null, null),
+      dhwTempImproved: env(null, null),
+      dhwTankWrapImproved: env(null, null),
+      dhwPipeWrapImproved: env(null, null),
+      dhwPipeWrapLengthImproved: env(null, null),
+      dhwPipeWrapPercentageImproved: env(null, null),
     },
   ],
 
@@ -494,11 +549,116 @@ const fields: SnuggExtraction = {
   // group up at all" case, not one all-null instance.
   incentive: [],
 
+  // This basement walk-through names no appliance — no dryer, freezer, range or
+  // refrigerator comes up — so every appliance collection is honestly EMPTY,
+  // the same never-brought-up case as incentive above, not one all-null
+  // instance per appliance.
+  clothesDryer: [],
+  freezer: [],
+  range: [],
+  refrigerator: [],
+
+  // No solar PV either. An empty array — NOT a one-instance record carrying
+  // `pv: "No"`: a house with no solar produces no pv record at all (rule 18).
+  pv: [],
+
   stage: {
     // Nothing in this transcript moves the job's workflow stage, so the group's one
     // capture field is an unforced `null` — silence is never an invented stage, the
     // same discipline as an unmentioned health test.
     stageId: env(null, null),
+  },
+
+  job: {
+    // This dictation is the auditor walking the basement alone — no customer name,
+    // address, contact, appointment, assignee, program or income tier is spoken
+    // anywhere in it, so every job-identity leaf is an unforced `null`. Requiredness
+    // (this endpoint has required fields) is surfaced at review via the adapter's
+    // `requiredOnCreate`, never invented by the model — the same lesson the
+    // required-but-null `hvacUpgradeAction` above demonstrates.
+    firstName: env(null, null),
+    lastName: env(null, null),
+    renterOwner: env(null, null),
+    serviceTime: env(null, null),
+    email: env(null, null),
+    homePhone: env(null, null),
+    address1: env(null, null),
+    address2: env(null, null),
+    city: env(null, null),
+    state: env(null, null),
+    zip: env(null, null),
+    accountId: env(null, null),
+    stageId: env(null, null),
+    jobType: env(null, null),
+    programId: env(null, null),
+    altId: env(null, null),
+    buildingId: env(null, null),
+    propertyOwnerFirstName: env(null, null),
+    propertyOwnerLastName: env(null, null),
+    propertyOwnerAddress1: env(null, null),
+    propertyOwnerAddress2: env(null, null),
+    propertyOwnerEmail: env(null, null),
+    propertyOwnerPhone: env(null, null),
+    propertyOwnerCity: env(null, null),
+    propertyOwnerState: env(null, null),
+    propertyOwnerZip: env(null, null),
+    auditType: env(null, null),
+    note: env(null, null),
+    useStrictBpi2400Calibration: env(null, null),
+    householdIncomeTier: env(null, null),
+  },
+
+  report: {
+    // Nothing in this transcript is dictated AS REPORT COPY — no cover-page intro, no
+    // notes narrative, no section labels — so every authored-text field is an unforced
+    // `null`. The demonstration for this group is the same as the stage group's: the
+    // model never composes report prose itself (rule 17), so a transcript with no
+    // dictated report text produces all `null`s, never a written paragraph.
+    coverTextArea: env(null, null),
+    additionalNotesOverview: env(null, null),
+    safetyOverview: env(null, null),
+    titleCover: env(null, null),
+    concernsSidebar: env(null, null),
+    solutionsTitle: env(null, null),
+    titleCustom1: env(null, null),
+    titleCustom2: env(null, null),
+  },
+
+  utilities: {
+    // The dictation never touches billing: no provider, bill figure, price, unit
+    // or rate plan comes up, so every leaf is an honest null. The transcript DOES
+    // state two heating systems on two different fuels (oil downstairs, electric
+    // heat pump upstairs) without saying which is primary — so
+    // `primaryHeatingFuelType` stays null too: which system primarily heats the
+    // home was never stated, and inferring it from the equipment mentions is
+    // exactly the derivation rule 1 forbids.
+    billEntryType: env(null, null),
+    detailedElectricDataSource: env(null, null),
+    detailedFuelDataSource: env(null, null),
+    electricUtilityProviderName: env(null, null),
+    fuelUtilityProviderName: env(null, null),
+    additionalFuelUtilityProviderName: env(null, null),
+    highestMonthlySummerElectricBill: env(null, null),
+    highestMonthlyWinterElectricBill: env(null, null),
+    lowestMonthlyElectricBill: env(null, null),
+    highestMonthlyWinterNaturalGasBill: env(null, null),
+    lowestMonthlyNaturalGasBill: env(null, null),
+    simpleFuelUnits: env(null, null),
+    totalSimpleFuelUsedInLast12Months: env(null, null),
+    primaryHeatingFuelType: env(null, null),
+    electricBillUnits: env(null, null),
+    fuelBillUnits: env(null, null),
+    utilityPriceNaturalGas: env(null, null),
+    utilityPricePropane: env(null, null),
+    utilityPriceFuelOil: env(null, null),
+    utilityPriceElectricity: env(null, null),
+    utilityPriceWood: env(null, null),
+    utilityPricePellets: env(null, null),
+    utilityPriceCoal: env(null, null),
+    utilityPriceKerosene: env(null, null),
+    electricRatePlan: env(null, null),
+    fuelRatePlan: env(null, null),
+    electricRatePlanImproved: env(null, null),
   },
 };
 

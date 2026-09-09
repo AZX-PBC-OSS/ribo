@@ -33,6 +33,24 @@ test("re-exports the adapter, both schemas, the ctx schema, instructions, exampl
   expect(typeof api.ConcernFields.parse).toBe("function");
   // The vault job-collection group (doc 20 tranche 12) must not fall out either.
   expect(typeof api.VaultFields.parse).toBe("function");
+  // The door job-collection group (doc 20 tranche 6) must not fall out either.
+  expect(typeof api.DoorFields.parse).toBe("function");
+  // The job singleton group (doc 20 tranche 15) likewise.
+  expect(typeof api.JobFields.parse).toBe("function");
+  // The report singleton group (doc 20 §5.3, authored text) likewise.
+  expect(typeof api.ReportFields.parse).toBe("function");
+  // The utilities job-collection group (doc 20 §5.2, the core tranche) likewise.
+  expect(typeof api.UtilitiesFields.parse).toBe("function");
+  // The appliances-and-PV job-collection groups (doc 20 §5.6) must not fall out
+  // either — one pin per resource, and the freezer brand list keeps the vendor's
+  // own "Fridgidaire" typo verbatim.
+  expect(typeof api.ClothesDryerFields.parse).toBe("function");
+  expect(typeof api.FreezerFields.parse).toBe("function");
+  expect(typeof api.RangeFields.parse).toBe("function");
+  expect(typeof api.RefrigeratorFields.parse).toBe("function");
+  expect(typeof api.PvFields.parse).toBe("function");
+  expect(api.FreezerManufacturer.options).toContain("Fridgidaire");
+  expect(api.RefrigeratorManufacturer.options).toContain("Fridgidaire");
   // The platform-route caps are exported as runtime constants so the per-group
   // cap test and any consumer can guard against the vendor's HTTP 400.
   expect(api.SCHEMA_SERIALIZED_CHAR_CAP).toBe(32_768);

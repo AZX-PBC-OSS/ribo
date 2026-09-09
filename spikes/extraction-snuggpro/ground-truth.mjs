@@ -224,12 +224,13 @@ function validateLeaf(path, leafSpec, truth, errors) {
 /**
  * The groups the vendor models as per-instance child resources. A job may hold several of
  * each, so ground truth carries an ORDERED LIST per group rather than one flat leaf map.
- * `basedata`, `health` and `stage` are genuine singletons in the API and stay flat;
+ * `basedata`, `health`, `stage`, `job`, `report` and `utilities` are genuine singletons in
+ * the API and stay flat;
  * `concern` is a job-collection resource the schema models as an array of instances exactly
  * like the component collections, so the scorer must too.
  *
- * NOTE: `incentive` and `vault` are array groups in `schema.ts` but are deliberately NOT
- * listed here: the ground-truth corpus predates them and must not be re-annotated as part
+ * NOTE: `incentive`, `vault` and `door` are array groups in `schema.ts` but are deliberately
+ * NOT listed here: the ground-truth corpus predates them and must not be re-annotated as part
  * of those schema tranches, and adding them would make every corpus file invalid
  * ("instances is missing incentive") until each gained the matching `instances` key. Until
  * a corpus tranche says otherwise, their leaves ride the flat map below as ordinary

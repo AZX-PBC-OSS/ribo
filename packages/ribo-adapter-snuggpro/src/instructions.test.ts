@@ -47,6 +47,11 @@ const RULE_MARKERS: readonly string[] = [
   "A concern is the HOMEOWNER's",
   "is the SPOKEN rebate name",
   "A vault is a vaulted / cathedral ceiling",
+  "closer to an aggregate than an instance",
+  "The `job` group is the job itself",
+  "is AUTHORED report copy",
+  "Appliances: one record per appliance",
+  "PV: one record per array",
 ];
 
 /** The group-specific rules and the groups they belong to. */
@@ -62,6 +67,15 @@ const GROUP_SPECIFIC_RULES: ReadonlyArray<{
   { rule: 14, marker: RULE_MARKERS[13]!, groups: ["concern"] },
   { rule: 15, marker: RULE_MARKERS[14]!, groups: ["incentive"] },
   { rule: 16, marker: RULE_MARKERS[15]!, groups: ["vault"] },
+  { rule: 17, marker: RULE_MARKERS[16]!, groups: ["door"] },
+  { rule: 18, marker: RULE_MARKERS[17]!, groups: ["job"] },
+  { rule: 19, marker: RULE_MARKERS[18]!, groups: ["report"] },
+  {
+    rule: 20,
+    marker: RULE_MARKERS[19]!,
+    groups: ["clothesDryer", "freezer", "range", "refrigerator"],
+  },
+  { rule: 21, marker: RULE_MARKERS[20]!, groups: ["pv"] },
 ];
 
 /** Groups that should NOT see a given group-specific rule. */
@@ -124,13 +138,13 @@ describe("per-group instructions — sole top-level key", () => {
       expect(prompt, `group "${key}"`).toContain("exactly one top-level key");
       expect(prompt, `group "${key}"`).toContain(`\`${key}\``);
       // The per-group prompt must not carry the full-prompt output section's wording.
-      expect(prompt, `group "${key}"`).not.toContain("eleven top-level keys");
+      expect(prompt, `group "${key}"`).not.toContain("one top-level key per resource group in");
     }
   });
 
-  test("the full instructions still assert eleven top-level keys", () => {
+  test("the full instructions still assert one top-level key per resource group", () => {
     // The single-shot path keeps the full output section — guard against changing it too.
-    expect(snuggProInstructions).toContain("eleven top-level keys");
+    expect(snuggProInstructions).toContain("one top-level key per resource group in");
   });
 });
 
@@ -189,9 +203,9 @@ describe("per-group instructions — no rule is lost", () => {
   test("the rule count is pinned — adding or removing a rule is a conscious decision", () => {
     // A dropped rule entry fails here before the "no rule lost" test even needs to
     // identify which one.
-    expect(SNUGG_RULES).toHaveLength(16);
+    expect(SNUGG_RULES).toHaveLength(21);
     expect(SNUGG_RULES.map((r) => r.number)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
     ]);
   });
 });

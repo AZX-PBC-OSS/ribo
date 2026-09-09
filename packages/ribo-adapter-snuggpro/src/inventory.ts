@@ -84,9 +84,15 @@ export const rosterSchema = z.strictObject({
   vault: rosterGroupSchema,
   wall: rosterGroupSchema,
   window: rosterGroupSchema,
+  door: rosterGroupSchema,
   dhw: rosterGroupSchema,
   concern: rosterGroupSchema,
   incentive: rosterGroupSchema,
+  clothesDryer: rosterGroupSchema,
+  freezer: rosterGroupSchema,
+  range: rosterGroupSchema,
+  refrigerator: rosterGroupSchema,
+  pv: rosterGroupSchema,
 });
 
 export type Roster = z.infer<typeof rosterSchema>;
@@ -97,10 +103,12 @@ const INVENTORY_PREAMBLE = `## System
 
 You are doing an inventory pass over a home energy auditor's dictated transcript. Your job is to
 list every recordable instance of the following resource types: \`hvac\`, \`attic\`, \`vault\`,
-\`wall\`, \`window\`, \`dhw\`, \`concern\`, and \`incentive\` — the first six are components of the
-house (\`vault\` is a vaulted / cathedral ceiling space); \`concern\` is a worry the homeowner
-voiced; \`incentive\` is a rebate or program the auditor introduces. Do not fill any leaf fields
-yet — only decide which instances exist, which are excluded, and how to refer to them.
+\`wall\`, \`window\`, \`door\`, \`dhw\`, \`concern\`, \`incentive\`, \`clothesDryer\`, \`freezer\`,
+\`range\`, \`refrigerator\`, and \`pv\` — the first seven are components of the house (\`vault\` is a
+vaulted / cathedral ceiling space); \`concern\` is a worry the homeowner voiced; \`incentive\` is a
+rebate or program the auditor introduces; the next four are the home's appliances (a \`range\`
+record covers its oven too); \`pv\` is a rooftop solar PV array. Do not fill any leaf fields yet —
+only decide which instances exist, which are excluded, and how to refer to them.
 
 For each candidate instance emit exactly these five fields:
 
@@ -167,6 +175,12 @@ model found nothing to report," used when the transcript never brings the group 
   areas of the house. A re-mention of the same ceiling is the same record.
 - \`wall\`: one record per distinct wall construction assembly.
 - \`window\`: one record per distinct window type or area.
+- \`door\`: one record per distinct door the auditor describes as its own thing. A door has no name,
+  no location and no count field — its area field is a single AGGREGATE ("override with the actual
+  door sizes for the home") — so "the front door" and "the back door" are two records only when the
+  auditor describes them separately, typically by their construction ("the front is steel, the back
+  is wood"). Doors spoken of only collectively ("the doors are all old steel ones") are ONE record.
+  A re-mention of the same door is the same record.
 - \`dhw\`: one record per water heating system.
 - \`concern\`: one record per DISTINCT concern the homeowner voiced, distinguished by its SUBJECT —
   a noise worry, a comfort worry and a cost worry are three records even when they share one cause.
@@ -178,6 +192,23 @@ model found nothing to report," used when the transcript never brings the group 
   mentioned (a spoken name like "the utility's heat pump rebate", captured later as free text) and/or
   by its amount. A second program is a second record; the same program restated, or its amount
   corrected, is the same record (rule 15 of the leaf-level instructions).
+- \`clothesDryer\`: one record per clothes dryer. A dryer has no name or location field — one is
+  distinguished from another by its fuel, its make/model, or the place the auditor describes it in
+  ("the dryer in the basement" vs. "the one upstairs"). The spoken location has no write target; it
+  rides the discriminator only.
+- \`freezer\`: one record per freezer, distinguished by its spoken label ("the garage chest freezer",
+  captured later as its name) and/or by its make and model year. A chest freezer and an upright in
+  the same garage are two records only when the auditor describes them as separate units.
+- \`range\`: one record per range — AND its oven: the range record is the combined range+oven cooking
+  appliance, so a cooktop and a wall oven in one kitchen are two records only when the auditor
+  describes them as separate cooking appliances. One is distinguished from another by fuel, make, or
+  spoken location; a dual-fuel split ("gas cooktop, electric wall oven") is still one record.
+- \`refrigerator\`: one record per refrigerator, distinguished by its spoken label ("the kitchen
+  fridge" vs. "the beer fridge in the garage", captured later as its name) and/or by make, size or
+  age. When the auditor says which refrigerator is the house's primary one, list that one FIRST.
+- \`pv\`: one record per distinct solar PV array, distinguished by its size and the roof plane or
+  orientation the auditor puts it on — "six kilowatt on the south slope, another two on the garage"
+  is two records. A re-mention of the same array is the same record.
 
 **7. Self-correction at the instance level.**
 
@@ -190,8 +221,9 @@ the corrected count, not the first one.
 
 Return a **single JSON object** conforming exactly to the roster schema.
 
-- The object has exactly eight top-level keys — \`hvac\`, \`attic\`, \`vault\`, \`wall\`, \`window\`,
-  \`dhw\`, \`concern\`, \`incentive\` — each one of three shapes:
+- The object has one top-level key per inventoried resource type — \`hvac\`, \`attic\`, \`vault\`,
+  \`wall\`, \`window\`, \`door\`, \`dhw\`, \`concern\`, \`incentive\`, \`clothesDryer\`, \`freezer\`,
+  \`range\`, \`refrigerator\`, \`pv\` — each one of three shapes:
   - An **array of candidate instances** in **first-mention order**, when the auditor introduced at
     least one.
   - An **empty array**, when the transcript never brings the group up at all.

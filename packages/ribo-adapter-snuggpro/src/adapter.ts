@@ -30,14 +30,25 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
   ctxSchema: snuggCtxSchema,
 
   /**
-   * What Snugg Pro refuses to create an HVAC system without — declared per group
-   * so the same leaves apply to every emitted instance.
+   * What Snugg Pro refuses a CREATE without — declared per group so the same
+   * leaves apply to every emitted instance of a collection, and to the singleton
+   * groups directly.
    *
    * `POST /jobs/{jobId}/hvac` is the **only** component endpoint with required
-   * capture fields — every other endpoint (attic, wall, window, DHW, health,
-   * concern, and the base-data singleton) has none, which is why a partial
-   * dictation writes cleanly (doc 17 §"The required-field surface", doc 20 §5.7).
-   * It requires exactly two, and both are now extracted.
+   * capture fields — every other component endpoint (attic, wall, window, DHW,
+   * health, concern) has none, which is why a partial dictation of a component
+   * writes cleanly (doc 17 §"The required-field surface", doc 20 §5.7). It
+   * requires exactly two, and both are now extracted.
+   *
+   * `POST /jobs` is the exception among the singletons: creating the job itself
+   * genuinely requires the customer's name and address, the state, zip, and the
+   * assignee, stage, job-type and program references (doc 20 §4.6 — "a job
+   * cannot be created from dictation alone", because the reference fields need
+   * their name→id resolution first). Every one of those required fields that is
+   * in the capture surface is declared here; the two required fields NOT here
+   * are the ones doc 20 excludes from capture entirely (`fromTemplateId` is not
+   * required, and `companyId` — the tenancy fk fixed per credential — is).
+   * `PUT /jobs/{jobId}` requires nothing, so the update twin adds no leaves.
    *
    * Declared per group rather than as full paths because `hvac` is a collection:
    * a house with N systems has N × 2 required fields, and the instance keys
@@ -57,6 +68,18 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
    */
   requiredOnCreate: {
     hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
+    job: [
+      "firstName",
+      "lastName",
+      "address1",
+      "city",
+      "state",
+      "zip",
+      "accountId",
+      "stageId",
+      "jobType",
+      "programId",
+    ],
   },
 
   instructions: snuggProInstructions,
