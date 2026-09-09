@@ -120,7 +120,7 @@ export const TEST_MODEL_ID = "Xenova/tiny-random-WhisperForConditionalGeneration
 export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
 
 /**
- * The scratch app's entry point. Touches all six published packages from their real tarball
+ * The scratch app's entry point. Touches every published package from their real tarball
  * installs and records what happened onto \`globalThis.__RIBO_PACK_CONSUME_RESULT__\` — a plain,
  * JSON-serializable object Playwright reads back with \`page.evaluate\`.
  *
@@ -128,8 +128,9 @@ export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
  * CI run which of three unrelated things broke, without opening this script:
  *
  *   - `"setup-before-worker"` — one of ribo-core / ribo-adapter-snuggpro / ribo-extractor-openai /
- *     ribo-transcriber-managed / ribo-ui-react threw. None of this touches the network, so a Hub outage can never explain it —
- *     this is a real packaging regression in one of those five packages.
+ *     ribo-extractor-ondevice / ribo-transcriber-managed / ribo-transcriber-pdfjs / ribo-ui-react threw.
+ *     None of this touches the network, so a Hub outage can never explain it —
+ *     this is a real packaging regression in one of those packages.
  *   - `"worker-spawn-or-import"` — `prime()` threw and the worker never reported even an `initiate`
  *     progress event. A worker that never started can never have posted one, so this is very
  *     likely a real regression in `@azx/ribo-transcriber-ondevice`'s published `./worker` entry
@@ -148,6 +149,7 @@ import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
 import { OnDeviceChat, threePhaseExtractor, ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 import { OnDeviceTranscriber } from "@azx/ribo-transcriber-ondevice";
 import { ManagedTranscriber } from "@azx/ribo-transcriber-managed";
+import { PdfjsTranscriber, PDFJS_ENGINE } from "@azx/ribo-transcriber-pdfjs";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import React from "react";
 import { createRoot } from "react-dom/client";
@@ -214,6 +216,17 @@ async function run() {
       isOnline: () => true,
     }).capability();
     checks.managedReady = configured.status === "ready";
+
+    // ribo-transcriber-pdfjs: real capability logic across the tarball boundary, and no
+    // pdf.js load — capability() checks only the environment. Both directions: unconfigured
+    // yields not-configured (not permanent), configured yields ready.
+    const pdfjsUnconfigured = await new PdfjsTranscriber({}).capability();
+    checks.pdfjsUnconfigured = pdfjsUnconfigured.status === "unavailable" && pdfjsUnconfigured.reason === "not-configured";
+    const pdfjsConfigured = await new PdfjsTranscriber({
+      workerSrc: "/assets/pdf.worker.min.mjs",
+    }).capability();
+    checks.pdfjsReady = pdfjsConfigured.status === "ready";
+    checks.pdfjsEngineId = PDFJS_ENGINE === "pdfjs";
 
     // ribo-ui-react: a REAL React render through RiboProvider, proving one React instance.
     const mountNode = document.getElementById("app");

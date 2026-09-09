@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import { SNUGGPRO_ADAPTER_NAME as ADAPTER } from "@azx/ribo-adapter-snuggpro";
+import { PDFJS_ENGINE } from "@azx/ribo-transcriber-pdfjs";
 import type { Outbox } from "@azx/ribo-core";
 
 import { getCaptureCoordinator } from "./capture-coordinator-handle.js";
@@ -49,7 +50,7 @@ import { WorkSafetyPanel } from "./WorkSafetyPanel.js";
  * SDK feature no host turns on is a feature nobody has watched work.
  */
 
-const COMPOSED_NAMES = ["@azx/ribo-ui-react", ADAPTER, "@azx/ribo-transcriber-managed"];
+const COMPOSED_NAMES = ["@azx/ribo-ui-react", ADAPTER, "@azx/ribo-transcriber-managed", "@azx/ribo-transcriber-pdfjs"];
 
 export function App() {
   const outbox = useOutbox();
@@ -126,7 +127,9 @@ export function App() {
           <code style={monospace}>@azx/ribo-adapter-snuggpro</code> now ships a real adapter;{" "}
           <code style={monospace}>@azx/ribo-transcriber-managed</code> ships the{" "}
           <code style={monospace}>{MANAGED_AZURE_SPEECH_ENGINE}</code> engine, which the transcribe
-          panel falls back to when the on-device model is not primed.
+          panel falls back to when the on-device model is not primed;{" "}
+          <code style={monospace}>@azx/ribo-transcriber-pdfjs</code> ships the{" "}
+          <code style={monospace}>{PDFJS_ENGINE}</code> engine for PDF document transcription.
         </footer>
       </main>
     </RiboProvider>

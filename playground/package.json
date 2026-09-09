@@ -17,6 +17,7 @@
     "@azx/ribo-extractor-openai": "workspace:*",
     "@azx/ribo-transcriber-managed": "workspace:*",
     "@azx/ribo-transcriber-ondevice": "workspace:*",
+    "@azx/ribo-transcriber-pdfjs": "workspace:*",
     "@azx/ribo-ui-react": "workspace:*",
     "@codemirror/lang-json": "catalog:",
     "@uiw/react-codemirror": "catalog:",
