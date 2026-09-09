@@ -1,15 +1,11 @@
 import { describe, expect, test } from "vitest";
 
-import type { CaptureItem } from "./capture-item.js";
 import { FakeTranscriber } from "./fake-transcriber.js";
 import { fallbackTranscriber } from "./fallback-transcriber.js";
 import { isTransientFailure, TerminalQueueError } from "./queue/backoff.js";
 import type { Recording } from "./recording.js";
-import { TranscriberUnavailableError, type Transcriber } from "./transcriber.js";
-import {
-  unsupportedFallsThrough,
-  type TranscriptionArbiter,
-} from "./transcription-arbitration.js";
+import { type Transcriber } from "./transcriber.js";
+import { unsupportedFallsThrough, type TranscriptionArbiter } from "./transcription-arbitration.js";
 import { UnsupportedItemError } from "./unsupported-item.js";
 
 const recording = (id = "rec-1"): Recording => ({
@@ -153,10 +149,7 @@ describe("fallbackTranscriber", () => {
 
   test("an arbiter returning continue at exhaustion fails naming the arbiter", async () => {
     const alwaysContinue: TranscriptionArbiter = () => ({ continue: true });
-    const composite = fallbackTranscriber(
-      [fake("a", { text: "text" })],
-      alwaysContinue,
-    );
+    const composite = fallbackTranscriber([fake("a", { text: "text" })], alwaysContinue);
 
     await expect(composite.transcribe(recording(), audio())).rejects.toThrow(TypeError);
     await expect(composite.transcribe(recording(), audio())).rejects.toThrow(/arbiter/);
@@ -251,7 +244,11 @@ describe("fallbackTranscriber", () => {
       fallbackTranscriber(
         [
           fake("a", {
-            capability: { status: "unavailable", reason: "unsupported-platform", detail: "no WebGPU" },
+            capability: {
+              status: "unavailable",
+              reason: "unsupported-platform",
+              detail: "no WebGPU",
+            },
           }),
           fake("b", {
             capability: { status: "unavailable", reason: "offline", detail: "no network" },

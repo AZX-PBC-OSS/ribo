@@ -84,7 +84,10 @@ describe("unsupportedFallsThrough", () => {
 
     expectAccept(
       unsupportedFallsThrough(
-        makeInput([{ candidate: "pdfjs", error }, { candidate: "ocr", result: transcript }]),
+        makeInput([
+          { candidate: "pdfjs", error },
+          { candidate: "ocr", result: transcript },
+        ]),
       ),
       transcript,
     );
@@ -111,7 +114,10 @@ describe("unsupportedFallsThrough", () => {
     const terminal = new TerminalQueueError("truncated");
     expect(isTransientFailure(terminal)).toBe(false);
 
-    expectGiveUp(unsupportedFallsThrough(makeInput([{ candidate: "a", error: terminal }])), terminal);
+    expectGiveUp(
+      unsupportedFallsThrough(makeInput([{ candidate: "a", error: terminal }])),
+      terminal,
+    );
   });
 
   // Rule 2 is the deliberate divergence from terminalFallsThrough: at
@@ -130,7 +136,10 @@ describe("unsupportedFallsThrough", () => {
     expectGiveUp(
       unsupportedFallsThrough(
         makeInput(
-          [{ candidate: "pdfjs", error: terminal }, { candidate: "ocr", error: retryable }],
+          [
+            { candidate: "pdfjs", error: terminal },
+            { candidate: "ocr", error: retryable },
+          ],
           true,
         ),
       ),
@@ -145,7 +154,10 @@ describe("unsupportedFallsThrough", () => {
     expectGiveUp(
       unsupportedFallsThrough(
         makeInput(
-          [{ candidate: "pdfjs", error: first }, { candidate: "ocr", error: second }],
+          [
+            { candidate: "pdfjs", error: first },
+            { candidate: "ocr", error: second },
+          ],
           true,
         ),
       ),

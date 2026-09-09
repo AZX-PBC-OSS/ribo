@@ -65,9 +65,7 @@ export interface TranscriptionArbiterInput {
  * is a compile-time error rather than a silent `continue`.
  */
 export type TranscriptionArbiterVerdict =
-  | { readonly accept: Transcript }
-  | { readonly continue: true }
-  | { readonly giveUp: unknown };
+  { readonly accept: Transcript } | { readonly continue: true } | { readonly giveUp: unknown };
 
 export type TranscriptionArbiter = (
   input: TranscriptionArbiterInput,
@@ -216,9 +214,7 @@ export function applyTranscriptionVerdict(
   }
 
   if (input.exhausted) {
-    throw new TypeError(
-      `arbiter ${arbiter.name || "(anonymous)"} returned continue at exhaustion`,
-    );
+    throw new TypeError(`arbiter ${arbiter.name || "(anonymous)"} returned continue at exhaustion`);
   }
 
   return "continue";

@@ -70,6 +70,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "errorOutcome",
     "extractedSchema",
     "fallbackExtractor",
+    "fallbackTranscriber",
     "firstCapable",
     "fullJitterDelay",
     "hedgeDelay",
@@ -109,6 +110,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "toSessionExtractStep",
     "toWriteStep",
     "transcriptSchema",
+    "unsupportedFallsThrough",
     "workSafety",
   ]);
 });
