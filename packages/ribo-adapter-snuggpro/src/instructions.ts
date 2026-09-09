@@ -40,6 +40,7 @@ export const SNUGG_GROUP_KEYS = [
   "incentive",
   "stage",
   "report",
+  "utilities",
 ] as const;
 
 /**
@@ -396,10 +397,10 @@ function fullOutputSection(): string {
 
 Return a **single JSON object** conforming exactly to \`snuggExtractionSchema\` in \`schema.ts\`.
 
-- The object has exactly twelve top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`vault\`, \`wall\`,
-  \`window\`, \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\`, \`report\` — each a nested object grouping
-  the fields for one part of the house or one job-collection resource. They are not themselves fields
-  and carry no envelope of their own.
+- The object has exactly thirteen top-level keys — \`basedata\`, \`hvac\`, \`attic\`, \`vault\`,
+  \`wall\`, \`window\`, \`dhw\`, \`health\`, \`concern\`, \`incentive\`, \`stage\`, \`report\` and
+  \`utilities\` — each a nested object grouping the fields for one part of the house or one
+  job-collection resource. They are not themselves fields and carry no envelope of their own.
 - Every field in the schema must be present as a key inside its group. Never omit a key — "not
   mentioned" is expressed by \`value: null\`, not by absence. This includes every one of the 16 keys
   inside \`health\`, and every field of a group the auditor never touched.

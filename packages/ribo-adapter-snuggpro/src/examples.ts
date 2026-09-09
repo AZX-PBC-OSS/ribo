@@ -516,6 +516,43 @@ const fields: SnuggExtraction = {
     titleCustom1: env(null, null),
     titleCustom2: env(null, null),
   },
+
+  utilities: {
+    // The dictation never touches billing: no provider, bill figure, price, unit
+    // or rate plan comes up, so every leaf is an honest null. The transcript DOES
+    // state two heating systems on two different fuels (oil downstairs, electric
+    // heat pump upstairs) without saying which is primary — so
+    // `primaryHeatingFuelType` stays null too: which system primarily heats the
+    // home was never stated, and inferring it from the equipment mentions is
+    // exactly the derivation rule 1 forbids.
+    billEntryType: env(null, null),
+    detailedElectricDataSource: env(null, null),
+    detailedFuelDataSource: env(null, null),
+    electricUtilityProviderName: env(null, null),
+    fuelUtilityProviderName: env(null, null),
+    additionalFuelUtilityProviderName: env(null, null),
+    highestMonthlySummerElectricBill: env(null, null),
+    highestMonthlyWinterElectricBill: env(null, null),
+    lowestMonthlyElectricBill: env(null, null),
+    highestMonthlyWinterNaturalGasBill: env(null, null),
+    lowestMonthlyNaturalGasBill: env(null, null),
+    simpleFuelUnits: env(null, null),
+    totalSimpleFuelUsedInLast12Months: env(null, null),
+    primaryHeatingFuelType: env(null, null),
+    electricBillUnits: env(null, null),
+    fuelBillUnits: env(null, null),
+    utilityPriceNaturalGas: env(null, null),
+    utilityPricePropane: env(null, null),
+    utilityPriceFuelOil: env(null, null),
+    utilityPriceElectricity: env(null, null),
+    utilityPriceWood: env(null, null),
+    utilityPricePellets: env(null, null),
+    utilityPriceCoal: env(null, null),
+    utilityPriceKerosene: env(null, null),
+    electricRatePlan: env(null, null),
+    fuelRatePlan: env(null, null),
+    electricRatePlanImproved: env(null, null),
+  },
 };
 
 export const snuggExamples: readonly ToolAdapterExample<SnuggExtraction>[] = [

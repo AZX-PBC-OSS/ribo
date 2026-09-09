@@ -2,7 +2,7 @@
 //
 // Source:    https://app.snuggpro.com/apidocs/swagger.json
 // Refreshed: 2026-09-09
-// Leaves:    328
+// Leaves:    0
 //
 // The vendor's own description for each field we extract — the same sentence a Snugg Pro
 // user reads in their UI. `schema.ts` composes this with our own note, where we have one,
@@ -14,6 +14,8 @@
 
 /** Vendor descriptions, keyed by the leaf name as it appears in `snuggValuesSchema`. */
 export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  additionalFuelUtilityProviderName:
+    "Enter the name of an additional fuel utility provider if applicable. This is an optional field for most users, but could be required for certain efficiency programs.",
   additionalNotesOverview: "The text in the sidebar of the additional notes page(s).",
   amount: "The amount that was paid",
   ashrae622:
@@ -122,6 +124,8 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "This is the total assembly R-value for the entire basement wall system. We take the data from the Cavity and Continuous R-value fields and add factors for wood framing, drywall, air film, etc. to calculate the overall assembly R-value. This field is not editable since it is calculated from the other fields.",
   basementWallInsulation:
     'Select the type of materials used, if any, on the basement walls of this home. If more than one type of material is used on the basement walls, select the type of material that is used on the most wall area of the basement. If the basement walls have insulation installed on the exterior of the walls, select the option "Finished walls with insulation".',
+  billEntryType:
+    "Choose a method of utility bill entry. Always use detailed bills if you have 13 months of meter read dates with associated fuel and electricity usage. Detailed bills will provide more accurate energy savings estimates. If you can get monthly bills that cover the primary heating and cooling season, then choose detailed bills. Simple Bills can be used if the home has not been occupied by the current occupants for more than 13 months or you don't have access to detailed bills for the current occupants. You can typically get the high and low bills for gas and electric for any address by calling the utility's customer service number and requesting it (even without permission of the tenants at the time).",
   blowerDoorReading:
     "The baseline airflow, in cubic feet per minute, through leaks in the building when there is a pressure difference between the building and ambient of 50 Pascals. This is the result of your blower door test if you perform one. If you do not enter a number here, the software will determine an appropriate number based on the age and size of the home. On the improved side, the default recommendation is a 25% reduction in the air leakage. You may of course override this to whatever number you feel you'll be able to achieve.",
   blowerDoorTestPerformed:
@@ -183,6 +187,8 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "This field defaults to Snugg Pro's region specific default for the heating indoor design temp. It can be manually overriden if needed.",
   designTempWinterOutdoor:
     "This field defaults to Snugg Pro's region specific default for the heating outdoor design temp. It can be manually overriden if needed.",
+  detailedElectricDataSource: "Choose a data source of electric utility bill entry.",
+  detailedFuelDataSource: "Choose a data source of primary fuel utility bill entry.",
   dhwAge:
     "Select the age in years of the hot water system that stores or delivers the domestic hot water for the home. If more than one type of system is used for hot water in the home, select the age for the one that delivers the most gallons of hot water to the home.",
   dhwFuel2:
@@ -201,6 +207,12 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
   dishwasherModelYear: "Enter the Model Year of the Dishwasher.",
   effectiveLeakageArea:
     "Effective (or Equivalent) Leakage Area in square inches. This is the area of a theoretical hole (with rounded edges) in the building envelope that would produce a leakage equivalent to that produced by the actual building at 4 Pascals of pressure.",
+  electricBillUnits:
+    "Enter the units used for the electric bills. This is a required field if you're going to use Detailed Bills. For best results, utilize the kWh option instead of dollars for more accurate representations of the home. **Notes:** Applicable to bills of `Detailed` entry type",
+  electricRatePlan: "",
+  electricRatePlanImproved: "",
+  electricUtilityProviderName:
+    "Enter the name of the electric utility provider. This is an optional field for most users, but could be required for certain efficiency programs.",
   energyStarColdClimateHeatPump:
     "Choose Yes if Energy Star Cold Climate Heat Pump. Field options: 1 → Yes 0 → No",
   energyStarColdClimateHeatPumpImproved:
@@ -246,6 +258,12 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
   fromTemplateUuid: "The UUID of the template from which the incentive was created.",
   frontOfBuildingOrientation:
     "Select the closest direction that the Length of the house as designated above faces (either of the opposite directions is fine). If the home is square, then choose the direction the main entry door of the home faces.",
+  fuelBillUnits:
+    "The units used for the fuel bills. This is a required field if you're going to use Detailed Bills. For best results, utilize the kWh option instead of dollars for more accurate representations of the home. **Notes:** Applicable to bills of `Detailed` entry type",
+  fuelRatePlan:
+    "Enter the name of the utility fuel rate plan. For gas, the same rate plan is used for both Base and Improved; separate Improved Fuel Rate Plans are not supported.",
+  fuelUtilityProviderName:
+    "Enter the name of the fuel utility provider. This is an optional field for most users, but could be required for certain efficiency programs.",
   garageSize:
     'Enter the number of cars that could fit in the the parking area of the garage. The software assumes an extra 100 sqft of storage and other space and each car takes up 200 sqft of space. This data is used for the "Insulate Floors" recommendation. For cantilevers, adjust the total sqft on the refine screen or the details section.',
   hasEv: "undefined Field options: 1 → Yes 0 → No",
@@ -290,6 +308,12 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Enter the heating thermostat temperature setting (°F) that is used most often when the home is occupied and used by people for normal daily activities. This is often the setting used when people are at home in the mornings before going to school or work and again when they return home from school and work in the afternoon or evening before they go to sleep for the night. **Note:** The goal of this is to determine the average temperature of the home for this time period and situation (cooling or heating). If the heating system just can't keep up and never meets the setpoint on cold days or similar for the cooling system, then adjust the setpoint to closer resemble the actual temperature of the home. Since this is hard to determine, you may enter a range of temperatures for each of the setpoints separated by a dash (no spaces). For example, you can set the Low temp setpoint for heating at 60-65 and the High temp setpoint at 68-71.",
   heatingSetpointLow:
     "Enter the heating thermostat temperature setting (°F) that is used most often when the home is not occupied. This is often the setting used when people have left the home in the mornings to go to school or work and again when they have gone to sleep for the night. **Note:** The goal of this is to determine the average temperature of the home for this time period and situation (cooling or heating). If the heating system just can't keep up and never meets the setpoint on cold days or similar for the cooling system, then adjust the setpoint to closer resemble the actual temperature of the home. Since this is hard to determine, you may enter a range of temperatures for each of the setpoints separated by a dash (no spaces). For example, you can set the Low temp setpoint for heating at 60-65 and the High temp setpoint at 68-71.",
+  highestMonthlySummerElectricBill:
+    "Enter the amount of the highest monthly summertime electricity bill for the home during the past 12 months. Summertime is typically those months when many buildings would use air conditioning to cool the building. If the home is on a budget plan where the monthly electricity bills are all the same, the highest bill can be estimated by looking for the summer month with the highest electricity usage and then multiplying that amount by the electricity rate being charged. **Notes:** Applicable to bills of `Simple` entry type",
+  highestMonthlyWinterElectricBill:
+    "Enter the amount of the highest monthly winter electric bill for the home during the past 12 months. If the home is on a budget plan where the monthly electricity bills are all the same, the highest bill can be estimated by looking for the winter month with the highest electricity usage and then multiplying that amount by the electricity rate being charged. **Notes:** Applicable to bills of `Simple` entry type",
+  highestMonthlyWinterNaturalGasBill:
+    "Enter the amount of the highest monthly winter gas bill for the home during the past 12 months. If the home is on a budget plan where the monthly gas bills are all the same, the highest bill can be estimated by looking for the winter month with the highest gas usage and then multiplying that amount by the gas rate being charged. If the home is heated by more than one type of fuel, use the bill from the type which provides the heat for the largest area of the home. **Notes:** Applicable to bills of `Simple` entry type",
   hotTub:
     "Does this house have an electrically heated hot tub? If yes, 2,040 kWh/yr of electricity consumption is added to the baseload.",
   houseLength:
@@ -378,6 +402,10 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
   hvacUpgradeAction:
     "Choose an action that you plan to take for this HVAC system.**Replace with a newer model:** Replace the existing equipment with a new version of the same thing. Eg. replace a 78 AFUE furnace with a new 98 AFUE furnace **Keep an existing system as is:** Do nothing to a system or just change the percent of total load that that old system covers in the house. **Remove a system permanently:** Rip out an entire system and replace it with something completely new, like going from a direct heater and room AC to a central heat pump. In this instance you will have a system that is described on the base side, and the improved side will be blank. **Install a new non-existing system:** A brand new system that replaces the system that was removed when you chose: Remove a system permanently.",
   includesBasement: "Mark this as Yes if the conditioned area above includes the basement area.",
+  lowestMonthlyElectricBill:
+    "Enter the amount of the lowest of all the monthly electricity bills for the home during the past 12 months. If the home is on a budget plan where the monthly electricity bills are all the same, the lowest bill can be estimated by looking for the month with the lowest electricity usage and then multiplying that amount by the electricity rate being charged. **Notes:** Applicable to bills of `Simple` entry type",
+  lowestMonthlyNaturalGasBill:
+    "This is typically in the summer time when you're only using fuel for hot water and cooking. If the home uses more than one type, use the bill from the type which is used the most within the home. **Notes:** Applicable to bills of `Simple` entry type",
   mainServicePanelMaxAmps: "Main Service Panel Max Amps",
   modeledBasementWallArea:
     "This is the total wall area along the exposed perimeter (i.e. wall area eligible for insulation improvements). Warning: Changing the wall area will not effect the model. Wall area is only used in calculating improvement costs.",
@@ -429,6 +457,8 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
   poolPumpType:
     "Select the Pump Type from Single Speed, Two Speed, or Variable Speed (or No Improvement or None). Enter the HP (or leave blank for the default) for a Single Speed or Two Speed pump, or Turnover for a variable speed pump. Wattage of variable speed pumps depends on the speed the pump is running, and the speed will depend on the turnover, so electrical usage is determined by turnover (number of times all the water in the pool circulates through the filter in a day). The Variable Speed Pump analysis includes an optimization routine that calculates the minimal electrical usage for a variable speed pump for the selected turnover. Therefore proper setup of the pump is required to achieve these results.",
   poolSize: "Pool water volume in gallons.",
+  primaryHeatingFuelType:
+    "This is the primary fuel source. It is used to set prices and energy content. **Notes:** Applicable to bills of `Detailed` entry type",
   programmableThermostatInstalled:
     "Is a programmable (setback) thermostat installed in the house? If it is installed, but not used, still check this box and adjust the thermostat settings accordingly. This button determines if a cost is added to the Programmable Thermostat recommendation. If you check Yes, then no cost will be added, but the software will still recommend ideal setpoints for the home for energy savings. If you check No, then a cost will be added to the recommendation and the ideal setpoints will also be shown in the recommendation.",
   safetyOverview: "Notes about the health and safety of the home.",
@@ -442,6 +472,7 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Enter the percent of this wall that is shared with another unit (assumed an adiabatic wall).",
   shielding:
     "Shielding type used to determine NACH N-factor: * **Well-Shielded** - urban areas with high buildings or sheltered areas * **Normal** - surrounded by trees or other buildings * **Exposed** - dwelling is not surrounded by any objects",
+  simpleFuelUnits: "**Notes:** Applicable to bills of `Simple` entry type",
   skylightArea:
     "Enter the area of any skylights (in square feet) or roof windows that are installed in the home within the heated or air conditioned space of the home.",
   solutionsTitle: "Subheader title on the solutions page.",
@@ -457,12 +488,30 @@ export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "The title of the second custom program section in the report. This is an optional section which may not be visible in all programs.",
   totalNumberOfLightBulbs:
     "Count the number of light bulbs in the home. This count assumes an average of 60 watts for each bulb. Remember to look in closets and other hidden areas for lights as well. In the Details section the Base and Improved numbers are calculated as a total of the number of bulbs for each side.",
+  totalSimpleFuelUsedInLast12Months:
+    "Take a look at your delivery receipts and add up the total gallons delivered over the past 12 months. If you don't have information on the gallons, you can look at bank statements, etc. to total up how much you've spent on deliveries over the past 12 months. **Notes:** Applicable to bills of `Simple` entry type",
   tuckUnderGarage:
     'Is there any conditioned living space over an unconditioned garage, cantilever, or frame floor that might need floor insulation? This data is used for the "Insulate Floors" recommendation. For cantilevers, adjust the total sqft on the refine screen or the details section.',
   typeOfHome:
     "Select the type of home that most closely resembles this home. Single-family Attached would be a duplex or a townhome with shared walls. **Please note:** that only multi-family units with independently metered fuel and electricity can be modeled with this software.",
   unmodeledBlowerDoorReading:
     "The baseline unmodeled airflow, in cubic feet per minute, through leaks in the building when there is a pressure difference between the building and ambient of 50 Pascals. This is the result of your blower door test if you perform one. If you do not enter a number here, the software will determine an appropriate number based on the age and size of the home. On the improved side, the default recommendation is a 25% reduction in the air leakage. You may of course override this to whatever number you feel you'll be able to achieve.",
+  utilityPriceCoal:
+    "Enter your own price for coal. We do not have default costs for coal, therefore this must be filled out if coal is chosen in heating fuel options.",
+  utilityPriceElectricity:
+    "Enter a your own price for Electricity to override the software's existing regional defaults from the EIA.",
+  utilityPriceFuelOil:
+    "Enter a your own price for Fuel Oil to override the software's existing regional defaults from the EIA.",
+  utilityPriceKerosene:
+    "Enter your own price for kerosene. We do not have default costs for kerosene, therefore this must be filled out if kerosene is chosen in heating fuel options.",
+  utilityPriceNaturalGas:
+    "Enter a your own price for Natural Gas to override the software's existing regional defaults from the EIA.",
+  utilityPricePellets:
+    "Enter a your own price for wood pellets. We do not have default costs for wood pellets, therefore this must be filled out if pellets are chosen in the heating system fuel options.",
+  utilityPricePropane:
+    "Enter a your own price for Propane to override the software's existing regional defaults from the EIA.",
+  utilityPriceWood:
+    "Enter a your own price for wood. We do not have default costs for wood, therefore this must be filled out unless the wood supply is free.",
   vault:
     "Is there insulation in the vaulted ceiling cavities of this home? If so, how good is it? If unsure, please leave blank. **Well**: All cavities contain insulation at full or near full depth with gaps and voids not exceeding 5%. **Poor**: Majority of cavities contain insulation, but one or more of the following is suspected: low density, low depth, poor installation. **Yes**: You can confirm that insulation exists, but are unsure of the installation quality. **No** - No insulation value is applied to cavities.",
   vaultCavityInsulation:

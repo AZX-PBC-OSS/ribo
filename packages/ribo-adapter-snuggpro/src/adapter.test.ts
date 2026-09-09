@@ -95,7 +95,7 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
       for (const child of Object.values(node)) walk(child);
     };
     walk(example.fields);
-    expect(checked).toBe(352);
+    expect(checked).toBe(379);
   }
 });
 
