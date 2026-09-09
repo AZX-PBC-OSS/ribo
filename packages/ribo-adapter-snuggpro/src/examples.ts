@@ -549,6 +549,19 @@ const fields: SnuggExtraction = {
   // group up at all" case, not one all-null instance.
   incentive: [],
 
+  // This basement walk-through names no appliance — no dryer, freezer, range or
+  // refrigerator comes up — so every appliance collection is honestly EMPTY,
+  // the same never-brought-up case as incentive above, not one all-null
+  // instance per appliance.
+  clothesDryer: [],
+  freezer: [],
+  range: [],
+  refrigerator: [],
+
+  // No solar PV either. An empty array — NOT a one-instance record carrying
+  // `pv: "No"`: a house with no solar produces no pv record at all (rule 18).
+  pv: [],
+
   stage: {
     // Nothing in this transcript moves the job's workflow stage, so the group's one
     // capture field is an unforced `null` — silence is never an invented stage, the
@@ -593,6 +606,59 @@ const fields: SnuggExtraction = {
     note: env(null, null),
     useStrictBpi2400Calibration: env(null, null),
     householdIncomeTier: env(null, null),
+  },
+
+  report: {
+    // Nothing in this transcript is dictated AS REPORT COPY — no cover-page intro, no
+    // notes narrative, no section labels — so every authored-text field is an unforced
+    // `null`. The demonstration for this group is the same as the stage group's: the
+    // model never composes report prose itself (rule 17), so a transcript with no
+    // dictated report text produces all `null`s, never a written paragraph.
+    coverTextArea: env(null, null),
+    additionalNotesOverview: env(null, null),
+    safetyOverview: env(null, null),
+    titleCover: env(null, null),
+    concernsSidebar: env(null, null),
+    solutionsTitle: env(null, null),
+    titleCustom1: env(null, null),
+    titleCustom2: env(null, null),
+  },
+
+  utilities: {
+    // The dictation never touches billing: no provider, bill figure, price, unit
+    // or rate plan comes up, so every leaf is an honest null. The transcript DOES
+    // state two heating systems on two different fuels (oil downstairs, electric
+    // heat pump upstairs) without saying which is primary — so
+    // `primaryHeatingFuelType` stays null too: which system primarily heats the
+    // home was never stated, and inferring it from the equipment mentions is
+    // exactly the derivation rule 1 forbids.
+    billEntryType: env(null, null),
+    detailedElectricDataSource: env(null, null),
+    detailedFuelDataSource: env(null, null),
+    electricUtilityProviderName: env(null, null),
+    fuelUtilityProviderName: env(null, null),
+    additionalFuelUtilityProviderName: env(null, null),
+    highestMonthlySummerElectricBill: env(null, null),
+    highestMonthlyWinterElectricBill: env(null, null),
+    lowestMonthlyElectricBill: env(null, null),
+    highestMonthlyWinterNaturalGasBill: env(null, null),
+    lowestMonthlyNaturalGasBill: env(null, null),
+    simpleFuelUnits: env(null, null),
+    totalSimpleFuelUsedInLast12Months: env(null, null),
+    primaryHeatingFuelType: env(null, null),
+    electricBillUnits: env(null, null),
+    fuelBillUnits: env(null, null),
+    utilityPriceNaturalGas: env(null, null),
+    utilityPricePropane: env(null, null),
+    utilityPriceFuelOil: env(null, null),
+    utilityPriceElectricity: env(null, null),
+    utilityPriceWood: env(null, null),
+    utilityPricePellets: env(null, null),
+    utilityPriceCoal: env(null, null),
+    utilityPriceKerosene: env(null, null),
+    electricRatePlan: env(null, null),
+    fuelRatePlan: env(null, null),
+    electricRatePlanImproved: env(null, null),
   },
 };
 

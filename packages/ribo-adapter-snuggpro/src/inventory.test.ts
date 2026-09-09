@@ -102,6 +102,11 @@ describe("rosterSchema", () => {
       dhw: emptyGroup(),
       concern: emptyGroup(),
       incentive: emptyGroup(),
+      clothesDryer: emptyGroup(),
+      freezer: emptyGroup(),
+      range: emptyGroup(),
+      refrigerator: emptyGroup(),
+      pv: emptyGroup(),
     };
     const parsed = rosterSchema.safeParse(roster);
     expect(parsed.success).toBe(false);
@@ -127,6 +132,11 @@ describe("rosterSchema", () => {
       dhw: emptyGroup(),
       concern: emptyGroup(),
       incentive: emptyGroup(),
+      clothesDryer: emptyGroup(),
+      freezer: emptyGroup(),
+      range: emptyGroup(),
+      refrigerator: emptyGroup(),
+      pv: emptyGroup(),
     };
     expect(rosterSchema.safeParse(roster).success).toBe(true);
   });
@@ -157,6 +167,11 @@ describe("rosterSchema", () => {
       dhw: emptyGroup(),
       concern: emptyGroup(),
       incentive: emptyGroup(),
+      clothesDryer: emptyGroup(),
+      freezer: emptyGroup(),
+      range: emptyGroup(),
+      refrigerator: emptyGroup(),
+      pv: emptyGroup(),
     };
     expect(rosterSchema.safeParse(roster).success).toBe(true);
   });
@@ -172,6 +187,11 @@ describe("rosterSchema", () => {
       dhw: [],
       concern: [],
       incentive: [],
+      clothesDryer: [],
+      freezer: [],
+      range: [],
+      refrigerator: [],
+      pv: [],
     };
     const parsed = rosterSchema.safeParse(roster);
     expect(parsed.success).toBe(true);
@@ -216,6 +236,11 @@ describe("snuggInventoryInstructions", () => {
     expect(snuggInventoryInstructions).toContain("dhw");
     expect(snuggInventoryInstructions).toContain("concern");
     expect(snuggInventoryInstructions).toContain("incentive");
+    expect(snuggInventoryInstructions).toContain("clothesDryer");
+    expect(snuggInventoryInstructions).toContain("freezer");
+    expect(snuggInventoryInstructions).toContain("range");
+    expect(snuggInventoryInstructions).toContain("refrigerator");
+    expect(snuggInventoryInstructions).toContain("pv");
     expect(snuggInventoryInstructions).toContain("mentionSpan");
     expect(snuggInventoryInstructions).toContain("distinguishedBy");
     expect(snuggInventoryInstructions).toContain("eligibilitySpan");

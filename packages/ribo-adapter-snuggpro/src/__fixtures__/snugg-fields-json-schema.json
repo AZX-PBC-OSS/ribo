@@ -12633,6 +12633,1145 @@
         "additionalProperties": false
       }
     },
+    "clothesDryer": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "clothesDryerFuelType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Natural Gas", "Electricity", "Propane", "None", "Don't Know"],
+                    "description": "Select the type of clothes dryer used in the home. If the home has more than one clothes dryer, select the one that is used most often."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "clothesDryerHeatPump": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select yes if this a ventless/heat pump dryer."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "clothesDryerEfficiency": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the rated Combined Energy Factor for the dryer as specified in the Energy Star website. If only Energy Factor is available, then use CEF=EF/1.15. Rated Combined Energy Factor: record only a number the auditor stated out loud — never look one up from the Energy Star website and never compute it from an EF."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "clothesDryerManufacturer": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the manufacturer of the Clothes Dryer."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "clothesDryerModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the model of the Clothes Dryer."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "clothesDryerSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the serial number of the Clothes Dryer."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "clothesDryerFuelType",
+          "clothesDryerHeatPump",
+          "clothesDryerEfficiency",
+          "clothesDryerManufacturer",
+          "clothesDryerModel",
+          "clothesDryerSerialNumber"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "freezer": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "freezerUsage": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the annual energy consumption for the freezer in kWh/yr. Search our knowledge base for \"Appliances Product Finder\" for more information. **Note:** Edit this Base field in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Annual energy consumption in kWh/yr — normally supplied by the vendor's modeling engine, so record it only when the auditor explicitly states a number; never estimate one."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "freezerManufacturer": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Amana",
+                      "Unknown",
+                      "Asko",
+                      "Bosch",
+                      "Frigidaire",
+                      "GE",
+                      "Igloo",
+                      "LG",
+                      "Maytag",
+                      "Samsung",
+                      "Sears",
+                      "Sub-Zero",
+                      "Thermador",
+                      "Whirlpool",
+                      "Other",
+                      "Fridgidaire"
+                    ],
+                    "description": "Enter the Manufacturer of the Freezer. Manufacturer from this closed list — the freezer list, which is NOT the refrigerator list. Use \"Other\" when the auditor names a make that is not on it, quoting the spoken name in the span."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "freezerModelYear": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Model Year of the Freezer. Model year as a number, only when a specific year was stated. A decade (\"probably from the nineties\") is not a year — leave this null and let the decade ride in the sourceSpan."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "freezerModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Model number for the Freezer."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "freezerName": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "The freezer's spoken label, e.g. \"the garage chest freezer\" — there is no separate location field and no chest/upright type field, so the label as spoken (location and type included) is the whole of it."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "freezerEnergyStar": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "If a Freezer is installed in the home, choose if it is an ENERGY STAR model."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "freezerUsage",
+          "freezerManufacturer",
+          "freezerModelYear",
+          "freezerModel",
+          "freezerName",
+          "freezerEnergyStar"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "range": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rangeFuelType": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Natural Gas", "Electricity", "Propane", "None", "Don't Know"],
+                    "description": "Select the type of energy source used by the range and oven in the home. If the home has more than one range and oven, select the one that is used the most. If the range and oven are dual fuel (i.e., have both a fuel heating source and an electricity heating source) select the type that is used to cook most often."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "rangeInduction": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Select yes if the electric cooktop is an induction cooktop (not electric resistance)."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "rangeManufacturer": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the manufacturer of the Range."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "rangeModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the model of the Range."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "rangeSerialNumber": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the serial number of the Range."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "rangeFuelType",
+          "rangeInduction",
+          "rangeManufacturer",
+          "rangeModel",
+          "rangeSerialNumber"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "refrigerator": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "refrigeratorAge": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "0-14",
+                      "15-21",
+                      "22-24",
+                      "25-26",
+                      "27-30",
+                      "31-34",
+                      "35-42",
+                      "42+",
+                      "Don't Know"
+                    ],
+                    "description": "Select the age range of this refrigerator."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "refrigeratorSize": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["1-5", "6-12", "13-15", "16-18", "19-21", "22+", "Don't Know"],
+                    "description": "Select the size range of this refrigerator."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "refrigeratorName": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Select the age range and the size range in cubic feet of the refrigerator. For HPXML purposes, always enter the house's \"primary\" refrigerator first. The refrigerator's spoken label — \"the kitchen fridge\", \"the garage beer fridge\". Ignore the vendor description on this field (it is the Age/Size help text, a copy-paste bug): this is the label field, and the spoken location fits only here."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "refrigeratorUsage": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the annual energy consumption for the refrigerator in kWh/yr. Search our knowledge base for \"Appliances Product Finder\" for more information. **Note:** Edit this Base field in the Details section only if you're confident of the actual value that is entered. The modeling engine utilizes utility data and input form data to determine the \"effective\" values on the Base side. Edit Improved fields in the Details section with the details of what you recommend be installed in the house. These values are only used if the item is Recommended. Default values are supplied by the modeling engine, but can be overridden. Annual energy consumption in kWh/yr — normally supplied by the vendor's modeling engine, so record it only when the auditor explicitly states a number; never estimate one."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "refrigeratorManufacturer": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Unknown",
+                      "Amana",
+                      "Asko",
+                      "Bosch",
+                      "Frigidaire",
+                      "GE",
+                      "Hotpoint",
+                      "KitchenAid",
+                      "LG",
+                      "Maytag",
+                      "Samsung",
+                      "Sears",
+                      "Sub-Zero",
+                      "Thermador",
+                      "Whirlpool",
+                      "Fisher & Paykel",
+                      "Ikea",
+                      "Liebherr",
+                      "Other",
+                      "Fridgidaire"
+                    ],
+                    "description": "Enter the Manufacturer of the Refrigerator. Manufacturer from this closed list — the refrigerator list, which is NOT the freezer list. Use \"Other\" when the auditor names a make that is not on it, quoting the spoken name in the span."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "refrigeratorModel": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Enter the Model number for the Refrigerator."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "refrigeratorEnergyStar": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "If a Refrigerator is installed in the home, choose if it is an ENERGY STAR model."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "refrigeratorModelYear": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Enter the Model Year of the Refrigerator. Model year as a number, only when a specific year was stated. Redundant with the age band: never derive one from the other — a stated age fills refrigeratorAge, a stated year fills this, and a contradiction between the two is the reviewer's to resolve."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "refrigeratorMaintenanceStarRating": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["1", "2", "3"],
+                    "description": "Field options: null → 1 → Observable issues need to be addressed 2 → Standard condition based on the age of the system 3 → Well maintained and/or pristine condition Maintenance condition, only from the auditor's own stated assessment: \"1\" when they describe observable issues that need addressing, \"2\" for standard condition given the system's age, \"3\" for well maintained and/or pristine. Never inferred, and never a rating for a refrigerator nobody assessed."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "refrigeratorAge",
+          "refrigeratorSize",
+          "refrigeratorName",
+          "refrigeratorUsage",
+          "refrigeratorManufacturer",
+          "refrigeratorModel",
+          "refrigeratorEnergyStar",
+          "refrigeratorModelYear",
+          "refrigeratorMaintenanceStarRating"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pv": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "pv": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["Yes", "No"],
+                    "description": "Does the home have a Solar PV System? Whether the home has a Solar PV System — a whole-home presence flag the vendor put on a per-instance resource. Treat it as \"this array exists\": a record exists only because an array was introduced, so this is \"Yes\"; a house with no solar produces no record at all, never a \"No\" here."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "pvArraySize": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "PV array system size in kW. You can calculate this by taking the wattage per panel x number of panels / 1000. Example: 265 watts per panel x 15 panels / 1000 = 3.975 kw (array size) Array system size in kW, only as stated (\"a six kilowatt array\" → 6). When the auditor gives a panel count and a per-panel wattage instead, do NOT multiply them into this field — leave it null and let both numbers ride in the sourceSpan."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "pvAnnualProduction": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "PV system annual production in kWh."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "pvArraySlope": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Slope in degress of the collector surface. Slope of the collector surface in degrees, only when stated in degrees. A spoken roof pitch (\"four-twelve\") is not degrees and converting it is arithmetic you never do — leave this null and let the pitch ride in the sourceSpan."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "pvArrayOrientation": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Orientation of the PV array from North. North is 0 degrees. East is 90. South is 180. West is 270. Orientation of the array in degrees from North: north → 0, northeast → 45, east → 90, southeast → 135, south → 180, southwest → 225, west → 270, northwest → 315. Mapping a spoken cardinal to its degrees is semantic mapping, like picking an enum member; a stated number of degrees stays itself."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "pvModuleYear": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "Year the PV modules were manufactured. Taken into condieration for derating of system over time. Year the PV modules were manufactured, only when a specific year was stated (the install vintage counts when the auditor states it as the module year); never derived from a stated age."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "sourceSpan": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "pv",
+          "pvArraySize",
+          "pvAnnualProduction",
+          "pvArraySlope",
+          "pvArrayOrientation",
+          "pvModuleYear"
+        ],
+        "additionalProperties": false
+      }
+    },
     "stage": {
       "type": "object",
       "properties": {
@@ -13753,6 +14892,1159 @@
         "householdIncomeTier"
       ],
       "additionalProperties": false
+    },
+    "report": {
+      "type": "object",
+      "properties": {
+        "coverTextArea": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Introduction text that appears on the cover page. Long-form prose — multi-sentence to multi-paragraph. Capture the introduction the auditor dictated for the cover page in their own words; never compose one yourself, and null when nothing was dictated."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "additionalNotesOverview": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The text in the sidebar of the additional notes page(s). Long-form prose — multi-sentence. Capture the catch-all notes the auditor dictated for the additional-notes sidebar in their own words; never compose notes yourself, and null when nothing was dictated."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "safetyOverview": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Notes about the health and safety of the home. Long-form prose — one to several sentences. The health-and-safety narrative the auditor dictated for the report; a named test RESULT is a `health` leaf, and this narrative is never synthesized from the tests."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "titleCover": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The title of the cover page. A short single-line label. Capture it only when the auditor actually named the report; never a sentence."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "concernsSidebar": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The text in the sidebar of the concerns page. Despite reading like it wants the homeowner's concerns, this is a short single-line sidebar caption, never a paragraph. A concern the homeowner voiced is a `concern` instance, not this field."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "solutionsTitle": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Subheader title on the solutions page. A subheader title — a short single-line label even though the API publishes no length cap for it. Capture it only when the auditor actually named the section; it is usually a template default."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "titleCustom1": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The title of the custom program section in the report. This is an optional section which may not be visible in all programs. A short single-line label. Custom sections have no template default, so capture the name only when the auditor gave one."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "titleCustom2": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The title of the second custom program section in the report. This is an optional section which may not be visible in all programs. A short single-line label. Custom sections have no template default, so capture the name only when the auditor gave one."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "coverTextArea",
+        "additionalNotesOverview",
+        "safetyOverview",
+        "titleCover",
+        "concernsSidebar",
+        "solutionsTitle",
+        "titleCustom1",
+        "titleCustom2"
+      ],
+      "additionalProperties": false
+    },
+    "utilities": {
+      "type": "object",
+      "properties": {
+        "billEntryType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Detailed", "Simple", "No Bills"],
+                  "description": "Choose a method of utility bill entry. Always use detailed bills if you have 13 months of meter read dates with associated fuel and electricity usage. Detailed bills will provide more accurate energy savings estimates. If you can get monthly bills that cover the primary heating and cooling season, then choose detailed bills. Simple Bills can be used if the home has not been occupied by the current occupants for more than 13 months or you don't have access to detailed bills for the current occupants. You can typically get the high and low bills for gas and electric for any address by calling the utility's customer service number and requesting it (even without permission of the tenants at the time). Which bill-entry mode the job uses. Set it only when the auditor explicitly states the mode; never derive it from which other fields filled."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "detailedElectricDataSource": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Manual", "Green Button"],
+                  "description": "Choose a data source of electric utility bill entry. Where the detailed electric bill data came from. Set only when the auditor explicitly states it; never assume an import mechanism."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "detailedFuelDataSource": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Manual", "Green Button"],
+                  "description": "Choose a data source of primary fuel utility bill entry. Where the detailed fuel bill data came from. Set only when the auditor explicitly states it; never assume an import mechanism."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "electricUtilityProviderName": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the name of the electric utility provider. This is an optional field for most users, but could be required for certain efficiency programs. The electric utility provider's name as spoken, free text."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "fuelUtilityProviderName": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the name of the fuel utility provider. This is an optional field for most users, but could be required for certain efficiency programs. The fuel utility provider's name as spoken, free text."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "additionalFuelUtilityProviderName": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the name of an additional fuel utility provider if applicable. This is an optional field for most users, but could be required for certain efficiency programs. A second fuel utility provider's name as spoken, free text — the only affordance for a second fuel on this endpoint."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "highestMonthlySummerElectricBill": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the amount of the highest monthly summertime electricity bill for the home during the past 12 months. Summertime is typically those months when many buildings would use air conditioning to cool the building. If the home is on a budget plan where the monthly electricity bills are all the same, the highest bill can be estimated by looking for the summer month with the highest electricity usage and then multiplying that amount by the electricity rate being charged. **Notes:** Applicable to bills of `Simple` entry type The highest monthly summer electric bill in dollars as stated — a bill total, not a per-unit price."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "highestMonthlyWinterElectricBill": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the amount of the highest monthly winter electric bill for the home during the past 12 months. If the home is on a budget plan where the monthly electricity bills are all the same, the highest bill can be estimated by looking for the winter month with the highest electricity usage and then multiplying that amount by the electricity rate being charged. **Notes:** Applicable to bills of `Simple` entry type The highest monthly winter electric bill in dollars as stated — a bill total, not a per-unit price."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "lowestMonthlyElectricBill": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the amount of the lowest of all the monthly electricity bills for the home during the past 12 months. If the home is on a budget plan where the monthly electricity bills are all the same, the lowest bill can be estimated by looking for the month with the lowest electricity usage and then multiplying that amount by the electricity rate being charged. **Notes:** Applicable to bills of `Simple` entry type The lowest monthly electric bill in dollars as stated — a bill total."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "highestMonthlyWinterNaturalGasBill": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter the amount of the highest monthly winter gas bill for the home during the past 12 months. If the home is on a budget plan where the monthly gas bills are all the same, the highest bill can be estimated by looking for the winter month with the highest gas usage and then multiplying that amount by the gas rate being charged. If the home is heated by more than one type of fuel, use the bill from the type which provides the heat for the largest area of the home. **Notes:** Applicable to bills of `Simple` entry type The highest monthly winter bill of the heating fuel in dollars as stated — the fuel heating the largest area when several are in play."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "lowestMonthlyNaturalGasBill": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "This is typically in the summer time when you're only using fuel for hot water and cooking. If the home uses more than one type, use the bill from the type which is used the most within the home. **Notes:** Applicable to bills of `Simple` entry type The lowest monthly bill of the heating fuel in dollars as stated — typically a summer, hot-water-and-cooking-only month."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "simpleFuelUnits": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Gallons", "Dollars"],
+                  "description": "**Notes:** Applicable to bills of `Simple` entry type Whether the simple fuel total is counted in gallons delivered or dollars spent — the unit qualifier on totalSimpleFuelUsedInLast12Months, not a bill figure of its own."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "totalSimpleFuelUsedInLast12Months": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Take a look at your delivery receipts and add up the total gallons delivered over the past 12 months. If you don't have information on the gallons, you can look at bank statements, etc. to total up how much you've spent on deliveries over the past 12 months. **Notes:** Applicable to bills of `Simple` entry type Total fuel used over the past twelve months as a bare number, in whichever unit simpleFuelUnits names — gallons delivered or dollars spent."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "primaryHeatingFuelType": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Natural Gas",
+                    "Electricity",
+                    "Fuel Oil",
+                    "Propane",
+                    "Wood",
+                    "Pellets",
+                    "Solar",
+                    "Coal",
+                    "Kerosene"
+                  ],
+                  "description": "This is the primary fuel source. It is used to set prices and energy content. **Notes:** Applicable to bills of `Detailed` entry type The home's primary heating fuel. Set it only when the auditor says which fuel primarily heats the home — never inferred from which equipment was mentioned."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "electricBillUnits": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["kWh", "Dollars"],
+                  "description": "Enter the units used for the electric bills. This is a required field if you're going to use Detailed Bills. For best results, utilize the kWh option instead of dollars for more accurate representations of the home. **Notes:** Applicable to bills of `Detailed` entry type"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "fuelBillUnits": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["Therms", "Gallons", "Dollars", "MCFs", "Cords", "Pounds", "Tons"],
+                  "description": "The units used for the fuel bills. This is a required field if you're going to use Detailed Bills. For best results, utilize the kWh option instead of dollars for more accurate representations of the home. **Notes:** Applicable to bills of `Detailed` entry type The unit the fuel bill figures are entered in. The vendor's description mentions a kWh option, but kWh is NOT a member of this list — never emit it here."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPriceNaturalGas": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter a your own price for Natural Gas to override the software's existing regional defaults from the EIA. Per-unit price for natural gas as a bare number in the fuel's implicit billing unit, stated by the auditor; overrides the software's EIA regional default."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPricePropane": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter a your own price for Propane to override the software's existing regional defaults from the EIA. Per-unit price for propane as a bare number in the fuel's implicit billing unit, stated by the auditor; overrides the software's EIA regional default."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPriceFuelOil": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter a your own price for Fuel Oil to override the software's existing regional defaults from the EIA. Per-unit price for fuel oil as a bare number in the fuel's implicit billing unit, stated by the auditor; overrides the software's EIA regional default."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPriceElectricity": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter a your own price for Electricity to override the software's existing regional defaults from the EIA. Per-unit price for electricity as a bare number in the implicit billing unit, stated by the auditor; overrides the software's EIA regional default."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPriceWood": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter a your own price for wood. We do not have default costs for wood, therefore this must be filled out unless the wood supply is free. Per-unit price for wood as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever wood is in use."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPricePellets": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter a your own price for wood pellets. We do not have default costs for wood pellets, therefore this must be filled out if pellets are chosen in the heating system fuel options. Per-unit price for pellets as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever pellets are in use."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPriceCoal": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter your own price for coal. We do not have default costs for coal, therefore this must be filled out if coal is chosen in heating fuel options. Per-unit price for coal as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever coal is in use."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "utilityPriceKerosene": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "description": "Enter your own price for kerosene. We do not have default costs for kerosene, therefore this must be filled out if kerosene is chosen in heating fuel options. Per-unit price for kerosene as a bare number in the fuel's implicit billing unit; the software has no default for this fuel, so it is required whenever kerosene is in use."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "electricRatePlan": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The electric utility rate plan's name as spoken, free text — the vendor publishes no value list for this field."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "fuelRatePlan": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Enter the name of the utility fuel rate plan. For gas, the same rate plan is used for both Base and Improved; separate Improved Fuel Rate Plans are not supported. The utility fuel rate plan's name as spoken, free text — the vendor publishes no value list for this field."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        },
+        "electricRatePlanImproved": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The post-retrofit electric rate plan's name as spoken, free text — a proposal scenario, not an observed condition; set it only when a future rate plan is explicitly proposed."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "sourceSpan": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "billEntryType",
+        "detailedElectricDataSource",
+        "detailedFuelDataSource",
+        "electricUtilityProviderName",
+        "fuelUtilityProviderName",
+        "additionalFuelUtilityProviderName",
+        "highestMonthlySummerElectricBill",
+        "highestMonthlyWinterElectricBill",
+        "lowestMonthlyElectricBill",
+        "highestMonthlyWinterNaturalGasBill",
+        "lowestMonthlyNaturalGasBill",
+        "simpleFuelUnits",
+        "totalSimpleFuelUsedInLast12Months",
+        "primaryHeatingFuelType",
+        "electricBillUnits",
+        "fuelBillUnits",
+        "utilityPriceNaturalGas",
+        "utilityPricePropane",
+        "utilityPriceFuelOil",
+        "utilityPriceElectricity",
+        "utilityPriceWood",
+        "utilityPricePellets",
+        "utilityPriceCoal",
+        "utilityPriceKerosene",
+        "electricRatePlan",
+        "fuelRatePlan",
+        "electricRatePlanImproved"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [
@@ -13767,8 +16059,15 @@
     "health",
     "concern",
     "incentive",
+    "clothesDryer",
+    "freezer",
+    "range",
+    "refrigerator",
+    "pv",
     "stage",
-    "job"
+    "job",
+    "report",
+    "utilities"
   ],
   "additionalProperties": false
 }

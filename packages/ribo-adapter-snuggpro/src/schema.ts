@@ -3549,12 +3549,26 @@ export const IncentiveFields = z
   )
   .strict();
 
+// == clothesDryer, freezer, range, refrigerator, pv ===========================
+// The appliances-and-PV job-collection groups (doc 20 §5.6; target model per
+// `docs/roadmap/design/job-collections-foundation-design.md`). Each is an
+// array of per-instance records — a house can have more than one of most of
+// these, and a job can genuinely have zero or more of each. None of the five
+// has a natural instance key on the wire except the freezer's and
+// refrigerator's Name fields, so instance identity rides the roster's
+// discriminator mechanism (`inventory.ts`) for all five; the per-resource
+// discriminator content lives there. There is deliberately NO `oven` group —
+// the oven has no write endpoint anywhere in the spec (doc 20 §5.6 "Oven: a
+// no-write-target finding").
+
 /**
- * `POST /jobs/{jobId}/stage` — the job's current workflow stage. A
- * job-collection resource (design `job-collections-foundation-design.md`) but a
- * SINGLETON, like `basedata` and `health`, not an array of instances — the
- * endpoint is a state transition on the job, not an instance create (doc 20
- * §5.1). Its sibling `stageChangeReason` is deliberately out of scope.
+ * `POST /jobs/{jobId}/clothesDryer` — one clothes dryer record.
+ *
+ * Cardinality / instance label: NONE. No name, label or location field — two
+ * dryers on one job are indistinguishable on the wire except by fuel,
+ * manufacturer and model, and a dictated "the dryer in the basement" has no
+ * writable home. Instance identity is the roster's job (`inventory.ts`); the
+ * spoken location rides its discriminator, never a leaf here.
  */
 export const ClothesDryerFields = z
   .object(
@@ -3887,6 +3901,13 @@ export const PvFields = z
   )
   .strict();
 
+/**
+ * `POST /jobs/{jobId}/stage` — the job's current workflow stage. A
+ * job-collection resource (design `job-collections-foundation-design.md`) but a
+ * SINGLETON, like `basedata` and `health`, not an array of instances — the
+ * endpoint is a state transition on the job, not an instance create (doc 20
+ * §5.1). Its sibling `stageChangeReason` is deliberately out of scope.
+ */
 export const StageFields = z
   .object(
     withVendorDescriptions({
@@ -4224,6 +4245,7 @@ export const JobFields = z
   )
   .strict();
 
+/**
  * `POST /jobs/{jobId}/report` — the authored text of the homeowner-facing
  * report. A job-collection resource (design `job-collections-foundation-design.md`)
  * but a per-job SINGLETON, like `basedata`, `health` and `stage`, not an array:

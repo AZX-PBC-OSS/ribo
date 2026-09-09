@@ -224,7 +224,8 @@ function validateLeaf(path, leafSpec, truth, errors) {
 /**
  * The groups the vendor models as per-instance child resources. A job may hold several of
  * each, so ground truth carries an ORDERED LIST per group rather than one flat leaf map.
- * `basedata`, `health`, `stage` and `job` are genuine singletons in the API and stay flat;
+ * `basedata`, `health`, `stage`, `job`, `report` and `utilities` are genuine singletons in
+ * the API and stay flat;
  * `concern` is a job-collection resource the schema models as an array of instances exactly
  * like the component collections, so the scorer must too.
  *

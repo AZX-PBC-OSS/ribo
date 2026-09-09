@@ -153,13 +153,14 @@ heading("0. SCHEMA INTROSPECTION (schema-leaves.mjs) — derived, not hand-count
   // `stageId` is a NUMBER leaf carrying its label→code pairs in its description (the
   // spec publishes no `enum` key for it), not a zod enum — the same treatment the `job`
   // group's numeric-enum leaves get. The ground-truth corpus stays sparse by design —
-  // unannotated leaves score as "unmentioned". (`incentive`, `vault` and `door` are array
-  // groups in the schema but are deliberately NOT in ground-truth.mjs's COLLECTION_GROUPS
-  // yet — the corpus predates them — so their leaves resolve as flat "unmentioned"
-  // entries until a corpus tranche says otherwise. `job` is a singleton, so it scores as
-  // flat "unmentioned" leaves with no corpus edit at all.)
-  check("leaf count matches the merged field set", LEAVES.length === 400);
-  check("enum-member total matches the merged field set", totalMembers === 861);
+  // unannotated leaves score as "unmentioned". (`incentive`, `vault`, `door`, and the
+  // appliance and pv groups are array groups in the schema but are deliberately NOT in
+  // ground-truth.mjs's COLLECTION_GROUPS yet — the corpus predates them — so their
+  // leaves resolve as flat "unmentioned" entries until a corpus tranche says otherwise.
+  // `job` is a singleton, so it scores as flat "unmentioned" leaves with no corpus edit
+  // at all.)
+  check("leaf count matches the merged field set", LEAVES.length === 467);
+  check("enum-member total matches the merged field set", totalMembers === 963);
   check(
     "ENUM_VOCAB has an entry for every enum leaf (no collisions at import time)",
     ENUM_VOCAB.size === enumLeaves.length,
