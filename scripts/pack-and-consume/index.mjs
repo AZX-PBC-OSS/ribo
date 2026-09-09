@@ -116,23 +116,24 @@
  *   itself, which no one runs twice at once for the same reason. Not fixed with a lock file: the
  *   failure mode (a loud, immediate Chromium/pnpm error) is already distinguishable from a real
  *   test failure, which is the bar this repo's other manual/CI-only gates hold to as well.
- * - **`discoverPublishablePackages`/`EXPECTED_PUBLISHED_COUNT` is duplicated from
- *   `scripts/pkg-gates.mjs`**, rather than extracted to a shared module. Deliberate: the two
- *   scripts have no other reason to import from each other, and a shared `scripts/lib/` module
- *   for one four-line function is its own maintenance surface. Accepted, not ideal — if a THIRD
- *   script ever needs the same discovery, that is the signal to extract it, not this one.
+ * This gap is now CLOSED, and the note is kept because the reasoning is still useful. The roster
+ * walk and `EXPECTED_PUBLISHED_COUNT` used to be duplicated here and in `scripts/pkg-gates.mjs`,
+ * deliberately, on the grounds that a shared `scripts/lib/` module for one four-line function was
+ * its own maintenance surface — with the stated exit condition that a THIRD copy is the signal to
+ * extract. `assert-source-condition.mjs` was the third, and the cost landed: adding the eighth
+ * package updated two copies, `./check.sh` went green locally, and this tier — which is
+ * deliberately outside `./check.sh` — failed in CI on the copy nobody found. All three now import
+ * `scripts/lib/publishable-packages.mjs`.
  */
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
+
 import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+  discoverPublishablePackages,
+  EXPECTED_PUBLISHED_COUNT,
+  unexpectedCountMessage,
+} from "../lib/publishable-packages.mjs";
+import { createHash } from "node:crypto";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
 import process from "node:process";
@@ -168,8 +169,6 @@ const CHROME_PROFILE_DIR = join(REPO_ROOT, ".cache", "pack-and-consume", "chromi
 
 const KEEP_SCRATCH = process.env.RIBO_PACK_AND_CONSUME_KEEP === "1";
 
-const EXPECTED_PUBLISHED_COUNT = 8;
-
 function log(message) {
   console.log(`[pack-and-consume] ${message}`);
 }
@@ -186,44 +185,6 @@ function cleanScratch() {
     execFileSync("chmod", ["-R", "u+rwX", SCRATCH_DIR], { stdio: "ignore" });
     rmSync(SCRATCH_DIR, { recursive: true, force: true });
   }
-}
-
-/**
- * The publishable packages, discovered the same way `scripts/pkg-gates.mjs` does — from the
- * workspace, not a hard-coded list — so adding one without updating this file fails loudly (the
- * count guard below) rather than silently shipping ungated.
- *
- * **This constant now lives in three scripts** (here, `pkg-gates.mjs`, `assert-source-condition.mjs`),
- * and the "two known gaps" note above says a third copy is the signal to extract it. That signal
- * has now fired for real: adding `@azx/ribo-extractor-ondevice` updated two of the three, and the
- * third was only caught in CI, because this tier is deliberately outside `./check.sh`. Extracting
- * is not done here to keep an already-large change reviewable — but the next person to touch this
- * should do it rather than bump a fourth copy.
- */
-function discoverPublishablePackages() {
-  const packagesDir = join(REPO_ROOT, "packages");
-  const found = [];
-  for (const dirent of readdirSync(packagesDir, { withFileTypes: true })) {
-    if (!dirent.isDirectory()) continue;
-    const manifestPath = join(packagesDir, dirent.name, "package.json");
-    let manifest;
-    try {
-      manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    } catch {
-      continue;
-    }
-    if (manifest.private) continue;
-    found.push({ dir: dirent.name, name: manifest.name });
-  }
-  found.sort((a, b) => a.name.localeCompare(b.name));
-  if (found.length !== EXPECTED_PUBLISHED_COUNT) {
-    throw new Error(
-      `discovered ${found.length} publishable packages, expected ${EXPECTED_PUBLISHED_COUNT} ` +
-        `(${found.map((p) => p.name).join(", ")}). If you added or removed a publishable ` +
-        "package, update EXPECTED_PUBLISHED_COUNT in this file.",
-    );
-  }
-  return found;
 }
 
 function buildPackages() {
@@ -443,7 +404,13 @@ function assertResult({ result, consoleErrors, pageErrors, tarballCount }) {
 async function main() {
   cleanScratch(); // robust to a previous run that died halfway (see file header)
   try {
-    const packages = discoverPublishablePackages();
+    // The roster and its tripwire count are shared (scripts/lib/publishable-packages.mjs).
+    // This tier sits outside ./check.sh, so a package registered everywhere else but not here
+    // fails only in CI — which is exactly how it failed once.
+    const packages = discoverPublishablePackages(REPO_ROOT);
+    if (packages.length !== EXPECTED_PUBLISHED_COUNT) {
+      throw new Error(unexpectedCountMessage(packages));
+    }
     buildPackages();
     const tarballs = packAll(packages);
     writeScratchApp(tarballs);
