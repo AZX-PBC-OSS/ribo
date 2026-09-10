@@ -1590,8 +1590,94 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
     const doneWithout = eventsNoUsage.filter((e) => e.phase === "done");
     expect(doneWithout).toHaveLength(2);
     for (const e of doneWithout) {
-      expect(e.usage).toBeUndefined();
+      // The KEY must be absent, not present-and-undefined. `toBeUndefined()`
+      // alone passes for both, and the difference is load-bearing here: this
+      // repo already treats absent-vs-zero as meaningful for
+      // `ExtractionUsage.cachedPromptTokens` ("we cannot tell" vs "the cache is
+      // not working"), and `usage: undefined` answers `"usage" in event` true.
+      expect(e).not.toHaveProperty("usage");
     }
+  });
+
+  test("every settle event names an attempt that actually started — no phantom retry", async () => {
+    // The abort path is the one that can invent an attempt: its check runs at the
+    // TOP of the retry loop, before that iteration's `start` fires, so reporting
+    // `attempt + 1` there would announce a retry that never happened. `attempt`
+    // is the only way a retry is observable at all, so inflating it turns a
+    // progress panel into a liar.
+    //
+    // Asserted as the general invariant rather than by pinning one abort's exact
+    // number: every `done`/`error` must correspond to a `start` with the same id
+    // AND the same attempt. That holds for every path, and is what actually
+    // breaks if the abort branch regresses.
+    // The timing is deliberate, not incidental. `fakeRetryChat` settles both
+    // groups in adjacent microtasks, which makes the sibling abort BEFORE the
+    // retrying group's catch runs — so it throws from the catch and the
+    // top-of-loop branch is never reached, and the test passes against a broken
+    // implementation. (Confirmed by reverting the fix: it stayed green.) A
+    // bespoke chat with real timers is what forces the branch:
+    //
+    //   t=0   hvac fails transiently -> not yet aborted -> enters its 40ms backoff
+    //   t=20  attic returns finishReason "length" -> TerminalQueueError -> abort()
+    //   t=40  hvac wakes, reaches the TOP of its next iteration, sees aborted
+    //
+    // That last step is the branch under test.
+    const events: GroupUnit[] = [];
+    const chat: ChatClient = {
+      complete: async (request) => {
+        if (request.response_format.json_schema.name === groupedName("hvac")) {
+          throw new Error("transient");
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return { content: JSON.stringify(atticResponse), finishReason: "length" };
+      },
+    };
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      maxRetries: 3,
+      concurrency: 2,
+      delay: () => new Promise((resolve) => setTimeout(resolve, 40)),
+      onUnit: (e) => events.push(e),
+    });
+
+    await expect(extractor.extract("t")).rejects.toThrow();
+    const atSettlement = events.length;
+
+    // `Promise.all` rejects the moment the terminal sibling throws (~20ms),
+    // while the retrying group is still asleep in its 40ms backoff. So the
+    // abort branch runs AFTER extract() has already rejected. Waiting past it
+    // is what makes this test see the branch at all — asserting immediately
+    // after the rejection passes against a broken implementation, because the
+    // event has not been emitted yet.
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    // Nothing may arrive after the extraction has settled. A progress panel
+    // that gets a unit event for a run it already saw fail is being told the
+    // work is still going.
+    expect(events.length).toBe(atSettlement);
+
+    // Guard the guard: without the abort, a permanently-transient group under
+    // `maxRetries: 3` would emit four starts. Exactly one proves the abort
+    // branch short-circuited the loop, so the invariants below are not passing
+    // vacuously.
+    const hvac = events.filter((e) => e.key === "hvac");
+    expect(hvac.filter((e) => e.phase === "start")).toHaveLength(1);
+    expect(hvac.filter((e) => e.phase === "error")).toHaveLength(1);
+
+    // Invariant 1: every settle names an attempt that actually started.
+    const started = events.filter((e) => e.phase === "start").map((e) => `${e.id}#${e.attempt}`);
+    const settled = events.filter((e) => e.phase !== "start");
+    expect(settled.length).toBeGreaterThan(0);
+    for (const e of settled) {
+      expect(started).toContain(`${e.id}#${e.attempt}`);
+    }
+
+    // Invariant 2: no attempt settles twice — the abort must not re-report an
+    // attempt the catch already reported.
+    const settledKeys = settled.map((e) => `${e.id}#${e.attempt}`);
+    expect(new Set(settledKeys).size).toBe(settledKeys.length);
   });
 
   test("a target whose schema is not an object of groups emits one unit with key: ''", async () => {

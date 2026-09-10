@@ -590,16 +590,24 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
             if (abort.signal.aborted) {
               const aborted =
                 lastError ?? new Error("perGroupExtractor: aborted by a sibling failure");
-              onUnit?.({
-                id,
-                unit: "group",
-                phase: "error",
-                attempt: attempt + 1,
-                key,
-                part,
-                parts,
-                error: aborted,
-              });
+              // NO event here, deliberately, and for two independent reasons.
+              //
+              // This check runs at the TOP of the loop, before this iteration's
+              // `start`, so attempt `attempt + 1` never began — announcing it
+              // would invent a retry that did not happen, and `attempt` is the
+              // only way a retry is observable at all. Re-reporting `attempt`
+              // is no better: when it is > 0 that attempt already settled with
+              // its own `error` in the catch below, and when it is 0 nothing
+              // started at all.
+              //
+              // And the timing is worse than the numbering. `mapWithPool` uses
+              // `Promise.all`, so `extract()` rejects the instant a sibling
+              // fails — while this worker may still be asleep in its backoff.
+              // Anything emitted here therefore arrives AFTER the extraction
+              // has settled, telling a progress panel that a finished run is
+              // still going. The unit's last live attempt is already reported;
+              // that no further attempt follows is said by the absence of a
+              // next `start`.
               throw aborted;
             }
 
@@ -635,12 +643,19 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
                 key,
                 part,
                 parts,
-                usage: completion.usage
+                // Omitted rather than set to `undefined` when the transport
+                // reports nothing: absent means "not reported", and this repo
+                // already keeps that distinction load-bearing for
+                // `ExtractionUsage.cachedPromptTokens`. `usage: undefined` would
+                // still answer `"usage" in event` with true.
+                ...(completion.usage !== undefined
                   ? {
-                      inputTokens: completion.usage.promptTokens,
-                      outputTokens: completion.usage.completionTokens,
+                      usage: {
+                        inputTokens: completion.usage.promptTokens,
+                        outputTokens: completion.usage.completionTokens,
+                      },
                     }
-                  : undefined,
+                  : {}),
               });
               return parsed;
             } catch (cause) {
