@@ -48,9 +48,9 @@ That is a design problem with a right answer, and it is not one the model can so
 For anything that matters, a person accepts the result before it lands. This is not a UI task you
 bolt on at the end; it determines the shape of everything upstream.
 
-Review needs to address individual leaves, not whole objects — otherwise a group of thirteen
-independent test results collapses into one accept-or-reject decision, and the reviewer's only
-options are to approve something wrong or reject twelve things that were right. It needs each
+Review needs to address individual leaves, not whole objects — otherwise a matrix of independent
+test results collapses into one accept-or-reject decision, and the reviewer's only options are to
+approve something wrong or reject everything else that was right. It needs each
 leaf's own type to render an appropriate editor and validate an edit. It needs the source quote in
 view. And it needs the pipeline to actually _stop_ and wait, durably, possibly across a browser
 restart.
