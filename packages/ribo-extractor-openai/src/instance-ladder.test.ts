@@ -10,8 +10,9 @@ import {
 import type {
   Enveloped,
   ExtractionArbiter,
-  ExtractionResult,
   ExtractionTarget,
+  ExtractionUnit,
+  ResultOutcome,
 } from "@azx/ribo-core";
 
 import type { ChatClient, ChatRequest } from "./chat-client.js";
@@ -209,8 +210,7 @@ function tier3FailingChat(error: unknown): {
 /** Arbiter that accepts tier 1 or tier 2 results and declines tier 3 at exhaustion. */
 const declineTier3AtExhaustion: ExtractionArbiter<Enveloped<DemoValues>> = (input) => {
   const firstResult = input.outcomes.find(
-    (outcome): outcome is { candidate: string; result: ExtractionResult<Enveloped<DemoValues>> } =>
-      "result" in outcome && outcome.result !== undefined,
+    (outcome): outcome is ResultOutcome<Enveloped<DemoValues>> => outcome.outcome === "result",
   );
   if (firstResult) {
     return { accept: firstResult.result };
@@ -373,5 +373,141 @@ describe("instanceLadder", () => {
     // The relay sees the same error it would see if the tier-3 extractor were used
     // directly, so its `dead`/transient classification is unchanged.
     expect(isTransientFailure(thrown)).toBe(true);
+  });
+
+  // --- Task 5 — observer threading and tier attribution -----------------------
+
+  test("tier 1 failing and tier 2 succeeding emits tier 1 units stamped 'tier1' and tier 2 units stamped 'tier2'", async () => {
+    const events: ExtractionUnit[] = [];
+    const tier2 = tier2ArrayChat();
+    const ladder = instanceLadder({
+      arbiter: terminalFallsThrough,
+      onUnit: (e) => events.push(e),
+      tier1: {
+        target,
+        chat: tier1FillChat().chat,
+        model: "demo-model",
+        inventory: async () => {
+          throw new SchemaParseError("tier-1 roster parse failed", {
+            cause: new z.ZodError([]),
+          });
+        },
+        buildFillInstructions,
+        delay: noDelay,
+      },
+      tier2: { target, chat: tier2.chat, model: "demo-model", delay: noDelay },
+      tier3: { target, chat: tier3SingletonChat().chat, model: "demo-model", delay: noDelay },
+    });
+
+    await ladder.extract("the transcript");
+
+    const tier1Events = events.filter((e) => e.strategy === "tier1");
+    const tier2Events = events.filter((e) => e.strategy === "tier2");
+
+    // Tier 1 emits inventory units (the inventory pass fails with SchemaParseError).
+    expect(tier1Events.length).toBeGreaterThan(0);
+    expect(tier1Events.every((e) => e.unit === "inventory")).toBe(true);
+
+    // Tier 2 emits group units (it succeeds).
+    expect(tier2Events.length).toBeGreaterThan(0);
+    expect(tier2Events.every((e) => e.unit === "group")).toBe(true);
+  });
+
+  test("every event a tier emits carries a strategy; none arrives unstamped", async () => {
+    const events: ExtractionUnit[] = [];
+    const tier2 = tier2ArrayChat();
+    const ladder = instanceLadder({
+      arbiter: terminalFallsThrough,
+      onUnit: (e) => events.push(e),
+      tier1: {
+        target,
+        chat: tier1FillChat().chat,
+        model: "demo-model",
+        inventory: async () => {
+          throw new SchemaParseError("tier-1 roster parse failed", {
+            cause: new z.ZodError([]),
+          });
+        },
+        buildFillInstructions,
+        delay: noDelay,
+      },
+      tier2: { target, chat: tier2.chat, model: "demo-model", delay: noDelay },
+      tier3: { target, chat: tier3SingletonChat().chat, model: "demo-model", delay: noDelay },
+    });
+
+    await ladder.extract("the transcript");
+
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.every((e) => e.strategy !== undefined)).toBe(true);
+  });
+
+  test("a tier with its own onUnit and a ladder with one: both fire, and the ladder's copy is stamped", async () => {
+    const ladderEvents: ExtractionUnit[] = [];
+    const tierEvents: ExtractionUnit[] = [];
+    const tier2 = tier2ArrayChat();
+    const ladder = instanceLadder({
+      arbiter: terminalFallsThrough,
+      onUnit: (e) => ladderEvents.push(e),
+      tier1: {
+        target,
+        chat: tier1FillChat().chat,
+        model: "demo-model",
+        inventory: async () => {
+          throw new SchemaParseError("tier-1 roster parse failed", {
+            cause: new z.ZodError([]),
+          });
+        },
+        buildFillInstructions,
+        delay: noDelay,
+        onUnit: (e) => tierEvents.push(e),
+      },
+      tier2: { target, chat: tier2.chat, model: "demo-model", delay: noDelay },
+      tier3: { target, chat: tier3SingletonChat().chat, model: "demo-model", delay: noDelay },
+    });
+
+    await ladder.extract("the transcript");
+
+    // Both handlers saw tier 1's inventory events.
+    const ladderTier1 = ladderEvents.filter((e) => e.strategy === "tier1");
+    const tierTier1 = tierEvents.filter((e) => e.unit === "inventory");
+    expect(ladderTier1.length).toBeGreaterThan(0);
+    expect(tierTier1.length).toBeGreaterThan(0);
+
+    // The ladder's copy is stamped; the tier's own copy is not.
+    expect(ladderTier1.every((e) => e.strategy === "tier1")).toBe(true);
+    expect(tierTier1.every((e) => e.strategy === undefined)).toBe(true);
+  });
+
+  test("with the ladder's onUnit absent, tiers behave identically and any tier-level onUnit still fires", async () => {
+    const tierEvents: ExtractionUnit[] = [];
+    const tier2 = tier2ArrayChat();
+    const ladder = instanceLadder({
+      arbiter: terminalFallsThrough,
+      tier1: {
+        target,
+        chat: tier1FillChat().chat,
+        model: "demo-model",
+        inventory: async () => {
+          throw new SchemaParseError("tier-1 roster parse failed", {
+            cause: new z.ZodError([]),
+          });
+        },
+        buildFillInstructions,
+        delay: noDelay,
+        onUnit: (e) => tierEvents.push(e),
+      },
+      tier2: { target, chat: tier2.chat, model: "demo-model", delay: noDelay },
+      tier3: { target, chat: tier3SingletonChat().chat, model: "demo-model", delay: noDelay },
+    });
+
+    const result = await ladder.extract("the transcript");
+
+    // The tier-level onUnit still fires even without a ladder-level observer.
+    expect(tierEvents.length).toBeGreaterThan(0);
+    expect(tierEvents.every((e) => e.unit === "inventory")).toBe(true);
+
+    // The extraction result is unaffected.
+    expect(result.fields.widgets).toHaveLength(2);
+    expect(result.usage.strategy).toBe("tier2");
   });
 });

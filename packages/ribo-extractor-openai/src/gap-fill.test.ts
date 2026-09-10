@@ -1,5 +1,5 @@
 import { enveloped, FakeExtractor, isTransientFailure, SchemaParseError } from "@azx/ribo-core";
-import type { Enveloped, ExtractionTarget } from "@azx/ribo-core";
+import type { Enveloped, ExtractionTarget, GapFillUnit } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
@@ -10,6 +10,7 @@ import {
   gapFillExtractor,
   mergeGapFilledLeaves,
 } from "./gap-fill.js";
+import { singleShotExtractor } from "./single-shot.js";
 
 /**
  * Key-free CI tests for the gap-fill combinator, against a small self-contained
@@ -341,6 +342,119 @@ describe("gapFillExtractor — the follow-up crosses the same trust boundary", (
 
     expect((error as Error).message).toContain("maxTokens");
     expect(isTransientFailure(error)).toBe(false);
+  });
+});
+
+describe("gapFillExtractor — progress units", () => {
+  test("two abstained-with-evidence leaves emit one unit with candidates: 2", async () => {
+    const base = new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } });
+    const { chat } = fakeChat(JSON.stringify(followUpResponse), {
+      usage: { promptTokens: 30, completionTokens: 12 },
+    });
+    const events: GapFillUnit[] = [];
+    await gapFillExtractor({
+      base,
+      target: gapTarget,
+      chat,
+      model: "m",
+      onUnit: (event) => events.push(event),
+    }).extract("t");
+
+    // One unit — a start and its done — for the ONE follow-up call.
+    expect(events).toHaveLength(2);
+    const start = events[0]!;
+    const done = events[1]!;
+    expect(start.unit).toBe("gapfill");
+    expect(start.phase).toBe("start");
+    // How many abstained-with-evidence leaves the follow-up is asking about.
+    expect(start.candidates).toBe(2);
+    // No retry loop here, so 1 is the honest report on every event.
+    expect(start.attempt).toBe(1);
+    expect(done.phase).toBe("done");
+    expect(done.candidates).toBe(2);
+    expect(done.id).toBe(start.id);
+    // The event's usage is the follow-up completion's own, not the combined total.
+    expect(done.usage).toEqual({ inputTokens: 30, outputTokens: 12 });
+  });
+
+  test("zero candidates emit nothing at all and make no chat call", async () => {
+    // The passthrough path is the trap: no call is made, so there is no unit to
+    // report. A phantom event here would announce work that never happened and
+    // break the pinned "no second call, no wrapper object, no usage change".
+    const base = new FakeExtractor<GapExtraction>(committedFields, { usage: { calls: 1 } });
+    const { chat, requests } = fakeChat(JSON.stringify(followUpResponse));
+    const events: GapFillUnit[] = [];
+    const result = await gapFillExtractor({
+      base,
+      target: gapTarget,
+      chat,
+      model: "m",
+      onUnit: (event) => events.push(event),
+    }).extract("t");
+
+    expect(events).toEqual([]);
+    expect(requests).toHaveLength(0);
+    // And the passthrough itself is unchanged — the base result, same object.
+    expect(result.fields).toBe(committedFields);
+  });
+
+  test("a base built with its own onUnit delivers its units first, then the follow-up's", async () => {
+    // §0.3: the base is handed over ALREADY BUILT, so there is no threading for
+    // gap-fill to do — the base's units flow through the observer its own caller
+    // gave it, and gap-fill's onUnit observes only the follow-up call.
+    const baseChat = fakeChat(JSON.stringify(abstainingFields));
+    const followUpChat = fakeChat(JSON.stringify(followUpResponse));
+    const seen: string[] = [];
+
+    const base = singleShotExtractor({
+      target: gapTarget,
+      chat: baseChat.chat,
+      model: "m",
+      onUnit: (event) => seen.push(`base:${event.unit}:${event.phase}`),
+    });
+    await gapFillExtractor({
+      base,
+      target: gapTarget,
+      chat: followUpChat.chat,
+      model: "m",
+      onUnit: (event) => seen.push(`gapfill:${event.unit}:${event.phase}`),
+    }).extract("t");
+
+    expect(seen).toEqual([
+      "base:whole:start",
+      "base:whole:done",
+      "gapfill:gapfill:start",
+      "gapfill:gapfill:done",
+    ]);
+  });
+
+  test("with onUnit absent, an identical run produces an identical result and call sequence", async () => {
+    const followUpUsage = { promptTokens: 30, completionTokens: 12 };
+
+    const observed = fakeChat(JSON.stringify(followUpResponse), { usage: followUpUsage });
+    const events: GapFillUnit[] = [];
+    const withObserver = await gapFillExtractor({
+      base: new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } }),
+      target: gapTarget,
+      chat: observed.chat,
+      model: "m",
+      onUnit: (event) => events.push(event),
+    }).extract("t");
+
+    const silent = fakeChat(JSON.stringify(followUpResponse), { usage: followUpUsage });
+    const withoutObserver = await gapFillExtractor({
+      base: new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } }),
+      target: gapTarget,
+      chat: silent.chat,
+      model: "m",
+    }).extract("t");
+
+    // The observed run really did observe — otherwise the comparison below proves
+    // nothing. This is the half that fails before the hook exists.
+    expect(events.map((event) => event.phase)).toEqual(["start", "done"]);
+    // The observation point changed nothing: same result, same bytes on the wire.
+    expect(withoutObserver).toEqual(withObserver);
+    expect(silent.requests).toEqual(observed.requests);
   });
 });
 

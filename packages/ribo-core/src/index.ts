@@ -345,3 +345,27 @@ export { stripOptionalNullable } from "./field-path.js";
 // object whose key is the literal text `hvac[k3]`.
 export { buildFieldPath, parseFieldPath } from "./field-path.js";
 export type { FieldPathSegment } from "./field-path.js";
+
+// Retry-budget derivation: the shared worst-case-fit calculation every managed
+// extractor uses to cap retries inside a step timeout. Hoisted here so the two
+// extractor copies do not drift — see extraction-observability-design.md §0.4.
+// `RetryBudgetObserver` is the options mixin a later task wires into each
+// extractor's options type.
+export { deriveRetryBudget, PER_CALL_CEILING_MS } from "./retry-budget.js";
+export type { RetryBudget, RetryBudgetObserver } from "./retry-budget.js";
+
+// Extraction observability — one optional progress hook every strategy reports
+// through, plus the six unit variants it carries and the id/strategy helpers.
+// Declared once here and inherited by every extractor's options, so a reviewer
+// watching a ten-minute extraction sees each unit of work start and settle.
+export { nextUnitId, stampStrategy } from "./extraction-observer.js";
+export type {
+  ExtractionObserver,
+  ExtractionUnit,
+  GapFillUnit,
+  GroupUnit,
+  InstanceUnit,
+  InventoryUnit,
+  PhaseUnit,
+  WholeUnit,
+} from "./extraction-observer.js";

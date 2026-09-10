@@ -28,12 +28,15 @@
 
 import { z } from "zod";
 
+import { nextUnitId } from "@azx/ribo-core";
 import type {
   Enveloped,
+  ExtractionObserver,
   Extractor,
   ExtractionResult,
   ExtractionTarget,
   NoProvenance,
+  WholeUnit,
 } from "@azx/ribo-core";
 
 import type { ChatClient } from "./chat-client.js";
@@ -47,8 +50,18 @@ import {
   parseWithSchema,
 } from "./extraction-common.js";
 
-/** Options for {@link singleShotExtractor}. */
-export interface SingleShotOptions<V extends Record<string, unknown>, P = NoProvenance> {
+/**
+ * Options for {@link singleShotExtractor}.
+ *
+ * Inherits `onUnit` from {@link ExtractionObserver}, narrowed to {@link WholeUnit}:
+ * one `extract()` emits exactly one unit — `start`, then `done` or `error`. There
+ * is no retry loop here, so `attempt` is always 1, and that is the honest report,
+ * not a placeholder.
+ */
+export interface SingleShotOptions<
+  V extends Record<string, unknown>,
+  P = NoProvenance,
+> extends ExtractionObserver<WholeUnit> {
   /** The field knowledge: `name`, `extractionSchema`, `instructions`, and few-shot `examples`. */
   readonly target: ExtractionTarget<V, P>;
   /** The injected chat transport. A fake in tests; {@link openAiChat} in production. */
@@ -106,6 +119,7 @@ export function singleShotExtractor<V extends Record<string, unknown>, P = NoPro
   model,
   maxTokens,
   normalize = (fields) => fields,
+  onUnit,
 }: SingleShotOptions<V, P>): Extractor<Enveloped<V, P>> {
   const jsonSchema = z.toJSONSchema(target.extractionSchema, { target: "draft-2020-12" }) as Record<
     string,
@@ -115,28 +129,58 @@ export function singleShotExtractor<V extends Record<string, unknown>, P = NoPro
 
   return {
     async extract(transcript: string): Promise<ExtractionResult<Enveloped<V, P>>> {
-      const completion = await completeOrClassify(
-        chat,
-        {
-          model,
-          messages: buildMessages(target, transcript),
-          response_format: {
-            type: "json_schema",
-            json_schema: { name: target.name, schema: jsonSchema, strict: true },
+      const id = nextUnitId();
+      onUnit?.({ id, unit: "whole", phase: "start", attempt: 1 });
+      try {
+        const completion = await completeOrClassify(
+          chat,
+          {
+            model,
+            messages: buildMessages(target, transcript),
+            response_format: {
+              type: "json_schema",
+              json_schema: { name: target.name, schema: jsonSchema, strict: true },
+            },
+            maxTokens,
           },
-          maxTokens,
-        },
-        "singleShotExtractor",
-      );
+          "singleShotExtractor",
+        );
 
-      assertStopFinishReason(completion, context);
+        assertStopFinishReason(completion, context);
 
-      const raw = parseJsonContent(completion.content, context);
-      const parsed = parseWithSchema(target.extractionSchema, raw, context);
+        const raw = parseJsonContent(completion.content, context);
+        const parsed = parseWithSchema(target.extractionSchema, raw, context);
 
-      const totals: UsageTotals = {};
-      addUsage(totals, completion.usage);
-      return { fields: normalize(parsed), raw, usage: { calls: 1, ...totals } };
+        const totals: UsageTotals = {};
+        addUsage(totals, completion.usage);
+        const result: ExtractionResult<Enveloped<V, P>> = {
+          fields: normalize(parsed),
+          raw,
+          usage: { calls: 1, ...totals },
+        };
+        // `done` fires only once the whole path has succeeded, so the unit settles
+        // exactly once: `done` if and only if extract() resolves, `error` if and
+        // only if it rejects — never both, never neither.
+        onUnit?.({
+          id,
+          unit: "whole",
+          phase: "done",
+          attempt: 1,
+          // Omit rather than invent: absent usage means "not reported", never zero.
+          ...(completion.usage !== undefined
+            ? {
+                usage: {
+                  inputTokens: completion.usage.promptTokens,
+                  outputTokens: completion.usage.completionTokens,
+                },
+              }
+            : {}),
+        });
+        return result;
+      } catch (error) {
+        onUnit?.({ id, unit: "whole", phase: "error", attempt: 1, error });
+        throw error;
+      }
     },
   };
 }

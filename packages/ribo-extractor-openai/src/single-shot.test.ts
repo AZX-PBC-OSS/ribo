@@ -1,10 +1,10 @@
 import { enveloped, isTransientFailure, SchemaParseError } from "@azx/ribo-core";
-import type { Enveloped, ExtractionTarget, ToolAdapterExample } from "@azx/ribo-core";
+import type { Enveloped, ExtractionTarget, ToolAdapterExample, WholeUnit } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
 import { ChatError } from "./chat-client.js";
-import type { ChatClient, ChatFinishReason, ChatRequest } from "./chat-client.js";
+import type { ChatClient, ChatFinishReason, ChatRequest, ChatUsage } from "./chat-client.js";
 import { singleShotExtractor } from "./single-shot.js";
 
 /**
@@ -89,12 +89,13 @@ function normalizeDemo(fields: DemoExtraction): DemoExtraction {
 function fakeChat(
   content: string,
   finishReason?: ChatFinishReason,
+  usage?: ChatUsage,
 ): { chat: ChatClient; requests: ChatRequest[] } {
   const requests: ChatRequest[] = [];
   const chat: ChatClient = {
     complete: (request) => {
       requests.push(request);
-      return Promise.resolve({ content, finishReason });
+      return Promise.resolve({ content, finishReason, usage });
     },
   };
   return { chat, requests };
@@ -415,5 +416,111 @@ describe("singleShotExtractor — pre-parse check (non-stop finishReason)", () =
     }).extract("t");
 
     expect(result.fields.equipment.value).toBe("boiler");
+  });
+});
+
+describe("singleShotExtractor — progress units", () => {
+  test("emits one start and one done, attempt 1 on both, same id, usage mapped from the completion", async () => {
+    const { chat } = fakeChat(JSON.stringify(wellFormed), "stop", {
+      promptTokens: 120,
+      completionTokens: 45,
+    });
+    const events: WholeUnit[] = [];
+    await singleShotExtractor({
+      target: demoTarget,
+      chat,
+      model: "m",
+      onUnit: (event) => events.push(event),
+    }).extract("t");
+
+    expect(events).toHaveLength(2);
+    const start = events[0]!;
+    const done = events[1]!;
+    expect(start.unit).toBe("whole");
+    expect(start.phase).toBe("start");
+    // No retry loop here, so 1 is the honest report on every event.
+    expect(start.attempt).toBe(1);
+    expect(done.phase).toBe("done");
+    expect(done.attempt).toBe(1);
+    // The id correlates the pair without consumer bookkeeping.
+    expect(done.id).toBe(start.id);
+    // usage is mapped from the completion's promptTokens/completionTokens.
+    expect(done.usage).toEqual({ inputTokens: 120, outputTokens: 45 });
+  });
+
+  test("done omits usage when the completion reports none", async () => {
+    // Absent means "not reported" — never a fabricated zero.
+    const { chat } = fakeChat(JSON.stringify(wellFormed));
+    const events: WholeUnit[] = [];
+    await singleShotExtractor({
+      target: demoTarget,
+      chat,
+      model: "m",
+      onUnit: (event) => events.push(event),
+    }).extract("t");
+
+    expect(events).toHaveLength(2);
+    expect(events[1]!.phase).toBe("done");
+    expect(events[1]!.usage).toBeUndefined();
+  });
+
+  test("a call that throws emits start then error carrying the thrown value", async () => {
+    const thrown = ChatError.transport("uplink gone");
+    const chat: ChatClient = { complete: () => Promise.reject(thrown) };
+    const events: WholeUnit[] = [];
+
+    const error = await singleShotExtractor({
+      target: demoTarget,
+      chat,
+      model: "m",
+      onUnit: (event) => events.push(event),
+    })
+      .extract("t")
+      .then(
+        () => {
+          throw new Error("expected extract() to reject");
+        },
+        (caught: unknown) => caught,
+      );
+
+    expect(error).toBe(thrown);
+    expect(events).toHaveLength(2);
+    expect(events[0]!.phase).toBe("start");
+    expect(events[1]!.phase).toBe("error");
+    expect(events[1]!.id).toBe(events[0]!.id);
+    expect(events[1]!.attempt).toBe(1);
+    // The event carries the thrown value itself, not a rendering of it — and no
+    // model output; identifiers and usage only.
+    expect(events[1]!.error).toBe(thrown);
+    expect(events[1]!.usage).toBeUndefined();
+  });
+
+  test("with onUnit absent, an identical run produces an identical result and call sequence", async () => {
+    const transcript = "Furnace is a Carrier, natural gas, eighty thousand BTU.";
+
+    const observed = fakeChat(JSON.stringify(wellFormed));
+    const events: WholeUnit[] = [];
+    const withObserver = await singleShotExtractor({
+      target: demoTarget,
+      chat: observed.chat,
+      model: "m",
+      normalize: normalizeDemo,
+      onUnit: (event) => events.push(event),
+    }).extract(transcript);
+
+    const silent = fakeChat(JSON.stringify(wellFormed));
+    const withoutObserver = await singleShotExtractor({
+      target: demoTarget,
+      chat: silent.chat,
+      model: "m",
+      normalize: normalizeDemo,
+    }).extract(transcript);
+
+    // The observed run really did observe — otherwise the comparison below proves
+    // nothing. This is the half that fails before the hook exists.
+    expect(events.map((event) => event.phase)).toEqual(["start", "done"]);
+    // The observation point changed nothing: same result, same bytes on the wire.
+    expect(withoutObserver).toEqual(withObserver);
+    expect(silent.requests).toEqual(observed.requests);
   });
 });

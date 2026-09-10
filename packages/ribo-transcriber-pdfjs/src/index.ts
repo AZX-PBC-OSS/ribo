@@ -28,6 +28,7 @@ import type {
 import {
   DEFAULT_NO_TEXT_LAYER_THRESHOLD,
   PDFJS_ENGINE,
+  type PageRead,
   type PdfjsModule,
   type PdfjsTranscriberOptions,
 } from "./config.js";
@@ -43,6 +44,10 @@ export type {
   PdfTextItem,
   PdfTransformMatrix,
 } from "./config.js";
+// The per-page progress event the `onPage` hooks carry. Public because a host
+// writing a progress handler must be able to name the event's type; it lives
+// in `config.ts` beside the options interfaces that declare those hooks.
+export type { PageRead } from "./config.js";
 export { openDocument, readDocumentText, PAGE_MARKER, resetPdfjsCache } from "./pdf-text.js";
 export {
   COLUMN_SEPARATOR,
@@ -89,11 +94,13 @@ export class PdfjsTranscriber implements Transcriber<DocumentCapture> {
 
   readonly #workerSrc?: string;
   readonly #noTextLayerThreshold: number;
+  readonly #onPage?: (event: PageRead) => void;
   readonly #loadPdfjs: () => Promise<PdfjsModule>;
 
   constructor(options: PdfjsTranscriberOptions = {}) {
     this.#workerSrc = options.workerSrc;
     this.#noTextLayerThreshold = options.noTextLayerThreshold ?? DEFAULT_NO_TEXT_LAYER_THRESHOLD;
+    this.#onPage = options.onPage;
     this.#loadPdfjs =
       options.loadPdfjs ?? (async () => (await import("pdfjs-dist")) as unknown as PdfjsModule);
   }
@@ -129,6 +136,7 @@ export class PdfjsTranscriber implements Transcriber<DocumentCapture> {
       loadPdfjs: this.#loadPdfjs,
       noTextLayerThreshold: this.#noTextLayerThreshold,
       engine: this.engine,
+      onPage: this.#onPage,
     });
 
     return {

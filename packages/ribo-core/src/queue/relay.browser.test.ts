@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, expectTypeOf, test, vi } from "vitest";
 
 import type { CaptureItem, DocumentCapture } from "../capture-item.js";
 import type { Recording } from "../recording.js";
@@ -12,10 +12,11 @@ import { reviewOutcomeSchema } from "../review.js";
 import {
   createRelay,
   type ExtractedFieldMap,
-  type SessionExtractStep,
   type Relay,
-  type SessionWriteStep,
+  type RelaySubject,
+  type SessionExtractStep,
   type SessionWriteInput,
+  type SessionWriteStep,
 } from "./relay.js";
 import type { OutboxItem } from "./schema.js";
 import type { SessionItem } from "./session-schema.js";
@@ -158,6 +159,7 @@ async function buildRelay(
     random?: () => number;
     dropAudioAfterTranscription?: boolean;
     locks?: LockManager;
+    onError?: (error: unknown, subject: RelaySubject) => void;
   } = {},
 ): Promise<Harness> {
   const transcriber: Transcriber =
@@ -197,6 +199,7 @@ async function buildRelay(
     maxAttempts: overrides.maxAttempts,
     dropAudioAfterTranscription: overrides.dropAudioAfterTranscription,
     locks: overrides.locks,
+    onError: overrides.onError,
   });
 
   // Reuse an existing session (two-tabs tests build two harnesses from the
@@ -1030,6 +1033,109 @@ test("gives up and goes dead once maxAttempts transient failures have accumulate
   const dead = await outbox.getSession(item.id);
   expect(dead?.status).toBe("dead");
   expect(dead?.attempts).toBe(3);
+});
+
+// ---------------------------------------------------------------------------
+// onError subject — a tagged RelaySubject, not a bare union
+// ---------------------------------------------------------------------------
+//
+// `RelayOptions.onError` used to take `OutboxItem | SessionItem` — a bare union
+// whose arms could only be told apart by probing for `audioReady`. The relay now
+// constructs a tagged `RelaySubject` at each call site, where the two are already
+// distinguishable, so a `switch (subject.kind)` reaches a correctly-typed document
+// with no cast. Nothing is persisted: the discriminant lives at the callback
+// boundary only (design §0.6).
+
+test("onError receives kind 'recording' and the outbox item when transcription fails", async () => {
+  const outbox = await openTestOutbox(uniqueName());
+  const errorCalls: Array<{ error: unknown; subject: RelaySubject }> = [];
+  const harness = await buildRelay(outbox, {
+    onError: (error, subject) => errorCalls.push({ error, subject }),
+  });
+  const item = await outbox.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await outbox.dropAudio(item.id);
+
+  await harness.relay.syncNow();
+
+  expect(errorCalls).toHaveLength(1);
+  expect(errorCalls[0]?.subject.kind).toBe("recording");
+  if (errorCalls[0]?.subject.kind === "recording") {
+    expect(errorCalls[0].subject.item.id).toBe(item.id);
+  }
+  expect((await outbox.get(item.id))?.status).toBe("dead");
+});
+
+test("onError receives kind 'session' and the session document when extraction fails", async () => {
+  const outbox = await openTestOutbox(uniqueName());
+  const errorCalls: Array<{ error: unknown; subject: RelaySubject }> = [];
+  const harness = await buildRelay(outbox, {
+    sessionExtract: async () => {
+      throw new TerminalQueueError("extraction failed");
+    },
+    onError: (error, subject) => errorCalls.push({ error, subject }),
+  });
+  await outbox.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+
+  await harness.relay.syncNow();
+  await outbox.closeSession(harness.session.id);
+  await harness.relay.syncNow();
+
+  expect(errorCalls).toHaveLength(1);
+  expect(errorCalls[0]?.subject.kind).toBe("session");
+  if (errorCalls[0]?.subject.kind === "session") {
+    expect(errorCalls[0].subject.session.id).toBe(harness.session.id);
+  }
+  expect((await outbox.getSession(harness.session.id))?.status).toBe("dead");
+});
+
+test("onError receives kind 'session' and the session document when the write fails", async () => {
+  const outbox = await openTestOutbox(uniqueName());
+  const errorCalls: Array<{ error: unknown; subject: RelaySubject }> = [];
+  const harness = await buildRelay(outbox, {
+    sessionWrite: async () => {
+      throw Object.assign(new Error("unprocessable"), { status: 422 });
+    },
+    onError: (error, subject) => errorCalls.push({ error, subject }),
+  });
+  const { session } = await seedReviewedWriting(outbox);
+
+  await harness.relay.syncNow();
+
+  expect(errorCalls).toHaveLength(1);
+  expect(errorCalls[0]?.subject.kind).toBe("session");
+  if (errorCalls[0]?.subject.kind === "session") {
+    expect(errorCalls[0].subject.session.id).toBe(session.id);
+  }
+  expect((await outbox.getSession(session.id))?.status).toBe("dead");
+});
+
+// Type-level: the `@ts-expect-error` IS the assertion. If the directive flips to
+// "unused" (TS2578), the narrowing guarantee is gone and the test fails loudly
+// under `pnpm typecheck`.
+
+test("switch (subject.kind) narrows: recording arm reaches item.id, session arm reaches session.ref", () => {
+  const recording: RelaySubject = { kind: "recording", item: {} as OutboxItem };
+  if (recording.kind === "recording") {
+    expectTypeOf(recording.item).toEqualTypeOf<OutboxItem>();
+    expectTypeOf(recording.item.id).toEqualTypeOf<string>();
+  }
+
+  const session: RelaySubject = { kind: "session", session: {} as SessionItem };
+  if (session.kind === "session") {
+    expectTypeOf(session.session).toEqualTypeOf<SessionItem>();
+    expectTypeOf(session.session.ref).toEqualTypeOf<string>();
+  }
+});
+
+test("reaching for subject.session in the recording arm is a compile error", () => {
+  const subject: RelaySubject = { kind: "recording", item: {} as OutboxItem };
+  if (subject.kind === "recording") {
+    // @ts-expect-error — `session` is on the "session" arm, not "recording".
+    // The union narrows under `kind`, so this access is a type error. If the
+    // directive flips to "unused" (TS2578) the narrowing guarantee is gone.
+    void subject.session;
+  }
+  expect(subject.kind).toBe("recording");
 });
 
 // ---------------------------------------------------------------------------

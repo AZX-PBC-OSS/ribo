@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, expectTypeOf, test } from "vitest";
 
 import type { ExtractionResult } from "./extractor.js";
 import { TerminalQueueError, isTransientFailure } from "./queue/backoff.js";
@@ -9,7 +9,10 @@ import {
   resultOutcome,
   terminalFallsThrough,
   type ArbiterInput,
+  type ErrorOutcome,
   type ExtractionArbiter,
+  type ExtractionOutcome,
+  type ResultOutcome,
 } from "./arbitration.js";
 
 function makeResult<F>(fields: F): ExtractionResult<F> {
@@ -54,7 +57,7 @@ describe("outcome discrimination", () => {
   // does not exist while swallowing the error. Guards now test the VALUE.
   test("an error outcome carrying an explicit result: undefined is not a success", () => {
     const boom = Object.assign(new Error("service unavailable"), { status: 503 });
-    const outcome = { candidate: "a", error: boom, result: undefined };
+    const outcome = { candidate: "a", error: boom, result: undefined, outcome: "error" as const };
 
     expectGiveUp(terminalFallsThrough(makeInput([outcome], true)), boom);
     expectGiveUp(acceptAnySuccess(makeInput([outcome], true)), boom);
@@ -63,7 +66,7 @@ describe("outcome discrimination", () => {
   // `throw undefined` is legal, so an error outcome may carry no error value at all.
   // It must still be an error, never a success.
   test("an error outcome whose error is undefined is still an error", () => {
-    const outcome = { candidate: "a", error: undefined };
+    const outcome = { candidate: "a", error: undefined, outcome: "error" as const };
 
     expectGiveUp(terminalFallsThrough(makeInput([outcome], true)), undefined);
   });
@@ -170,5 +173,61 @@ describe("acceptAnySuccess", () => {
       acceptAnySuccess(makeInput([errorOutcome("a", error), resultOutcome("b", result)])),
       result,
     );
+  });
+});
+
+describe("outcome tag", () => {
+  test("resultOutcome() stamps outcome: 'result'", () => {
+    const outcome = resultOutcome("a", makeResult({ value: 1 }));
+    expect(outcome.outcome).toBe("result");
+  });
+
+  test("errorOutcome() stamps outcome: 'error'", () => {
+    const outcome = errorOutcome("a", new Error("boom"));
+    expect(outcome.outcome).toBe("error");
+  });
+
+  test("switch on outcome.outcome narrows each arm to its own members with no cast", () => {
+    const outcomes: readonly ExtractionOutcome<{ value: number }>[] = [
+      resultOutcome("a", makeResult({ value: 1 })),
+      errorOutcome("b", new Error("boom")),
+    ];
+
+    for (const outcome of outcomes) {
+      switch (outcome.outcome) {
+        case "result":
+          // Narrowed to ResultOutcome — result is accessible.
+          expect(outcome.result.fields).toEqual({ value: 1 });
+          break;
+        case "error":
+          // Narrowed to ErrorOutcome — error is accessible.
+          expect(outcome.error).toBeInstanceOf(Error);
+          break;
+      }
+    }
+  });
+
+  test("Extract<ExtractionOutcome<F>, { outcome: 'result' }> is ResultOutcome<F>", () => {
+    expectTypeOf<
+      Extract<ExtractionOutcome<{ value: number }>, { outcome: "result" }>
+    >().toEqualTypeOf<ResultOutcome<{ value: number }>>();
+  });
+
+  test("Extract<ExtractionOutcome<F>, { outcome: 'error' }> is ErrorOutcome<F>", () => {
+    expectTypeOf<
+      Extract<ExtractionOutcome<{ value: number }>, { outcome: "error" }>
+    >().toEqualTypeOf<ErrorOutcome<{ value: number }>>();
+  });
+
+  test("an inline object literal missing the tag is rejected", () => {
+    // @ts-expect-error — the `outcome` tag is required, so only
+    // resultOutcome()/errorOutcome() construct outcomes. A literal missing
+    // `outcome` must not type-check; if this directive goes unused (TS2578)
+    // the tag has been lost and the guarantee is gone.
+    const _: ExtractionOutcome<{ value: number }> = {
+      candidate: "a",
+      result: makeResult({ value: 1 }),
+    };
+    void _;
   });
 });
