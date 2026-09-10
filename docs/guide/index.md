@@ -58,5 +58,8 @@ shopping in. [Comparison](/guide/comparison) is explicit about where the line fa
   approaches run out.
 - **[Comparison](/guide/comparison)** — Ribo against Docling, Mistral Document AI, and calling a
   structured-output API yourself. Including the rows Ribo loses.
-- **[Getting Started](/guide/getting-started)** — run the workspace.
+- **[Installation](/guide/installation)** — install as a consumer, or run the workspace from
+  source.
+- **[Quick Start](/guide/quick-start)** — extract and check your first field, with no
+  credentials and no model.
 - **[API Reference](/reference/)** — the generated per-package surface.

@@ -59,7 +59,8 @@ export default defineConfig({
             { text: "Overview", link: "/guide/" },
             { text: "Motivation", link: "/guide/motivation" },
             { text: "Comparison", link: "/guide/comparison" },
-            { text: "Getting Started", link: "/guide/getting-started" },
+            { text: "Installation", link: "/guide/installation" },
+            { text: "Quick Start", link: "/guide/quick-start" },
           ],
         },
         {
