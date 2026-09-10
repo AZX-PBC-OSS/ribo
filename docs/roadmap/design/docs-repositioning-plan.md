@@ -52,7 +52,7 @@ Every task's requirements implicitly include this section.
   grep -rl "Content coming" docs --include='*.md' \
     --exclude-dir=roadmap --exclude-dir=implementation
   grep -rn "voice-capture SDK" . --include='*.md' \
-    --exclude-dir=node_modules --exclude-dir=.git \
+    --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.superpowers \
     --exclude-dir=roadmap --exclude-dir=implementation
   ```
 
@@ -67,6 +67,10 @@ Every task's requirements implicitly include this section.
     does not prefix matches with `./` the way GNU grep does, so a path-anchored filter silently
     matches nothing and the roadmap hits come back anyway. `--exclude-dir` behaves the same on
     both.
+  - **It excludes `.superpowers/`.** That directory holds this plan's execution scratch — briefs,
+    reports, ledger — which quote the retired phrase in order to hunt it. It is gitignored, so
+    the hits are untracked, but the literal command still printed them until this exclusion was
+    added.
 
   As of this revision the first prints 17 files and the second prints exactly two — `README.md:7`
   and `AGENTS.md:8` — which are Task 2's and Task 3's targets. If you see a roadmap or
