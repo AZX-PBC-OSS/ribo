@@ -8,11 +8,21 @@
 docs site with real content describing what Ribo became — a browser-side, offline-first pipeline
 that takes any capture through extraction, verifiable provenance, human review and write-back.
 
-**Architecture:** Four tranches, sixteen tasks, each independently shippable and each leaving the
+**Architecture:** Four tranches, twenty tasks, each independently shippable and each leaving the
 site coherent and `pnpm docs:build` green. Tranche 1 lands the argument (home, overview,
-motivation, comparison, README, AGENTS). Tranche 2 lands the on-ramp. Tranche 3 writes the eleven
-concept guides, moat pages first. Tranche 4 cleans up: package READMEs, deep dives, the design
-section, and the removal of `capabilities/` behind a link audit.
+motivation, comparison, README, AGENTS). Tranche 2 lands the on-ramp. Tranche 3 publishes the moat
+evidence, writes the eleven concept guides moat-pages-first, and hardens the Comparison page
+against it. Tranche 4 cleans up: package READMEs, deep dives, the design section, the generated
+Reference's doc comments, and the removal of `capabilities/` behind a link audit.
+
+**Revision, after external review.** Task 1 is complete (commit `44e7e0f`). A cross-family review
+then found nine factual errors — all verified true — and two structural gaps. Four tasks were added
+in response and are marked **"Added after review"**: **1A** (accuracy disclosure and the
+`capabilities` nav removal, pulled forward out of Tranche 4), **5A** (deep dives for the moat
+evidence, which previously had nowhere to live), **7A** (widening the Comparison set and adding the
+rows Ribo loses), and **15A** (auditing the doc comments the generated Reference is built from).
+The must-fail grep in Global Constraints was also unsatisfiable as first written; see the note
+there.
 
 **Tech Stack:** VitePress 1.6.4, TypeDoc (`pnpm docs:api`), a generated accuracy page
 (`scripts/generate-accuracy-page.mjs`), Prettier at 100 columns, pnpm workspace.
@@ -33,10 +43,35 @@ Every task's requirements implicitly include this section.
 - **`./check.sh` must be green at the end of every task.** Prettier formats markdown at 100 columns
   and `format:check` is a stage, so run `pnpm format` (or `npx prettier --write` on the touched
   files) before committing.
-- **Two must-fail greps define done for the whole plan**, both of which fail today:
-  `grep -rl "Content coming" docs --include='*.md'` must return nothing outside `docs/roadmap/` and
-  `docs/implementation/`, and `grep -rn "voice-capture SDK" .` must return nothing outside
-  `docs/roadmap/phases/` (historical records, which stay as written).
+- **Two must-fail greps define done for the whole plan**, both of which fail today. **Both exclude
+  all of `docs/roadmap/` and `docs/implementation/`**, which are internal records that stay as
+  written — including this plan and its design, which quote the retired phrase in order to retire
+  it:
+
+  ```bash
+  grep -rl "Content coming" docs --include='*.md' \
+    --exclude-dir=roadmap --exclude-dir=implementation
+  grep -rn "voice-capture SDK" . --include='*.md' \
+    --exclude-dir=node_modules --exclude-dir=.git \
+    --exclude-dir=roadmap --exclude-dir=implementation
+  ```
+
+  Both must print nothing. Two things this form gets right that earlier drafts did not, each
+  verified on this machine:
+
+  - **It excludes all of `docs/roadmap/`, not just `docs/roadmap/phases/`.** The retired phrase
+    also lives in `docs-repositioning-design.md`, in this file, and in `docs/roadmap/index.md`'s
+    entry for the design doc — and no task edits any of them, so the narrower exclusion made the
+    grep unsatisfiable forever.
+  - **It uses `--exclude-dir` rather than piping through `grep -v '^\./…'`.** BSD grep on macOS
+    does not prefix matches with `./` the way GNU grep does, so a path-anchored filter silently
+    matches nothing and the roadmap hits come back anyway. `--exclude-dir` behaves the same on
+    both.
+
+  As of this revision the first prints 17 files and the second prints exactly two — `README.md:7`
+  and `AGENTS.md:8` — which are Task 2's and Task 3's targets. If you see a roadmap or
+  implementation path, you are running an older form of the grep, not looking at a real failure.
+
 - **Snugg Pro is an example, never the subject.** Any page whose only illustration is a home-energy
   audit needs a second one. The standing second example is the heat-pump quote reviewer: an invoice
   PDF plus an ACCA Manual J report plus the reviewer's dictation, joined into one session.
@@ -184,6 +219,52 @@ then commit as `docs: reposition the site around structured extraction`.
 
 ---
 
+### Task 1A: Close the two interim inconsistencies Task 1 opens
+
+Added after review. Task 1 ships a Comparison page that refuses to quote any extraction-accuracy
+figure, and a nav that still advertises a `Capabilities` section of stubs. Both are defensible at
+the end of the plan and indefensible for the fifteen tasks in between, so they move here.
+
+**Files:**
+
+- Modify: `scripts/generate-accuracy-page.mjs`
+- Modify: `docs/.vitepress/config.ts` (remove the `Capabilities` **nav** entry only)
+
+**Interfaces:**
+
+- Consumes: Task 1's honesty framing.
+- Produces: nothing. This task only removes contradictions.
+
+- [ ] **Step 1: Add the accuracy disclosure to the generator**
+
+Read `scripts/generate-accuracy-page.mjs` and see what it currently emits — it writes
+`docs/deep-dives/accuracy.md` (gitignored, regenerated by `pnpm docs:accuracy`) and already carries
+a staleness banner. Per spec §5 the page must say plainly that extraction quality is **not
+currently measured** and why: the corpus is annotated in the superseded vocabulary and the
+acceptance gate deliberately refuses to emit meaningless numbers. It must not quote the superseded
+figures. Put this in the **generator**, not in its output, or the next regeneration drops it.
+
+Until this lands, the site ships measured-looking extraction numbers on one page while the
+Comparison page declines to quote any — an internally inconsistent site.
+
+- [ ] **Step 2: Remove the `Capabilities` nav entry, keep the files**
+
+Delete `{ text: "Capabilities", link: "/capabilities/" }` from `nav` and drop the
+`"/capabilities/"` sidebar block. **Leave the four files in place** — Tasks 6–12 still absorb their
+content and Task 16 deletes them. Orphaned pages build fine; a nav entry reading "Capabilities →
+Extraction: Content coming" next to "Guides → Extraction: a real page" does not.
+
+Deleting the sidebar block means the four pages lose their sidebar when visited directly. That is
+correct for a section being retired, and they are unreachable from the nav from this point on.
+
+- [ ] **Step 3: Verify and commit**
+
+`pnpm docs:accuracy` and read the regenerated page. Then `pnpm docs:build` — this is the step that
+proves removing the nav entry broke no link — and `./check.sh`. Commit as
+`docs: disclose the extraction-measurement gap and retire the capabilities nav`.
+
+---
+
 ### Task 2: `README.md`
 
 **Files:**
@@ -278,6 +359,25 @@ current sentence will look for an `extracting` status on the recording outbox an
 
 - [ ] **Step 4: Fix `toExtractStep` → `toSessionExtractStep`**
 
+- [ ] **Step 4b: Sweep the rest of AGENTS.md's drift — do not stop at the known instances**
+
+An external review found four more stale claims beyond the two this task was originally scoped to,
+which is the point of the "assume there are more" rule. Verify each against source and fix:
+
+- **"six hooks over core's engine"** (§1) — the barrel exports **seven**; `useSessions` is missing
+  from the list, and Task 12 of this plan already names all seven.
+- **"`pnpm typecheck` prints `Scope: 9 of 10 workspace projects`"** (§2) — there are **12**
+  workspace members now. Re-run `pnpm typecheck` and quote what it actually prints, including the
+  count of members that define a `typecheck` script, since that paragraph's whole point is that a
+  package without one is silently absent from the gate.
+- **"All six packages build"** (§5.1) — there are **nine** publishable packages.
+- **"as of Task 1 its `src/worker.ts` is a stub"** (§5.2) — Phase 3 shipped; check whether the
+  worker is still a stub and correct or drop the clause.
+
+Grep for other counts while you are in there: any bare numeral describing packages, hooks or
+workspace members is a candidate. Prefer naming the source of truth over restating a count that
+will go stale again.
+
 - [ ] **Step 5: Rewrite the `docs/roadmap/index.md` preamble**
 
 The first paragraph only. Everything from "This directory is the project's roadmap" onward is
@@ -289,8 +389,8 @@ that extraction, review and write have since moved to the session and naming the
 
 - [ ] **Step 6: Verify and commit**
 
-`grep -rn "voice-capture SDK" AGENTS.md docs/roadmap/index.md README.md docs/` must return nothing
-outside `docs/roadmap/phases/`. Then `npx prettier --write`, `./check.sh`. Commit as
+Run the Global Constraints form of the `voice-capture SDK` grep. After this task and Task 2 it must
+print nothing at all. Then `npx prettier --write`, `./check.sh`. Commit as
 `docs: retire the voice-capture framing from AGENTS and the roadmap preamble`.
 
 ---
@@ -378,8 +478,12 @@ Dexie as `openOutbox`'s default storage (AGENTS.md §5.5, `packages/ribo-core/sr
 `firstCapable`'s sequential preference order and `DEFAULT_CAPABILITY_TTL_MS`; the relay's backoff
 defaults (`packages/ribo-core/src/queue/backoff.ts`); `DEFAULT_HEDGE_BUDGET_MS`,
 `DEFAULT_HEDGE_FACTOR` and `DEFAULT_HEDGE_FLOOR_MS`; `MAX_NULLABLE_UNIONS_PER_CALL`
-(`@azx/ribo-extractor-openai`); the default arbiters `terminalFallsThrough` and
-`unsupportedFallsThrough`; and `DEFAULT_PROBE_TIMEOUT_MS` / `DEFAULT_STABILITY_WINDOW_MS`.
+(`@azx/ribo-extractor-openai`); and `DEFAULT_PROBE_TIMEOUT_MS` / `DEFAULT_STABILITY_WINDOW_MS`.
+
+**The arbiter defaults come in two pairs, one per seam — do not mix them.** Extraction defaults are
+`terminalFallsThrough` (conservative) and `acceptAnySuccess` (degraded-experience). Transcription's
+default is `unsupportedFallsThrough`. Both sets are in `packages/ribo-core/src/index.ts` with
+explanatory comments; read them rather than pairing one from each seam.
 
 Do **not** hardcode a numeric value in prose where naming the exported constant will do — per the
 repo's standing preference, baked-in numbers go stale silently. Name the constant, state what it
@@ -423,6 +527,65 @@ reader will otherwise get wrong in their own adapter.
 ## Tranche 3 — The concept guides
 
 Moat pages first. Spec §4: Schema at Scale and Provenance carry the repositioning.
+
+### Task 5A: Give the moat evidence somewhere to live
+
+Added after review, and it closes the plan's largest structural hole. Spec §4 names Schema at Scale
+and Provenance as the two pages that carry the repositioning, and spec §11 resolves that each
+Comparison row carries one line of evidence inline "with the full working linked". **There is
+nowhere to link.** Every number those pages depend on lives in
+`docs/implementation/16-extraction-schema-scale.md`, `docs/implementation/21-managed-three-phase-extraction.md`
+and `docs/roadmap/design/group-provenance-granularity-design.md` — all excluded from the site by
+`srcExclude` — and the Deep Dives section has no page for either subject. This task creates the
+targets **before** Tasks 6, 7 and 7A need them.
+
+**Files:**
+
+- Create: `docs/deep-dives/schema-scale.md`
+- Create: `docs/deep-dives/provenance-measurement.md`
+- Modify: `docs/.vitepress/config.ts` (two new Deep Dives sidebar entries)
+
+**Interfaces:**
+
+- Consumes: nothing.
+- Produces: `/deep-dives/schema-scale` and `/deep-dives/provenance-measurement` — the link targets
+  Tasks 6, 7 and 7A all rely on. Nothing in Tranche 3 can cite its evidence until this lands.
+
+- [ ] **Step 1: Write `docs/deep-dives/schema-scale.md`**
+
+Repackage `docs/implementation/16-extraction-schema-scale.md` and the relevant part of doc 21 as
+published prose: the method, the numbers, and what they do and do not support. Must carry the
+property and enum ceilings, the measured schema sizes, and the nullable-union limit.
+
+Two accuracy requirements the source documents impose and the guide must respect:
+
+- **The `~1,326` leaf figure is stale.** `docs/implementation/20-job-collections-field-reconciliation.md`
+  records that the spec drifted after doc 16 measured it, that the figure was not re-derived, and
+  that `allJobData` spans the read-only surface too — "a different and smaller set". Present it as
+  measured against a named snapshot, or lead with the current **837 writable fields** instead. Do
+  not present it as a current count.
+- **The 16-nullable-union limit is scoped.** Doc 21 says outright that "whether the 16 is the
+  vendor's own limit or this route's translation of it is not established". Attribute it as our own
+  measurement (16 accepted, 18 rejected) on a named route, not as published vendor documentation.
+
+- [ ] **Step 2: Write `docs/deep-dives/provenance-measurement.md`**
+
+Repackage `docs/roadmap/design/group-provenance-granularity-design.md` §1: the 67×9 table, 603
+citations across two partitions, the 37%-fabricated per-cell result against 14/14 verbatim row
+spans, and the single-call outcome after switching granularity. This is the site's strongest
+evidence and currently its least reachable.
+
+Be precise about scope: this measures **citation fidelity and call economics**, not field accuracy.
+It is not a substitute for the extraction-accuracy number the project does not have, and the page
+must say so rather than let a reader borrow it as one.
+
+- [ ] **Step 3: Add both to the Deep Dives sidebar**
+
+- [ ] **Step 4: Verify and commit**
+
+`pnpm docs:build`, `./check.sh`. Commit as `docs: publish the schema-scale and provenance deep dives`.
+
+---
 
 ### Task 6: The Provenance guide
 
@@ -504,6 +667,82 @@ not propose it, the way the roadmap records it so contributors do not.
 
 ---
 
+### Task 7A: Harden the Comparison page
+
+Added after review. Task 1 shipped the Comparison page and an external review found its argument
+sound but its evidence set self-serving: **every column included is a layer Ribo sits above, and
+every layer Ribo actually competes at was omitted.** A knowledgeable evaluator notices. This task
+fixes that and wires the page to the evidence Task 5A published.
+
+**Files:**
+
+- Modify: `docs/guide/comparison.md`
+
+**Interfaces:**
+
+- Consumes: `/deep-dives/schema-scale` and `/deep-dives/provenance-measurement` from Task 5A.
+- Produces: the final positioning argument. Nothing later depends on it.
+
+- [ ] **Step 1: Widen the comparison set**
+
+The page currently compares Ribo against Docling, Mistral Document AI, and structured outputs used
+directly. Add the two categories that contest Ribo's actual claims:
+
+- **Document-AI platforms that already sell "documents → your schema, with citations and review"** —
+  Reducto, LandingAI ADE, Extend, Unstructured, LlamaParse, and the cloud trio (Azure Document
+  Intelligence, Google Document AI, AWS Textract). These contest differentiators 2, 3 and 5
+  head-on. Azure Document Intelligence is worth naming explicitly: this repo already sits beside
+  Azure for speech, so omitting it looks like avoidance.
+- **DIY orchestration** — Instructor, LangChain/LlamaIndex extraction. This is what "structured
+  outputs used directly" actually looks like on the competent team the page imagines, and comparing
+  against a naive `fetch` loop instead is a straw man.
+
+A twelve-column matrix is unreadable. Keep the matrix at four columns but **group** it: compare
+against representative categories rather than every product, and name the products inside each
+category in prose beneath. The category labels matter more than the individual rows.
+
+- [ ] **Step 2: Add the losing rows the page is currently missing**
+
+The page concedes only the parsing row — which the category reframe had already defined as not
+Ribo's job, so the concession costs nothing. Add rows Ribo genuinely loses:
+
+- **Measured extraction accuracy.** Ribo: 🚫 — there is no current number. Several competitors
+  publish benchmarks. This is the row an evaluator most wants and the one the page currently omits
+  while disclosing the same fact in a footer.
+- **Installable today.** Ribo: 🚫 — not on npm. An evaluator's first filter, currently confined to
+  the Installation page.
+- **Managed batch throughput** and **zero-ops hosting.** Ribo requires the host to supply a
+  credentialed transport; "no capacity to authenticate" cuts both ways and should appear as a cost,
+  not only as a virtue.
+
+- [ ] **Step 3: Tighten the "works with no network" row**
+
+It currently reads as though the whole pipeline runs offline. Precisely: **capture, the durable
+queue and review survive with no network unconditionally**; transcription and extraction offline
+require the on-device engines, and on-device extraction quality is unmeasured. Split the row or
+qualify it. (The review that raised this attributed offline-first's weakness to a dependency on
+on-device extraction, which is wrong — the outbox is durable regardless — but the row as written
+does overclaim, so fix the row and not the rationale.)
+
+- [ ] **Step 4: Date the competitor claims**
+
+Every non-✅ cell in a competitor column is an assertion about someone else's product, on a page
+whose whole argument is verifiability. Add an "evaluated as of `<date>`" line and, where a claim is
+load-bearing, name the version or link the vendor's documentation. A comparison page that fails its
+own standard is worse than no comparison page.
+
+- [ ] **Step 5: Replace the vague evidence links**
+
+The page currently links "Full working" to `/deep-dives/` because nothing specific existed. Point
+the schema-scale claims at `/deep-dives/schema-scale` and the citation-fidelity claims at
+`/deep-dives/provenance-measurement`.
+
+- [ ] **Step 6: Verify and commit**
+
+`pnpm docs:build`, `./check.sh`. Commit as `docs: widen the comparison set and add the rows Ribo loses`.
+
+---
+
 ### Task 8: Captures & Sources, and Sessions
 
 **Files:**
@@ -577,9 +816,14 @@ worked example.
 
 The `Extractor<F>` seam, `ExtractionTarget`, `toSessionExtractStep` (verify the name against the
 barrel — it is **not** `toExtractStep`), and `FakeExtractor` for driving the pipeline with no model.
-The two real extractors: `@azx/ribo-extractor-openai` over an OpenAI-compatible transport
-(`openAiChat`, `helixChat`) and `@azx/ribo-extractor-ondevice`'s `threePhaseExtractor` over the
-platform's on-device language model. Link to Schema at Scale for strategy selection rather than
+The two real extractors: `@azx/ribo-extractor-openai` and `@azx/ribo-extractor-ondevice`'s
+`threePhaseExtractor` over the platform's on-device language model.
+
+**Get the two transports right — they are not the same kind of thing.** `openAiChat` is the
+OpenAI-compatible transport; `helixChat` is a second `ChatClient` for the Helix platform's
+provider-neutral `/_api/llm/chat` route and its barrel comment says **"(not OpenAI-compatible)"**
+in as many words (`packages/ribo-extractor-openai/src/index.ts`). Do not describe them as one
+OpenAI-compatible transport with two endpoints. Link to Schema at Scale for strategy selection rather than
 restating it. Include spec §5's disclosure that extraction quality is not currently measured, with
 the reason, and link to the Extraction: Measured deep dive.
 
@@ -615,8 +859,11 @@ will wire it wrongly. Say that explicitly.
 - [ ] **Step 1: Write `docs/guide/review.md`**
 
 `buildReviewRequest` / `resolveReview` as a contract, not a UI. Flat dotted leaf paths and why
-top-level keys were wrong (a thirteen-test health matrix collapsing to one verdict — the concrete
-failure R1.5 fixed). `ReviewField.schema` carrying the declared leaf schema, and
+top-level keys were wrong (a multi-test health matrix collapsing to one verdict — the concrete
+failure R1.5 fixed). **Do not put a number on that matrix without checking which era you mean:**
+the R1.5 design and doc 16 both describe an **11**-test matrix, which is the schema as it stood
+when the top-level-key problem existed; today's schema has more. Either say "eleven" and attribute
+it to R1.5, or say "a matrix of independent tests" and skip the count. `ReviewField.schema` carrying the declared leaf schema, and
 `stripOptionalNullable` as the one primitive a UI needs to render an editor from it. The gate: a
 **session** parks at `awaiting-review`, ungrounded leaves must be actioned,
 `Outbox.submitSessionReview` is the only exit, and `Outbox.reopenSessionForReview` is the supported
@@ -862,6 +1109,52 @@ package READMEs, so it will not catch a broken link in one — check links by ha
 
 ---
 
+### Task 15A: Audit the doc comments the Reference is generated from
+
+Added after review, and it is the gap both must-fail greps miss by construction. `pnpm docs:api`
+regenerates the entire Reference section from TypeScript doc comments, and those comments are
+saturated with audio-first prose — "The recording state machine — capture and transcription only"
+(`packages/ribo-core/src/queue/schema.ts`), "the contractor threw that recording away"
+(`session-extract.ts`), and many more. **No task in this plan audits them, and neither grep reaches
+them**, so a repositioned site would ship guides that say one thing and a generated Reference that
+says another, on the same domain.
+
+**Files:**
+
+- Modify: doc comments across `packages/*/src/**`, wherever framing is wrong. Source only — no
+  behaviour changes.
+
+**Interfaces:**
+
+- Consumes: the vocabulary Tasks 1 and 6–12 established.
+- Produces: a Reference section consistent with the guides.
+
+- [ ] **Step 1: Find the drift**
+
+Grep the package sources for framing that presumes audio is the only capture kind: `dictation`,
+`recording` used to mean "any capture", `auditor`, `contractor`, `voice`, `field app`. Read hits in
+context. **Most will be correct and must be left alone** — `Recording` genuinely is the audio
+branch of `CaptureItem`, and `recorder.ts` genuinely is about a microphone. The target is only
+comments that describe a _general_ mechanism in audio-specific terms.
+
+- [ ] **Step 2: Fix only what is wrong, and change no behaviour**
+
+This is a comment-only pass. If a fix seems to require renaming a symbol, stop: renaming
+`Transcriber` is explicitly out of scope (spec §6), and so is every other rename. Note it as a
+finding instead.
+
+Do not touch `packages/ribo-core/src/index.ts`'s barrel comments carelessly — they are unusually
+load-bearing (they document _why_ each export is public) and are already accurate.
+
+- [ ] **Step 3: Verify and commit**
+
+`pnpm docs:api` and read the regenerated Reference for the packages you touched. Then
+`pnpm docs:build` and `./check.sh` — the full gate, because this task edits package source rather
+than markdown, so lint and typecheck are live for the first time since Task 1A. Commit as
+`docs: align the generated reference's doc comments with the repositioning`.
+
+---
+
 ### Task 16: Retire `capabilities/`, audit every link, run the full bar
 
 The closing task. Nothing here is cosmetic: it is the task that makes the two must-fail greps pass.
@@ -870,7 +1163,8 @@ The closing task. Nothing here is cosmetic: it is the task that makes the two mu
 
 - Delete: `docs/capabilities/index.md`, `docs/capabilities/extraction.md`,
   `docs/capabilities/transcription.md`, `docs/capabilities/adapters.md`
-- Modify: `docs/.vitepress/config.ts` (remove the `/capabilities/` nav item and sidebar block)
+- Modify: `docs/.vitepress/config.ts` only if anything still references the section — Task 1A
+  already removed the nav entry and the sidebar block, so this task deletes files, not config
 
 **Interfaces:**
 
@@ -886,8 +1180,8 @@ and nothing else" line, which must survive into `write-back.md`.
 - [ ] **Step 2: Find every inbound link**
 
 `grep -rn "/capabilities" docs README.md packages --include='*.md' --include='*.ts'`, excluding
-`docs/reference/` (generated) and any `dist/`. Expect the count to be near zero by now: Task 11
-deleted `core-loop.md`, one of the two content links. Fix whatever remains.
+`docs/reference/` (generated) and any `dist/`. Expect zero content links by now: `core-loop.md`
+carried the only one and Task 11 deleted it. Fix whatever remains.
 
 - [ ] **Step 3: Delete the directory and update the config**
 
@@ -900,10 +1194,10 @@ exists.
 
 - [ ] **Step 5: Run the two must-fail greps**
 
-`grep -rl "Content coming" docs --include='*.md'` must return nothing outside `docs/roadmap/` and
-`docs/implementation/`. `grep -rn "voice-capture SDK" .` (excluding `node_modules` and `dist`) must
-return nothing outside `docs/roadmap/phases/`. Both fail today; both passing is the observable signal
-that the pass is complete rather than partially applied.
+Run them exactly as Global Constraints spells them out — both excluding all of `docs/roadmap/` and
+`docs/implementation/`. Both fail today; both printing nothing is the observable signal that the
+pass is complete rather than partially applied. If either still prints a roadmap or implementation
+path, you are running the earlier, unsatisfiable form of the grep.
 
 - [ ] **Step 6: Run the full bar and paste the output**
 

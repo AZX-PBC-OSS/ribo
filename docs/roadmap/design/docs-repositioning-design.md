@@ -31,9 +31,10 @@ It is no longer what the library is. The evidence is in the tree, not in ambitio
 Meanwhile the published site is almost entirely promises. As of this date **eighteen of the
 twenty-one** published pages are `::: info Content coming` stubs — every page under `guide/` and
 `capabilities/`, all four under `offline-first/`, four of five deep dives, and two of three design
-pages. Only `deep-dives/real-audio` and `design/releasing` carry real hand-written content,
-alongside the generated accuracy page and the typedoc reference. So this is not an editing pass
-over stale prose: it is mostly net-new writing, and the reframe is the cheap part.
+pages. The three that are not stubs are `docs/index.md` (a hero and four feature cards),
+`deep-dives/real-audio` and `design/releasing`; the generated accuracy page and the typedoc
+reference sit outside the count. So this is not an editing pass over stale prose: it is mostly
+net-new writing, and the reframe is the cheap part.
 
 A prior planning record exists at `phases/docs-site.md`; it built the scaffold this design fills.
 
@@ -96,11 +97,16 @@ Seven differentiators, ordered by how defensible each one is. Each must be state
 evidence, not asserted:
 
 1. **Real schemas do not fit in one model call.** This is the deepest and the only measured one.
-   Doc 16's caps: the combined job schema is ~1,326 leaves, which after enveloping is ~5,360
-   properties against a documented 5,000 cap and ~1,490 enum values against a 1,000 cap. Doc 21's
-   finding: one model family rejects any response schema past 16 nullable unions, which two
-   existing groups already exceed. "Pass your JSON schema to the API" does not survive contact with
-   a system of record. The decomposition machinery is the product.
+   Doc 16's caps: measured against a spec snapshot, the combined job schema enveloped to ~5,360
+   properties against a documented 5,000 cap and ~1,490 enum values against a 1,000 cap — over
+   both, by margins later spec drift cannot close. Doc 21's finding: one model family rejects any
+   response schema past 16 nullable unions, which two existing groups already exceed. **Two
+   caveats the pages must carry:** doc 16's headline ~1,326-leaf count is stale (doc 20 records the
+   drift, and notes `allJobData` spans the read-only surface too), so lead with the current 837
+   writable fields instead; and doc 21 says outright that whether the 16 is the vendor's limit or
+   the route's translation of it "is not established", so attribute it as our own measurement.
+   "Pass your JSON schema to the API" does not survive contact with a system of record. The
+   decomposition machinery is the product.
 2. **Provenance that is checked, not claimed.** `isSpanGrounded` verifies the quote appears verbatim
    in the source and marks the leaf ungrounded when it does not; review will not accept a submission
    until every ungrounded leaf is actioned. That is falsifiability, against a model's self-reported
@@ -109,7 +115,9 @@ evidence, not asserted:
 3. **Review is a stage with a contract, not a UI written afterwards.** Flat dotted leaf paths, each
    `ReviewField` carrying its own leaf schema so a UI renders and validates off the schema with no
    adapter knowledge. R1.5 exists because getting this wrong is the default: review used to address
-   top-level keys and collapse a thirteen-test health matrix into one verdict.
+   top-level keys and collapse the whole health matrix — eleven tests, at the time R1.5 fixed it —
+   into one verdict. (Today's schema has more; do not attach the current count to the R1.5
+   anecdote.)
 4. **Offline-first is not retrofittable.** Durable outbox from the moment of capture, two state
    machines (recording and session) with resting-and-retryable `failed` states distinct from a
    terminal `dead`, backoff, connectivity, work-safety, cached shell and weights, eviction
@@ -173,7 +181,10 @@ Three specifics carried over from TanStack on purpose:
 - **`Important Defaults`.** TanStack Query's best page. State the surprising defaults where a reader
   meets them rather than where they cause an incident: `"leaf"` provenance granularity, Dexie as the
   outbox storage, `firstCapable`'s sequential preference order, retry and backoff behaviour, and the
-  fact that an item parks at `awaiting-review` and only `submitReview` moves it on.
+  fact that a **session** parks at `awaiting-review` and only `Outbox.submitSessionReview` moves it
+  on. (This sentence originally said "an item" and `submitReview`, committing both of the drift
+  errors §1 catalogues; corrected here rather than silently, because it is the spec Task 5 writes
+  the Important Defaults page from.)
 - **Guides split hard from Reference.** Guides explain why and carry code that runs; the typedoc
   output stays the exhaustive surface. No guide page duplicates a signature the reference already
   generates — it links.
@@ -259,8 +270,10 @@ failures. The bar is therefore both, plus two checks specific to this change:
 
 - `./check.sh` green (Prettier formats markdown at 100 columns, so `format:check` gates the prose).
 - `pnpm docs:build` green.
-- **A link audit.** Removing `capabilities/` and adding `guides/` invalidates existing internal
-  links; every internal link in `docs/` and every repo-relative link in the README set must resolve.
+- **A link audit.** Removing `capabilities/` and adding pages under `docs/guide/` invalidates
+  existing internal links; every internal link in `docs/` and every repo-relative link in the
+  README set must resolve. (This bullet said "adding `guides/`" before §4 settled on a single
+  `guide/` directory; there is no `guides/`.)
 - **A grep for `Content coming` over `docs/` returns nothing**, and a grep for "voice-capture SDK"
   returns nothing outside historical phase records.
 
@@ -271,15 +284,23 @@ signal that the pass is complete rather than partially applied.
 
 Four tranches, each independently shippable and each leaving the site in a coherent state.
 
-1. **Positioning.** `docs/index.md`, Overview, Motivation, Comparison, `README.md`, `AGENTS.md` §1,
-   roadmap preamble. This is the tranche that answers the original question and the one worth
-   reviewing hardest.
+1. **Positioning.** `docs/index.md`, Overview, Motivation, Comparison, the accuracy disclosure and
+   the `capabilities` nav removal, `README.md`, `AGENTS.md` §1, roadmap preamble. This is the
+   tranche that answers the original question and the one worth reviewing hardest.
 2. **The on-ramp.** Installation, Quick Start, Important Defaults, Typesafety.
-3. **The concept guides.** Schema at Scale and Provenance first — they carry the moat — then
-   Captures & Sources, Sessions, Extraction, Review, Write-back, Offline & the Outbox, Arbitration
-   & Fallback, React Hooks.
-4. **Cleanup.** Nine package READMEs, the deep-dive stubs, the design pages, nav removal of
-   `capabilities/`, and the link audit.
+3. **Evidence, then the concept guides.** The schema-scale and provenance deep dives first —
+   everything downstream cites them and they had no published home — then Provenance and Schema at
+   Scale, which carry the moat, then the hardened Comparison page, then Captures & Sources,
+   Sessions, Extraction, Arbitration, Review, Write-back, Offline & the Outbox, React Hooks.
+4. **Cleanup.** The deep-dive stubs, the design pages, nine package READMEs, the doc-comment audit
+   behind the generated Reference, and the deletion of `capabilities/` behind a link audit.
+
+**Revised after external review.** A cross-family review of the plan found nine factual errors and
+two structural gaps. Two items moved out of tranche 4 into tranche 1 (the accuracy disclosure and
+the `capabilities` nav removal, both of which left the site self-contradicting for the fifteen
+tasks in between); two were added (deep dives to hold the moat evidence, which §11's
+"full working linked" resolution had assumed already existed, and an audit of the doc comments
+`pnpm docs:api` regenerates the Reference from — a surface neither must-fail grep reaches).
 
 ## 10. Out of scope, recorded so it is not rediscovered
 
