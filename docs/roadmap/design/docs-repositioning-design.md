@@ -108,10 +108,19 @@ evidence, not asserted:
    "Pass your JSON schema to the API" does not survive contact with a system of record. The
    decomposition machinery is the product.
 2. **Provenance that is checked, not claimed.** `isSpanGrounded` verifies the quote appears verbatim
-   in the source and marks the leaf ungrounded when it does not; review will not accept a submission
-   until every ungrounded leaf is actioned. That is falsifiability, against a model's self-reported
-   confidence. The supporting measurement already exists: per-cell citations came back 37%
+   in the source and marks the leaf ungrounded when it does not. That is falsifiability, against a
+   model's self-reported confidence.
+
+   **Correction (found executing Task 6):** an earlier draft of this bullet said "review will not
+   accept a submission until every ungrounded leaf is actioned". There is no groundedness-specific
+   gate in `review.ts`. The real gate is `completenessIssues`: **every** leaf needs an explicit
+   decision, grounded or not, and `resolveReview` rejects a submission that omits one. Groundedness
+   rides along as `isGrounded` / `groundedness` on each `ReviewField` so a UI can prioritise the
+   suspicious ones — the playground's `ReviewPanel` does gate on ungrounded leaves, but that is an
+   app-level choice, not a core guarantee. The true claim is stronger and simpler; pages must make
+   it and not the invented one. The supporting measurement already exists: per-cell citations came back 37%
    fabricated on a Manual J, and per-row spans came back 14/14 verbatim.
+
 3. **Review is a stage with a contract, not a UI written afterwards.** Flat dotted leaf paths, each
    `ReviewField` carrying its own leaf schema so a UI renders and validates off the schema with no
    adapter knowledge. R1.5 exists because getting this wrong is the default: review used to address
