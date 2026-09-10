@@ -19,8 +19,8 @@ right cell to cite in the first place. Extraction accuracy has no current number
 [Typesafety](/guide/typesafety) covers `enveloped()` deriving a closed, fully-required extraction
 schema from the patch you write by hand. Provenance is _why_ that derived shape looks the way it
 does: by default, every leaf of the patch schema doesn't survive into the extraction schema as
-itself. It becomes an object of four properties — a `value` key, plus `confidence` and
-`sourceSpan` — where the patch declared one.
+itself. The leaf's own key now holds an object of three properties — `value`, `confidence`, and
+`sourceSpan` — so the schema expands by four properties overall where the patch declared one.
 
 `packages/ribo-core/src/provenance.ts`'s `extractedSchema(inner)` is that wrapper:
 
