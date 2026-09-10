@@ -28,7 +28,16 @@
 # gitignored, so a build is safe — but the default below does not need one.
 set -uo pipefail
 
-cd "$(dirname "$0")/.."
+# DO NOT `cd` relative to $0. dispatch.sh invokes this as
+# `env -C "<worktree>" "<source-repo>/.dispatch/verify.sh"` — the script is read
+# from the SOURCE repo but the working directory is the DELEGATE'S worktree, by
+# design. A `cd "$(dirname "$0")/.."` therefore walks back into the source repo
+# and verifies the wrong tree entirely: every run reports on the dispatching
+# session's own working copy, passes or fails on edits the delegate never made,
+# and says nothing whatsoever about the diff it is supposed to be gating. That
+# is exactly what happened here, and it is invisible unless the two trees
+# disagree — so the banner below prints which tree was actually checked.
+echo "verify.sh: verifying $PWD"
 
 if [[ "${1:-}" == "--full" ]]; then
   exec ./check.sh
