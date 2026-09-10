@@ -15,14 +15,16 @@
 import { z } from "zod";
 
 import { ChatError } from "@azx/ribo-extractor-openai";
-import type { ChatMessage, ChatRequest } from "@azx/ribo-extractor-openai";
-import { isSpanGrounded } from "@azx/ribo-core";
+import type { ChatMessage, ChatRequest, ChatUsage } from "@azx/ribo-extractor-openai";
+import { isSpanGrounded, nextUnitId } from "@azx/ribo-core";
 import type {
   Enveloped,
+  ExtractionObserver,
   Extractor,
   ExtractionResult,
   ExtractionTarget,
   NoProvenance,
+  PhaseUnit,
 } from "@azx/ribo-core";
 
 // Typed against the seam, not against `OnDeviceChat` itself. This extractor only ever
@@ -57,13 +59,82 @@ interface Group {
   readonly isArray: boolean;
 }
 
-export interface ThreePhaseExtractorOptions<V extends Record<string, unknown>, P = NoProvenance> {
+export interface ThreePhaseExtractorOptions<
+  V extends Record<string, unknown>,
+  P = NoProvenance,
+> extends ExtractionObserver<PhaseUnit> {
   /** The field knowledge: the extraction schema drives all three phases. */
   readonly target: ExtractionTarget<V, P>;
   /** The on-device chat transport. */
   readonly chat: CapableChatClient;
   /** Max retries per model call. Defaults to {@link DEFAULT_MAX_RETRIES}. */
   readonly maxRetries?: number;
+}
+
+type UnitUsage = { readonly inputTokens: number; readonly outputTokens: number };
+
+interface PhaseUnitEmitter {
+  readonly id: string;
+  start(attempt: number): void;
+  done(attempt: number, usage?: UnitUsage): void;
+  error(attempt: number, error: unknown): void;
+}
+
+interface PhaseEmitter {
+  newUnit(pass: 0 | 1 | 2, key: string, leaf?: string): PhaseUnitEmitter;
+  getCalls(): number;
+}
+
+function createEmitter(onUnit: ((event: PhaseUnit) => void) | undefined): PhaseEmitter {
+  let calls = 0;
+  function newUnit(pass: 0 | 1 | 2, key: string, leaf?: string): PhaseUnitEmitter {
+    const id = nextUnitId();
+    return {
+      id,
+      start(attempt: number): void {
+        calls++;
+        onUnit?.({
+          id,
+          unit: "phase",
+          phase: "start",
+          attempt,
+          pass,
+          key,
+          ...(leaf !== undefined ? { leaf } : {}),
+        });
+      },
+      done(attempt: number, usage?: UnitUsage): void {
+        onUnit?.({
+          id,
+          unit: "phase",
+          phase: "done",
+          attempt,
+          pass,
+          key,
+          ...(leaf !== undefined ? { leaf } : {}),
+          ...(usage !== undefined ? { usage } : {}),
+        });
+      },
+      error(attempt: number, error: unknown): void {
+        onUnit?.({
+          id,
+          unit: "phase",
+          phase: "error",
+          attempt,
+          pass,
+          key,
+          ...(leaf !== undefined ? { leaf } : {}),
+          error,
+        });
+      },
+    };
+  }
+  return { newUnit, getCalls: () => calls };
+}
+
+function mapUsage(usage: ChatUsage | undefined): UnitUsage | undefined {
+  if (usage === undefined) return undefined;
+  return { inputTokens: usage.promptTokens, outputTokens: usage.completionTokens };
 }
 
 /**
@@ -77,7 +148,7 @@ export interface ThreePhaseExtractorOptions<V extends Record<string, unknown>, P
 export function threePhaseExtractor<V extends Record<string, unknown>, P = NoProvenance>(
   options: ThreePhaseExtractorOptions<V, P>,
 ): Extractor<Enveloped<V, P>> {
-  const { target, chat, maxRetries = DEFAULT_MAX_RETRIES } = options;
+  const { target, chat, maxRetries = DEFAULT_MAX_RETRIES, onUnit } = options;
   const schema = z.toJSONSchema(target.extractionSchema, { target: "draft-2020-12" }) as JsonSchema;
   const groups = extractGroups(schema);
   if (groups.length === 0) {
@@ -96,10 +167,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
       // this codebase calls Tier 3 — it cannot represent a second instance, but it no
       // longer drops the group's leaves or fails the closing `parse()` below.
       const result: Record<string, unknown> = {};
-      let totalCalls = 0;
-      const recordCall = (): void => {
-        totalCalls++;
-      };
+      const emitter = createEmitter(onUnit);
 
       for (const group of groups) {
         const groupResult: Record<
@@ -112,7 +180,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
 
         let presence: Record<string, boolean>;
         try {
-          presence = await extractPresence(group, transcript, chat, model, maxRetries, recordCall);
+          presence = await extractPresence(group, transcript, chat, model, maxRetries, emitter);
         } catch {
           for (const leaf of group.leaves) {
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
@@ -139,7 +207,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
             chat,
             model,
             maxRetries,
-            recordCall,
+            emitter,
           );
         } catch {
           for (const leaf of group.leaves) {
@@ -159,7 +227,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
             continue;
           }
-          const value = await classifyLeaf(leaf, span, chat, model, maxRetries, recordCall);
+          const value = await classifyLeaf(group.key, leaf, span, chat, model, maxRetries, emitter);
           groupResult[leaf.key] = {
             value: value ?? null,
             sourceSpan: span,
@@ -175,7 +243,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
       const parsed = target.extractionSchema.parse(result);
       return {
         fields: parsed as Enveloped<V, P>,
-        usage: { calls: totalCalls, engine: chat.engine },
+        usage: { calls: emitter.getCalls(), engine: chat.engine },
       };
     },
   };
@@ -267,7 +335,7 @@ async function extractPresence(
   chat: CapableChatClient,
   model: string,
   maxRetries: number,
-  onCall: () => void,
+  emitter: PhaseEmitter,
 ): Promise<Record<string, boolean>> {
   const schema = buildPhase0Schema(group);
   const request = chatRequest(
@@ -276,13 +344,16 @@ async function extractPresence(
     schema,
     `${group.key}-presence`,
   );
+  const unit = emitter.newUnit(0, group.key);
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    onCall();
+    unit.start(attempt + 1);
     try {
       const completion = await chat.complete(request);
+      unit.done(attempt + 1, mapUsage(completion.usage));
       return parsePhase0Response(completion.content, group);
     } catch (error) {
+      unit.error(attempt + 1, error);
       lastError = error;
     }
   }
@@ -341,7 +412,7 @@ async function extractSpans(
   chat: CapableChatClient,
   model: string,
   maxRetries: number,
-  onCall: () => void,
+  emitter: PhaseEmitter,
 ): Promise<Record<string, string | null>> {
   const schema = buildPhase1Schema(activeLeaves);
   const request = chatRequest(
@@ -350,13 +421,16 @@ async function extractSpans(
     schema,
     `${group.key}-spans`,
   );
+  const unit = emitter.newUnit(1, group.key);
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    onCall();
+    unit.start(attempt + 1);
     try {
       const completion = await chat.complete(request);
+      unit.done(attempt + 1, mapUsage(completion.usage));
       return parsePhase1Response(completion.content, activeLeaves);
     } catch (error) {
+      unit.error(attempt + 1, error);
       lastError = error;
     }
   }
@@ -418,12 +492,13 @@ function parsePhase1Response(
 }
 
 async function classifyLeaf(
+  groupKey: string,
   leaf: Leaf,
   span: string,
   chat: CapableChatClient,
   model: string,
   maxRetries: number,
-  onCall: () => void,
+  emitter: PhaseEmitter,
 ): Promise<unknown> {
   const bareRequest = chatRequest(
     model,
@@ -431,14 +506,17 @@ async function classifyLeaf(
     leaf.valueSchema,
     `classify-${leaf.path.replace(/\./g, "-")}`,
   );
+  const unit = emitter.newUnit(2, groupKey, leaf.key);
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    onCall();
+    unit.start(attempt + 1);
     try {
       const completion = await chat.complete(bareRequest);
+      unit.done(attempt + 1, mapUsage(completion.usage));
       return validateLeafValue(leaf, parsePhase2Bare(completion.content));
     } catch (error) {
+      unit.error(attempt + 1, error);
       if (isUnsupportedError(error)) {
-        return classifyWrapped(leaf, span, chat, model, maxRetries, onCall);
+        return classifyWrapped(leaf, span, chat, model, maxRetries, unit, attempt + 2);
       }
     }
   }
@@ -451,7 +529,8 @@ async function classifyWrapped(
   chat: CapableChatClient,
   model: string,
   maxRetries: number,
-  onCall: () => void,
+  unit: PhaseUnitEmitter,
+  startAttempt: number,
 ): Promise<unknown> {
   const wrappedSchema = wrapValueSchema(leaf.valueSchema);
   const request = chatRequest(
@@ -460,13 +539,15 @@ async function classifyWrapped(
     wrappedSchema,
     `classify-${leaf.path.replace(/\./g, "-")}-wrapped`,
   );
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    onCall();
+  for (let i = 0; i <= maxRetries; i++) {
+    const attempt = startAttempt + i;
+    unit.start(attempt);
     try {
       const completion = await chat.complete(request);
+      unit.done(attempt, mapUsage(completion.usage));
       return validateLeafValue(leaf, parsePhase2Wrapped(completion.content));
-    } catch {
-      // Retry wrapped classification failures; the model is given the same small question.
+    } catch (error) {
+      unit.error(attempt, error);
     }
   }
   return null;
