@@ -70,6 +70,7 @@ export default defineConfig({
             { text: "The Core Loop", link: "/guide/core-loop" },
             { text: "The Offline Outbox", link: "/guide/outbox" },
             { text: "Typesafety", link: "/guide/typesafety" },
+            { text: "Provenance", link: "/guide/provenance" },
           ],
         },
       ],
