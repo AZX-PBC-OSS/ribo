@@ -44,6 +44,7 @@ export type {
   ExtractStepResult,
   Relay,
   RelayOptions,
+  RelaySubject,
   SessionExtractInput,
   SessionExtractStep,
   SessionWriteInput,
