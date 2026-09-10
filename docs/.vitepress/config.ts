@@ -43,7 +43,6 @@ export default defineConfig({
     nav: [
       { text: "Guide", link: "/guide/" },
       { text: "Comparison", link: "/guide/comparison" },
-      { text: "Capabilities", link: "/capabilities/" },
       { text: "Offline-first", link: "/offline-first/" },
       { text: "Deep Dives", link: "/deep-dives/" },
       { text: "Reference", link: "/reference/" },
@@ -68,17 +67,6 @@ export default defineConfig({
           items: [
             { text: "The Core Loop", link: "/guide/core-loop" },
             { text: "The Offline Outbox", link: "/guide/outbox" },
-          ],
-        },
-      ],
-      "/capabilities/": [
-        {
-          text: "Capabilities",
-          items: [
-            { text: "Overview", link: "/capabilities/" },
-            { text: "Transcription", link: "/capabilities/transcription" },
-            { text: "Extraction", link: "/capabilities/extraction" },
-            { text: "Adapters", link: "/capabilities/adapters" },
           ],
         },
       ],
