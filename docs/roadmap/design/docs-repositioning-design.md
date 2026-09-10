@@ -17,6 +17,12 @@ It is no longer what the library is. The evidence is in the tree, not in ambitio
   no idea whether audio was involved, which is precisely why the document tranche reused
   `Extractor`, `Extracted<T>`, `isSpanGrounded`, `ExtractionTarget`, arbitration and the review
   contract **untouched**.
+- **Extraction, review and write have moved off the recording entirely and onto the session.** The
+  recording outbox now runs `recording → queued → transcribing → transcribed` and stops; a
+  recording is finished from the relay's perspective once it is text. A second, separate machine
+  runs `open → extracting → awaiting-review → writing → done` on the session. The split is the
+  repositioning stated structurally: the half of the pipeline that produces text knows what a
+  microphone is, and the half that produces reviewed structured data does not.
 - The weight of the codebase has moved to the extraction side: `split-schema`, `per-group`,
   `gap-fill`, `inventory`, `instance-ladder`, `enveloped`, `provenance`, `review`, arbitration on
   both the transcriber and extractor seams. Capture is now one step of the pipeline, not its
@@ -30,6 +36,25 @@ alongside the generated accuracy page and the typedoc reference. So this is not 
 over stale prose: it is mostly net-new writing, and the reframe is the cheap part.
 
 A prior planning record exists at `phases/docs-site.md`; it built the scaffold this design fills.
+
+### Three places the prose has already drifted from the code
+
+Found while planning this pass, and recorded because they change what the rewrite has to do. In
+every case the code is right and the prose is stale:
+
+- **The pipeline is two state machines, not one.** `AGENTS.md` §1, `README.md` and the roadmap all
+  describe a single `queued → transcribing → extracting → awaiting-review → writing → done`. The
+  real `OUTBOX_STATUSES` is `recording, queued, transcribing, transcribed, failed, dead, discarded`
+  and the real `SESSION_STATUSES` is `open, extracting, awaiting-review, writing, done, failed,
+dead`. `awaiting-review` is absent from `ACTIVE_SESSION_STATUSES`, not from
+  `ACTIVE_OUTBOX_STATUSES`; on the recording side it is `transcribed` that is absent.
+- **The review methods are session methods.** `Outbox.submitSessionReview` and
+  `Outbox.reopenSessionForReview`, alongside `openSession` / `closeSession` / `watchSessions`. The
+  roadmap's `submitReview` and `reopenForReview` do not exist.
+- **`toExtractStep` does not exist.** The barrel exports `toSessionExtractStep`.
+
+The rewrite therefore corrects rather than merely reframes, and the plan's standing instruction is
+that when prose and source disagree, the source wins.
 
 ### The question that had to be answered first
 
@@ -85,9 +110,11 @@ evidence, not asserted:
    `ReviewField` carrying its own leaf schema so a UI renders and validates off the schema with no
    adapter knowledge. R1.5 exists because getting this wrong is the default: review used to address
    top-level keys and collapse a thirteen-test health matrix into one verdict.
-4. **Offline-first is not retrofittable.** Durable outbox from the moment of capture, the six-state
-   machine, backoff, connectivity, work-safety, cached shell and weights, eviction handling. A
-   hosted document API is a network call, which is the one thing unavailable in a basement.
+4. **Offline-first is not retrofittable.** Durable outbox from the moment of capture, two state
+   machines (recording and session) with resting-and-retryable `failed` states distinct from a
+   terminal `dead`, backoff, connectivity, work-safety, cached shell and weights, eviction
+   handling. A hosted document API is a network call, which is the one thing unavailable in a
+   basement.
 5. **One pipeline, mixed sources, one session.** No parser accepts dictation; no STT vendor accepts
    a PDF. The unification is the product, and it is the reason "voice" stopped being the noun.
 6. **Engine plurality behind a measured seam.** `capability()`, `firstCapable`,
@@ -134,6 +161,12 @@ Dives / Reference / Design nav.
 | **Deep Dives** | Feasibility · Transcription: Measured · Extraction: Measured · Real Field Audio · The Snugg Pro Data Model                                                                 |
 | **Reference**  | typedoc, unchanged                                                                                                                                                         |
 | **Design**     | Decisions · Contributing · Releasing                                                                                                                                       |
+
+**One directory, two sidebar groups.** Both the on-ramp and the concept pages live under
+`docs/guide/`; the sidebar splits them into "Getting Started" and "Guides". A sibling `guides/`
+directory next to `guide/` was considered and rejected — two paths one character apart are a
+permanent source of wrong links, and TanStack itself groups both under a single prefix. This also
+removes the need for a `Guides/` landing page, which §11 had left open.
 
 Three specifics carried over from TanStack on purpose:
 
@@ -202,19 +235,18 @@ it is ever reopened, pre-1.0 is the window.
 
 ## 7. What changes where
 
-| Area                                             | Change                                                                                                                                            |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/index.md`                                  | Hero, tagline and all four feature cards rewritten to the §2 framing                                                                              |
-| `docs/guide/*`                                   | Overview, Motivation, Comparison, Installation, Quick Start, Important Defaults — `core-loop` and `outbox` move into `Guides/`                    |
-| `docs/guides/*`                                  | New directory, eleven pages per §4                                                                                                                |
-| `docs/capabilities/*`                            | Removed; content absorbed into `Guides/`                                                                                                          |
-| `docs/offline-first/*`                           | Index folds into the outbox guide; the three deeper pages keep their URLs and get real content                                                    |
-| `docs/deep-dives/*`                              | Four stubs written; the generated accuracy page gains the §5 disclosure                                                                           |
-| `docs/design/*`                                  | Decisions and Contributing written; Releasing already real                                                                                        |
-| `docs/.vitepress/config.ts`                      | `nav`, `sidebar` and the site `description` follow the new IA                                                                                     |
-| `README.md`                                      | Reframed to §2; the "what works today" and architecture tables refreshed against the current nine packages                                        |
-| Nine package `README.md`s                        | One template: what it is, when to reach for it, one composition example, a link to its guide page. `ribo-transcriber-managed-docs` gets its first |
-| `AGENTS.md` §1, `docs/roadmap/index.md` preamble | Retire "reusable voice-capture SDK". Internal, but they are what every future contributor and agent reads first                                   |
+| Area                                             | Change                                                                                                                                                            |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/index.md`                                  | Hero, tagline and all four feature cards rewritten to the §2 framing                                                                                              |
+| `docs/guide/*`                                   | The whole guide: six Getting Started pages plus eleven concept pages, one directory, two sidebar groups. `getting-started`, `core-loop` and `outbox` are replaced |
+| `docs/capabilities/*`                            | Removed; content absorbed into the Guides group                                                                                                                   |
+| `docs/offline-first/*`                           | Index folds into the outbox guide; the three deeper pages keep their URLs and get real content                                                                    |
+| `docs/deep-dives/*`                              | Four stubs written; the generated accuracy page gains the §5 disclosure                                                                                           |
+| `docs/design/*`                                  | Decisions and Contributing written; Releasing already real                                                                                                        |
+| `docs/.vitepress/config.ts`                      | `nav`, `sidebar` and the site `description` follow the new IA                                                                                                     |
+| `README.md`                                      | Reframed to §2; the "what works today" and architecture tables refreshed against the current nine packages                                                        |
+| Nine package `README.md`s                        | One template: what it is, when to reach for it, one composition example, a link to its guide page. `ribo-transcriber-managed-docs` gets its first                 |
+| `AGENTS.md` §1, `docs/roadmap/index.md` preamble | Retire "reusable voice-capture SDK". Internal, but they are what every future contributor and agent reads first                                                   |
 
 `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` and `SECURITY.md` are reviewed for voice-specific framing
 and otherwise left alone.
@@ -264,12 +296,24 @@ Four tranches, each independently shippable and each leaving the site in a coher
 - **Rewriting `docs/implementation/*`.** Excluded from the site by `srcExclude`, and R5 already owns
   correcting the docs that newer decisions falsified.
 
-## 11. Open questions
+## 11. Resolved while planning
 
-- **Does the `Guides/` section need a landing page, or does the sidebar carry it?** TanStack uses a
-  bare sidebar. Leaning bare — an index page over eleven guides tends to become a second, staler
-  table of contents.
-- **How much of the Comparison page's evidence should be inline versus linked to Deep Dives?** The
-  schema-cap numbers and the fabricated-citation measurement are the persuasive content, but a
-  comparison page that becomes an essay stops being scannable. Current lean: one line of evidence
-  per row inline, with the full working linked.
+Both questions this design opened with are now closed, and are recorded here rather than deleted so
+the reasoning survives.
+
+- **~~Does the Guides section need a landing page?~~ Moot.** Collapsing to one `docs/guide/`
+  directory with two sidebar groups (§4) removes the question: there is one section index, which is
+  the Overview. An index page over eleven guides would only have become a second, staler table of
+  contents.
+- **~~How much Comparison-page evidence is inline versus linked?~~ One line per row inline, full
+  working linked.** The schema-cap numbers and the fabricated-citation measurement are the
+  persuasive content and have to be visible on the page, but a comparison that becomes an essay
+  stops being scannable. Each matrix row carries one line of evidence; the deep dive carries the
+  method.
+
+## 12. Open question
+
+- **`RESTING_SESSION_STATUSES`.** `session-schema.ts` notes that the constant naming `done` and
+  `dead` may no longer earn its current name, and leaves the rename to a follow-up. Whatever it is
+  called when the Offline & the Outbox guide is written is what that page should use; this design
+  does not resolve it.

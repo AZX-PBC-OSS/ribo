@@ -325,6 +325,10 @@ So nobody re-litigates it:
   compose via `firstCapable` / `fallbackTranscriber`. **Pre-measurement**: the design recommends
   measuring image-input availability, download size, latency, and nameplate accuracy before
   building, and does not state any of those as facts.
+- [Docs Repositioning — Plan](design/docs-repositioning-plan.md) — the sixteen-task execution plan
+  for the design below, in four shippable tranches. Also the record of four pieces of stale prose
+  found while planning it, the substantive one being that the pipeline is now **two** state
+  machines (recording and session), not the single one AGENTS.md §1 still describes.
 - [Docs Repositioning — Design](design/docs-repositioning-design.md) — retiring "voice-capture SDK"
   for what the library actually became: a structured-extraction pipeline for any capture. Records
   the answer to "why not Docling or Mistral directly" (a category error — they plug into the

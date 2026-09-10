@@ -1,0 +1,942 @@
+# Docs Repositioning — Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
+> (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
+> checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Retire "reusable voice-capture SDK" across every front door and replace the mostly-stub
+docs site with real content describing what Ribo became — a browser-side, offline-first pipeline
+that takes any capture through extraction, verifiable provenance, human review and write-back.
+
+**Architecture:** Four tranches, sixteen tasks, each independently shippable and each leaving the
+site coherent and `pnpm docs:build` green. Tranche 1 lands the argument (home, overview,
+motivation, comparison, README, AGENTS). Tranche 2 lands the on-ramp. Tranche 3 writes the eleven
+concept guides, moat pages first. Tranche 4 cleans up: package READMEs, deep dives, the design
+section, and the removal of `capabilities/` behind a link audit.
+
+**Tech Stack:** VitePress 2, TypeDoc (`pnpm docs:api`), a generated accuracy page
+(`scripts/generate-accuracy-page.mjs`), Prettier at 100 columns, pnpm workspace.
+
+**Spec:** `docs/roadmap/design/docs-repositioning-design.md`
+
+## Global Constraints
+
+Every task's requirements implicitly include this section.
+
+- **No page ships a `::: info Content coming` block.** If a page cannot be written honestly, it does
+  not land and does not appear in the nav. This is spec §5.
+- **VitePress fails the build on dead links.** `docs/.vitepress/config.ts` does not set
+  `ignoreDeadLinks`, so the default applies. A page may only link to pages that exist when its task
+  lands. Forward references wait for the task that creates the target.
+- **`pnpm docs:build` must be green at the end of every task**, not only at the end of the plan. It
+  is a separate CI step that `./check.sh` does not cover (AGENTS.md §7).
+- **`./check.sh` must be green at the end of every task.** Prettier formats markdown at 100 columns
+  and `format:check` is a stage, so run `pnpm format` (or `npx prettier --write` on the touched
+  files) before committing.
+- **Two must-fail greps define done for the whole plan**, both of which fail today:
+  `grep -rl "Content coming" docs --include='*.md'` must return nothing outside `docs/roadmap/` and
+  `docs/implementation/`, and `grep -rn "voice-capture SDK" .` must return nothing outside
+  `docs/roadmap/phases/` (historical records, which stay as written).
+- **Snugg Pro is an example, never the subject.** Any page whose only illustration is a home-energy
+  audit needs a second one. The standing second example is the heat-pump quote reviewer: an invoice
+  PDF plus an ACCA Manual J report plus the reviewer's dictation, joined into one session.
+- **The superseded extraction-quality figures are never quoted** — not the ≈0.5% hard-hallucination
+  number, not 75-of-75 enums, not even with a caveat. Spec §5.
+- **Every code example imports from the published package name** (`@azx/ribo-core`, not a relative
+  or `src/` path), even though nothing is published yet. Spec §5.
+- **Verify every API name against the source barrel before writing it into prose.** The barrels are
+  `packages/ribo-core/src/index.ts`, `packages/ribo-core/src/queue/index.ts` and each other
+  package's `src/index.ts`. AGENTS.md has already been caught carrying a name the code does not
+  export; do not trust prose as a source for an identifier.
+- **The pipeline is TWO state machines. Every page that touches it must say so.** Existing prose in
+  `AGENTS.md`, `README.md` and the roadmap describes one machine
+  (`queued → transcribing → extracting → awaiting-review → writing → done`) and is wrong. Verified
+  against `packages/ribo-core/src/queue/schema.ts` and `session-schema.ts` on 2026-09-10:
+  - **Recording** — `OUTBOX_STATUSES` is `recording, queued, transcribing, transcribed, failed,
+dead, discarded`. `ACTIVE_OUTBOX_STATUSES` is `queued, transcribing, failed`. `transcribed` is
+    deliberately **not** active: the relay is finished with a recording once it is text.
+    `discarded` means the contractor threw the recording away, and `session-extract.ts` excludes
+    discarded recordings from the joined transcript.
+  - **Session** — `SESSION_STATUSES` is `open, extracting, awaiting-review, writing, done, failed,
+dead`. `ACTIVE_SESSION_STATUSES` is `extracting, writing, failed`. `open` and `awaiting-review`
+    are deliberately **not** active.
+  - `dead` is terminal; `failed` is a _resting_ state the relay picks back up after
+    `nextAttemptAt`. Both `done` and `dead` have a human-driven way out.
+  - Methods are `openSession`, `closeSession`, `watchSessions`, `submitSessionReview`,
+    `reopenSessionForReview`. **`submitReview` and `reopenForReview` do not exist.**
+
+  This split is not an implementation detail to gloss: it is the repositioning stated structurally,
+  and the Sessions guide (Task 8) exists to make that point.
+
+- **Directory decision, applied throughout:** there is exactly one `/guide/` directory. The sidebar
+  splits it into two groups, "Getting Started" and "Guides". Do **not** create a sibling `guides/`
+  directory — `guide/` and `guides/` as neighbours is a permanent source of wrong links.
+
+---
+
+## Tranche 1 — Positioning
+
+### Task 1: The argument — home, overview, motivation, comparison
+
+The marquee task. Everything else in the plan is downstream of getting this right, and it is the
+one worth reviewing hardest.
+
+**Files:**
+
+- Modify: `docs/index.md` (hero, tagline, four feature cards)
+- Modify: `docs/guide/index.md` (currently an 11-line stub; becomes Overview)
+- Create: `docs/guide/motivation.md`
+- Create: `docs/guide/comparison.md`
+- Modify: `docs/.vitepress/config.ts` (site `description`; the `/guide/` sidebar gains a "Getting
+  Started" group containing Overview, Motivation, Comparison alongside the existing pages)
+
+**Interfaces:**
+
+- Consumes: nothing. First task.
+- Produces: the vocabulary every later page reuses — "capture", "citable text", "target schema",
+  "provenance envelope", "span-grounded", "review gate", "write-back", "plasmid". Later tasks must
+  use these words and not invent synonyms. Also produces the link targets `/guide/`,
+  `/guide/motivation` and `/guide/comparison`.
+
+- [ ] **Step 1: Establish the must-fail baseline**
+
+Run `grep -c "voice-capture SDK" docs/index.md README.md AGENTS.md docs/roadmap/index.md` and record
+the counts. Run `pnpm docs:build` and confirm it is green _before_ any edit, so a later failure is
+attributable to this task.
+
+- [ ] **Step 2: Rewrite `docs/index.md`**
+
+Hero name stays "Ribo". The `text` and `tagline` state spec §2's framing: a pipeline that turns any
+capture — dictation, PDF, photo — into reviewed structured data written back to a system of record.
+Three hero actions: "Get Started" → `/guide/getting-started` (exists today; Task 4 replaces it),
+"Why Ribo" → `/guide/motivation`, "Comparison" → `/guide/comparison`.
+
+Replace all four feature cards. They must map to the four strongest differentiators from spec §3,
+one card each: schema-scaled extraction, checkable provenance, human review as a contract, and
+offline-first durability. Do **not** keep the existing "Capture → transcribe → extract → review"
+card as-is — it is the old framing in miniature.
+
+- [ ] **Step 3: Write `docs/guide/index.md` as Overview**
+
+What Ribo is, in the spec §2 framing, for a reader who arrived from a search result. It must state
+within the first screen: the pipeline stages, that the capture source is pluggable and audio is only
+one kind, and that the library is browser-side and offline-first. It must **not** open with Snugg
+Pro. Close with a "where to go next" pointing at Motivation, Comparison and Getting Started.
+
+- [ ] **Step 4: Write `docs/guide/motivation.md`**
+
+The problem statement, written as TanStack Query's "Motivation" is: describe the pain before naming
+the solution. The pain is that getting structured data out of documents and dictation is easy to
+demo and hard to ship — the schema does not fit in one call, the model cites things that are not
+there, somebody has to check the output, the network is not always available, and the result has to
+land in a system of record. Name each, then say which part of Ribo answers it. No feature list
+before the problem.
+
+- [ ] **Step 5: Write `docs/guide/comparison.md`**
+
+Per spec §3, in this order:
+
+1. **The reframe, first and unmissable:** Docling and Mistral Document AI are not alternatives —
+   they are things you plug into the `Transcriber` seam, and `@azx/ribo-transcriber-managed-docs`
+   already is one. A parser hands you a document; Ribo is the pipeline above the parser.
+2. **The matrix.** Four columns: Ribo, Docling, Mistral Document AI, LLM structured outputs used
+   directly. Rows: parses scanned/rotated/handwritten pages; ingests audio dictation; one session
+   across mixed sources; target schema past a few hundred leaves; provenance verified against the
+   source; human review as a contract; works with no network; writes back to a system of record;
+   data can stay on-device; parser is swappable. Use a legend of ✅ / 🟡 / 🚫 and define it above
+   the table.
+3. **Ribo loses the parsing row outright** — 🚫, with the reason inline: it delegates parsing, and
+   `@azx/ribo-transcriber-pdfjs` carries a `no-text-layer` guard precisely because it cannot OCR.
+   This is not optional. A matrix in which Ribo wins every row is not evidence.
+4. **The seven differentiators** as short subsections, each carrying its in-repo evidence. Verify
+   each number against its source before writing it: the ~1,326-leaf / ~5,360-property / ~1,490-enum
+   figures and the 5,000 and 1,000 caps are in `docs/implementation/16-extraction-schema-scale.md`;
+   the 16-nullable-union limit is in `docs/implementation/21-managed-three-phase-extraction.md`; the
+   37%-fabricated-per-cell-citation and 14/14-verbatim-row-span results are in
+   `docs/roadmap/design/group-provenance-granularity-design.md` §1.
+5. **The three deployment properties** — no compute plane, no credential reaches the client, data
+   need never leave the device — with the second and third written as capabilities, not apologies.
+6. **A closing "use something else when…" block:** server-side batch extraction over a pile of PDFs,
+   a schema small enough for one call with no human in the loop, best-in-class parsing of degraded
+   scans, or a Python stack.
+
+Evidence density per spec §11: one line of evidence inline per matrix row, with the full working
+linked to its deep dive where one exists.
+
+- [ ] **Step 6: Update the VitePress config**
+
+Change the site `description` off "voice-capture SDK". Restructure the `/guide/` sidebar into two
+groups: "Getting Started" (Overview, Motivation, Comparison, Getting Started) and "Guides" (The Core
+Loop, The Offline Outbox — the two existing pages, kept until Tasks 4 and 11 replace them). Add a
+"Comparison" entry to the top `nav` beside "Guide".
+
+- [ ] **Step 7: Verify**
+
+Run `npx prettier --write` on every touched file, then `npx prettier --check` on them. Run
+`pnpm docs:build` — expect green, and expect **zero dead-link errors**, which is the check that
+catches a hero action or a "next" link pointing at a page that does not exist yet. Run `./check.sh`
+and paste its summary line.
+
+- [ ] **Step 8: Commit**
+
+`git add docs/index.md docs/guide/index.md docs/guide/motivation.md docs/guide/comparison.md docs/.vitepress/config.ts`
+then commit as `docs: reposition the site around structured extraction`.
+
+---
+
+### Task 2: `README.md`
+
+**Files:**
+
+- Modify: `README.md`
+
+**Interfaces:**
+
+- Consumes: Task 1's vocabulary and the comparison argument. The README is the compressed version of
+  the same case; it must not contradict it or introduce a different one-liner.
+- Produces: the package table that Task 15's nine package READMEs each link back to.
+
+- [ ] **Step 1: Rewrite the opening**
+
+Replace the "reusable voice-capture SDK for field data collection" paragraph with spec §2's framing.
+Snugg Pro moves from "First target:" at the top to a mention inside the packages table as the
+reference adapter.
+
+- [ ] **Step 2: Rewrite "What works today"**
+
+The current pipeline line is `capture → on-device transcribe → extract → review → write-back`, which
+presumes audio. Restate it source-neutrally, and split it at the seam the code splits at: capture
+and transcription belong to the recording; extraction, review and write-back belong to the session.
+Correct the bullets against the current tree: capture covers audio and documents; transcription
+covers four engines, not one; extraction covers both the managed and on-device extractors and names
+the per-group strategy; review is a real gate the session parks at. Keep the honest statements that
+are already there — the write-back gate and the `~6×` real-time / 8.0% WER transcription figures —
+and add spec §5's disclosure that extraction quality is not currently measured.
+
+- [ ] **Step 3: Rewrite the architecture table**
+
+It currently lists five packages. There are nine publishable ones —
+`ribo-core`, `ribo-ui-react`, `ribo-adapter-snuggpro`, `ribo-extractor-openai`,
+`ribo-extractor-ondevice`, `ribo-transcriber-ondevice`, `ribo-transcriber-managed`,
+`ribo-transcriber-managed-docs`, `ribo-transcriber-pdfjs` — plus two private ones
+(`@azx/build-config`, `@azx/tsconfig`) that the table should not list as products. Verify by reading
+each `packages/*/package.json` for a `private` flag rather than trusting this list.
+
+Also correct the "three interfaces" sentence: the extension points are now `Transcriber`,
+`Extractor`, `ToolAdapter` **and** the injectable outbox `RxStorage` (AGENTS.md §5.5).
+
+- [ ] **Step 4: Add a "not yet published" line**
+
+Per spec §5: a short factual note that the packages are not on npm yet, naming R4 as the tracking
+item, placed with the Quick start rather than in the opening pitch.
+
+- [ ] **Step 5: Verify and commit**
+
+`npx prettier --write README.md && npx prettier --check README.md`, then `./check.sh`. Commit as
+`docs: reframe the README around structured extraction`.
+
+---
+
+### Task 3: `AGENTS.md` §1, the roadmap preamble, and one stale identifier
+
+Internal, unpublished, and the highest-leverage twenty lines in the plan: these are what every
+future contributor and coding agent reads first, so leaving them stale guarantees the old framing
+gets reproduced.
+
+**Files:**
+
+- Modify: `AGENTS.md` (§1 "What this repo is"; §3's tier table intro if it repeats the framing)
+- Modify: `docs/roadmap/index.md` (the preamble paragraph only — the historical phase records below
+  it stay exactly as written)
+
+**Interfaces:**
+
+- Consumes: Task 1's framing.
+- Produces: nothing other pages depend on.
+
+- [ ] **Step 1: Confirm both stale identifiers before fixing them**
+
+`AGENTS.md` §1 describes "the `Extractor<F>` seam (`toExtractStep`, `FakeExtractor`)". Run
+`grep -n "toExtractStep\|toSessionExtractStep" packages/ribo-core/src/index.ts` — the barrel exports
+`toSessionExtractStep`, not `toExtractStep`. Then run
+`grep -n "OUTBOX_STATUSES\|SESSION_STATUSES" -A 12 packages/ribo-core/src/queue/schema.ts packages/ribo-core/src/queue/session-schema.ts`
+and confirm the two-machine reality in the Global Constraints. If either has changed again, use
+what the source says.
+
+- [ ] **Step 2: Rewrite `AGENTS.md` §1's first paragraph**
+
+Lead with what the library is per spec §2. Keep the paragraph's existing virtue — it is a dense,
+accurate inventory of what each package does — and keep the status sentence. Change only the framing
+sentence and any place the inventory implies audio is the only capture kind.
+
+- [ ] **Step 3: Correct `AGENTS.md` §1's state machine — the substantive fix in this task**
+
+Line 25 currently reads `(queued → transcribing → extracting → awaiting-review → writing → done)`
+as one machine. Replace it with the two machines from the Global Constraints, and say which relay
+acts on which statuses. This is a correctness fix, not a reframing: a contributor reading the
+current sentence will look for an `extracting` status on the recording outbox and not find one.
+
+- [ ] **Step 4: Fix `toExtractStep` → `toSessionExtractStep`**
+
+- [ ] **Step 5: Rewrite the `docs/roadmap/index.md` preamble**
+
+The first paragraph only. Everything from "This directory is the project's roadmap" onward is
+unchanged, and every "What has shipped" entry is a historical record that must not be retro-edited
+— including R2's, which described the single state machine accurately at the time it was written.
+Where the roadmap names `Outbox.submitReview` or `Outbox.reopenForReview` in a _historical_ entry,
+leave it; add one dated correction note under "Open questions and findings pending action" saying
+that extraction, review and write have since moved to the session and naming the current methods.
+
+- [ ] **Step 6: Verify and commit**
+
+`grep -rn "voice-capture SDK" AGENTS.md docs/roadmap/index.md README.md docs/` must return nothing
+outside `docs/roadmap/phases/`. Then `npx prettier --write`, `./check.sh`. Commit as
+`docs: retire the voice-capture framing from AGENTS and the roadmap preamble`.
+
+---
+
+## Tranche 2 — The on-ramp
+
+### Task 4: Installation and Quick Start
+
+**Files:**
+
+- Create: `docs/guide/installation.md`
+- Create: `docs/guide/quick-start.md`
+- Delete: `docs/guide/getting-started.md` (its accurate content — the Node/pnpm floors and the three
+  workspace commands — moves into Installation)
+- Modify: `docs/.vitepress/config.ts` ("Getting Started" group becomes Overview, Motivation,
+  Comparison, Installation, Quick Start)
+- Modify: `docs/index.md` (the "Get Started" hero action retargets to `/guide/installation`)
+
+**Interfaces:**
+
+- Consumes: Task 1's link targets.
+- Produces: `/guide/installation` and `/guide/quick-start`. Retires `/guide/getting-started`, so any
+  page linking there must be updated in this task — run
+  `grep -rn "getting-started" docs README.md` first and fix every hit.
+
+- [ ] **Step 1: Find every inbound link to the page being deleted**
+
+`grep -rn "getting-started" docs README.md packages` — at minimum `docs/index.md` and the sidebar.
+Deleting the file without fixing these fails `docs:build` on dead links.
+
+- [ ] **Step 2: Write `docs/guide/installation.md`**
+
+Two audiences in two sections. **As a consumer:** the package-manager install line written against
+the published names, preceded by spec §5's short factual note that they are not on npm yet with R4
+named as the tracking item — stated once, plainly, no badge. Name the peer-dependency reality a
+consumer will hit: React is a peer on `@azx/ribo-ui-react` (`^18.3 || ^19`), and packages that share
+runtime object identity with core declare core as a peer too (AGENTS.md §6.2) — verify the current
+peer ranges by reading the `package.json` files rather than copying them from here. **From source:**
+the Node ≥ 24 and pnpm 10.34.5 floors, `pnpm install`, `./check.sh`, and
+`pnpm --filter playground dev`, with the note that the playground consumes every library from
+TypeScript source.
+
+- [ ] **Step 3: Write `docs/guide/quick-start.md`**
+
+One runnable path from nothing to a first extracted, span-checked field. It must be honest about
+requiring no model: build it on `FakeTranscriber` and `FakeExtractor`, both exported from
+`@azx/ribo-core`, so a reader can run it with no credentials. Then show the one-line swap to a real
+engine.
+
+Derive the example from `playground/src/` rather than inventing an API shape — read it first. The
+page must show: declaring a small values schema, deriving the extraction schema with `enveloped()`,
+running an extractor, and checking a field with `isSpanGrounded`. Keep the schema tiny — four or
+five leaves. Do not use the Snugg Pro schema here; a reader's first example must be one they can
+read in ten seconds.
+
+Verify every identifier used against `packages/ribo-core/src/index.ts` before writing it.
+
+- [ ] **Step 4: Delete `getting-started.md`, update the sidebar and the hero action**
+
+- [ ] **Step 5: Verify and commit**
+
+`pnpm docs:build` — the dead-link check is the real gate here, because a file was deleted. Then
+`./check.sh`. Commit as `docs: split getting started into installation and a runnable quick start`.
+
+---
+
+### Task 5: Important Defaults and Typesafety
+
+**Files:**
+
+- Create: `docs/guide/important-defaults.md`
+- Create: `docs/guide/typesafety.md`
+- Modify: `docs/.vitepress/config.ts`
+
+**Interfaces:**
+
+- Consumes: Task 4's Quick Start vocabulary.
+- Produces: the defaults table that later guide pages reference instead of restating.
+
+- [ ] **Step 1: Establish each default from source, not from memory**
+
+For every default the page will state, find and cite the constant or the code path. At minimum:
+`"leaf"` as `enveloped()`'s default provenance granularity (`packages/ribo-core/src/enveloped.ts`);
+Dexie as `openOutbox`'s default storage (AGENTS.md §5.5, `packages/ribo-core/src/queue/outbox.ts`);
+`firstCapable`'s sequential preference order and `DEFAULT_CAPABILITY_TTL_MS`; the relay's backoff
+defaults (`packages/ribo-core/src/queue/backoff.ts`); `DEFAULT_HEDGE_BUDGET_MS`,
+`DEFAULT_HEDGE_FACTOR` and `DEFAULT_HEDGE_FLOOR_MS`; `MAX_NULLABLE_UNIONS_PER_CALL`
+(`@azx/ribo-extractor-openai`); the default arbiters `terminalFallsThrough` and
+`unsupportedFallsThrough`; and `DEFAULT_PROBE_TIMEOUT_MS` / `DEFAULT_STABILITY_WINDOW_MS`.
+
+Do **not** hardcode a numeric value in prose where naming the exported constant will do — per the
+repo's standing preference, baked-in numbers go stale silently. Name the constant, state what it
+governs, and let the reference carry the value.
+
+- [ ] **Step 2: Write `docs/guide/important-defaults.md`**
+
+Modeled on TanStack Query's page of the same name. Each entry: the default, why it is the default,
+and the symptom a reader will see if it is the wrong one for them.
+
+The two most important entries are both about the relay declining to act, because a reader who does
+not know them concludes it is broken:
+
+- **The review gate.** A session parks at `awaiting-review`, which is deliberately absent from
+  `ACTIVE_SESSION_STATUSES` so the relay drains past it rather than stalling, and
+  `submitSessionReview` is the only way out. (`reopenSessionForReview` is the way back in from
+  `done` or `dead`.)
+- **`open` and `transcribed` are also inactive, on purpose.** The relay does not touch an `open`
+  session until the host closes it, and it is finished with a recording once that recording is
+  `transcribed` — from there the session owns the work.
+
+Also state that `failed` is a _resting_ state, not a failure state: it is in
+`ACTIVE_OUTBOX_STATUSES` and `ACTIVE_SESSION_STATUSES` precisely because the relay picks it back up
+once `nextAttemptAt` passes. `dead` is the terminal one.
+
+- [ ] **Step 3: Write `docs/guide/typesafety.md`**
+
+The derived-schema story, which is the genuinely interesting part of the design: one declared
+writable values schema (`V`), an extraction envelope **derived** from it via `enveloped()`, and
+review addressing flat dotted leaf paths where each `ReviewField` carries its own leaf schema — so a
+review UI renders and validates off the schema and imports nothing from any adapter. Explain why
+`ToolAdapter`'s single field-shape parameter had to be split (R1.5), because that is the part a
+reader will otherwise get wrong in their own adapter.
+
+- [ ] **Step 4: Verify and commit**
+
+`pnpm docs:build`, `./check.sh`. Commit as `docs: add important defaults and typesafety guides`.
+
+---
+
+## Tranche 3 — The concept guides
+
+Moat pages first. Spec §4: Schema at Scale and Provenance carry the repositioning.
+
+### Task 6: The Provenance guide
+
+**Files:**
+
+- Create: `docs/guide/provenance.md`
+- Modify: `docs/.vitepress/config.ts` ("Guides" group)
+
+**Interfaces:**
+
+- Consumes: Task 5's Typesafety vocabulary (`enveloped()`, derived schema, leaf paths).
+- Produces: the terms "span-grounded", "granularity", "envelope" as later pages use them. Task 7
+  (Schema at Scale) depends on granularity being explained here, because partitioning counts
+  nullable unions and enveloping is what creates them.
+
+- [ ] **Step 1: Write the page**
+
+Four movements. **What the envelope is:** every leaf arrives as value + confidence + source span,
+derived not hand-written. **Why a span beats a confidence score:** `isSpanGrounded` checks the quote
+against the source text, so an invented citation is detectable; a confidence score is the model
+grading its own work. Include `spanGroundedness` and its near-miss tier. **Why granularity is a
+knob:** `"leaf"` (default), `"row"`, `"none"`, with the measured reason from
+`group-provenance-granularity-design.md` — a 67×9 table costs 603 citations nobody clicks and forced
+the group to partition across two calls, while row spans got it into one call, and per-cell
+citations were 37% fabricated where row spans were 14/14 verbatim. **What it buys downstream:**
+review refuses to accept a submission while an ungrounded leaf is unactioned.
+
+- [ ] **Step 2: Verify the numbers against the design doc before publishing them**
+
+Re-read `docs/roadmap/design/group-provenance-granularity-design.md` §1 and confirm each figure.
+This page is the site's primary evidence; a wrong number here discredits the rest.
+
+- [ ] **Step 3: Verify and commit**
+
+`pnpm docs:build`, `./check.sh`. Commit as `docs: add the provenance guide`.
+
+---
+
+### Task 7: The Schema at Scale guide
+
+The deepest differentiator and the one no competitor has a page for.
+
+**Files:**
+
+- Create: `docs/guide/schema-at-scale.md`
+- Modify: `docs/.vitepress/config.ts`
+
+**Interfaces:**
+
+- Consumes: Task 6's envelope and granularity vocabulary.
+- Produces: the names `splitExtractionSchema`, `perGroupExtractor`, `instanceLadder`,
+  `extractInventory`, gap-fill — which Task 9's Extraction guide links to rather than re-explaining.
+
+- [ ] **Step 1: Establish the constraint with numbers**
+
+Open with the wall, not the solution: a real system of record's schema does not fit in one model
+call. Cite from `docs/implementation/16-extraction-schema-scale.md` — ~1,326 leaves, ~5,360
+enveloped properties against a documented 5,000 cap, ~1,490 enum values against a 1,000 cap — and
+from `docs/implementation/21-managed-three-phase-extraction.md` the 16-nullable-union ceiling on one
+model family, which two existing groups already exceed. Note that enveloping **multiplies** the
+count, so provenance and scale are the same problem.
+
+- [ ] **Step 2: Describe the machinery**
+
+`splitExtractionSchema` and `MAX_NULLABLE_UNIONS_PER_CALL`; why partitioning counts nullable unions
+rather than leaves (a leaf count would split a 15-leaf row group for no gain); `perGroupExtractor`;
+the gap-fill pass and what an abstained leaf is; `extractInventory` and `instanceLadder` for
+repeating resources. Verify every name against
+`packages/ribo-extractor-openai/src/index.ts` before writing it.
+
+- [ ] **Step 3: State what is closed and why**
+
+Whole-spec extraction is closed on hard limits rather than quality — record it here so a reader does
+not propose it, the way the roadmap records it so contributors do not.
+
+- [ ] **Step 4: Verify and commit**
+
+`pnpm docs:build`, `./check.sh`. Commit as `docs: add the schema-at-scale guide`.
+
+---
+
+### Task 8: Captures & Sources, and Sessions
+
+**Files:**
+
+- Create: `docs/guide/captures-and-sources.md`
+- Create: `docs/guide/sessions.md`
+- Modify: `docs/.vitepress/config.ts`
+
+**Interfaces:**
+
+- Consumes: Task 1's vocabulary.
+- Produces: the `Transcriber` reframe paragraph that spec §6 says the docs spend exactly once, and
+  which every later page relies on having been said.
+
+- [ ] **Step 1: Write the `Transcriber` reframe paragraph**
+
+Per spec §6, early in `captures-and-sources.md` and once only: a `Transcriber` turns any capture into
+citable text; audio was merely the first kind. Then never apologise for the name again. Do not
+introduce "source" or "reader" as a competing noun for the interface — spec §6 rejected that.
+
+- [ ] **Step 2: Write `docs/guide/captures-and-sources.md`**
+
+`CaptureItem` as the union of `Recording` and `DocumentCapture`, and why a PDF is not modelled as a
+recording with `durationMs: 0`. The four transcriber packages and what each is for. The capability
+model — `capability()`, the unavailable reasons, and `UnsupportedItemError` as the third failure
+class that is terminal for the queue but not for the item. `restrictToKind` for lifting a narrow
+transcriber into a slot that sees any `CaptureItem`.
+
+- [ ] **Step 3: Write `docs/guide/sessions.md`**
+
+The page that proves the repositioning, and the reason Task 8 is not a minor one.
+
+`joinSessionTranscript()` returns `{ text, recordingIds }` and does not know whether audio was
+involved, which is why one session can hold an invoice PDF, a Manual J report and a dictation and
+extract across all three at once. Cover per-capture attribution markers in the joined transcript,
+and that `discarded` recordings are excluded from it.
+
+Then make the structural argument explicitly, because it is the strongest evidence the docs have:
+extraction, review and write-back live on the **session**, not the recording. A recording's machine
+ends at `transcribed`; the session's begins at `open`. The source-aware half of the pipeline and
+the source-agnostic half are separated in the type system and in the persistence layer, not merely
+by convention — which is why adding PDF support required no change to `Extractor`,
+`isSpanGrounded`, arbitration or the review contract.
+
+Cover the session lifecycle API: `Outbox.openSession`, `closeSession` (the relay does not act on an
+open session until the host closes it), `watchSessions`, and `submitSessionReview` **named but not
+linked** — the Review guide does not exist until Task 10, and a forward link here fails
+`docs:build` on a dead link. Task 10 adds the link back. Use the heat-pump quote reviewer as the
+worked example.
+
+- [ ] **Step 4: Verify and commit**
+
+`pnpm docs:build`, `./check.sh`. Commit as `docs: add the captures, sources and sessions guides`.
+
+---
+
+### Task 9: Extraction, and Arbitration & Fallback
+
+**Files:**
+
+- Create: `docs/guide/extraction.md`
+- Create: `docs/guide/arbitration.md`
+- Modify: `docs/.vitepress/config.ts`
+
+**Interfaces:**
+
+- Consumes: Task 7's strategy names, Task 6's envelope.
+- Produces: nothing later tasks depend on.
+
+- [ ] **Step 1: Write `docs/guide/extraction.md`**
+
+The `Extractor<F>` seam, `ExtractionTarget`, `toSessionExtractStep` (verify the name against the
+barrel — it is **not** `toExtractStep`), and `FakeExtractor` for driving the pipeline with no model.
+The two real extractors: `@azx/ribo-extractor-openai` over an OpenAI-compatible transport
+(`openAiChat`, `helixChat`) and `@azx/ribo-extractor-ondevice`'s `threePhaseExtractor` over the
+platform's on-device language model. Link to Schema at Scale for strategy selection rather than
+restating it. Include spec §5's disclosure that extraction quality is not currently measured, with
+the reason, and link to the Extraction: Measured deep dive.
+
+- [ ] **Step 2: Write `docs/guide/arbitration.md`**
+
+Why composition needed a decision vocabulary rather than a retry flag. `fallbackExtractor`,
+`raceExtractor`, `compositeExtractor`; the `ExtractionArbiter` contract and the two defaults
+(`terminalFallsThrough`, `acceptAnySuccess`); `SchemaParseError` as the error that stays retryable
+while being recognisable to an arbiter. Then the transcriber siblings — `firstCapable`,
+`fallbackTranscriber`, `hedged`, `unsupportedFallsThrough` — and the point AGENTS.md makes about
+them: `fallbackTranscriber` is **not** "firstCapable with retries", and a reader who thinks it is
+will wire it wrongly. Say that explicitly.
+
+- [ ] **Step 3: Verify and commit**
+
+`pnpm docs:build`, `./check.sh`. Commit as `docs: add the extraction and arbitration guides`.
+
+---
+
+### Task 10: Review and Write-back
+
+**Files:**
+
+- Create: `docs/guide/review.md`
+- Create: `docs/guide/write-back.md`
+- Modify: `docs/.vitepress/config.ts`
+
+**Interfaces:**
+
+- Consumes: Tasks 5–7.
+- Produces: the review vocabulary Task 12's React Hooks guide builds on.
+
+- [ ] **Step 1: Write `docs/guide/review.md`**
+
+`buildReviewRequest` / `resolveReview` as a contract, not a UI. Flat dotted leaf paths and why
+top-level keys were wrong (a thirteen-test health matrix collapsing to one verdict — the concrete
+failure R1.5 fixed). `ReviewField.schema` carrying the declared leaf schema, and
+`stripOptionalNullable` as the one primitive a UI needs to render an editor from it. The gate: a
+**session** parks at `awaiting-review`, ungrounded leaves must be actioned,
+`Outbox.submitSessionReview` is the only exit, and `Outbox.reopenSessionForReview` is the supported
+way back in from `done` or `dead` — explicitly not a raw `patch`. Use the session method names; the
+`submitReview` / `reopenForReview` spellings that appear in the roadmap do not exist.
+Instance-identity review (`ExistingRecord`, `InstanceLinkDecision`, `RankedCandidate`) gets a
+subsection.
+
+- [ ] **Step 2: Write `docs/guide/write-back.md`**
+
+`ToolAdapter<F, C>` as the only tool-specific surface; what belongs in an adapter and what must never
+leak out of one. `toWriteStep` as the single place `schema.parse` runs before a write, and
+`toInstanceWriteStep` with `deriveInstanceIdempotencyKey` for per-instance writes that resume after
+a partial failure. `@azx/ribo-adapter-snuggpro` as the reference implementation — described as a
+worked example, not as the subject.
+
+State the gate plainly per spec §5: the seam and the trust boundary are real; the live Snugg Pro
+write is gated on the Helix egress HMAC signing ask. Link to
+`docs/implementation/13-helix-platform-asks.md` — verify that path resolves from a published page,
+since `implementation/**` is in `srcExclude`; if it does not, link to the repo file on the forge or
+restate the substance inline rather than shipping a dead link.
+
+- [ ] **Step 3: Add the backlinks Task 8 had to defer**
+
+`docs/guide/sessions.md` names `submitSessionReview` without linking, because this page did not
+exist yet. Add the link now. Check for any other page that names a review or write-back concept
+without linking for the same reason.
+
+- [ ] **Step 4: Verify and commit**
+
+`pnpm docs:build`, `./check.sh`. Commit as `docs: add the review and write-back guides`.
+
+---
+
+### Task 11: Offline & the Outbox, and the three offline-first pages
+
+**Files:**
+
+- Create: `docs/guide/offline-and-the-outbox.md`
+- Delete: `docs/guide/outbox.md` and `docs/guide/core-loop.md` (both stubs; their content is
+  absorbed here and in Task 8)
+- Modify: `docs/offline-first/index.md` (stub → a real, short section overview)
+- Modify: `docs/offline-first/service-worker.md`, `docs/offline-first/storage-eviction.md`,
+  `docs/offline-first/ort-runtime-cache.md` (all three stubs → real content)
+- Modify: `docs/.vitepress/config.ts`
+
+**Interfaces:**
+
+- Consumes: Task 10's review-gate vocabulary.
+- Produces: `/guide/offline-and-the-outbox`. Retires `/guide/outbox` and `/guide/core-loop`, so
+  every inbound link must be fixed in this task.
+
+- [ ] **Step 1: Find inbound links to the two pages being deleted**
+
+`grep -rn "core-loop\|guide/outbox" docs README.md`. Note that `docs/guide/core-loop.md` currently
+links to `/capabilities/`, which Task 16 removes — deleting core-loop.md here removes one of the two
+inbound links to that section ahead of time.
+
+- [ ] **Step 2: Write `docs/guide/offline-and-the-outbox.md`**
+
+The durable outbox and the foreground relay: **both** state machines exactly as the Global
+Constraints give them, drawn as two diagrams rather than one — the recording machine ending at
+`transcribed`, and the session machine running `open → extracting → awaiting-review → writing →
+done`. Say why the split exists (a recording is finished once it is text; the session owns
+everything downstream and does not know what produced the text) and link to the Sessions guide.
+Cover which statuses each relay acts on and why `open`, `transcribed` and `awaiting-review` are
+excluded; backoff and retry and the `failed`-is-resting distinction; `createRelay`; connectivity's
+three states
+and why the relay keys off the stably-online edge rather than `navigator.onLine`, and `workSafety` /
+`summarizeWork` as the one honest "is my work safe?" answer. Cover the injectable storage seam
+(`openOutbox({ storage })`, Dexie by default, memory storage for browser-free tests) and state its
+deliberate Level-1 boundary per AGENTS.md §5.5. Include durable capture (`openCaptureSession`,
+`recoverInterrupted`) — verify current status against
+`docs/roadmap/design/durable-capture-plan.md` and describe only what has landed.
+
+- [ ] **Step 3: Write the three offline-first pages**
+
+Source material is `docs/implementation/09-offline-first.md` plus the code. These are the
+browser-platform mechanics — service-worker precaching of the shell, storage persistence and
+eviction handling, and the ORT runtime cache — as distinct from the outbox guide's model and API.
+Repackage, do not paste: `implementation/**` is excluded from the site because it is a working
+record, not published prose.
+
+- [ ] **Step 4: Rewrite `docs/offline-first/index.md`**
+
+A real short overview that says what the section covers and links to the outbox guide for the model.
+Not a stub.
+
+- [ ] **Step 5: Verify and commit**
+
+`pnpm docs:build` — two deletions, so the dead-link check matters. `./check.sh`. Commit as
+`docs: add the offline guide and write the offline-first pages`.
+
+---
+
+### Task 12: The React Hooks guide
+
+**Files:**
+
+- Create: `docs/guide/react.md`
+- Modify: `docs/.vitepress/config.ts`
+
+**Interfaces:**
+
+- Consumes: Tasks 8, 10, 11.
+- Produces: nothing later tasks depend on.
+
+- [ ] **Step 1: Write the page**
+
+`@azx/ribo-ui-react` as a headless hook layer — `RiboProvider` and nothing else that renders, no
+markup, no stylesheet. The seven hooks, verified against
+`packages/ribo-ui-react/src/index.ts`: `useRecorder`, `useOutboxItems`, `useReview`,
+`useConnectivity`, `useWorkSafety`, `useStoragePersistence`, `useSessions`, plus
+`createCaptureCoordinator`. Note the design property worth copying: the provider never constructs
+core's instances, so lifetime stays with the host, and `useReview` takes the values schema as an
+argument rather than reaching for a `ToolAdapter` — which is what keeps the hook layer genuinely
+tool-agnostic. Note `useStoragePersistence` as the one hook with no core counterpart.
+
+Frame this the way TanStack frames a framework adapter: the engine is framework-free and this is one
+binding, so a Vue or Svelte binding is a new package and nothing else.
+
+- [ ] **Step 2: Verify and commit**
+
+`pnpm docs:build`, `./check.sh`. Commit as `docs: add the react hooks guide`.
+
+---
+
+## Tranche 4 — Cleanup
+
+### Task 13: The deep dives
+
+**Files:**
+
+- Modify: `docs/deep-dives/index.md`, `docs/deep-dives/feasibility.md`,
+  `docs/deep-dives/transcription-measurement.md`, `docs/deep-dives/snuggpro-data-model.md` (four
+  stubs)
+- Modify: `scripts/generate-accuracy-page.mjs` (the generated Extraction: Measured page gains spec
+  §5's disclosure)
+- Leave alone: `docs/deep-dives/real-audio.md` (already real content)
+
+**Interfaces:**
+
+- Consumes: the guides, which link here for full workings.
+- Produces: the evidence targets Task 1's comparison page links to. If a comparison-page link points
+  at a deep dive, this task must land before the link does — check Task 1's output and fix any dead
+  link found here.
+
+- [ ] **Step 1: Repackage, do not paste**
+
+Source material: `docs/implementation/01-feasibility-spike.md`,
+`docs/implementation/14-transcription-measurement.md`, `docs/implementation/12-snuggpro-data-model.md`.
+These are working records excluded from the site by `srcExclude`; the deep dives are the published
+retelling — method, numbers, and what the numbers do and do not support.
+
+- [ ] **Step 2: Add the accuracy disclosure to the generator**
+
+`scripts/generate-accuracy-page.mjs` writes the Extraction: Measured page. Per spec §5 it must state
+plainly that extraction quality is **not** currently measured and why (the corpus is annotated in the
+superseded vocabulary and the acceptance gate deliberately refuses to emit meaningless numbers), and
+must not quote the superseded figures. Read the script first to see what it currently emits; the
+disclosure belongs in the generator, not hand-added to its output, or the next regeneration drops it.
+
+- [ ] **Step 3: Verify and commit**
+
+Run `pnpm docs:accuracy` and inspect the regenerated page before building. Then `pnpm docs:build`,
+`./check.sh`. Commit as `docs: write the deep dives and disclose the extraction-measurement gap`.
+
+---
+
+### Task 14: The design section
+
+**Files:**
+
+- Modify: `docs/design/index.md` (stub → Design Decisions)
+- Modify: `docs/design/contributing.md` (stub → real)
+- Leave alone: `docs/design/releasing.md` (already real content)
+
+**Interfaces:**
+
+- Consumes: everything above.
+- Produces: the recorded-decision home for spec §6's `Transcriber` naming call.
+
+- [ ] **Step 1: Write `docs/design/index.md`**
+
+The decisions a reader needs to understand the shape of the library, sourced from
+`docs/roadmap/design/ribo-design.md` (D1–D10) and the later design docs. Include, per spec §6, the
+`Transcriber` naming tension recorded as **considered and closed** — the name stays, the docs explain
+it once — so it is not re-litigated. Also record the ESM-only decision and the reason (the
+dual-package hazard is fatal for a library carrying React context), and the headless boundary as a
+layering rule enforced by ESLint rather than by `lib`.
+
+- [ ] **Step 2: Write `docs/design/contributing.md`**
+
+Derive from `CONTRIBUTING.md` and AGENTS.md §7 rather than duplicating them. The essential content
+is the definition of done: `./check.sh` is the everyday bar, and CI runs three further steps it does
+not cover — `pnpm docs:build`, `pnpm changeset status`, `pnpm test:pack-and-consume` — with the note
+that adding or renaming a publishable package is exactly the case where the other three matter.
+
+- [ ] **Step 3: Verify and commit**
+
+`pnpm docs:build`, `./check.sh`. Commit as `docs: write the design decisions and contributing pages`.
+
+---
+
+### Task 15: Nine package READMEs
+
+**Files:**
+
+- Modify: `packages/ribo-core/README.md`, `packages/ribo-ui-react/README.md`,
+  `packages/ribo-adapter-snuggpro/README.md`, `packages/ribo-extractor-openai/README.md`,
+  `packages/ribo-extractor-ondevice/README.md`, `packages/ribo-transcriber-ondevice/README.md`,
+  `packages/ribo-transcriber-managed/README.md`, `packages/ribo-transcriber-pdfjs/README.md`
+- Create: `packages/ribo-transcriber-managed-docs/README.md` (has none today)
+
+**Interfaces:**
+
+- Consumes: Task 2's README package table and the guide pages, which each README links into.
+- Produces: nothing later tasks depend on.
+
+- [ ] **Step 1: Read the existing eight before rewriting any**
+
+They are the npm front door the day R4 publishes and may already be good. Change what carries the
+old framing; keep what does not.
+
+- [ ] **Step 2: Apply one template to all nine**
+
+Four parts, in order: what this package is in one sentence; when you would reach for it (and when
+you would not); one composition example showing it plugged into the seam it implements; links to its
+guide page and to the repo root. Every example imports published package names.
+
+- [ ] **Step 3: Write the missing one**
+
+`@azx/ribo-transcriber-managed-docs`: a `Transcriber<DocumentCapture>` with engine id
+`"managed-docs"`, a hosted document-understanding API behind the host's transport with no capacity
+to authenticate, composing with pdf.js in a `fallbackTranscriber` ladder. Verify the engine id and
+the options type against `packages/ribo-transcriber-managed-docs/src/index.ts` and `config.ts`.
+
+- [ ] **Step 4: Verify and commit**
+
+`./check.sh` (Prettier covers `packages/*/README.md`). Note that `pnpm docs:build` does not read
+package READMEs, so it will not catch a broken link in one — check links by hand. Commit as
+`docs: one README template across all nine publishable packages`.
+
+---
+
+### Task 16: Retire `capabilities/`, audit every link, run the full bar
+
+The closing task. Nothing here is cosmetic: it is the task that makes the two must-fail greps pass.
+
+**Files:**
+
+- Delete: `docs/capabilities/index.md`, `docs/capabilities/extraction.md`,
+  `docs/capabilities/transcription.md`, `docs/capabilities/adapters.md`
+- Modify: `docs/.vitepress/config.ts` (remove the `/capabilities/` nav item and sidebar block)
+
+**Interfaces:**
+
+- Consumes: Tasks 6–12, which absorbed all four pages' content.
+- Produces: the final IA.
+
+- [ ] **Step 1: Confirm the content was actually absorbed**
+
+Before deleting, read all four pages one last time and confirm each claim now appears in a guide.
+`capabilities/adapters.md` in particular carries the "a second host tool is a new adapter package
+and nothing else" line, which must survive into `write-back.md`.
+
+- [ ] **Step 2: Find every inbound link**
+
+`grep -rn "/capabilities" docs README.md packages --include='*.md' --include='*.ts'`, excluding
+`docs/reference/` (generated) and any `dist/`. Expect the count to be near zero by now: Task 11
+deleted `core-loop.md`, one of the two content links. Fix whatever remains.
+
+- [ ] **Step 3: Delete the directory and update the config**
+
+- [ ] **Step 4: Full link audit**
+
+Every internal link in `docs/` and every repo-relative link in `README.md` and the nine package
+READMEs must resolve. `pnpm docs:build`'s dead-link check covers the site; repo-relative links in
+READMEs are **not** covered and must be checked separately — enumerate them and confirm each target
+exists.
+
+- [ ] **Step 5: Run the two must-fail greps**
+
+`grep -rl "Content coming" docs --include='*.md'` must return nothing outside `docs/roadmap/` and
+`docs/implementation/`. `grep -rn "voice-capture SDK" .` (excluding `node_modules` and `dist`) must
+return nothing outside `docs/roadmap/phases/`. Both fail today; both passing is the observable signal
+that the pass is complete rather than partially applied.
+
+- [ ] **Step 6: Run the full bar and paste the output**
+
+`./check.sh` and `pnpm docs:build`, and per AGENTS.md §7 paste the check summary line rather than
+asserting success. No publishable package was added or renamed by this plan, so
+`pnpm changeset status` and `pnpm test:pack-and-consume` pass by construction — but say so
+deliberately rather than by omission.
+
+- [ ] **Step 7: Commit**
+
+`docs: retire the capabilities section and close the repositioning pass`.
+
+---
+
+## Notes for the executor
+
+- **Run `pnpm install` first.** This plan was written in a fresh worktree with no `node_modules`,
+  where `pnpm format:check`, `./check.sh` and `pnpm docs:build` all fail for that reason alone
+  rather than for anything about the change. Install before Task 1 so the first red you see is a
+  real one.
+- **Tranche 1 is the review-heavy one.** Tasks 2–16 are downstream of the framing Task 1 sets. If
+  Task 1's language is wrong, stopping to fix it is far cheaper than propagating it through fifteen
+  tasks.
+- **The site is publishable after every task**, which is the property to protect if the plan is
+  interrupted. A half-finished tranche should never leave a dead link or a stub in the nav.
+- **When a page, this plan, or AGENTS.md disagrees with the source code, the source code wins.**
+  Four pieces of stale prose were already found this way while planning: `toExtractStep` (the
+  export is `toSessionExtractStep`), a five-package architecture table that is now nine,
+  `submitReview` / `reopenForReview` (the methods are `submitSessionReview` /
+  `reopenSessionForReview`), and — the substantive one — a single-state-machine pipeline that is
+  now two. Assume there are more. Fix them where found rather than reproducing them, and note each
+  in the commit message so the corrections are reviewable as corrections rather than buried in a
+  docs rewrite.
+- **Two of those corrections are load-bearing for the argument, not just accuracy.** The
+  recording/session split is the repositioning stated structurally; if a page describes one machine,
+  it has also lost the best evidence the docs have.
