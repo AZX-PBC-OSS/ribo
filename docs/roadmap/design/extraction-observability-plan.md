@@ -62,10 +62,13 @@ Every task inherits these.
   model, a network call or a real transcript — every task is testable with fakes, and a task
   reaching for a real extraction has misread its scope. `./check.sh` runs **once, after the last
   task**.
-- **`./check.sh` is not the whole bar here.** This change adds a large number of exported symbols
-  carrying `{@link}` targets, so `pnpm docs:build` and `pnpm changeset status --since=origin/main`
-  run alongside it at the end. No package is added or renamed, so `pnpm test:pack-and-consume` is
-  not required.
+- **`./check.sh` is not the whole bar here.** `.github/workflows/ci.yml` runs three further steps,
+  and **all three are required on every push** — `pnpm docs:build` (this change adds many exported
+  symbols carrying `{@link}` targets), `pnpm changeset status --since=origin/main` (pull requests
+  only), and `pnpm test:pack-and-consume`. The last is easy to under-call: no package is added or
+  renamed here, so it should pass by construction — but it packs real tarballs and builds an app
+  outside the repo against the changed public API, and CI runs it regardless. It is on the final
+  verification list, not optional.
 - The suite is green on this base; **any** failure is yours to explain.
 - No new dependencies.
 - Comments explain **why**, not what. Keep them terse, and never bake a leaf or group count into
@@ -636,7 +639,10 @@ to the extractors that gained an event rather than every consumer that switches.
 2. `pnpm docs:build` — typedoc entry points and every new `{@link}` target.
 3. `pnpm changeset status --since=origin/main` — every changed package has a changeset.
 
-`pnpm test:pack-and-consume` is not required: no package is added, renamed or removed.
+4. `pnpm test:pack-and-consume` — real tarballs installed into an app outside this repo, built and
+   driven for real. CI runs it on every push, so it is required here rather than optional. It
+   should pass by construction, since no package is added, renamed or removed — but that is a
+   prediction, and this step is what turns it into a result.
 
 **Commit.** `docs: record the stage-transitions answer and the observability changeset`.
 
