@@ -3,7 +3,7 @@ import { UnsupportedItemError } from "@azx/ribo-core";
 import { layoutPageText, type PageLayoutOptions } from "./page-layout.js";
 
 import { isPdfTextItem } from "./config.js";
-import type { PdfDocumentProxy, PdfjsModule } from "./config.js";
+import type { PageRead, PdfDocumentProxy, PdfjsModule } from "./config.js";
 
 /**
  * @file pdf.js text extraction: the lazy import, the page-marker format, the
@@ -142,6 +142,14 @@ export interface OpenDocumentOptions {
    * and why its default is provisional.
    */
   readonly layout?: PageLayoutOptions;
+  /**
+   * Called after each page is read. Must not throw.
+   *
+   * {@link readDocumentText} forwards this untouched, and the sweep completes
+   * before its `no-text-layer` guard runs — so every page is reported even for
+   * a document about to be rejected.
+   */
+  readonly onPage?: (event: PageRead) => void;
 }
 
 /**
@@ -185,24 +193,26 @@ export async function openDocument(
         // from `$70,903.33`. Baseline clustering derives line structure from
         // where the text actually sits, which is the thing hasEOL was standing
         // in for. See `page-layout.ts` for the measurement and the trade-offs.
-        pages.push(
-          PAGE_MARKER +
-            i +
-            " =====\n" +
-            layoutPageText(
-              // Marked-content boundaries carry no text and no geometry, so they
-              // are filtered out rather than defaulted to the page origin.
-              content.items.filter(isPdfTextItem).map((it) => ({
-                str: it.str,
-                x: it.transform[4],
-                y: it.transform[5],
-                width: it.width,
-                height: it.height,
-              })),
-              options.layout ?? {},
-            ) +
-            "\n",
+        const laidOut = layoutPageText(
+          // Marked-content boundaries carry no text and no geometry, so they
+          // are filtered out rather than defaulted to the page origin.
+          content.items.filter(isPdfTextItem).map((it) => ({
+            str: it.str,
+            x: it.transform[4],
+            y: it.transform[5],
+            width: it.width,
+            height: it.height,
+          })),
+          options.layout ?? {},
         );
+        pages.push(PAGE_MARKER + i + " =====\n" + laidOut + "\n");
+        options.onPage?.({
+          page: i,
+          of: doc.numPages,
+          // Counted from the laid-out text before the marker is prepended —
+          // the marker is ours; see PageRead.chars for why it must stay out.
+          chars: laidOut.replace(/\s/g, "").length,
+        });
       }
       return pages.join("");
     },
@@ -222,6 +232,9 @@ export interface ReadDocumentTextOptions extends OpenDocumentOptions {
  * Opens a document and reads its full text with page markers, applying the
  * no-text-layer guard. This is the convenience function `transcribe()` uses;
  * a host enqueuing a document uses {@link openDocument} for `pageCount` only.
+ *
+ * An `onPage` hook is inherited from {@link OpenDocumentOptions} and forwarded
+ * untouched, so every page is reported before the guard below can throw.
  *
  * The guard strips page markers and all whitespace, and if what remains is
  * under `noTextLayerThreshold`, throws `UnsupportedItemError` with reason

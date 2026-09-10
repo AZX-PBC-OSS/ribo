@@ -138,6 +138,25 @@ export function isPdfTextItem(item: PdfContentItem): item is PdfTextItem {
 }
 
 /**
+ * One page of a document sweep, as reported to the `onPage` hooks.
+ *
+ * `chars` counts the laid-out page text with whitespace stripped, **excluding
+ * the page marker** this library prepends. The marker is ours: counting it
+ * would floor every page at a non-zero number and destroy the exact signal the
+ * field exists for — a scanned insert in an otherwise text-layer PDF shows up
+ * as a run of **zero**-character pages, worth surfacing before the
+ * whole-document `no-text-layer` threshold decides.
+ */
+export interface PageRead {
+  /** The 1-based page number just read. */
+  readonly page: number;
+  /** Total pages in the document — free once open, known before the sweep starts. */
+  readonly of: number;
+  /** Non-whitespace characters this page yielded, excluding the page marker. */
+  readonly chars: number;
+}
+
+/**
  * Options for {@link PdfjsTranscriber}.
  *
  * **The worker URL is injected by the consumer.** The library never constructs
@@ -165,6 +184,15 @@ export interface PdfjsTranscriberOptions {
    * reason `"no-text-layer"`. See {@link DEFAULT_NO_TEXT_LAYER_THRESHOLD}.
    */
   readonly noTextLayerThreshold?: number;
+
+  /**
+   * Called after each page is read. Must not throw.
+   *
+   * `@azx/ribo-transcriber-managed-docs` deliberately has no parallel hook: it
+   * is one HTTP call returning every page at once, so it has no per-page loop
+   * to observe.
+   */
+  readonly onPage?: (event: PageRead) => void;
 
   /**
    * Factory that lazy-loads the pdf.js module. Defaults to a memoized
