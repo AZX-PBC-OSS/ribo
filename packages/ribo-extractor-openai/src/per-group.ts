@@ -69,7 +69,9 @@ import { z } from "zod";
 import {
   DEFAULT_BACKOFF_BASE_MS,
   DEFAULT_BACKOFF_CAP_MS,
+  deriveRetryBudget,
   fullJitterDelay,
+  PER_CALL_CEILING_MS,
   TerminalQueueError,
 } from "@azx/ribo-core";
 import type {
@@ -196,64 +198,6 @@ export interface PerGroupOptions<
    * costs one. A leaf count would split a 15-leaf row group for no gain.
    */
   readonly maxNullableUnionsPerGroup?: number;
-}
-
-/**
- * Default conservative upper bound on one chat call's wall-clock duration.
- * Used to derive the retry budget for callers that do not supply
- * {@link PerGroupOptions.perCallCeilingMs}. A structured-output call typically
- * takes 10–30 s; 120 s leaves headroom for a slow endpoint without the retry
- * budget being so tight it cannot absorb a real blip. This is a physical
- * assumption about call latency, not an arbitrary retry count — the retry
- * budget is derived from it and {@link PerGroupOptions.stepTimeoutMs}.
- */
-const PER_CALL_CEILING_MS = 120_000;
-
-/**
- * Worst-case accumulated backoff for one group exhausting `retries` retries —
- * the sum of {@link fullJitterDelay} results when `random()` returns 1 every
- * time, so each delay is `min(cap, base * 2^attempts)`. The real delay is
- * always ≤ this; the budget derivation uses the worst case so the step timeout
- * is never exceeded by backoff alone.
- */
-function maxAccumulatedBackoff(retries: number, baseMs: number, capMs: number): number {
-  let total = 0;
-  for (let i = 0; i < retries; i++) {
-    total += Math.min(capMs, baseMs * 2 ** Math.min(i, 32));
-  }
-  return total;
-}
-
-/**
- * Derive the effective max retries so the worst case — every group exhausting
- * its full retry budget, including backoff delays — fits inside `stepTimeoutMs`.
- *
- * The worst case per batch is one group's full budget:
- *
- *   (retries + 1) * perCallCeilingMs + maxAccumulatedBackoff(retries)
- *
- * across `batches` sequential batches. We decrement from the requested
- * `maxRetries` until it fits, floor 0 — the same relationship the previous
- * derivation enforced, now with accumulated backoff included so a timeout never
- * presents as a failed extraction with no sign that some groups succeeded.
- *
- * `perCallCeilingMs` is a per-instance default, not a fixed law: an on-device
- * transport whose calls complete in ~5 s can lower it so the derivation grants
- * a useful retry budget instead of zero.
- */
-export function deriveMaxRetries(
-  requested: number,
-  batches: number,
-  stepTimeoutMs: number,
-  perCallCeilingMs: number,
-  baseMs: number,
-  capMs: number,
-): number {
-  for (let r = Math.max(0, requested); r >= 0; r--) {
-    const perGroup = (r + 1) * perCallCeilingMs + maxAccumulatedBackoff(r, baseMs, capMs);
-    if (batches * perGroup <= stepTimeoutMs) return r;
-  }
-  return 0;
 }
 
 /**
@@ -558,14 +502,15 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
   const backoffBaseMs = baseMs ?? DEFAULT_BACKOFF_BASE_MS;
   const backoffCapMs = capMs ?? DEFAULT_BACKOFF_CAP_MS;
   const batches = Math.ceil(prepared.length / concurrency);
-  const effectiveMaxRetries = deriveMaxRetries(
-    maxRetries,
+  const budget = deriveRetryBudget({
+    requested: maxRetries,
     batches,
     stepTimeoutMs,
     perCallCeilingMs,
-    backoffBaseMs,
-    backoffCapMs,
-  );
+    baseMs: backoffBaseMs,
+    capMs: backoffCapMs,
+  });
+  const effectiveMaxRetries = budget.derived;
   // Pre-compute the backoff options object once — passed to fullJitterDelay on
   // every retry. The random function defaults to Math.random inside
   // fullJitterDelay when not supplied here.

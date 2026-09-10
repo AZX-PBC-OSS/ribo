@@ -19,7 +19,9 @@ import { z } from "zod";
 import {
   DEFAULT_BACKOFF_BASE_MS,
   DEFAULT_BACKOFF_CAP_MS,
+  deriveRetryBudget,
   fullJitterDelay,
+  PER_CALL_CEILING_MS,
   TerminalQueueError,
 } from "@azx/ribo-core";
 import type {
@@ -140,50 +142,10 @@ export interface ScopedFillOptions<
 }
 
 /**
- * Default conservative upper bound on one chat call's wall-clock duration. Used to
- * derive the retry budget from the step-timeout relationship.
- */
-const PER_CALL_CEILING_MS = 120_000;
-
-/**
  * Default hard ceiling on current instances per group. The cap exists to fail loudly
  * rather than silently truncate a collection.
  */
 const DEFAULT_INSTANCE_CAP = 10;
-
-/**
- * Worst-case accumulated backoff for one call exhausting `retries` retries — the
- * sum of {@link fullJitterDelay} results when `random()` returns 1 every time. Same
- * formula as {@link perGroupExtractor}.
- */
-function maxAccumulatedBackoff(retries: number, baseMs: number, capMs: number): number {
-  let total = 0;
-  for (let i = 0; i < retries; i++) {
-    total += Math.min(capMs, baseMs * 2 ** Math.min(i, 32));
-  }
-  return total;
-}
-
-/**
- * Derive the effective max retries so the worst-case total time fits inside
- * `stepTimeoutMs`. The total calls and concurrency are known at extraction time,
- * once the roster has been received, so this is evaluated per `extract()` rather
- * than at construction.
- */
-function deriveMaxRetries(
-  requested: number,
-  batches: number,
-  stepTimeoutMs: number,
-  perCallCeilingMs: number,
-  baseMs: number,
-  capMs: number,
-): number {
-  for (let r = Math.max(0, requested); r >= 0; r--) {
-    const perCall = (r + 1) * perCallCeilingMs + maxAccumulatedBackoff(r, baseMs, capMs);
-    if (batches * perCall <= stepTimeoutMs) return r;
-  }
-  return 0;
-}
 
 /**
  * The default {@link ScopedFillOptions.delay} — a real `setTimeout` sleep. Tests
@@ -585,14 +547,15 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
       // calculation is a conservative overestimate and safe.
       const totalCallsEstimate = 1 + jobs.length;
       const batches = Math.ceil(totalCallsEstimate / concurrency);
-      const effectiveMaxRetries = deriveMaxRetries(
-        maxRetries,
+      const budget = deriveRetryBudget({
+        requested: maxRetries,
         batches,
         stepTimeoutMs,
         perCallCeilingMs,
-        backoffOpts.baseMs ?? DEFAULT_BACKOFF_BASE_MS,
-        backoffOpts.capMs ?? DEFAULT_BACKOFF_CAP_MS,
-      );
+        baseMs: backoffOpts.baseMs ?? DEFAULT_BACKOFF_BASE_MS,
+        capMs: backoffOpts.capMs ?? DEFAULT_BACKOFF_CAP_MS,
+      });
+      const effectiveMaxRetries = budget.derived;
 
       const totals: UsageTotals = {};
       const fillResponses = await mapWithPool(
