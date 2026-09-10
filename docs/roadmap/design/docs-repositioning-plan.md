@@ -14,7 +14,7 @@ motivation, comparison, README, AGENTS). Tranche 2 lands the on-ramp. Tranche 3 
 concept guides, moat pages first. Tranche 4 cleans up: package READMEs, deep dives, the design
 section, and the removal of `capabilities/` behind a link audit.
 
-**Tech Stack:** VitePress 2, TypeDoc (`pnpm docs:api`), a generated accuracy page
+**Tech Stack:** VitePress 1.6.4, TypeDoc (`pnpm docs:api`), a generated accuracy page
 (`scripts/generate-accuracy-page.mjs`), Prettier at 100 columns, pnpm workspace.
 
 **Spec:** `docs/roadmap/design/docs-repositioning-design.md`

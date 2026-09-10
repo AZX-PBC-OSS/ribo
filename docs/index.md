@@ -3,36 +3,44 @@ layout: home
 
 hero:
   name: Ribo
-  text: Voice capture for field data collection
+  text: Structured extraction you can check
   tagline: >-
-    Record a dictation, transcribe it on-device, extract structured fields, and let a human review
-    them with provenance — offline-first, and pluggable at every seam.
+    Turn a PDF, a dictation, or both at once into structured data — every field carrying a quote
+    from the source, checked against it, and accepted by a human before it lands. Offline-first,
+    and pluggable at every seam.
   actions:
     - theme: brand
       text: Get Started
       link: /guide/getting-started
     - theme: alt
       text: Why Ribo
-      link: /guide/
+      link: /guide/motivation
+    - theme: alt
+      text: Compare
+      link: /guide/comparison
     - theme: alt
       text: API Reference
       link: /reference/
 
 features:
-  - title: Capture → transcribe → extract → review
+  - title: Schemas bigger than one call
     details: >-
-      A headless engine drives the whole loop. Audio is captured, transcribed (on-device Whisper or a
-      managed STT service), turned into structured fields, and handed to a human to accept or correct.
-  - title: Offline-first by construction
+      A real system of record has hundreds of fields, and a provenance envelope multiplies them.
+      Ribo partitions the target schema across calls, fills the gaps, and reassembles one result —
+      because "pass your JSON schema to the API" stops working long before your schema does.
+  - title: Provenance that is checked
     details: >-
-      A durable RxDB outbox holds work until it can sync. The app shell and the on-device model are
-      cached so a returning auditor boots and records with no network at all.
-  - title: Pluggable at every seam
+      Every field arrives with a source quote, and Ribo verifies that quote actually appears in the
+      source. An invented citation is detectable, not merely unlikely. That is a property a
+      self-reported confidence score cannot have.
+  - title: Human review is a contract
     details: >-
-      Transcription (Transcriber), extraction (Extractor), and write-back (ToolAdapter) are all
-      interfaces. A second host tool is a new adapter package and nothing else.
-  - title: Provenance you can check
+      Review is a stage in the pipeline, not a UI you write afterwards. Each leaf carries its own
+      schema, so a review screen renders and validates itself — and nothing ships until every
+      unverifiable field has been looked at.
+  - title: Any source, one pipeline
     details: >-
-      Every extracted field arrives in an envelope that records where it came from. A span proves the
-      model did not invent the quote — surfaced to the reviewer, not hidden behind a confidence score.
+      A PDF, an invoice, a report, a dictation — joined into a single session and extracted once.
+      The half of the pipeline that produces text knows what a microphone is; the half that
+      produces structured data does not.
 ---

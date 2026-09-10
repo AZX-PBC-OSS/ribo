@@ -27,7 +27,7 @@ export default defineConfig({
   lang: "en-US",
   title: "Ribo",
   description:
-    "A reusable voice-capture SDK for field data collection: capture, on-device transcription, extraction, and human review with provenance.",
+    "Structured extraction from any source: documents, dictation, or both at once — with provenance you can check, human review as a contract, and offline-first durability.",
   // Helix's static host matches request paths to files exactly and falls back to the site's
   // index.html for anything that doesn't match (see docs/AGENTS or the helix-app skill). Clean
   // URLs link to paths without a `.html` extension, which never match the on-disk file on a host
@@ -42,6 +42,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: "Guide", link: "/guide/" },
+      { text: "Comparison", link: "/guide/comparison" },
       { text: "Capabilities", link: "/capabilities/" },
       { text: "Offline-first", link: "/offline-first/" },
       { text: "Deep Dives", link: "/deep-dives/" },
@@ -49,12 +50,22 @@ export default defineConfig({
       { text: "Design", link: "/design/" },
     ],
     sidebar: {
+      // One `/guide/` directory, two sidebar groups. A sibling `guides/` directory was
+      // considered and rejected: two paths one character apart are a permanent source of
+      // wrong links. See docs/roadmap/design/docs-repositioning-design.md §4.
       "/guide/": [
         {
-          text: "Guide",
+          text: "Getting Started",
           items: [
-            { text: "Introduction", link: "/guide/" },
+            { text: "Overview", link: "/guide/" },
+            { text: "Motivation", link: "/guide/motivation" },
+            { text: "Comparison", link: "/guide/comparison" },
             { text: "Getting Started", link: "/guide/getting-started" },
+          ],
+        },
+        {
+          text: "Guides",
+          items: [
             { text: "The Core Loop", link: "/guide/core-loop" },
             { text: "The Offline Outbox", link: "/guide/outbox" },
           ],
