@@ -71,6 +71,7 @@ export default defineConfig({
             { text: "The Offline Outbox", link: "/guide/outbox" },
             { text: "Typesafety", link: "/guide/typesafety" },
             { text: "Provenance", link: "/guide/provenance" },
+            { text: "Schema at Scale", link: "/guide/schema-at-scale" },
           ],
         },
       ],
