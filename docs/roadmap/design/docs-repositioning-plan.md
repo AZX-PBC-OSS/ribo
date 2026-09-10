@@ -1007,9 +1007,10 @@ binding, so a Vue or Svelte binding is a new package and nothing else.
 **Interfaces:**
 
 - Consumes: the guides, which link here for full workings.
-- Produces: the evidence targets Task 1's comparison page links to. If a comparison-page link points
-  at a deep dive, this task must land before the link does — check Task 1's output and fix any dead
-  link found here.
+- Produces: four written deep dives. **It does not produce any evidence target other pages depend
+  on** — that is Task 5A's job, and 5A ran long before this. (An earlier draft claimed this task
+  "must land before the link does"; it is struck as incoherent, since this task runs twelve tasks
+  after Task 1 and the stubs it replaces already existed, so no link to them was ever dead.)
 
 - [ ] **Step 1: Repackage, do not paste**
 
@@ -1018,13 +1019,15 @@ Source material: `docs/implementation/01-feasibility-spike.md`,
 These are working records excluded from the site by `srcExclude`; the deep dives are the published
 retelling — method, numbers, and what the numbers do and do not support.
 
-- [ ] **Step 2: Add the accuracy disclosure to the generator**
+- [ ] **Step 2: Verify the accuracy disclosure — do not re-add it**
 
-`scripts/generate-accuracy-page.mjs` writes the Extraction: Measured page. Per spec §5 it must state
-plainly that extraction quality is **not** currently measured and why (the corpus is annotated in the
-superseded vocabulary and the acceptance gate deliberately refuses to emit meaningless numbers), and
-must not quote the superseded figures. Read the script first to see what it currently emits; the
-disclosure belongs in the generator, not hand-added to its output, or the next regeneration drops it.
+**Task 1A already added the disclosure** to `scripts/generate-accuracy-page.mjs`. This step is a
+check, not a repeat: run `pnpm docs:accuracy`, read the regenerated page, and confirm it states
+plainly that extraction quality is not currently measured and why, and that it quotes none of the
+superseded figures. Adding a second disclosure block would leave the page contradicting itself.
+
+If the disclosure is missing — 1A having been skipped or reverted — add it to the **generator**,
+not to its output, and say so in your report.
 
 - [ ] **Step 3: Verify and commit**
 
