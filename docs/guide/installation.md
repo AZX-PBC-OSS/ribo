@@ -35,7 +35,7 @@ pnpm install                  # bootstrap the workspace
 pnpm --filter playground dev  # dev server on http://localhost:5173
 ```
 
-The `playground/` app composes all five libraries from TypeScript source, so editing a package's
+The `playground/` app composes every publishable package from TypeScript source, so editing a package's
 `src/index.ts` hot-updates the page with no build step — useful for reading how the pieces
 actually compose before you write against the published packages.
 
