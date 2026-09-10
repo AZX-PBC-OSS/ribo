@@ -1,8 +1,14 @@
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
-import { enveloped, SchemaParseError } from "@azx/ribo-core";
-import type { Enveloped, ExtractionTarget } from "@azx/ribo-core";
+import { enveloped, SchemaParseError, TerminalQueueError } from "@azx/ribo-core";
+import type {
+  Enveloped,
+  ExtractionTarget,
+  InventoryUnit,
+  InstanceUnit,
+  RetryBudget,
+} from "@azx/ribo-core";
 
 import type { ChatClient, ChatCompletion, ChatRequest } from "./chat-client.js";
 import {
@@ -801,5 +807,321 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
     expect(result.usage.calls).toBe(3); // inventory + 2 fills
     expect(result.fields.widgets?.[0]?.color.value).toBe("red");
     expect(result.fields.house?.name.value).toBe("main");
+  });
+});
+
+// --- Task 4: extraction observability -----------------------------------------
+//
+// Eight must-fail tests: inventory and per-instance progress events, the retry
+// budget surfaced from extract(), and the requireRetryBudget terminal throw.
+
+/** Collect `onUnit` events for assertion. */
+function collectUnits(): {
+  events: (InventoryUnit | InstanceUnit)[];
+  onUnit: (event: InventoryUnit | InstanceUnit) => void;
+} {
+  const events: (InventoryUnit | InstanceUnit)[] = [];
+  return { events, onUnit: (e) => void events.push(e) };
+}
+
+/** A one-collection-group schema used by the observer tests. */
+const obsValuesSchema = z
+  .object({
+    widgets: z.array(widgetValues).optional(),
+  })
+  .strict();
+
+type ObsValues = z.infer<typeof obsValuesSchema>;
+
+const obsTarget: ExtractionTarget<ObsValues> = {
+  name: "demo-obs",
+  extractionSchema: enveloped(obsValuesSchema),
+  instructions: "Extract widgets.",
+  examples: [],
+};
+
+const twoCandidateRoster: Roster = {
+  widgets: [currentCandidate("the red widget"), currentCandidate("the blue widget")],
+};
+
+function obsChat(): { chat: ChatClient; requests: ChatRequest[] } {
+  return fakeChat((request) => {
+    const name = request.response_format.json_schema.name;
+    if (name === "demo-obs-widgets-fill-0")
+      return { content: JSON.stringify(widgetResponse("red", null)), finishReason: "stop" };
+    if (name === "demo-obs-widgets-fill-1")
+      return { content: JSON.stringify(widgetResponse("blue", 5)), finishReason: "stop" };
+    throw new Error(`Unexpected request: ${name}`);
+  });
+}
+
+describe("scopedInstanceExtractor — extraction observability (Task 4)", () => {
+  test("a roster with one collection group of two current candidates emits one inventory start/done pair then two instance units", async () => {
+    const { chat } = obsChat();
+    const { events, onUnit } = collectUnits();
+
+    await scopedInstanceExtractor({
+      target: obsTarget,
+      chat,
+      model: "m",
+      inventory: async () => twoCandidateRoster,
+      buildFillInstructions,
+      onUnit,
+    }).extract("transcript");
+
+    // One inventory start/done pair, then two instance start/done pairs.
+    expect(events).toHaveLength(6);
+
+    // Inventory events come first — the pass runs before any fill call.
+    expect(events[0]!.unit).toBe("inventory");
+    expect(events[0]!.phase).toBe("start");
+    expect(events[0]!.attempt).toBe(1);
+    expect(events[1]!.unit).toBe("inventory");
+    expect(events[1]!.phase).toBe("done");
+    expect(events[1]!.attempt).toBe(1);
+    // Inventory carries no usage — inventory is a caller-supplied function,
+    // not a completion, so its cost never reaches this extractor.
+    expect((events[1] as { usage?: unknown }).usage).toBeUndefined();
+
+    // Two instance units: instance 1 and 2, both instances: 2.
+    const instanceStarts = events.filter(
+      (e): e is InstanceUnit => e.unit === "instance" && e.phase === "start",
+    );
+    expect(instanceStarts).toHaveLength(2);
+    expect(instanceStarts[0]!.instance).toBe(1);
+    expect(instanceStarts[0]!.instances).toBe(2);
+    expect(instanceStarts[1]!.instance).toBe(2);
+    expect(instanceStarts[1]!.instances).toBe(2);
+
+    // Same id across start/done for each instance; different ids between instances.
+    const instanceDones = events.filter(
+      (e): e is InstanceUnit => e.unit === "instance" && e.phase === "done",
+    );
+    expect(instanceDones).toHaveLength(2);
+    expect(instanceStarts[0]!.id).toBe(instanceDones[0]!.id);
+    expect(instanceStarts[1]!.id).toBe(instanceDones[1]!.id);
+    expect(instanceStarts[0]!.id).not.toBe(instanceStarts[1]!.id);
+  });
+
+  test("a group whose roster says stated: none makes no fill call and emits no instance unit for it", async () => {
+    const roster: Roster = {
+      widgets: { stated: "none", span: "there are no widgets" },
+    };
+    const { chat, requests } = obsChat();
+    const { events, onUnit } = collectUnits();
+
+    const result = await scopedInstanceExtractor({
+      target: obsTarget,
+      chat,
+      model: "m",
+      inventory: async () => roster,
+      buildFillInstructions,
+      onUnit,
+    }).extract("transcript");
+
+    // Inventory start/done, but no instance units — the stated-empty path is silent.
+    expect(events.filter((e) => e.unit === "inventory")).toHaveLength(2);
+    expect(events.filter((e) => e.unit === "instance")).toHaveLength(0);
+    expect(requests).toHaveLength(0);
+    expect(result.fields.widgets).toEqual([]);
+  });
+
+  test("a failing inventory emits inventory start then error, and no instance units at all", async () => {
+    const { chat, requests } = obsChat();
+    const { events, onUnit } = collectUnits();
+
+    await expect(
+      scopedInstanceExtractor({
+        target: obsTarget,
+        chat,
+        model: "m",
+        inventory: async () => {
+          throw new Error("inventory failed");
+        },
+        buildFillInstructions,
+        onUnit,
+      }).extract("transcript"),
+    ).rejects.toThrow("inventory failed");
+
+    // Inventory start then error; no instance units.
+    expect(events).toHaveLength(2);
+    expect(events[0]!.unit).toBe("inventory");
+    expect(events[0]!.phase).toBe("start");
+    expect(events[1]!.unit).toBe("inventory");
+    expect(events[1]!.phase).toBe("error");
+    expect((events[1] as { error?: unknown }).error).toBeInstanceOf(Error);
+    expect(((events[1] as { error?: Error }).error as Error).message).toBe("inventory failed");
+    expect(requests).toHaveLength(0);
+  });
+
+  test("a partitioned tier-1 group emits two units for the same (key, instance) differing only in part", async () => {
+    const { chat } = fakeBigChat();
+    const { events, onUnit } = collectUnits();
+
+    await scopedInstanceExtractor({
+      target: bigTarget,
+      chat,
+      model: "demo-model",
+      inventory: async () => bigRoster,
+      buildFillInstructions,
+      onUnit,
+    }).extract("the full transcript");
+
+    // The systems group (10 leaves) partitions into 2 pieces at the default cap.
+    // For instance 1, there should be two start events with the same (key, instance)
+    // but different part values — the assertion that §0.2 was necessary.
+    const systemsStarts = events.filter(
+      (e): e is InstanceUnit =>
+        e.unit === "instance" && e.phase === "start" && e.key === "systems" && e.instance === 1,
+    );
+    expect(systemsStarts).toHaveLength(2);
+    expect(systemsStarts[0]!.part).not.toBe(systemsStarts[1]!.part);
+    expect(systemsStarts[0]!.parts).toBe(2);
+    expect(systemsStarts[1]!.parts).toBe(2);
+    // Both carry the same instance count.
+    expect(systemsStarts[0]!.instances).toBe(2);
+    expect(systemsStarts[1]!.instances).toBe(2);
+  });
+
+  test("a singleton group reports instance: 1, instances: 1", async () => {
+    const roster = makeRoster({
+      widgets: [],
+      gadgets: [],
+    });
+    const { chat } = fakeChat((request) => {
+      const name = request.response_format.json_schema.name;
+      if (name === "demo-house-fill")
+        return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
+      throw new Error(`Unexpected request: ${name}`);
+    });
+    const { events, onUnit } = collectUnits();
+
+    await scopedInstanceExtractor({
+      target,
+      chat,
+      model: "m",
+      inventory: async () => roster,
+      buildFillInstructions,
+      onUnit,
+    }).extract("transcript");
+
+    // The house singleton emits one instance unit with instance: 1, instances: 1.
+    const houseStarts = events.filter(
+      (e): e is InstanceUnit => e.unit === "instance" && e.phase === "start" && e.key === "house",
+    );
+    expect(houseStarts).toHaveLength(1);
+    expect(houseStarts[0]!.instance).toBe(1);
+    expect(houseStarts[0]!.instances).toBe(1);
+  });
+
+  test("with onUnit absent, an identical run produces an identical result and call sequence", async () => {
+    const roster = makeRoster({
+      widgets: [currentCandidate("the red widget")],
+    });
+
+    function makeChat(): { chat: ChatClient; requests: ChatRequest[] } {
+      return fakeChat((request) => {
+        const name = request.response_format.json_schema.name;
+        if (name === "demo-widgets-fill-0")
+          return { content: JSON.stringify(widgetResponse("red", null)), finishReason: "stop" };
+        if (name === "demo-house-fill")
+          return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
+        throw new Error(`Unexpected request: ${name}`);
+      });
+    }
+
+    const withObserver = makeChat();
+    const withoutObserver = makeChat();
+
+    const resultWith = await scopedInstanceExtractor({
+      target,
+      chat: withObserver.chat,
+      model: "m",
+      inventory: async () => roster,
+      buildFillInstructions,
+      onUnit: () => {},
+    }).extract("transcript");
+
+    const resultWithout = await scopedInstanceExtractor({
+      target,
+      chat: withoutObserver.chat,
+      model: "m",
+      inventory: async () => roster,
+      buildFillInstructions,
+    }).extract("transcript");
+
+    // Results are identical.
+    expect(resultWithout.fields).toEqual(resultWith.fields);
+    expect(resultWithout.usage.calls).toBe(resultWith.usage.calls);
+    expect(resultWithout.raw).toEqual(resultWith.raw);
+
+    // Call sequences are identical — same request names in the same order.
+    const namesWith = withObserver.requests.map((r) => r.response_format.json_schema.name);
+    const namesWithout = withoutObserver.requests.map((r) => r.response_format.json_schema.name);
+    expect(namesWithout).toEqual(namesWith);
+  });
+
+  test("onRetryBudget fires from extract(), after the roster, carrying the job-derived batches", async () => {
+    const { chat } = obsChat();
+    const budgets: RetryBudget[] = [];
+
+    await scopedInstanceExtractor({
+      target: obsTarget,
+      chat,
+      model: "m",
+      inventory: async () => twoCandidateRoster,
+      buildFillInstructions,
+      concurrency: 1,
+      maxRetries: 2,
+      stepTimeoutMs: 362_999,
+      onRetryBudget: (b) => void budgets.push(b),
+    }).extract("transcript");
+
+    // The budget was reduced (derived 0 < requested 2), so onRetryBudget fired.
+    expect(budgets).toHaveLength(1);
+    expect(budgets[0]!.requested).toBe(2);
+    expect(budgets[0]!.derived).toBe(0);
+    // batches = ceil((1 + jobs) / concurrency) = ceil(3/1) = 3
+    expect(budgets[0]!.batches).toBe(3);
+  });
+
+  test("requireRetryBudget: true with a deriving-to-zero configuration rejects with TerminalQueueError; absent succeeds", async () => {
+    function makeChat(): { chat: ChatClient; requests: ChatRequest[] } {
+      return obsChat();
+    }
+
+    // With requireRetryBudget: true, extract() rejects with TerminalQueueError.
+    const strict = makeChat();
+    await expect(
+      scopedInstanceExtractor({
+        target: obsTarget,
+        chat: strict.chat,
+        model: "m",
+        inventory: async () => twoCandidateRoster,
+        buildFillInstructions,
+        concurrency: 1,
+        maxRetries: 2,
+        stepTimeoutMs: 362_999,
+        requireRetryBudget: true,
+      }).extract("transcript"),
+    ).rejects.toBeInstanceOf(TerminalQueueError);
+    // No fill calls were made — the throw is before the pool.
+    expect(strict.requests).toHaveLength(0);
+
+    // With requireRetryBudget absent, extract() succeeds.
+    const lenient = makeChat();
+    const result = await scopedInstanceExtractor({
+      target: obsTarget,
+      chat: lenient.chat,
+      model: "m",
+      inventory: async () => twoCandidateRoster,
+      buildFillInstructions,
+      concurrency: 1,
+      maxRetries: 2,
+      stepTimeoutMs: 362_999,
+    }).extract("transcript");
+
+    expect(result.fields.widgets).toHaveLength(2);
+    expect(lenient.requests).toHaveLength(2);
   });
 });
