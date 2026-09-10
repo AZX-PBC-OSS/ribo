@@ -65,10 +65,11 @@ Ranked by how much work they would take to rebuild.
 The deepest difference, and the only one backed by measurement here.
 
 A system of record we build against exposes **837 distinct writable fields**. Provenance makes this
-worse rather than better: wrapping each leaf in `{ value, confidence, sourceSpan }` roughly triples
-the property count. Measured against a snapshot of that specification, the combined job schema came
-to **~5,360 properties against a documented 5,000-property ceiling, and ~1,490 enum values against a
-1,000-value ceiling** — over both, by margins too large for subsequent drift in the spec to close.
+worse rather than better: wrapping each leaf turns it into its own key plus `value`, `confidence`
+and `sourceSpan` — four properties where there was one. Measured against a snapshot of that
+specification, the combined job schema came to **~5,360 properties against a documented
+5,000-property ceiling, and ~1,490 enum values against a 1,000-value ceiling** — over both, by
+margins too large for subsequent drift in the spec to close.
 It is not slow or expensive at that size. It is refused.
 
 The ceilings also differ by vendor. Our own probing found one model family rejecting any response

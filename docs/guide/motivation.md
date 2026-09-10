@@ -12,9 +12,10 @@ Your demo schema had eight fields. The system you actually need to write into ha
 
 One system of record we build against exposes **837 distinct writable fields**. That alone is
 awkward. What makes it fatal is provenance: if you want every field to carry a source quote so a
-human can check it, each leaf becomes an object of three properties instead of one. Measured
-against a snapshot of that specification, the combined job schema came to roughly **5,360
-properties against a documented 5,000-property ceiling**, and **~1,490 enum values against a
+human can check it, each leaf costs its own key plus three more — `value`, `confidence`,
+`sourceSpan` — four properties against the ceiling below where there was one. Measured against a
+snapshot of that specification, the combined job schema came to roughly **5,360 properties against
+a documented 5,000-property ceiling**, and **~1,490 enum values against a
 1,000-value ceiling** — over both, by margins too large for subsequent drift in the spec to close.
 
 The request is not slow or expensive. It is _rejected_.
