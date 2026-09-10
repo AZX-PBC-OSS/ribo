@@ -72,6 +72,8 @@ export default defineConfig({
             { text: "Typesafety", link: "/guide/typesafety" },
             { text: "Provenance", link: "/guide/provenance" },
             { text: "Schema at Scale", link: "/guide/schema-at-scale" },
+            { text: "Captures & Sources", link: "/guide/captures-and-sources" },
+            { text: "Sessions", link: "/guide/sessions" },
           ],
         },
       ],
