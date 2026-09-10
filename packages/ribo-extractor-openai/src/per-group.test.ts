@@ -5,7 +5,13 @@ import {
   isTransientFailure,
   SchemaParseError,
 } from "@azx/ribo-core";
-import type { Enveloped, ExtractionTarget, ToolAdapterExample } from "@azx/ribo-core";
+import type {
+  Enveloped,
+  ExtractionTarget,
+  GroupUnit,
+  RetryBudget,
+  ToolAdapterExample,
+} from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
@@ -1371,5 +1377,361 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
     expect(result.fields.hvac.fuel.value).toBe("Natural Gas");
     expect(result.fields.attic.insulationDepth.value).toBe("10-12");
     expect(result.fields.attic.insulationRValue.value).toBe(30);
+  });
+});
+
+// --- Extraction observability: per-group progress units (Task 3) ---------------------------
+
+/**
+ * Nine must-fail tests for Task 3 — `perGroupExtractor` emits `GroupUnit` progress
+ * events and surfaces its derived retry budget. The emission sits inside the retry
+ * loop, around the chat call: one `id` per prepared entry, `attempt` distinguishing
+ * retries, and three previously-invisible failure paths (terminal, abort, exhausted
+ * budget) each now emit an `error` event.
+ */
+describe("perGroupExtractor — progress units (extraction observability)", () => {
+  test("a two-group target emits, per group, a start then a done, with part: 1, parts: 1 on both and distinct keys", async () => {
+    const events: GroupUnit[] = [];
+    const { chat } = fakeGroupChat({
+      [groupedName("hvac")]: JSON.stringify(hvacResponse),
+      [groupedName("attic")]: JSON.stringify(atticResponse),
+    });
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      onUnit: (e) => events.push(e),
+    });
+
+    await extractor.extract("t");
+
+    // Each group: one start, one done.
+    const hvacEvents = events.filter((e) => e.key === "hvac");
+    const atticEvents = events.filter((e) => e.key === "attic");
+    expect(hvacEvents).toHaveLength(2);
+    expect(atticEvents).toHaveLength(2);
+    expect(hvacEvents[0]!.phase).toBe("start");
+    expect(hvacEvents[1]!.phase).toBe("done");
+    expect(atticEvents[0]!.phase).toBe("start");
+    expect(atticEvents[1]!.phase).toBe("done");
+
+    // Unpartitioned groups report part: 1, parts: 1 — one code path for the consumer.
+    for (const e of events) {
+      expect(e.part).toBe(1);
+      expect(e.parts).toBe(1);
+      expect(e.attempt).toBe(1);
+    }
+
+    // The two groups' keys are distinct.
+    expect(hvacEvents[0]!.key).toBe("hvac");
+    expect(atticEvents[0]!.key).toBe("attic");
+  });
+
+  test("a group that fails transiently once then succeeds emits start(1), error(1), start(2), done(2) — the same id on all four", async () => {
+    const events: GroupUnit[] = [];
+    const { chat } = fakeRetryChat({
+      [groupedName("hvac")]: (attempt) => {
+        if (attempt < 2) throw ChatError.transport("transient blip");
+        return { content: JSON.stringify(hvacResponse), finishReason: "stop" };
+      },
+      [groupedName("attic")]: () => ({
+        content: JSON.stringify(atticResponse),
+        finishReason: "stop",
+      }),
+    });
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      maxRetries: 2,
+      delay: noDelay,
+      onUnit: (e) => events.push(e),
+    });
+
+    await extractor.extract("t");
+
+    const hvacEvents = events.filter((e) => e.key === "hvac");
+    expect(hvacEvents).toHaveLength(4);
+    expect(hvacEvents[0]!.phase).toBe("start");
+    expect(hvacEvents[0]!.attempt).toBe(1);
+    expect(hvacEvents[1]!.phase).toBe("error");
+    expect(hvacEvents[1]!.attempt).toBe(1);
+    expect(hvacEvents[2]!.phase).toBe("start");
+    expect(hvacEvents[2]!.attempt).toBe(2);
+    expect(hvacEvents[3]!.phase).toBe("done");
+    expect(hvacEvents[3]!.attempt).toBe(2);
+
+    // The same id across every attempt of one entry — attempt is the only way a
+    // retry is observable at all.
+    const id = hvacEvents[0]!.id;
+    expect(hvacEvents.every((e) => e.id === id)).toBe(true);
+  });
+
+  test("a partitioned group emits units carrying part: 1, parts: 2 and part: 2, parts: 2", async () => {
+    const events: GroupUnit[] = [];
+    const { chat } = fakeGroupChat({
+      "demo-grouped-hvac-0": JSON.stringify({
+        hvac: { equipmentType: { value: "Boiler", confidence: 0.9, sourceSpan: "boiler" } },
+      }),
+      "demo-grouped-hvac-1": JSON.stringify({
+        hvac: { fuel: { value: "Natural Gas", confidence: 0.8, sourceSpan: "gas" } },
+      }),
+      "demo-grouped-attic-0": JSON.stringify({
+        attic: {
+          insulationDepth: { value: "10-12", confidence: 0.9, sourceSpan: "ten inches" },
+        },
+      }),
+      "demo-grouped-attic-1": JSON.stringify({
+        attic: { insulationRValue: { value: 30, confidence: 0.7, sourceSpan: "R-30" } },
+      }),
+    });
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      maxNullableUnionsPerGroup: 2,
+      onUnit: (e) => events.push(e),
+    });
+
+    await extractor.extract("t");
+
+    // Each group is partitioned into 2 pieces, each emitting start + done.
+    const hvacEvents = events.filter((e) => e.key === "hvac");
+    const atticEvents = events.filter((e) => e.key === "attic");
+    expect(hvacEvents).toHaveLength(4);
+    expect(atticEvents).toHaveLength(4);
+
+    for (const e of hvacEvents) expect(e.parts).toBe(2);
+    for (const e of atticEvents) expect(e.parts).toBe(2);
+
+    const hvacParts = new Set(hvacEvents.map((e) => e.part));
+    expect(hvacParts.has(1)).toBe(true);
+    expect(hvacParts.has(2)).toBe(true);
+    const atticParts = new Set(atticEvents.map((e) => e.part));
+    expect(atticParts.has(1)).toBe(true);
+    expect(atticParts.has(2)).toBe(true);
+  });
+
+  test("a terminal failure emits exactly one error event and no retry start", async () => {
+    const events: GroupUnit[] = [];
+    const { chat } = fakeRetryChat({
+      [groupedName("hvac")]: () => ({
+        content: JSON.stringify(hvacResponse),
+        finishReason: "length",
+      }),
+      [groupedName("attic")]: () => ({
+        content: JSON.stringify(atticResponse),
+        finishReason: "stop",
+      }),
+    });
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      maxRetries: 2,
+      delay: noDelay,
+      onUnit: (e) => events.push(e),
+    });
+
+    await extractor.extract("t").catch(() => {});
+
+    const hvacEvents = events.filter((e) => e.key === "hvac");
+    // Terminal: one start, one error, no retry start.
+    expect(hvacEvents).toHaveLength(2);
+    expect(hvacEvents[0]!.phase).toBe("start");
+    expect(hvacEvents[0]!.attempt).toBe(1);
+    expect(hvacEvents[1]!.phase).toBe("error");
+    expect(hvacEvents[1]!.attempt).toBe(1);
+  });
+
+  test("done carries usage.inputTokens/outputTokens from the completion, and omits usage when the fake reports none", async () => {
+    // With usage.
+    const eventsWithUsage: GroupUnit[] = [];
+    const chatWithUsage: ChatClient = {
+      complete: (request) => {
+        const name = request.response_format.json_schema.name;
+        return Promise.resolve({
+          content: name.endsWith("-hvac")
+            ? JSON.stringify(hvacResponse)
+            : JSON.stringify(atticResponse),
+          finishReason: "stop" as ChatFinishReason,
+          usage: { promptTokens: 100, completionTokens: 20 },
+        });
+      },
+    };
+    await perGroupExtractor({
+      target: groupedTarget,
+      chat: chatWithUsage,
+      model: "m",
+      onUnit: (e) => eventsWithUsage.push(e),
+    }).extract("t");
+
+    const doneWith = eventsWithUsage.filter((e) => e.phase === "done");
+    expect(doneWith).toHaveLength(2);
+    for (const e of doneWith) {
+      expect(e.usage).toBeDefined();
+      expect(e.usage!.inputTokens).toBe(100);
+      expect(e.usage!.outputTokens).toBe(20);
+    }
+
+    // Without usage.
+    const eventsNoUsage: GroupUnit[] = [];
+    const { chat: chatNoUsage } = fakeGroupChat({
+      [groupedName("hvac")]: JSON.stringify(hvacResponse),
+      [groupedName("attic")]: JSON.stringify(atticResponse),
+    });
+    await perGroupExtractor({
+      target: groupedTarget,
+      chat: chatNoUsage,
+      model: "m",
+      onUnit: (e) => eventsNoUsage.push(e),
+    }).extract("t");
+
+    const doneWithout = eventsNoUsage.filter((e) => e.phase === "done");
+    expect(doneWithout).toHaveLength(2);
+    for (const e of doneWithout) {
+      expect(e.usage).toBeUndefined();
+    }
+  });
+
+  test("a target whose schema is not an object of groups emits one unit with key: ''", async () => {
+    const events: GroupUnit[] = [];
+    const { chat } = fakeGroupChat({
+      [flatTarget.name]: JSON.stringify(flatResponse),
+    });
+    const extractor = perGroupExtractor({
+      target: flatTarget,
+      chat,
+      model: "m",
+      onUnit: (e) => events.push(e),
+    });
+
+    await extractor.extract("t");
+
+    expect(events).toHaveLength(2);
+    expect(events.every((e) => e.key === "")).toBe(true);
+    expect(events[0]!.phase).toBe("start");
+    expect(events[1]!.phase).toBe("done");
+    expect(events[0]!.part).toBe(1);
+    expect(events[0]!.parts).toBe(1);
+  });
+
+  test("with onUnit absent, an identical run produces an identical ExtractionResult and an identical chat-call sequence", async () => {
+    const { chat: chat1, requests: requests1 } = fakeGroupChat({
+      [groupedName("hvac")]: JSON.stringify(hvacResponse),
+      [groupedName("attic")]: JSON.stringify(atticResponse),
+    });
+    const { chat: chat2, requests: requests2 } = fakeGroupChat({
+      [groupedName("hvac")]: JSON.stringify(hvacResponse),
+      [groupedName("attic")]: JSON.stringify(atticResponse),
+    });
+
+    const result1 = await perGroupExtractor({
+      target: groupedTarget,
+      chat: chat1,
+      model: "m",
+    }).extract("t");
+    const result2 = await perGroupExtractor({
+      target: groupedTarget,
+      chat: chat2,
+      model: "m",
+    }).extract("t");
+
+    expect(result1).toEqual(result2);
+    expect(requests1).toEqual(requests2);
+  });
+});
+
+describe("perGroupExtractor — retry budget (extraction observability)", () => {
+  test("onRetryBudget fires with { requested: 5, derived: 0, ... } for a step timeout that admits no retries, and does not fire when the requested budget survives intact", async () => {
+    // Step timeout too tight for even one attempt at the default ceiling:
+    // 1 * 120_000 = 120_000 > 100_000, so derived = 0.
+    const budgetEvents: RetryBudget[] = [];
+    const { chat } = fakeGroupChat({
+      [groupedName("hvac")]: JSON.stringify(hvacResponse),
+      [groupedName("attic")]: JSON.stringify(atticResponse),
+    });
+    const extractor = perGroupExtractor({
+      target: groupedTarget,
+      chat,
+      model: "m",
+      maxRetries: 5,
+      stepTimeoutMs: 100_000,
+      onRetryBudget: (e) => budgetEvents.push(e),
+    });
+    await extractor.extract("t");
+
+    expect(budgetEvents).toHaveLength(1);
+    expect(budgetEvents[0]!.requested).toBe(5);
+    expect(budgetEvents[0]!.derived).toBe(0);
+
+    // When the requested budget survives intact, onRetryBudget does not fire.
+    const budgetEventsIntact: RetryBudget[] = [];
+    const { chat: chatIntact } = fakeGroupChat({
+      [groupedName("hvac")]: JSON.stringify(hvacResponse),
+      [groupedName("attic")]: JSON.stringify(atticResponse),
+    });
+    const extractorIntact = perGroupExtractor({
+      target: groupedTarget,
+      chat: chatIntact,
+      model: "m",
+      maxRetries: 2,
+      stepTimeoutMs: 900_000,
+      onRetryBudget: (e) => budgetEventsIntact.push(e),
+    });
+    await extractorIntact.extract("t");
+    expect(budgetEventsIntact).toHaveLength(0);
+  });
+
+  test("with requireRetryBudget: true and a step timeout that derives 0, construction throws naming all three knobs; with it absent, construction succeeds", () => {
+    const { chat } = fakeGroupChat({
+      [groupedName("hvac")]: JSON.stringify(hvacResponse),
+      [groupedName("attic")]: JSON.stringify(atticResponse),
+    });
+
+    // With requireRetryBudget: true and derived 0, construction throws a plain
+    // Error naming stepTimeoutMs, perCallCeilingMs and concurrency.
+    expect(() =>
+      perGroupExtractor({
+        target: groupedTarget,
+        chat,
+        model: "m",
+        maxRetries: 5,
+        stepTimeoutMs: 100_000,
+        requireRetryBudget: true,
+      }),
+    ).toThrow(/stepTimeoutMs/);
+    expect(() =>
+      perGroupExtractor({
+        target: groupedTarget,
+        chat,
+        model: "m",
+        maxRetries: 5,
+        stepTimeoutMs: 100_000,
+        requireRetryBudget: true,
+      }),
+    ).toThrow(/perCallCeilingMs/);
+    expect(() =>
+      perGroupExtractor({
+        target: groupedTarget,
+        chat,
+        model: "m",
+        maxRetries: 5,
+        stepTimeoutMs: 100_000,
+        requireRetryBudget: true,
+      }),
+    ).toThrow(/concurrency/);
+
+    // The default must stay non-throwing: the same config without
+    // requireRetryBudget succeeds — the default-unchanged proof for §0.5.
+    expect(() =>
+      perGroupExtractor({
+        target: groupedTarget,
+        chat,
+        model: "m",
+        maxRetries: 5,
+        stepTimeoutMs: 100_000,
+      }),
+    ).not.toThrow();
   });
 });
