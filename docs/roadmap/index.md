@@ -1,10 +1,11 @@
 # Ribo — Roadmap
 
-Ribo is a reusable **voice-capture SDK** for field data collection: record a dictation, transcribe it
-(on-device WASM or a managed STT service), extract structured fields from the transcript, let a human
-review and accept them, then write the result back into a host tool through a thin per-tool adapter.
-The first target is home-energy audits in Snugg Pro. The SDK lives in this repo; the consuming field
-app lives in a separate repo and is not built here.
+Ribo is a browser-side, offline-first pipeline for turning an unstructured capture — a dictation, a
+PDF, later a photo — into structured, checkable data in a system of record, with a human in the
+loop: transcribe the capture, extract structured fields from the transcript, let a human review and
+accept them, then write the result back into a host tool through a thin per-tool adapter. Snugg Pro
+is the reference adapter — home-energy audits — not the subject. The library lives in this repo; the
+consuming field app lives in a separate repo and is not built here.
 
 This directory is the project's roadmap — the design specs and per-phase plans, committed as records
 of what was planned and why. It is excluded from the published docs site (via `srcExclude` in
@@ -144,6 +145,14 @@ review hook. R1, R1.5 and R2 are all done; the rest proceed in dependency order:
 Discovered while building R1.5 and investigating the Snugg Pro API. Recorded here so they are decided
 rather than rediscovered.
 
+- **Correction (2026-09-10): extraction, review and write moved off the recording.** Earlier entries
+  in "What has shipped" above (R2 in particular) describe one state machine and name
+  `Outbox.submitReview` / `Outbox.reopenForReview` — accurate when written, and left as-is; they are
+  historical records, not current API. The session-ownership work since then split the pipeline into
+  two persisted state machines: a recording (`OUTBOX_STATUSES`, capture and transcription only) and a
+  session (`SESSION_STATUSES`, extraction through write-back). The current methods are
+  `Outbox.submitSessionReview` and `Outbox.reopenSessionForReview`; see
+  `packages/ribo-core/src/queue/schema.ts` and `session-schema.ts` for the two status lists.
 - **~~Do we ask the model for Snugg's literal enum strings, or keep readable tokens and map?~~
   Answered: literal strings (2026-08-06).** The schema now asks the model for `"6% - Well sealed"` and
   `"Not Tested"` directly, which deletes the per-enum translation layer rather than planning it, and
