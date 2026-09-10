@@ -80,7 +80,7 @@ pool, runs a follow-up pass over leaves that abstained despite quoting evidence,
 result. None of that is a wrapper around an API call; it is the thing that makes the API call
 possible.
 
-Full working: [Extraction schema scale](/deep-dives/).
+Full working: [Extraction schema scale](/deep-dives/schema-scale).
 
 ### 2. Provenance you can falsify
 

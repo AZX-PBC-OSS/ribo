@@ -17,9 +17,9 @@ Quoted directly from OpenAI's structured-outputs documentation as fetched on 202
 - "A schema may have up to 5000 object properties total, with up to 10 levels of nesting."
 - "A schema may have up to 1000 enum values across all enum properties."
 
-Both are ceilings on the **whole request schema**, not per field. Ribo's provenance envelope —
-every leaf becomes `{ value, confidence, sourceSpan }` — multiplies property count roughly by three
-before either ceiling is ever tested against a real spec.
+Both are ceilings on the **whole request schema**, not per field. Ribo's provenance envelope turns
+each leaf into its own key plus `value`, `confidence` and `sourceSpan` — four properties where there
+was one — before either ceiling is ever tested against a real spec.
 
 ## How big the real spec actually is
 
