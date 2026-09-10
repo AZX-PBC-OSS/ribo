@@ -23,7 +23,11 @@ retryable while being recognisable to the arbiter, and an optional `usage.strate
 field), `ToolAdapter<F, C>`, the review contract (`buildReviewRequest`, `resolveReview`), and the
 offline-first outbox/relay state machine
 (`queued → transcribing → extracting → awaiting-review → writing → done`) with connectivity and
-work-safety. `@azx/ribo-transcriber-ondevice` runs real WASM Whisper on-device and measures the
+work-safety. **That state machine is how a host observes stage changes — there is no second
+mechanism, and building one is a mistake we nearly made**; the extraction strategies' `onUnit`
+observer reports progress _within_ a stage and deliberately does not persist, so the two answer
+different questions (`docs/roadmap/design/extraction-observability-design.md`).
+`@azx/ribo-transcriber-ondevice` runs real WASM Whisper on-device and measures the
 device's real-time factor at `prime()` time, which is what lets `capability()` report `too-slow`;
 `@azx/ribo-transcriber-managed` is the fallback for devices that fail that gate — Azure AI Speech
 Fast Transcription behind the same `Transcriber` seam, with **no capacity to authenticate**: it takes

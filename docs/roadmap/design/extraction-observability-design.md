@@ -356,6 +356,46 @@ problem.** So rather than a duplicate mechanism, the request is a documented ans
 should a non-queue consumer observe stage changes?" — and if the answer is "use the queue",
 that belongs where a host will read it before repeating our mistake.
 
+### The answer: use the queue. There is no second mechanism, deliberately.
+
+A host observes stage changes by subscribing to the outbox and session documents. That is
+what `useOutboxItems` already does, and a host outside React reads the same documents
+through `Outbox` directly. The stage **is** `OutboxItem.status` and `SessionItem.status`;
+there is nothing to add.
+
+**Why there is no non-queue answer, rather than one we have not built yet.** A stage
+transition is a fact that has to survive the thing that destroys it. Extraction is the
+longest step in the pipeline, and the failure the request correctly identifies — a
+ten-minute extraction dying on an accidental page refresh — is precisely a failure of
+in-memory state. A second, in-memory stage mechanism would be at its least trustworthy in
+exactly the situation that motivates wanting one. Worse, a host given both would have two
+sources of truth for one fact and no rule for which wins after a reload.
+
+So the queue is not the durable option among several. It is the only one that answers the
+question that was actually asked.
+
+**The distinction to hold on to, and the reason both exist:**
+
+|             | `onUnit`                     | the queue's status         |
+| ----------- | ---------------------------- | -------------------------- |
+| answers     | how far through _this_ stage | which stage                |
+| lifetime    | the `extract()` call         | persisted, survives reload |
+| granularity | one model call               | one pipeline step          |
+| on refresh  | gone, and that is correct    | resumes where it left off  |
+
+`onUnit` is progress _within_ a stage and is deliberately not durable — persisting sixteen
+call-level events per extraction would be a write amplification the outbox exists to avoid,
+and none of them is meaningful after the run they describe has ended. The queue is what
+makes the stage itself survive. Reaching for the hook to answer "which stage" gets you a
+mechanism that forgets; reaching for the queue to answer "how far through extraction" gets
+you nothing, because the queue does not see inside a step. Use both, for what each is.
+
+**The corollary a host should read before designing around it:** a consumer that skips the
+queue is not merely opting out of stage observability, it is opting out of durability,
+retry, backoff, ordering and work-safety at the same time — those are one mechanism, not
+five. "I only need progress, not durability" is not a reachable position, and a reviewer at
+a desk turns out to need durability anyway.
+
 ## Not asked for
 
 - **The extraction plan.** `splitExtractionSchema` is exported and pure, so the unit count is
