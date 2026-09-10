@@ -4,8 +4,10 @@ import { buildFieldPath, parseFieldPath, stripOptionalNullable } from "./field-p
 import type { FieldPath, FieldPathSegment } from "./field-path.js";
 import type { RequiredOnCreate } from "./adapter.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
-import { isSpanGrounded } from "./provenance.js";
-import type { Extracted } from "./provenance.js";
+import { ROW_SOURCE_SPAN_KEY } from "./enveloped.js";
+import type { ProvenanceGranularity } from "./enveloped.js";
+import { spanGroundedness } from "./provenance.js";
+import type { Extracted, SpanGroundedness } from "./provenance.js";
 import type { Transcript } from "./transcript.js";
 import type { ExistingRecord, InstanceLinkDecision, LinkTargets } from "./instance-identity.js";
 
@@ -122,6 +124,21 @@ export interface ReviewField {
    * unverified. This is the *only* automatic flag in the contract.
    */
   readonly isGrounded: boolean;
+  /**
+   * The same question in three tiers instead of two — see {@link spanGroundedness}.
+   *
+   * `isGrounded` above is exactly `groundedness === "grounded"` and is left alone, so no existing
+   * card changes. What this adds is the middle tier: a quote that IS in the document but differs
+   * in case, whitespace or quote characters. It matters because a document transcript is laid
+   * out — `layoutPageText` pads columns to align them, so the transcript holds `"$       5,250.00"`
+   * where the model quotes `"$ 5,250.00"` — and a two-state flag reports that identically to a
+   * fabricated citation. Once those two are indistinguishable the flag stops being worth acting
+   * on, which is how `confidence` became useless.
+   *
+   * A card should still show a near miss differently from a verbatim quote. It should not raise
+   * the same alarm: the value really is in the document, and the auditor can find it.
+   */
+  readonly groundedness: SpanGroundedness;
   /**
    * This leaf's VALUE schema, exactly as the adapter declared it — for rendering
    * an editor and for validating an edit.
@@ -459,6 +476,32 @@ const readEnvelope = (node: unknown): Extracted<unknown> => {
 };
 
 /**
+ * Read one leaf of a group that declared `"row"` or `"none"` provenance, where the extracted data
+ * carries a bare value and the citation — if there is one — sits on the row, one level up.
+ *
+ * The leaf is presented as an {@link Extracted} all the same, carrying its row's span. That is the
+ * behaviour the product wants (an auditor reads the row's transcript line once and judges every
+ * number on it against that line) and it is what keeps `ReviewField` — the thing every host
+ * already renders — a single shape rather than two.
+ *
+ * `confidence` is `1` for a value the model emitted, against `0` for one it omitted. There is no
+ * model-reported confidence to carry here: a plain leaf has no envelope, and `provenance.ts`
+ * records that the number carries no discriminating signal anyway. The `0` is not arbitrary — it
+ * is {@link omittedLeaf}'s, and keeping the two apart is what stops "the model answered null" from
+ * reading identically to "the model never emitted this key".
+ */
+const readPlainLeaf = (node: unknown, rowSpan: string | null): Extracted<unknown> => {
+  if (node === undefined) return omittedLeaf();
+  return { value: node ?? null, confidence: 1, sourceSpan: rowSpan };
+};
+
+/** The row's own citation, or `null` when the row is absent or carries no usable span. */
+const readRowSpan = (node: unknown): string | null => {
+  const span = readChild(node, ROW_SOURCE_SPAN_KEY);
+  return typeof span === "string" ? span : null;
+};
+
+/**
  * Walk one level of the values schema, appending a {@link ReviewField} per leaf.
  *
  * Recursion is on the schema and the data in lockstep, but only the schema decides
@@ -469,6 +512,14 @@ const readEnvelope = (node: unknown): Extracted<unknown> => {
  * `hvac[k1].hvacSystemEquipmentType`. Order is the order the data emits the
  * instances in; the key is what keeps a decision attached to the same instance if
  * the UI removes one later.
+ *
+ * `granularity` is the provenance the group being walked declared, and `rowSpan` the citation of
+ * the row currently in hand. Both are inherited downwards: granularity is a fact about a GROUP, so
+ * it is looked up once at the top level and every leaf below the group shares it. `rowSpan` is
+ * re-read at each array element, because an element is a row — the same rule
+ * `enveloped()`'s walk applies when deciding where to put the span in the first place, and the two
+ * walks over one values schema have to agree or review reads a citation the derivation never put
+ * there.
  */
 const collectFields = (
   values: z.ZodObject,
@@ -477,9 +528,13 @@ const collectFields = (
   transcript: Transcript,
   requiredOnCreate: RequiredOnCreate,
   statedEmptyGroups: Readonly<Record<string, string>>,
+  provenance: Readonly<Record<string, ProvenanceGranularity>>,
+  granularity: ProvenanceGranularity,
+  rowSpan: string | null,
   out: Record<FieldPath, ReviewField>,
   nodes: ReviewNode[],
 ): void => {
+  const atTopLevel = prefixSegments.length === 0;
   for (const [key, declared] of Object.entries(values.shape) as [string, z.ZodType][]) {
     const pathSegments: readonly FieldPathSegment[] = [
       ...prefixSegments,
@@ -487,16 +542,23 @@ const collectFields = (
     ];
     const path = buildFieldPath(pathSegments);
     const stripped = stripOptionalNullable(declared);
+    const groupGranularity = atTopLevel ? (provenance[key] ?? "leaf") : granularity;
 
     if (stripped instanceof z.ZodObject) {
       const children: ReviewNode[] = [];
+      const childNode = readChild(node, key);
       collectFields(
         stripped,
         pathSegments,
-        readChild(node, key),
+        childNode,
         transcript,
         requiredOnCreate,
         statedEmptyGroups,
+        provenance,
+        groupGranularity,
+        // A singleton group IS the row, so its span is read here; a nested object deeper in
+        // belongs to the row it sits in and keeps the one already in hand.
+        atTopLevel && groupGranularity === "row" ? readRowSpan(childNode) : rowSpan,
         out,
         children,
       );
@@ -551,6 +613,9 @@ const collectFields = (
           transcript,
           requiredOnCreate,
           statedEmptyGroups,
+          provenance,
+          groupGranularity,
+          groupGranularity === "row" ? readRowSpan(elements[i]) : rowSpan,
           out,
           children,
         );
@@ -565,11 +630,16 @@ const collectFields = (
     }
 
     const groupPath = pathSegments[0]?.key ?? "";
-    const extracted = readEnvelope(readChild(node, key));
+    const extracted =
+      groupGranularity === "leaf"
+        ? readEnvelope(readChild(node, key))
+        : readPlainLeaf(readChild(node, key), groupGranularity === "row" ? rowSpan : null);
+    const groundedness = spanGroundedness(extracted.sourceSpan, transcript.text);
     const requiredLeaves = requiredOnCreate[groupPath];
     const field: ReviewField = {
       extracted,
-      isGrounded: isSpanGrounded(extracted.sourceSpan, transcript.text),
+      isGrounded: groundedness === "grounded",
+      groundedness,
       // The DECLARED schema, wrappers and all — see `ReviewField.schema`.
       schema: declared,
       required: Array.isArray(requiredLeaves) && requiredLeaves.includes(key),
@@ -613,6 +683,9 @@ export const buildReviewRequest = (
     transcript,
     requiredOnCreate,
     statedEmptyGroups,
+    options.provenance ?? {},
+    "leaf",
+    null,
     fields,
     tree,
   );
@@ -669,6 +742,22 @@ export interface BuildReviewRequestOptions {
    * carrying a malformed (non-array) value stays `"absent"` regardless.
    */
   readonly statedEmptyGroups?: Readonly<Record<string, string>>;
+  /**
+   * The per-group provenance granularity the adapter's extraction schema was derived with —
+   * the SAME map handed to `enveloped(schema, { provenance })`.
+   *
+   * It has to be passed rather than inferred, because this walk is over the **values** schema,
+   * which is identical whatever granularity the extraction was derived at. Without it, a `"row"`
+   * group's leaves are read as though they were envelopes, every one of them falls back to the
+   * omitted-leaf sentinel, and the review card shows a table of empty fields — the failure that
+   * looks like a bad extraction rather than a mismatched option.
+   *
+   * A group named here presents exactly as one at `"leaf"` does: every leaf its own
+   * {@link ReviewField} with its own verdict. What changes is the citation — under `"row"` the
+   * fields of one row share their row's span, and under `"none"` they carry none and read as
+   * ungrounded. Groups absent from the map keep today's per-leaf envelope.
+   */
+  readonly provenance?: Readonly<Record<string, ProvenanceGranularity>>;
 }
 
 /**

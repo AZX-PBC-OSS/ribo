@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
-import { MAX_ENVELOPED_LEAVES_PER_GROUP, splitExtractionSchema } from "@azx/ribo-extractor-openai";
+import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "@azx/ribo-extractor-openai";
 import type { ExtractionGroup } from "@azx/ribo-extractor-openai";
 
 import {
@@ -48,9 +48,9 @@ function maxNestingDepth(node: unknown, depth: number): number {
 
 test("every per-call schema serializes under the character cap", () => {
   // Partitioned, because that is the shape of a real call: `perGroupExtractor` always
-  // splits at MAX_ENVELOPED_LEAVES_PER_GROUP, and an unpartitioned `basedata` is a
+  // splits at MAX_NULLABLE_UNIONS_PER_CALL, and an unpartitioned `basedata` is a
   // schema no call ever carries.
-  const groups = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
+  const groups = splitExtractionSchema(snuggExtractionSchema, MAX_NULLABLE_UNIONS_PER_CALL);
   expect(groups.length).toBeGreaterThan(1);
 
   for (const group of groups) {
@@ -66,7 +66,7 @@ test("every per-call schema serializes under the character cap", () => {
 });
 
 test("every per-call schema nests within the depth cap", () => {
-  const groups = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
+  const groups = splitExtractionSchema(snuggExtractionSchema, MAX_NULLABLE_UNIONS_PER_CALL);
   expect(groups.length).toBeGreaterThan(1);
 
   for (const group of groups) {
@@ -155,13 +155,21 @@ test("the real derived schema splits collection groups as arrays", () => {
  * pinned to OpenAI-family models — fixing it now, rather than when that pin changes, is
  * the point of this guard.
  *
- * `splitExtractionSchema`'s `maxLeavesPerGroup` partitions an over-cap group into
+ * `splitExtractionSchema`'s `maxNullableUnionsPerGroup` partitions an over-cap group into
  * multiple entries sharing one key (`ExtractionGroup.part`/`parts`); `perGroupExtractor`
  * makes one call per entry and recombines. This file only exercises the pure split —
  * recombination is exercised in `ribo-extractor-openai`'s tool-agnostic
  * `per-group.test.ts`.
  */
 describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union cap", () => {
+  /**
+   * The cap expressed in the unit this Snugg-specific file counts in. Every Snugg group is
+   * all-`"leaf"` provenance, so each of its leaves costs exactly two nullable unions and the
+   * union cap is a leaf cap divided by two. Derived here rather than written as `8`, so a
+   * change to the vendor's real limit moves both numbers together.
+   */
+  const MAX_ENVELOPED_LEAVES = MAX_NULLABLE_UNIONS_PER_CALL / 2;
+
   /**
    * Count the enveloped leaves ONE group (or partitioned piece) asks the model for:
    * unwrap the group's top-level key and any collection array, then count the object's
@@ -176,7 +184,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
   }
 
   test("before partitioning, basedata, hvac, attic, vault, window, dhw, health, job, utilities and refrigerator all exceed the 8-leaf cap — the bug this guard exists to catch", () => {
-    // No `maxLeavesPerGroup` — the one-entry-per-group split `perGroupExtractor` would
+    // No `maxNullableUnionsPerGroup` — the one-entry-per-group split `perGroupExtractor` would
     // send if it never partitioned. This pins the starting problem: without the fix
     // below, these groups would send an over-cap schema to an Anthropic-family model.
     const unpartitioned = splitExtractionSchema(snuggExtractionSchema);
@@ -203,21 +211,21 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     expect(groupLeafCount(job)).toBe(30);
     expect(groupLeafCount(utilities)).toBe(27);
     expect(groupLeafCount(refrigerator)).toBe(9);
-    expect(groupLeafCount(basedata)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
-    expect(groupLeafCount(hvac)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
-    expect(groupLeafCount(attic)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
-    expect(groupLeafCount(vault)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
-    expect(groupLeafCount(wallGroup)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
-    expect(groupLeafCount(windowGroup)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
-    expect(groupLeafCount(dhw)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
-    expect(groupLeafCount(health)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
-    expect(groupLeafCount(job)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
-    expect(groupLeafCount(utilities)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
-    expect(groupLeafCount(refrigerator)).toBeGreaterThan(MAX_ENVELOPED_LEAVES_PER_GROUP);
+    expect(groupLeafCount(basedata)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
+    expect(groupLeafCount(hvac)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
+    expect(groupLeafCount(attic)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
+    expect(groupLeafCount(vault)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
+    expect(groupLeafCount(wallGroup)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
+    expect(groupLeafCount(windowGroup)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
+    expect(groupLeafCount(dhw)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
+    expect(groupLeafCount(health)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
+    expect(groupLeafCount(job)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
+    expect(groupLeafCount(utilities)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
+    expect(groupLeafCount(refrigerator)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
   });
 
   test("every partitioned entry stays at or under the 8-leaf cap (16 nullable unions)", () => {
-    const groups = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
+    const groups = splitExtractionSchema(snuggExtractionSchema, MAX_NULLABLE_UNIONS_PER_CALL);
 
     expect(groups.length).toBeGreaterThan(0);
     for (const group of groups) {
@@ -225,15 +233,15 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       expect(
         leaves,
         `group "${group.key}"${group.part !== undefined ? ` part ${group.part}` : ""} carries ${leaves} leaves`,
-      ).toBeLessThanOrEqual(MAX_ENVELOPED_LEAVES_PER_GROUP);
+      ).toBeLessThanOrEqual(MAX_ENVELOPED_LEAVES);
       // Enveloped<V> emits exactly two nullable unions per leaf — the cap this leaf
       // count stands in for.
-      expect(leaves * 2).toBeLessThanOrEqual(16);
+      expect(leaves * 2).toBeLessThanOrEqual(MAX_NULLABLE_UNIONS_PER_CALL);
     }
   });
 
   test("the over-cap groups are partitioned into pieces sharing one key, and every other group is untouched", () => {
-    const groups = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
+    const groups = splitExtractionSchema(snuggExtractionSchema, MAX_NULLABLE_UNIONS_PER_CALL);
 
     const byKey = new Map<string, ExtractionGroup[]>();
     for (const group of groups) {
@@ -325,7 +333,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
   });
 
   test("a partitioned piece still serializes under the byte-size and nesting-depth caps", () => {
-    const groups = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
+    const groups = splitExtractionSchema(snuggExtractionSchema, MAX_NULLABLE_UNIONS_PER_CALL);
 
     for (const group of groups) {
       const jsonSchema = z.toJSONSchema(group.schema, { target: "draft-2020-12" });

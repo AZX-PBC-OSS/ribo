@@ -8,6 +8,7 @@ import type {
   Outbox,
   PersistedReviewOutcome,
   RankedCandidate,
+  ProvenanceGranularity,
   RequiredOnCreate,
   ReviewFields,
   ReviewIssue,
@@ -72,6 +73,19 @@ export interface UseReviewOptions {
    * its grounded values. Absent groups mean no existing records.
    */
   readonly existingRecords?: Readonly<Record<string, readonly ExistingRecord[]>>;
+  /**
+   * The per-group provenance granularity the extraction schema was derived with — the same map
+   * the host passed to `enveloped(schema, { provenance })`, passed straight through to
+   * `buildReviewRequest`'s `provenance`.
+   *
+   * Needed for the same reason `valuesSchema` alone is not enough: the values schema is
+   * identical whichever granularity a group declared, so without this a `"row"` group's plain
+   * leaves are read as envelopes and every card comes back empty.
+   *
+   * **Hold it still, like `valuesSchema`** — it is a `useMemo` dependency, and an inline object
+   * literal rebuilds every field on every render.
+   */
+  readonly provenance?: Readonly<Record<string, ProvenanceGranularity>>;
   /**
    * Tool-specific ordering of existing records for one instance.
    *
@@ -392,7 +406,7 @@ export function useReview(
   session: SessionItem | undefined,
   options: UseReviewOptions,
 ): UseReviewResult {
-  const { valuesSchema, requiredOnCreate, existingRecords, rankCandidates } = options;
+  const { valuesSchema, requiredOnCreate, existingRecords, provenance, rankCandidates } = options;
   const outbox = useRiboInstance("outbox", options.outbox);
 
   // Fetch the session's recordings so the hook can join their transcripts. A
@@ -455,6 +469,7 @@ export function useReview(
     return buildReviewRequest(extracted, transcript, valuesSchema, {
       requiredOnCreate,
       existingRecords,
+      provenance,
       statedEmptyGroups: session?.statedEmptyGroups,
     });
   }, [
@@ -465,6 +480,7 @@ export function useReview(
     valuesSchema,
     requiredOnCreate,
     existingRecords,
+    provenance,
   ]);
 
   const paths = useMemo<readonly FieldPath[]>(

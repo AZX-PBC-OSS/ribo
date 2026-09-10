@@ -12,7 +12,13 @@
 
 // Provenance — the envelope every extracted field arrives in, and the checkable
 // span-validity signal that replaces confidence for review flagging.
-export { extractedSchema, isSpanGrounded } from "./provenance.js";
+export {
+  extractedSchema,
+  isExtractedSchema,
+  isSpanGrounded,
+  spanGroundedness,
+} from "./provenance.js";
+export type { SpanGroundedness } from "./provenance.js";
 
 // The extraction sibling of `firstCapable`: choose between engines per extraction. Lives here,
 // beside the `Extractor` seam it composes, for the same reason `firstCapable` lives beside
@@ -31,8 +37,15 @@ export type { Extracted } from "./provenance.js";
 // enveloped, nested objects recursed rather than swallowed whole, closed and
 // fully required throughout. `ToolAdapter.extractionSchema` is declared against
 // `Enveloped<V>` and built with `enveloped(schema)`.
-export { enveloped } from "./enveloped.js";
-export type { Enveloped } from "./enveloped.js";
+// A group may declare a coarser unit of provenance than a leaf — see `ProvenanceGranularity`.
+export { enveloped, ROW_SOURCE_SPAN_KEY } from "./enveloped.js";
+export type {
+  Enveloped,
+  EnvelopedOptions,
+  NoProvenance,
+  ProvenanceGranularity,
+  ProvenanceMap,
+} from "./enveloped.js";
 
 // Capture records and their transcripts.
 export { baseRecordingSchema, recordingSchema } from "./recording.js";

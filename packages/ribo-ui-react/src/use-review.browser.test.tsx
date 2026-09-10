@@ -886,4 +886,32 @@ describe("useReview — instance identity: link-or-create decision", () => {
     );
     await outbox.close();
   });
+
+  test("a group's provenance granularity reaches buildReviewRequest", async () => {
+    // The same join `requiredOnCreate` needed: core reads a row's citation off the row, but
+    // only if it is told which groups declared row provenance. Unthreaded, every leaf of the
+    // group falls back to the omitted-leaf sentinel and the card is a table of blanks.
+    const { outbox, session } = await collectionParkedItem();
+    const rowShaped = await outbox.patchSession(session.id, {
+      extracted: {
+        hvac: [
+          {
+            hvacSystemEquipmentType: "Boiler",
+            hvacHeatingSystemManufacturer: "Burnham",
+            sourceSpan: "Boiler by Burnham.",
+          },
+        ],
+      },
+    });
+
+    const { seen } = await collectionProbe(rowShaped, outbox, {
+      provenance: { hvac: "row" },
+    });
+
+    const field = seen.current!.fields!["hvac[k1].hvacHeatingSystemManufacturer"]!;
+    expect(field.extracted.value).toBe("Burnham");
+    expect(field.extracted.sourceSpan).toBe("Boiler by Burnham.");
+    expect(field.isGrounded).toBe(true);
+    await outbox.close();
+  });
 });

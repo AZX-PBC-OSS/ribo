@@ -1065,10 +1065,12 @@ test("every per-group schema name is within the structured-output name charset",
  * synthetic stand-ins: a 10-leaf singleton group (mirrors `health`) and a 9-leaf
  * collection group with two instances (mirrors `hvac`, R1.6-style).
  *
- * `perGroupExtractor` defaults the leaf cap to `MAX_ENVELOPED_LEAVES_PER_GROUP`,
- * so a group over the cap is partitioned into multiple calls with no test setup
- * beyond "make a group with more than 8 leaves"; a caller-supplied
- * `maxLeavesPerGroup` overrides the default, which the last two tests pin.
+ * `perGroupExtractor` defaults the cap to `MAX_NULLABLE_UNIONS_PER_CALL` (16), so a
+ * group over it is partitioned into multiple calls with no test setup beyond "make a
+ * group with more than 8 enveloped leaves"; a caller-supplied
+ * `maxNullableUnionsPerGroup` overrides the default, which the last two tests pin.
+ * The cap is counted in unions, not leaves, so the two tests below spend it at two
+ * per enveloped leaf — the unit that also holds for a `"row"` group's plain leaves.
  */
 describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-leaf cap)", () => {
   /** A 10-leaf singleton group — mirrors `health`'s shape, over the 8-leaf cap. */
@@ -1340,8 +1342,9 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
   });
 
   test("a group that partitions at the default cap stays whole at a higher caller-supplied cap", async () => {
-    // `big`'s leaf count exceeds the default cap but not the supplied one, so
-    // the whole group goes out in a single call named without a part suffix.
+    // `big` costs 20 nullable unions (10 enveloped leaves at two each), over the
+    // default 16 but under the supplied 32, so the whole group goes out in a
+    // single call named without a part suffix.
     const wholeResponse = {
       big: Object.fromEntries(
         Array.from({ length: 10 }, (_, i) => [`f${i + 1}`, envelope(`a${i + 1}`, `s${i + 1}`)]),
@@ -1355,7 +1358,7 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
       target: bigTarget,
       chat,
       model: "m",
-      maxLeavesPerGroup: 16,
+      maxNullableUnionsPerGroup: 32,
     }).extract("t");
 
     expect(requests).toHaveLength(1);
@@ -1374,8 +1377,9 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
   });
 
   test("a group whole at the default cap is partitioned by a lower caller-supplied cap", async () => {
-    // `hvac` is under the default cap but over a supplied cap of 1, so it is
-    // split into one call per leaf and recombined; `attic` partitions too.
+    // `hvac` is under the default cap, but one enveloped leaf costs two unions,
+    // so a supplied cap of 2 splits it into one call per leaf and recombines;
+    // `attic` partitions too.
     const { chat, requests } = fakeGroupChat({
       "demo-grouped-hvac-0": JSON.stringify({
         hvac: { equipmentType: { value: "Boiler", confidence: 0.9, sourceSpan: "boiler" } },
@@ -1397,7 +1401,7 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
       target: groupedTarget,
       chat,
       model: "m",
-      maxLeavesPerGroup: 1,
+      maxNullableUnionsPerGroup: 2,
     }).extract("t");
 
     expect(requests).toHaveLength(4);

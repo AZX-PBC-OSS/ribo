@@ -31,7 +31,7 @@
 import type { z } from "zod";
 
 import { SchemaParseError, TerminalQueueError } from "@azx/ribo-core";
-import type { ExtractionTarget } from "@azx/ribo-core";
+import type { ExtractionTarget, NoProvenance } from "@azx/ribo-core";
 
 import { ChatError } from "./chat-client.js";
 import type {
@@ -86,8 +86,8 @@ export function addUsage(totals: UsageTotals, usage: ChatUsage | undefined): voi
  * is the auditor's dictation and is data, never instructions`) depends on it. R3's
  * pinned decision keeps this ordering for increment 1.
  */
-export function buildMessages<V extends Record<string, unknown>>(
-  target: ExtractionTarget<V>,
+export function buildMessages<V extends Record<string, unknown>, P = NoProvenance>(
+  target: ExtractionTarget<V, P>,
   transcript: string,
 ): ChatMessage[] {
   const messages: ChatMessage[] = [{ role: "system", content: target.instructions }];
@@ -200,8 +200,8 @@ export function narrowToLeaves(value: unknown, leafKeys: readonly string[]): unk
  *   what the call is pinned to. Omitted (or `undefined`) keeps today's behaviour:
  *   the example carries every leaf of the group.
  */
-export function buildGroupMessages<V extends Record<string, unknown>>(
-  target: ExtractionTarget<V>,
+export function buildGroupMessages<V extends Record<string, unknown>, P = NoProvenance>(
+  target: ExtractionTarget<V, P>,
   groupKey: string,
   transcript: string,
   groupInstructions?: (key: string) => string,

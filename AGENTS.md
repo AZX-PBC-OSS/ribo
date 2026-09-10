@@ -12,7 +12,9 @@ adapter. The first target is home-energy audits in Snugg Pro.
 
 **Status: Phases 0–4 and R2 built — a working capture → transcribe → extract → review → write
 pipeline, with a headless React hook layer over it.** `@azx/ribo-core` holds the contracts and the
-engine: the provenance envelope (`extractedSchema`, `isSpanGrounded`), `Recording` / `Transcript`,
+engine: the provenance envelope (`extractedSchema`, `isSpanGrounded`, `spanGroundedness`) and the
+derivation that applies it at a group's chosen granularity (`enveloped(schema, { provenance })` —
+one span per leaf by default, or one per row for a wide table), `Recording` / `Transcript`,
 the `Transcriber` contract (capability reporting, `firstCapable` selection, a `FakeTranscriber`
 double), the `Extractor<F>` seam (`toExtractStep`, `FakeExtractor`), the extraction-arbitration
 engine for composing strategies (`fallbackExtractor`, `raceExtractor`, the `ExtractionArbiter`

@@ -14,7 +14,7 @@
  * **Same seam.** `extract(transcript) → ExtractionResult<F>` is unchanged. The
  * relay, the outbox and `ribo-core` are not touched.
  *
- * **Everything here speaks `Enveloped<V>`, not `V`** — for the same reason as
+ * **Everything here speaks `Enveloped<V, P>`, not `V`** — for the same reason as
  * {@link singleShotExtractor}: the four things this file does with fields
  * (constrain the model, parse each response, imitate the example assistant turns,
  * and normalize) are all the provenance-enveloped shape the model emits.
@@ -78,6 +78,7 @@ import type {
   Extractor,
   ExtractionResult,
   ExtractionTarget,
+  NoProvenance,
 } from "@azx/ribo-core";
 
 import type { ChatClient } from "./chat-client.js";
@@ -90,13 +91,16 @@ import {
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
-import { MAX_ENVELOPED_LEAVES_PER_GROUP, splitExtractionSchema } from "./split-schema.js";
+import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 import type { ExtractionGroup } from "./split-schema.js";
 
 /** Options for {@link perGroupExtractor}. */
-export interface PerGroupOptions<V extends Record<string, unknown>> extends BackoffOptions {
+export interface PerGroupOptions<
+  V extends Record<string, unknown>,
+  P = NoProvenance,
+> extends BackoffOptions {
   /** The field knowledge: `name`, `extractionSchema`, `instructions`, and few-shot `examples`. */
-  readonly target: ExtractionTarget<V>;
+  readonly target: ExtractionTarget<V, P>;
   /** The injected chat transport. A fake in tests; {@link openAiChat} in production. */
   readonly chat: ChatClient;
   /** The model id passed through to the endpoint (e.g. the Helix-routed model). */
@@ -113,7 +117,7 @@ export interface PerGroupOptions<V extends Record<string, unknown>> extends Back
    * for the full rationale; the difference here is that it runs once across the
    * whole enveloped shape rather than once per partial shape.
    */
-  readonly normalize?: (fields: Enveloped<V>) => Enveloped<V>;
+  readonly normalize?: (fields: Enveloped<V, P>) => Enveloped<V, P>;
   /**
    * Max concurrent group calls. The calls run concurrently with a bounded pool so
    * the worst case (all groups plus their inner retries plus their backoff
@@ -177,16 +181,21 @@ export interface PerGroupOptions<V extends Record<string, unknown>> extends Back
    */
   readonly singleton?: boolean;
   /**
-   * Max enveloped leaves per call before a group is partitioned across multiple
-   * calls sharing its key ({@link splitExtractionSchema}'s `maxLeavesPerGroup`).
-   * Defaults to {@link MAX_ENVELOPED_LEAVES_PER_GROUP}, which is sized for the
-   * Anthropic-family nullable-union limit (see `split-schema.ts`'s file header).
-   * A caller whose route is bound by a different limit — the pinned
-   * OpenAI-compatible route's constraint is a byte cap, not a union count —
-   * supplies its own number rather than inheriting one sized for another
-   * provider.
+   * Max nullable unions per call before a group is partitioned across multiple
+   * calls sharing its key ({@link splitExtractionSchema}'s
+   * `maxNullableUnionsPerGroup`). Defaults to
+   * {@link MAX_NULLABLE_UNIONS_PER_CALL}, the Anthropic-family limit (see
+   * `split-schema.ts`'s file header). A caller whose route is bound by a
+   * different limit — the pinned OpenAI-compatible route's constraint is a byte
+   * cap, not a union count — supplies its own number rather than inheriting one
+   * sized for another provider.
+   *
+   * Counted in unions rather than enveloped leaves so the number means the same
+   * thing whatever provenance granularity a group declared: an enveloped leaf
+   * costs two, a plain `"row"`/`"none"` leaf costs one, and a row's `sourceSpan`
+   * costs one. A leaf count would split a 15-leaf row group for no gain.
    */
-  readonly maxLeavesPerGroup?: number;
+  readonly maxNullableUnionsPerGroup?: number;
 }
 
 /**
@@ -425,8 +434,8 @@ interface PreparedGroup {
  *      - **First trust-boundary parse** ({@link parseWithSchema}): parse the
  *        response against its own group schema.
  *   4. Merge the parsed responses by top-level key: ordinarily each response has
- *      exactly one key so assignment produces the whole, but a group whose leaves
- *      exceeded {@link MAX_ENVELOPED_LEAVES_PER_GROUP} was partitioned by
+ *      exactly one key so assignment produces the whole, but a group carrying more
+ *      nullable unions than {@link MAX_NULLABLE_UNIONS_PER_CALL} was partitioned by
  *      {@link splitExtractionSchema} into multiple entries sharing one key
  *      (`ExtractionGroup.part`/`parts`) — those pieces' responses are recombined
  *      (see {@link mergeGroupPieces}) rather than one overwriting the other.
@@ -437,7 +446,7 @@ interface PreparedGroup {
  *
  * `usage.calls` reports the real number of calls made, including retries.
  */
-export function perGroupExtractor<V extends Record<string, unknown>>({
+export function perGroupExtractor<V extends Record<string, unknown>, P = NoProvenance>({
   target,
   chat,
   model,
@@ -453,20 +462,25 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
   random,
   groupInstructions,
   singleton = false,
-  maxLeavesPerGroup,
-}: PerGroupOptions<V>): Extractor<Enveloped<V>> {
+  maxNullableUnionsPerGroup,
+}: PerGroupOptions<V, P>): Extractor<Enveloped<V, P>> {
   // Split at construction time — the group list is a pure function of the schema
   // and does not depend on the transcript. A non-grouped schema yields one entry
   // covering the whole schema (key: ""), which makes one call — today's behaviour.
   //
-  // The leaf cap is always supplied (defaulting to MAX_ENVELOPED_LEAVES_PER_GROUP)
-  // so a group that would overflow one call's response schema is partitioned here
-  // rather than rejected provider-side — see split-schema.ts's file header for
-  // the limit the default is derived from. A caller whose route is bound by a
-  // different limit opts into its own number via `maxLeavesPerGroup`.
+  // The cap is always supplied (defaulting to MAX_NULLABLE_UNIONS_PER_CALL) so a
+  // group that would overflow one call's response schema is partitioned here
+  // rather than rejected provider-side — see split-schema.ts's file header for the
+  // limit the default is derived from. A caller whose route is bound by a
+  // different limit opts into its own number via `maxNullableUnionsPerGroup`.
+  //
+  // It is counted in NULLABLE UNIONS rather than leaves, which is what lets a group
+  // that declared `"row"` or `"none"` provenance fit in one call instead of being
+  // split for nothing. The two units coincide exactly while every leaf is enveloped
+  // (two unions each), so this changed no existing partition boundary.
   const groups = splitExtractionSchema(
     target.extractionSchema,
-    maxLeavesPerGroup ?? MAX_ENVELOPED_LEAVES_PER_GROUP,
+    maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL,
   );
 
   // Pre-compute each group's JSON Schema and error-context at construction time.
@@ -558,7 +572,7 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
   const backoffOpts: BackoffOptions = { baseMs: backoffBaseMs, capMs: backoffCapMs, random };
 
   return {
-    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
+    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V, P>>> {
       // One AbortController for the whole extraction. When any group fails
       // (terminally or past its retry budget), abort is called: in-flight calls
       // in other workers reject with ChatError.aborted, and workers stop
@@ -714,9 +728,9 @@ export function perGroupExtractor<V extends Record<string, unknown>>({
  * behaviour, exposed as a named strategy so the ladder and the tests can refer
  * to it unambiguously.
  */
-export function perGroupArrayExtractor<V extends Record<string, unknown>>(
-  options: PerGroupOptions<V>,
-): Extractor<Enveloped<V>> {
+export function perGroupArrayExtractor<V extends Record<string, unknown>, P = NoProvenance>(
+  options: PerGroupOptions<V, P>,
+): Extractor<Enveloped<V, P>> {
   return perGroupExtractor({ ...options, singleton: false });
 }
 
@@ -727,8 +741,8 @@ export function perGroupArrayExtractor<V extends Record<string, unknown>>(
  * the original extraction schema, but the model cannot represent a second
  * instance per group.
  */
-export function perGroupSingletonExtractor<V extends Record<string, unknown>>(
-  options: PerGroupOptions<V>,
-): Extractor<Enveloped<V>> {
+export function perGroupSingletonExtractor<V extends Record<string, unknown>, P = NoProvenance>(
+  options: PerGroupOptions<V, P>,
+): Extractor<Enveloped<V, P>> {
   return perGroupExtractor({ ...options, singleton: true });
 }
