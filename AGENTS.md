@@ -22,10 +22,12 @@ double), the `Extractor<F>` seam (`toSessionExtractStep`, `FakeExtractor`), the 
 engine for composing strategies (`fallbackExtractor`, `raceExtractor`, the `ExtractionArbiter`
 contract and defaults `terminalFallsThrough` / `acceptAnySuccess`, a `SchemaParseError` that stays
 retryable while being recognisable to the arbiter, and an optional `usage.strategy` provenance
-field), `ToolAdapter<F, C>`, the review contract (`buildReviewRequest`, `resolveReview`), and the
+field), `ToolAdapter<V extends Record<string, unknown>, C, P = NoProvenance>`, the review contract
+(`buildReviewRequest`, `resolveReview`), and the
 offline-first outbox/relay's **two persisted state machines**, split where the code splits: a
 recording (`OUTBOX_STATUSES`: `recording → queued → transcribing → transcribed`, a resting `failed`
-the relay retries after backoff, terminal `dead`) carries capture and transcription, while a session
+the relay retries after backoff, terminal `dead`, and a human-decision `discarded` that
+`session-extract.ts` excludes from the joined transcript) carries capture and transcription, while a session
 (`SESSION_STATUSES`: `open → extracting → awaiting-review → writing → done`, the same `failed`/`dead`
 split) owns extraction, review and write-back. The relay acts on `queued`/`transcribing`/`failed`
 for a recording and on `extracting`/`writing`/`failed` for a session — everything else is either not
@@ -107,10 +109,15 @@ Notes:
 
 ## 3. Architecture map
 
-Four tiers. Dependencies only ever point **inward toward `ribo-core`**: `ribo-ui-react`,
+Four tiers. Dependencies always point **inward toward `ribo-core`**: `ribo-ui-react`,
 `ribo-adapter-snuggpro`, `ribo-extractor-openai`, `ribo-extractor-ondevice`, `ribo-transcriber-ondevice`,
-`ribo-transcriber-managed`, `ribo-transcriber-managed-docs` and `ribo-transcriber-pdfjs` each depend on `ribo-core` and never on each
-other; the field app composes them. Nothing depends on the field app.
+`ribo-transcriber-managed`, `ribo-transcriber-managed-docs` and `ribo-transcriber-pdfjs` each depend on
+`ribo-core`. **One exception, declared rather than hidden:** `ribo-extractor-ondevice` also depends
+on `ribo-extractor-openai` (a real `workspace:^` `dependencies` entry) for its shared chat-client
+vocabulary — `ChatError`, `ChatCapability`, `ChatMessage`, `ChatRequest`, `CapableChatClient` and
+`perGroupExtractor`, imported across `three-phase-extractor.ts`, `ondevice-chat.ts`, `capability.ts`
+and `session.ts`. No other leaf package depends on a sibling leaf. The field app composes all of
+these; nothing depends on the field app.
 
 | Tier                                 | Location                                 | Responsibility                                                                                                                                                                                                    |
 | ------------------------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
