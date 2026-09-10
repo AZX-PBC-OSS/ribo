@@ -37,7 +37,7 @@ features:
     details: >-
       Review is a stage in the pipeline, not a UI you write afterwards. Each leaf carries its own
       schema, so a review screen renders and validates itself — and nothing ships until every
-      unverifiable field has been looked at.
+      field has been looked at.
   - title: Any source, one pipeline
     details: >-
       A PDF, an invoice, a report, a dictation — joined into a single session and extracted once.
