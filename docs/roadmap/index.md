@@ -325,6 +325,12 @@ So nobody re-litigates it:
   compose via `firstCapable` / `fallbackTranscriber`. **Pre-measurement**: the design recommends
   measuring image-input availability, download size, latency, and nameplate accuracy before
   building, and does not state any of those as facts.
+- [Docs Repositioning — Design](design/docs-repositioning-design.md) — retiring "voice-capture SDK"
+  for what the library actually became: a structured-extraction pipeline for any capture. Records
+  the answer to "why not Docling or Mistral directly" (a category error — they plug into the
+  `Transcriber` seam), a TanStack-shaped information architecture with a Comparison page that marks
+  Ribo down where it loses, the honesty rails for the three things that are not finished (npm
+  publication, extraction measurement, write-back), and why `Transcriber` keeps its name.
 
 ## Phase records
 
