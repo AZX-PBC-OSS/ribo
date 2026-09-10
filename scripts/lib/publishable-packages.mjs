@@ -30,7 +30,7 @@ import path from "node:path";
  * to also register the package with the pack-and-consume scratch app (both its
  * `dependencies` and its `pnpm.overrides`) and with `playground/package.json`.
  */
-export const EXPECTED_PUBLISHED_COUNT = 8;
+export const EXPECTED_PUBLISHED_COUNT = 9;
 
 /**
  * Every non-private package under `packages/`, sorted by package name.

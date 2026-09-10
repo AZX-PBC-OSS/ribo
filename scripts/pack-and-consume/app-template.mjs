@@ -30,6 +30,7 @@ export function scratchPackageJson(tarballPaths) {
       "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
       "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
       "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
+      "@azx/ribo-transcriber-managed-docs": fileSpec("@azx/ribo-transcriber-managed-docs"),
       "@azx/ribo-transcriber-pdfjs": fileSpec("@azx/ribo-transcriber-pdfjs"),
       "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       // Exact versions, matching the workspace catalog (pnpm-workspace.yaml) — this app is NOT a
@@ -57,6 +58,7 @@ export function scratchPackageJson(tarballPaths) {
         "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
         "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
         "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
+        "@azx/ribo-transcriber-managed-docs": fileSpec("@azx/ribo-transcriber-managed-docs"),
         "@azx/ribo-transcriber-pdfjs": fileSpec("@azx/ribo-transcriber-pdfjs"),
         "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       },
@@ -130,7 +132,7 @@ export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
  * CI run which of three unrelated things broke, without opening this script:
  *
  *   - `"setup-before-worker"` — one of ribo-core / ribo-adapter-snuggpro / ribo-extractor-openai /
- *     ribo-extractor-ondevice / ribo-transcriber-managed / ribo-transcriber-pdfjs / ribo-ui-react threw.
+ *     ribo-extractor-ondevice / ribo-transcriber-managed / ribo-transcriber-managed-docs / ribo-transcriber-pdfjs / ribo-ui-react threw.
  *     None of this touches the network, so a Hub outage can never explain it —
  *     this is a real packaging regression in one of those packages.
  *   - `"worker-spawn-or-import"` — `prime()` threw and the worker never reported even an `initiate`
@@ -151,6 +153,7 @@ import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
 import { OnDeviceChat, threePhaseExtractor, ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 import { OnDeviceTranscriber } from "@azx/ribo-transcriber-ondevice";
 import { ManagedTranscriber } from "@azx/ribo-transcriber-managed";
+import { ManagedDocsTranscriber, MANAGED_DOCS_ENGINE } from "@azx/ribo-transcriber-managed-docs";
 import { PdfjsTranscriber, PDFJS_ENGINE } from "@azx/ribo-transcriber-pdfjs";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import React from "react";
@@ -229,6 +232,19 @@ async function run() {
     }).capability();
     checks.pdfjsReady = pdfjsConfigured.status === "ready";
     checks.pdfjsEngineId = PDFJS_ENGINE === "pdfjs";
+
+    // ribo-transcriber-managed-docs: real capability logic across the tarball
+    // boundary, and no network — capability() never fetches. Both directions:
+    // unconfigured yields not-configured (not permanent), configured yields ready.
+    const docsUnconfigured = await new ManagedDocsTranscriber({}).capability();
+    checks.docsUnconfigured = docsUnconfigured.status === "unavailable" && docsUnconfigured.reason === "not-configured";
+    const docsConfigured = await new ManagedDocsTranscriber({
+      endpoint: "https://example.invalid/documentintelligence",
+      fetchImpl: () => Promise.reject(new Error("never called")),
+      isOnline: () => true,
+    }).capability();
+    checks.docsReady = docsConfigured.status === "ready";
+    checks.docsEngineId = MANAGED_DOCS_ENGINE === "managed-docs";
 
     // ribo-ui-react: a REAL React render through RiboProvider, proving one React instance.
     const mountNode = document.getElementById("app");
