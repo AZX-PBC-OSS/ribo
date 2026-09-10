@@ -165,11 +165,11 @@ function compositeArbiter<F>(input: ArbiterInput<F>): ArbiterVerdict<F> {
 }
 
 function isResultOutcome<F>(outcome: ExtractionOutcome<F>): outcome is ResultOutcome<F> {
-  return outcome.result !== undefined;
+  return outcome.outcome === "result";
 }
 
 function isErrorOutcome<F>(outcome: ExtractionOutcome<F>): outcome is ErrorOutcome<F> {
-  return outcome.result === undefined;
+  return outcome.outcome === "error";
 }
 
 /** Fetch a capability from the cache or probe and cache the answer. */

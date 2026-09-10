@@ -7,12 +7,7 @@ import {
   SchemaParseError,
   terminalFallsThrough,
 } from "@azx/ribo-core";
-import type {
-  Enveloped,
-  ExtractionArbiter,
-  ExtractionResult,
-  ExtractionTarget,
-} from "@azx/ribo-core";
+import type { Enveloped, ExtractionArbiter, ExtractionTarget, ResultOutcome } from "@azx/ribo-core";
 
 import type { ChatClient, ChatRequest } from "./chat-client.js";
 import { instanceLadder } from "./instance-ladder.js";
@@ -209,8 +204,7 @@ function tier3FailingChat(error: unknown): {
 /** Arbiter that accepts tier 1 or tier 2 results and declines tier 3 at exhaustion. */
 const declineTier3AtExhaustion: ExtractionArbiter<Enveloped<DemoValues>> = (input) => {
   const firstResult = input.outcomes.find(
-    (outcome): outcome is { candidate: string; result: ExtractionResult<Enveloped<DemoValues>> } =>
-      "result" in outcome && outcome.result !== undefined,
+    (outcome): outcome is ResultOutcome<Enveloped<DemoValues>> => outcome.outcome === "result",
   );
   if (firstResult) {
     return { accept: firstResult.result };

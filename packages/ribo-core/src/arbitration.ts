@@ -16,18 +16,28 @@ import { SchemaParseError } from "./schema-parse-error.js";
 /**
  * One settled candidate: either a produced result or the error it failed with.
  *
- * The two branches are mutually exclusive at the type level (`error` and `result`
- * are `never` on the opposite branch) so a constructed outcome cannot silently
- * carry both.
+ * The two branches are mutually exclusive at the type level: the `outcome` tag
+ * is the primary discriminant, and `error`/`result` are `never` on the opposite
+ * branch as belt-and-braces. A constructed outcome cannot silently carry both.
  */
 export type ExtractionOutcome<F> =
-  | { readonly candidate: string; readonly result: ExtractionResult<F>; readonly error?: never }
-  | { readonly candidate: string; readonly error: unknown; readonly result?: never };
+  | {
+      readonly outcome: "result";
+      readonly candidate: string;
+      readonly result: ExtractionResult<F>;
+      readonly error?: never;
+    }
+  | {
+      readonly outcome: "error";
+      readonly candidate: string;
+      readonly error: unknown;
+      readonly result?: never;
+    };
 
 /** The success branch of {@link ExtractionOutcome}. */
-export type ResultOutcome<F> = Extract<ExtractionOutcome<F>, { result: ExtractionResult<F> }>;
+export type ResultOutcome<F> = Extract<ExtractionOutcome<F>, { outcome: "result" }>;
 /** The failure branch of {@link ExtractionOutcome}. */
-export type ErrorOutcome<F> = Extract<ExtractionOutcome<F>, { error: unknown }>;
+export type ErrorOutcome<F> = Extract<ExtractionOutcome<F>, { outcome: "error" }>;
 
 /**
  * Construct a result outcome. Prefer this over inline objects so the union
@@ -38,7 +48,7 @@ export type ErrorOutcome<F> = Extract<ExtractionOutcome<F>, { error: unknown }>;
  * at the point it is cheapest to keep.
  */
 export function resultOutcome<F>(candidate: string, result: ExtractionResult<F>): ResultOutcome<F> {
-  return { candidate, result };
+  return { outcome: "result", candidate, result };
 }
 
 /**
@@ -46,7 +56,7 @@ export function resultOutcome<F>(candidate: string, result: ExtractionResult<F>)
  * stays genuinely exclusive.
  */
 export function errorOutcome<F>(candidate: string, error: unknown): ErrorOutcome<F> {
-  return { candidate, error };
+  return { outcome: "error", candidate, error };
 }
 
 /**
@@ -68,6 +78,12 @@ export interface ArbiterInput<F> {
  * The arbiter's verdict: accept a result, try the next candidate, or stop and
  * throw an error. The three discriminants are named so a mistyped verdict is a
  * compile-time error rather than a silent `continue`.
+ *
+ * Deliberately NOT tagged on a `kind`/`outcome` discriminant, unlike
+ * {@link ExtractionOutcome}. Its three arms already carry three distinct
+ * required key names (`accept`, `continue`, `giveUp`), narrow correctly under
+ * `in`, and have no bug history. Retagging would rewrite every arbiter in the
+ * repo and every consumer arbiter for no new safety — see design §0.8.
  */
 export type ArbiterVerdict<F> =
   | { readonly accept: ExtractionResult<F> }
@@ -77,26 +93,34 @@ export type ArbiterVerdict<F> =
 export type ExtractionArbiter<F> = (input: ArbiterInput<F>) => ArbiterVerdict<F>;
 
 /**
- * Discriminate on the `result` VALUE, never on key presence.
+ * Discriminate on the `outcome` tag. The `?: never` members stay alongside the
+ * tag as belt-and-braces — the tag is the primary discriminant, and the `never`
+ * annotations keep the two branches structurally exclusive at the type level.
  *
- * `result?: never` permits an explicit `result: undefined`, so an error outcome
- * written as `{ candidate, error, result: undefined }` type-checks — and under a
- * `"result" in outcome` test it read as a SUCCESS. `terminalFallsThrough` then
- * returned `{ accept: undefined }`: it accepted a result that does not exist and
- * swallowed the error. Verified in a REPL against the first implementation of
- * this file, and pinned by a test below.
+ * History: an earlier implementation discriminated on key presence
+ * (`"result" in outcome`). `result?: never` permits an explicit
+ * `result: undefined`, so an error outcome written as
+ * `{ candidate, error, result: undefined }` type-checked — and under
+ * `"result" in outcome` it read as a SUCCESS. `terminalFallsThrough` then
+ * returned `{ accept: undefined }`: it accepted a result that does not exist
+ * and swallowed the error. Verified in a REPL against the first implementation
+ * of this file, and pinned by a test below.
  *
- * The two guards are exact complements, which is what makes the union genuinely
- * exclusive at runtime as well as in the type. `result` is the discriminant
- * rather than `error` because `throw undefined` is legal, so an error outcome
- * can carry `error: undefined` — but an `ExtractionResult` is always an object.
+ * The tag exists because of that near-miss: a string-literal discriminant
+ * cannot be faked by an `undefined` value, so `switch` on `outcome.outcome` is
+ * mechanical and safe. The value-check on `result` (used in `applyVerdict`'s
+ * identity comparison) stays as a further backstop for the case where an
+ * arbiter accepts `undefined` — see that function's own comment. `result` was
+ * chosen as the value-check rather than `error` because `throw undefined` is
+ * legal, so an error outcome can carry `error: undefined` — but an
+ * `ExtractionResult` is always an object.
  */
 function isResultOutcome<F>(outcome: ExtractionOutcome<F>): outcome is ResultOutcome<F> {
-  return outcome.result !== undefined;
+  return outcome.outcome === "result";
 }
 
 function isErrorOutcome<F>(outcome: ExtractionOutcome<F>): outcome is ErrorOutcome<F> {
-  return outcome.result === undefined;
+  return outcome.outcome === "error";
 }
 
 /**
