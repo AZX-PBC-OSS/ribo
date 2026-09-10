@@ -61,6 +61,7 @@ export default defineConfig({
             { text: "Comparison", link: "/guide/comparison" },
             { text: "Installation", link: "/guide/installation" },
             { text: "Quick Start", link: "/guide/quick-start" },
+            { text: "Important Defaults", link: "/guide/important-defaults" },
           ],
         },
         {
@@ -68,6 +69,7 @@ export default defineConfig({
           items: [
             { text: "The Core Loop", link: "/guide/core-loop" },
             { text: "The Offline Outbox", link: "/guide/outbox" },
+            { text: "Typesafety", link: "/guide/typesafety" },
           ],
         },
       ],
