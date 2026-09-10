@@ -345,4 +345,54 @@ describe("threePhaseExtractor", () => {
     // phase-0 + phase-1 attempt 1 + phase-1 retry + phase-2 = 4.
     expect(result.usage.calls).toBe(4);
   });
+
+  describe("a group that declared coarser provenance is refused at construction", () => {
+    /**
+     * This strategy is per-leaf provenance all the way down: phase 1 asks for one verbatim span
+     * PER LEAF, and phase 2 classifies that leaf's value out of that span. A group derived at
+     * `"row"` or `"none"` granularity has no per-leaf envelope to read, so `extractGroups` finds
+     * no leaves in it, asks the model about nothing, and emits an empty object for the group —
+     * which the closing `extractionSchema.parse()` then rejects, after every other group's calls
+     * have already been spent.
+     *
+     * Refusing at construction turns that into a wiring error a caller sees immediately. It is
+     * deliberately a refusal rather than support: making phase 1 ask for one ROW span and phase 2
+     * classify every leaf out of it is a real (and probably good) design, but it is a different
+     * strategy, not a patch to this one.
+     */
+    const rowPatch = z.strictObject({
+      rooms: z.array(z.strictObject({ name: z.string().nullable().optional() })).optional(),
+    });
+    const provenance = { rooms: "row" } as const;
+
+    test('a "row" group throws, naming the group and the granularity', () => {
+      const rowTarget: ExtractionTarget<z.infer<typeof rowPatch>, typeof provenance> = {
+        name: "row-target",
+        extractionSchema: enveloped(rowPatch, { provenance }),
+        instructions: "",
+        examples: [],
+      };
+      const chat = new OnDeviceChat({ languageModel: new FakeLanguageModel() });
+
+      expect(() => threePhaseExtractor({ target: rowTarget, chat })).toThrow(/"rooms"/);
+    });
+
+    test('a "none" group throws too — there is no span for phase 1 to ask for', () => {
+      const noneTarget: ExtractionTarget<z.infer<typeof rowPatch>, { rooms: "none" }> = {
+        name: "none-target",
+        extractionSchema: enveloped(rowPatch, { provenance: { rooms: "none" } }),
+        instructions: "",
+        examples: [],
+      };
+      const chat = new OnDeviceChat({ languageModel: new FakeLanguageModel() });
+
+      expect(() => threePhaseExtractor({ target: noneTarget, chat })).toThrow(/"rooms"/);
+    });
+
+    test("the default leaf derivation is untouched — it still constructs", () => {
+      const chat = new OnDeviceChat({ languageModel: new FakeLanguageModel() });
+
+      expect(() => threePhaseExtractor({ target, chat })).not.toThrow();
+    });
+  });
 });

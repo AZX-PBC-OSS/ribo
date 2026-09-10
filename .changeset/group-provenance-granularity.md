@@ -1,6 +1,7 @@
 ---
 "@azx/ribo-core": patch
 "@azx/ribo-extractor-openai": patch
+"@azx/ribo-extractor-ondevice": patch
 "@azx/ribo-ui-react": patch
 ---
 
@@ -33,6 +34,13 @@ silently collapsed the whole per-group split back to one call.
 `buildReviewRequest` and `useReview` take the same `provenance` map. A row group presents exactly as
 a leaf group does — every leaf its own `ReviewField` with its own verdict — except that the fields of
 one row share their row's citation, so `resolveReview` round-trips with no change.
+
+`threePhaseExtractor` (on-device) now refuses a coarser-provenance group at construction rather than
+after spending every other group's model calls. It is per-leaf provenance by construction — phase 1
+asks for one verbatim span per leaf — so a `"row"` or `"none"` group yielded no leaves and produced
+an empty object that only the closing `extractionSchema.parse()` rejected. Supporting row provenance
+there (one row span in phase 1, every leaf classified out of it) is a coherent design and is left
+undone deliberately: it is a different strategy, not a patch to this one.
 
 Also adds `spanGroundedness`, a three-tier version of `isSpanGrounded` surfaced as
 `ReviewField.groundedness`. `isGrounded` still means verbatim and is unchanged; the new middle tier
