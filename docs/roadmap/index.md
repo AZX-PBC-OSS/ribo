@@ -86,6 +86,19 @@ boundary. Deliberately its own CI step rather than a `./check.sh` stage (AGENTS.
 and writes outside the repo, but unlike the acceptance gate it needs no secret, so it still runs on
 every push rather than becoming a gate nobody runs.
 
+**Group provenance granularity** let a group declare the unit its citations are attached to, and
+derived the extraction schema from that declaration rather than from a second hand-written schema.
+`enveloped()` wrapped every leaf in `{ value, confidence, sourceSpan }`, which is right for a field
+a human verifies one at a time and wrong for a wide table: a Manual J `componentLoads` table of
+67 rows x 9 leaves cost 603 verbatim citations no reviewer will click, and partitioned across two
+calls to deliver them. A group may now declare `"row"` (plain leaves, one span per row) or `"none"`;
+`"leaf"` remains the default and is byte-for-byte unchanged, which the frozen Snugg fixture proves.
+The measured payoff is one call instead of two on a 15-leaf room set, with 14/14 verbatim row spans
+where per-cell citations were 37% fabricated. `splitExtractionSchema` now partitions on nullable
+unions rather than leaf count — the two units coincide exactly while every leaf is enveloped, so no
+existing partition boundary moved — because a leaf count would split a 15-leaf row group for no
+gain. → [design](design/group-provenance-granularity-design.md)
+
 ## What is next
 
 The post-Phase-4 work is organized as tasks **R1–R5** and **F1**, defined in a Voice-to-Text MVP
@@ -278,6 +291,13 @@ So nobody re-litigates it:
   contract gates.
 - [R1.5 — Field-Shape Contracts — Design](design/r1.5-field-shape-contracts-design.md) — the R1.5
   design: one declared values schema, a derived extraction schema, and leaf-path review.
+- [Group Provenance Granularity — Design](design/group-provenance-granularity-design.md) — R1.5's
+  derivation, extended so a group can choose the unit its citations attach to: `"leaf"` (unchanged,
+  and the default), `"row"` (plain leaves, one span per row) or `"none"`. Records why the per-call
+  cap had to start counting nullable unions rather than leaves, why the group/envelope test moved to
+  `isExtractedSchema`, why a row's citation is shared by its fields in review rather than getting a
+  node kind of its own, and the one open question — whether review should derive the granularity
+  instead of being handed it (§9).
 - [R2 — Headless Hook Layer — Design](design/r2-headless-hook-layer-design.md) — the R2 design: the
   review gate in the outbox state machine, pause/resume, and the six hooks plus provider that make
   `@azx/ribo-ui-react` real.

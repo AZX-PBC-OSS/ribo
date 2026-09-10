@@ -6,7 +6,7 @@
  * the response with that same schema and run the deterministic normalization pass
  * — before it becomes field data.
  *
- * **Everything here speaks `Enveloped<V>`, not `V`.** The type parameter is `V`,
+ * **Everything here speaks `Enveloped<V, P>`, not `V`.** The type parameter is `V`,
  * the adapter's plain-values type, because that is what names a target; but the
  * four things this file does with fields — constrain the model, parse the
  * response, imitate the example assistant turns, and normalize — are all the
@@ -28,7 +28,13 @@
 
 import { z } from "zod";
 
-import type { Enveloped, Extractor, ExtractionResult, ExtractionTarget } from "@azx/ribo-core";
+import type {
+  Enveloped,
+  Extractor,
+  ExtractionResult,
+  ExtractionTarget,
+  NoProvenance,
+} from "@azx/ribo-core";
 
 import type { ChatClient } from "./chat-client.js";
 import type { UsageTotals } from "./extraction-common.js";
@@ -42,9 +48,9 @@ import {
 } from "./extraction-common.js";
 
 /** Options for {@link singleShotExtractor}. */
-export interface SingleShotOptions<V extends Record<string, unknown>> {
+export interface SingleShotOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /** The field knowledge: `name`, `extractionSchema`, `instructions`, and few-shot `examples`. */
-  readonly target: ExtractionTarget<V>;
+  readonly target: ExtractionTarget<V, P>;
   /** The injected chat transport. A fake in tests; {@link openAiChat} in production. */
   readonly chat: ChatClient;
   /** The model id passed through to the endpoint (e.g. the Helix-routed model). */
@@ -60,13 +66,13 @@ export interface SingleShotOptions<V extends Record<string, unknown>> {
   readonly maxTokens?: number;
   /**
    * The deterministic, model-free pass run AFTER the schema parse — the second
-   * half of the trust boundary. It consumes and returns `Enveloped<V>` because it
+   * half of the trust boundary. It consumes and returns `Enveloped<V, P>` because it
    * runs on the model's output, before review: for the Snugg Pro adapter this is
    * `normalizeFields`, and what it does — clamp every envelope's `confidence` to
    * 0..1 — is only expressible on the enveloped shape. Defaults to identity so the
    * extractor stays generic; the Snugg wiring MUST pass `normalizeFields`.
    */
-  readonly normalize?: (fields: Enveloped<V>) => Enveloped<V>;
+  readonly normalize?: (fields: Enveloped<V, P>) => Enveloped<V, P>;
 }
 
 /**
@@ -94,13 +100,13 @@ export interface SingleShotOptions<V extends Record<string, unknown>> {
  * Steps 2 and 3 use the shared helpers in {@link file://./extraction-common.ts},
  * where the full reasoning behind each is documented.
  */
-export function singleShotExtractor<V extends Record<string, unknown>>({
+export function singleShotExtractor<V extends Record<string, unknown>, P = NoProvenance>({
   target,
   chat,
   model,
   maxTokens,
   normalize = (fields) => fields,
-}: SingleShotOptions<V>): Extractor<Enveloped<V>> {
+}: SingleShotOptions<V, P>): Extractor<Enveloped<V, P>> {
   const jsonSchema = z.toJSONSchema(target.extractionSchema, { target: "draft-2020-12" }) as Record<
     string,
     unknown
@@ -108,7 +114,7 @@ export function singleShotExtractor<V extends Record<string, unknown>>({
   const context = `singleShotExtractor: model response for "${target.name}"`;
 
   return {
-    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
+    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V, P>>> {
       const completion = await completeOrClassify(
         chat,
         {

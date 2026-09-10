@@ -64,6 +64,33 @@ export const extractedSchema = <T extends z.ZodType>(inner: T) =>
   });
 
 /**
+ * Is `schema` an object {@link extractedSchema} built — a leaf envelope, as opposed to a group of
+ * them or a plain-leaf row?
+ *
+ * Exists because the two shapes became genuinely ambiguous the day a group could declare `"row"`
+ * provenance. Before that, "every property is an object" separated a group from an envelope, since
+ * an envelope's `confidence` is a bare number; a row of plain leaves also has no object properties,
+ * so that test now calls a row an envelope and collapses the per-group split to a single call.
+ *
+ * Matched on the key set AND each key's kind, not on key names alone: the names are ordinary
+ * enough that a real field set could carry them (a row's own `sourceSpan` does), and matching the
+ * kinds is what tells an envelope from an impostor. It lives here rather than in the split because
+ * `extractedSchema` above is the shape being recognised — the predicate and the constructor have
+ * to change together, so they sit together.
+ */
+export const isExtractedSchema = (schema: z.ZodType): boolean => {
+  if (!(schema instanceof z.ZodObject)) return false;
+  const shape = schema.shape as Record<string, z.ZodType | undefined>;
+  const keys = Object.keys(shape);
+  if (keys.length !== 3) return false;
+  return (
+    shape.value instanceof z.ZodNullable &&
+    shape.confidence instanceof z.ZodNumber &&
+    shape.sourceSpan instanceof z.ZodNullable
+  );
+};
+
+/**
  * A value of type `T` carried with its provenance.
  *
  * Inferred from {@link extractedSchema} rather than hand-declared, so the schema stays the
@@ -94,4 +121,43 @@ export const isSpanGrounded = (span: string | null, transcript: string): boolean
   const quote = span.trimEnd();
   if (quote.length === 0) return false;
   return transcript.includes(quote);
+};
+
+/**
+ * How well a span is grounded, in three tiers rather than two.
+ *
+ *   - `"grounded"` — verbatim. Exactly {@link isSpanGrounded}.
+ *   - `"near-miss"` — the quote is in the document, differing only in case, whitespace runs or
+ *     quote characters.
+ *   - `"ungrounded"` — the text is not there. This is the tier worth interrupting a reviewer for.
+ *
+ * **Why the middle tier is not a nicety.** A document transcript is laid out, not spoken:
+ * `layoutPageText` pads columns so they align, so the transcript holds `"$       5,250.00"` while
+ * a model quoting that line reports `"$ 5,250.00"`. Two tiers report that as ungrounded — the
+ * same answer given for text the model invented — and a reviewer is sent hunting for a
+ * hallucination that never happened. Once a fabricated citation and a re-spaced one are
+ * indistinguishable, the flag stops meaning anything, which is the same way `confidence` failed.
+ *
+ * The extraction spike's scorer (`spikes/extraction-snuggpro/score.mjs`) draws this line already,
+ * and this is that rule. It draws two more that are deliberately NOT adopted here: a
+ * punctuation-insensitive match, and a "some 4-word fragment appears" match. Both are right for
+ * grading a corpus, where the question is whether the model found the answer. Neither is right for
+ * a review card, where the question is whether the auditor can check the quote against the
+ * document — and a paraphrase sharing four words cannot be checked that way.
+ *
+ * A `null` or blank span is `"ungrounded"`, never near: every string contains `""`, so a
+ * normalized `.includes` would call an empty span a near miss of everything.
+ */
+export type SpanGroundedness = "grounded" | "near-miss" | "ungrounded";
+
+/** Case-, whitespace- and quote-insensitive form, for the near-miss tier only. */
+const loosen = (text: string): string =>
+  text.toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
+
+export const spanGroundedness = (span: string | null, transcript: string): SpanGroundedness => {
+  if (isSpanGrounded(span, transcript)) return "grounded";
+  if (span === null) return "ungrounded";
+  const quote = loosen(span);
+  if (quote.length === 0) return "ungrounded";
+  return loosen(transcript).includes(quote) ? "near-miss" : "ungrounded";
 };

@@ -72,14 +72,73 @@ const isSupportedLeaf = (field: z.ZodType): boolean =>
   field instanceof z.ZodBoolean;
 
 /**
- * Envelope one field: a nested object recurses, an array recurses into its element, a supported
- * leaf is wrapped, anything else throws.
+ * The unit a group's provenance is attached to. Three values, and the whole point of the option is
+ * that the DERIVATION implements them — a hand-maintained mixed extraction schema already works
+ * today, and drifting from its patch is the defect `enveloped()` exists to make impossible.
+ *
+ *   - `"leaf"` — the default, and byte-for-byte what this module has always produced: every leaf
+ *     wrapped in `extractedSchema`, one `sourceSpan` per leaf.
+ *   - `"row"` — leaves are plain (`X.nullable()`: the envelope's `value` without its wrapper) and
+ *     ONE `sourceSpan` is added per row: the group object for a singleton group, each element for
+ *     a collection, and each element of any array nested inside one (a nested array is a repeated
+ *     record of its own, so it is its own row). A nested plain object belongs to the row it sits
+ *     in and gets no span of its own.
+ *   - `"none"` — plain leaves, no span anywhere.
+ *
+ * Two things are deliberately absent from a row. There is no `confidence`: the model is not asked
+ * for one, `provenance.ts` records that it carries no discriminating signal, and every key added
+ * is a key the model spends tokens on. And there is no per-leaf span — that is the measured reason
+ * this option exists. A row span is one line of the transcript, which a model can quote verbatim;
+ * a per-cell span is a fabrication risk (`claude-haiku-4-5` fabricated 37 % of per-cell citations
+ * on a Manual J and 0 % of row citations on the same document). The unit of citation was fighting
+ * the model, not only the token budget.
  */
-const envelopeField = (field: z.ZodType, path: string): z.ZodType => {
+export type ProvenanceGranularity = "leaf" | "row" | "none";
+
+/** The granularity values a caller may name, checked at runtime for a JS caller's sake. */
+const GRANULARITIES: readonly ProvenanceGranularity[] = ["leaf", "row", "none"];
+
+/**
+ * The key a row's citation is written under. Fixed rather than configurable: the split, review and
+ * every consumer have to agree on it, and one name for one thing beats a knob nobody would turn.
+ */
+export const ROW_SOURCE_SPAN_KEY = "sourceSpan";
+
+/**
+ * A per-group granularity declaration: top-level group key → granularity. A group absent from the
+ * map keeps `"leaf"`, which is what makes the option additive for every existing caller.
+ *
+ * Keyed by TOP-LEVEL group key only. That is the unit `splitExtractionSchema` partitions on and
+ * the unit review presents, so a granularity is a fact about a group rather than a third
+ * addressing scheme nothing else speaks.
+ */
+export type ProvenanceMap<T extends z.ZodObject> = Partial<
+  Record<keyof T["shape"] & string, ProvenanceGranularity>
+>;
+
+/** {@link enveloped}'s options. */
+export interface EnvelopedOptions<P> {
+  /** Per-group provenance granularity — see {@link ProvenanceGranularity}. */
+  readonly provenance?: P;
+}
+
+/**
+ * Envelope one field: a nested object recurses, an array recurses into its element, a supported
+ * leaf is wrapped — or left plain, under a non-`"leaf"` granularity — and anything else throws.
+ *
+ * `isRow` says whether an object reaching here is a row unit (the group object itself, or an array
+ * element) rather than a plain object nested inside one. Only a row unit gets a `sourceSpan`.
+ */
+const envelopeField = (
+  field: z.ZodType,
+  path: string,
+  granularity: ProvenanceGranularity,
+  isRow: boolean,
+): z.ZodType => {
   const stripped = stripOptionalNullable(field);
 
   if (stripped instanceof z.ZodObject) {
-    return envelopeObject(stripped, path);
+    return envelopeObject(stripped, path, granularity, isRow);
   }
 
   if (stripped instanceof z.ZodArray) {
@@ -88,14 +147,21 @@ const envelopeField = (field: z.ZodType, path: string): z.ZodType => {
     // and array indices do not exist until data arrives. `envelopeObject` will still build dotted
     // leaf paths like `hvac.systemType` from this parent.
     //
+    // The element IS a row — that is what an array element is — so `isRow` is true regardless of
+    // what it was at the array's own position. That is what gives a collection nested inside a row
+    // group its own citation instead of silently sharing its parent's.
+    //
     // zod 4's `ZodArray.element` is typed as the core `$ZodType`; every schema in this codebase is
     // built through the classic API, so the cast to `z.ZodType` is a narrowing that reflects the
     // actual runtime value, not a loss of checking.
-    return z.array(envelopeField(stripped.element as z.ZodType, path));
+    return z.array(envelopeField(stripped.element as z.ZodType, path, granularity, true));
   }
 
   if (isSupportedLeaf(stripped)) {
-    return extractedSchema(stripped);
+    // A plain leaf is the envelope's `value` without the envelope, and still nullable:
+    // `provenance.ts`'s anti-hallucination rule is about the model emitting an explicit `null`
+    // rather than omitting a key, and that rule does not depend on where the citation sits.
+    return granularity === "leaf" ? extractedSchema(stripped) : stripped.nullable();
   }
 
   throw new Error(
@@ -112,14 +178,76 @@ const envelopeField = (field: z.ZodType, path: string): z.ZodType => {
  * `obj` — rebuilding a zod object from a shape does NOT preserve the source's strictness (see
  * `enveloped.test.ts` / the task report for how this was confirmed), so every level must
  * re-declare `strict` explicitly or a patch's openness would leak into the extraction schema.
+ *
+ * Under `"row"` granularity a row unit gains one `sourceSpan`, appended AFTER the group's own
+ * leaves: strict structured output emits properties in schema order, so the model states the row's
+ * values and then quotes the line it read them off — the same value-then-citation order
+ * `extractedSchema` puts a leaf's own span in.
  */
-const envelopeObject = (obj: z.ZodObject, path: string): z.ZodObject => {
+const envelopeObject = (
+  obj: z.ZodObject,
+  path: string,
+  granularity: ProvenanceGranularity,
+  isRow: boolean,
+): z.ZodObject => {
   const shape = obj.shape;
   const enveloped: RawShape = {};
   for (const key of Object.keys(shape)) {
-    enveloped[key] = envelopeField(shape[key], childPath(path, key));
+    enveloped[key] = envelopeField(shape[key], childPath(path, key), granularity, false);
+  }
+  if (granularity === "row" && isRow) {
+    if (Object.hasOwn(enveloped, ROW_SOURCE_SPAN_KEY)) {
+      throw new Error(
+        `enveloped(): the row at "${path === "" ? "<root>" : path}" already declares a ` +
+          `"${ROW_SOURCE_SPAN_KEY}" field, so row provenance cannot add its own without ` +
+          "overwriting it. Rename the field, or give the group a different granularity.",
+      );
+    }
+    enveloped[ROW_SOURCE_SPAN_KEY] = z.string().nullable();
   }
   return z.strictObject(enveloped);
+};
+
+/**
+ * Refuse a granularity that cannot be honoured, naming the group.
+ *
+ * Both cases are otherwise SILENT. An unknown group key is a typo that leaves the group at
+ * `"leaf"` — a schema several times the size the caller asked for, and hundreds of citations
+ * nobody wanted, with nothing to say so. `"row"` on a top-level leaf has no row object to hang the
+ * span on, so the granularity would simply not happen.
+ */
+const validateProvenance = (
+  values: z.ZodObject,
+  provenance: Readonly<Record<string, ProvenanceGranularity>>,
+): void => {
+  const shape = values.shape;
+  for (const [key, granularity] of Object.entries(provenance)) {
+    if (!GRANULARITIES.includes(granularity)) {
+      throw new Error(
+        `enveloped(): unknown provenance granularity "${String(granularity)}" for group "${key}"` +
+          ` — expected one of ${GRANULARITIES.map((g) => `"${g}"`).join(", ")}.`,
+      );
+    }
+    if (!Object.hasOwn(shape, key)) {
+      throw new Error(
+        `enveloped(): provenance names group "${key}", which is not a top-level property of the ` +
+          `values schema. Its groups are: ${Object.keys(shape).join(", ")}.`,
+      );
+    }
+    if (granularity !== "row") continue;
+    const stripped = stripOptionalNullable(shape[key]!);
+    const candidate =
+      stripped instanceof z.ZodArray
+        ? stripOptionalNullable(stripped.element as z.ZodType)
+        : stripped;
+    if (!(candidate instanceof z.ZodObject)) {
+      throw new Error(
+        `enveloped(): "row" provenance on group "${key}" needs an object (or an array of them) ` +
+          'to hang the row\'s sourceSpan on, but that group is a leaf. Use "none" if the leaf ' +
+          "should carry no provenance.",
+      );
+    }
+  }
 };
 
 /**
@@ -140,16 +268,66 @@ type StripWrapper<X extends z.ZodType> =
  * and the task report's discrimination probe for why a bare `z.ZodObject` return would silently stop
  * type-checking every field.
  */
-type EnvelopedField<T extends z.ZodType> =
+type EnvelopedField<T extends z.ZodType, G extends ProvenanceGranularity, IsRow extends boolean> =
   StripWrapper<T> extends z.ZodObject<infer Inner extends RawShape>
-    ? z.ZodObject<EnvelopedShape<Inner>, z.core.$strict>
+    ? z.ZodObject<WithRowSpan<InheritedShape<Inner, G>, G, IsRow>, z.core.$strict>
     : StripWrapper<T> extends z.ZodArray<infer E extends z.ZodType>
-      ? z.ZodArray<EnvelopedField<E>>
-      : ReturnType<typeof extractedSchema<StripWrapper<T>>>;
+      ? z.ZodArray<EnvelopedField<E, G, true>>
+      : G extends "leaf"
+        ? ReturnType<typeof extractedSchema<StripWrapper<T>>>
+        : z.ZodNullable<StripWrapper<T>>;
 
-type EnvelopedShape<S extends RawShape> = {
-  [K in keyof S]: EnvelopedField<S[K]>;
+/**
+ * The mirror of {@link envelopeObject}'s row-span step: under `"row"` granularity a ROW UNIT gains
+ * one nullable string span, and no other object does.
+ *
+ * `IsRow` is the type-level copy of {@link envelopeField}'s parameter of the same name, and it has
+ * to be carried rather than assumed: the group object and every array element are rows, while a
+ * plain object nested inside one belongs to the row it sits in. A type that granted that nested
+ * object a span would describe a schema the runtime rejects as an extra key — a mismatch nothing
+ * else in the derivation would report, since the runtime is the half that is actually parsed.
+ */
+type WithRowSpan<
+  S extends RawShape,
+  G extends ProvenanceGranularity,
+  IsRow extends boolean,
+> = G extends "row" ? (IsRow extends true ? S & { sourceSpan: z.ZodNullable<z.ZodString> } : S) : S;
+
+/**
+ * Every field of a nested shape at its parent's granularity — granularity is per GROUP — and none
+ * of them a row: only an array element or the group object itself is, which is why those are the
+ * two places `true` is passed.
+ */
+type InheritedShape<S extends RawShape, G extends ProvenanceGranularity> = {
+  [K in keyof S]: EnvelopedField<S[K], G, false>;
 };
+
+/**
+ * The granularity declared for one top-level key, or `"leaf"` when the map does not name it.
+ *
+ * `NonNullable` is load-bearing: {@link ProvenanceMap} is `Partial`, so a map typed against it
+ * (rather than inferred from a literal) carries `| undefined` on every value, and a bare
+ * `P[K] extends ProvenanceGranularity` would read that union as "no" and silently collapse every
+ * declared group back to `"leaf"`.
+ */
+type GranularityOf<P, K extends PropertyKey> = K extends keyof P
+  ? NonNullable<P[K]> extends ProvenanceGranularity
+    ? NonNullable<P[K]>
+    : "leaf"
+  : "leaf";
+
+type EnvelopedShape<S extends RawShape, P> = {
+  [K in keyof S]: EnvelopedField<S[K], GranularityOf<P, K>, true>;
+};
+
+/**
+ * The default `P`: a map with no keys, so {@link GranularityOf} answers `"leaf"` for every group.
+ *
+ * `Record<never, ProvenanceGranularity>` rather than `Record<string, never>`, which looks
+ * equivalent and is not: the latter's `keyof` is `string`, so every key would match and resolve to
+ * `never`, which extends `ProvenanceGranularity` and would make the default granularity `never`.
+ */
+export type NoProvenance = Record<never, ProvenanceGranularity>;
 
 /**
  * Derive the extraction schema from a patch schema: every leaf wrapped in `extractedSchema`
@@ -164,10 +342,21 @@ type EnvelopedShape<S extends RawShape> = {
  * pinned byte-for-byte against a frozen JSON Schema fixture by that package's
  * `extraction-shape.test.ts`.
  */
-export const enveloped = <T extends z.ZodObject>(
+export const enveloped = <T extends z.ZodObject, const P extends ProvenanceMap<T> = NoProvenance>(
   values: T,
-): z.ZodObject<EnvelopedShape<T["shape"]>, z.core.$strict> =>
-  envelopeObject(values, "") as z.ZodObject<EnvelopedShape<T["shape"]>, z.core.$strict>;
+  options?: EnvelopedOptions<P>,
+): z.ZodObject<EnvelopedShape<T["shape"], P>, z.core.$strict> => {
+  const provenance = (options?.provenance ?? {}) as Readonly<Record<string, ProvenanceGranularity>>;
+  validateProvenance(values, provenance);
+  const shape = values.shape;
+  const derived: RawShape = {};
+  for (const key of Object.keys(shape)) {
+    // The group object itself is a row unit under `"row"`; a collection's array branch overrides
+    // this to per-element, which is why `isRow` is set here rather than only inside the walk.
+    derived[key] = envelopeField(shape[key], childPath("", key), provenance[key] ?? "leaf", true);
+  }
+  return z.strictObject(derived) as z.ZodObject<EnvelopedShape<T["shape"], P>, z.core.$strict>;
+};
 
 /**
  * The plain-value-space counterpart to {@link enveloped}: given the inferred type of a patch
@@ -216,10 +405,37 @@ export const enveloped = <T extends z.ZodObject>(
 /** The element type of a readonly or mutable array, used by {@link Enveloped}. */
 type ArrayElement<A> = A extends readonly (infer E)[] ? E : never;
 
-export type Enveloped<V> = {
-  readonly [K in keyof V]-?: [NonNullable<V[K]>] extends [readonly unknown[]]
-    ? Enveloped<ArrayElement<NonNullable<V[K]>>>[]
-    : [NonNullable<V[K]>] extends [object]
-      ? Enveloped<NonNullable<V[K]>>
-      : Extracted<NonNullable<V[K]>>;
+export type Enveloped<V, P = NoProvenance> = {
+  readonly [K in keyof V]-?: EnvelopedValue<NonNullable<V[K]>, GranularityOf<P, K>, true>;
 };
+
+/**
+ * One field of {@link Enveloped}, at its GROUP's granularity — the value-space mirror of
+ * {@link EnvelopedField}.
+ *
+ * Split out of `Enveloped` rather than left as a self-recursive branch of it because the two
+ * recursions are different: `Enveloped` looks a granularity up per top-level key, while everything
+ * below a group inherits that group's. A nested object that recursed back through `Enveloped`
+ * would re-look-up its own keys against the top-level map and, for a group whose leaf happened to
+ * share a top-level group's name, silently switch granularity mid-tree.
+ */
+type EnvelopedValue<X, G extends ProvenanceGranularity, IsRow extends boolean> = [X] extends [
+  readonly unknown[],
+]
+  ? EnvelopedValue<NonNullable<ArrayElement<X>>, G, true>[]
+  : [X] extends [object]
+    ? RowSpanned<
+        { readonly [K in keyof X]-?: EnvelopedValue<NonNullable<X[K]>, G, false> },
+        G,
+        IsRow
+      >
+    : G extends "leaf"
+      ? Extracted<X>
+      : X | null;
+
+/** {@link WithRowSpan} in value space, carrying the same `IsRow` for the same reason. */
+type RowSpanned<O, G extends ProvenanceGranularity, IsRow extends boolean> = G extends "row"
+  ? IsRow extends true
+    ? O & { readonly sourceSpan: string | null }
+    : O
+  : O;

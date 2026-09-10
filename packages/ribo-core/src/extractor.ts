@@ -1,4 +1,5 @@
 import type { ToolAdapter } from "./adapter.js";
+import type { NoProvenance } from "./enveloped.js";
 import type { SessionExtractStep, ExtractedFieldMap } from "./queue/relay.js";
 
 /**
@@ -116,9 +117,14 @@ export interface Extractor<F> {
  * (`Enveloped<V>`); the plain-values `schema` is the write side and is none of an extractor's
  * business. The type parameter is still `V`, the VALUES type, so a target and its adapter are
  * instantiated at the same argument.
+ *
+ * `P` carries the adapter's per-group provenance granularity for the same reason `V` is carried:
+ * `extractionSchema` and `examples` are both `Enveloped<V, P>`, so a target that dropped it would
+ * only be able to describe an all-`"leaf"` adapter. It defaults to none, so `ExtractionTarget<V>`
+ * still means what it always meant.
  */
-export type ExtractionTarget<V extends Record<string, unknown>> = Pick<
-  ToolAdapter<V, unknown>,
+export type ExtractionTarget<V extends Record<string, unknown>, P = NoProvenance> = Pick<
+  ToolAdapter<V, unknown, P>,
   "name" | "extractionSchema" | "instructions" | "examples"
 >;
 

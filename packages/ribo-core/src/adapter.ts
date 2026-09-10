@@ -1,6 +1,6 @@
 import type { core, ZodObject, ZodType } from "zod";
 
-import type { Enveloped } from "./enveloped.js";
+import type { Enveloped, NoProvenance } from "./enveloped.js";
 /**
  * Required-on-create declarations per group.
  *
@@ -169,8 +169,16 @@ export interface WriteMetadata {
  * parameters bivariantly, which would make a `ToolAdapter<V, {jobId, userId}>`
  * assignable where a `ToolAdapter<V, {jobId}>` is expected — reintroducing the
  * hole `C` exists to close. The property form gets strict contravariance.
+ *
+ * @typeParam P - the per-group provenance granularity this adapter's extraction schema was derived
+ * with (`enveloped(schema, { provenance })`), defaulting to none — every group at `"leaf"`, which
+ * is what every adapter written before the option had. It appears here because `extractionSchema`
+ * is `Enveloped<V, P>`: a group at `"row"` produces plain leaves and a row `sourceSpan`, which is
+ * not a `Enveloped<V>`, so without this parameter the only way to declare such an adapter would be
+ * a cast — and a cast at this boundary is precisely the schema drift the derivation exists to make
+ * impossible.
  */
-export interface ToolAdapter<V extends Record<string, unknown>, C> {
+export interface ToolAdapter<V extends Record<string, unknown>, C, P = NoProvenance> {
   /** Stable identifier for this adapter, e.g. `"snuggpro-attic-insulation"`. */
   readonly name: string;
   /**
@@ -188,7 +196,7 @@ export interface ToolAdapter<V extends Record<string, unknown>, C> {
    * every leaf enveloped. Build it with `enveloped(schema)` — see the note above
    * on why this is derived rather than declared.
    */
-  readonly extractionSchema: ZodType<Enveloped<V>>;
+  readonly extractionSchema: ZodType<Enveloped<V, P>>;
   /**
    * Parses `Recording.ctx` into the destination this adapter writes to.
    *
@@ -225,7 +233,7 @@ export interface ToolAdapter<V extends Record<string, unknown>, C> {
   readonly requiredOnCreate?: RequiredOnCreate;
   readonly instructions: string;
   /** Optional few-shot examples, in the enveloped shape the model emits. */
-  readonly examples?: readonly ToolAdapterExample<Enveloped<V>>[];
+  readonly examples?: readonly ToolAdapterExample<Enveloped<V, P>>[];
   /**
    * Writes accepted fields into the host tool. Rejects if the write fails.
    *

@@ -28,6 +28,7 @@ import type {
   Extractor,
   ExtractionResult,
   ExtractionTarget,
+  NoProvenance,
 } from "@azx/ribo-core";
 
 import type { ChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
@@ -42,7 +43,7 @@ import {
   parseWithSchema,
 } from "./extraction-common.js";
 import { mergeGroupPieces, partitionedLeafKeys } from "./per-group.js";
-import { MAX_ENVELOPED_LEAVES_PER_GROUP, splitExtractionSchema } from "./split-schema.js";
+import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 
 /** One candidate returned by the inventory pass. */
 export interface RosterCandidate {
@@ -78,9 +79,12 @@ export interface FillScope {
 }
 
 /** Options for {@link scopedInstanceExtractor}. */
-export interface ScopedFillOptions<V extends Record<string, unknown>> extends BackoffOptions {
+export interface ScopedFillOptions<
+  V extends Record<string, unknown>,
+  P = NoProvenance,
+> extends BackoffOptions {
   /** The field knowledge: name, extraction schema, instructions, and examples. */
-  readonly target: ExtractionTarget<V>;
+  readonly target: ExtractionTarget<V, P>;
   /** The injected chat transport. A fake in tests; a real client in production. */
   readonly chat: ChatClient;
   /** The model id passed through to the endpoint. */
@@ -91,7 +95,7 @@ export interface ScopedFillOptions<V extends Record<string, unknown>> extends Ba
    * The deterministic, model-free pass run AFTER the second trust-boundary parse.
    * Defaults to identity.
    */
-  readonly normalize?: (fields: Enveloped<V>) => Enveloped<V>;
+  readonly normalize?: (fields: Enveloped<V, P>) => Enveloped<V, P>;
   /**
    * Max concurrent fill calls. Defaults to 4. The inventory call is always serial
    * before any fill can fan out.
@@ -119,16 +123,20 @@ export interface ScopedFillOptions<V extends Record<string, unknown>> extends Ba
    */
   readonly instanceCap?: number;
   /**
-   * Max enveloped leaves per fill call before a group is partitioned across
+   * Max nullable unions per fill call before a group is partitioned across
    * multiple calls sharing its key, one per piece per instance
-   * ({@link splitExtractionSchema}'s `maxLeavesPerGroup`). Defaults to
-   * {@link MAX_ENVELOPED_LEAVES_PER_GROUP}, which is sized for the
-   * Anthropic-family nullable-union limit; a caller whose route is bound by a
-   * different limit (the pinned OpenAI-compatible route's is a byte cap)
-   * supplies its own number. Partitioning multiplies fill calls per instance,
-   * never the instance count — the roster and `instanceCap` are unaffected.
+   * ({@link splitExtractionSchema}'s `maxNullableUnionsPerGroup`). Defaults to
+   * {@link MAX_NULLABLE_UNIONS_PER_CALL}, the Anthropic-family limit; a caller
+   * whose route is bound by a different limit (the pinned OpenAI-compatible
+   * route's is a byte cap) supplies its own number. Partitioning multiplies fill
+   * calls per instance, never the instance count — the roster and `instanceCap`
+   * are unaffected.
+   *
+   * Counted in unions rather than enveloped leaves, so the number means the same
+   * thing whatever provenance granularity a group declared — see
+   * {@link PerGroupOptions.maxNullableUnionsPerGroup}.
    */
-  readonly maxLeavesPerGroup?: number;
+  readonly maxNullableUnionsPerGroup?: number;
 }
 
 /**
@@ -319,8 +327,8 @@ export function projectFillExample<F extends Record<string, unknown>>(
  * example's assistant turn is narrowed to the same leaf subset the piece's
  * `response_format` accepts — mirroring {@link buildGroupMessages}' `leafKeys`.
  */
-export function buildFillMessages<V extends Record<string, unknown>>(
-  target: ExtractionTarget<V>,
+export function buildFillMessages<V extends Record<string, unknown>, P = NoProvenance>(
+  target: ExtractionTarget<V, P>,
   groupKey: string,
   instanceIndex: number,
   scope: FillScope,
@@ -400,9 +408,9 @@ function singletonFillScope(groupKey: string): FillScope {
  *      overwriting the others' leaves.
  *   5. Second trust-boundary parse against the full `extractionSchema`, then normalize.
  */
-export function scopedInstanceExtractor<V extends Record<string, unknown>>(
-  options: ScopedFillOptions<V>,
-): Extractor<Enveloped<V>> {
+export function scopedInstanceExtractor<V extends Record<string, unknown>, P = NoProvenance>(
+  options: ScopedFillOptions<V, P>,
+): Extractor<Enveloped<V, P>> {
   const {
     target,
     chat,
@@ -420,7 +428,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
     inventory,
     buildFillInstructions,
     instanceCap = DEFAULT_INSTANCE_CAP,
-    maxLeavesPerGroup,
+    maxNullableUnionsPerGroup,
   } = options;
 
   const backoffOpts: BackoffOptions = {
@@ -429,13 +437,13 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
     random,
   };
 
-  // The leaf cap defaults to the same ceiling the per-group extractor applies,
+  // The union cap defaults to the same ceiling the per-group extractor applies,
   // for the same reason: an over-cap per-instance schema is rejected
   // provider-side, and tier 1 was the one strategy still sending every group
-  // whole. `maxLeavesPerGroup` lets a caller tune it to its route's real limit.
+  // whole. `maxNullableUnionsPerGroup` lets a caller tune it to its route's real limit.
   const groups = splitExtractionSchema(
     target.extractionSchema,
-    maxLeavesPerGroup ?? MAX_ENVELOPED_LEAVES_PER_GROUP,
+    maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL,
   );
   const prepared: readonly PreparedGroup[] = groups.map((group) => {
     let schema: z.ZodType;
@@ -487,7 +495,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>>(
   });
 
   return {
-    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
+    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V, P>>> {
       const roster = await inventory(transcript);
       let totalCalls = 1; // the inventory call
 

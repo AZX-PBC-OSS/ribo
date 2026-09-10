@@ -344,6 +344,36 @@ test("`ValuesSchema` accepts the shapes a real adapter declares — nested, stri
   expect(enveloped(schema).safeParse({}).success).toBe(false);
 });
 
+test("a row-provenance adapter types its derived extraction schema without a cast", () => {
+  const roomsSchema = z.object({
+    rooms: z.array(z.object({ name: z.string().nullable().optional() })).optional(),
+  });
+  type RoomFields = z.infer<typeof roomsSchema>;
+  const provenance = { rooms: "row" } as const;
+
+  // The point of the third parameter: `extractionSchema` is `enveloped(schema, ...)`'s real
+  // return type, so a granularity a caller declared has to be expressible on the adapter or the
+  // only way to satisfy it is a cast — which is exactly the drift `enveloped()` exists to stop.
+  const adapter: ToolAdapter<RoomFields, JobContext, typeof provenance> = {
+    name: "rooms",
+    schema: roomsSchema,
+    extractionSchema: enveloped(roomsSchema, { provenance }),
+    ctxSchema: jobContextSchema,
+    instructions: "Extract one row per room.",
+    examples: [
+      {
+        transcript: "the bathroom on level one",
+        fields: { rooms: [{ name: "L1.Bathrm", sourceSpan: "the bathroom on level one" }] },
+      },
+    ],
+    write: () => Promise.resolve({ uuid: "uuid-rooms" }),
+  };
+
+  expect(
+    adapter.extractionSchema.parse({ rooms: [{ name: "L1.Bathrm", sourceSpan: "bathroom" }] }),
+  ).toEqual({ rooms: [{ name: "L1.Bathrm", sourceSpan: "bathroom" }] });
+});
+
 test("an adapter declared for one context is not assignable to another", () => {
   interface OtherContext {
     assessmentId: string;

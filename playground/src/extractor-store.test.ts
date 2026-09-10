@@ -8,7 +8,7 @@ import {
 } from "@azx/ribo-core";
 import { ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 import {
-  MAX_ENVELOPED_LEAVES_PER_GROUP,
+  MAX_NULLABLE_UNIONS_PER_CALL,
   splitExtractionSchema,
   type ChatClient,
   type ChatCompletion,
@@ -68,15 +68,15 @@ const session: SessionItem = {
 };
 
 /**
- * The real per-group split, including leaf-count partitioning — the same list
+ * The real per-group split, including nullable-union partitioning — the same list
  * `perGroupExtractor` builds internally for the Snugg target (see
- * `ribo-extractor-openai/src/per-group.ts`). Every group whose leaves exceed
- * {@link MAX_ENVELOPED_LEAVES_PER_GROUP} is split into entries sharing one key;
+ * `ribo-extractor-openai/src/per-group.ts`). Every group carrying more nullable
+ * unions than {@link MAX_NULLABLE_UNIONS_PER_CALL} is split into entries sharing one key;
  * every other group is untouched. Building this here (rather than assuming
  * "one entry per group") is what keeps the fake's request naming and response
  * shaping honest as that split evolves.
  */
-const snuggPieces = splitExtractionSchema(snuggExtractionSchema, MAX_ENVELOPED_LEAVES_PER_GROUP);
+const snuggPieces = splitExtractionSchema(snuggExtractionSchema, MAX_NULLABLE_UNIONS_PER_CALL);
 
 /**
  * The `response_format.json_schema.name` `perGroupExtractor` sends for one

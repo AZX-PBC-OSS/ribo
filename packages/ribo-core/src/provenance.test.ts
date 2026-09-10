@@ -1,7 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
-import { extractedSchema, isSpanGrounded } from "./provenance.js";
+import {
+  extractedSchema,
+  isExtractedSchema,
+  isSpanGrounded,
+  spanGroundedness,
+} from "./provenance.js";
 
 const atticRValue = extractedSchema(z.number());
 
@@ -94,5 +99,72 @@ describe("isSpanGrounded", () => {
 
   test("is case sensitive — verbatim means verbatim", () => {
     expect(isSpanGrounded("attic is r-19", transcript)).toBe(false);
+  });
+});
+
+describe("spanGroundedness", () => {
+  const laidOut = "Item            Amount\nBlower door     $       5,250.00\n";
+
+  test("a verbatim quote is grounded", () => {
+    expect(spanGroundedness("$       5,250.00", laidOut)).toBe("grounded");
+  });
+
+  test("a column-padded quote the model collapsed is a near miss, not a fabrication", () => {
+    // `layoutPageText` pads columns to align them, so the transcript holds runs of spaces a
+    // model reasonably reports as one. The value IS in the document; reporting this as
+    // ungrounded sends a reviewer hunting for a hallucination that never happened.
+    expect(spanGroundedness("$ 5,250.00", laidOut)).toBe("near-miss");
+  });
+
+  test("case and curly quotes are near misses too", () => {
+    expect(spanGroundedness("BLOWER DOOR", laidOut)).toBe("near-miss");
+    expect(spanGroundedness("‘quoted’", "the 'quoted' word")).toBe("near-miss");
+  });
+
+  test("text that is not in the document at all is ungrounded", () => {
+    expect(spanGroundedness("$ 9,999.00", laidOut)).toBe("ungrounded");
+  });
+
+  test("a null or empty span is ungrounded, never near", () => {
+    // Every string contains "", so a normalized `.includes` would call an empty span a near
+    // miss of everything — the same vacuity `isSpanGrounded` guards against.
+    expect(spanGroundedness(null, laidOut)).toBe("ungrounded");
+    expect(spanGroundedness("", laidOut)).toBe("ungrounded");
+    expect(spanGroundedness("   ", laidOut)).toBe("ungrounded");
+  });
+
+  test("isSpanGrounded stays exactly the verbatim tier", () => {
+    // The boolean is unchanged and still means "verbatim": every existing caller keeps its
+    // meaning, and a near miss is a THIRD state a caller opts into, not a loosening of this one.
+    expect(isSpanGrounded("$ 5,250.00", laidOut)).toBe(false);
+    expect(isSpanGrounded("$       5,250.00", laidOut)).toBe(true);
+  });
+});
+
+describe("isExtractedSchema", () => {
+  test("recognises what extractedSchema builds, whatever the leaf type", () => {
+    expect(isExtractedSchema(extractedSchema(z.number()))).toBe(true);
+    expect(isExtractedSchema(extractedSchema(z.enum(["a", "b"])))).toBe(true);
+  });
+
+  test("rejects a group of envelopes — the shape the split has to tell it apart from", () => {
+    expect(isExtractedSchema(z.strictObject({ rValue: extractedSchema(z.number()) }))).toBe(false);
+  });
+
+  test("rejects a plain-leaf row, which carries a sourceSpan but no value/confidence pair", () => {
+    const row = z.strictObject({
+      name: z.string().nullable(),
+      sourceSpan: z.string().nullable(),
+    });
+    expect(isExtractedSchema(row)).toBe(false);
+  });
+
+  test("rejects an object carrying the three key names with the wrong shapes", () => {
+    const impostor = z.strictObject({
+      value: z.string(),
+      confidence: z.string(),
+      sourceSpan: z.string().nullable(),
+    });
+    expect(isExtractedSchema(impostor)).toBe(false);
   });
 });

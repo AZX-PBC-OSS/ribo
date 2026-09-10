@@ -17,7 +17,13 @@ import { z } from "zod";
 import { ChatError } from "@azx/ribo-extractor-openai";
 import type { ChatMessage, ChatRequest } from "@azx/ribo-extractor-openai";
 import { isSpanGrounded } from "@azx/ribo-core";
-import type { Enveloped, Extractor, ExtractionResult, ExtractionTarget } from "@azx/ribo-core";
+import type {
+  Enveloped,
+  Extractor,
+  ExtractionResult,
+  ExtractionTarget,
+  NoProvenance,
+} from "@azx/ribo-core";
 
 // Typed against the seam, not against `OnDeviceChat` itself. This extractor only ever
 // calls `complete()` and reads `engine`, so demanding the concrete class would couple it
@@ -51,9 +57,9 @@ interface Group {
   readonly isArray: boolean;
 }
 
-export interface ThreePhaseExtractorOptions<V extends Record<string, unknown>> {
+export interface ThreePhaseExtractorOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /** The field knowledge: the extraction schema drives all three phases. */
-  readonly target: ExtractionTarget<V>;
+  readonly target: ExtractionTarget<V, P>;
   /** The on-device chat transport. */
   readonly chat: CapableChatClient;
   /** Max retries per model call. Defaults to {@link DEFAULT_MAX_RETRIES}. */
@@ -68,9 +74,9 @@ export interface ThreePhaseExtractorOptions<V extends Record<string, unknown>> {
  * grounded quote into the leaf's value. Leaves whose phase-1 span is not a
  * verbatim substring of the transcript are dropped unconditionally.
  */
-export function threePhaseExtractor<V extends Record<string, unknown>>(
-  options: ThreePhaseExtractorOptions<V>,
-): Extractor<Enveloped<V>> {
+export function threePhaseExtractor<V extends Record<string, unknown>, P = NoProvenance>(
+  options: ThreePhaseExtractorOptions<V, P>,
+): Extractor<Enveloped<V, P>> {
   const { target, chat, maxRetries = DEFAULT_MAX_RETRIES } = options;
   const schema = z.toJSONSchema(target.extractionSchema, { target: "draft-2020-12" }) as JsonSchema;
   const groups = extractGroups(schema);
@@ -81,7 +87,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>>(
   const model = chat.engine;
 
   return {
-    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
+    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V, P>>> {
       // A group's value is either the flat leaf-envelope map itself (an object-shaped
       // group) or that same map wrapped in a one-element array (an array-shaped, R1.6
       // instance-modeled group — see `Group.isArray`). Every group's leaves are always
@@ -168,7 +174,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>>(
 
       const parsed = target.extractionSchema.parse(result);
       return {
-        fields: parsed as Enveloped<V>,
+        fields: parsed as Enveloped<V, P>,
         usage: { calls: totalCalls, engine: chat.engine },
       };
     },
@@ -204,7 +210,28 @@ function extractGroups(schema: JsonSchema): Group[] {
     for (const [leafKey, leafEnvelopeValue] of Object.entries(leafProperties)) {
       if (!isSchemaNode(leafEnvelopeValue)) continue;
       const valueProperties = leafEnvelopeValue["properties"];
-      if (!isSchemaNode(valueProperties)) continue;
+      // A property with NO `properties` of its own is a plain leaf — the shape `enveloped()`
+      // produces for a group that declared `"row"` or `"none"` provenance, plus the row's own
+      // `sourceSpan`. This strategy cannot work with one: phase 1 asks for a verbatim span PER
+      // LEAF and phase 2 classifies that leaf's value out of that span, so a group with no
+      // per-leaf envelopes yields no leaves, gets asked about nothing, and emits an empty object
+      // that only the closing `extractionSchema.parse()` rejects — after every OTHER group's
+      // model calls have already been spent. Refusing here makes it a wiring error the caller
+      // sees before the first call.
+      //
+      // This is a refusal, not a gap to fill in passing: phase 1 asking for one ROW span and
+      // phase 2 classifying every leaf out of it is a coherent design, and probably a good one
+      // given the measurement that motivated row provenance, but it is a different strategy
+      // rather than a patch to this one.
+      if (!isSchemaNode(valueProperties)) {
+        throw new Error(
+          `threePhaseExtractor: group "${groupKey}" has a plain leaf "${leafKey}", so it was ` +
+            'derived at "row" or "none" provenance granularity. This strategy needs a ' +
+            "per-leaf provenance envelope on every leaf — it asks for one verbatim span per " +
+            `leaf — so it cannot extract "${groupKey}". Derive that group at "leaf" ` +
+            "granularity, or use a strategy that speaks row provenance.",
+        );
+      }
       const valueSchemaValue = valueProperties["value"];
       if (!isSchemaNode(valueSchemaValue)) continue;
       leaves.push({
