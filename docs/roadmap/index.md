@@ -130,6 +130,16 @@ review hook. R1, R1.5 and R2 are all done; the rest proceed in dependency order:
 3. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
    Includes the `.npmrc` registry config, `publishConfig.access` change, and release-workflow
    activation. Nothing is published today.
+   **Blocker to clear before the first publish: the nine package READMEs link to the docs with
+   repo-relative paths** (`../../docs/guide/*.md`). Those resolve on the forge and are correct
+   there today — a deliberate choice, since no deployed docs origin exists to point at yet — but
+   a published README is rendered from the tarball root, where `../../docs` does not exist, so
+   every one of those links 404s on npm. Decide at publish time: rewrite them to absolute
+   `github.com/AZX-PBC-OSS/ribo/blob/main/docs/...` URLs (works everywhere, no dependency on a
+   docs deploy), or to the docs site's own URLs if one is live by then. Roughly 20 links across
+   nine files; `pnpm docs:build` does **not** check them, so whichever is chosen needs a manual
+   pass. Surfaced by the docs repositioning pass (see
+   [design](design/docs-repositioning-design.md)).
 4. **R5 — correct the docs the newer decisions falsify.** Doc 10 §3.1's Vite-library-mode mandate and
    doc 04's styled-components design are superseded by the tsdown-for-all and headless-hook-layer
    decisions; R5 rewrites them (and finishes what R1.5 left it: doc 04's `ReviewCard` example and the
