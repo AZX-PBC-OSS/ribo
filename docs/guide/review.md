@@ -143,3 +143,6 @@ instance, the answer is always create: the safe default never silently overwrite
 
 [Write-back](/guide/write-back) covers what happens to a `ReviewOutcome` once it reaches `writing` —
 the trust boundary a reviewed patch is parsed through before anything reaches a host tool.
+
+[React Hooks](/guide/react) covers `useReview`, the hook a React host consumes this contract
+through — `ReviewRequest` in, `ReviewOutcome` out, with the same `resolveReview` rules underneath.

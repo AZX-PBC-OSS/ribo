@@ -500,8 +500,8 @@ Checklist:
   - `@azx/tsconfig/base.json` — environment-free (no DOM, no `types`). For code that must not
     assume a runtime at all.
   - `@azx/tsconfig/browser-library.json` — adds `DOM` + `DOM.Iterable`, no JSX. **The default for
-    engine and adapter packages**; `ribo-core` and `ribo-adapter-snuggpro` both use it. Headless
-    is enforced by ESLint, not by `lib` (§4).
+    engine and adapter packages**; most packages in the workspace extend it, `ribo-core` and
+    `ribo-adapter-snuggpro` among them. Headless is enforced by ESLint, not by `lib` (§4).
   - `@azx/tsconfig/react-library.json` — `browser-library.json` plus `"jsx": "react-jsx"`. For
     packages that render (`ribo-ui-react`, and the playground's app config).
 - **Add the `"typecheck"` script** (`tsc --noEmit`). `pnpm -r --parallel typecheck` only runs in

@@ -104,8 +104,8 @@ there like every other tool in this comparison.
 
 **A figure exists for several of them — but none of the parser vendors published it themselves.**
 RealDocBench, an academic benchmark for field-level QA on regulated documents, measured per-field
-accuracy for multiple parsers on the same track: LlamaParse and Reducto's agentic mode came in
-around 89–90%, Docling around 71.2% (see [RealDocBench](https://arxiv.org/pdf/2606.07401)). The
+accuracy for multiple parsers on the same track: LlamaParse and Reducto came in around 89–90%,
+Docling around 71.2% (see [RealDocBench](https://arxiv.org/pdf/2606.07401)). The
 disclosure this page's own standard requires: RealDocBench is authored by Extend — one of the
 Document-AI platforms named in this comparison, whose own system tops that same leaderboard — a
 stated conflict, not a hidden one, alongside a published methodology. Neither Docling nor LlamaParse (nor
@@ -210,10 +210,15 @@ which Ribo is not yet, and none of them carry a queue, a review contract, or a w
 maintain — because none of them attempt one. What they validate is shape and type; none of them
 check a claimed citation against source text, because none of them ask the model for one.
 
-None of them ship an offline or on-device story out of the box either — the matrix marks "runs
-fully offline" and "data need never leave the device" 🚫 for this column, not 🟡, because pointing
-one at a locally-hosted model is a real build, the same kind of build Ribo's own on-device engines
-are, and this page doesn't credit a competitor for work nobody has done yet.
+Both offline rows are conjunctive — they ask about transcription _and_ extraction together — and
+that is where these libraries still fall short, not on the transcription half. As the loader section
+below details, `langchain_community` does ship optional local parsers for both scanned pages and
+audio, wired in the same way Ribo's own swappable engines are. But none of these libraries ship a
+local extraction path the same way: `Instructor`, LangChain and LlamaIndex's extraction helpers all
+wrap whatever LLM client the team configures, and pointing that client at a locally-hosted model is
+a real, unshipped build — the same kind of build Ribo's own on-device engines already did. So "runs
+fully offline" and "data need never leave the device" stay 🚫 for this column: the transcription half
+clears the loader bar below, but the extraction half doesn't, and the row asks for both.
 
 **They don't parse scans themselves, but they can call something that does.** LangChain ships an
 optional `UnstructuredPDFLoader` (`strategy="ocr_only"`) and an `UnstructuredImageLoader`, both of
