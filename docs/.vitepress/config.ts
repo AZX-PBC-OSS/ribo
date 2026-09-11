@@ -77,6 +77,7 @@ export default defineConfig({
             { text: "Review", link: "/guide/review" },
             { text: "Write-back", link: "/guide/write-back" },
             { text: "Offline & the Outbox", link: "/guide/offline-and-the-outbox" },
+            { text: "React Hooks", link: "/guide/react" },
           ],
         },
       ],
