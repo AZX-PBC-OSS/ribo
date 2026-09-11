@@ -28,10 +28,17 @@ or otherwise · n/a not a meaningful question for that category. **Evaluated as 
 vendor products move; where a cell below is load-bearing, the prose after the table names a version,
 a date, or links the vendor's own documentation rather than asserting it here.
 
+A category column (Document parsers / Document-AI platforms / DIY orchestration) is not one
+product: its cell reads ✅ or 🟡 if **at least one** named member does the row, not that every
+member does — the prose beneath the table says which member backs which cell. And a DIY-
+orchestration cell reflects what the library ships out of the box, not what a team could build on
+top of it — crediting hypothetical builds would make almost every row buildable, and Ribo's own
+rows above are held to what it does today, not what could be added to it.
+
 |                                                    | Ribo | Document parsers | Document-AI platforms | DIY orchestration |
 | -------------------------------------------------- | :--: | :--------------: | :-------------------: | :---------------: |
 | Parses scanned, rotated or handwritten pages       |  🚫  |        ✅        |          ✅           |        🟡         |
-| Ingests audio dictation                            |  ✅  |        🚫        |          🚫           |        🚫         |
+| Ingests audio dictation                            |  ✅  |        🟡        |          🚫           |        🚫         |
 | One extraction across mixed sources at once        |  ✅  |        🚫        |          🚫           |        🚫         |
 | Target schema past a few hundred fields, one job   |  ✅  |        🚫        |          🟡           |        🚫         |
 | Provenance checked against source, not self-report |  ✅  |        🟡        |          🟡           |        🚫         |
@@ -41,8 +48,8 @@ a date, or links the vendor's own documentation rather than asserting it here.
 | Managed batch throughput                           |  🚫  |        🟡        |          ✅           |        🚫         |
 | Zero-ops hosting                                   |  🚫  |        🟡        |          ✅           |        🚫         |
 | Capture, queue and review survive with no network  |  ✅  |        🚫        |          🚫           |        🚫         |
-| Transcription and extraction run fully offline     |  🟡  |        🟡        |          🚫           |        🟡         |
-| Data need never leave the device                   |  ✅  |        🟡        |          🚫           |        🟡         |
+| Transcription and extraction run fully offline     |  🟡  |        🟡        |          🚫           |        🚫         |
+| Data need never leave the device                   |  ✅  |        🟡        |          🟡           |        🚫         |
 | Runs in a browser with no server                   |  ✅  |        🚫        |          🚫           |        🟡         |
 | Durable queue, survives reload and offline         |  ✅  |        🚫        |          🚫           |        🚫         |
 | Writes back into a system of record                |  ✅  |        🚫        |          🟡           |        🚫         |
@@ -51,12 +58,16 @@ a date, or links the vendor's own documentation rather than asserting it here.
 Read the last row as the point of the whole table: for Ribo the parser is a dependency you choose,
 and **Docling or Mistral can be that choice**.
 
-**Document parsers**: Docling, Mistral Document AI.
+**Document parsers**: Docling, Mistral Document AI, LlamaParse, and Unstructured. Parsing — turning a
+file into text, layout, or discrete elements — is the core job all four share; where one goes
+further (Mistral's schema-driven annotation, Unstructured's audio partitioner), the per-row prose
+below says which.
 
-**Document-AI platforms**: Reducto, LandingAI ADE, Extend, Unstructured, LlamaParse, and the cloud
+**Document-AI platforms**: Reducto, LandingAI ADE, Extend, LlamaIndex's LlamaExtract, and the cloud
 trio — Azure AI Document Intelligence, Google Document AI, AWS Textract. Azure is worth naming on
 its own: this repo already sits beside Azure AI Speech for transcription, so leaving Azure Document
-Intelligence out of this table would read as avoidance rather than scope.
+Intelligence out of this table would read as avoidance rather than scope. (LlamaParse and
+Unstructured sit with the parsers above, not here — see below for why.)
 
 **DIY orchestration**: Instructor, and LangChain's or LlamaIndex's extraction chains. This is what
 "call a structured-output API yourself" actually looks like on a team that knows what it's doing —
@@ -81,22 +92,39 @@ hence 🟡 rather than 🚫 on that row. The differences are that the schema sti
 request, and that a bounding box tells you _where the model looked_, not that the quote it returned
 is actually present in the source text. Those are real distinctions, not large ones.
 
+**LlamaParse and Unstructured stay parsers too.** LlamaParse turns a file into clean, structured
+markdown for a downstream pipeline to consume; recent versions accept a target output shape, but
+that is about consistent formatting across a corpus, not a hundreds-of-fields schema with a
+citation-checked value per leaf. Unstructured partitions a file — or, via its `partition_audio` step,
+a recording — into typed elements (`Title`, `NarrativeText`, and so on) for a RAG pipeline to chunk
+and embed. That audio step is why "ingests audio dictation" reads 🟡 rather than 🚫 for this
+category, but the transcript it produces never joins a document inside one schema-driven extraction —
+which is what "one extraction across mixed sources at once" actually asks, and both of them are 🚫
+there like every other tool in this comparison.
+
 ### The rows Ribo loses to a document-AI platform
 
 This is the category that contests Ribo's actual claims, and it is the one an earlier version of
 this page omitted entirely.
 
 **They publish an accuracy number. Ribo doesn't.** Reducto's Deep Extract reports 99.6% precision,
-99.6% recall and 99.3% leaf accuracy on an independent 225-document benchmark (see
+99.6% recall and 99.3% leaf accuracy on a 225-document benchmark run by micro1, an outside
+evaluator, and published in Reducto's own writeup of the results (see
 [Reducto's benchmark writeup](https://reducto.ai/blog/reducto-leads-benchmark-complex-document-extraction)).
 LandingAI and Extend publish their own numbers on their own document sets. This is the row an
 evaluator most wants, and Ribo's honest answer is 🚫 — see
 ["What is not measured"](#what-is-not-measured) below.
 
-**They are a hosted service you can point volume at.** No queue to run, no concurrency pool to
-size, no fallback ladder to write. That is a genuine cost of Ribo's shape, not just a virtue of it —
-"no capacity to authenticate" (below) means the host has to supply that credentialed transport
-itself, where a platform's answer is "send us the document."
+**They are a hosted service you can point volume at — usually.** No queue to run, no concurrency
+pool to size, no fallback ladder to write. That is a genuine cost of Ribo's shape, not just a virtue
+of it — "no capacity to authenticate" (below) means the host has to supply that credentialed
+transport itself, where a platform's answer is "send us the document." But "hosted" isn't universal
+in this category either: Azure Document Intelligence ships containers for its Read, Layout and
+custom-model endpoints, and Reducto, LandingAI and Extend all advertise VPC or on-prem enterprise
+tiers on top of their default hosted offering. Self-hosting one of these is available, at the same
+ops cost Ribo imposes by default — which is why "data need never leave the device" reads 🟡, not 🚫,
+for this category; most customers use the hosted default, but the option exists for the ones who
+can't.
 
 **Several already do citations.** Reducto's extraction API anchors each field to a source-text
 region and ships a confidence-plus-grounding wrapper per value (see
@@ -104,6 +132,9 @@ region and ships a confidence-plus-grounding wrapper per value (see
 Gen2 release ties every extracted value to the span it was read from and flags values the model
 inferred rather than copied (see
 [LandingAI's Gen2 announcement](https://landing.ai/blog/introducing-agentic-document-extraction-gen2)).
+LlamaExtract, LlamaIndex's dedicated extraction product (distinct from the LlamaParse listed under
+parsers above), returns a citation and the model's stated reasoning for every extracted field when
+`cite_sources` is turned on.
 Whether every vendor's citation is checked against the source text the way `isSpanGrounded` checks
 one, rather than only self-reported by the model that produced it, is not published for most of
 them — which is why the matrix row above reads 🟡, not ✅, for this whole category. Azure AI
@@ -115,8 +146,9 @@ closer to Ribo's `confidence` than to its `sourceSpan` check.
 
 **Review, where it exists, is a screen — not a gate that Ribo's is proven to be.** Several of these
 platforms ship a review UI. Whether submission there is blocked until every field carries an
-explicit decision, the way `buildReviewRequest` blocks it, isn't published for most of them, so the
-matrix marks this 🟡 rather than claim parity either way.
+explicit decision — the way `resolveReview` blocks it here, via `completenessIssues` throwing a
+`ReviewValidationError` for any leaf with none — isn't published for most of them, so the matrix
+marks this 🟡 rather than claim parity either way.
 
 ### The rows Ribo loses to DIY orchestration
 
@@ -127,6 +159,11 @@ extraction helpers do the same job with a different ergonomic. All three are **i
 which Ribo is not yet, and none of them carry a queue, a review contract, or a write-back step to
 maintain — because none of them attempt one. What they validate is shape and type; none of them
 check a claimed citation against source text, because none of them ask the model for one.
+
+None of them ship an offline or on-device story out of the box either — the matrix marks "runs
+fully offline" and "data need never leave the device" 🚫 for this column, not 🟡, because pointing
+one at a locally-hosted model is a real build, the same kind of build Ribo's own on-device engines
+are, and this page doesn't credit a competitor for work nobody has done yet.
 
 ## The differences that are hard to reproduce
 
@@ -143,7 +180,8 @@ enveloping a leaf replaces its one key with a `{ value, confidence, sourceSpan }
 `value`, `confidence`, and `sourceSpan`.
 
 A separate, larger snapshot shows how bad the ceiling gets. Walking every field the same API can
-_return_ — a superset that includes read-only rollups, not just what's writable — a snapshot taken
+_return_ — a different surface from what Ribo writes, spanning every read-only rollup and computed
+total the API exposes rather than just what the write endpoints accept — a snapshot taken
 2026-08-06 counted **1,326 leaves**, which envelope to **~5,360 properties against a documented
 5,000-property structured-output ceiling** and **~1,490 enum values against a 1,000-value ceiling** —
 over both at once, before any question of extraction quality arises. That snapshot is illustrative
@@ -216,7 +254,9 @@ to be present from the first commit, and retrofitting it means rewriting the pip
 
 A session joins several captures — an invoice PDF, a load-calculation report, the reviewer's
 dictation — into one transcript with per-capture attribution, and extracts across all of them at
-once. No parser accepts dictation. No speech API accepts a PDF.
+once. No document parser or document-AI platform above accepts dictation as an input (Unstructured's
+own audio partitioner is the one exception, and even it only produces a separate transcript, never
+one joined to a document); no speech API accepts a PDF.
 
 ### 6. Engine selection from a measurement
 
