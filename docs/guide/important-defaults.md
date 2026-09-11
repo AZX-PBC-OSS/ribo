@@ -19,10 +19,11 @@ past a parked session, every recording behind it would stall too, and a reload m
 the wait entirely. Persisting the parked state, rather than awaiting a promise, is what lets review
 survive the tab closing.
 
-**The only way out is `Outbox.submitSessionReview`.** Nothing else advances a parked session — not
-a retry, not a reload, not time passing. If a session's status needs to move back to
-`awaiting-review` from `done` or `dead` (the auditor wants to correct something already written, or
-already given up on), `Outbox.reopenSessionForReview` is the way back in.
+**The only way out is [`Outbox.submitSessionReview`](/guide/review).** Nothing else advances a
+parked session — not a retry, not a reload, not time passing. If a session's status needs to move
+back to `awaiting-review` from `done` or `dead` (the auditor wants to correct something already
+written, or already given up on), [`Outbox.reopenSessionForReview`](/guide/review) is the way back
+in.
 
 **The symptom if you don't know this:** you watch the outbox, a session reaches `awaiting-review`,
 and then nothing happens — no error, no retry, no write. It looks exactly like the pipeline hung.

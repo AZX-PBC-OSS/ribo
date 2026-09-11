@@ -76,6 +76,8 @@ export default defineConfig({
             { text: "Sessions", link: "/guide/sessions" },
             { text: "Extraction", link: "/guide/extraction" },
             { text: "Arbitration & Fallback", link: "/guide/arbitration" },
+            { text: "Review", link: "/guide/review" },
+            { text: "Write-back", link: "/guide/write-back" },
           ],
         },
       ],

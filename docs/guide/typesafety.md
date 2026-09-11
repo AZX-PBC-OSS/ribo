@@ -62,7 +62,8 @@ granularity a group is derived with, it's still one call, one schema, no second 
 
 Once extraction produces a result, review needs to show a human every leaf, one at a time, with the
 right editor and the right validation for that leaf specifically — not one editor for the whole
-object. `buildReviewRequest` turns the values schema plus an extraction into exactly that: a flat map
+object. [`buildReviewRequest`](/guide/review) turns the values schema plus an extraction into exactly
+that: a flat map
 of dotted paths (`health.healthGasLeak`, `hvac[k1].hvacSystemEquipmentType` for a collection
 instance) to a `ReviewField`, each one holding its own `schema: z.ZodType<unknown>` — the _declared_
 type of that leaf, taken straight from the values schema you wrote, not the extraction schema and
@@ -79,7 +80,8 @@ const request = buildReviewRequest(extractedValues, transcript, contactSchema);
 
 This is what lets a review UI be generic: it renders a `ReviewField` by asking `field.schema` what
 kind of editor to show, and it validates an edit by calling `field.schema.parse(...)` — without
-importing a single line from any `ToolAdapter`. A text leaf, a number leaf and an enum leaf each
+importing a single line from any [`ToolAdapter`](/guide/write-back). A text leaf, a number leaf and
+an enum leaf each
 render themselves off their own schema; the UI never special-cases a tool's name or shape.
 
 ## Why `ToolAdapter` carries two field-shape parameters, not one
@@ -130,5 +132,5 @@ cast-free.
 ## Next
 
 [Important Defaults](/guide/important-defaults) covers the behavior these types make possible —
-what the review gate does with a `ReviewField`, and what governs the granularity `enveloped()`
-derives with.
+what the [review gate](/guide/review) does with a `ReviewField`, and what governs the granularity
+`enveloped()` derives with.

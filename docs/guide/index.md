@@ -11,14 +11,14 @@ carries a quote from the source that Ribo has verified is actually there.
 
 Six stages. Each one is an interface you can replace.
 
-| Stage          | What happens                                                                | The seam            |
-| -------------- | --------------------------------------------------------------------------- | ------------------- |
-| **Capture**    | A recording, a PDF, or a document arrives as a `CaptureItem`                | —                   |
-| **Transcribe** | The capture becomes citable text                                            | `Transcriber`       |
-| **Session**    | One or more captures are joined into a single transcript                    | —                   |
-| **Extract**    | The transcript becomes fields, against a target schema too big for one call | `Extractor`         |
-| **Review**     | A human accepts or corrects each field, with its source quote in view       | the review contract |
-| **Write**      | The accepted values are written to the host system                          | `ToolAdapter`       |
+| Stage          | What happens                                                                | The seam                             |
+| -------------- | --------------------------------------------------------------------------- | ------------------------------------ |
+| **Capture**    | A recording, a PDF, or a document arrives as a `CaptureItem`                | —                                    |
+| **Transcribe** | The capture becomes citable text                                            | `Transcriber`                        |
+| **Session**    | One or more captures are joined into a single transcript                    | —                                    |
+| **Extract**    | The transcript becomes fields, against a target schema too big for one call | `Extractor`                          |
+| **Review**     | A human accepts or corrects each field, with its source quote in view       | [the review contract](/guide/review) |
+| **Write**      | The accepted values are written to the host system                          | [`ToolAdapter`](/guide/write-back)   |
 
 The pipeline splits cleanly in the middle, and the split is the point. **Capture and transcription
 know what a microphone is. Everything downstream does not.** A session's transcript is just text
@@ -40,10 +40,11 @@ sourceSpan }`, and `isSpanGrounded` checks the span against the source text. A m
 citation gets caught by string comparison. This is a categorically different guarantee from a
 confidence score, which is the model grading its own work.
 
-**Review is a contract, not a screen.** `buildReviewRequest` turns an extraction into a flat list of
-leaf paths, each carrying its own schema — so a review UI renders and validates itself from the
-schema and imports nothing tool-specific. A session parks at `awaiting-review` and only an explicit
-submission moves it forward.
+**Review is a contract, not a screen.** [`buildReviewRequest`](/guide/review) turns an extraction
+into a flat list of leaf paths, each carrying its own schema — so a review UI renders and validates
+itself from the schema and imports nothing tool-specific. A session parks at `awaiting-review` and
+only an explicit submission moves it forward. See [Review](/guide/review) and
+[Write-back](/guide/write-back) for the full contract on both sides of that gate.
 
 ## What it is not
 
