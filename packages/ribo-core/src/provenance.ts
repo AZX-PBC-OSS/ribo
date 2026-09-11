@@ -178,11 +178,15 @@ function decodeHtmlEntities(text: string): string {
       })
       .replace(/&#(\d+);/g, (entity, decimal) => {
         const code = parseInt(decimal, 10);
-        return Number.isNaN(code) || code < 0 || code > 0x10ffff ? entity : String.fromCodePoint(code);
+        return Number.isNaN(code) || code < 0 || code > 0x10ffff
+          ? entity
+          : String.fromCodePoint(code);
       })
       .replace(/&#x([0-9a-f]+);/gi, (entity, hex) => {
         const code = parseInt(hex, 16);
-        return Number.isNaN(code) || code < 0 || code > 0x10ffff ? entity : String.fromCodePoint(code);
+        return Number.isNaN(code) || code < 0 || code > 0x10ffff
+          ? entity
+          : String.fromCodePoint(code);
       })
   );
 }
