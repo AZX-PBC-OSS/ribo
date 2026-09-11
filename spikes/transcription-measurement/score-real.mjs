@@ -10,6 +10,8 @@
  *
  * Usage:
  *   node spikes/transcription-measurement/run-real-ondevice.mjs      # writes _raw/ondevice.json
+ *                                                                  # (defaults to the on-device
+ *                                                                  #  package's DEFAULT_MODEL_ID)
  *   node spikes/transcription-measurement/transcribe-managed-real.mjs # writes _raw/managed.json
  *   node spikes/transcription-measurement/score-real.mjs             # this script
  */
