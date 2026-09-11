@@ -14,6 +14,7 @@ import { isActiveStatus } from "./schema.js";
 import type { OutboxItem, OutboxPatch } from "./schema.js";
 import type { SessionItem, SessionPatch } from "./session-schema.js";
 import { joinSessionTranscript } from "./session-extract.js";
+import type { JoinSessionTranscriptOptions } from "./session-extract.js";
 import type { ConnectivityState, ConnectivityStatus, Unsubscribe } from "../connectivity.js";
 
 /** Structured fields produced by extraction. */
@@ -143,6 +144,12 @@ export interface RelayOptions extends BackoffOptions {
   sessionExtract: SessionExtractStep;
   /** Session-level write: reviewed fields → host tool. */
   sessionWrite: SessionWriteStep;
+  /**
+   * Options passed to {@link joinSessionTranscript} when the relay builds the
+   * session's joined transcript. Lets callers opt into per-capture markers
+   * without reaching past the relay. Defaults to `{ markCaptures: false }`.
+   */
+  joinOptions?: JoinSessionTranscriptOptions;
   locks?: LockManager;
   now?: () => number;
   maxAttempts?: number;
@@ -457,7 +464,11 @@ class QueueRelay implements Relay {
   }
 
   async #sessionExtract(session: SessionItem): Promise<void> {
-    const { text, recordingIds } = await joinSessionTranscript(this.#options.outbox, session.id);
+    const { text, recordingIds } = await joinSessionTranscript(
+      this.#options.outbox,
+      session.id,
+      this.#options.joinOptions,
+    );
 
     const result = await withTimeout(
       this.#options.sessionExtract({ session, transcript: text, recordingIds }),

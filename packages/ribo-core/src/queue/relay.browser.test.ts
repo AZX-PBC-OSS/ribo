@@ -18,6 +18,7 @@ import {
   type SessionWriteInput,
   type SessionWriteStep,
 } from "./relay.js";
+import type { JoinSessionTranscriptOptions } from "./session-extract.js";
 import type { OutboxItem } from "./schema.js";
 import type { SessionItem } from "./session-schema.js";
 import type { Transcriber } from "../transcriber.js";
@@ -155,6 +156,7 @@ async function buildRelay(
     transcriber?: Transcriber;
     sessionExtract?: SessionExtractStep;
     sessionWrite?: SessionWriteStep;
+    joinOptions?: JoinSessionTranscriptOptions;
     maxAttempts?: number;
     random?: () => number;
     dropAudioAfterTranscription?: boolean;
@@ -186,6 +188,7 @@ async function buildRelay(
     transcriber: restrictToKind("audio", transcriber),
     sessionExtract,
     sessionWrite,
+    joinOptions: overrides.joinOptions,
     now: clock.now,
     // Deterministic full jitter: always the top of the window, so
     // `nextAttemptAt` is predictable without weakening the formula.
@@ -514,6 +517,20 @@ test("an extract step that reports no engine leaves the column absent", async ()
   const parked = await outbox.getSession(harness.session.id);
   expect(parked?.extracted).toEqual({ atticInsulation: "the attic is R-19" });
   expect(parked?.extractedBy).toBeUndefined();
+});
+
+test("relay joinOptions reach the joined transcript as capture markers", async () => {
+  // `markCaptures` is designed, documented and shipped on `joinSessionTranscript`,
+  // but the relay is the primary path. The only way to prove the option is wired
+  // through is to see the marker in the transcript the extractor receives.
+  const outbox = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(outbox, { joinOptions: { markCaptures: true } });
+  await outbox.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+
+  await drainToReview(harness);
+
+  expect(harness.extractCalls).toHaveLength(1);
+  expect(harness.extractCalls[0]?.transcript).toContain("===== CAPTURE seq:0");
 });
 
 test("a parked item does not block the recordings behind it", async () => {
