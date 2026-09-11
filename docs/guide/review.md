@@ -2,9 +2,8 @@
 
 A model's draft is not the thing that gets written. A human looks at every field, reads the quote
 that justifies it, and accepts, corrects, or drops each one — and that step has to survive a tab
-closing, a reload, a shift ending mid-review. This page is about the contract that makes that
-possible: what a reviewer is shown, what they report back, and what the gate that guards a write
-actually enforces.
+closing, a reload, a shift ending mid-review. The contract is three things: what a reviewer is
+shown, what they report back, and what the gate before a write enforces.
 
 ## A contract, not a UI
 
@@ -24,17 +23,17 @@ const request = buildReviewRequest(extracted, transcript, adapter.schema);
 const outcome = resolveReview(request, { status: "submitted", decisions, instanceLinks });
 ```
 
-Splitting _what the human reported_ (`ReviewSubmission`) from _what that means_ (`ReviewOutcome`) is
-deliberate. A UI can only be trusted to report what happened; deciding whether a draft was touched at
-all, and which fields were touched, is classification logic that has to come out the same way no
-matter which UI produced the submission — so it lives here, as a pure function, rather than in every
-review screen that gets built against this contract.
+What the human reported (`ReviewSubmission`) is split from what it means (`ReviewOutcome`). A UI can
+only be trusted to report what happened; deciding whether a draft was touched at all, and which
+fields were touched, is classification logic that has to come out the same way no matter which UI
+produced the submission — so it lives here, as a pure function, rather than in every review screen
+that gets built against this contract.
 
 ## Flat dotted leaf paths, not top-level keys
 
-The obvious way to shape a review request is one entry per top-level field. It is also wrong, and
-the reason is concrete rather than aesthetic: a real adapter's field set nests a group of several
-independently-true-or-false tests under one key — a health and safety checklist is the case that
+A review request is shaped as one entry per leaf, not one per top-level field. The reason is
+concrete: a real adapter's field set nests a group of several independently-true-or-false tests
+under one key — a health and safety checklist is the case that
 motivated this. Mapping review over the top-level key gives that whole group a single provenance
 envelope and a single accept-or-reject verdict, so an auditor who wants to accept the ambient-CO
 reading while correcting the gas-leak one cannot: the only options are approve the group wrongly, or
@@ -66,16 +65,15 @@ with the one `buildReviewRequest` already performs.
 
 ## The gate is decision completeness, not a groundedness check
 
-This is worth being precise about, because it is easy to over-claim. `resolveReview` does **not**
-refuse a submission for containing an ungrounded field, and there is no core-level rule that says an
-ungrounded leaf must be corrected before a submission is accepted. What it refuses is a submission
-that is missing a decision for _any_ leaf of the request, grounded or not: `completenessIssues` walks
-every path `buildReviewRequest` produced, checks that the submission's `decisions` object has an
-explicit entry for it, and lists every path that doesn't — throwing a `ReviewValidationError` naming
-every problem at once rather than one at a time. A field the reviewer never looked at is
-indistinguishable, at the byte level, from a field they silently accepted, and the contract refuses
-to let that ambiguity through. Extra decisions the request never asked for are refused the same way,
-so a UI and the schema it renders against cannot silently disagree about what the field set even is.
+`resolveReview` does **not** refuse a submission for containing an ungrounded field, and there is no
+core-level rule that says an ungrounded leaf must be corrected before a submission is accepted. What
+it refuses is a submission that is missing a decision for _any_ leaf of the request, grounded or
+not: `completenessIssues` walks every path `buildReviewRequest` produced, checks that the
+submission's `decisions` object has an explicit entry for it, and lists every path that doesn't —
+throwing a `ReviewValidationError` naming every problem at once rather than one at a time. A field
+the reviewer never looked at is indistinguishable from one they silently accepted, and the contract
+refuses that ambiguity. Extra decisions the request never asked for are refused the same way, so a
+UI and the schema it renders against cannot silently disagree about what the field set even is.
 
 `ReviewField.isGrounded` and the finer three-tier `ReviewField.groundedness` (`"grounded"` |
 `"near-miss"` | `"ungrounded"`, see [Provenance](/guide/provenance)) ride along on every field
@@ -83,8 +81,8 @@ precisely so a UI can _prioritize_ — put the suspicious fields first, flag the
 hard to miss one — but nothing in `resolveReview` inspects either flag. A UI is free to build a
 stricter policy on top: the playground's own `ReviewPanel`, for instance, disables its submit button
 while any untouched, ungrounded leaf remains. That is an application choosing to be more careful than
-the contract requires, not a guarantee the contract itself makes. The true guarantee is the stronger
-one: every leaf gets an explicit human decision, not just the ones that look suspicious.
+the contract requires, not a guarantee the contract itself makes. The contract's guarantee is wider:
+every leaf gets an explicit human decision, not just the ones that look suspicious.
 
 `resolveReview` validates one more thing per leaf: an accepted or edited value has to parse against
 `field.schema`, the same schema the UI rendered the editor from. That is a second check on top of the
@@ -95,9 +93,9 @@ queue item discovered later.
 ## The gate is a session status, not a callback
 
 Review does not block anything while it waits for a human. A session that finishes extraction lands
-at `awaiting-review` — a status the relay does not treat as active, so it drains past a parked
-session on every run instead of retrying it. There is nothing to retry; a person has not looked yet,
-and the relay processes a strictly ordered queue, so blocking on one parked session would stall every
+at `awaiting-review`. The relay does not treat it as active, so it drains past a parked session on
+every run instead of retrying it. There is nothing to retry — a person has not looked yet, and the
+relay processes a strictly ordered queue, so blocking on one parked session would stall every
 recording behind it.
 
 **`Outbox.submitSessionReview` is the only way out.** It takes the `id` and a
@@ -118,9 +116,9 @@ for review again; if it hasn't, it lands straight back at `awaiting-review` with
 
 ## Instance-identity review
 
-A collection group — HVAC systems, say — can dictate an instance that already exists as a record in
-the host tool. Deciding whether that instance updates an existing record or creates a new one is
-also a review-time human decision, and three types carry it:
+Dictation can describe an instance of a collection group — a second HVAC system, say — that already
+exists as a record in the host tool. Deciding whether that instance updates an existing record or
+creates a new one is also a review-time human decision, and three types carry it:
 
 - **`ExistingRecord`** — one record the host tool already has for a collection group: a `uuid` and
   the plain `fields` the host returned for it. These enter at the review boundary, in

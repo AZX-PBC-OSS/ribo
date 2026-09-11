@@ -9,10 +9,10 @@ review or write-back would change to support it.
 
 ## Headless: a provider and hooks, nothing that renders
 
-`ribo-ui-react` ships no components beyond `RiboProvider`, no markup, and no stylesheet — check its
-`package.json` and there is no `./styles.css` subpath and no `sideEffects` entry for one. Every panel
-you have seen in the playground (`RecordPanel`, `QueuePanel`, `ReviewPanel`, `WorkSafetyPanel`) is
-the playground's own code, built on these hooks; none of it ships from this package. What a card
+`ribo-ui-react` ships no components beyond `RiboProvider`, no markup, and no stylesheet — its
+`package.json` has no `./styles.css` subpath and no `sideEffects` entry for one. The playground's
+panels (`RecordPanel`, `QueuePanel`, `ReviewPanel`, `WorkSafetyPanel`) are the playground's own code,
+built on these hooks; none of it ships from this package. What a card
 looks like, whether it uses CSS modules or Tailwind or inline styles, whether a meter is a `<div>` or
 a `<canvas>` — all of that is the host's call, every time.
 
@@ -32,27 +32,25 @@ const outbox = await getOutbox();
 </RiboProvider>;
 ```
 
-It never calls `openOutbox()` or constructs a `Recorder` itself. That is a design property worth
-explaining rather than just listing, because the obvious alternative — a provider that opens the
-outbox for you — looks strictly more convenient right up until it isn't. `RiboProvider`'s own source
-comment names the scar tissue directly: React StrictMode's double mount would open a second RxDB
-database over the same IndexedDB name and start a second `Recorder` on a second microphone stream,
-and Vite HMR replaces a module without reloading the page, which a provider-owned instance has no way
-to survive. A host that needs a stable instance across both — the playground keeps one behind a
-module singleton with `import.meta.hot.data` carry-over — can fix that itself. A provider that pulled
-an async open into React's render tree would ship the hazard inside the SDK, where nothing downstream
-of it could fix it. Lifetime stays with the host; the provider is a pipe, not an owner.
+It never calls `openOutbox()` or constructs a `Recorder` itself. The obvious alternative — a provider
+that opens the outbox for you — looks more convenient right up until it isn't. React StrictMode's
+double mount would open a second RxDB database over the same IndexedDB name and start a second
+`Recorder` on a second microphone stream. Vite HMR replaces a module without reloading the page,
+which a provider-owned instance has no way to survive. A host that needs a stable instance across
+both — the playground keeps one behind a module singleton with `import.meta.hot.data` carry-over —
+can fix that itself. A provider that pulled an async open into React's render tree would ship the
+hazard inside the SDK, where nothing downstream of it could fix it. Lifetime stays with the host; the
+provider is a pipe, not an owner.
 
 `value` is passed through unmemoized for the same reason: memoizing it here would let the provider
 silently keep serving a stale instance after the host swapped one out. Hold `value` in a stable
 place — a module singleton, or a `useMemo` in the host — rather than building it inline in render.
 
-## Seven hooks over one engine
+## Hooks over one engine
 
 Every hook resolves its instance from context, or from an explicit override argument for tests and
 multi-instance hosts; a hook that needs an instance the provider wasn't given throws at first render
-rather than failing silently later. Counted straight from the barrel
-(`packages/ribo-ui-react/src/index.ts`):
+rather than failing silently later. From the barrel (`packages/ribo-ui-react/src/index.ts`):
 
 | Hook                    | Wraps                                                                                                                              |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -78,19 +76,16 @@ the same `z.ZodObject` [Typesafety](/guide/typesafety) and [Review](/guide/revie
 a `ToolAdapter` itself. That is a deliberate narrowing, not an oversight: a review card needs to walk
 a `ZodObject` to render fields and validate edits, and a `ToolAdapter` would also hand it `write` and
 `instructions` that a review UI has no business touching. The payoff is bigger than least privilege,
-though — `ribo-ui-react` imports nothing from any adapter package, anywhere in its source. That is
-what makes AGENTS.md's "a review UI needs no adapter import" true of the hook layer itself, not just
-of a well-behaved consumer. Swap `@azx/ribo-adapter-snuggpro` for a different tool's adapter and every
-hook in this package still compiles and runs unchanged, because none of them ever named it.
+though — `ribo-ui-react` imports nothing from any adapter package, anywhere in its source. Swap
+`@azx/ribo-adapter-snuggpro` for a different tool's adapter and every hook in this package still
+compiles and runs unchanged, because none of them ever named it.
 
-`useReview` mirrors what `resolveReview` actually enforces, and it's worth repeating here because it
-is easy to over-claim: the gate is decision completeness, not groundedness. Nothing in this hook
-refuses a submission for containing an ungrounded field, and there is no core-level or hook-level
-rule that an ungrounded leaf must be corrected first. `ReviewField.isGrounded` and `groundedness` ride
-along on every field so a UI can prioritize — the playground's own `ReviewPanel` disables its submit
-button while an untouched, ungrounded leaf remains — but that is an application-level policy built on
-top of `isGrounded`, not a guarantee `useReview` makes for you. If your UI wants that stricter
-behavior, you build it the same way the playground did.
+`useReview` mirrors what `resolveReview` actually enforces: the gate is decision completeness, not
+groundedness, not a check that an ungrounded leaf was corrected first. See [Review](/guide/review)
+for the full argument. `ReviewField.isGrounded` and `groundedness` ride along on every field so a UI
+can prioritize — the playground's own `ReviewPanel` disables its submit button while an untouched,
+ungrounded leaf remains — but that is application-level policy built on top of `isGrounded`, not a
+guarantee `useReview` makes for you.
 
 ## `useStoragePersistence`: the one hook with no core counterpart
 

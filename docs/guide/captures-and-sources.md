@@ -1,12 +1,11 @@
 # Captures & Sources
 
-Ribo's queue does not assume every capture is a recording. It carries audio and PDFs today, and
-whatever a future transcriber package adds later, because the whole pipeline is written against one
-union — `CaptureItem` — rather than against either branch by name.
+Ribo's queue carries audio and PDFs today, and whatever a future transcriber package adds later —
+the whole pipeline is written against one union, `CaptureItem`, not against either branch by name.
 
-**A `Transcriber` turns any capture into citable text.** Audio was merely the first kind Ribo had
-one for — the interface predates documents by a long way, and the name stayed because renaming a
-public seam costs more than it buys. Nothing below apologises for it again.
+**A `Transcriber` turns any capture into citable text.** Audio was the first kind Ribo had a
+transcriber for. The interface predates documents, and the name stayed because renaming a public
+seam costs more than it buys.
 
 ## `CaptureItem`: two branches, one union
 
@@ -41,18 +40,16 @@ const dictation = baseCaptureItemSchema.parse({
 transcriber engine below can narrow on it directly — there is no `instanceof`, no duck-typing on
 "does this have `durationMs`."
 
-**Why a PDF is not a `Recording` with `durationMs: 0`.** The two fields are not interchangeable
-units wearing different names. `durationMs` is `.int().nonnegative()` because a silent, empty
-recording is still a legitimate capture — zero is real. `pageCount` is `.int().positive()` because a
-zero-page document is not a thin document, it's a parse that already went wrong upstream, and the
-schema says so at the boundary rather than downstream where the zero would be indistinguishable from
-"really has no pages." Forcing a PDF through the audio branch would mean every consumer that reads
-`durationMs` has to learn a second meaning for zero — "actually a document" — which is exactly the
-kind of by-convention special case the `kind` discriminant exists to make unnecessary. `kind` is what
-`restrictToKind` and every fallback engine below route on; inferring it from a bogus duration would
-put the routing decision back on a heuristic instead of a fact stamped at capture time.
+**Why a PDF is not a `Recording` with `durationMs: 0`.** `durationMs` is `.int().nonnegative()`
+because a silent, empty recording is still a legitimate capture — zero is real. `pageCount` is
+`.int().positive()` because a zero-page document isn't a thin document, it's a parse that already
+went wrong upstream, and the schema says so at the boundary rather than downstream where the zero
+would be indistinguishable from "really has no pages." Forcing a PDF through the audio branch would
+give every consumer that reads `durationMs` a second meaning for zero — "actually a document." `kind`
+is what `restrictToKind` and every fallback engine below route on; inferring it from a bogus duration
+would put the routing decision back on a heuristic instead of a fact stamped at capture time.
 
-## Four transcriber packages, one seam
+## Transcriber packages, one seam
 
 Every engine below implements the same `Transcriber` interface from `@azx/ribo-core`; only the
 capture kind and the transport differ.
@@ -90,8 +87,7 @@ cached forever.
 
 ## `UnsupportedItemError`: the third failure class
 
-A `Transcriber` can fail three distinct ways, and conflating them is the bug the contract exists to
-prevent:
+A `Transcriber` fails three ways. The contract keeps them apart:
 
 - **Attempt failure** — this clip OOMed, this request 503'd. Throw anything; the queue's own
   backoff and `maxAttempts` already handle it.
@@ -106,21 +102,20 @@ working exactly as designed, and retrying it burns backoff attempts that will ne
 reasons are `no-text-layer`, `encrypted`, `unsupported-format` — each plainly a property of the
 item, not of the engine or the device.
 
-`UnsupportedItemError` is **terminal for the queue** — it is a subclass of `TerminalQueueError`, the
-base class `isTransientFailure` treats as non-retryable outright, so the relay doesn't burn a retry
-budget on an engine+item pair that will never succeed — but it is **not terminal for the item**. A composition layer sees the failure and
-routes to the next engine: a scanned invoice that `pdfjs` can't read a text layer from is exactly the
-case `@azx/ribo-transcriber-managed-docs`'s OCR exists for, and `fallbackTranscriber` moves on to it
-without the item ever reaching `dead`.
+`UnsupportedItemError` is **terminal for the queue**, not **terminal for the item**. It subclasses
+`TerminalQueueError`, the base class `isTransientFailure` treats as non-retryable outright, so the
+relay spends no retry budget on an engine+item pair that will never succeed. A composition layer sees
+the failure and routes to the next engine: a scanned invoice that `pdfjs` can't read a text layer
+from is exactly the case `@azx/ribo-transcriber-managed-docs`'s OCR exists for, and
+`fallbackTranscriber` moves on to it without the item ever reaching `dead`.
 
 ## `restrictToKind`: lifting a narrow engine into a wider slot
 
-`Transcriber.transcribe` is declared as a function-typed property, not a method, precisely so that
-an audio-only `Transcriber<Recording>` does **not** silently satisfy `Transcriber<CaptureItem>` —
-method syntax is bivariant even under `strict`, and would let a recording-only engine slide into a
-slot that can also see a `DocumentCapture`. `RelayOptions.transcriber` wants `Transcriber<CaptureItem>`
-because the queue holds either kind; the compiler is what sends a host reaching for an audio-only
-roster to `restrictToKind`:
+`Transcriber.transcribe` is a function-typed property, not a method, so an audio-only
+`Transcriber<Recording>` does **not** silently satisfy `Transcriber<CaptureItem>` — method syntax is
+bivariant even under `strict`, and would let a recording-only engine slide into a slot that can also
+see a `DocumentCapture`. `RelayOptions.transcriber` wants `Transcriber<CaptureItem>` because the
+queue holds either kind: the compiler rejects an audio-only roster, and `restrictToKind` is the fix:
 
 ```ts
 import { firstCapable, restrictToKind } from "@azx/ribo-core";

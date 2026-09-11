@@ -2,9 +2,8 @@
 
 Every field Ribo extracts arrives with a claim about where it came from, and that claim is checked
 against the source rather than taken on trust. This page covers the mechanism — the envelope, the
-check, and the knob that controls its unit. The measurement behind the design decisions is a
-separate page: [Provenance: Measured](/deep-dives/provenance-measurement) has the numbers; this page
-has the shape.
+check, and the knob that controls its unit. The numbers behind the design decisions are a separate
+page: [Provenance: Measured](/deep-dives/provenance-measurement).
 
 ::: warning This page is about citation fidelity, not field accuracy
 Everything below answers "is the quote real, and how much did it cost to get one" — never "is the
@@ -18,9 +17,9 @@ right cell to cite in the first place. Extraction accuracy has no current number
 
 [Typesafety](/guide/typesafety) covers `enveloped()` deriving a closed, fully-required extraction
 schema from the patch you write by hand. Provenance is _why_ that derived shape looks the way it
-does: by default, every leaf of the patch schema doesn't survive into the extraction schema as
-itself. The leaf's own key now holds an object of three properties — `value`, `confidence`, and
-`sourceSpan` — so the schema expands by four properties overall where the patch declared one.
+does: by default, a leaf of the patch does not appear in the extraction schema as itself. Its key now
+holds an object of three properties — `value`, `confidence`, and `sourceSpan` — so the schema expands
+by four properties overall where the patch declared one.
 
 `packages/ribo-core/src/provenance.ts`'s `extractedSchema(inner)` is that wrapper:
 
@@ -54,8 +53,8 @@ and mean confidence on correct nulls were both close to the ceiling, with no com
 right and wrong answers. A "flag anything under some threshold" rule against that distribution flags
 nothing — it reads as "the extraction is clean" when the real story is "the signal is absent."
 
-A `sourceSpan` is different in kind, not just in degree: it's a factual claim about the source text,
-and factual claims can be checked without asking the model anything else.
+A `sourceSpan` is a factual claim about the source text, and factual claims can be checked without
+asking the model anything else.
 
 ```ts
 import { isSpanGrounded } from "@azx/ribo-core";
@@ -65,7 +64,7 @@ isSpanGrounded(fields.company.sourceSpan, transcript.text); // true or false, by
 
 `isSpanGrounded(span, transcript)` is a pure predicate: strip trailing whitespace from the span (it
 arrives trimmed; the transcript keeps its own line breaks), then check that the transcript contains
-it verbatim. No model, no human, no I/O — a citation the model invented fails this exactly the way a
+it verbatim. No model, no human, no I/O — a citation the model invented fails this the same way a
 forged quote fails a search for it.
 
 **The near-miss tier.** A verbatim check is strict enough to catch a real problem in document
@@ -95,21 +94,21 @@ blank span is always `"ungrounded"`, never near — every string contains `""`, 
 
 Wrapping every leaf is the right unit when a human reviews one field at a time — a health-check
 matrix where an auditor accepts one reading and corrects the next is exactly that case. It's the
-wrong unit for a **repeated row** of a wide table, and the reason is measured, not theoretical:
-running a real 67-row × 9-column table through extraction, fully-enveloped citations cost **603**
-citations that no reviewer will ever individually click through, and getting all of them back cost
-the group **two calls instead of one** — every leaf-envelope citation costs two nullable unions
-against the per-call ceiling covered in [Schema at Scale: Measured](/deep-dives/schema-scale), and a 67×9 table
-of them blew past it. Switching that same shape to one citation per row rather than one per cell
-fit the whole table in a single call.
+wrong unit for a **repeated row** of a wide table. A real 67-row × 9-column table run through
+fully-enveloped extraction produced **603** citations that no reviewer will ever individually click
+through, and getting all of them back cost the group **two calls instead of one** — every
+leaf-envelope citation costs two nullable unions against the per-call ceiling covered in
+[Schema at Scale: Measured](/deep-dives/schema-scale), and a 67×9 table of them blew past it.
+Switching that same shape to one citation per row rather than one per cell fit the whole table in a
+single call.
 
 Row citations weren't only cheaper. They were also more accurate: per-cell citations came back
 **37% fabricated** on a load-calculation report (17 of 46), while a separate report's 15-leaf,
 14-row table measured with row-level citations came back **14 of 14 verbatim**. A cell span asks
-the model to isolate one fragment of a line it's
-already citing several other times over; a row span is one line, quoted once. The unit of citation
-was fighting the model, not only the token budget. Full numbers and the partitioning mechanics are
-in [Provenance: Measured](/deep-dives/provenance-measurement).
+the model to isolate one fragment of a line it's already citing several other times over; a row
+span is one line, quoted once. The unit of citation affected accuracy, not only the token budget.
+Full numbers and the partitioning mechanics are in
+[Provenance: Measured](/deep-dives/provenance-measurement).
 
 `enveloped()` exposes the fix as a per-group option, not a second schema to hand-maintain:
 
@@ -129,9 +128,9 @@ const extractionSchema = enveloped(patchSchema, {
 - **`"row"`** — leaves become plain nullable values (the envelope's `value`, without the wrapper),
   and one shared `sourceSpan` is added per row: the group object itself for a singleton group, or
   each element for a collection. That span is written under the fixed key `ROW_SOURCE_SPAN_KEY`
-  (`"sourceSpan"`) — fixed rather than configurable, because the split, review, and every other
-  consumer have to agree on the name of the one thing there is to agree on. A row also carries no
-  `confidence`: the model isn't asked for one, and every key added is a key it spends tokens on.
+  (`"sourceSpan"`) — fixed, not configurable: the split, review, and every other consumer must agree
+  on one name. A row also carries no `confidence`: the model isn't asked for one, and every key added
+  is a key it spends tokens on.
 - **`"none"`** — plain leaves, no citation anywhere. There's nothing to check, so nothing is claimed
   as grounded.
 
@@ -142,12 +141,10 @@ build time, naming the group, rather than silently falling back to something els
 ## What it buys downstream
 
 Review addresses every leaf by its own dotted path and requires an explicit decision for each one —
-accepted, edited, or rejected — before a submission is allowed through at all; a leaf with no
-decision is indistinguishable from a leaf the reviewer never saw, and the two must not read the
-same. `spanGroundedness` is what a review card uses to decide how to present a leaf: an ungrounded
-or near-miss citation is exactly the case that flag exists to surface, and because no decision can
-be silently defaulted to "accepted," an ungrounded leaf can't simply pass through unactioned — a
-human has to look at it and make a call, the same as any other leaf.
+accepted, edited, or rejected — before a submission is allowed through at all, so an ungrounded leaf
+cannot pass unnoticed. `spanGroundedness` is what a review card uses to decide how to present a
+leaf: an ungrounded or near-miss citation is exactly the case that flag exists to surface. See
+[Review](/guide/review) for the full contract.
 
 A `"row"` group reviews the same way a `"leaf"` group does — every field still gets its own
 reviewable entry — except every field in one row points at that row's shared span, and its

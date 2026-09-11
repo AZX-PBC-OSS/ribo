@@ -1,24 +1,23 @@
 # Schema at Scale
 
 A real system of record's target schema does not fit in one model call, and provenance makes that
-worse rather than better. This page is the mechanism behind that claim — what breaks, why, and what
-Ribo does about it. The numbers behind every figure here live in
-[Schema at Scale: Measured](/deep-dives/schema-scale); this page links to them rather than restating them.
+worse rather than better. This page is what breaks, why, and what Ribo does about it. The numbers are
+in [Schema at Scale: Measured](/deep-dives/schema-scale).
 
 ## The wall
 
 Snugg Pro — the field-service system of record one of Ribo's own adapters writes into — exposes
-**837 distinct writable fields**, walked directly from its write operations. That is the honest
-size of "the whole spec" for a system built to record a home-energy audit, and it is not an
+**837 distinct writable fields**, walked directly from its write operations. That is the size
+of "the whole spec" for a system built to record a home-energy audit, and it is not an
 unusually large one: most systems of record this pipeline targets are built the same way, with a
 schema that grew field by field over years of vendor requirements.
 
-An older pass measured a related but different figure — **~1,326 leaves** — against a named
-2026-08-06 snapshot of `allJobData`, the union of every field the API can _return_ for a job. That
-number is illustrative of scale, not current: the spec drifted after it was taken, and `allJobData`
-turned out to span the read-only surface too — every computed rollup and total — which is a
-different, larger set than what an extraction schema actually needs to produce. Treat 837 as the
-number to reason from and ~1,326 as "how big does this get," not as a live count of the same thing.
+An older pass measured a related but different figure — **~1,326 leaves** — against a 2026-08-06
+snapshot of `allJobData`, the union of every field the API can _return_ for a job, including the
+read-only surface too — every computed rollup and total, a different, larger set than what an
+extraction schema actually needs to produce. The spec drifted after the snapshot was taken, so treat
+837 as the number to reason from and ~1,326 as "how big does this get," not as a live count of the
+same thing.
 
 Provenance does not shrink that problem. It multiplies it. Wrapping a leaf in the envelope replaces
 its one key with a `{ value, confidence, sourceSpan }` object — three members on that wrapper — which
@@ -31,24 +30,23 @@ wearing two names.
 Measured against that 2026-08-06 snapshot, enveloping `allJobData` produces **~5,360 properties
 against a documented 5,000-property structured-output cap**, and **~1,490 enum values against a
 documented 1,000-value cap** — over both limits at once, before any question of extraction quality
-arises. That is not "it extracts badly." It is "the API refuses the request."
+arises. The API refuses the request; this is not a quality problem.
 
 A second ceiling binds much sooner, and it was found by running calls rather than by reading a
 vendor's documentation: on the managed LLM route Ribo's extractors call through, one model family
 rejects any response schema carrying more than **16 nullable unions** — 16 accepted, 18 rejected, on
-otherwise-identical schemas. Since an enveloped leaf costs two nullable unions (`value` and
-`sourceSpan`, both nullable), that ceiling works out to **8 enveloped leaves per call** on that model
-family — and two of the extraction groups already committed at the time of that measurement, `hvac`
-and `health`, already exceeded it. **This is our own measurement, taken against one deployment,
-through one route, with one dev token — not a published vendor limit.** Whether 16 is that model
-family's own cap or this particular route's translation of it is not established; what is
-established is that it is model-family-specific on the identical route, since the same schema shape
-that's rejected for one family is accepted without complaint for another. See
+otherwise-identical schemas. An enveloped leaf costs two nullable unions (`value` and `sourceSpan`,
+both nullable), so that ceiling works out to **8 enveloped leaves per call** on that model family.
+Two of the extraction groups already committed at the time of that measurement, `hvac` and `health`,
+already exceeded it. **This is our own measurement, taken against one deployment, through one route,
+with one dev token — not a published vendor limit.** What is established is narrower: on the
+identical route, a schema shape one family rejects, another accepts. Whether 16 is that model
+family's own cap or this particular route's translation of it is unknown. See
 [Schema at Scale: Measured](/deep-dives/schema-scale) for the full table and the bisection that found it.
 
 ## Why partition on nullable unions, not leaves
 
-The natural instinct is to cap the number of _leaves_ per call. That instinct is wrong, because a
+Capping the number of _leaves_ per call doesn't work, because a
 leaf's cost in nullable unions depends on the provenance granularity its group was derived with —
 covered in [Provenance](/guide/provenance) — and a leaf-based cap either overshoots or undershoots
 depending on which granularity a group happens to use.
@@ -102,19 +100,24 @@ of call than a fixed set of top-level groups, because the number of instances is
 extraction. `extractInventory` runs one house-wide call that returns a roster of candidate instances
 per collection group, scaffolding for the fills that follow rather than something reviewed directly.
 `instanceLadder` composes three strategies for turning that roster into real per-instance data,
-falling from the strongest to weaker ones only as each fails: an inventory pass followed by scoped
-per-instance fills (each instance sees only its own slot, siblings held out of scope); failing that,
-a per-group call where the model emits an array of instances in one shot with weaker isolation;
-failing that, a per-group call where the model emits a single instance, which cannot represent a
-second one at all but still beats no record when an auditor is offline in a basement. The accepted
-tier is stamped onto the result's `usage.strategy` field, and which degraded tier is acceptable is a
-host policy decision expressed through the arbiter passed in — the SDK does not impose one.
+falling from the strongest to weaker ones only as each fails:
+
+1. An inventory pass followed by scoped per-instance fills — each instance sees only its own slot,
+   siblings held out of scope.
+2. Failing that, a per-group call where the model emits an array of instances in one shot, with
+   weaker isolation.
+3. Failing that, a per-group call where the model emits a single instance — it cannot represent a
+   second one at all, but it still beats no record when an auditor is offline in a basement.
+
+The accepted tier is stamped onto the result's `usage.strategy` field, and which degraded tier is
+acceptable is a host policy decision expressed through the arbiter passed in — the SDK does not
+impose one.
 
 ## What's closed, and why
 
 Whole-spec extraction — one call, one schema, covering everything a system of record can write — is
-closed. Not because it would extract badly: **it is closed on hard limits, before quality is ever
-measured.** Enveloping the full spec blows past both a structured-output API's own documented
+closed. Not because it would extract badly: it is closed on hard limits, before quality is ever
+measured. Enveloping the full spec blows past both a structured-output API's own documented
 property and enum ceilings simultaneously, and a scoped-down subset that does fit under those still
 runs into a second, model-family-specific nullable-union ceiling that binds far sooner. Neither
 failure is a tuning problem; both are the request being refused outright. That's why this repo

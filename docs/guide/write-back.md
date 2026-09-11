@@ -1,9 +1,9 @@
 # Write-back
 
-Everything upstream of this page — capture, transcription, extraction, review — is about producing
-one thing: a patch of plain values a human has signed off on. Write-back is what turns that patch
-into a real record in a host tool, and this page is about the one seam that knows how, the one place
-the patch is checked before it's trusted, and the gate that decides whether any of it can happen yet.
+Capture, transcription, extraction, and review produce one thing: a patch of plain values a human
+has signed off on. Write-back turns that patch into a real record in a host tool. This page covers
+the seam that knows how, the place the patch is checked before it's trusted, and the gate that
+decides whether any of it can happen yet.
 
 ## `ToolAdapter` is the only tool-specific surface
 
@@ -24,7 +24,7 @@ export interface ToolAdapter<V extends Record<string, unknown>, C, P = NoProvena
 }
 ```
 
-(`packages/ribo-core/src/adapter.ts:181`.) `V` is the plain field values the adapter writes — the
+(`packages/ribo-core/src/adapter.ts`.) `V` is the plain field values the adapter writes — the
 same type [Typesafety](/guide/typesafety) covers `schema` as the source of truth for, with
 `extractionSchema` derived from it via `enveloped()`, never hand-declared beside it. `C` is the host
 context `write` needs to reach the right destination — a job id, a session handle, whatever
@@ -44,8 +44,8 @@ adapter's `write` receives a plain `V` and a plain `C` — never a `Recording`, 
 `ReviewOutcome`, or an outbox document. It does not know whether the fields it's writing came from a
 microphone or a scanned PDF, whether the session had one capture or five, or what a human rejected
 along the way; all of that was already resolved before `write` is ever called. An adapter that
-reached backward into any of that would be coupling tool-specific code to pipeline internals that
-are free to change shape without it.
+reached backward into pipeline internals would couple tool-specific code to shapes that are free to
+change without it.
 
 ## `toWriteStep`: the one place `schema.parse` runs before a write
 
@@ -72,8 +72,8 @@ Per session, it parses `ctx` with `adapter.ctxSchema`, parses the reviewed patch
 and only then calls `adapter.write(fields, ctx, { idempotencyKey })`. Either parse failing throws a
 `TerminalQueueError` — both failures are permanent: the inputs are already persisted, so a retry sees
 the exact same invalid data and fails identically. `write`'s own rejection is passed through
-untouched and left retryable, because a network failure is the single most common thing a real
-adapter will ever throw, and it's exactly what should be retried.
+untouched and left retryable, because a network failure is what a real adapter throws most often,
+and it's exactly what should be retried.
 
 ## `toInstanceWriteStep`: per-instance writes that resume after a partial failure
 
@@ -103,20 +103,19 @@ durable record of what succeeded is `SessionWriteResult.receipts`, keyed by the 
 
 ## The write is gated, not merely designed
 
-The seam above is real and installed — `toWriteStep` and `toInstanceWriteStep` are the composition
-every host actually wires a relay through — but a live write into the reference adapter is not. The
+`toWriteStep` and `toInstanceWriteStep` are the composition every host actually wires a relay
+through, and that seam is real and installed. A live write into the reference adapter is not. The
 trust boundary between "a human accepted this" and "this is now in the host tool's own database" is
 a real boundary this SDK enforces; whether a specific vendor's API will _accept_ the call once it's
 made is a separate question, and for the reference adapter that question is still gated on the
 platform this SDK's own field app runs on.
 
-Snugg Pro's own authentication is per-request HMAC-SHA256 signing, not a static API key — a signature
-computed from a fresh timestamp on every call, which the browser cannot do itself without exposing
-the signing key to it. The signing has to happen at the network egress layer, server-side, and that
-capability does not exist yet on the platform this SDK's field app deploys to. Until it does, the
-reference adapter's `write` rejects rather than pretending: it throws, naming exactly what it's
-waiting on, instead of faking an unsigned write that would teach the wrong lesson about what "written
-back" means.
+Snugg Pro's own authentication is per-request HMAC-SHA256 signing, not a static API key — a fresh
+signature computed from a timestamp on every call. A browser cannot do that without holding the
+signing key, so signing has to happen at the network egress layer, server-side, and that capability
+does not exist yet on the platform this SDK's field app deploys to. Until it does, the reference
+adapter's `write` rejects rather than pretending: it throws, naming what it's waiting on, instead of
+faking an unsigned write that would teach the wrong lesson about what "written back" means.
 
 ## `@azx/ribo-adapter-snuggpro`: a worked example, not the subject
 

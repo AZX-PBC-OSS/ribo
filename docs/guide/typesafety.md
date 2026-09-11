@@ -1,8 +1,8 @@
 # Typesafety
 
-Ribo declares one schema and derives everything else from it. That is the whole story, and it is
-worth being precise about, because the derivation is what keeps three very different consumers — a
-model, a review UI, a write-back call — from quietly drifting apart from each other.
+Ribo declares one schema and derives everything else from it. The derivation is what keeps three
+very different consumers — a model, a review UI, a write-back call — from drifting apart from each
+other.
 
 ## One schema you declare: the values schema
 
@@ -86,8 +86,7 @@ render themselves off their own schema; the UI never special-cases a tool's name
 
 ## Why `ToolAdapter` carries two field-shape parameters, not one
 
-This is the part most likely to trip you up writing your own adapter, so it's worth spelling out why
-it looks the way it does rather than the simpler way you might reach for first.
+This is the part most likely to trip you up writing your own adapter.
 
 The real signature, from `@azx/ribo-core`:
 
@@ -108,8 +107,8 @@ two genuinely different things happen to an adapter's fields, and one shape can'
 and optional everywhere a rejected field needs to disappear cleanly. `extractionSchema` is the
 model-facing shape — closed, fully required, every leaf enveloped. A single schema forced into both
 roles is either too loose for the write boundary or too rigid for the model, and in practice it was
-neither cleanly — the shapes only coincidentally look similar until you add provenance, at which
-point they diverge on every leaf.
+neither cleanly — the shapes look similar only until you add provenance, at which point they diverge
+on every leaf.
 
 Splitting them into two parameters — with `extractionSchema` **derived** from `schema` via
 `enveloped()` rather than declared independently — is what makes the two impossible to drift apart:

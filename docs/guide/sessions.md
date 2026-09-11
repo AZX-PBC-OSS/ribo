@@ -4,8 +4,7 @@ A heat-pump quote reviewer walks into a job with an invoice PDF from a supplier,
 load-calculation report, and their own dictated notes on what they saw on site. All three belong to
 one job. None of them, alone, is the thing to extract from — the invoice has the equipment cost, the
 Manual J has the sizing, and the dictation has the corrections and exceptions a form never captures.
-A **session** is what holds all three together and extracts across them once, and this page is
-about why that's a real architectural line and not a naming convenience.
+A **session** holds all three and extracts across them once.
 
 ## Extraction lives on the session, not the recording
 
@@ -24,8 +23,7 @@ The session's state machine is where that begins:
 open → extracting → awaiting-review → writing → done
 ```
 
-This isn't a stylistic choice about which object owns which field. It's a structural split, enforced
-in two places at once:
+The split is structural, enforced in two places at once:
 
 - **The type system.** `Extractor` takes a transcript's text and returns fields — it has no
   parameter that could carry a `CaptureItem`, so it cannot know or care whether that text came from
@@ -39,9 +37,8 @@ in two places at once:
   here in schema v6, off the recording entirely.
 
 That's why adding PDF support required **no change** to `Extractor`, `isSpanGrounded`, arbitration,
-or the review contract. None of that code was ever coupled to what produced the transcript in the
-first place — it was already written against session-level text, and a document capture just became
-a second way to produce some.
+or the review contract. That code was written against session-level text; a document capture is a
+second way to produce it.
 
 ## `joinSessionTranscript`: many captures, one transcript
 
@@ -56,10 +53,8 @@ const { text, recordingIds } = await joinSessionTranscript(outbox, session.id);
 
 It returns exactly two things: the joined `text`, and the sorted `recordingIds` that produced it —
 the cache key a re-extraction compares against to know whether the recording set actually changed.
-Nothing in that return shape says whether any of it came from a microphone. That's the whole point:
-the invoice PDF, the Manual J report, and the dictation are three captures of two different kinds,
-and `joinSessionTranscript` joins all three into one `text` without ever needing to ask which was
-which.
+Nothing in the return shape says whether any of it came from a microphone — that is the point.
+`joinSessionTranscript` joins all three captures into one `text` without asking which is which.
 
 Only `transcribed` recordings are included, in capture order (`seq`-ascending) — a recording still
 `queued` or `transcribing` simply isn't there yet, and **`discarded` recordings are excluded
@@ -107,9 +102,9 @@ const closed = await outbox.closeSession(session.id);
 
 `closeSession` is the host's explicit signal that the capture set is final — the relay transcribes a
 session's recordings as they arrive, but **does not act on the session itself until the host closes
-it**. `open` is deliberately not an active status for exactly that reason: the relay has no way to
-know an auditor is done adding captures except being told, and starting extraction on a
-partially-assembled session would be extracting the wrong set.
+it**. `open` is not an active status for that reason: the relay has no way to know an auditor is done
+adding captures except being told, and starting extraction on a partially-assembled session would be
+extracting the wrong set.
 
 Once closed, the relay runs session-level extraction against the joined transcript and lands the
 session at `awaiting-review` — parked, same as the recording side, until a human looks. The only way
@@ -138,13 +133,12 @@ outbox.watchSessions({ status: "awaiting-review" }).subscribe((sessions) => {
 The heat-pump quote reviewer's job opens as one session. The supplier invoice and the Manual J
 report enqueue as `DocumentCapture` items — `pdfjs` (or `managed-docs` for a scanned page it can't
 read) transcribes each into text. The reviewer's own dictation enqueues as a `Recording`, transcribed
-by whichever audio engine is configured. All three transcribe independently, on their own schedule,
-into the same session. When the reviewer closes the session, `joinSessionTranscript` produces one
-transcript spanning all three, extraction runs once against it, and the review screen shows a single
-set of fields — equipment cost from the invoice, sizing from the Manual J, the exception the
-reviewer dictated — each citation still checkable against whichever capture it came from. Nothing
-about the extractor, the span check, or the review contract needed to know that two of the three
-inputs were never audio at all.
+by whichever audio engine is configured, and all three transcribe independently, on their own
+schedule, into the same session. When the reviewer closes the session, `joinSessionTranscript`
+produces one transcript spanning all three, extraction runs once against it, and the review screen
+shows a single set of fields — equipment cost from the invoice, sizing from the Manual J, the
+exception the reviewer dictated — each citation still checkable against whichever capture it came
+from.
 
 ## Next
 

@@ -1,9 +1,9 @@
 # Extraction
 
 A session's transcript is just text — [Sessions](/guide/sessions) covers how several captures
-become one — until something turns it into fields a system of record can accept. That something is
-an `Extractor<F>`: the one seam in the pipeline that ever calls a model, and the only thing that
-changes when you swap a fake for a real engine, or one real engine for another.
+become one — until something turns it into fields a system of record can accept. An `Extractor<F>` is
+that something: the one seam that calls a model, and the only thing that changes when you swap a
+fake for a real engine, or one real engine for another.
 
 ## The `Extractor<F>` seam
 
@@ -16,10 +16,9 @@ interface Extractor<F> {
 ```
 
 One method, and it never sees a `CaptureItem`, a `Recording`, or a `DocumentCapture` — only the
-joined transcript text a session assembled. That is deliberate, and it is the same structural split
-[Sessions](/guide/sessions) covers from the other side: an extractor that took a capture as a
-parameter would have to know whether the words in front of it came from a microphone or a scanner,
-and nothing about turning text into fields cares.
+joined transcript text a session assembled. An extractor that took a capture would have to know
+whether the words came from a microphone or a scanner, and nothing about turning text into fields
+cares. This is the same structural split [Sessions](/guide/sessions) describes, from the other side.
 
 `ExtractionResult<F>` carries the parsed `fields`; an optional `raw` payload kept for debugging; a
 `usage` block (calls made, token counts, and which `engine` and `strategy` produced the result —
@@ -80,17 +79,15 @@ scratch with it.
 
 `singleShotExtractor` is the built default: one structured-output chat call per extraction, its
 response parsed against the target's `extractionSchema`. It needs a `ChatClient` to actually talk to
-a model, and this package ships two — **and they are not the same kind of thing, or two endpoints
-on the same transport.**
+a model, and this package ships two. They are different transports, not two endpoints of one.
 
 - **`openAiChat`** is the OpenAI-compatible transport: it POSTs to `${baseUrl}/chat/completions`
   with bearer auth and reads `choices[0].message.content`, the shape any OpenAI-compatible endpoint
   speaks.
-- **`helixChat`** is a **second, different** `ChatClient`, for the Helix platform's own
-  provider-neutral `/_api/llm/chat` route. The package barrel says so in as many words: "a second
-  `ChatClient` beside `openAiChat` … (not OpenAI-compatible)." The wire shape is different too — a
-  flat `{ model, content, stopReason, usage }` body rather than an OpenAI `choices` array, and a
-  system message becomes a top-level `system` field rather than a message in the array.
+- **`helixChat`** serves the Helix platform's own provider-neutral `/_api/llm/chat` route and is not
+  OpenAI-compatible. The wire shape is different too — a flat `{ model, content, stopReason, usage }`
+  body rather than an OpenAI `choices` array, and a system message becomes a top-level `system` field
+  rather than a message in the array.
 
 Both satisfy the same `ChatClient` interface, so `singleShotExtractor` (and every strategy built on
 top of it) is written against the interface and never against either transport's wire shape. Which
@@ -115,16 +112,16 @@ real schema through in several calls instead of one; this page does not restate 
 ### `@azx/ribo-extractor-ondevice`: `threePhaseExtractor`
 
 `threePhaseExtractor` runs the same `Extractor<F>` seam over the platform's on-device Language
-Model instead of a managed endpoint — no network once the model is available. It is not a
-single-shot call split into three retries; it is three distinct calls per group — presence, span,
-and classify — because a single combined call produced a degenerate whitespace-repetition failure
-mode on this model class that retrying the same call could never fix. Splitting the ask took
-source-span fidelity on the on-device path to 100% grounded. Like the managed extractors, it reads
-its schema from `ExtractionTarget.extractionSchema` and knows nothing about any one host adapter.
+Model instead of a managed endpoint — no network once the model is available. It makes three
+distinct calls per group — presence, span, and classify — not a single-shot call split into three
+retries: a single combined call produced a degenerate whitespace-repetition failure mode on this
+model class that retrying the same call could never fix. Splitting the ask brought on-device
+source-span fidelity to 100% grounded. Like the managed extractors, it reads its schema from
+`ExtractionTarget.extractionSchema` and knows nothing about any one host adapter.
 
 ## Extraction quality is not currently measured
 
-**Say this plainly: there is no current number for how often an extracted value is correct.** The
+**There is no current number for how often an extracted value is correct.** The
 annotated corpus this repo's acceptance gate would score against
 (`spikes/extraction-snuggpro/ground-truth/`) is written in a field vocabulary the Snugg Pro adapter
 no longer uses, so `packages/ribo-adapter-snuggpro/acceptance/gate.manual.ts` deliberately refuses

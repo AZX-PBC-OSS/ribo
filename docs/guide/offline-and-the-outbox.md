@@ -3,16 +3,11 @@
 An auditor in a basement has no signal. The recording still has to happen, the transcript still has
 to get made, and none of it can wait for a network that might not come back for an hour. `@azx/ribo-core`
 answers this with a durable outbox — an RxDB collection every capture lands in the instant it's
-made — and a foreground relay that drains it whenever connectivity allows. Nothing here is
-"offline mode" bolted onto an online-first design: the outbox is the only path a capture ever takes,
-online or not.
+made — and a foreground relay that drains it whenever connectivity allows. The outbox is the only
+path a capture ever takes, online or not.
 
-This page covers the model and the API: the two state machines the outbox actually runs, the relay
-that drives them, how it decides connectivity is real rather than merely link-layer, the one honest
-answer to "is my work safe?", the storage seam that makes the whole thing testable without a
-browser, and durable capture — the mechanism that makes a mid-recording crash survivable. The
-browser-platform mechanics underneath this — the service worker, storage persistence, the ORT
-runtime cache — are [Offline-first](/offline-first/).
+The browser-platform mechanics underneath this page — the service worker, storage persistence, the
+ORT runtime cache — are [Offline-first](/offline-first/).
 
 ## Two state machines, not one
 
@@ -56,27 +51,22 @@ open → extracting → awaiting-review → writing → done ⇄ awaiting-review
 purpose, for two different reasons. **`open`** is the host's phase: recordings are still being
 captured and transcribed, and the relay transcribes them as they arrive but does not touch the
 session itself until `closeSession` says the capture set is final. Starting extraction against a
-partially-assembled session would be extracting the wrong set. **`awaiting-review`** is the review
-gate, same omission as the recording side has none of — `submitSessionReview` is the only way out,
-and nothing about the pipeline advances a parked session on its own. `done` and `dead` both have a
-human-driven way back in, through `reopenSessionForReview`, which the recording machine has no
-equivalent of: there is no path back from a recording's `dead` or `discarded`.
+partially-assembled session would be extracting the wrong set. **`awaiting-review`** is parked the
+way `transcribed` is on the recording side: it is the review gate, and `submitSessionReview` is the
+only way out — nothing about the pipeline advances a parked session on its own. `done` and `dead`
+both have a human-driven way back in, through `reopenSessionForReview`, which the recording machine
+has no equivalent of: there is no path back from a recording's `dead` or `discarded`.
 
 ### Why the split exists
 
-A recording is finished once it is text. The session owns everything downstream — extraction,
-review, write — and it does not know, and structurally cannot know, what produced the transcript it
-is extracting from. That is not an accident of where the fields happen to live; `OutboxDocument`
-carries capture and transcription fields only, and every field the pipeline touches from extraction
-onward — `extracted`, `extractedBy`, `reviewOutcome`, `writeResult`, the write destination `ctx` —
-lives on `SessionDocument` instead, moved there in schema v6. Two collections in one database,
-because a recording and a session answer genuinely different questions: "did this capture get turned
-into text" and "what does the assembled evidence say."
+A recording is finished once it is text; everything downstream belongs to the session, which
+structurally cannot know what produced its transcript. [Sessions](/guide/sessions) covers the
+structural argument in full. Both machines appear here because the relay acts on both.
 
 ### `failed` is resting, `dead` is terminal
 
-Both machines share this shape, and it's worth stating once rather than twice. **`dead` is the only
-terminal state** in either machine. **`failed` is a resting state** — the relay picks it back up once
+Both machines share this shape. **`dead` is the only terminal state** in either machine. **`failed`
+is a resting state** — the relay picks it back up once
 `nextAttemptAt` has passed, which is exactly why `failed` sits in both `ACTIVE_OUTBOX_STATUSES` and
 `ACTIVE_SESSION_STATUSES` alongside the in-flight statuses. An item or session becomes `failed` when
 the last attempt lost, the error looked transient, and the attempt budget isn't spent; it becomes
@@ -86,11 +76,10 @@ the last attempt lost, the error looked transient, and the attempt budget isn't 
 
 `isTransientFailure` (`packages/ribo-core/src/queue/backoff.ts`) is the retry classifier: retry 5xx,
 429, and network errors; treat 4xx as terminal, except 408 and 429. Its default for an error it
-doesn't recognize is `true` — retry it — and that asymmetry is deliberate: a wrongly-retried
-terminal failure costs a few pointless requests and lands at `dead` once attempts run out, while a
-wrongly-`dead` transient failure silently loses a field recording nobody can recreate. A bare
-`TypeError` from `fetch` when the uplink drops is the single most likely error this queue will ever
-see, and it has to retry.
+doesn't recognize is `true` — retry it — and that asymmetry is deliberate. A wrongly-retried terminal
+failure costs a few pointless requests and lands at `dead` once attempts run out. A wrongly-`dead`
+transient failure silently loses a field recording nobody can recreate. A bare `TypeError` from
+`fetch` when the uplink drops is the most likely error this queue will ever see, and it has to retry.
 
 `fullJitterDelay` computes the wait: `delay = min(cap, base · 2^attempts) · random()`, persisted into
 `nextAttemptAt` rather than held in a timer — the tab may not survive to run that timer, and the
@@ -124,8 +113,8 @@ per-session Web Lock for the duration — which is how two tabs draining the sam
 each other's way without a server to arbitrate.
 
 There is no background drain and no timer. iOS Safari has no Background Sync API, so `syncNow()` runs
-on demand — at startup, on a reconnect, or from an explicit "sync now" affordance — rather than on a
-schedule nothing would ever fire on the iOS tab.
+on demand — at startup, on a reconnect, or from an explicit "sync now" affordance — not on a schedule
+iOS would never fire.
 
 ## Connectivity: three states, not a boolean
 
@@ -178,8 +167,8 @@ build uses — lazily constructed, so a caller who injects something else never 
 Tests that need no browser at all inject `getRxStorageMemory()` from `rxdb/plugins/storage-memory`
 instead, and get a real `Outbox` with real durability semantics minus the IndexedDB dependency.
 
-This is deliberately a **Level 1 seam** (AGENTS.md §5.5): `Outbox` stays a concrete class over RxDB,
-and injecting the storage engine is the whole of what's exposed. Extracting a formal `Outbox`
+This is a deliberate Level 1 seam: `Outbox` stays a concrete class over RxDB, and injecting the
+storage engine is the whole of what's exposed. Extracting a formal `Outbox`
 interface, with a storage conformance-test kit a second backend would have to satisfy, is deferred
 until a genuinely non-RxDB backend is real — writing that interface now would be a contract with
 exactly one implementation, which locks in RxDB's shape while pretending the seam is more general
