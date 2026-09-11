@@ -1,21 +1,19 @@
 # @azx/ribo-extractor-ondevice
 
-An on-device `Extractor` for Ribo: three-phase extraction (presence, then verbatim span, then
-classify) over Chrome's built-in Language Model, implemented as a `CapableChatClient` so it composes
-through `compositeExtractor`/`fallbackExtractor` alongside a managed strategy with no queue changes.
+On-device extraction for Ribo. It runs three phases — presence, verbatim span, then classify — over
+Chrome's built-in Language Model, implementing Ribo's `Extractor` contract as a `CapableChatClient`
+so it composes with a managed strategy through `compositeExtractor` or `fallbackExtractor`.
 
-## When to reach for it
+## When to use it
 
-Reach for it as a fallback engine when the managed extractor is unreachable — no network, or a
-deployment that wants to degrade to on-device rather than fail outright. It's a genuinely weaker
-model than a frontier managed one, so `ribo-core`'s extraction-side composite prefers managed first
-and accepts on-device only when the managed path can't run at all.
+Use it as a fallback engine when the managed extractor is unreachable — no network, or a deployment
+that wants to degrade to on-device rather than fail. It's a weaker model than a frontier managed
+one, so `ribo-core`'s extraction-side composite prefers managed first and accepts on-device only
+when the managed path can't run.
 
-Skip it if your deployment has reliable managed-model access; reach for
-[`@azx/ribo-extractor-openai`](../ribo-extractor-openai/README.md) alone instead. This package
-depends on that one for its `ChatClient` transport types (a declared exception to the otherwise
-inward-only dependency rule, since a chat-shaped seam only needs describing once) — it does not use
-`ribo-extractor-openai`'s transports themselves.
+Skip it if your deployment has reliable managed-model access; use
+[`@azx/ribo-extractor-openai`](../ribo-extractor-openai/README.md) alone instead. It borrows only
+the `ChatClient` types from `@azx/ribo-extractor-openai`, not the transports.
 
 ## Composing it
 

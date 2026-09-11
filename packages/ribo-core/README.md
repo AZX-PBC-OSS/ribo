@@ -1,19 +1,19 @@
 # @azx/ribo-core
 
-The headless engine at the center of Ribo: the durable offline queue and its two state machines,
-the `Transcriber` / `Extractor` / `ToolAdapter` seam contracts every other package implements, and
-the provenance and review vocabulary that ties them together — with no React and no DOM rendering.
+Ribo's headless engine. It holds the durable offline queue and its two state machines, the
+`Transcriber`, `Extractor` and `ToolAdapter` contracts every other package implements, and the
+provenance and review vocabulary that ties them together. No React, no DOM rendering.
 
-## When to reach for it
+## When to use it
 
-Reach for it directly when you're wiring the queue and relay yourself, writing a new `Transcriber`,
+Use it directly when you're wiring the queue and relay yourself, writing a new `Transcriber`,
 `Extractor`, or `ToolAdapter` package, or driving the pipeline in a test with no model and no
 network (`FakeTranscriber`, `FakeExtractor`). Every other Ribo package depends on it — you get it
 either way.
 
-Reach for [`@azx/ribo-ui-react`](../ribo-ui-react/README.md) instead if you're building a React app
-and want the state machine already wired into hooks; you'll rarely import from `ribo-core` directly
-in that case, though it stays a peer dependency underneath.
+Use [`@azx/ribo-ui-react`](../ribo-ui-react/README.md) instead if you're building a React app and
+want the state machine already wired into hooks; you'll rarely import from `ribo-core` directly in
+that case, though it stays a peer dependency underneath.
 
 ## Composing it
 

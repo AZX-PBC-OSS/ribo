@@ -1,20 +1,19 @@
 # @azx/ribo-extractor-openai
 
-A tool-agnostic `Extractor` for Ribo: single-shot managed-LLM extraction over a `ChatClient`
-transport, plus a per-group strategy (`perGroupExtractor`) that partitions a schema too big for one
-model call across concurrent calls. It works against any `ExtractionTarget<V>` — any adapter or test
-target wires the same extractor — so it depends on no adapter.
+Managed-LLM extraction for Ribo: a single-shot strategy for a schema that fits one call, and a
+per-group strategy (`perGroupExtractor`) that partitions a schema too big for one call across
+concurrent calls. It implements the `Extractor` contract over a `ChatClient` transport and works
+against any `ExtractionTarget<V>` — any adapter or test target — so it depends on no adapter.
 
-## When to reach for it
+## When to use it
 
-Reach for it as the managed-LLM extraction strategy behind any `ToolAdapter`: `singleShotExtractor`
-for a schema that fits one call, `perGroupExtractor` + `instanceLadder` once it doesn't. `openAiChat`
-gives you an OpenAI-compatible transport; `helixChat` gives you the Helix platform's own LLM route
-instead — that route is **not** OpenAI-compatible, despite living in this same package.
+Use it as the managed-LLM extraction strategy behind any `ToolAdapter`: `singleShotExtractor` for a
+schema that fits one call, `perGroupExtractor` + `instanceLadder` once it doesn't. `openAiChat` gives
+you an OpenAI-compatible transport; `helixChat` speaks the Helix platform's own LLM route, which —
+despite the package name — is **not** OpenAI-compatible.
 
 Skip it if you're extracting on-device — see [`@azx/ribo-extractor-ondevice`](../ribo-extractor-ondevice/README.md),
-which depends on this package only for the shared `ChatClient` transport types, not for a chat
-transport itself.
+which borrows only this package's `ChatClient` transport types, not a chat transport itself.
 
 ## Composing it
 

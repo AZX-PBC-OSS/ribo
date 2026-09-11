@@ -1,21 +1,22 @@
 # @azx/ribo-transcriber-ondevice
 
-On-device Whisper, implementing `@azx/ribo-core`'s `Transcriber` so it's substitutable for any other
-engine and composes through `firstCapable`/`hedged` with no queue changes. Inference runs in a Web
-Worker via `@huggingface/transformers`; the model downloads once (explicitly, user-initiated) and is
-cached for offline use.
+On-device speech transcription for Ribo — Moonshine by default, with Whisper models still
+selectable. It implements `@azx/ribo-core`'s `Transcriber` contract, so it swaps in for any other
+engine and composes through `firstCapable` or `hedged`. Inference runs in a Web Worker via
+`@huggingface/transformers`; the model downloads once (explicitly, user-initiated) and is cached for
+offline use.
 
-## When to reach for it
+## When to use it
 
-Reach for it as the free, private, offline-capable transcription engine — `capability()` measures
-the device's real-time factor at `prime()` time and reports `too-slow` on hardware that can't keep
-up, so a caller can fall back rather than guess.
+Use it as the free, private, offline-capable transcription engine — `capability()` measures the
+device's real-time factor at `prime()` time and reports `too-slow` on hardware that can't keep up,
+so a caller can fall back rather than guess.
 
 Skip it, or pair it with [`@azx/ribo-transcriber-managed`](../ribo-transcriber-managed/README.md) as
-a fallback, when the device fails that gate — and skip it outright on iOS, which is out of scope for
-on-device today. It's also a separate package from `@azx/ribo-core` on purpose:
-`@huggingface/transformers` pulls `onnxruntime-node` and `sharp` as hard dependencies with
-postinstall scripts, a cost no non-transcribing consumer should inherit.
+a fallback, when the device fails that gate — and skip it on iOS, which is out of scope for
+on-device today. It's a separate package from `@azx/ribo-core` because `@huggingface/transformers`
+pulls `onnxruntime-node` and `sharp` as hard dependencies with postinstall scripts, a cost no
+non-transcribing consumer should inherit.
 
 ## Composing it
 

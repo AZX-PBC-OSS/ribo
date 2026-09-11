@@ -2,13 +2,13 @@
 
 The headless React hook layer over `@azx/ribo-core`'s engine: `RiboProvider` plus seven `use*` hooks
 that wire the recorder, the outbox, sessions, review, connectivity, and work-safety into React
-state — no components beyond the provider, no markup, no stylesheet.
+state. It ships one component — the provider — and no markup or stylesheet.
 
-## When to reach for it
+## When to use it
 
-Reach for it when your host app is React and you want the queue's state as hooks instead of
-re-deriving it from `@azx/ribo-core` yourself — `useRecorder`, `useOutboxItems`, `useSessions`,
-`useReview`, `useConnectivity`, `useWorkSafety`, `useStoragePersistence`.
+Use it when your host app is React and you want the queue's state as hooks instead of re-deriving
+it from `@azx/ribo-core` yourself — `useRecorder`, `useOutboxItems`, `useSessions`, `useReview`,
+`useConnectivity`, `useWorkSafety`, `useStoragePersistence`.
 
 Skip it if your host isn't React (go straight to `@azx/ribo-core`) or if you want a component
 library — this package renders nothing; every panel is the host's own code built on these hooks.

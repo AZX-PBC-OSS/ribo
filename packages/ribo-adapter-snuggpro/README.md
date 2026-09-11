@@ -2,17 +2,16 @@
 
 The `ToolAdapter` for Snugg Pro, a home-energy-audit tool: the field schema shaped to its wire
 property names, the extractor instructions and few-shot examples, a deterministic normalization
-pass, and the write-back seam. It is Ribo's **reference adapter** — the only tool-specific surface
-in the workspace, and the worked example every other adapter is built by analogy to.
+pass, and the write-back contract. It is Ribo's **reference adapter** — the only tool-specific
+surface in the workspace, and the example to copy when writing your own.
 
-## When to reach for it
+## When to use it
 
-Reach for it if you're actually integrating with Snugg Pro, or if you want a real, complete
-`ToolAdapter` to read before writing your own for a different host tool — it's the fullest worked
-example of the seam.
+Use it if you're integrating with Snugg Pro, or if you want a real, complete `ToolAdapter` to read
+before writing your own for a different host tool.
 
 Skip it for any other host tool: write your own `ToolAdapter` package instead. No Snugg Pro field
-name or quirk is meant to leak into `@azx/ribo-core` or `@azx/ribo-ui-react`, and none does.
+name or quirk leaks into `@azx/ribo-core` or `@azx/ribo-ui-react`.
 
 ## Composing it
 
