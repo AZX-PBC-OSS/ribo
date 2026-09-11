@@ -67,8 +67,6 @@ export default defineConfig({
         {
           text: "Guides",
           items: [
-            { text: "The Core Loop", link: "/guide/core-loop" },
-            { text: "The Offline Outbox", link: "/guide/outbox" },
             { text: "Typesafety", link: "/guide/typesafety" },
             { text: "Provenance", link: "/guide/provenance" },
             { text: "Schema at Scale", link: "/guide/schema-at-scale" },
@@ -78,6 +76,7 @@ export default defineConfig({
             { text: "Arbitration & Fallback", link: "/guide/arbitration" },
             { text: "Review", link: "/guide/review" },
             { text: "Write-back", link: "/guide/write-back" },
+            { text: "Offline & the Outbox", link: "/guide/offline-and-the-outbox" },
           ],
         },
       ],

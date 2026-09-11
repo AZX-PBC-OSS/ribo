@@ -87,4 +87,4 @@ adapter straight in rather than building a `target` literal by hand.
 ## Next
 
 Swapping `FakeTranscriber` for a real engine, wiring both into the durable outbox, and getting a
-result to a review screen is [The Core Loop](/guide/core-loop).
+result to a review screen is [Offline & the Outbox](/guide/offline-and-the-outbox).
