@@ -59,6 +59,8 @@ export {
 export type { CaptureItem, DocumentCapture } from "./capture-item.js";
 export { transcriptSchema } from "./transcript.js";
 export type { Transcript } from "./transcript.js";
+export { decodeEntities } from "./decode-entities.js";
+export type { AnnotatedTranscript } from "./annotated-transcript.js";
 
 // Transcription: the contract, the capability model an engine reports itself
 // through, and the error that says "this device cannot" rather than "this clip

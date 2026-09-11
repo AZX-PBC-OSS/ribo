@@ -66,6 +66,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "createRelay",
     "createSequentialExtractor",
     "decodeAudioDuration",
+    "decodeEntities",
     "deriveInstanceIdempotencyKey",
     "deriveRetryBudget",
     "documentCaptureSchema",
