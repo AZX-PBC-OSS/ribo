@@ -74,6 +74,8 @@ export default defineConfig({
             { text: "Schema at Scale", link: "/guide/schema-at-scale" },
             { text: "Captures & Sources", link: "/guide/captures-and-sources" },
             { text: "Sessions", link: "/guide/sessions" },
+            { text: "Extraction", link: "/guide/extraction" },
+            { text: "Arbitration & Fallback", link: "/guide/arbitration" },
           ],
         },
       ],
