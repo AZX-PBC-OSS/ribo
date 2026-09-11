@@ -7,10 +7,9 @@ starts a dev server that composes every package from TypeScript source, so editi
 
 The authoritative contributor guide lives in
 [`CONTRIBUTING.md`](https://github.com/AZX-PBC-OSS/ribo/blob/main/CONTRIBUTING.md) at the repo root,
-alongside [`AGENTS.md`](https://github.com/AZX-PBC-OSS/ribo/blob/main/AGENTS.md) — the fuller working
-guide, including the conventions and mechanisms that must not be "simplified" away. Read one or both
-before your first pull request. This page covers the one thing worth stating plainly rather than
-linking to: what "done" actually means.
+alongside [`AGENTS.md`](https://github.com/AZX-PBC-OSS/ribo/blob/main/AGENTS.md), the fuller working
+guide, including the conventions and mechanisms that must not be simplified away. Read one or both
+before your first pull request. This page covers the one thing the links don't: what "done" means.
 
 ## The definition of done, and its trap
 
@@ -37,9 +36,8 @@ pack-and-consume tier keeps its own scratch app that has to list the package by 
 changeset tooling has to know a new or removed package exists. Run all four before pushing that kind
 of change.
 
-This distinction is worth stating explicitly because getting it wrong once already cost a red CI:
-the working notes used to read "CI runs the same script, so there is no second bar to clear," which
-was true right up until it wasn't.
+Getting this wrong once already cost a red CI: the working notes used to read "CI runs the same
+script, so there is no second bar to clear" — and they were wrong.
 
 ## Two commands that write to the working tree
 

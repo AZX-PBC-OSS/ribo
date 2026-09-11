@@ -14,8 +14,8 @@ the final `changeset:publish` step is dormant until a registry is chosen.
 
 ## Independent versioning
 
-Each publishable package versions on its own line — there are no `fixed` or `linked` groups. A change
-to one package bumps only that package and its dependents; it never drags an unrelated package along.
+Each publishable package versions independently — no `fixed` or `linked` groups. A change to one
+package bumps only that package and its dependents; it never drags an unrelated package along.
 
 A release target is any package under `packages/*` whose `package.json` doesn't set
 `"private": true` — check there rather than trusting a count here, since this list grows as packages
@@ -37,8 +37,8 @@ Every package is `0.x`, and we follow the 0.x reading of semver literally:
 - There is no stability promise below 1.0.
 
 **`1.0` is the contract-stability commitment.** A package's first `1.0.0` is the point at which we
-start treating its public surface as a contract and reserve breaking changes for major bumps. It is a
-deliberate, per-package statement — not a routine bump.
+start treating its public surface as a contract and reserve breaking changes for major bumps. Bumping
+a package to `1.0.0` is a per-package decision, not a routine bump.
 
 ## The `ribo-core` peer-range policy
 
@@ -69,6 +69,6 @@ pnpm changeset:publish    # publish — DEFERRED: no registry/.npmrc yet, do not
 
 Author one changeset per logical change and commit its `.changeset/*.md` file alongside the code it
 describes. At release time `changeset:version` turns the accumulated changesets into version bumps and
-`CHANGELOG.md` entries in a single pass. The changelog generator is the built-in, tokenless
-`@changesets/cli/changelog` (no `GITHUB_TOKEN` required), and `access` is `restricted` for now —
-revisitable once the registry is chosen.
+`CHANGELOG.md` entries in a single pass. The changelog generator is the built-in
+`@changesets/cli/changelog`, which needs no `GITHUB_TOKEN`. `access` is `restricted` until the
+registry is chosen.

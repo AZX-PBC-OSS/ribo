@@ -1,8 +1,8 @@
 # Design Decisions
 
 This page records the decisions that shape Ribo, for anyone deciding whether to adopt it or send a
-pull request. Each one looks arguable in isolation; each is closed, with the reasoning kept next to
-it so it does not get relitigated every time someone new reads the code.
+pull request. Each one looks arguable in isolation. Each is closed, and the reasoning sits next to it
+so it doesn't get relitigated every time someone new reads the code.
 
 ## The shape: a reusable core, thin per-tool adapters
 
@@ -26,20 +26,18 @@ chooses between them by capability, not by branching on source type. See
 
 ## `Transcriber`: the name stays (considered and closed)
 
-`Transcriber<DocumentCapture>` parsing a PDF is not transcription in any ordinary sense, and every
-page of these docs has to live with the word. The question of whether to soften it with a
-docs-only synonym — "source", "reader" — came up and was decided against.
+Calling a PDF parse "transcription" is a stretch, and the docs considered a softer synonym —
+"source", "reader" — and rejected it.
 
 **The name stays.** The docs use the code's own vocabulary and explain it once, early in
 [Captures & Sources](/guide/captures-and-sources): a `Transcriber` turns any capture into citable
-text, and audio was merely the first kind Ribo had one for.
+text, and audio was just the first capture kind.
 
 **Why not a synonym.** A reader who greps the API for "source" or "reader" would find a name nobody
-in the codebase actually uses, and prose built around that synonym would drift out of sync with the
+in the codebase uses, and prose built around that synonym would drift out of sync with the
 generated [Reference](/reference/) the moment the interface changed under it. **Why not rename the
 interface itself** — that is a breaking change to a public contract, and out of scope for a
-documentation pass regardless of how the name reads. This is recorded here so the tension is closed,
-not rediscovered.
+documentation pass regardless of how the name reads.
 
 ## ESM-only, no CJS build
 
@@ -78,8 +76,7 @@ publish time via `publishConfig` — was rejected because the two approaches fai
 directions. Defaulting to `src/` means a broken or skipped rewrite ships raw, uncompiled TypeScript
 to a host app that cannot consume it. Defaulting to `dist/`, as Ribo does, means the worst case of a
 broken condition is that a consumer gets the correct, already-built artifact and simply loses the
-in-repo HMR convenience. The failure modes are asymmetric, and the safe default was chosen
-deliberately.
+in-repo HMR convenience. The failure modes are asymmetric; the safe one is the default.
 
 ## `createWorker` is injected; library code never constructs a `Worker`
 
