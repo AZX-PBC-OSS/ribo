@@ -197,5 +197,9 @@ under specific conditions, not as a general property of cell-level citation.
 
 - `run-experiment.mjs` — the harness (imports from `dist/`, scores with
   `spanGroundedness`)
-- `transcript.txt` — pdfplumber extraction of the Manual J PDF
+- `transcript.txt` — **not committed.** pdfplumber extraction of the Manual J PDF. The
+  corpus is real customer work (named contractor, named preparer), so it is gitignored
+  rather than published. Regenerate it with pdfplumber against
+  `Quote 4 - Manual J (Wrightsoft) - Final.pdf` to re-run the harness. The committed
+  `results/` quote room-table rows and totals only, and carry no personal data.
 - `results/` — per-run raw extraction JSON + score JSON + `summary.json`

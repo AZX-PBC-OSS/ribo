@@ -85,6 +85,23 @@ appear in doc comments across `packages/*/src` and in the design docs here. Pros
 identifier changes. Not urgent, but a split vocabulary between the published docs and the repo's
 own notes is the drift this project keeps having to correct.
 
+### D2. `Transcript.text` holds rendered text, not escaped markup
+
+Recorded as open under B4; now decided. `transcript.ts` documents `text` as "exactly what the
+model saw", and for document transcribers that currently means HTML/markdown-escaped text. Two
+consequences, both bad: a reviewer shown `&amp;` is being shown an implementation detail, and a
+model asked to quote from escaped text has to choose between copying the escape and copying the
+character — so a correct citation can fail the grounding check on an encoding difference.
+
+**Decided:** decode at the transcriber, so the canonical text is already rendered before anything
+quotes from it or checks against it. Affects `ribo-transcriber-pdfjs` and
+`ribo-transcriber-managed-docs`. B4's decode-inside-`loosen` stays as well — the two are not
+alternatives. Rendering at the transcriber fixes the text a human reads; a tolerant near-miss tier
+still catches a span that arrives encoded from a provider that returns its own markdown.
+
+Folded into P4, since what `Transcript.text` contains is the same question as what the
+transcribe→extract seam carries.
+
 ---
 
 ## Proposals
@@ -174,18 +191,42 @@ answer. It measured shape, not whether native extraction beats flattened text.
 
 ---
 
+## Resolved
+
+### The 37% per-cell fabrication figure did not reproduce
+
+Measured 2026-09-11, `spikes/prompt-vs-granularity/`. A 2x2 factorial —
+leaf/row granularity x current/pinned prompt wording — five runs per cell, `claude-haiku-4-5`
+through `singleShotExtractor`, scored with `spanGroundedness`:
+
+| arm           | verbatim | per-run rates            |
+| ------------- | -------- | ------------------------ |
+| leaf, current | 99.5%    | 97.7, 100, 100, 100, 100 |
+| leaf, pinned  | 100%     | 100, 100, 100, 100       |
+| row, current  | 98.8%    | 100, 100, 100, 94.1, 100 |
+| row, pinned   | 100%     | 100, 100, 100, 100, 100  |
+
+Three negatives at once. Pinning does not beat the current wording by a wide margin, because
+there was nothing to rescue. There is no bimodality — the distribution is unimodal at the top,
+not the Mistral spike's two modes. And leaf is marginally _better_ than row, so the row-versus-leaf
+gap never appeared at all. Every ungrounded span across all 20 runs was on the house totals; the
+room table was perfect in both granularities.
+
+This does **not** show the original 37% was a prompt artifact — too much differs. Different
+document, different schema (87 spans against 46), and different extraction mechanism: the original
+ran `perGroupExtractor` against the Helix gateway, this ran Anthropic `tool_use` structured output.
+That last difference is the one to suspect first.
+
+What it does show: the granularity knob's _empirical_ justification does not hold up as stated. The
+knob itself is still right — the token-budget argument (603 per-cell citations against 67 per-row
+for a 67-row table) and the reviewer-experience argument are untouched, and neither depends on a
+fabrication rate. `group-provenance-granularity-design.md` §1 should cite the 37% as a historical
+measurement under specific conditions rather than as a property of cell-level citation.
+
+---
+
 ## Open questions
 
-- **Should `Transcript.text` hold rendered text rather than escaped markdown?** See B4. Affects
-  `ribo-transcriber-pdfjs` and `ribo-transcriber-managed-docs`, not just a hypothetical Mistral
-  package.
-- **Was the 37% per-cell fabrication figure a prompt problem?** The group-provenance design
-  concluded row spans are inherently easier for a model than cell spans, and added the granularity
-  knob on that basis. The Mistral spike found the identical failure shape — synthesised
-  label-plus-value spans — and a prompt change collapsed it. Different model and different prompt,
-  so this is a hypothesis. An experiment is running.
-- **Does the row-versus-leaf gap survive prompt pinning?** The architectural conclusion rests on
-  this, not on the 37% figure alone.
 - **TypeDoc residuals.** 21 "resolved but not included" warnings need an export or a
   `typedoc.json` change; 7 more come from `ribo-core` JSDoc inherited into other packages'
   implementing classes and resolve in-package but not when inherited.
