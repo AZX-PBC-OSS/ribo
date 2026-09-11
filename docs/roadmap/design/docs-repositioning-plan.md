@@ -1178,6 +1178,32 @@ The closing task. Nothing here is cosmetic: it is the task that makes the two mu
 - Consumes: Tasks 6–12, which absorbed all four pages' content.
 - Produces: the final IA.
 
+- [ ] **Step 0: Two adjudicated findings carried from Task 7A, which exhausted its five fix
+      rounds. Both are verified, both are single-line, and both are on `docs/guide/comparison.md`.**
+
+  Task 7A hit the fix-round cap with these open. They were adjudicated as real and load-bearing —
+  they are factual errors on the page whose entire argument is that it holds itself to the
+  standard it holds vendors to — so they are carried here rather than parked.
+
+  1. **`comparison.md:107-108` misstates the benchmark it links.** It reads "LlamaParse and
+     Reducto's agentic mode came in around 89–90%". RealDocBench Table 3 puts the **agentic**
+     modes at 92.2 (LlamaParse) and 91.4 (Reducto); **89.2 / 88.7 are the base modes**. The
+     earlier wording said "LlamaParse… at roughly 89–90%" and was correct; round 5 re-scoped the
+     phrase to "agentic mode" and made it wrong against its own citation. Fix the attribution —
+     either drop "agentic mode" or use the agentic figures. **Check the table before choosing.**
+
+  2. **`comparison.md:213` is falsified by the page's own new paragraph at `:227-229`.** Line 213
+     says "None of them ship an offline or on-device story out of the box either", backing the
+     DIY 🚫 on the two offline rows. But `:227-229` credits `OpenAIWhisperParserLocal` and
+     `FasterWhisperParser` as shipped `langchain_community` wiring — a local Whisper parser _is_
+     an on-device story, structurally identical to the Tesseract-backed OCR loaders the page
+     credits 🟡 for. Either re-adjudicate those two cells under the loader standard, or rewrite
+     :213 so it states the real distinction (the conjunctive claim — transcription _and_
+     extraction, both offline — may still hold where the individual halves do not).
+
+  This is the third time this loader standard has needed propagating. **Apply it to the whole
+  matrix, not to the cells named here**, and say in your report which cells you checked.
+
 - [ ] **Step 1: Confirm the content was actually absorbed**
 
 Before deleting, read all four pages one last time and confirm each claim now appears in a guide.
