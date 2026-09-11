@@ -121,6 +121,19 @@ describe("spanGroundedness", () => {
     expect(spanGroundedness("‘quoted’", "the 'quoted' word")).toBe("near-miss");
   });
 
+  test("HTML-entity escaping is a near miss, not ungrounded or grounded", () => {
+    // Document OCR markdown carries escaped entities (`&amp;`) that the verbatim
+    // tier correctly rejects, but they are still present in the transcript — not
+    // fabrication. Decoding happens in the near-miss tier only.
+    expect(spanGroundedness("attic & R-19", "attic &amp; R-19")).toBe("near-miss");
+    expect(spanGroundedness("5 &lt; 10", "5 < 10")).toBe("near-miss");
+    expect(spanGroundedness("it&apos;s done", "it's done")).toBe("near-miss");
+    expect(spanGroundedness("&#39;quoted&#39;", "'quoted'")).toBe("near-miss");
+    expect(spanGroundedness("&#x2018;quoted&#x2019;", "'quoted'")).toBe("near-miss");
+    // The verbatim tier stays strict: only an exact substring is grounded.
+    expect(isSpanGrounded("attic & R-19", "attic &amp; R-19")).toBe(false);
+  });
+
   test("text that is not in the document at all is ungrounded", () => {
     expect(spanGroundedness("$ 9,999.00", laidOut)).toBe("ungrounded");
   });
