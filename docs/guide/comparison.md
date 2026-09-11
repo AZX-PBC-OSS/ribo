@@ -48,7 +48,7 @@ rows above are held to what it does today, not what could be added to it.
 | Managed batch throughput                           |  🚫  |        🟡        |          ✅           |        🚫         |
 | Zero-ops hosting                                   |  🚫  |        🟡        |          ✅           |        🚫         |
 | Capture, queue and review survive with no network  |  ✅  |        🚫        |          🚫           |        🚫         |
-| Transcription and extraction run fully offline     |  🟡  |        🟡        |          🚫           |        🚫         |
+| Transcription and extraction run fully offline     |  🟡  |        🟡        |          🟡           |        🚫         |
 | Data need never leave the device                   |  ✅  |        🟡        |          🟡           |        🚫         |
 | Runs in a browser with no server                   |  ✅  |        🚫        |          🚫           |        🟡         |
 | Durable queue, survives reload and offline         |  ✅  |        🚫        |          🚫           |        🚫         |
@@ -125,6 +125,17 @@ tiers on top of their default hosted offering. Self-hosting one of these is avai
 ops cost Ribo imposes by default — which is why "data need never leave the device" reads 🟡, not 🚫,
 for this category; most customers use the hosted default, but the option exists for the ones who
 can't.
+
+The same tiers go further than data residency, which is why "transcription and extraction run fully
+offline" reads 🟡 here too, not 🚫: Reducto's air-gapped deployments ship as offline update bundles
+with no external network access at runtime; LandingAI documents an on-premises option for air-gapped
+environments as well; and Azure's disconnected containers run with no connectivity at all once a
+license file is downloaded during an initial connected session — the same shape as Ribo's own
+on-device engines caching model weights while online and then running without one. The
+enterprise-agreement and commitment-tier gate in front of that capability is a real cost, but it is
+the same kind of cost this page already credits Ribo's own on-device path for clearing, not a
+categorical absence of the capability — so marking it 🚫 here while marking the row above 🟡 on the
+same evidence would be the page failing its own standard.
 
 **Several already do citations.** Reducto's extraction API anchors each field to a source-text
 region and ships a confidence-plus-grounding wrapper per value (see
