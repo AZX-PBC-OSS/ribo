@@ -53,6 +53,7 @@ Every task's requirements implicitly include this section.
     --exclude-dir=roadmap --exclude-dir=implementation
   grep -rn "voice-capture SDK" . --include='*.md' \
     --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.superpowers \
+    --exclude-dir=.changeset \
     --exclude-dir=roadmap --exclude-dir=implementation
   ```
 
