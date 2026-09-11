@@ -106,9 +106,9 @@ working exactly as designed, and retrying it burns backoff attempts that will ne
 reasons are `no-text-layer`, `encrypted`, `unsupported-format` — each plainly a property of the
 item, not of the engine or the device.
 
-`UnsupportedItemError` is **terminal for the queue** — it extends the same `TerminalQueueError` a
-non-retryable failure does, so the relay doesn't burn a retry budget on an engine+item pair that will
-never succeed — but it is **not terminal for the item**. A composition layer sees the failure and
+`UnsupportedItemError` is **terminal for the queue** — it is a subclass of `TerminalQueueError`, the
+base class `isTransientFailure` treats as non-retryable outright, so the relay doesn't burn a retry
+budget on an engine+item pair that will never succeed — but it is **not terminal for the item**. A composition layer sees the failure and
 routes to the next engine: a scanned invoice that `pdfjs` can't read a text layer from is exactly the
 case `@azx/ribo-transcriber-managed-docs`'s OCR exists for, and `fallbackTranscriber` moves on to it
 without the item ever reaching `dead`.

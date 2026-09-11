@@ -116,8 +116,11 @@ session at `awaiting-review` — parked, same as the recording side, until a hum
 out is a review submission (`submitSessionReview`); nothing about the pipeline advances a parked
 session on its own. Review is where the reviewer sees every field from all three captures at once,
 each still traceable to whichever capture actually said it. Once a decision is submitted, the
-session moves to `writing` and, eventually, `done` — or back to `awaiting-review` from `done` or
-`dead` if something needs correcting later.
+session moves to `writing` and, eventually, `done` — or, if a step fails along the way, to `failed`,
+which the relay retries on its own once its backoff elapses. `dead` is the only status with no
+automatic way out — reached once retries are exhausted — and even from there (or from `done`) a
+human can bring the session back to `awaiting-review` with `reopenSessionForReview` if something
+needs correcting later.
 
 Watch sessions live rather than poll them:
 
