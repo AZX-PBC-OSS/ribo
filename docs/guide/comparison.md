@@ -33,7 +33,7 @@ product: its cell reads ✅ or 🟡 if **at least one** named member does the ro
 member does — the prose beneath the table says which member backs which cell. And a DIY-
 orchestration cell reflects what the library ships out of the box, not what a team could build on
 top of it — crediting hypothetical builds would make almost every row buildable, and Ribo's own
-rows above are held to what it does today, not what could be added to it.
+rows below are held to what it does today, not what could be added to it.
 
 |                                                    | Ribo | Document parsers | Document-AI platforms | DIY orchestration |
 | -------------------------------------------------- | :--: | :--------------: | :-------------------: | :---------------: |
@@ -102,6 +102,21 @@ category, but the transcript it produces never joins a document inside one schem
 which is what "one extraction across mixed sources at once" actually asks, and both of them are 🚫
 there like every other tool in this comparison.
 
+**One of them publishes a field-accuracy number too.** LlamaParse's per-field accuracy was measured
+independently at roughly 89–90% by RealDocBench, a benchmark for field-level QA on real-world
+regulated documents (see [RealDocBench](https://arxiv.org/pdf/2606.07401)) — which is what earns 🟡
+rather than 🚫 on "measured extraction accuracy published" for this category. Docling, Mistral and
+Unstructured don't publish a comparable figure; the other benchmarks that name them (ParseBench and
+similar) measure parsing and layout fidelity, not schema-field correctness, which is a different
+question — the same distinction this page draws about its own numbers in
+["What is not measured"](#what-is-not-measured).
+
+**Hosting is split down the middle, not uniform.** Mistral Document AI, LlamaParse and Unstructured's
+own Platform product are all hosted, metered services a team can point volume at without running
+infrastructure; Docling ships only as a self-hosted library, with no managed offering from its
+maintainers. That split — not a uniform answer either way — is why "managed batch throughput" and
+"zero-ops hosting" both read 🟡, not ✅, for this category.
+
 ### The rows Ribo loses to a document-AI platform
 
 This is the category that contests Ribo's actual claims, and it is the one an earlier version of
@@ -114,6 +129,14 @@ evaluator, and published in Reducto's own writeup of the results (see
 LandingAI and Extend publish their own numbers on their own document sets. This is the row an
 evaluator most wants, and Ribo's honest answer is 🚫 — see
 ["What is not measured"](#what-is-not-measured) below.
+
+**At least one of them claims to have solved the schema-size problem outright.** LandingAI's own
+documentation, titled "Long Extraction Schemas Solved," advertises no limit on field count, nesting
+depth, or character count in a schema. Reducto's documentation is more circumspect about the same
+territory: it names hundreds-of-fields schemas and deep nesting as a real accuracy risk it discloses
+rather than a hard cap. Neither claim is independently verified here — which is why "target schema
+past a few hundred fields" reads 🟡, not ✅, for this category: at least one vendor claims to clear
+it, on the vendor's own word, and another names the risk rather than hiding it.
 
 **They are a hosted service you can point volume at — usually.** No queue to run, no concurrency
 pool to size, no fallback ladder to write. That is a genuine cost of Ribo's shape, not just a virtue
@@ -184,6 +207,21 @@ None of them ship an offline or on-device story out of the box either — the ma
 fully offline" and "data need never leave the device" 🚫 for this column, not 🟡, because pointing
 one at a locally-hosted model is a real build, the same kind of build Ribo's own on-device engines
 are, and this page doesn't credit a competitor for work nobody has done yet.
+
+**They don't parse scans themselves, but they can call something that does.** LangChain ships an
+optional `UnstructuredPDFLoader` (`strategy="ocr_only"`) and an `UnstructuredImageLoader`, both of
+which hand the page off to Tesseract or Unstructured for OCR — a real capability, wired in by an
+install flag, not built into the orchestration layer itself. That's why "parses scanned, rotated or
+handwritten pages" reads 🟡 rather than 🚫 here: the library chooses someone else's parser the same
+way this page's own reframe says Ribo does, but unlike Ribo, it ships that choice as an optional
+loader rather than a seam.
+
+**One of them runs in a browser out of the box.** LangChain.js explicitly supports browser
+environments — an ESM build with Node-only APIs removed and browser-specific import paths — per its
+own "Support for Multiple JS Environments" announcement. Its own docs pair that with a warning that
+calling a model directly from client code exposes the API key, which is exactly the credential
+exposure Ribo's transport is built to avoid; that gap is why this row stays 🟡 rather than becoming
+✅.
 
 ## The differences that are hard to reproduce
 
