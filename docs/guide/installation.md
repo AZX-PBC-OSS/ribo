@@ -2,9 +2,9 @@
 
 ## As a consumer
 
-Ribo's packages are not published to npm yet — that is R4, tracked and not yet done. Until it
-lands, install from source (below). The examples on this site are written the way a real
-consumer will use them once R4 ships: importing the published package names directly.
+Ribo's packages are not published to npm yet; that's R4, and it's not done. Until it lands,
+install from source (below). The examples on this site import the published package names, as a
+real consumer will once R4 ships.
 
 ```bash
 pnpm add @azx/ribo-core
@@ -20,9 +20,7 @@ pnpm add @azx/ribo-ui-react @azx/ribo-extractor-openai
 (`^18.3 || ^19`) — install a matching React yourself. It also declares `@azx/ribo-core` as a peer
 rather than a plain dependency, because its provider hands your app's own `Recorder` and `Outbox`
 instances across the package boundary: your app and `ribo-ui-react` must share one copy of core,
-or those objects stop being `instanceof` what the library expects. Any future package with the
-same requirement — holding your app's core objects rather than only their types — will declare
-core as a peer for the same reason.
+or those objects stop being `instanceof` what the library expects.
 
 ## From source
 
@@ -36,8 +34,8 @@ pnpm --filter playground dev  # dev server on http://localhost:5173
 ```
 
 The `playground/` app composes every publishable package from TypeScript source, so editing a package's
-`src/index.ts` hot-updates the page with no build step — useful for reading how the pieces
-actually compose before you write against the published packages.
+`src/index.ts` hot-updates the page with no build step — a good way to see how the pieces fit
+together before you write against the published packages.
 
 ## Next
 

@@ -2,8 +2,8 @@
 
 This runs a capture through to a first extracted, span-checked field — with no credentials, no
 network, and no model. `FakeTranscriber` and `FakeExtractor`, both exported from
-`@azx/ribo-core`, stand in for the real engines so the whole pipeline is honest about what it
-just did: nothing was actually transcribed or extracted, but every seam ran for real.
+`@azx/ribo-core`, stand in for the real engines: nothing is transcribed or extracted, but every
+seam runs for real.
 
 ```ts
 import { z } from "zod";
@@ -15,7 +15,7 @@ import {
   isSpanGrounded,
 } from "@azx/ribo-core";
 
-// 1. A capture arrives. No microphone here — a bare `Recording` record stands in for one.
+// 1. A capture arrives. No microphone here — a bare `Recording` stands in for a real capture.
 const recording = baseRecordingSchema.parse({
   id: "rec-1",
   capturedAt: new Date().toISOString(),
@@ -80,11 +80,11 @@ const extractor = singleShotExtractor({
 });
 ```
 
-`target` is the field knowledge an extractor needs — the same `extractionSchema` from step 4,
-plus a name and instructions. A `ToolAdapter` supplies this already, so a real host wires its
+`target` bundles what an extractor needs — the same `extractionSchema` from step 4, plus a name
+and instructions. A `ToolAdapter` supplies this already, so a real host wires its
 adapter straight in rather than building a `target` literal by hand.
 
 ## Next
 
-Swapping `FakeTranscriber` for a real engine, wiring both into the durable outbox, and getting a
-result to a review screen is [Offline & the Outbox](/guide/offline-and-the-outbox).
+Swap `FakeTranscriber` for a real engine, wire both into the durable outbox, and get a result to
+a review screen — [Offline & the Outbox](/guide/offline-and-the-outbox).

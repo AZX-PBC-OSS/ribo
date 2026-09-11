@@ -30,17 +30,15 @@ features:
       because "pass your JSON schema to the API" stops working long before your schema does.
   - title: Provenance that is checked
     details: >-
-      Every field arrives with a source quote, and Ribo verifies that quote actually appears in the
-      source. An invented citation is detectable, not merely unlikely. That is a property a
-      self-reported confidence score cannot have.
+      Every field arrives with a source quote, and Ribo checks that the quote is actually in the
+      source. A made-up citation is caught, not merely unlikely — no confidence score can do that.
   - title: Human review is a contract
     details: >-
       Review is a stage in the pipeline, not a UI you write afterwards. Each leaf carries its own
-      schema, so a review screen renders and validates itself — and nothing ships until every
-      field has been looked at.
+      schema, so a review screen renders and validates itself — and nothing ships until a person
+      has seen every field.
   - title: Any source, one pipeline
     details: >-
-      A PDF, an invoice, a report, a dictation — joined into a single session and extracted once.
-      The half of the pipeline that produces text knows what a microphone is; the half that
-      produces structured data does not.
+      A PDF, a report, a dictation — joined into one session and extracted once. Capture and
+      transcription know what a microphone is; extraction and everything after don't need to.
 ---

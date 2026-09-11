@@ -40,9 +40,9 @@ transcribed into it. The relay transcribes each of those recordings, but it does
 extraction on the session itself until the host closes it. The recording set is intentional, not
 inferred — the relay has no way to know you're done adding captures except being told.
 
-**A recording that reaches `transcribed`** is finished from the relay's perspective. It narrows to
-capture and transcription only; everything downstream — extraction, review, write — moved to the
-session the recording belongs to. Once a recording is `transcribed`, the session owns what happens
+**A recording that reaches `transcribed`** is finished from the relay's perspective. The relay's
+job for a recording ends there — everything downstream (extraction, review, write) belongs to the
+session the recording is part of. Once a recording is `transcribed`, the session owns what happens
 to its words next.
 
 **The symptom:** an open session with fully transcribed recordings inside it never starts
@@ -63,9 +63,9 @@ has no automatic way out; a session can be rescued with `Outbox.reopenSessionFor
 retries a `dead` item on its own.
 
 **The symptom:** an item you expected to have failed hard is still sitting there quietly, with no
-error surfaced yet. That's the backoff window, not silence — check `nextAttemptAt` before assuming
-something is wrong. Conversely, don't build retry logic of your own on top of `failed`; the relay
-already owns it, using the backoff defaults below.
+error surfaced yet. That's the backoff window: check `nextAttemptAt` before assuming something is
+wrong. Conversely, don't build retry logic of your own on top of `failed`; the relay already owns
+it, using the backoff defaults below.
 
 ## Retry backoff is capped much lower than a server queue would use
 
@@ -107,7 +107,7 @@ that group's granularity as `"row"` — or `"none"` if it shouldn't carry proven
 ## Storage defaults to Dexie (IndexedDB), and is swappable
 
 `openOutbox()` persists to `getRxStorageDexie()` unless you pass a different `RxStorage` in
-`OpenOutboxOptions.storage`. Every existing caller is unaffected by the default existing at all.
+`OpenOutboxOptions.storage`. Existing callers see no change.
 
 **Why:** Dexie-over-IndexedDB is what a browser field app actually has available, durably, with no
 server. The storage engine is the one seam a host needs in order to relocate the outbox — an
@@ -123,21 +123,20 @@ environment rather than discovering this from a hang.
 `firstCapable` tries each transcriber you give it, in the order given, and uses the first one whose
 `capability()` reports `ready` — no scoring, no health windows, no hysteresis. A capability answer
 is cached for `DEFAULT_CAPABILITY_TTL_MS` before it's re-probed, because probing (a WebGPU adapter
-request, a model-file stat) is not free, but availability does genuinely change mid-drain.
+request, a model-file stat) is not free, but availability can change mid-drain.
 
 **Why order-first-ready, not "best" engine:** fallback exists to rescue the online path when the
 preferred engine can't run — it is deliberately not a policy engine that ranks candidates.
 
 **The symptom:** if you expect the composite to pick the "best" available engine by some quality
 measure, it won't — it picks the first one in your list that's ready right now. Put your preferred
-engine first; put the one you want as a last resort, last. A genuinely fast-changing situation (an
-uplink returning, a model finishing its download) is better served by calling `invalidate()` than by
-shortening the TTL.
+engine first; put the one you want as a last resort, last. If availability changes fast — an
+uplink returns, a model finishes downloading — call `invalidate()`; don't shorten the TTL.
 
 `hedged` composes differently: it starts your preferred engine and only starts a fallback if the
 preferred one hasn't finished within a delay computed from `DEFAULT_HEDGE_FACTOR` (a multiple of a
 host-supplied predicted duration), floored at `DEFAULT_HEDGE_FLOOR_MS` so a hedge never fires before
-the primary had a chance to start, and capped at `DEFAULT_HEDGE_BUDGET_MS` regardless of what the
+the primary has had a chance to start, and capped at `DEFAULT_HEDGE_BUDGET_MS` regardless of what the
 prediction says. If you don't supply a predicted duration, the floor and budget still bound the
 wait — the prediction only ever pulls the hedge earlier, never later.
 
@@ -155,8 +154,8 @@ error:
 - **`acceptAnySuccess`** — the degraded-experience choice. Accepts the first success, continues past
   _any_ failure including a transient one, and only gives up once every candidate has been tried.
 
-**Why two, not one default:** naming them separately is what makes a deployment choose degradation
-on purpose rather than inherit it by omission.
+**Why two, not one default:** naming them separately forces the choice: you pick degraded behavior
+on purpose, or you don't get it.
 
 **The symptom:** with `acceptAnySuccess`, a strategy that should have given up and let the relay
 retry later instead burns every remaining candidate against a transport that was never coming back.
@@ -167,8 +166,8 @@ everything before failing." These are opposite failure modes; check which one yo
 Transcription has its own single default, `unsupportedFallsThrough`: accept the first success,
 continue past `UnsupportedItemError` and `TranscriberUnavailableError` (both just mean "not this
 engine"), and at exhaustion prefer a retryable error over a terminal one. It answers a narrower
-question than the extraction pair, and the two are not interchangeable — an extraction arbiter and
-a transcription arbiter classify different error vocabularies.
+question than the extraction pair, and the two are not interchangeable: they classify different
+errors.
 
 ## The schema partition has a per-call ceiling, tunable but not unlimited
 
@@ -205,4 +204,4 @@ intended, not a missed event.
 
 These are the defaults later guides assume you already know. [Typesafety](/guide/typesafety) covers
 the schema side — how a values schema, its derived extraction schema, and review's per-leaf schemas
-stay from drifting apart.
+keep from drifting apart.

@@ -3,7 +3,7 @@
 The question people arrive with is "why would I use this instead of Docling, or Mistral Document
 AI, or just calling a structured-output API myself?"
 
-For Docling and Mistral, the honest answer is that **it is not an either/or**. Those are document
+For Docling and Mistral, the answer is that **it is not an either/or**. Those are document
 parsers. They turn a file into text and layout. Ribo is the pipeline _above_ the parser — it starts
 where they finish, and one of its own packages,
 [`@azx/ribo-transcriber-managed-docs`](/reference/), is a hosted document-understanding API plugged
@@ -13,27 +13,21 @@ So the real comparison is not Ribo against a parser. It is **Ribo against writin
 after the parser yourself** — and against the platforms and libraries that already sell pieces of
 that job.
 
-That reframe is correct, but it is also easy to hide behind: an earlier version of this page
-compared Ribo only against parsers and a raw API call, which meant every column was a layer Ribo
-sits above and every layer Ribo actually competes at was left out. The table below fixes that. It
-adds the document-AI platforms that already sell "documents → your schema, with citations and
-review," and the DIY orchestration a competent team reaches for instead of a naive `fetch` loop —
-and it is specific about what each does and does not do, including the rows where Ribo is the wrong
-answer.
+The table below compares Ribo against document parsers, the document-AI platforms that already sell
+"documents → your schema, with citations and review," and the DIY orchestration a team reaches for
+instead of a raw `fetch` loop — including the rows where Ribo is the wrong answer.
 
 ## Feature matrix
 
 **Legend:** ✅ does this · 🟡 partially, or with meaningful caveats · 🚫 does not do this, by design
 or otherwise · n/a not a meaningful question for that category. **Evaluated as of 2026-09-11** —
-vendor products move; where a cell below is load-bearing, the prose after the table names a version,
-a date, or links the vendor's own documentation rather than asserting it here.
+vendor products move; where a cell is load-bearing, the prose after the table names a version, a
+date, or links the vendor's own documentation.
 
-A category column (Document parsers / Document-AI platforms / DIY orchestration) is not one
-product: its cell reads ✅ or 🟡 if **at least one** named member does the row, not that every
-member does — the prose beneath the table says which member backs which cell. And a DIY-
-orchestration cell reflects what the library ships out of the box, not what a team could build on
-top of it — crediting hypothetical builds would make almost every row buildable, and Ribo's own
-rows below are held to what it does today, not what could be added to it.
+A category column is not one product: its cell reads ✅ or 🟡 if **at least one** named member does
+the row — the prose beneath the table says which. A DIY-orchestration cell reflects what the
+library ships out of the box, not what a team could build on top of it; Ribo's own rows are held to
+the same standard.
 
 |                                                    | Ribo | Document parsers | Document-AI platforms | DIY orchestration |
 | -------------------------------------------------- | :--: | :--------------: | :-------------------: | :---------------: |
@@ -55,8 +49,7 @@ rows below are held to what it does today, not what could be added to it.
 | Writes back into a system of record                |  ✅  |        🚫        |          🚫           |        🚫         |
 | The parser is swappable                            |  ✅  |       n/a        |          n/a          |        n/a        |
 
-Read the last row as the point of the whole table: for Ribo the parser is a dependency you choose,
-and **Docling or Mistral can be that choice**.
+For Ribo, the parser is a dependency you choose, and **Docling or Mistral can be that choice**.
 
 **Document parsers**: Docling, Mistral Document AI, LlamaParse, and Unstructured. Parsing — turning a
 file into text, layout, or discrete elements — is the core job all four share; where one goes
@@ -64,30 +57,27 @@ further (Mistral's schema-driven annotation, Unstructured's audio partitioner), 
 below says which.
 
 **Document-AI platforms**: Reducto, LandingAI ADE, Extend, LlamaIndex's LlamaExtract, and the cloud
-trio — Azure AI Document Intelligence, Google Document AI, AWS Textract. Azure is worth naming on
-its own: this repo already sits beside Azure AI Speech for transcription, so leaving Azure Document
-Intelligence out of this table would read as avoidance rather than scope. (LlamaParse and
+trio — Azure AI Document Intelligence, Google Document AI, AWS Textract. (LlamaParse and
 Unstructured sit with the parsers above, not here — see below for why.)
 
 **DIY orchestration**: Instructor, and LangChain's or LlamaIndex's extraction chains. This is what
-"call a structured-output API yourself" actually looks like on a team that knows what it's doing —
-schema validation and automatic retries around the raw call — not the unstructured `fetch` loop an
-earlier version of this page implicitly compared against.
+"call a structured-output API yourself" looks like on a team that knows what it's doing — schema
+validation and automatic retries around the raw call, not a raw `fetch` loop.
 
 ### The rows Ribo loses to a document parser
 
 **Ribo does not parse documents.** It delegates. `@azx/ribo-transcriber-pdfjs` extracts a PDF's
 existing text layer and carries an explicit `no-text-layer` guard that refuses the document rather
 than guessing — because it cannot OCR. If your input is a photographed page or a scan, you need a
-real parser in front of Ribo, and Docling and Mistral are both good at that in ways Ribo has no
-ambition to be.
+real parser in front of Ribo, and Docling and Mistral are both good at that in ways Ribo doesn't
+try to be.
 
 **Docling wins on offline parsing and privacy too.** It is a local library; nothing has to leave the
 machine. Those two rows are real, and if parsing is the whole of your problem, Docling alone is a
 better answer than Ribo plus Docling.
 
 **Mistral Document AI does more than parse.** It supports schema-driven annotation with
-bounding-box grounding, which is genuinely in the same territory as Ribo's provenance envelope —
+bounding-box grounding, which is in the same territory as Ribo's provenance envelope —
 hence 🟡 rather than 🚫 on that row. The differences are that the schema still has to fit in one
 request, and that a bounding box tells you _where the model looked_, not that the quote it returned
 is actually present in the source text. Those are real distinctions, not large ones.
@@ -105,16 +95,13 @@ there like every other tool in this comparison.
 **A figure exists for several of them — but none of the parser vendors published it themselves.**
 RealDocBench, an academic benchmark for field-level QA on regulated documents, measured per-field
 accuracy for multiple parsers on the same track: LlamaParse and Reducto came in around 89–90%,
-Docling around 71.2% (see [RealDocBench](https://arxiv.org/pdf/2606.07401)). The
-disclosure this page's own standard requires: RealDocBench is authored by Extend — one of the
-Document-AI platforms named in this comparison, whose own system tops that same leaderboard — a
-stated conflict, not a hidden one, alongside a published methodology. Neither Docling nor LlamaParse (nor
-Mistral or Unstructured) publishes this number itself; it is a third party's measurement of all of
-them, which is why this row reads 🟡 rather than 🚫 for the category — a measured figure exists, even
-though, unlike the Document-AI platforms column where vendors publish their own numbers, no parser
-vendor here stands behind one as its own. The other benchmarks that name these parsers (ParseBench
-and similar) measure parsing and layout fidelity, not schema-field correctness, which is a different
-question — the same distinction this page draws about its own numbers in
+Docling around 71.2% (see [RealDocBench](https://arxiv.org/pdf/2606.07401)). RealDocBench is
+authored by Extend — one of the Document-AI platforms named in this comparison, whose own system
+tops that same leaderboard — a stated conflict, not a hidden one, alongside a published
+methodology. No parser vendor stands behind this number as its own; it's a third party's
+measurement of all of them, which is why this row reads 🟡, not 🚫. Other benchmarks naming these
+parsers (ParseBench and similar) measure parsing and layout fidelity, not schema-field
+correctness — the same distinction drawn about Ribo's own numbers in
 ["What is not measured"](#what-is-not-measured).
 
 **Hosting is split down the middle, not uniform.** Mistral Document AI, LlamaParse and Unstructured's
@@ -125,16 +112,14 @@ maintainers. That split — not a uniform answer either way — is why "managed 
 
 ### The rows Ribo loses to a document-AI platform
 
-This is the category that contests Ribo's actual claims, and it is the one an earlier version of
-this page omitted entirely.
+This is the category that contests Ribo's actual claims most directly.
 
 **They publish an accuracy number. Ribo doesn't.** Reducto's Deep Extract reports 99.6% precision,
 99.6% recall and 99.3% leaf accuracy on a 225-document benchmark run by micro1, an outside
 evaluator, and published in Reducto's own writeup of the results (see
 [Reducto's benchmark writeup](https://reducto.ai/blog/reducto-leads-benchmark-complex-document-extraction)).
-LandingAI and Extend publish their own numbers on their own document sets. This is the row an
-evaluator most wants, and Ribo's honest answer is 🚫 — see
-["What is not measured"](#what-is-not-measured) below.
+LandingAI and Extend publish their own numbers on their own document sets. Ribo doesn't have one —
+see ["What is not measured"](#what-is-not-measured) below.
 
 **At least one of them claims to have solved the schema-size problem outright.** LandingAI's own blog
 post, titled ["Long Extraction Schemas Solved"](https://landing.ai/blog/agentic-extract-apis),
@@ -152,20 +137,14 @@ transport itself, where a platform's answer is "send us the document." But "host
 in this category either: Azure Document Intelligence ships containers for its Read, Layout and
 custom-model endpoints, and Reducto, LandingAI and Extend all advertise VPC or on-prem enterprise
 tiers on top of their default hosted offering. Self-hosting one of these is available, at the same
-ops cost Ribo imposes by default — which is why "data need never leave the device" reads 🟡, not 🚫,
-for this category; most customers use the hosted default, but the option exists for the ones who
-can't.
+ops cost Ribo imposes by default; most customers use the hosted default, but the option exists for
+the ones who can't.
 
-The same tiers go further than data residency, which is why "transcription and extraction run fully
-offline" reads 🟡 here too, not 🚫: Reducto's air-gapped deployments ship as offline update bundles
-with no external network access at runtime; LandingAI documents an on-premises option for air-gapped
-environments as well; and Azure's disconnected containers run with no connectivity at all once a
-license file is downloaded during an initial connected session — the same shape as Ribo's own
-on-device engines caching model weights while online and then running without one. The
-enterprise-agreement and commitment-tier gate in front of that capability is a real cost, but it is
-the same kind of cost this page already credits Ribo's own on-device path for clearing, not a
-categorical absence of the capability — so marking it 🚫 here while marking the row below 🟡 on the
-same evidence would be the page failing its own standard.
+The same enterprise tiers also close the offline gap: Reducto ships air-gapped deployments as
+offline update bundles, LandingAI documents an on-premises option, and Azure's containers run
+disconnected once licensed — the same shape as Ribo caching its model weights while online. An
+enterprise agreement is a real cost, but it is a price, not an absence, so "runs fully offline"
+reads 🟡 here too.
 
 **Several already do citations.** Reducto's extraction API anchors each field to a source-text
 region and ships a confidence-plus-grounding wrapper per value (see
@@ -178,55 +157,53 @@ parsers above), returns a citation and the model's stated reasoning for every ex
 `cite_sources` is turned on.
 Whether every vendor's citation is checked against the source text the way `isSpanGrounded` checks
 one, rather than only self-reported by the model that produced it, is not published for most of
-them — which is why the matrix row above reads 🟡, not ✅, for this whole category. Azure AI
-Document Intelligence's custom models return a confidence score and a bounding region per field, but
+them. Azure AI Document Intelligence's custom models return a confidence score and a bounding
+region per field, but
 Microsoft's own guidance is about interpreting that confidence, not about verifying the field's text
 against the source (see
 [Azure's accuracy-and-confidence guide](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/accuracy-confidence?view=doc-intel-4.0.0)) —
 closer to Ribo's `confidence` than to its `sourceSpan` check.
 
-**Review, where it exists, is a screen — not a gate that Ribo's is proven to be.** Several of these
-platforms ship a review UI. Whether submission there is blocked until every field carries an
-explicit decision — the way `resolveReview` blocks it here, via `completenessIssues` throwing a
-`ReviewValidationError` for any leaf with none — isn't published for most of them, so the matrix
-marks this 🟡 rather than claim parity either way.
+**Review, where it exists, is a screen, not a gate.** Several platforms ship a review UI. Ribo
+blocks submission until every leaf carries an explicit decision — `resolveReview` throws
+`ReviewValidationError` for any leaf without one. Whether the platforms block the same way isn't
+published for most of them, so the row reads 🟡 rather than claiming parity either way.
 
 **None of them write into a system of record.** Reducto's Edit endpoint writes corrected values back
 into the document itself — filling a PDF or DOCX form's fields, cells and checkboxes — which is a
 real capability, but it targets the document, not a separate backend the way Ribo's `ToolAdapter`
 targets Snugg Pro. The rest return structured JSON over an API or webhook and leave wiring that
-output into a downstream system to the caller, the same integration work this page's own
-DIY-orchestration column is held to elsewhere. No vendor in this category was found advertising a
+output into a downstream system to the caller, the same integration work the DIY-orchestration
+column below is held to. No vendor in this category was found advertising a
 built-in connector that writes an extracted field into an external system of record, so this row
 reads 🚫, not 🟡.
 
 ### The rows Ribo loses to DIY orchestration
 
 Instructor wraps an LLM client with Pydantic (or a TypeScript equivalent) and gets you automatic
-retries when the response fails schema validation — genuinely useful, and genuinely not what Ribo
-is for (see [Instructor's own docs](https://python.useinstructor.com/)). LangChain and LlamaIndex's
-extraction helpers do the same job with a different ergonomic. All three are **installable today**,
+retries when the response fails schema validation — useful, and not what Ribo is for (see
+[Instructor's own docs](https://python.useinstructor.com/)). LangChain and LlamaIndex's extraction
+helpers do the same job with different ergonomics. All three are **installable today**,
 which Ribo is not yet, and none of them carry a queue, a review contract, or a write-back step to
 maintain — because none of them attempt one. What they validate is shape and type; none of them
 check a claimed citation against source text, because none of them ask the model for one.
 
-Both offline rows are conjunctive — they ask about transcription _and_ extraction together — and
-that is where these libraries still fall short, not on the transcription half. As the loader section
-below details, `langchain_community` does ship optional local parsers for both scanned pages and
-audio, wired in the same way Ribo's own swappable engines are. But none of these libraries ship a
-local extraction path the same way: `Instructor`, LangChain and LlamaIndex's extraction helpers all
-wrap whatever LLM client the team configures, and pointing that client at a locally-hosted model is
-a real, unshipped build — the same kind of build Ribo's own on-device engines already did. So "runs
-fully offline" and "data need never leave the device" stay 🚫 for this column: the transcription half
-clears the loader bar below, but the extraction half doesn't, and the row asks for both.
+Both offline rows ask about transcription _and_ extraction together, and extraction is where these
+libraries fall short. As the loader section below details, `langchain_community` does ship optional
+local parsers for both scanned pages and audio, wired in the same way Ribo's own swappable engines
+are. But none of these libraries ship a local extraction path the same way: `Instructor`, LangChain
+and LlamaIndex's extraction helpers all wrap whatever LLM client the team configures, and pointing
+that client at a locally-hosted model is a real build nobody has shipped — the build Ribo's own
+on-device engines already represent. So "runs fully offline" and "data need never leave the device"
+stay 🚫 for this column: the transcription half clears the loader bar below, but the extraction half
+doesn't, and the row asks for both.
 
 **They don't parse scans themselves, but they can call something that does.** LangChain ships an
 optional `UnstructuredPDFLoader` (`strategy="ocr_only"`) and an `UnstructuredImageLoader`, both of
 which hand the page off to Tesseract or Unstructured for OCR — a real capability, wired in by an
 install flag, not built into the orchestration layer itself. That's why "parses scanned, rotated or
 handwritten pages" reads 🟡 rather than 🚫 here: the library chooses someone else's parser the same
-way this page's own reframe says Ribo does, but unlike Ribo, it ships that choice as an optional
-loader rather than a seam.
+way Ribo does, but unlike Ribo, it ships that choice as an optional loader rather than a seam.
 
 **The same is true of dictation, by the same standard.** `langchain_community` ships
 `OpenAIWhisperParser`, `OpenAIWhisperParserLocal`, and `FasterWhisperParser` under
@@ -253,28 +230,25 @@ Ranked by how much work they would take to rebuild.
 
 The deepest difference, and the only one backed by measurement here.
 
-A system of record we build against exposes **837 distinct writable fields** — the honest size of a
-schema that covered its whole write surface. Provenance makes the problem worse, not better:
-enveloping a leaf replaces its one key with a `{ value, confidence, sourceSpan }` object, so the
-**schema** grows by **four** properties where the patch declared one — the leaf's own key, plus
-`value`, `confidence`, and `sourceSpan`.
+A system of record we build against exposes **837 distinct writable fields** — the full write
+surface of that API. Provenance makes the problem worse, not better: enveloping a leaf replaces its
+one key with a `{ value, confidence, sourceSpan }` object, so the **schema** grows by **four**
+properties where the patch declared one — the leaf's own key, plus `value`, `confidence`, and
+`sourceSpan`.
 
-A separate, larger snapshot shows how bad the ceiling gets. Walking every field the same API can
-_return_ — a different surface from what Ribo writes, spanning every read-only rollup and computed
-total the API exposes rather than just what the write endpoints accept — a snapshot taken
-2026-08-06 counted **1,326 leaves**, which envelope to **~5,360 properties against a documented
-5,000-property structured-output ceiling** and **~1,490 enum values against a 1,000-value ceiling** —
-over both at once, before any question of extraction quality arises. That snapshot is illustrative
-of scale, not current: the spec has drifted since, and the 1,326 figure was never re-derived against
-a fresher one. It is not slow or expensive at that size. It is refused.
+A separate, larger snapshot shows how bad the ceiling gets: every field the same API can _return_,
+not just what the write endpoints accept. A count taken 2026-08-06 found **1,326 leaves**, which
+envelope to **~5,360 properties against a documented 5,000-property structured-output ceiling** and
+**~1,490 enum values against a 1,000-value ceiling** — over both at once. The spec has drifted
+since, so treat this as illustrative of scale, not current.
 
 The ceilings also differ by vendor, and the tightest one isn't in anyone's published documentation.
 Our own probing — one deployment, one route, one dev token — found one model family rejecting any
 response schema with more than 16 nullable unions, which, at two per enveloped leaf, works out to
 eight fields per call; two groups in our pilot schema already exceed that. Whether 16 is that model
-family's own documented limit or this route's translation of it is not established here — what is
-established is that it is model-family-specific on the identical route, since an otherwise-identical
-schema shape is accepted without complaint by another model family.
+family's own documented limit or this route's translation of it isn't established here; what is
+established is that an otherwise-identical schema shape is accepted without complaint by another
+model family on the same route.
 
 Ribo partitions the schema on nullable-union count, runs the calls concurrently against a bounded
 pool, runs a follow-up pass over leaves that abstained despite quoting evidence, and reassembles one
@@ -323,10 +297,10 @@ than a promise chain: a recording runs `queued → transcribing → transcribed`
 distinct from a terminal `dead`. Retries back off and survive a reload. The app shell and any
 on-device model weights are cached before they are needed.
 
-This durability holds unconditionally — capture, the queue and review survive with no network
-regardless of which transcriber or extractor a session used. Running the transcription and
-extraction stages themselves with no network at all is narrower: it requires the on-device engines
-specifically, and on-device extraction quality is not currently measured (see
+This holds whatever engine ran: capture, the queue and review survive with no network at all.
+Running the transcription and extraction stages themselves with no network at all is narrower: it
+requires the on-device engines specifically, and on-device extraction quality is not currently
+measured (see
 ["What is not measured"](#what-is-not-measured)). This is not a feature. It is a constraint that has
 to be present from the first commit, and retrofitting it means rewriting the pipeline.
 
@@ -355,14 +329,13 @@ after a partial failure.
 
 ## Three properties of running in the browser
 
-Worth stating separately, because they are usually described as limitations and two of them are
-capabilities.
+Two of these are usually framed as limitations; here they're capabilities.
 
 **There is no server.** Ribo targets static hosting with a capability gateway. A Python library with
-native dependencies has nothing to run on in that environment. This is a genuine constraint and it
+native dependencies has nothing to run on in that environment. It's a real constraint, and it
 shaped the design.
 
-**No credential ever reaches the client.** Every managed plasmid is built with _no capacity to
+**No credential ever reaches the client.** Every managed package is built with _no capacity to
 authenticate_: it takes an endpoint and an injected `fetch`, and the credential lives in the host's
 transport. That is what makes these packages safe to drop into someone else's application — and it
 is also why Ribo cannot offer managed batch throughput or zero-ops hosting the way a document-AI
@@ -392,7 +365,7 @@ the entire procurement conversation, and it is not available from any hosted API
 
 ## What is not measured
 
-Two things this page does not claim, because they are not currently true:
+Two things aren't true yet:
 
 **Extraction accuracy has no current number.** The annotated corpus that produced earlier figures is
 written in a field vocabulary the adapter no longer uses, so the acceptance gate deliberately
