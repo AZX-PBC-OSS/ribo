@@ -52,7 +52,7 @@ rows above are held to what it does today, not what could be added to it.
 | Data need never leave the device                   |  ✅  |        🟡        |          🟡           |        🚫         |
 | Runs in a browser with no server                   |  ✅  |        🚫        |          🚫           |        🟡         |
 | Durable queue, survives reload and offline         |  ✅  |        🚫        |          🚫           |        🚫         |
-| Writes back into a system of record                |  ✅  |        🚫        |          🟡           |        🚫         |
+| Writes back into a system of record                |  ✅  |        🚫        |          🚫           |        🚫         |
 | The parser is swappable                            |  ✅  |       n/a        |          n/a          |        n/a        |
 
 Read the last row as the point of the whole table: for Ribo the parser is a dependency you choose,
@@ -134,7 +134,7 @@ license file is downloaded during an initial connected session — the same shap
 on-device engines caching model weights while online and then running without one. The
 enterprise-agreement and commitment-tier gate in front of that capability is a real cost, but it is
 the same kind of cost this page already credits Ribo's own on-device path for clearing, not a
-categorical absence of the capability — so marking it 🚫 here while marking the row above 🟡 on the
+categorical absence of the capability — so marking it 🚫 here while marking the row below 🟡 on the
 same evidence would be the page failing its own standard.
 
 **Several already do citations.** Reducto's extraction API anchors each field to a source-text
@@ -160,6 +160,15 @@ platforms ship a review UI. Whether submission there is blocked until every fiel
 explicit decision — the way `resolveReview` blocks it here, via `completenessIssues` throwing a
 `ReviewValidationError` for any leaf with none — isn't published for most of them, so the matrix
 marks this 🟡 rather than claim parity either way.
+
+**None of them write into a system of record.** Reducto's Edit endpoint writes corrected values back
+into the document itself — filling a PDF or DOCX form's fields, cells and checkboxes — which is a
+real capability, but it targets the document, not a separate backend the way Ribo's `ToolAdapter`
+targets Snugg Pro. The rest return structured JSON over an API or webhook and leave wiring that
+output into a downstream system to the caller, the same integration work this page's own
+DIY-orchestration column is held to elsewhere. No vendor in this category was found advertising a
+built-in connector that writes an extracted field into an external system of record, so this row
+reads 🚫, not 🟡.
 
 ### The rows Ribo loses to DIY orchestration
 
