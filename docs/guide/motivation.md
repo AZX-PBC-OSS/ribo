@@ -37,9 +37,10 @@ can go and look. If the quote is not in the source, the field is not trustworthy
 that mechanically, by string comparison, without a human and without a second model.
 
 This is not hypothetical robustness. Measured on a real report in this repo, asking for a citation
-per **cell** of a wide table produced **37% fabricated citations**. Asking for one citation per
-**row** of the same table produced **14 of 14 verbatim**. Same model, same document. The unit you
-ask for changes whether you get truth.
+per **cell** of a wide table produced **37% fabricated citations** (17 of 46). Asking for one
+citation per **row** of a separate report's table produced **14 of 14 verbatim**. Different
+documents, and only the per-cell run names a model — but the unit you ask for changed whether you
+got truth either way.
 
 That is a design problem with a right answer, and it is not one the model can solve for you.
 

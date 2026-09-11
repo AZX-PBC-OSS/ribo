@@ -3,7 +3,7 @@
 A real system of record's target schema does not fit in one model call, and provenance makes that
 worse rather than better. This page is the mechanism behind that claim — what breaks, why, and what
 Ribo does about it. The numbers behind every figure here live in
-[Schema at Scale](/deep-dives/schema-scale); this page links to them rather than restating them.
+[Schema at Scale: Measured](/deep-dives/schema-scale); this page links to them rather than restating them.
 
 ## The wall
 
@@ -44,7 +44,7 @@ through one route, with one dev token — not a published vendor limit.** Whethe
 family's own cap or this particular route's translation of it is not established; what is
 established is that it is model-family-specific on the identical route, since the same schema shape
 that's rejected for one family is accepted without complaint for another. See
-[Schema at Scale](/deep-dives/schema-scale) for the full table and the bisection that found it.
+[Schema at Scale: Measured](/deep-dives/schema-scale) for the full table and the bisection that found it.
 
 ## Why partition on nullable unions, not leaves
 
@@ -56,8 +56,8 @@ depending on which granularity a group happens to use.
 An enveloped (`"leaf"`-granularity) field costs two nullable unions: `value` and `sourceSpan` are
 both `X.nullable()`. A field under `"row"` or `"none"` granularity costs one, because those leaves
 are plain nullable values with no per-leaf `sourceSpan` at all. Sixteen enveloped leaves and sixteen
-row-granularity leaves are not the same request: the first is right at the 16-union ceiling, the
-second is already double it — and, going the other way, a 15-leaf `"row"` group plus its one shared
+row-granularity leaves are not the same request: the first is already double the 16-union ceiling,
+the second is right at it — and, going the other way, a 15-leaf `"row"` group plus its one shared
 row-level span is only 16 unions and fits in a single call, while a leaf count capped at 8 would
 split that same group in two for no reason at all. Counting the thing the vendor's route actually
 rejects on removes the guesswork; counting leaves would either strand a group nowhere near the real
@@ -129,4 +129,4 @@ nullable-union cap.
 partitioned in the first place. [Comparison](/guide/comparison) is where this differentiator sits
 next to what other tools do instead. The full measurement — the bisection that found the
 nullable-union ceiling, the byte-cap numbers, and everything this page only summarizes — is in
-[Schema at Scale](/deep-dives/schema-scale).
+[Schema at Scale: Measured](/deep-dives/schema-scale).

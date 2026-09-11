@@ -105,7 +105,7 @@ export default defineConfig({
             { text: "Extraction: Measured", link: "/deep-dives/accuracy" },
             { text: "Real Field Audio", link: "/deep-dives/real-audio" },
             { text: "The Snugg Pro Data Model", link: "/deep-dives/snuggpro-data-model" },
-            { text: "Schema at Scale", link: "/deep-dives/schema-scale" },
+            { text: "Schema at Scale: Measured", link: "/deep-dives/schema-scale" },
             {
               text: "Provenance: Measured",
               link: "/deep-dives/provenance-measurement",

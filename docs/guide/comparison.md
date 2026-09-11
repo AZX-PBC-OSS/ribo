@@ -282,7 +282,7 @@ result. None of that is a wrapper around an API call; it is the thing that makes
 possible.
 
 See [Schema at Scale](/guide/schema-at-scale) for the mechanism. Full working:
-[Extraction schema scale](/deep-dives/schema-scale).
+[Schema at Scale: Measured](/deep-dives/schema-scale).
 
 ### 2. Provenance you can falsify
 
@@ -291,8 +291,8 @@ against the source text. An invented citation is caught by string comparison —
 model, no judgement. [Provenance](/guide/provenance) covers the envelope and the check in full.
 
 The unit of citation is a tuned parameter, not an afterthought, because it changes accuracy. On a
-wide table in a real report, per-**cell** citations came back **37% fabricated**; per-**row**
-citations on the same table came back **14 of 14 verbatim**. A group can therefore declare its
+load-calculation report, per-**cell** citations came back **37% fabricated** (17 of 46); per-**row**
+citations on a separate report's 15-leaf, 14-row table came back **14 of 14 verbatim**. A group can therefore declare its
 granularity as `leaf` (the default), `row`, or `none`. Per-cell provenance on a 67-row × 9-column
 table also costs 603 citations that no reviewer will ever click, and forced the group to split
 across two calls to deliver them. (This is a measurement of citation fidelity — whether the quote is

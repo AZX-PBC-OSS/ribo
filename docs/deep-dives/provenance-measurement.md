@@ -67,7 +67,7 @@ counting by leaf. Every field in a `"leaf"` group costs two nullable unions (`va
 `sourceSpan`, both nullable); every field in a `"row"` or `"none"` group costs one, plus one more for
 the row's own span. A 15-leaf row group plus its row span comes to 16 nullable unions — exactly the
 managed route's per-call ceiling documented on
-[Schema at Scale](/deep-dives/schema-scale) — and fits in a single call. A partitioning rule that
+[Schema at Scale: Measured](/deep-dives/schema-scale) — and fits in a single call. A partitioning rule that
 still counted by leaf would have split that same group into two calls anyway, buying nothing from
 the coarser citation. Moving the constant from a leaf count to a nullable-union count is what turns
 "fewer citations" into "fewer calls," not just a smaller response.

@@ -184,7 +184,8 @@ export interface PerGroupOptions<
    * Max nullable unions per call before a group is partitioned across multiple
    * calls sharing its key ({@link splitExtractionSchema}'s
    * `maxNullableUnionsPerGroup`). Defaults to
-   * {@link MAX_NULLABLE_UNIONS_PER_CALL}, the Anthropic-family limit (see
+   * {@link MAX_NULLABLE_UNIONS_PER_CALL}, the cap measured against Anthropic-family
+   * models on the managed route — not an established vendor limit (see
    * `split-schema.ts`'s file header). A caller whose route is bound by a
    * different limit — the pinned OpenAI-compatible route's constraint is a byte
    * cap, not a union count — supplies its own number rather than inheriting one

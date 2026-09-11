@@ -99,13 +99,14 @@ wrong unit for a **repeated row** of a wide table, and the reason is measured, n
 running a real 67-row × 9-column table through extraction, fully-enveloped citations cost **603**
 citations that no reviewer will ever individually click through, and getting all of them back cost
 the group **two calls instead of one** — every leaf-envelope citation costs two nullable unions
-against the per-call ceiling covered in [Schema at Scale](/deep-dives/schema-scale), and a 67×9 table
+against the per-call ceiling covered in [Schema at Scale: Measured](/deep-dives/schema-scale), and a 67×9 table
 of them blew past it. Switching that same shape to one citation per row rather than one per cell
 fit the whole table in a single call.
 
-Row citations weren't only cheaper. They were also more accurate: per-cell citations on that table
-came back **37% fabricated**, while a separate 14-row table measured with row-level citations came
-back **14 of 14 verbatim**. A cell span asks the model to isolate one fragment of a line it's
+Row citations weren't only cheaper. They were also more accurate: per-cell citations came back
+**37% fabricated** on a load-calculation report (17 of 46), while a separate report's 15-leaf,
+14-row table measured with row-level citations came back **14 of 14 verbatim**. A cell span asks
+the model to isolate one fragment of a line it's
 already citing several other times over; a row span is one line, quoted once. The unit of citation
 was fighting the model, not only the token budget. Full numbers and the partitioning mechanics are
 in [Provenance: Measured](/deep-dives/provenance-measurement).
@@ -156,7 +157,7 @@ so there's nothing to claim is grounded.
 ## Next
 
 [Typesafety](/guide/typesafety) covers the derivation this page assumes — how `enveloped()` turns a
-patch into an extraction schema in the first place. [Schema at Scale](/deep-dives/schema-scale)
+patch into an extraction schema in the first place. [Schema at Scale: Measured](/deep-dives/schema-scale)
 covers the per-call ceiling that granularity interacts with, and
 [Provenance: Measured](/deep-dives/provenance-measurement) is the full measurement behind everything
 above.

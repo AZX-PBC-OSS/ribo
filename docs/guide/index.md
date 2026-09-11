@@ -9,7 +9,7 @@ carries a quote from the source that Ribo has verified is actually there.
 
 ## The pipeline
 
-Six stages. Each one is an interface you can replace.
+Six stages. Most are an interface you can replace — the table below marks which ones with a "—".
 
 | Stage          | What happens                                                                | The seam                             |
 | -------------- | --------------------------------------------------------------------------- | ------------------------------------ |

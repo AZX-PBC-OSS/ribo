@@ -96,8 +96,8 @@ anything different.
 
 **The symptom if it's wrong for you:** a wide, repetitive group — a table of test readings, say —
 comes back with a citation on every cell, which is both a token cost and, measured on a real report,
-a fabrication risk: per-cell citations on one such table came back mostly wrong, where per-row
-citations on the same table came back entirely correct (see
+a fabrication risk: per-cell citations on one such table came back **37% fabricated**, where per-row
+citations on a separate report's table came back entirely correct, 14 of 14 (see
 [Provenance: Measured](/deep-dives/provenance-measurement) for the numbers). If you're seeing a lot
 of citations nobody reviews and some that don't hold up, declare
 that group's granularity as `"row"` — or `"none"` if it shouldn't carry provenance at all. The
@@ -183,7 +183,7 @@ actually accepts, and that ceiling is where partitioning stops being optional.
 
 **The symptom:** a group with a lot of `"leaf"`-granularity fields hits the ceiling in about half
 the leaf count you'd expect, because each one costs two unions, not one — see
-[Schema at Scale](/deep-dives/schema-scale) for how that plays out against a real schema, and the
+[Schema at Scale: Measured](/deep-dives/schema-scale) for how that plays out against a real schema, and the
 [API Reference](/reference/) for `MAX_NULLABLE_UNIONS_PER_CALL` and `splitExtractionSchema` itself.
 
 ## Connectivity needs a stable signal, not just an event

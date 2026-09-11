@@ -23,7 +23,7 @@ route, one corpus or one snapshot is labeled as such, not quietly generalized.
   what an auditor says and what the measured system of record actually stores: fuel as its own axis,
   a health-and-safety test matrix, and where the printed field sheet undersold what the real API
   accepts.
-- **[Schema at Scale](/deep-dives/schema-scale)** — the hard ceilings a structured-output request runs
+- **[Schema at Scale: Measured](/deep-dives/schema-scale)** — the hard ceilings a structured-output request runs
   into as a real target schema grows, including one that isn't published anywhere and had to be found
   by bisecting real calls.
 - **[Provenance: Measured](/deep-dives/provenance-measurement)** — what a citation should be the

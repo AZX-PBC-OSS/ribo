@@ -126,7 +126,8 @@ export interface ScopedFillOptions<
    * Max nullable unions per fill call before a group is partitioned across
    * multiple calls sharing its key, one per piece per instance
    * ({@link splitExtractionSchema}'s `maxNullableUnionsPerGroup`). Defaults to
-   * {@link MAX_NULLABLE_UNIONS_PER_CALL}, the Anthropic-family limit; a caller
+   * {@link MAX_NULLABLE_UNIONS_PER_CALL}, the cap measured against Anthropic-family
+   * models on the managed route — not an established vendor limit; a caller
    * whose route is bound by a different limit (the pinned OpenAI-compatible
    * route's is a byte cap) supplies its own number. Partitioning multiplies fill
    * calls per instance, never the instance count — the roster and `instanceCap`

@@ -470,7 +470,7 @@ Checklist:
   instances across the package boundary (`context.ts`) — the provider never constructs them itself,
   precisely so lifetime stays with the host — and every hook but `useStoragePersistence` reads one
   back out of context, either directly (`useRecorder`, `useOutboxItems`, `useReview`,
-  `useConnectivity`) or indirectly by composing hooks that do (`useWorkSafety`, which calls
+  `useConnectivity`, `useSessions`) or indirectly by composing hooks that do (`useWorkSafety`, which calls
   `useOutboxItems`, `useConnectivity` and `useStoragePersistence` itself).
   `useStoragePersistence` is the one hook with no core counterpart at all — it wraps
   `navigator.storage` directly and reads nothing out of context. The distinguishing test for the

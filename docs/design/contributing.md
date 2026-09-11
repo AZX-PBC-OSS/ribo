@@ -6,8 +6,8 @@ starts a dev server that composes every package from TypeScript source, so editi
 `src/index.ts` hot-updates the page with no build step.
 
 The authoritative contributor guide lives in
-[`CONTRIBUTING.md`](https://github.com/azx-pbc/ribo/blob/main/CONTRIBUTING.md) at the repo root,
-alongside [`AGENTS.md`](https://github.com/azx-pbc/ribo/blob/main/AGENTS.md) — the fuller working
+[`CONTRIBUTING.md`](https://github.com/AZX-PBC-OSS/ribo/blob/main/CONTRIBUTING.md) at the repo root,
+alongside [`AGENTS.md`](https://github.com/AZX-PBC-OSS/ribo/blob/main/AGENTS.md) — the fuller working
 guide, including the conventions and mechanisms that must not be "simplified" away. Read one or both
 before your first pull request. This page covers the one thing worth stating plainly rather than
 linking to: what "done" actually means.

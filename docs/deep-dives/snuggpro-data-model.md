@@ -1,7 +1,7 @@
 # The Snugg Pro Data Model
 
 Snugg Pro is the field-service system of record one of Ribo's adapters writes into, and it's the
-measured example throughout this section — [Schema at Scale](/deep-dives/schema-scale) and
+measured example throughout this section — [Schema at Scale: Measured](/deep-dives/schema-scale) and
 [Provenance: Measured](/deep-dives/provenance-measurement) both walk its real API. This page is
 about a different question: not how big the schema is, but what actually goes wrong mapping spoken
 auditor language onto it. **The gap between what an auditor says and what Snugg Pro stores is not a
@@ -70,7 +70,7 @@ The honest count of the whole writable surface, from walking every write operati
 spec directly: **837 distinct writable wire fields** — 293 of them on the single `basedata` endpoint
 that captures most of a house-audit walkthrough, and **544 more spread across roughly two dozen other
 write endpoints** (HVAC systems, attic, walls, windows, ducts, water heater, appliances, and more).
-[Schema at Scale](/deep-dives/schema-scale) has the full argument about why that whole surface can't
+[Schema at Scale: Measured](/deep-dives/schema-scale) has the full argument about why that whole surface can't
 be handed to a model as one schema; the figure worth remembering here is simpler — the writable
 surface is large, and the adapter's job is choosing a defensible, bounded slice of it, not attempting
 all of it. See [`SnuggValues`](/reference/ribo-adapter-snuggpro/src/type-aliases/SnuggValues) for the

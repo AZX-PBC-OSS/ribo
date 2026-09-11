@@ -1,4 +1,4 @@
-# Schema at Scale
+# Schema at Scale: Measured
 
 The reason a real target schema doesn't fit in one model call is not "it would extract badly." It's
 two independent, documented hard ceilings on a structured-output request — plus a third, tighter
@@ -46,7 +46,10 @@ number.
 The number that is current: walking every write operation directly, Snugg Pro exposes **837
 distinct writable field names**. That's the honest count of what an extraction schema covering the
 whole writable surface would need to reach, and it's the figure worth citing when "how big is the
-real spec" comes up. Today's committed extraction schema covers 51 of them.
+real spec" comes up. The committed extraction schema's current size is tracked by
+`packages/ribo-adapter-snuggpro/src/__fixtures__/snugg-fields-json-schema.json`, a frozen,
+test-gated fixture rather than a figure that goes stale here: as of this writing it covers 467 of
+those 837 fields, in 20 top-level groups.
 
 ## The nullable-union wall: the cap nobody was measuring for
 
@@ -70,8 +73,11 @@ and `sourceSpan`:
 
 16 was accepted; 18 was rejected, on identical schemas differing only in nullable-union count. Since
 an enveloped leaf costs two nullable unions (`value` and `sourceSpan`), the working ceiling on the
-Anthropic-family side of that table is **8 enveloped leaves per call** — and two of today's seven
-extraction groups, `hvac` (12 leaves) and `health` (14 leaves), already exceed it.
+Anthropic-family side of that table is **8 enveloped leaves per call** — and two of the extraction
+groups already committed at the time of this measurement, `hvac` (12 leaves then) and `health` (14
+leaves then), already exceeded it. Both groups, and the schema generally, have grown since: the
+fixture cited above now puts `hvac` at 46 leaves and `health` at 16, well clear of the 8-leaf bar,
+alongside several other groups that have since crossed it too.
 
 **This is our own measurement, not published vendor documentation.** It was taken against one
 deployment, through one route, with one dev token. Whether 16 is Anthropic's own limit or this
