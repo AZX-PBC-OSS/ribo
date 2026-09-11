@@ -38,7 +38,7 @@ rows below are held to what it does today, not what could be added to it.
 |                                                    | Ribo | Document parsers | Document-AI platforms | DIY orchestration |
 | -------------------------------------------------- | :--: | :--------------: | :-------------------: | :---------------: |
 | Parses scanned, rotated or handwritten pages       |  🚫  |        ✅        |          ✅           |        🟡         |
-| Ingests audio dictation                            |  ✅  |        🟡        |          🚫           |        🚫         |
+| Ingests audio dictation                            |  ✅  |        🟡        |          🚫           |        🟡         |
 | One extraction across mixed sources at once        |  ✅  |        🚫        |          🚫           |        🚫         |
 | Target schema past a few hundred fields, one job   |  ✅  |        🚫        |          🟡           |        🚫         |
 | Provenance checked against source, not self-report |  ✅  |        🟡        |          🟡           |        🚫         |
@@ -102,12 +102,18 @@ category, but the transcript it produces never joins a document inside one schem
 which is what "one extraction across mixed sources at once" actually asks, and both of them are 🚫
 there like every other tool in this comparison.
 
-**One of them publishes a field-accuracy number too.** LlamaParse's per-field accuracy was measured
-independently at roughly 89–90% by RealDocBench, a benchmark for field-level QA on real-world
-regulated documents (see [RealDocBench](https://arxiv.org/pdf/2606.07401)) — which is what earns 🟡
-rather than 🚫 on "measured extraction accuracy published" for this category. Docling, Mistral and
-Unstructured don't publish a comparable figure; the other benchmarks that name them (ParseBench and
-similar) measure parsing and layout fidelity, not schema-field correctness, which is a different
+**A figure exists for several of them — but none of the parser vendors published it themselves.**
+RealDocBench, an academic benchmark for field-level QA on regulated documents, measured per-field
+accuracy for multiple parsers on the same track: LlamaParse and Reducto's agentic mode came in
+around 89–90%, Docling around 71.2% (see [RealDocBench](https://arxiv.org/pdf/2606.07401)). The
+disclosure this page's own standard requires: RealDocBench is authored by Extend — one of the
+Document-AI platforms named in this comparison, whose own system tops that same leaderboard — a
+stated conflict, not a hidden one, alongside a published methodology. Neither Docling nor LlamaParse (nor
+Mistral or Unstructured) publishes this number itself; it is a third party's measurement of all of
+them, which is why this row reads 🟡 rather than 🚫 for the category — a measured figure exists, even
+though, unlike the Document-AI platforms column where vendors publish their own numbers, no parser
+vendor here stands behind one as its own. The other benchmarks that name these parsers (ParseBench
+and similar) measure parsing and layout fidelity, not schema-field correctness, which is a different
 question — the same distinction this page draws about its own numbers in
 ["What is not measured"](#what-is-not-measured).
 
@@ -130,13 +136,14 @@ LandingAI and Extend publish their own numbers on their own document sets. This 
 evaluator most wants, and Ribo's honest answer is 🚫 — see
 ["What is not measured"](#what-is-not-measured) below.
 
-**At least one of them claims to have solved the schema-size problem outright.** LandingAI's own
-documentation, titled "Long Extraction Schemas Solved," advertises no limit on field count, nesting
-depth, or character count in a schema. Reducto's documentation is more circumspect about the same
-territory: it names hundreds-of-fields schemas and deep nesting as a real accuracy risk it discloses
-rather than a hard cap. Neither claim is independently verified here — which is why "target schema
-past a few hundred fields" reads 🟡, not ✅, for this category: at least one vendor claims to clear
-it, on the vendor's own word, and another names the risk rather than hiding it.
+**At least one of them claims to have solved the schema-size problem outright.** LandingAI's own blog
+post, titled ["Long Extraction Schemas Solved"](https://landing.ai/blog/agentic-extract-apis),
+advertises no limit on field count, nesting depth, or character count in a schema. Reducto's
+documentation is more circumspect about the same territory: it names hundreds-of-fields schemas and
+deep nesting as a real accuracy risk it discloses rather than a hard cap. Neither claim is
+independently verified here — which is why "target schema past a few hundred fields" reads 🟡, not
+✅, for this category: at least one vendor claims to clear it, on the vendor's own word, and another
+names the risk rather than hiding it.
 
 **They are a hosted service you can point volume at — usually.** No queue to run, no concurrency
 pool to size, no fallback ladder to write. That is a genuine cost of Ribo's shape, not just a virtue
@@ -215,6 +222,16 @@ install flag, not built into the orchestration layer itself. That's why "parses 
 handwritten pages" reads 🟡 rather than 🚫 here: the library chooses someone else's parser the same
 way this page's own reframe says Ribo does, but unlike Ribo, it ships that choice as an optional
 loader rather than a seam.
+
+**The same is true of dictation, by the same standard.** `langchain_community` ships
+`OpenAIWhisperParser`, `OpenAIWhisperParserLocal`, and `FasterWhisperParser` under
+`document_loaders.parsers.audio` — optional parsers, wired into a `GenericLoader` the same way the
+OCR loaders above are, that hand an audio file to Whisper (hosted, local, or the faster-whisper
+reimplementation) and return a transcript. Holding "parses scanned pages" to 🟡 on an optional loader
+and holding "ingests audio dictation" to 🚫 on an equivalent one would be applying two different
+standards to identical wiring, so this row reads 🟡 too. It doesn't change "one extraction across
+mixed sources at once," which stays 🚫: joining that transcript to a document inside one schema-driven
+extraction is still work nobody ships, the same gap that keeps this row 🚫 for every other column.
 
 **One of them runs in a browser out of the box.** LangChain.js explicitly supports browser
 environments — an ESM build with Node-only APIs removed and browser-specific import paths — per its
@@ -312,9 +329,10 @@ to be present from the first commit, and retrofitting it means rewriting the pip
 
 A session joins several captures — an invoice PDF, a load-calculation report, the reviewer's
 dictation — into one transcript with per-capture attribution, and extracts across all of them at
-once. No document parser or document-AI platform above accepts dictation as an input (Unstructured's
-own audio partitioner is the one exception, and even it only produces a separate transcript, never
-one joined to a document); no speech API accepts a PDF.
+once. No document parser, document-AI platform, or DIY chain above joins dictation to a document
+inside one extraction (Unstructured's audio partitioner and LangChain's Whisper-backed audio parsers
+can transcribe a recording in isolation, but neither joins it to a document); no speech API accepts a
+PDF.
 
 ### 6. Engine selection from a measurement
 
