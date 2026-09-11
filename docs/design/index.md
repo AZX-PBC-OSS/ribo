@@ -52,14 +52,14 @@ value. ESM-only sidesteps the hazard entirely rather than working around it.
 
 ## "Headless" is a layering rule, enforced by ESLint
 
-`ribo-core` and `ribo-adapter-snuggpro` are **browser libraries**, not environment-agnostic ones:
-`MediaRecorder`, `IndexedDB`, `fetch`, `Blob`, `AudioContext` and `Worker` are all expressly
-allowed, and both packages' TypeScript configs include the DOM lib so those types resolve. What is
-excluded is _rendering_ — a React import, or a reach for `document` or `window`. That is a
-**layering** distinction, not an environment one, and it is enforced accordingly: ESLint's
-`no-restricted-imports` blocks `react`/`react-dom` and `no-restricted-globals` blocks
-`document`/`window`, both scoped to exactly those two packages. Reaching for either means the code
-is rendering or querying a page, which belongs in `@azx/ribo-ui-react`.
+`ribo-core`, `ribo-adapter-snuggpro` and `ribo-extractor-openai` are **browser libraries**, not
+environment-agnostic ones: `MediaRecorder`, `IndexedDB`, `fetch`, `Blob`, `AudioContext` and `Worker`
+are all expressly allowed, and all three packages' TypeScript configs include the DOM lib so those
+types resolve. What is excluded is _rendering_ — a React import, or a reach for `document` or
+`window`. That is a **layering** distinction, not an environment one, and it is enforced
+accordingly: ESLint's `no-restricted-imports` blocks `react`/`react-dom` and `no-restricted-globals`
+blocks `document`/`window`, both scoped to exactly those three packages. Reaching for either means
+the code is rendering or querying a page, which belongs in `@azx/ribo-ui-react`.
 
 An earlier version of this rule tried to enforce the same boundary by omitting the DOM lib from
 those packages' TypeScript configs. That was wrong: it confused _type availability_ with _layering_,

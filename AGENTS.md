@@ -160,13 +160,13 @@ authority for everything in §5 and §6 below.
 - **zod at the boundaries.** Anything crossing a trust boundary (STT responses, extraction output,
   adapter input, persisted records) is parsed with a zod schema, not cast. Inside a boundary,
   plain types.
-- **"Headless" means no React and no DOM _rendering_ — not "no browser APIs".** `ribo-core` and
-  `ribo-adapter-snuggpro` are browser libraries: `MediaRecorder`, `IndexedDB`, `fetch`, `Blob`,
-  `AudioContext` and `Worker` are expressly allowed, and both packages extend
-  `@azx/tsconfig/browser-library.json` (`lib: ["ES2023", "DOM", "DOM.Iterable"]`) so those types
-  exist. The boundary is a **layering** rule, so it is enforced in `eslint.config.mjs`, not by
-  `lib`: `no-restricted-imports` blocks `react`/`react-dom` and their subpaths, and
-  `no-restricted-globals` blocks `document` and `window`, both scoped to exactly those two
+- **"Headless" means no React and no DOM _rendering_ — not "no browser APIs".** `ribo-core`,
+  `ribo-adapter-snuggpro` and `ribo-extractor-openai` are browser libraries: `MediaRecorder`,
+  `IndexedDB`, `fetch`, `Blob`, `AudioContext` and `Worker` are expressly allowed, and all three
+  packages extend `@azx/tsconfig/browser-library.json` (`lib: ["ES2023", "DOM", "DOM.Iterable"]`) so
+  those types exist. The boundary is a **layering** rule, so it is enforced in `eslint.config.mjs`,
+  not by `lib`: `no-restricted-imports` blocks `react`/`react-dom` and their subpaths, and
+  `no-restricted-globals` blocks `document` and `window`, both scoped to exactly those three
   packages. Reaching for `document`, `window` or a React import means you are rendering or
   querying the page — that belongs in `ribo-ui-react`. (Note `window.fetch(...)` trips the rule while
   `fetch(...)` does not; use the bare global.) This replaces an earlier, wrong mechanism —
