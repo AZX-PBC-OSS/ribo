@@ -88,12 +88,12 @@ export type { FieldPath } from "./field-path.js";
  *
  * ## Review is a queue state, not a callback
  *
- * The gate is a status, not a presenter. `queue/relay.ts` parks an extracted item
+ * The gate is a status, not a presenter. `queue/relay.ts` parks an extracted session
  * at `awaiting-review` — a status deliberately absent from
- * `ACTIVE_OUTBOX_STATUSES` — and stops seeing it; the relay drains the next
- * capture instead of blocking. A UI finds parked items with an ordinary query
- * (`outbox.watch({ status: "awaiting-review" })`), and `Outbox.submitReview`
- * records the outcome and moves the item to `writing`.
+ * `ACTIVE_SESSION_STATUSES` — and stops seeing it; the relay drains the next
+ * capture instead of blocking. A UI finds parked sessions with an ordinary query
+ * (`outbox.watchSessions({ status: "awaiting-review" })`), and
+ * `Outbox.submitSessionReview` records the outcome and moves the session to `writing`.
  *
  * An earlier design had the relay `await` a `ReviewPresenter.present(request)`
  * promise the UI resolved. It was removed rather than kept unused: the relay

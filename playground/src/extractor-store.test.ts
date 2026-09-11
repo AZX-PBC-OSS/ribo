@@ -49,7 +49,7 @@ import {
  * `strategy: "single-shot"` to the factory); it is not the default.
  */
 
-// `toExtractStep` reads only `transcript.text`, never `item` — same honest stub
+// `toSessionExtractStep` reads only `transcript.text`, never `item` — same honest stub
 // as `packages/ribo-core/src/extractor.test.ts`.
 const transcript: Transcript = {
   recordingId: "rec-1",

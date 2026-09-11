@@ -9,7 +9,7 @@ import type { SessionItem } from "./queue/session-schema.js";
  * @file `workSafety` — the one honest answer to "is my work safe?".
  *
  * This app exists to capture field work that must not be lost, so its most
- * important sentence is the one that tells an auditor whether the recordings on
+ * important sentence is the one that tells an auditor whether the captures on
  * their device are actually safe. That answer is derived, not stored: it is a
  * pure classification of state that already exists — the outbox, the storage
  * persistence grant, connectivity — into a single verdict. It lives in core, next

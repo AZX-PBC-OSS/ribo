@@ -3,14 +3,14 @@ import type { OutboxItem } from "./schema.js";
 import type { SessionItem } from "./session-schema.js";
 
 /**
- * @file Session-level extraction: join every transcribed recording's transcript
+ * @file Session-level extraction: join every transcribed capture's transcript
  * text in capture order, excluding `discarded`, and provide the cache key that
  * makes "I forgot the crawlspace" cheap.
  *
- * This is the app's `runJobExtraction.ts` rule, promoted: the contractor threw
- * that recording away, and its words should not return through a later
+ * This is the app's `runJobExtraction.ts` rule, promoted: the auditor threw
+ * that capture away, and its words should not return through a later
  * extraction. It runs when the session is closed (the auditor is done walking
- * the house), keyed by the recording set, re-running when the set changes.
+ * the house), keyed by the capture set, re-running when the set changes.
  *
  * When {@link JoinSessionTranscriptOptions.markCaptures} is true, each capture's
  * text is preceded by a per-capture marker so a model can attribute a value to
@@ -75,11 +75,11 @@ function captureMarker(item: OutboxItem): string {
 }
 
 /**
- * Join the transcript text of every transcribed recording belonging to
+ * Join the transcript text of every transcribed capture belonging to
  * `sessionId`, in capture order (seq-ascending), excluding `discarded` and
  * `dead`.
  *
- * Returns the joined text and the sorted recording ids that produced it. The
+ * Returns the joined text and the sorted capture ids that produced it. The
  * ids are the **cache key**: if they haven't changed since the last extraction,
  * the extraction is still valid and need not re-run.
  *

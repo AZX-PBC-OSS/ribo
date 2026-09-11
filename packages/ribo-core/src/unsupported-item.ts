@@ -83,7 +83,7 @@ export interface UnsupportedItemInit {
  * "This engine cannot handle this item" — _item unsuitability_, the third
  * failure class.
  *
- * See the {@link unsupported-item.ts | module doc} for the distinction from
+ * See the {@link ./unsupported-item.ts | module doc} for the distinction from
  * attempt failure and capability failure, and for why the name is
  * "Unsupported" rather than "Untranscribable".
  *

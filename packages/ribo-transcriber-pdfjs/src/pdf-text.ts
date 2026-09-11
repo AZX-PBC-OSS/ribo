@@ -145,7 +145,7 @@ export interface OpenDocumentOptions {
 }
 
 /**
- * Opens a PDF over the memoized pdf.js import, yielding {@link pageCount}
+ * Opens a PDF over the memoized pdf.js import, yielding {@link OpenDocumentHandle.pageCount | pageCount}
  * immediately plus a {@link OpenDocumentHandle.readText | readText} handle for
  * the full text sweep.
  *

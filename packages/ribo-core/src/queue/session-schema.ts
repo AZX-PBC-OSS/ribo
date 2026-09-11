@@ -15,23 +15,23 @@ export const SESSION_COLLECTION_NAME = "sessions";
  *                          ↘ (terminal)  → dead   ⇄ awaiting-review (Outbox.reopenSessionForReview)
  * ```
  *
- * A session owns extraction, review and write state for a set of recordings
- * captured together. The recording state machine narrows to capture +
- * transcription; everything downstream moves here.
+ * A session owns extraction, review and write state for a set of captures
+ * (audio or document) taken together. The outbox item's state machine
+ * narrows to capture + transcription; everything downstream moves here.
  *
- * **`open` is the host's phase.** Recordings are being captured and
- * transcribed. The relay transcribes the session's recordings but does not
+ * **`open` is the host's phase.** Captures are being taken and
+ * transcribed. The relay transcribes the session's captures but does not
  * touch the session itself — session-level extraction waits for the host to
  * close the session (the auditor is done walking the house). This matches what
- * `jobs.ts` already does: the recording set is intentional, not inferred.
+ * `jobs.ts` already does: the capture set is intentional, not inferred.
  *
- * **`awaiting-review` is the review gate, same as the recording side.** Absent
+ * **`awaiting-review` is the review gate, same as the outbox item's side.** Absent
  * from {@link ACTIVE_SESSION_STATUSES} so the relay drains past it;
  * `Outbox.submitSessionReview` is the only way out, `Outbox.reopenSessionForReview`
  * the only way back from `done` or `dead`.
  *
  * **Both `done` and `dead` have a human-driven way out.** `failed` is resting,
- * same as the recording's: the relay picks it back up once `nextAttemptAt`
+ * same as the outbox item's: the relay picks it back up once `nextAttemptAt`
  * has passed.
  */
 export const SESSION_STATUSES = [
@@ -52,7 +52,7 @@ export type SessionStatus = (typeof SESSION_STATUSES)[number];
  * `extracting` and `writing` are in-flight; `failed` is resting (retryable
  * after backoff). **`open` is NOT active** — the relay does not act on an open
  * session until the host closes it. **`awaiting-review` is NOT active** — the
- * review gate, same omission as the recording side.
+ * review gate, same omission as the outbox item's side.
  */
 export const ACTIVE_SESSION_STATUSES = [
   "extracting",
@@ -89,7 +89,7 @@ export const FINISHED_SESSION_STATUSES = [
  *
  * Pinned field-for-field against {@link sessionRxSchema} by
  * `session-schema.test.ts`, the same seam `schema.test.ts` guards for the
- * recording.
+ * outbox item.
  */
 export const sessionDocumentSchema = z.strictObject({
   /** Stable id, and the RxDB primary key. */
@@ -258,13 +258,13 @@ export type SessionPatch = Partial<
  * extends (adding `statedEmptyGroups`) — a reader who lands there first should
  * know this v2 schema isn't "finished" the moment this task's commit lands.
  *
- * **An optional addition still needs the bump, and the stake is the recordings.**
+ * **An optional addition still needs the bump, and the stake is the captures.**
  * RxDB validates the declared schema against the one the collection was created
  * with, so adding a property at the same version is refused at `addCollections`
  * — and `openOutboxDatabase` adds `outbox` and `sessions` in ONE call on ONE
  * database. A `DB6` on this collection therefore rejects the whole open, so the
- * outbox is unreachable too: an auditor's captured recordings and their audio
- * attachments, on a device, with no way in. The only recovery a host could offer
+ * outbox is unreachable too: an auditor's captured items and their audio (or
+ * document) attachments, on a device, with no way in. The only recovery a host could offer
  * is clearing the origin's IndexedDB, which destroys exactly the field work the
  * outbox exists to protect. That is not a migration, and "the new field is
  * optional so no data needs transforming" does not reach it — that answers the
