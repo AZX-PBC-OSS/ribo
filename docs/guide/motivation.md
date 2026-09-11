@@ -10,13 +10,14 @@ None of them is about the model being good enough.
 
 Your demo schema had eight fields. The system you actually need to write into has hundreds.
 
-One system of record we build against exposes **837 distinct writable fields**. That alone is
-awkward. What makes it fatal is provenance: if you want every field to carry a source quote so a
-human can check it, each leaf costs its own key plus three more — `value`, `confidence`,
-`sourceSpan` — four properties where there was one. Measured against a snapshot of that
-specification, the combined job schema came to roughly **5,360 properties against a documented
-5,000-property ceiling**, and **~1,490 enum values against a 1,000-value ceiling** — over both, by
-margins spec drift won't close.
+One system of record we build against exposes **837 distinct writable fields** — the full write
+surface of that API. That alone is awkward. What makes it fatal is provenance: if you want every
+field to carry a source quote so a human can check it, each leaf costs its own key plus three more —
+`value`, `confidence`, `sourceSpan` — four properties where there was one. A separate, larger
+snapshot shows how bad the ceiling gets: every field the same API can _return_, not just what the
+write endpoints accept, came to roughly **1,326 leaves**, which enveloped for provenance came to
+roughly **5,360 properties against a documented 5,000-property ceiling**, and **~1,490 enum values
+against a 1,000-value ceiling** — over both, by margins spec drift won't close.
 
 The request is not slow or expensive. It is _rejected_.
 

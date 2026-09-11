@@ -55,7 +55,7 @@ plasmid. Type-only and test-only devDependencies on core stay `workspace:*` — 
 an exact link is fine.
 
 A core release is therefore a **deliberate, coordinated event, not a silent transitive bump**: when
-`@azx/ribo-core` changes, Changesets flags every package that peers on it and proposes a bump for them
+`@azx/ribo-core` changes, Changesets flags each package that peers on it and proposes a bump for it
 in the same release (a peer dependency is a contract, so the default proposal is a major bump of the
 dependent). Those proposed bumps are the signal that a core change is rippling outward — review them.
 

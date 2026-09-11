@@ -16,8 +16,8 @@ it.
 
 **Extraction lives in the core, not in the adapter.** An adapter supplies _what_ to extract (a zod
 schema) and _how to write it_; it never contains its own extraction logic. This keeps the cost of a
-new adapter low and keeps host-specific knowledge — field names, quirks, selectors — from leaking
-into code every adapter would otherwise have to duplicate.
+new adapter low and keeps host-specific knowledge — field names, quirks, selectors — out of the
+core, which every adapter shares.
 
 **Transcription is a pluggable strategy, not a fixed engine.** On-device WASM, a managed STT
 service, and a document transcriber all satisfy the same `Transcriber` interface, and a caller

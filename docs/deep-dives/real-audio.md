@@ -14,6 +14,14 @@ threshold.
 
 ## What ran
 
+::: warning Model: Whisper, already superseded when this ran
+The on-device runs below used `whisper-base.en` — the default
+`spikes/transcription-measurement/run-real-ondevice.mjs` takes when no model id is passed, and what
+these clips were actually measured against. By the time this ran (2026-09-08), the on-device
+package's own default had already moved to **Moonshine** (`onnx-community/moonshine-base-ONNX`,
+since 2026-08-11) — these numbers have not been re-measured against it.
+:::
+
 Both clips went through the **real, unmodified** `OnDeviceTranscriber` and `ManagedTranscriber` —
 the same classes the app ships, not a reimplementation — with no hand-holding:
 
