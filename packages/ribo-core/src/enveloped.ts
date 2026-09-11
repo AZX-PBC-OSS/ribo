@@ -90,8 +90,9 @@ const isSupportedLeaf = (field: z.ZodType): boolean =>
  * is a key the model spends tokens on. And there is no per-leaf span — that is the measured reason
  * this option exists. A row span is one line of the transcript, which a model can quote verbatim;
  * a per-cell span is a fabrication risk (`claude-haiku-4-5` fabricated 37 % of per-cell citations
- * on a Manual J and 0 % of row citations on the same document). The unit of citation was fighting
- * the model, not only the token budget.
+ * on a Manual J; per-row citations on a separate report's 15-leaf, 14-row table came back 14 of
+ * 14 verbatim). The two are different documents and only the per-cell run names a model — the
+ * unit of citation was fighting the model, not only the token budget.
  */
 export type ProvenanceGranularity = "leaf" | "row" | "none";
 
