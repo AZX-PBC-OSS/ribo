@@ -4,9 +4,9 @@ Snugg Pro is the field-service system of record one of Ribo's adapters writes in
 measured example throughout this section — [Schema at Scale: Measured](/deep-dives/schema-scale) and
 [Provenance: Measured](/deep-dives/provenance-measurement) both walk its real API. This page is
 about a different question: not how big the schema is, but what actually goes wrong mapping spoken
-auditor language onto it. **The gap between what an auditor says and what Snugg Pro stores is not a
-formatting nicety a JSON Schema absorbs — it's a set of structural mismatches an extraction schema
-has to model explicitly, or the LLM will bridge them silently and wrong.**
+auditor language onto it. The gap between what an auditor says and what Snugg Pro stores is
+structural, not cosmetic. An extraction schema has to model it explicitly, or the LLM will bridge
+the mismatches silently and wrong.
 
 ## The paper form undersold the real capture model
 
@@ -28,8 +28,8 @@ machine-readable API spec:
 - **Attic R-value has a direct write target of its own.** The field sheet only exposes an insulation
   _depth band in inches_ (`0`, `1-3`, `4-6`, … `16+`), which reads as "auditors say R-value, Snugg
   stores inches, and the two must be converted." The API instead accepts **both**: a depth-band field
-  and a separate numeric R-value field. An auditor's stated R-value has a home of its own — it is not
-  lossily rebucketed into an inches band.
+  and a separate numeric R-value field. An auditor's stated R-value is written as stated, not
+  flattened into an inches band.
 
 Both corrections came from reading Snugg Pro's own OpenAPI spec directly rather than trusting the
 paper form's account of itself, and both are reflected in the adapter's current schema
@@ -44,10 +44,10 @@ separate field for what it burns (`hvacHeatingEnergySource`: `Electricity`, `Nat
 `Fuel Oil`, `Pellets`, `Wood`, `Solar`). An auditor says "the oil boiler," and the schema has to
 decompose that single utterance into `{ equipmentType: "Boiler", fuel: "Fuel Oil" }` — never one
 fused token. A schema with a single `HeatingSystemType`-style enum can only pick one axis and
-silently drops the other; this is the single highest-value normalization rule in the adapter, and
+silently drop the other; this is the highest-value normalization rule in the adapter, and
 it's a rule the LLM has to be told, not one it will infer from the field names.
 
-One further wrinkle, found only by reading the spec directly rather than the field sheet: heating and
+One further wrinkle, found only by reading the spec rather than the field sheet: heating and
 cooling equipment type are **the same field** on one HVAC-system record, because a single record can
 represent a combined heating-and-cooling unit. A schema with independent `heatingEquipmentType` and
 `coolingEquipmentType` slots invents a distinction the API doesn't draw.
@@ -57,24 +57,23 @@ represent a combined heating-and-cooling unit. A schema with independent `heatin
 Snugg Pro's health-and-safety block is a fixed matrix of named tests, each on a four-state enum
 (`Passed`, `Failed`, `Warning`, `Not Tested`) — not free text, so a single `safetyIssue` string can't
 hold it. Reading the field sheet's printed list gives 11 tests. Reading the API directly turns up
-**13**: the sheet's list is missing an undiluted-flue-CO test and a radon test outright. The API also
-carries three more health-related fields on _different_, non-four-state enums the sheet doesn't
-surface at all — a roof-condition and a drainage-system-condition field on a `Good` / `Potential
+**13**: the sheet's list is missing an undiluted-flue-CO test and a radon test. The API also
+carries three more health-related fields on non-four-state enums the sheet doesn't
+surface — a roof-condition and a drainage-system-condition field on a `Good` / `Potential
 Issues` / `NA` scale, and a yes/no "were safety questions disclosed" flag. All 13 four-state tests are
 in the adapter's current schema; a "clean" utterance ("CO was clean," "no spillage") has to set
-`Passed`, never be dropped as though nothing was said.
+`Passed`, and must never be dropped as though nothing was said.
 
 ## The current wire-field count
 
-The honest count of the whole writable surface, from walking every write operation in Snugg Pro's
-spec directly: **837 distinct writable wire fields** — 293 of them on the single `basedata` endpoint
-that captures most of a house-audit walkthrough, and **544 more spread across roughly two dozen other
-write endpoints** (HVAC systems, attic, walls, windows, ducts, water heater, appliances, and more).
-[Schema at Scale: Measured](/deep-dives/schema-scale) has the full argument about why that whole surface can't
-be handed to a model as one schema; the figure worth remembering here is simpler — the writable
-surface is large, and the adapter's job is choosing a defensible, bounded slice of it, not attempting
-all of it. See [`SnuggValues`](/reference/ribo-adapter-snuggpro/src/type-aliases/SnuggValues) for the
-slice the adapter currently commits to.
+Walking every write operation in Snugg Pro's spec gives **837 distinct writable wire fields** — 293
+of them on the single `basedata` endpoint that captures most of a house-audit walkthrough, and **544
+more spread across roughly two dozen other write endpoints** (HVAC systems, attic, walls, windows,
+ducts, water heater, appliances, and more). Why that whole surface can't be handed to a model as one
+schema is [Schema at Scale: Measured](/deep-dives/schema-scale)'s argument. The point here is
+simpler: the writable surface is large, and the adapter's job is to choose a defensible, bounded
+slice of it. See [`SnuggValues`](/reference/ribo-adapter-snuggpro/src/type-aliases/SnuggValues) for
+the slice the adapter currently commits to.
 
 ## Other normalization hazards worth naming
 
@@ -96,7 +95,7 @@ slice the adapter currently commits to.
 
 This page is about the shape of the data model and where spoken language and stored schema diverge —
 not about how many of Snugg Pro's fields the adapter should eventually cover, and not about
-extraction accuracy against this schema, which [Extraction: Measured](/deep-dives/accuracy) covers
-and currently declines to publish a number for. Nor is it a live mirror of Snugg Pro's API: their
-spec has drifted before and will again, and a figure repeated here is only as current as its last
-reconciliation against the real spec.
+extraction accuracy against this schema, which is [Extraction: Measured](/deep-dives/accuracy)'s
+subject; it currently publishes no number. Snugg Pro's spec drifts, too: it has changed before and
+will again, and a figure repeated here is only as current as its last reconciliation against the
+real spec.

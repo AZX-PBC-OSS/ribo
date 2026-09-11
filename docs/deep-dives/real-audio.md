@@ -28,18 +28,17 @@ the same classes the app ships, not a reimplementation — with no hand-holding:
 | real-02 |   19m14s |         0.108 |       0.015 |                         11.5% |
 
 **RTF** — both engines run comfortably faster than real time. On-device lands close to the
-[TTS-corpus figure](/deep-dives/transcription-measurement) (0.16), a little faster — real dictation
-carries more silence than continuous TTS, and the VAD-based chunking skips it. Managed's RTF here is
-mostly network round-trip, not model speed — not a compute comparison.
+[TTS-corpus figure](/deep-dives/transcription-measurement) (0.16), a little faster, because real
+dictation carries more silence than continuous TTS and the VAD-based chunking skips it. Managed's RTF
+here is mostly network round-trip, not model speed — not a compute comparison.
 
-**Word-diff rate** is not accuracy — it's how far apart the two engines' transcripts land on the
-_same_ real clip, which had never been measured before (the two engines had never transcribed the
-same audio). Neither transcript is ground truth here, so read it as a disagreement measure: a floor
-on how much the choice of engine can move the transcript, nothing more.
+**Word-diff rate** is not accuracy — it's how far apart the two engines' transcripts land on the same
+clip — and the two engines had never before transcribed the same audio. Neither transcript is ground
+truth here, so read it as a disagreement measure: a floor on how much the choice of engine can move
+the transcript, nothing more.
 
 Full method, reproduce steps, and the underlying numbers: [doc 14, Part D](https://github.com/AZX-PBC-OSS/ribo/blob/main/docs/implementation/14-transcription-measurement.md#part-d--real-field-audio)
-— the implementation notes this page repackages live in the repo, not on this site (`docs/implementation/` is
-process documentation, not published here).
+— implementation notes that live in the repo, not on this site.
 
 ## Extraction: ran, not yet scored
 
@@ -55,7 +54,6 @@ work thrown away. This page gets a scored section once that lands.
 
 ## Why this exists
 
-An auditor's real value depends on what happens end to end — real speech in, a filled form out —
-and every number measured before this was a best case. This pilot is step one of closing that gap:
-prove the real pipeline runs clean on real audio before spending the (real) hours it takes to
-ground-truth it.
+An audit's value depends on the whole chain — speech in, filled form out — and every number before
+this page was a best case. This pilot is step one of closing that gap: prove the pipeline runs clean
+on field audio before spending the hours it takes to ground-truth it.

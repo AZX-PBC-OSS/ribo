@@ -2,13 +2,13 @@
 
 The reason a real target schema doesn't fit in one model call is not "it would extract badly." It's
 two independent, documented hard ceilings on a structured-output request — plus a third, tighter
-one nobody was measuring for until it broke a model family outright. This page is the full working
-behind [Comparison](/guide/comparison)'s first row and the partition-ceiling note in
+one that turned up only when it started rejecting requests, for one model family. This page is the
+reasoning behind [Comparison](/guide/comparison)'s first row and the partition-ceiling note in
 [Important Defaults](/guide/important-defaults).
 
 All of it was measured against Snugg Pro, the field-service system of record one of Ribo's own
-adapters writes into. Snugg Pro is the example here, not the point — the ceilings themselves are
-vendor limits and route limits, not anything specific to that API.
+adapters writes into. Snugg Pro is the example here — the ceilings themselves are vendor limits and
+route limits, not anything specific to that API.
 
 ## The ceilings a structured-output request has to fit under
 
@@ -39,19 +39,18 @@ extraction quality arises. `basedata` fits with real headroom, at roughly 9× th
 against a fresher spec snapshot (92 paths, 121 operations, 63 definitions) recorded that the API had
 drifted since and did not re-derive the 1,326 figure — and separately, `allJobData` isn't even the
 same surface as what Ribo writes: it spans every read-only rollup and computed total the API
-returns, a different and smaller set than the fields the write endpoints actually accept. Treat
+returns — a different set from the fields the write endpoints accept, and a larger one. Treat
 1,326 as illustrative of scale, measured against the named 2026-08-06 snapshot, not as today's
 number.
 
 The number that is current: walking every write operation directly, Snugg Pro exposes **837
-distinct writable field names**. That's the honest count of what an extraction schema covering the
-whole writable surface would need to reach, and it's the figure worth citing when "how big is the
-real spec" comes up. The committed extraction schema's current size is tracked by
+distinct writable field names**. That's the current count, and the one to cite for the size of the
+writable surface. The committed extraction schema's current size is tracked by
 `packages/ribo-adapter-snuggpro/src/__fixtures__/snugg-fields-json-schema.json`, a frozen,
-test-gated fixture rather than a figure that goes stale here: as of this writing it covers 467 of
-those 837 fields, in 20 top-level groups.
+test-gated fixture rather than a figure that goes stale here: it covers 467 of those 837 fields, in
+20 top-level groups.
 
-## The nullable-union wall: the cap nobody was measuring for
+## The nullable-union wall: the undocumented cap
 
 The property and enum ceilings above are OpenAI's own documented limits, and they bind at
 whole-spec scale. A second, unrelated ceiling binds much sooner, on one model family only, and it
@@ -76,8 +75,8 @@ an enveloped leaf costs two nullable unions (`value` and `sourceSpan`), the work
 Anthropic-family side of that table is **8 enveloped leaves per call** — and two of the extraction
 groups already committed at the time of this measurement, `hvac` (12 leaves then) and `health` (14
 leaves then), already exceeded it. Both groups, and the schema generally, have grown since: the
-fixture cited above now puts `hvac` at 46 leaves and `health` at 16, well clear of the 8-leaf bar,
-alongside several other groups that have since crossed it too.
+fixture cited above now puts `hvac` at 46 leaves and `health` at 16; several other groups have since
+crossed the 8-leaf bar too.
 
 **This is our own measurement, not published vendor documentation.** It was taken against one
 deployment, through one route, with one dev token. Whether 16 is Anthropic's own limit or this
@@ -98,10 +97,10 @@ final.
 
 Counting unions rather than leaves matters because provenance granularity changes the cost per leaf:
 an enveloped (`"leaf"`) field costs two unions, a row- or none-granularity field costs one — see
-[Provenance: Measured](/deep-dives/provenance-measurement) for what that granularity choice is for
-and how it was measured. Nothing changes for a schema that's entirely leaf-granularity: the
-partition boundaries the old, leaf-counting version of this constant produced are the same ones the
-union-counting version produces, verified directly against the real Snugg Pro schema.
+[Provenance: Measured](/deep-dives/provenance-measurement) for why that choice exists and how it was
+measured. Nothing changes for a schema that's entirely leaf-granularity: the partition boundaries
+the old, leaf-counting version of this constant produced are the same ones the union-counting
+version produces, verified against the Snugg Pro schema.
 
 ## The second wall: what basedata scale costs even after the union fix
 
@@ -118,7 +117,7 @@ limit, and a different number again from the property/enum ceilings above. Synth
 |                163 |                  105,246 |                       53,901 | yes (321% / 164%)    |
 
 The byte cap breaks between 50 and 60 leaves per call with descriptions attached, and between 90 and
-100 without them — well before `basedata`'s full 163-field honest-capture target. On an OpenAI-family
+100 without them — well before `basedata`'s full 163 fields. On an OpenAI-family
 model that's the wall that binds. On an Anthropic-family model the nullable-union wall binds first,
 roughly seven times sooner, at 8 leaves rather than 50–60: a plan that only budgets against the byte
 cap is sized for half the model roster.

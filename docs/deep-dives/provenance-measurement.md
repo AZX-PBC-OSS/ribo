@@ -1,9 +1,9 @@
 # Provenance: Measured
 
 Every extracted leaf carries a claimed quote from the source, and `isSpanGrounded` checks it against
-the actual text — no human, no second model, just a string comparison. What turned out to matter as
-much as that check existing is what a citation should be **the citation of**: one leaf, one row, or
-nothing at all. This page is the measurement behind that decision, and the full working behind
+the actual text — no human, no second model, just a string comparison. But a check needs a unit: is
+a citation of one leaf, one row, or nothing at all? That turned out to matter as much as the check
+itself. This page is the measurement behind that decision, and the reasoning behind
 [Comparison](/guide/comparison)'s provenance row.
 
 ::: warning What this page does and does not measure
@@ -19,9 +19,9 @@ high accuracy rate; they are different questions with different answers.
 
 `enveloped()` wraps every leaf of a patch schema in `{ value, confidence, sourceSpan }` — exactly
 the right unit when a human reviews one field at a time, which is what it was built for. It's the
-wrong unit for a **repeated row** of a wide table. Running a real load-calculation report through
-`perGroupExtractor` against the managed gateway, its `componentLoads` table ran up to 67 rows by 9
-leaves. Compared at that shape:
+wrong unit for a **repeated row** of a wide table. A real load-calculation report run through
+`perGroupExtractor` against the managed gateway produced a `componentLoads` table of 67 rows by 9
+leaves. At that shape:
 
 | provenance shape                   | nullable unions per row | calls needed | JSON values | citations produced |
 | ---------------------------------- | ----------------------: | -----------: | ----------: | -----------------: |
@@ -38,21 +38,20 @@ hit getting even that far: a rolling-hour rate limit at default concurrency, and
 
 Per-cell citations weren't only expensive; they were wrong more often than they were right. On the
 same class of table, the model fabricated **37% of per-cell citations** on a load-calculation report
-(17 of 46) and 18% on an invoice. Switching the unit of citation to one span per row, measured on a
-full 15-leaf, 14-row table from a separate report, came back **14 of 14 row spans verbatim** — zero
-near-miss, zero fabricated, in a single call.
+(17 of 46) and 18% on an invoice. With one span per row instead — measured on a full 15-leaf, 14-row
+table from a separate report — all 14 row spans were verbatim: zero near-miss, zero fabricated, in a
+single call.
 
-That's the finding worth sitting with: the unit of citation wasn't only fighting the token budget,
-it was fighting the model. A row span is one line of the source document. A cell span, on a wide
-table, asks the model to isolate a fragment of a line it's already citing nine other times — and it
-did that badly.
+The unit of citation wasn't only fighting the token budget; it was fighting the model. A row span is
+one line of the source document. A cell span, on a wide table, asks the model to isolate a fragment
+of a line it's already citing nine other times — and it did that badly.
 
 ## The fix: a group declares its own granularity
 
 `enveloped()` takes a `provenance` option, keyed per top-level group: `"leaf"` (the default, one
 citation per field), `"row"` (plain leaves, one citation per row), or `"none"` (no citation at all).
-A group absent from the map stays at `"leaf"` — nothing changes for a schema that doesn't ask for
-anything different.
+A group absent from the map stays at `"leaf"` — nothing changes for a schema that doesn't say
+otherwise.
 
 The granularity is **derived** into the extraction schema, not a second schema a caller maintains by
 hand. A hand-built mixed schema — a `rowSourceSpan` field declared directly on a row object — already
@@ -80,20 +79,20 @@ same split, call for call.
 
 A `"row"` group renders in review exactly like a `"leaf"` group — every field gets its own
 reviewable entry — except every field belonging to one row points at that row's single span, and
-groundedness is computed from it. A plain leaf's confidence reads as `1` when the model supplied a
-value and `0` when it didn't, which is deliberately the same sentinel review already uses to mark a
-leaf the model never considered, rather than a new state a reviewer has to learn. A `"none"` group
+groundedness is computed from it. Fields in a `"row"` group get the same treatment: confidence
+reads as `1` when the model supplied a value and `0` when it didn't, the same sentinel review already
+uses to mark a leaf the model never considered, not a new state a reviewer has to learn. A `"none"` group
 reads as ungrounded outright: there's no citation to check, so there's nothing to claim is grounded.
 
 ## A citation can be almost right without being fabricated
 
-Building this out surfaced a second gap: a source document's layout sometimes pads a line with extra
+This work surfaced a second gap: a source document's layout sometimes pads a line with extra
 spaces to align columns, so the text a model quotes and the text on the page can differ only in
 whitespace. Before this, that read identically to an invented citation — both failed the same
 verbatim check. Groundedness now has three states instead of two: grounded, near-miss (differs only
 in case, whitespace, or quote characters), and ungrounded. The strict, verbatim check `isSpanGrounded`
-performs is unchanged; the near-miss tier is additive, so it doesn't change what any existing card
-reports.
+performs is unchanged; the near-miss tier is additive, so it doesn't change what any existing review
+entry reports.
 
 ## What this doesn't settle
 
@@ -101,4 +100,4 @@ Everything above is about whether a citation is real and how many calls it costs
 not, and was never designed to be, a measurement of whether the value next to that citation is
 correct. That number — extraction accuracy, field by field — is not currently available in this
 repo; see [Extraction: Measured](/deep-dives/accuracy) for the state of that gate and why it's
-declining to publish a stale one rather than a misleading one.
+publishing no number rather than one it can't stand behind.
