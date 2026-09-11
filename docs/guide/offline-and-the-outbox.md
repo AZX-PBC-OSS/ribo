@@ -135,8 +135,9 @@ boolean with three states — `offline`, `probing`, `online` — and hysteresis:
 `navigator.onLine` is trusted immediately, but `true` only starts a reachability probe, and a single
 healthy probe isn't enough to call it `online` either. The model holds `probing` across a stability
 window and only asserts `online` once the probe has stayed healthy for the whole window — a few
-seconds by default. Going offline stays instant in both directions: you never want to delay
-recognizing a loss, only recognizing a recovery.
+seconds by default. This hysteresis is deliberately one-directional: going offline stays instant —
+you never want to delay recognizing a loss — while only a recovery is held across the stability
+window.
 
 The relay does not resync on every `online` reading. It watches for the **edge into `online` from a
 prior state that wasn't already `online`** — a transition, not a level — so a connection that is
