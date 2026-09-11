@@ -19,16 +19,23 @@ import { z } from "zod";
 import {
   DEFAULT_BACKOFF_BASE_MS,
   DEFAULT_BACKOFF_CAP_MS,
+  deriveRetryBudget,
   fullJitterDelay,
+  nextUnitId,
+  PER_CALL_CEILING_MS,
   TerminalQueueError,
 } from "@azx/ribo-core";
 import type {
   BackoffOptions,
   Enveloped,
+  ExtractionObserver,
   Extractor,
   ExtractionResult,
   ExtractionTarget,
+  InventoryUnit,
+  InstanceUnit,
   NoProvenance,
+  RetryBudgetObserver,
 } from "@azx/ribo-core";
 
 import type { ChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
@@ -78,11 +85,19 @@ export interface FillScope {
   readonly excluded: readonly RosterCandidate[];
 }
 
-/** Options for {@link scopedInstanceExtractor}. */
-export interface ScopedFillOptions<
-  V extends Record<string, unknown>,
-  P = NoProvenance,
-> extends BackoffOptions {
+/**
+ * Options for {@link scopedInstanceExtractor}.
+ *
+ * The retry budget is derived per `extract()` call, after the roster is back,
+ * because the job count is not known until then. This is a real difference from
+ * {@link perGroupExtractor}, which derives at construction and throws there:
+ * a zero-derived budget with `requireRetryBudget` throws a
+ * {@link TerminalQueueError} from `extract()`, not at construction — no retry
+ * fixes a configuration error, and the queue should reach `dead` rather than
+ * burn its attempt budget rediscovering that.
+ */
+export interface ScopedFillOptions<V extends Record<string, unknown>, P = NoProvenance>
+  extends BackoffOptions, ExtractionObserver<InventoryUnit | InstanceUnit>, RetryBudgetObserver {
   /** The field knowledge: name, extraction schema, instructions, and examples. */
   readonly target: ExtractionTarget<V, P>;
   /** The injected chat transport. A fake in tests; a real client in production. */
@@ -141,50 +156,10 @@ export interface ScopedFillOptions<
 }
 
 /**
- * Default conservative upper bound on one chat call's wall-clock duration. Used to
- * derive the retry budget from the step-timeout relationship.
- */
-const PER_CALL_CEILING_MS = 120_000;
-
-/**
  * Default hard ceiling on current instances per group. The cap exists to fail loudly
  * rather than silently truncate a collection.
  */
 const DEFAULT_INSTANCE_CAP = 10;
-
-/**
- * Worst-case accumulated backoff for one call exhausting `retries` retries — the
- * sum of {@link fullJitterDelay} results when `random()` returns 1 every time. Same
- * formula as {@link perGroupExtractor}.
- */
-function maxAccumulatedBackoff(retries: number, baseMs: number, capMs: number): number {
-  let total = 0;
-  for (let i = 0; i < retries; i++) {
-    total += Math.min(capMs, baseMs * 2 ** Math.min(i, 32));
-  }
-  return total;
-}
-
-/**
- * Derive the effective max retries so the worst-case total time fits inside
- * `stepTimeoutMs`. The total calls and concurrency are known at extraction time,
- * once the roster has been received, so this is evaluated per `extract()` rather
- * than at construction.
- */
-function deriveMaxRetries(
-  requested: number,
-  batches: number,
-  stepTimeoutMs: number,
-  perCallCeilingMs: number,
-  baseMs: number,
-  capMs: number,
-): number {
-  for (let r = Math.max(0, requested); r >= 0; r--) {
-    const perCall = (r + 1) * perCallCeilingMs + maxAccumulatedBackoff(r, baseMs, capMs);
-    if (batches * perCall <= stepTimeoutMs) return r;
-  }
-  return 0;
-}
 
 /**
  * The default {@link ScopedFillOptions.delay} — a real `setTimeout` sleep. Tests
@@ -276,6 +251,8 @@ interface PreparedGroup {
 interface FillJob {
   readonly group: PreparedGroup;
   readonly instanceIndex: number;
+  /** The number of current candidates in this job's group — 1 for singletons. */
+  readonly instances: number;
   readonly messages: ChatMessage[];
   readonly requestName: string;
   readonly context: string;
@@ -430,6 +407,9 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
     buildFillInstructions,
     instanceCap = DEFAULT_INSTANCE_CAP,
     maxNullableUnionsPerGroup,
+    onUnit,
+    onRetryBudget,
+    requireRetryBudget,
   } = options;
 
   const backoffOpts: BackoffOptions = {
@@ -497,7 +477,20 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
 
   return {
     async extract(transcript: string): Promise<ExtractionResult<Enveloped<V, P>>> {
-      const roster = await inventory(transcript);
+      const inventoryId = nextUnitId();
+      onUnit?.({ id: inventoryId, unit: "inventory", phase: "start", attempt: 1 });
+      let roster: Roster;
+      try {
+        roster = await inventory(transcript);
+      } catch (cause) {
+        onUnit?.({ id: inventoryId, unit: "inventory", phase: "error", attempt: 1, error: cause });
+        throw cause;
+      }
+      // No usage on the inventory done event: `inventory` is a caller-supplied
+      // function returning a Roster, not a completion, so its cost never reaches
+      // this extractor. That is the same gap already documented where the
+      // inventory call is counted in `usage.calls` but not in the token totals.
+      onUnit?.({ id: inventoryId, unit: "inventory", phase: "done", attempt: 1 });
       let totalCalls = 1; // the inventory call
 
       const abort = new AbortController();
@@ -528,6 +521,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
           jobs.push({
             group,
             instanceIndex: 0,
+            instances: 1,
             messages,
             requestName: group.name,
             context: group.context,
@@ -574,6 +568,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
           jobs.push({
             group,
             instanceIndex: i,
+            instances: current.length,
             messages,
             requestName: `${group.name}-${i}`,
             context: `${group.context} instance ${i}`,
@@ -586,25 +581,53 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
       // calculation is a conservative overestimate and safe.
       const totalCallsEstimate = 1 + jobs.length;
       const batches = Math.ceil(totalCallsEstimate / concurrency);
-      const effectiveMaxRetries = deriveMaxRetries(
-        maxRetries,
+      const budget = deriveRetryBudget({
+        requested: maxRetries,
         batches,
         stepTimeoutMs,
         perCallCeilingMs,
-        backoffOpts.baseMs ?? DEFAULT_BACKOFF_BASE_MS,
-        backoffOpts.capMs ?? DEFAULT_BACKOFF_CAP_MS,
-      );
+        baseMs: backoffOpts.baseMs ?? DEFAULT_BACKOFF_BASE_MS,
+        capMs: backoffOpts.capMs ?? DEFAULT_BACKOFF_CAP_MS,
+      });
+      const effectiveMaxRetries = budget.derived;
+
+      if (budget.derived < budget.requested) {
+        onRetryBudget?.(budget);
+      }
+      // No retry fixes a configuration error: when the caller required a budget
+      // and none fits the step timeout, throw terminal so the queue reaches
+      // `dead` rather than burning its attempt budget rediscovering that.
+      if (requireRetryBudget && budget.derived === 0 && budget.requested > 0) {
+        throw new TerminalQueueError(
+          `scopedInstanceExtractor: retry budget derived to zero (requested ${budget.requested}, stepTimeoutMs ${stepTimeoutMs}, perCallCeilingMs ${perCallCeilingMs}, concurrency ${concurrency}) — no retry fits the step timeout`,
+        );
+      }
 
       const totals: UsageTotals = {};
       const fillResponses = await mapWithPool(
         jobs,
         concurrency,
         async (job) => {
+          const id = nextUnitId();
+          const part = (job.group.part ?? 0) + 1;
+          const parts = job.group.parts ?? 1;
           let lastError: unknown;
           for (let attempt = 0; attempt <= effectiveMaxRetries; attempt++) {
             if (abort.signal.aborted) {
               throw lastError ?? new Error("scopedInstanceExtractor: aborted by a sibling failure");
             }
+
+            onUnit?.({
+              id,
+              unit: "instance",
+              phase: "start",
+              attempt: attempt + 1,
+              key: job.group.key,
+              instance: job.instanceIndex + 1,
+              instances: job.instances,
+              part,
+              parts,
+            });
 
             totalCalls++;
             const request: ChatRequest = {
@@ -634,9 +657,45 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
               addUsage(totals, completion.usage);
               assertStopFinishReason(completion, job.context);
               const raw = parseJsonContent(completion.content, job.context);
-              return parseWithSchema(job.group.schema, raw, job.context);
+              const parsed = parseWithSchema(job.group.schema, raw, job.context);
+
+              onUnit?.({
+                id,
+                unit: "instance",
+                phase: "done",
+                attempt: attempt + 1,
+                key: job.group.key,
+                instance: job.instanceIndex + 1,
+                instances: job.instances,
+                part,
+                parts,
+                ...(completion.usage
+                  ? {
+                      usage: {
+                        inputTokens: completion.usage.promptTokens,
+                        outputTokens: completion.usage.completionTokens,
+                      },
+                    }
+                  : {}),
+              });
+
+              return parsed;
             } catch (cause) {
               lastError = cause;
+
+              onUnit?.({
+                id,
+                unit: "instance",
+                phase: "error",
+                attempt: attempt + 1,
+                key: job.group.key,
+                instance: job.instanceIndex + 1,
+                instances: job.instances,
+                part,
+                parts,
+                error: cause,
+              });
+
               if (cause instanceof TerminalQueueError) throw cause;
               if (abort.signal.aborted) throw cause;
               if (attempt < effectiveMaxRetries) {

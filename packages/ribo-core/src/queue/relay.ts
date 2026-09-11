@@ -117,6 +117,17 @@ export interface ConnectivitySource {
 // Relay options
 // ---------------------------------------------------------------------------
 
+/**
+ * What {@link RelayOptions.onError} is handed: a tagged union the relay
+ * constructs at each call site, where a recording and a session are already
+ * distinguishable. Nothing is persisted — the discriminant lives at the
+ * callback boundary only (design §0.6). A `switch (subject.kind)` reaches a
+ * correctly-typed document with no cast.
+ */
+export type RelaySubject =
+  | { readonly kind: "recording"; readonly item: OutboxItem }
+  | { readonly kind: "session"; readonly session: SessionItem };
+
 export interface RelayOptions extends BackoffOptions {
   outbox: Outbox;
   /**
@@ -138,7 +149,7 @@ export interface RelayOptions extends BackoffOptions {
   stepTimeoutMs?: number;
   isTransient?: (error: unknown) => boolean;
   dropAudioAfterTranscription?: boolean;
-  onError?: (error: unknown, item: OutboxItem | SessionItem) => void;
+  onError?: (error: unknown, subject: RelaySubject) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -373,7 +384,7 @@ class QueueRelay implements Relay {
       await this.#transcribe(item);
       return true;
     } catch (error) {
-      this.#options.onError?.(error, item);
+      this.#options.onError?.(error, { kind: "recording", item });
       const parked = await this.#recordFailure(item, error);
       return !parked;
     }
@@ -434,7 +445,7 @@ class QueueRelay implements Relay {
       await this.#runSessionStep(step, session);
       return true;
     } catch (error) {
-      this.#options.onError?.(error, session);
+      this.#options.onError?.(error, { kind: "session", session });
       const parked = await this.#recordSessionFailure(session, error);
       return !parked;
     }

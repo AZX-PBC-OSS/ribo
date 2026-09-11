@@ -17,8 +17,14 @@
  * exhaustion call — the SDK does not impose a policy.
  */
 
-import { fallbackExtractor } from "@azx/ribo-core";
-import type { Enveloped, ExtractionArbiter, Extractor } from "@azx/ribo-core";
+import { fallbackExtractor, stampStrategy } from "@azx/ribo-core";
+import type {
+  Enveloped,
+  ExtractionArbiter,
+  ExtractionObserver,
+  ExtractionUnit,
+  Extractor,
+} from "@azx/ribo-core";
 
 import { perGroupArrayExtractor, perGroupSingletonExtractor } from "./per-group.js";
 import type { PerGroupOptions } from "./per-group.js";
@@ -26,7 +32,9 @@ import { scopedInstanceExtractor } from "./instance-fill.js";
 import type { ScopedFillOptions } from "./instance-fill.js";
 
 /** Options for {@link instanceLadder}. */
-export interface InstanceLadderOptions<V extends Record<string, unknown>> {
+export interface InstanceLadderOptions<
+  V extends Record<string, unknown>,
+> extends ExtractionObserver {
   /** Arbiter that decides, after each tier settles, whether to accept, continue, or give up. */
   readonly arbiter: ExtractionArbiter<Enveloped<V>>;
   /** Tier 1 — house-wide inventory pass followed by scoped per-instance fills. */
@@ -38,22 +46,64 @@ export interface InstanceLadderOptions<V extends Record<string, unknown>> {
 }
 
 /**
+ * Compose a tier's own `onUnit` with the ladder's stamped copy. Both fire on
+ * every event: the tier's handler sees the raw event, the ladder's sees it
+ * stamped with the tier id. Returns the tier's own handler unchanged when the
+ * ladder has no observer, so an absent ladder observer stays absent.
+ */
+function mergeTierObserver<U extends ExtractionUnit>(
+  own: ((event: U) => void) | undefined,
+  stamped: ((event: ExtractionUnit) => void) | undefined,
+): ((event: U) => void) | undefined {
+  if (stamped === undefined) return own;
+  if (own === undefined) return stamped;
+  return (event: U) => {
+    own(event);
+    stamped(event);
+  };
+}
+
+/**
  * Build the R1.6 instance-modeling extraction ladder.
  *
  * Returns an {@link Extractor} that tries the tiers in order, asks the arbiter
  * after each one settles, and stamps the accepted tier's name onto
  * `result.usage.strategy`. The arbiter is the host's policy hook: it decides
  * whether a degraded result is acceptable and what to do at exhaustion.
+ *
+ * The ladder's `onUnit` is threaded into every tier, wrapped in
+ * {@link stampStrategy} so each unit arrives carrying `strategy: "tier1" |
+ * "tier2" | "tier3"` and is attributable without the consumer tracking state.
+ * A tier's own `onUnit` is not dropped — both fire, and the ladder's copy is
+ * the stamped one.
  */
 export function instanceLadder<V extends Record<string, unknown>>(
   options: InstanceLadderOptions<V>,
 ): Extractor<Enveloped<V>> {
-  const { arbiter, tier1, tier2, tier3 } = options;
+  const { arbiter, tier1, tier2, tier3, onUnit } = options;
   return fallbackExtractor(
     [
-      { strategy: "tier1", extractor: scopedInstanceExtractor(tier1) },
-      { strategy: "tier2", extractor: perGroupArrayExtractor(tier2) },
-      { strategy: "tier3", extractor: perGroupSingletonExtractor(tier3) },
+      {
+        strategy: "tier1",
+        extractor: scopedInstanceExtractor({
+          ...tier1,
+          onUnit: mergeTierObserver(tier1.onUnit, stampStrategy("tier1", onUnit)),
+        }),
+      },
+      {
+        strategy: "tier2",
+        extractor: perGroupArrayExtractor({
+          ...tier2,
+          onUnit: mergeTierObserver(tier2.onUnit, stampStrategy("tier2", onUnit)),
+        }),
+      },
+      {
+        strategy: "tier3",
+        extractor: perGroupSingletonExtractor({
+          ...tier3,
+          onUnit: mergeTierObserver(tier3.onUnit, stampStrategy("tier3", onUnit)),
+        }),
+      },
     ],
     arbiter,
   );

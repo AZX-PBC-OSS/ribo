@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 import { ChatError } from "@azx/ribo-extractor-openai";
-import { enveloped, type ExtractionTarget } from "@azx/ribo-core";
+import { enveloped, type ExtractionTarget, type PhaseUnit } from "@azx/ribo-core";
 
 import { OnDeviceChat } from "./ondevice-chat.js";
 import { threePhaseExtractor } from "./index.js";
@@ -393,6 +393,233 @@ describe("threePhaseExtractor", () => {
       const chat = new OnDeviceChat({ languageModel: new FakeLanguageModel() });
 
       expect(() => threePhaseExtractor({ target, chat })).not.toThrow();
+    });
+  });
+
+  describe("extraction observer", () => {
+    test("emits pass 0, pass 1, and pass 2 per active leaf when every leaf is present", async () => {
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      const transcript =
+        "the system is gas efficiency is 82 percent notes need replacement built in 1950 easy access";
+      model.sequence = [
+        [json({ fuel: true, efficiency: true, notes: true })],
+        [
+          json({
+            fuel: "the system is gas",
+            efficiency: "efficiency is 82 percent",
+            notes: "notes need replacement",
+          }),
+        ],
+        [json("Gas")],
+        [json(82)],
+        [json("notes need replacement")],
+        [json({ yearBuilt: true, access: true })],
+        [json({ yearBuilt: "built in 1950", access: "easy access" })],
+        [json(1950)],
+        [json("Easy")],
+      ];
+
+      const events: PhaseUnit[] = [];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({
+        target,
+        chat,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+      await extractor.extract(transcript);
+
+      const starts = events.filter((e) => e.phase === "start");
+
+      const hvacPass0 = starts.filter((e) => e.key === "hvac" && e.pass === 0);
+      expect(hvacPass0).toHaveLength(1);
+      const hvacPass1 = starts.filter((e) => e.key === "hvac" && e.pass === 1);
+      expect(hvacPass1).toHaveLength(1);
+      const hvacPass2 = starts.filter((e) => e.key === "hvac" && e.pass === 2);
+      expect(hvacPass2).toHaveLength(3);
+      expect(hvacPass2.map((e) => e.leaf).sort()).toEqual(["efficiency", "fuel", "notes"]);
+
+      const sitePass0 = starts.filter((e) => e.key === "site" && e.pass === 0);
+      expect(sitePass0).toHaveLength(1);
+      const sitePass1 = starts.filter((e) => e.key === "site" && e.pass === 1);
+      expect(sitePass1).toHaveLength(1);
+      const sitePass2 = starts.filter((e) => e.key === "site" && e.pass === 2);
+      expect(sitePass2).toHaveLength(2);
+      expect(sitePass2.map((e) => e.leaf).sort()).toEqual(["access", "yearBuilt"]);
+    });
+
+    test("a pass-0 unit carries no leaf", async () => {
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      model.sequence = [
+        [json({ fuel: true, efficiency: false, notes: false })],
+        [json({ fuel: "the system is gas" })],
+        [json("Gas")],
+        [json({ yearBuilt: false, access: false })],
+      ];
+
+      const events: PhaseUnit[] = [];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({
+        target,
+        chat,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+      await extractor.extract("the system is gas");
+
+      const pass0Events = events.filter((e) => e.pass === 0);
+      expect(pass0Events.length).toBeGreaterThan(0);
+      for (const e of pass0Events) {
+        expect(e.leaf).toBeUndefined();
+      }
+    });
+
+    test("a group whose presence call fails every attempt emits maxRetries+1 errors and extract still resolves", async () => {
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      model.sequence = [
+        ChatError.transport("phase 0 failure"),
+        ChatError.transport("phase 0 failure"),
+        ChatError.transport("phase 0 failure"),
+        ChatError.transport("phase 0 failure"),
+        [json({ yearBuilt: false, access: false })],
+      ];
+
+      const events: PhaseUnit[] = [];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({
+        target,
+        chat,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+      const result = await extractor.extract("nothing relevant");
+
+      const hvacErrors = events.filter((e) => e.key === "hvac" && e.phase === "error");
+      expect(hvacErrors).toHaveLength(4);
+      const hvacPass1or2 = events.filter((e) => e.key === "hvac" && (e.pass === 1 || e.pass === 2));
+      expect(hvacPass1or2).toHaveLength(0);
+
+      expect(result.fields.hvac.fuel.value).toBeNull();
+      expect(result.fields.site.yearBuilt.value).toBeNull();
+    });
+
+    test("a leaf whose bare classify hits unsupported and succeeds wrapped emits under one id with continuing attempts", async () => {
+      const singleLeafPatch = z.strictObject({
+        hvac: z
+          .strictObject({
+            fuel: z.enum(["Oil", "Gas"]).nullable().optional(),
+          })
+          .optional(),
+      });
+      const singleLeafSchema = enveloped(singleLeafPatch);
+      type SingleLeafValues = z.infer<typeof singleLeafPatch>;
+      const singleLeafTarget: ExtractionTarget<SingleLeafValues> = {
+        name: "unsupported-test",
+        extractionSchema: singleLeafSchema,
+        instructions: "Extract hvac fields.",
+        examples: [],
+      };
+
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      model.sequence = [
+        [json({ fuel: true })],
+        [json({ fuel: "the system is gas" })],
+        new DOMException("not supported", "NotSupportedError"),
+        [json({ value: "Gas" })],
+      ];
+
+      const events: PhaseUnit[] = [];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({
+        target: singleLeafTarget,
+        chat,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+      await extractor.extract("the system is gas");
+
+      const phase2 = events.filter((e) => e.pass === 2);
+      const ids = new Set(phase2.map((e) => e.id));
+      expect(ids.size).toBe(1);
+
+      const attempts = phase2.filter((e) => e.phase === "start").map((e) => e.attempt);
+      expect(attempts).toEqual([1, 2]);
+    });
+
+    test("usage.calls equals the number of start events", async () => {
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      const transcript =
+        "the system is gas efficiency is 82 percent notes need replacement built in 1950 easy access";
+      model.sequence = [
+        [json({ fuel: true, efficiency: true, notes: true })],
+        [
+          json({
+            fuel: "the system is gas",
+            efficiency: "efficiency is 82 percent",
+            notes: "notes need replacement",
+          }),
+        ],
+        [json("Gas")],
+        [json(82)],
+        [json("notes need replacement")],
+        [json({ yearBuilt: true, access: true })],
+        [json({ yearBuilt: "built in 1950", access: "easy access" })],
+        [json(1950)],
+        [json("Easy")],
+      ];
+
+      const events: PhaseUnit[] = [];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({
+        target,
+        chat,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+      const result = await extractor.extract(transcript);
+
+      const startCount = events.filter((e) => e.phase === "start").length;
+      expect(result.usage.calls).toBe(startCount);
+    });
+
+    test("with onUnit absent, an identical run produces an identical result and usage.calls", async () => {
+      const model1 = new FakeLanguageModel();
+      model1.availabilityValue = "available";
+      model1.sequence = [
+        [json({ fuel: true, efficiency: false, notes: false })],
+        [json({ fuel: "the system is gas" })],
+        [json("Gas")],
+        [json({ yearBuilt: false, access: false })],
+      ];
+      const chat1 = new OnDeviceChat({ languageModel: model1 });
+      const extractor1 = threePhaseExtractor({ target, chat: chat1, maxRetries: 3 });
+      const result1 = await extractor1.extract("the system is gas");
+
+      const model2 = new FakeLanguageModel();
+      model2.availabilityValue = "available";
+      model2.sequence = [
+        [json({ fuel: true, efficiency: false, notes: false })],
+        [json({ fuel: "the system is gas" })],
+        [json("Gas")],
+        [json({ yearBuilt: false, access: false })],
+      ];
+      const events: PhaseUnit[] = [];
+      const chat2 = new OnDeviceChat({ languageModel: model2 });
+      const extractor2 = threePhaseExtractor({
+        target,
+        chat: chat2,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+      const result2 = await extractor2.extract("the system is gas");
+
+      expect(result2.fields).toEqual(result1.fields);
+      expect(result2.usage.calls).toBe(result1.usage.calls);
     });
   });
 });

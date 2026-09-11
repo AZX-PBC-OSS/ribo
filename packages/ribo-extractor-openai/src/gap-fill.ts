@@ -20,8 +20,9 @@
  * always-fill-the-blanks pass.
  *
  * With no candidates the base result passes through untouched: no second call,
- * no wrapper object, no usage change. Otherwise the result is fresh, only the
- * candidate leaves move, and usage reports the base run plus one call.
+ * no wrapper object, no usage change — and no progress event, since no work
+ * happens to announce. Otherwise the result is fresh, only the candidate leaves
+ * move, and usage reports the base run plus one call.
  *
  * The finish-reason gate, terminal-transport classification and parse helpers
  * are the shared ones from {@link ./extraction-common.ts}. The leaf
@@ -32,13 +33,16 @@
 
 import { z } from "zod";
 
+import { nextUnitId } from "@azx/ribo-core";
 import type {
   Enveloped,
   Extracted,
+  ExtractionObserver,
   Extractor,
   ExtractionResult,
   ExtractionTarget,
   ExtractionUsage,
+  GapFillUnit,
 } from "@azx/ribo-core";
 
 import type { ChatClient, ChatMessage, ChatUsage } from "./chat-client.js";
@@ -51,9 +55,27 @@ import {
   parseWithSchema,
 } from "./extraction-common.js";
 
-/** Options for {@link gapFillExtractor}. */
-export interface GapFillOptions<V extends Record<string, unknown>> {
-  /** The wrapped extractor. Its result is the base the follow-up merges into. */
+/**
+ * Options for {@link gapFillExtractor}.
+ *
+ * Inherits `onUnit` from {@link ExtractionObserver}, narrowed to {@link GapFillUnit}
+ * (design `extraction-observability-design.md` §0.1 — the follow-up call is a unit
+ * of work and is none of the other five). Only the follow-up path emits: `start`,
+ * then `done` or `error`, with `attempt` always 1 — there is no retry loop. The
+ * passthrough path emits nothing, matching its "no second call" contract.
+ */
+export interface GapFillOptions<
+  V extends Record<string, unknown>,
+> extends ExtractionObserver<GapFillUnit> {
+  /**
+   * The wrapped extractor. Its result is the base the follow-up merges into.
+   *
+   * Handed over ALREADY BUILT — a composite in the sense of design
+   * `extraction-observability-design.md` §0.3, not of its Ask 2: there is no
+   * observer threading to do here, because the base's own units flow through
+   * whatever `onUnit` the caller gave the base when constructing it. `onUnit` on
+   * THIS options object observes the follow-up call only.
+   */
   readonly base: Extractor<Enveloped<V>>;
   /**
    * The field knowledge: the follow-up reads its scoped schema from
@@ -314,7 +336,8 @@ const combinedUsage = (
  *   1. Run `base.extract(transcript)`.
  *   2. Collect the abstained-with-evidence leaves ({@link findAbstainedLeaves}).
  *      With none, return the base result unchanged — same object, same usage.
- *   3. Otherwise make exactly ONE follow-up call: the transcript plus each
+ *   3. Otherwise make exactly ONE follow-up call — reported through `onUnit` as
+ *      one `gapfill` unit carrying the candidate count: the transcript plus each
  *      candidate's own quote, pinned to a strict schema carrying exactly the
  *      candidate leaves keyed by path, each entry being that leaf's own
  *      envelope schema out of `target.extractionSchema` — so the response is
@@ -332,6 +355,7 @@ export function gapFillExtractor<V extends Record<string, unknown>>({
   model,
   maxTokens,
   normalize = (fields) => fields,
+  onUnit,
 }: GapFillOptions<V>): Extractor<Enveloped<V>> {
   const context = `gapFillExtractor: model response for "${target.name}"`;
   // `-`, not `:` — the schema-name charset constraint documented in per-group.
@@ -342,61 +366,98 @@ export function gapFillExtractor<V extends Record<string, unknown>>({
       const baseResult = await base.extract(transcript);
       const candidates = findAbstainedLeaves(baseResult.fields);
 
+      // The passthrough emits NOTHING: no call is made, so there is no unit to
+      // report. A phantom event here would announce work that never happened.
       if (candidates.length === 0) return baseResult;
 
-      // Scope the follow-up to exactly the candidate leaves, keyed by formatted
-      // path: each entry carries that leaf's own envelope schema out of the
-      // extraction schema, so the response is validated against the same value
-      // constraints (enum members, string vs number) as the original call.
-      const shape: Record<string, z.ZodType> = {};
-      for (const candidate of candidates) {
-        shape[formatLeafPath(candidate.path)] = leafSchemaAtPath(
-          target.extractionSchema,
-          candidate.path,
-        );
-      }
-      const responseSchema = z.strictObject(shape);
-      const jsonSchema = z.toJSONSchema(responseSchema, { target: "draft-2020-12" }) as Record<
-        string,
-        unknown
-      >;
+      const id = nextUnitId();
+      onUnit?.({ id, unit: "gapfill", phase: "start", attempt: 1, candidates: candidates.length });
+      try {
+        // Scope the follow-up to exactly the candidate leaves, keyed by formatted
+        // path: each entry carries that leaf's own envelope schema out of the
+        // extraction schema, so the response is validated against the same value
+        // constraints (enum members, string vs number) as the original call.
+        const shape: Record<string, z.ZodType> = {};
+        for (const candidate of candidates) {
+          shape[formatLeafPath(candidate.path)] = leafSchemaAtPath(
+            target.extractionSchema,
+            candidate.path,
+          );
+        }
+        const responseSchema = z.strictObject(shape);
+        const jsonSchema = z.toJSONSchema(responseSchema, { target: "draft-2020-12" }) as Record<
+          string,
+          unknown
+        >;
 
-      const completion = await completeOrClassify(
-        chat,
-        {
-          model,
-          messages: buildGapFillMessages(target, transcript, candidates),
-          response_format: {
-            type: "json_schema",
-            json_schema: { name, schema: jsonSchema, strict: true },
+        const completion = await completeOrClassify(
+          chat,
+          {
+            model,
+            messages: buildGapFillMessages(target, transcript, candidates),
+            response_format: {
+              type: "json_schema",
+              json_schema: { name, schema: jsonSchema, strict: true },
+            },
+            maxTokens,
           },
-          maxTokens,
-        },
-        context,
-      );
+          context,
+        );
 
-      assertStopFinishReason(completion, context);
+        assertStopFinishReason(completion, context);
 
-      const raw = parseJsonContent(completion.content, context);
-      // Every value was just parsed against a leaf envelope schema, so the
-      // record's `unknown` values ARE envelopes; the index signature cannot see it.
-      const parsed = parseWithSchema(responseSchema, raw, context) as Record<
-        string,
-        Extracted<unknown>
-      >;
+        const raw = parseJsonContent(completion.content, context);
+        // Every value was just parsed against a leaf envelope schema, so the
+        // record's `unknown` values ARE envelopes; the index signature cannot see it.
+        const parsed = parseWithSchema(responseSchema, raw, context) as Record<
+          string,
+          Extracted<unknown>
+        >;
 
-      const merged = mergeGapFilledLeaves(baseResult.fields, parsed);
+        const merged = mergeGapFilledLeaves(baseResult.fields, parsed);
 
-      return {
-        fields: normalize(merged),
-        // Mirrors per-group: `raw` is the assembled whole the final normalize ran
-        // over, so both calls' contributions stay visible in one place.
-        raw: merged,
-        usage: combinedUsage(baseResult.usage, completion.usage),
-        ...(baseResult.statedEmptyGroups !== undefined
-          ? { statedEmptyGroups: baseResult.statedEmptyGroups }
-          : {}),
-      };
+        const result: ExtractionResult<Enveloped<V>> = {
+          fields: normalize(merged),
+          // Mirrors per-group: `raw` is the assembled whole the final normalize ran
+          // over, so both calls' contributions stay visible in one place.
+          raw: merged,
+          usage: combinedUsage(baseResult.usage, completion.usage),
+          ...(baseResult.statedEmptyGroups !== undefined
+            ? { statedEmptyGroups: baseResult.statedEmptyGroups }
+            : {}),
+        };
+        // `done` fires only once the whole path has succeeded, so the unit settles
+        // exactly once: `done` if and only if extract() resolves, `error` if and
+        // only if it rejects — never both, never neither.
+        onUnit?.({
+          id,
+          unit: "gapfill",
+          phase: "done",
+          attempt: 1,
+          candidates: candidates.length,
+          // The follow-up completion's own usage — the combined base-plus-follow-up
+          // total belongs to the result's `usage`, not to this unit's event.
+          ...(completion.usage !== undefined
+            ? {
+                usage: {
+                  inputTokens: completion.usage.promptTokens,
+                  outputTokens: completion.usage.completionTokens,
+                },
+              }
+            : {}),
+        });
+        return result;
+      } catch (error) {
+        onUnit?.({
+          id,
+          unit: "gapfill",
+          phase: "error",
+          attempt: 1,
+          candidates: candidates.length,
+          error,
+        });
+        throw error;
+      }
     },
   };
 }

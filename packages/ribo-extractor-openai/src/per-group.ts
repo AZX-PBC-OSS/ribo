@@ -69,16 +69,22 @@ import { z } from "zod";
 import {
   DEFAULT_BACKOFF_BASE_MS,
   DEFAULT_BACKOFF_CAP_MS,
+  deriveRetryBudget,
   fullJitterDelay,
+  nextUnitId,
+  PER_CALL_CEILING_MS,
   TerminalQueueError,
 } from "@azx/ribo-core";
 import type {
   BackoffOptions,
   Enveloped,
-  Extractor,
+  ExtractionObserver,
   ExtractionResult,
   ExtractionTarget,
+  Extractor,
+  GroupUnit,
   NoProvenance,
+  RetryBudgetObserver,
 } from "@azx/ribo-core";
 
 import type { ChatClient } from "./chat-client.js";
@@ -95,10 +101,8 @@ import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-sch
 import type { ExtractionGroup } from "./split-schema.js";
 
 /** Options for {@link perGroupExtractor}. */
-export interface PerGroupOptions<
-  V extends Record<string, unknown>,
-  P = NoProvenance,
-> extends BackoffOptions {
+export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProvenance>
+  extends BackoffOptions, ExtractionObserver<GroupUnit>, RetryBudgetObserver {
   /** The field knowledge: `name`, `extractionSchema`, `instructions`, and few-shot `examples`. */
   readonly target: ExtractionTarget<V, P>;
   /** The injected chat transport. A fake in tests; {@link openAiChat} in production. */
@@ -197,64 +201,6 @@ export interface PerGroupOptions<
    * costs one. A leaf count would split a 15-leaf row group for no gain.
    */
   readonly maxNullableUnionsPerGroup?: number;
-}
-
-/**
- * Default conservative upper bound on one chat call's wall-clock duration.
- * Used to derive the retry budget for callers that do not supply
- * {@link PerGroupOptions.perCallCeilingMs}. A structured-output call typically
- * takes 10–30 s; 120 s leaves headroom for a slow endpoint without the retry
- * budget being so tight it cannot absorb a real blip. This is a physical
- * assumption about call latency, not an arbitrary retry count — the retry
- * budget is derived from it and {@link PerGroupOptions.stepTimeoutMs}.
- */
-const PER_CALL_CEILING_MS = 120_000;
-
-/**
- * Worst-case accumulated backoff for one group exhausting `retries` retries —
- * the sum of {@link fullJitterDelay} results when `random()` returns 1 every
- * time, so each delay is `min(cap, base * 2^attempts)`. The real delay is
- * always ≤ this; the budget derivation uses the worst case so the step timeout
- * is never exceeded by backoff alone.
- */
-function maxAccumulatedBackoff(retries: number, baseMs: number, capMs: number): number {
-  let total = 0;
-  for (let i = 0; i < retries; i++) {
-    total += Math.min(capMs, baseMs * 2 ** Math.min(i, 32));
-  }
-  return total;
-}
-
-/**
- * Derive the effective max retries so the worst case — every group exhausting
- * its full retry budget, including backoff delays — fits inside `stepTimeoutMs`.
- *
- * The worst case per batch is one group's full budget:
- *
- *   (retries + 1) * perCallCeilingMs + maxAccumulatedBackoff(retries)
- *
- * across `batches` sequential batches. We decrement from the requested
- * `maxRetries` until it fits, floor 0 — the same relationship the previous
- * derivation enforced, now with accumulated backoff included so a timeout never
- * presents as a failed extraction with no sign that some groups succeeded.
- *
- * `perCallCeilingMs` is a per-instance default, not a fixed law: an on-device
- * transport whose calls complete in ~5 s can lower it so the derivation grants
- * a useful retry budget instead of zero.
- */
-export function deriveMaxRetries(
-  requested: number,
-  batches: number,
-  stepTimeoutMs: number,
-  perCallCeilingMs: number,
-  baseMs: number,
-  capMs: number,
-): number {
-  for (let r = Math.max(0, requested); r >= 0; r--) {
-    const perGroup = (r + 1) * perCallCeilingMs + maxAccumulatedBackoff(r, baseMs, capMs);
-    if (batches * perGroup <= stepTimeoutMs) return r;
-  }
-  return 0;
 }
 
 /**
@@ -464,6 +410,9 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
   groupInstructions,
   singleton = false,
   maxNullableUnionsPerGroup,
+  onUnit,
+  onRetryBudget,
+  requireRetryBudget = false,
 }: PerGroupOptions<V, P>): Extractor<Enveloped<V, P>> {
   // Split at construction time — the group list is a pure function of the schema
   // and does not depend on the transcript. A non-grouped schema yields one entry
@@ -559,14 +508,29 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
   const backoffBaseMs = baseMs ?? DEFAULT_BACKOFF_BASE_MS;
   const backoffCapMs = capMs ?? DEFAULT_BACKOFF_CAP_MS;
   const batches = Math.ceil(prepared.length / concurrency);
-  const effectiveMaxRetries = deriveMaxRetries(
-    maxRetries,
+  const budget = deriveRetryBudget({
+    requested: maxRetries,
     batches,
     stepTimeoutMs,
     perCallCeilingMs,
-    backoffBaseMs,
-    backoffCapMs,
-  );
+    baseMs: backoffBaseMs,
+    capMs: backoffCapMs,
+  });
+  const effectiveMaxRetries = budget.derived;
+  // Fire onRetryBudget only when the budget was reduced — a consumer that asked
+  // for 5 and got 5 has nothing to act on. The default must stay non-throwing:
+  // the current production wiring derives to zero, so throwing by default would
+  // break the live path in the same change that makes it visible (§0.5).
+  if (budget.derived < budget.requested) {
+    onRetryBudget?.(budget);
+  }
+  if (requireRetryBudget && budget.derived === 0 && budget.requested > 0) {
+    throw new Error(
+      `perGroupExtractor: retry budget derived to 0 (requested ${budget.requested}) — ` +
+        `increase stepTimeoutMs (${stepTimeoutMs}), lower perCallCeilingMs (${perCallCeilingMs}), ` +
+        `or lower concurrency (${concurrency}) to fit at least one retry`,
+    );
+  }
   // Pre-compute the backoff options object once — passed to fullJitterDelay on
   // every retry. The random function defaults to Math.random inside
   // fullJitterDelay when not supplied here.
@@ -607,6 +571,17 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
             maxTokens,
           };
 
+          // Mint one id per prepared entry before the loop — stable across every
+          // attempt of this entry, so a consumer correlates start/done/error
+          // without bookkeeping. attempt is what distinguishes retries.
+          const id = nextUnitId();
+          const key = entry.group.key;
+          // Internal representation is 0-based and optional; the event is 1-based
+          // and always present, with an unpartitioned group reporting part: 1,
+          // parts: 1 — a consumer must not need two code paths for "one" and "several".
+          const part = (entry.group.part ?? 0) + 1;
+          const parts = entry.group.parts ?? 1;
+
           let lastError: unknown;
           for (let attempt = 0; attempt <= effectiveMaxRetries; attempt++) {
             // If a sibling group's failure has aborted the extraction, don't
@@ -614,8 +589,30 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
             // checks the signal before pulling new work; this check catches
             // the case where the abort fires between retry attempts.
             if (abort.signal.aborted) {
-              throw lastError ?? new Error("perGroupExtractor: aborted by a sibling failure");
+              const aborted =
+                lastError ?? new Error("perGroupExtractor: aborted by a sibling failure");
+              // NO event here, deliberately, and for two independent reasons.
+              //
+              // This check runs at the TOP of the loop, before this iteration's
+              // `start`, so attempt `attempt + 1` never began — announcing it
+              // would invent a retry that did not happen, and `attempt` is the
+              // only way a retry is observable at all. Re-reporting `attempt`
+              // is no better: when it is > 0 that attempt already settled with
+              // its own `error` in the catch below, and when it is 0 nothing
+              // started at all.
+              //
+              // And the timing is worse than the numbering. `mapWithPool` uses
+              // `Promise.all`, so `extract()` rejects the instant a sibling
+              // fails — while this worker may still be asleep in its backoff.
+              // Anything emitted here therefore arrives AFTER the extraction
+              // has settled, telling a progress panel that a finished run is
+              // still going. The unit's last live attempt is already reported;
+              // that no further attempt follows is said by the absence of a
+              // next `start`.
+              throw aborted;
             }
+
+            onUnit?.({ id, unit: "group", phase: "start", attempt: attempt + 1, key, part, parts });
 
             totalCalls++;
             try {
@@ -638,9 +635,42 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
               // here — the split narrows rather than merely relabels. Under
               // singleton mode this is the narrowed single-element schema, so a
               // multi-instance response is rejected before it can be wrapped.
-              return parseWithSchema(entry.schema, raw, entry.context);
+              const parsed = parseWithSchema(entry.schema, raw, entry.context);
+              onUnit?.({
+                id,
+                unit: "group",
+                phase: "done",
+                attempt: attempt + 1,
+                key,
+                part,
+                parts,
+                // Omitted rather than set to `undefined` when the transport
+                // reports nothing: absent means "not reported", and this repo
+                // already keeps that distinction load-bearing for
+                // `ExtractionUsage.cachedPromptTokens`. `usage: undefined` would
+                // still answer `"usage" in event` with true.
+                ...(completion.usage !== undefined
+                  ? {
+                      usage: {
+                        inputTokens: completion.usage.promptTokens,
+                        outputTokens: completion.usage.completionTokens,
+                      },
+                    }
+                  : {}),
+              });
+              return parsed;
             } catch (cause) {
               lastError = cause;
+              onUnit?.({
+                id,
+                unit: "group",
+                phase: "error",
+                attempt: attempt + 1,
+                key,
+                part,
+                parts,
+                error: cause,
+              });
               // Terminal failures are never retried —
               // assertStopFinishReason throws TerminalQueueError for
               // truncation and content filtering precisely because re-sending
@@ -663,9 +693,10 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
               }
             }
           }
-          // Budget exhausted — rethrow the last transient error. This throws
-          // and the relay's existing backoff, attempt count and dead handling
-          // take over unchanged.
+          // Budget exhausted — rethrow the last transient error. The error
+          // event for the final attempt was already fired in the catch above;
+          // this throw propagates to the relay's existing backoff, attempt
+          // count and dead handling unchanged.
           throw lastError;
         },
         abort,

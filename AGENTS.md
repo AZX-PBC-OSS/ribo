@@ -31,7 +31,12 @@ the relay retries after backoff, terminal `dead`, and a human-decision `discarde
 (`SESSION_STATUSES`: `open → extracting → awaiting-review → writing → done`, the same `failed`/`dead`
 split) owns extraction, review and write-back. The relay acts on `queued`/`transcribing`/`failed`
 for a recording and on `extracting`/`writing`/`failed` for a session — everything else is either not
-yet due or resting on a human decision. `@azx/ribo-transcriber-ondevice` runs real WASM Whisper on-device and measures the
+yet due or resting on a human decision. **Those two machines are how a host observes stage changes —
+there is no third mechanism, and building one is a mistake we nearly made**; the extraction
+strategies' `onUnit` observer reports progress _within_ a stage and deliberately does not persist, so
+the two answer different questions
+(`docs/roadmap/design/extraction-observability-design.md`).
+`@azx/ribo-transcriber-ondevice` runs on-device speech-to-text in a Web Worker and measures the
 device's real-time factor at `prime()` time, which is what lets `capability()` report `too-slow`;
 `@azx/ribo-transcriber-managed` is the fallback for devices that fail that gate — Azure AI Speech
 Fast Transcription behind the same `Transcriber` seam, with **no capacity to authenticate**: it takes
