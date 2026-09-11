@@ -1,55 +1,47 @@
 # @azx/ribo-core
 
-The **headless engine** at the center of Ribo. It owns the whole capture-to-review vocabulary — the
-capture state machine, the transcription and extraction seams, connectivity, the durable offline outbox
-and its relay, work-safety, and the field-by-field review contract — with **no React and no DOM
-rendering**. Everything else in the workspace depends inward on this package; it depends on nothing else
-in it. (Headless is a layering rule, not a ban on browser APIs: `MediaRecorder`, `IndexedDB`, `fetch`,
-`Blob`, `AudioContext` and `Worker` are all fair game here.)
+The headless engine at the center of Ribo: the durable offline queue and its two state machines,
+the `Transcriber` / `Extractor` / `ToolAdapter` seam contracts every other package implements, and
+the provenance and review vocabulary that ties them together — with no React and no DOM rendering.
 
-## Installation
+## When to reach for it
 
-```bash
-pnpm add @azx/ribo-core
-```
+Reach for it directly when you're wiring the queue and relay yourself, writing a new `Transcriber`,
+`Extractor`, or `ToolAdapter` package, or driving the pipeline in a test with no model and no
+network (`FakeTranscriber`, `FakeExtractor`). Every other Ribo package depends on it — you get it
+either way.
 
-> Not yet published to a public registry — in this workspace it is consumed as a `workspace:` dependency.
+Reach for [`@azx/ribo-ui-react`](../ribo-ui-react/README.md) instead if you're building a React app
+and want the state machine already wired into hooks; you'll rarely import from `ribo-core` directly
+in that case, though it stays a peer dependency underneath.
 
-## Public API at a glance
-
-- **Provenance** — `extractedSchema`, `isSpanGrounded`, `Extracted`: the envelope every extracted field
-  arrives in, and the checkable span-validity signal that replaces confidence for review flagging.
-- **Records** — `Recording`, `Transcript` and their zod schemas.
-- **Transcription** — the `Transcriber` contract, its `TranscriberCapability` model, `firstCapable`
-  selection, and the `FakeTranscriber` double.
-- **Capture** — `Recorder`, `negotiateMimeType`.
-- **Connectivity** — `createConnectivity`: the `offline`/`probing`/`online` model.
-- **Outbox** — `Outbox`, `openOutbox`, `createRelay`: the durable queue and its foreground relay.
-- **Extraction** — the `Extractor` seam, `toExtractStep`, and the `FakeExtractor` double.
-- **Review** — `buildReviewRequest`, `resolveReview`: review is a queue state (`awaiting-review`),
-  not a callback, so a UI finds parked items with an ordinary query and reports back through
-  `Outbox.submitReview`.
-- **Work-safety** — `workSafety`, `summarizeWork`: the one honest "is my work safe?" answer.
-- **Write-back** — the `ToolAdapter<V, C>` type (implemented by adapter packages). It carries **two**
-  field schemas: `schema`, the writable patch and the source of truth for `V`, and `extractionSchema`,
-  what the model must produce — derived from the patch with `enveloped()`, never hand-written. Plus
-  `ctxSchema`, which parses a persisted `Recording.ctx` into the write's destination, and a `write`
-  that takes `WriteMetadata` (the queue's idempotency key) as a third parameter beside `ctx`.
-
-## Minimal example
+## Composing it
 
 ```ts
-import { FakeTranscriber, firstCapable } from "@azx/ribo-core";
+import {
+  createRelay,
+  FakeExtractor,
+  FakeTranscriber,
+  openOutbox,
+  toSessionExtractStep,
+} from "@azx/ribo-core";
 
-// The fake is substitutable for any real Transcriber — it drives the pipeline with no model.
-const transcriber = new FakeTranscriber();
+// The durable queue: every capture lands here the instant it's made, online or not.
+const outbox = await openOutbox();
 
-// firstCapable tries engines in preference order; the first one ready wins.
-const composite = firstCapable([transcriber]);
-const capability = await composite.capability(); // { status: "ready" }
+// The relay drains the queue whenever connectivity allows. Swap the fakes below for a real
+// Transcriber package and a real ToolAdapter's `toWriteStep(adapter)` with no change to this shape.
+const relay = createRelay({
+  outbox,
+  transcriber: new FakeTranscriber(),
+  sessionExtract: toSessionExtractStep(new FakeExtractor({})),
+  sessionWrite: async () => ({}),
+});
 
-// `audio` is the Blob the queue holds for a Recording; `transcribe` stamps the result with `engine`.
-const transcript = await transcriber.transcribe(recording, audio);
+await relay.start();
 ```
 
-See the [API Reference](../../docs/reference/) (generated) for the full surface.
+## Learn more
+
+- Guide: [Offline & the Outbox](../../docs/guide/offline-and-the-outbox.md)
+- [Repo root](../../README.md)

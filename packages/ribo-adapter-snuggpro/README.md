@@ -1,70 +1,28 @@
 # @azx/ribo-adapter-snuggpro
 
-The **only tool-specific surface** in the Ribo workspace: how Snugg Pro's bounded audit pilot fields are
-shaped, how to describe them to an extractor, the deterministic pass that runs after the model, and the
-write-back seam. It is a `ToolAdapter` — a second host tool would be a new adapter package and nothing
-else. No Snugg Pro field names or quirks leak into `ribo-core` or `ribo-ui-react`.
+The `ToolAdapter` for Snugg Pro, a home-energy-audit tool: the field schema shaped to its wire
+property names, the extractor instructions and few-shot examples, a deterministic normalization
+pass, and the write-back seam. It is Ribo's **reference adapter** — the only tool-specific surface
+in the workspace, and the worked example every other adapter is built by analogy to.
 
-Write-back is **scaffolded, not yet wired**: the `write` seam and the adapter exist, but the live Snugg
-Pro write is gated on a platform ask.
+## When to reach for it
 
-The field set is built from Snugg Pro's machine-readable spec: the keys are the API's wire property
-names, the enum members are its literal strings (`"6% - Well sealed"`, `"Not Tested"`), and the shape
-nests by write endpoint — `basedata`, `hvac`, `attic`, `vault`, `wall`, `window`, `door`, `dhw`,
-`health`, plus the `concern`, `incentive`, `clothesDryer`, `freezer`, `range`, `refrigerator`, `pv`,
-`stage`, `job`, `report` and `utilities` job-collection resources. There is no rename or
-token-mapping layer between this schema and the API, by design. `basedata` is its endpoint's full
-honest capture surface, the component groups carry what an auditor actually dictates (`attic`,
-`wall`, `window` and `door` grown to doc 20's verdicted capture surface), and the job-collection
-groups carry their endpoints (`utilities` is the exception — a deliberately bounded core subset;
-the per-period delivery windows and the 12-month bill series are separate tranches); see
-`docs/implementation/17-snuggpro-field-reconciliation.md` and
-`docs/implementation/20-job-collections-field-reconciliation.md`.
+Reach for it if you're actually integrating with Snugg Pro, or if you want a real, complete
+`ToolAdapter` to read before writing your own for a different host tool — it's the fullest worked
+example of the seam.
 
-## Installation
+Skip it for any other host tool: write your own `ToolAdapter` package instead. No Snugg Pro field
+name or quirk is meant to leak into `@azx/ribo-core` or `@azx/ribo-ui-react`, and none does.
 
-```bash
-pnpm add @azx/ribo-adapter-snuggpro @azx/ribo-core
-```
-
-> Not yet published to a public registry — in this workspace it is consumed as a `workspace:` dependency.
-
-## Public API at a glance
-
-- **The adapter** — `snuggProAdapter` (a `ToolAdapter`), `SNUGGPRO_ADAPTER_NAME`.
-- **The field schemas — two of them, one derived from the other.** `snuggValuesSchema` (type
-  `SnuggValues`) is the hand-written **writable patch**: what a review produces and what `write`
-  sends, with every leaf optional (absent = the reviewer rejected it, leave it alone) and nullable
-  (a present `null` = write it empty). `snuggExtractionSchema` (type `SnuggExtraction`) is what the
-  **model** is asked for, derived from the patch with `ribo-core`'s `enveloped()` — every leaf
-  wrapped in a provenance envelope, closed and fully required. Plus the per-endpoint groups
-  (`BasedataFields`, `HvacFields`, `AtticFields`, `VaultFields`, `WallFields`, `WindowFields`,
-  `DoorFields`, `DhwFields`, `HealthFields`, `ConcernFields`, `IncentiveFields`,
-  `ClothesDryerFields`, `FreezerFields`, `RangeFields`, `RefrigeratorFields`, `PvFields`,
-  `StageFields`, `JobFields`, `ReportFields`, `UtilitiesFields`) and the enums they are built from
-  (`HvacSystemEquipmentType`, `HvacUpgradeAction`, `HvacDuctLeakage`, `AtticInsulationDepth`,
-  `DoorType`, `HealthTestState`, `UsState`, `HouseholdIncomeTier`, `PrimaryHeatingFuelType`, and the
-  rest).
-- **The write context** — `snuggCtxSchema` and the `SnuggWriteContext` inferred from it (the real
-  `C` the adapter's `write` needs, parsed rather than merely typed because it comes back out of
-  storage).
-- **Extraction inputs** — `snuggProInstructions` (normalization intent) and `snuggExamples` (few-shot).
-- **The deterministic pass** — `normalizeFields`, `clampConfidence`, `inchesToAtticDepthBand`,
-  `yearsToDhwAgeBand`.
-
-The extractor is **not** here: `singleShotExtractor` (single-shot managed LLM), its transport
-`openAiChat`, and the `ChatClient` seam are tool-agnostic and live in
-[`@azx/ribo-extractor-openai`](../ribo-extractor-openai/README.md). Compose them with `snuggProAdapter`
-as the extraction target (see the example below).
-
-## Minimal example
+## Composing it
 
 ```ts
-import { snuggProAdapter, normalizeFields } from "@azx/ribo-adapter-snuggpro";
-import { singleShotExtractor, openAiChat } from "@azx/ribo-extractor-openai";
-import { toExtractStep } from "@azx/ribo-core";
+import { toSessionExtractStep } from "@azx/ribo-core";
+import { normalizeFields, snuggProAdapter } from "@azx/ribo-adapter-snuggpro";
+import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
 
-// A single-shot extractor over an OpenAI-compatible chat endpoint, targeting the SnuggPro adapter.
+// Any Extractor can target this adapter — it only needs `name`, `extractionSchema`,
+// `instructions`, and `examples` (the `ExtractionTarget` slice of `ToolAdapter`).
 const extractor = singleShotExtractor({
   target: snuggProAdapter,
   chat: openAiChat({ apiKey: process.env.OPENAI_API_KEY!, baseUrl: "https://api.openai.com/v1" }),
@@ -72,8 +30,10 @@ const extractor = singleShotExtractor({
   normalize: normalizeFields, // the deterministic pass — the second half of the trust boundary
 });
 
-// Collapse it onto the relay's injected extraction step.
-const extractStep = toExtractStep(extractor);
+const sessionExtract = toSessionExtractStep(extractor);
 ```
 
-See the [API Reference](../../docs/reference/) (generated) for the full surface.
+## Learn more
+
+- Guide: [Write-back](../../docs/guide/write-back.md)
+- [Repo root](../../README.md)

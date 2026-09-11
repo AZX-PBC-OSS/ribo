@@ -1,70 +1,39 @@
 # @azx/ribo-extractor-openai
 
-A **tool-agnostic** extractor plasmid for Ribo: single-shot managed-LLM extraction over an
-OpenAI-compatible chat-completions endpoint. It implements `@azx/ribo-core`'s `Extractor` seam and
-works against **any** `ExtractionTarget<V>` — the SnuggPro adapter, a future adapter, or a test target
-all wire the same extractor — so it lives outside every tool adapter and depends on **no** adapter.
+A tool-agnostic `Extractor` for Ribo: single-shot managed-LLM extraction over a `ChatClient`
+transport, plus a per-group strategy (`perGroupExtractor`) that partitions a schema too big for one
+model call across concurrent calls. It works against any `ExtractionTarget<V>` — any adapter or test
+target wires the same extractor — so it depends on no adapter.
 
-One structured-output chat call turns a transcript into `Enveloped<V>`: it assembles the prompt from
-the target (instructions as the system message, few-shot `examples` as user/assistant turns, then the
-transcript), pins the output to the target's `extractionSchema` with `strict: true` via
-`z.toJSONSchema`, then crosses the trust boundary — parse the response with that same
-`extractionSchema`, then run an optional deterministic `normalize` pass — before it becomes field data.
+## When to reach for it
 
-**Enveloped, not plain values, and the type says so.** The type parameter is `V` — the adapter's
-writable field type — because that is what names a target. But every one of the four things this
-extractor does with fields (constrain the model, parse the response, imitate the example assistant
-turns, normalize) is the provenance-enveloped shape the model actually emits. The plain `V` only
-exists after a human review, which is a later step and a different contract. Saying `Extractor<V>`
-here would be a signature that claims something untrue.
+Reach for it as the managed-LLM extraction strategy behind any `ToolAdapter`: `singleShotExtractor`
+for a schema that fits one call, `perGroupExtractor` + `instanceLadder` once it doesn't. `openAiChat`
+gives you an OpenAI-compatible transport; `helixChat` gives you the Helix platform's own LLM route
+instead — that route is **not** OpenAI-compatible, despite living in this same package.
 
-## Installation
+Skip it if you're extracting on-device — see [`@azx/ribo-extractor-ondevice`](../ribo-extractor-ondevice/README.md),
+which depends on this package only for the shared `ChatClient` transport types, not for a chat
+transport itself.
 
-```bash
-pnpm add @azx/ribo-extractor-openai @azx/ribo-core
-```
-
-> Not yet published to a public registry — in this workspace it is consumed as a `workspace:` dependency.
-
-## Public API at a glance
-
-- **`singleShotExtractor`** — builds an `Extractor<Enveloped<V>>` for an `ExtractionTarget<V>` over an
-  injected `ChatClient`. Options: `target`, `chat`, `model`, and an optional `normalize`
-  (`SingleShotOptions`), which consumes and returns `Enveloped<V>` because it runs on the model's
-  output, before review.
-- **`openAiChat`** — a concrete `ChatClient` over an OpenAI-compatible `/chat/completions` endpoint.
-  Everything is injected: `apiKey`, `baseUrl`, and (for tests) `fetchImpl` (`OpenAiChatOptions`). No
-  secret is hardcoded; `fetch` is used as the bare global. HTTP errors carry a `status` so the queue's
-  `isTransientFailure` can classify 5xx/429/408 as retryable and other 4xx as terminal.
-- **The transport seam** — `ChatClient`, `ChatRequest`, `ChatMessage`, `ChatResponseFormat`,
-  `ChatCompletion`, `ChatRole`. Implement `ChatClient` yourself for a custom transport.
-
-## Minimal example
+## Composing it
 
 ```ts
-import { singleShotExtractor, openAiChat } from "@azx/ribo-extractor-openai";
-import { toExtractStep } from "@azx/ribo-core";
-import { snuggProAdapter, normalizeFields } from "@azx/ribo-adapter-snuggpro";
+import { toSessionExtractStep } from "@azx/ribo-core";
+import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
 
-// A single-shot extractor over an OpenAI-compatible chat endpoint, described by any adapter/target.
+// `target` is any adapter's `ExtractionTarget` slice — here, a placeholder for whichever
+// `ToolAdapter` package this host writes into (e.g. `@azx/ribo-adapter-snuggpro`, as an example).
 const extractor = singleShotExtractor({
-  target: snuggProAdapter,
+  target: hostAdapter,
   chat: openAiChat({ apiKey: process.env.OPENAI_API_KEY!, baseUrl: "https://api.openai.com/v1" }),
   model: "gpt-4o-2024-08-06",
-  normalize: normalizeFields, // the deterministic pass — the second half of the trust boundary
 });
 
-// Collapse it onto the relay's injected extraction step.
-const extractStep = toExtractStep(extractor);
+const sessionExtract = toSessionExtractStep(extractor);
 ```
 
-## Headless
+## Learn more
 
-This package is **headless** (AGENTS §4): no React, no DOM rendering. `fetch` is expressly allowed and
-used as the bare global. `@azx/ribo-core` is a `dependencies` entry, not a `devDependency`: even though
-every import from it here is `import type` (`ExtractionTarget`, `Extractor`, `ExtractionResult`), those
-types leak into this package's own public API (`SingleShotOptions` and friends), so a consumer's
-type-check needs `@azx/ribo-core` resolvable too — a `devDependency` would not be installed for them.
-`zod` is a genuine runtime dependency (it builds the strict JSON Schema).
-
-See the [API Reference](../../docs/reference/) (generated) for the full surface.
+- Guide: [Extraction](../../docs/guide/extraction.md)
+- [Repo root](../../README.md)
