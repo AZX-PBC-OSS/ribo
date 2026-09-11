@@ -1,10 +1,23 @@
 # Transcription: Measured
 
+::: warning Superseded default — these figures are Whisper's, not Moonshine's
+[Feasibility](/deep-dives/feasibility) picked `@huggingface/transformers` and `whisper-base.en` by
+attrition; this page's numbers were measured against that configuration. The on-device default has
+since moved to **Moonshine** (`onnx-community/moonshine-base-ONNX`, 2026-08-11) because Whisper pads
+every input to its 30-second receptive field regardless of speech length, where Moonshine's feature
+extractor runs unpadded and is 4–16× faster at short utterance lengths — see the `moonshine-default`
+changeset. **No equivalent RTF/WER numbers exist yet for Moonshine on this corpus** — treat every
+figure below as characterising the _then_-default, not the model Ribo ships today. Moonshine also
+drops the `prompt_ids` hinting this page measures in "Hints help most exactly where jargon is
+densest" — see [Feasibility](/deep-dives/feasibility) for why.
+:::
+
 [Feasibility](/deep-dives/feasibility) picked `@huggingface/transformers` and `whisper-base.en` by
 attrition, ahead of any real number. This page is the measurement run that followed: our own
-numbers, on our own corpus, against the real production `OnDeviceTranscriber` — plus the one thing
-no prior test had touched, what happens when a real language-model extractor runs on the noisy
-transcript that model actually produces, instead of the clean text everyone had been testing against.
+numbers, on our own corpus, against the production `OnDeviceTranscriber` **as configured at the
+time** — plus the one thing no prior test had touched, what happens when a real language-model
+extractor runs on the noisy transcript that model actually produces, instead of the clean text
+everyone had been testing against.
 
 ::: warning These are a floor, and they are not the field number
 Every number below comes from **text-to-speech audio**: no background noise, no mic handling, no
@@ -109,11 +122,13 @@ through extraction: [Real Field Audio](/deep-dives/real-audio).
 
 ## What this doesn't settle
 
-Every number on this page retires the _feasibility_ question — on-device Whisper is fast enough and
-accurate enough on clean speech, and it integrates through extraction without opening any new
-hallucination hazard. It does not retire the _field-readiness_ question. Real speech is louder,
-messier, and more disfluent than anything synthesized here, by an amount this page has not measured.
-Do not plan against these as field numbers.
+Every number on this page retired the _feasibility_ question for Whisper — it was fast enough and
+accurate enough on clean speech, and it integrated through extraction without opening any new
+hallucination hazard. It never retired the _field-readiness_ question (real speech is louder,
+messier, and more disfluent than anything synthesized here, by an amount this page did not measure),
+and it does not answer the question for Moonshine, the current default, at all — that model's
+accuracy and its interaction with extraction are unmeasured on this corpus. Do not plan against these
+as either field numbers or Moonshine numbers.
 
 Full harness, method, and reproduce steps:
 [doc 14, the measured spike](https://github.com/AZX-PBC-OSS/ribo/blob/main/docs/implementation/14-transcription-measurement.md)

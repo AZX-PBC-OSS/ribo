@@ -6,13 +6,15 @@ for an external reader rather than left as internal working notes. Method, the a
 just as importantly what each result **does and does not** support: a measurement scoped to one
 route, one corpus or one snapshot is labeled as such, not quietly generalized.
 
-- **[Feasibility](/deep-dives/feasibility)** — why on-device WASM Whisper is the transcription
-  default: the device baseline, the iOS WebGPU trap that ruled out trusting capability flags, and why
-  the library and model were chosen by attrition rather than preference.
+- **[Feasibility](/deep-dives/feasibility)** — why on-device WASM transcription is the default: the
+  device baseline, the iOS WebGPU trap that ruled out trusting capability flags, and why the library
+  and (then-)model were chosen by attrition rather than preference. Dated: it records the original
+  Whisper decision, since superseded by Moonshine — see the note at the top of that page.
 - **[Transcription: Measured](/deep-dives/transcription-measurement)** — our own numbers on our own
   corpus: real-time factor, word error rate, load time and memory for `whisper-base.en` and
-  `whisper-tiny.en`, plus what happens to extraction when it runs on a noisy on-device transcript
-  instead of clean text.
+  `whisper-tiny.en`, the models measured at the time, plus what happens to extraction when it runs on
+  a noisy on-device transcript instead of clean text. The on-device default has since moved to
+  Moonshine, not yet measured on this corpus.
 - **[Extraction: Measured](/deep-dives/accuracy)** — generated from the committed acceptance-gate run
   records, not hand-written. States plainly what extraction-accuracy number exists right now (none)
   and why, rather than publish a stale one.

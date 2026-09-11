@@ -1,10 +1,29 @@
 # Feasibility
 
-On-device WASM Whisper (`@huggingface/transformers` + `whisper-base.en`) is Ribo's default
-transcription path. It was chosen by attrition — every other browser-runnable candidate failed to
-survive a feasibility spike run against a specific device baseline — not because it was assumed to
-be the best model available. This page is the working behind that choice; the numbers it produced
-are on [Transcription: Measured](/deep-dives/transcription-measurement).
+::: warning Superseded 2026-08-11 — the default model changed from Whisper to Moonshine
+This page is the record of the **original** feasibility decision, written when Whisper was the
+on-device default. That default has since moved to **Moonshine**
+(`onnx-community/moonshine-base-ONNX`, see `DEFAULT_MODEL_ID` in
+`@azx/ribo-transcriber-ondevice`) — a **major**, deliberate change, not a drift. The reason: Whisper
+pads every input to its 30-second receptive field before the encoder runs, so cost is set by the
+window rather than by the speech (measured at 1.26× across a 14.5× range of audio — a 2-second
+utterance costs what a 29-second one does); Moonshine's feature extractor passes audio through
+unpadded and is 4–16× faster at the short utterance lengths live transcription needs.
+
+**What's still valid below:** the device baseline, the iOS WebGPU trap (Finding 1), the debunking of
+circulating public benchmarks (Finding 2), the library-attrition reasoning (`@huggingface/transformers`
+was, and remains, the only viable runtime), and the backend/streaming policy under "What the spike
+committed to." **What's no longer current:** every present-tense claim that Whisper or
+`whisper-base.en` specifically _is_ the default, and the `prompt_ids` argument below — Moonshine has
+no equivalent hinting mechanism (see the callout after that section).
+:::
+
+On-device WASM Whisper (`@huggingface/transformers` + `whisper-base.en`) was Ribo's default
+transcription path when this page was written. It was chosen by attrition — every other
+browser-runnable candidate failed to survive a feasibility spike run against a specific device
+baseline — not because it was assumed to be the best model available. This page is the working
+behind that choice, as it stood then; the numbers it produced are on
+[Transcription: Measured](/deep-dives/transcription-measurement).
 
 ## The question the spike had to answer
 
@@ -63,16 +82,24 @@ Ribo's hosting model can't guarantee. Vosk, whisper-turbo and ratchet were dead 
 Voxtral run 454 MB to 2.5 GB, which rules them out for a one-time download onto a field tablet.
 `@huggingface/transformers` was the only candidate left standing.
 
-**`whisper-base.en`** (~142–165 MB) is the shipped default, with **`tiny.en`** (~96 MB) as a low-end
-fallback and **`small.en`** (~300 MB) as an accuracy escape hatch, selected at download time from a
-device probe. Add roughly 13 MB (Safari) or 24 MB (Chromium) for the ONNX Runtime binary itself — a
-real one-time download that's routinely left out of model-size arithmetic.
+**`whisper-base.en`** (~142–165 MB) was the shipped default, with **`tiny.en`** (~96 MB) as a
+low-end fallback and **`small.en`** (~300 MB) as an accuracy escape hatch, selected at download time
+from a device probe. Add roughly 13 MB (Safari) or 24 MB (Chromium) for the ONNX Runtime binary
+itself — a real one-time download that's routinely left out of model-size arithmetic.
 
-**The decisive reason for Whisper specifically is not accuracy — it's `prompt_ids`.** Whisper
-accepts a decoder-prefix hint: a list of domain vocabulary tokens that bias what the model hears
-without retraining it. That's a `Transcriber`-interface consequence as much as a model choice — see
-[Transcription: Measured](/deep-dives/transcription-measurement) for what hinting actually bought in
-WER terms.
+**The decisive reason for Whisper specifically, at the time, was not accuracy — it was `prompt_ids`.**
+Whisper accepts a decoder-prefix hint: a list of domain vocabulary tokens that bias what the model
+hears without retraining it. That was a `Transcriber`-interface consequence as much as a model
+choice — see [Transcription: Measured](/deep-dives/transcription-measurement) for what hinting
+actually bought in WER terms.
+
+**That argument does not carry over to Moonshine, the current default.** Moonshine has no
+`<|startofprev|>`-equivalent control token, so the same decoder-prefix trick doesn't degrade
+gracefully — it makes the model echo the prefix, emit a comma, and stop transcribing the audio
+entirely (measured in `moonshine-priming.manual.ts`). `@azx/ribo-transcriber-ondevice` now throws
+rather than silently drop or silently apply hints on a model that can't honor them
+(`modelSupportsHints`). Domain-jargon priming is a real capability the Moonshine switch gives up, not
+a free swap — see the `moonshine-default` changeset.
 
 ## What the spike committed to
 
@@ -83,7 +110,8 @@ WER terms.
   results are technically demonstrable on Chromium+WebGPU, but Whisper re-encodes a zero-padded 30 s
   window on every partial, which costs roughly N× a batch transcription — unaffordable on
   single-threaded WASM iOS. Partials ship only as a Chromium-only progressive enhancement, off by
-  default.
+  default. (This exact padding cost is what later motivated moving the default off Whisper — see the
+  note at the top of this page.)
 - **Go/no-go is a throughput question, not a capability one.** A device class defaults to on-device
   if its real-time factor stays comfortably under 1.0 and its word error rate is low enough for the
   downstream extractor to recover the fields that matter; a class that can't clear that bar falls

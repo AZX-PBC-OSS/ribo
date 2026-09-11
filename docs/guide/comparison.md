@@ -402,8 +402,10 @@ above are about _provenance behaviour_ — citation fidelity and call counts —
 field is right, and there is no groundedness-specific review gate either: review requires an
 explicit decision on every leaf, whether that leaf is grounded or not.
 
-**Transcription accuracy is measured on clean audio only.** `whisper-base.en` runs at roughly 6×
-real time with 8.0% word-error rate — but that is against authored text-to-speech audio with no
-noise, mic handling, disfluency or cross-talk. It is a floor, not a field forecast. Word-error rate
-against real field speech is not yet measured. See
+**Transcription accuracy is measured on clean audio only, and for a model that is no longer the
+default.** The on-device path's previous default, `whisper-base.en`, ran at roughly 6× real time
+with 8.0% word-error rate against authored text-to-speech audio with no noise, mic handling,
+disfluency or cross-talk — a floor, not a field forecast even at the time. The current default,
+Moonshine, has not yet been measured on this corpus, and word-error rate against real field speech
+is not yet measured for either model. See
 [Transcription: Measured](/deep-dives/transcription-measurement).

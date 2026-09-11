@@ -31,13 +31,14 @@ Stage by stage:
 - **Capture** — `Recorder` negotiates a container and records from the microphone. `CaptureItem` is
   a union of `Recording` and `DocumentCapture`, so a PDF enqueues through the same seam as a
   dictation.
-- **Transcribe** — four engines implement `Transcriber`: on-device Whisper
-  (`@azx/ribo-transcriber-ondevice`), managed speech (`@azx/ribo-transcriber-managed`), pdf.js
-  against a PDF's existing text layer (`@azx/ribo-transcriber-pdfjs`), and a hosted
-  document-understanding API (`@azx/ribo-transcriber-managed-docs`). `firstCapable`,
-  `fallbackTranscriber` and `hedged` compose them. Measured on clean, authored text-to-speech audio,
-  on-device `whisper-base.en` runs at ~6× real time with 8.0% WER — that is a floor, not a field
-  forecast, and **word-error rate against real field speech is not yet measured**
+- **Transcribe** — four engines implement `Transcriber`: on-device speech (`@azx/ribo-transcriber-ondevice`,
+  Moonshine by default), managed speech (`@azx/ribo-transcriber-managed`), pdf.js against a PDF's
+  existing text layer (`@azx/ribo-transcriber-pdfjs`), and a hosted document-understanding API
+  (`@azx/ribo-transcriber-managed-docs`). `firstCapable`, `fallbackTranscriber` and `hedged` compose
+  them. Measured on clean, authored text-to-speech audio, the on-device path's previous default
+  (`whisper-base.en`) ran at ~6× real time with 8.0% WER — that is a floor, not a field forecast, and
+  the current default (Moonshine) has not yet been measured on this corpus. **Word-error rate against
+  real field speech is not yet measured for either model**
   ([the numbers](docs/implementation/14-transcription-measurement.md)).
 - **Extract** — a session's joined transcript becomes structured fields through an `Extractor`:
   `@azx/ribo-extractor-openai` ships the managed default (`singleShotExtractor`) plus a per-group
@@ -86,17 +87,17 @@ Nine publishable packages. Dependencies only ever point **inward toward `ribo-co
 transcriber, extractor and adapter package depends on it and never on each other, so adding a
 second host tool is a new adapter package and nothing else.
 
-| Package                              | What it is                                                                                                                                                                                                                    |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@azx/ribo-core`                     | The headless engine: capture, the recording and session state machines (durable outbox + relay), transcription and extraction contracts + selection, connectivity, the review seam, work-safety. No React, no DOM rendering.  |
-| `@azx/ribo-ui-react`                 | Headless React hook layer over the engine — `RiboProvider` plus recorder, review, outbox, connectivity and work-safety hooks. No components beyond `RiboProvider`, no markup.                                                 |
-| `@azx/ribo-transcriber-ondevice`     | On-device Whisper implementing `Transcriber`, running real inference in a Web Worker. A separate package because `@huggingface/transformers` pulls heavy native deps no non-transcribing consumer should inherit.             |
-| `@azx/ribo-transcriber-managed`      | Managed speech transcription (Azure AI Speech Fast Transcription) proxied through the host's transport. No capacity to authenticate — it takes an endpoint and an injected `fetch`.                                           |
-| `@azx/ribo-transcriber-pdfjs`        | PDF transcription via pdf.js: extracts a PDF's existing text layer, and refuses a document with no text layer rather than guessing — it cannot OCR.                                                                           |
-| `@azx/ribo-transcriber-managed-docs` | A hosted document-understanding API behind the host's transport, for scans and layouts pdf.js can't read. Composes with `ribo-transcriber-pdfjs` through `fallbackTranscriber`.                                               |
-| `@azx/ribo-extractor-openai`         | Tool-agnostic managed-LLM extraction: `singleShotExtractor` (the default) and `perGroupExtractor`, which partitions a schema too big for one call across concurrent calls.                                                    |
-| `@azx/ribo-extractor-ondevice`       | An on-device extractor over Chrome's built-in language model, running presence, span and classify as three phases against the same `Extractor` seam.                                                                          |
-| `@azx/ribo-adapter-snuggpro`         | The **reference adapter and worked example**: Snugg Pro's field schema, the extractor instructions/examples, the deterministic normalization pass, and the write-back seam — the only tool-specific surface in the workspace. |
+| Package                              | What it is                                                                                                                                                                                                                                                                             |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@azx/ribo-core`                     | The headless engine: capture, the recording and session state machines (durable outbox + relay), transcription and extraction contracts + selection, connectivity, the review seam, work-safety. No React, no DOM rendering.                                                           |
+| `@azx/ribo-ui-react`                 | Headless React hook layer over the engine — `RiboProvider` plus recorder, review, outbox, connectivity and work-safety hooks. No components beyond `RiboProvider`, no markup.                                                                                                          |
+| `@azx/ribo-transcriber-ondevice`     | On-device speech transcription implementing `Transcriber` (Moonshine by default, Whisper models still selectable), running real inference in a Web Worker. A separate package because `@huggingface/transformers` pulls heavy native deps no non-transcribing consumer should inherit. |
+| `@azx/ribo-transcriber-managed`      | Managed speech transcription (Azure AI Speech Fast Transcription) proxied through the host's transport. No capacity to authenticate — it takes an endpoint and an injected `fetch`.                                                                                                    |
+| `@azx/ribo-transcriber-pdfjs`        | PDF transcription via pdf.js: extracts a PDF's existing text layer, and refuses a document with no text layer rather than guessing — it cannot OCR.                                                                                                                                    |
+| `@azx/ribo-transcriber-managed-docs` | A hosted document-understanding API behind the host's transport, for scans and layouts pdf.js can't read. Composes with `ribo-transcriber-pdfjs` through `fallbackTranscriber`.                                                                                                        |
+| `@azx/ribo-extractor-openai`         | Tool-agnostic managed-LLM extraction: `singleShotExtractor` (the default) and `perGroupExtractor`, which partitions a schema too big for one call across concurrent calls.                                                                                                             |
+| `@azx/ribo-extractor-ondevice`       | An on-device extractor over Chrome's built-in language model, running presence, span and classify as three phases against the same `Extractor` seam.                                                                                                                                   |
+| `@azx/ribo-adapter-snuggpro`         | The **reference adapter and worked example**: Snugg Pro's field schema, the extractor instructions/examples, the deterministic normalization pass, and the write-back seam — the only tool-specific surface in the workspace.                                                          |
 
 (`@azx/build-config` and `@azx/tsconfig` are private workspace plumbing — shared build and tsconfig
 setup, not part of the pipeline, never published.)

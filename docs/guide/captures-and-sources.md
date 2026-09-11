@@ -57,12 +57,12 @@ put the routing decision back on a heuristic instead of a fact stamped at captur
 Every engine below implements the same `Transcriber` interface from `@azx/ribo-core`; only the
 capture kind and the transport differ.
 
-| Package                              | Capture kind      | What it does                                                                                                                 |
-| ------------------------------------ | ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `@azx/ribo-transcriber-ondevice`     | `Recording`       | On-device Whisper, run through `@huggingface/transformers` in a Web Worker — no network once the model is cached.            |
-| `@azx/ribo-transcriber-managed`      | `Recording`       | Azure AI Speech Fast Transcription, proxied through the host's own transport.                                                |
-| `@azx/ribo-transcriber-pdfjs`        | `DocumentCapture` | PDF text extraction via pdf.js, entirely in-browser — the reference document engine.                                         |
-| `@azx/ribo-transcriber-managed-docs` | `DocumentCapture` | A hosted document-understanding API behind the host's transport — the engine to fall back to when `pdfjs` can't read a page. |
+| Package                              | Capture kind      | What it does                                                                                                                                   |
+| ------------------------------------ | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@azx/ribo-transcriber-ondevice`     | `Recording`       | On-device transcription (Moonshine by default), run through `@huggingface/transformers` in a Web Worker — no network once the model is cached. |
+| `@azx/ribo-transcriber-managed`      | `Recording`       | Azure AI Speech Fast Transcription, proxied through the host's own transport.                                                                  |
+| `@azx/ribo-transcriber-pdfjs`        | `DocumentCapture` | PDF text extraction via pdf.js, entirely in-browser — the reference document engine.                                                           |
+| `@azx/ribo-transcriber-managed-docs` | `DocumentCapture` | A hosted document-understanding API behind the host's transport — the engine to fall back to when `pdfjs` can't read a page.                   |
 
 They compose the same way audio-only engines always did — `firstCapable` for preference order,
 `hedged` to race a fallback on a latency budget, `fallbackTranscriber` to let an arbiter decide
