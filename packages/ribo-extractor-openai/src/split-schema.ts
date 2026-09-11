@@ -52,9 +52,12 @@
  * or `"none"` provenance (`enveloped()`'s `provenance` option) has plain
  * `X.nullable()` leaves worth one union each, so 15 of them plus a row `sourceSpan`
  * fit in a single call — and a leaf count would still split that group in two,
- * buying exactly nothing from the coarser provenance. Counting what the vendor
- * caps is what makes the option pay. A caller tuning the number is tuning the same
- * unit: a byte-capped route sets a bound it measured in unions, not in leaves.
+ * buying exactly nothing from the coarser provenance. Counting the nullable-union
+ * cap observed on the Anthropic-family managed route — whether 16 is the vendor's
+ * own limit or this route's translation of it is not established, only that the
+ * limit is real and model-family-specific — is what makes the option pay. A
+ * caller tuning the number is tuning the same unit: a byte-capped route sets a
+ * bound it measured in unions, not in leaves.
  */
 
 import { z } from "zod";
@@ -97,9 +100,11 @@ export interface ExtractionGroup {
 
 /**
  * The per-call ceiling this module partitions against: 16 nullable unions, the
- * Anthropic family's documented cap on a response schema. See the file header.
- * Exported so a caller and its tests share one number rather than two that can
- * drift.
+ * cap measured against Anthropic-family models on the managed route (16 accepted,
+ * 18 rejected). Whether 16 is the vendor's own limit or this route's translation
+ * of it is not established — only that it is real and model-family-specific. See
+ * the file header. Exported so a caller and its tests share one number rather
+ * than two that can drift.
  *
  * **Unions, not leaves.** This used to be `MAX_ENVELOPED_LEAVES_PER_GROUP = 8`,
  * and 8 was only ever the cap divided by the two nullable unions an enveloped
@@ -107,8 +112,10 @@ export interface ExtractionGroup {
  * `"none"` provenance (`enveloped()`'s `provenance` option): those leaves are
  * plain `X.nullable()` and cost ONE union each, so a 15-leaf row group plus its
  * row span is 16 unions and fits in a single call — while a leaf count of 8 would
- * still split it in two and buy nothing. Counting the thing the vendor actually
- * caps removes the assumption instead of re-deriving it.
+ * still split it in two and buy nothing. Counting the nullable-union cap observed
+ * on the Anthropic-family managed route removes the assumption instead of
+ * re-deriving it; whether 16 is the vendor's own limit or this route's
+ * translation of it is not established here.
  *
  * Nothing moves for an all-enveloped schema: 8 leaves x 2 unions is exactly 16,
  * so every partition boundary this module produced before is the boundary it
