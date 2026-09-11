@@ -155,6 +155,18 @@ review hook. R1, R1.5 and R2 are all done; the rest proceed in dependency order:
 Discovered while building R1.5 and investigating the Snugg Pro API. Recorded here so they are decided
 rather than rediscovered.
 
+- **Vocabulary: "contract" replaces "seam", and "plasmid" goes away. Decided 2026-09-11; the code
+  has not caught up.** A prose pass over the published docs cut both terms from the package
+  READMEs — "plasmid" is internal shorthand a newcomer cannot decode, and "seam" is vaguer than
+  "contract" for what `Transcriber`, `Extractor` and `ToolAdapter` actually are. The maintainer
+  confirmed the library should follow, but not urgently. What still uses the old words:
+  `AGENTS.md` (§6.1 defines the `ribo-<category>-<variant>` scheme in terms of plasmids, and
+  "seam" recurs throughout), doc comments across `packages/*/src`, and the design docs in this
+  directory. None of it is user-facing, which is why it can wait — but a split vocabulary between
+  the published docs and the repo's own notes is exactly the kind of drift this project keeps
+  having to correct, so it should not wait indefinitely. No identifier changes are implied: this
+  is prose only.
+
 - **Correction (2026-09-10): extraction, review and write moved off the recording.** Earlier entries
   in "What has shipped" above (R2 in particular) describe one state machine and name
   `Outbox.submitReview` / `Outbox.reopenForReview` — accurate when written, and left as-is; they are
