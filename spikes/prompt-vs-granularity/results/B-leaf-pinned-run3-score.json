@@ -1,0 +1,444 @@
+{
+  "grounded": 87,
+  "nearMiss": 0,
+  "ungrounded": 0,
+  "nullSpan": 0,
+  "total": 87,
+  "spanDetails": [
+    {
+      "path": "rooms[0].name",
+      "groundedness": "grounded",
+      "span": "L1.Bathrm"
+    },
+    {
+      "path": "rooms[0].area",
+      "groundedness": "grounded",
+      "span": "L1.Bathrm 47"
+    },
+    {
+      "path": "rooms[0].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Bathrm 47 1521 570 59 42"
+    },
+    {
+      "path": "rooms[0].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Bathrm 47 1521 570 59 42"
+    },
+    {
+      "path": "rooms[0].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Bathrm 47 1521 570 59 42"
+    },
+    {
+      "path": "rooms[0].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Bathrm 47 1521 570 59 42"
+    },
+    {
+      "path": "rooms[1].name",
+      "groundedness": "grounded",
+      "span": "L1.Bedrm"
+    },
+    {
+      "path": "rooms[1].area",
+      "groundedness": "grounded",
+      "span": "L1.Bedrm 110"
+    },
+    {
+      "path": "rooms[1].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Bedrm 110 4521 2737 177 201"
+    },
+    {
+      "path": "rooms[1].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Bedrm 110 4521 2737 177 201"
+    },
+    {
+      "path": "rooms[1].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Bedrm 110 4521 2737 177 201"
+    },
+    {
+      "path": "rooms[1].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Bedrm 110 4521 2737 177 201"
+    },
+    {
+      "path": "rooms[2].name",
+      "groundedness": "grounded",
+      "span": "L1.Dining"
+    },
+    {
+      "path": "rooms[2].area",
+      "groundedness": "grounded",
+      "span": "L1.Dining 168"
+    },
+    {
+      "path": "rooms[2].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Dining 168 3615 1666 141 123"
+    },
+    {
+      "path": "rooms[2].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Dining 168 3615 1666 141 123"
+    },
+    {
+      "path": "rooms[2].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Dining 168 3615 1666 141 123"
+    },
+    {
+      "path": "rooms[2].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Dining 168 3615 1666 141 123"
+    },
+    {
+      "path": "rooms[3].name",
+      "groundedness": "grounded",
+      "span": "L1.Entrance"
+    },
+    {
+      "path": "rooms[3].area",
+      "groundedness": "grounded",
+      "span": "L1.Entrance 82"
+    },
+    {
+      "path": "rooms[3].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Entrance 82 0 0 0 0"
+    },
+    {
+      "path": "rooms[3].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Entrance 82 0 0 0 0"
+    },
+    {
+      "path": "rooms[3].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Entrance 82 0 0 0 0"
+    },
+    {
+      "path": "rooms[3].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Entrance 82 0 0 0 0"
+    },
+    {
+      "path": "rooms[4].name",
+      "groundedness": "grounded",
+      "span": "L1.Kitchen"
+    },
+    {
+      "path": "rooms[4].area",
+      "groundedness": "grounded",
+      "span": "L1.Kitchen 132"
+    },
+    {
+      "path": "rooms[4].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Kitchen 132 2841 2401 111 177"
+    },
+    {
+      "path": "rooms[4].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Kitchen 132 2841 2401 111 177"
+    },
+    {
+      "path": "rooms[4].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Kitchen 132 2841 2401 111 177"
+    },
+    {
+      "path": "rooms[4].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Kitchen 132 2841 2401 111 177"
+    },
+    {
+      "path": "rooms[5].name",
+      "groundedness": "grounded",
+      "span": "L1.Living"
+    },
+    {
+      "path": "rooms[5].area",
+      "groundedness": "grounded",
+      "span": "L1.Living 153"
+    },
+    {
+      "path": "rooms[5].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Living 153 4837 2389 189 176"
+    },
+    {
+      "path": "rooms[5].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Living 153 4837 2389 189 176"
+    },
+    {
+      "path": "rooms[5].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Living 153 4837 2389 189 176"
+    },
+    {
+      "path": "rooms[5].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Living 153 4837 2389 189 176"
+    },
+    {
+      "path": "rooms[6].name",
+      "groundedness": "grounded",
+      "span": "L1.Pantry"
+    },
+    {
+      "path": "rooms[6].area",
+      "groundedness": "grounded",
+      "span": "L1.Pantry 80"
+    },
+    {
+      "path": "rooms[6].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Pantry 80 3122 1104 122 81"
+    },
+    {
+      "path": "rooms[6].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Pantry 80 3122 1104 122 81"
+    },
+    {
+      "path": "rooms[6].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Pantry 80 3122 1104 122 81"
+    },
+    {
+      "path": "rooms[6].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Pantry 80 3122 1104 122 81"
+    },
+    {
+      "path": "rooms[7].name",
+      "groundedness": "grounded",
+      "span": "L1.Stairs"
+    },
+    {
+      "path": "rooms[7].area",
+      "groundedness": "grounded",
+      "span": "L1.Stairs 30"
+    },
+    {
+      "path": "rooms[7].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Stairs 30 0 0 0 0"
+    },
+    {
+      "path": "rooms[7].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L1.Stairs 30 0 0 0 0"
+    },
+    {
+      "path": "rooms[7].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Stairs 30 0 0 0 0"
+    },
+    {
+      "path": "rooms[7].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L1.Stairs 30 0 0 0 0"
+    },
+    {
+      "path": "rooms[8].name",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm1"
+    },
+    {
+      "path": "rooms[8].area",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm1 122"
+    },
+    {
+      "path": "rooms[8].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm1 122 1802 2209 78 116"
+    },
+    {
+      "path": "rooms[8].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm1 122 1802 2209 78 116"
+    },
+    {
+      "path": "rooms[8].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm1 122 1802 2209 78 116"
+    },
+    {
+      "path": "rooms[8].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm1 122 1802 2209 78 116"
+    },
+    {
+      "path": "rooms[9].name",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm2"
+    },
+    {
+      "path": "rooms[9].area",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm2 150"
+    },
+    {
+      "path": "rooms[9].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm2 150 2265 2066 98 108"
+    },
+    {
+      "path": "rooms[9].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm2 150 2265 2066 98 108"
+    },
+    {
+      "path": "rooms[9].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm2 150 2265 2066 98 108"
+    },
+    {
+      "path": "rooms[9].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm2 150 2265 2066 98 108"
+    },
+    {
+      "path": "rooms[10].name",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm4"
+    },
+    {
+      "path": "rooms[10].area",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm4 140"
+    },
+    {
+      "path": "rooms[10].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm4 140 2940 2762 127 145"
+    },
+    {
+      "path": "rooms[10].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm4 140 2940 2762 127 145"
+    },
+    {
+      "path": "rooms[10].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm4 140 2940 2762 127 145"
+    },
+    {
+      "path": "rooms[10].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm4 140 2940 2762 127 145"
+    },
+    {
+      "path": "rooms[11].name",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm5"
+    },
+    {
+      "path": "rooms[11].area",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm5 104"
+    },
+    {
+      "path": "rooms[11].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm5 104 3884 2018 168 106"
+    },
+    {
+      "path": "rooms[11].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm5 104 3884 2018 168 106"
+    },
+    {
+      "path": "rooms[11].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm5 104 3884 2018 168 106"
+    },
+    {
+      "path": "rooms[11].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L2.Bedrm5 104 3884 2018 168 106"
+    },
+    {
+      "path": "rooms[12].name",
+      "groundedness": "grounded",
+      "span": "L2.Corridor"
+    },
+    {
+      "path": "rooms[12].area",
+      "groundedness": "grounded",
+      "span": "L2.Corridor 32"
+    },
+    {
+      "path": "rooms[12].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L2.Corridor 32 0 0 0 0"
+    },
+    {
+      "path": "rooms[12].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L2.Corridor 32 0 0 0 0"
+    },
+    {
+      "path": "rooms[12].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L2.Corridor 32 0 0 0 0"
+    },
+    {
+      "path": "rooms[12].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L2.Corridor 32 0 0 0 0"
+    },
+    {
+      "path": "rooms[13].name",
+      "groundedness": "grounded",
+      "span": "L2.M Bedrm"
+    },
+    {
+      "path": "rooms[13].area",
+      "groundedness": "grounded",
+      "span": "L2.M Bedrm 165"
+    },
+    {
+      "path": "rooms[13].heatingLoad",
+      "groundedness": "grounded",
+      "span": "L2.M Bedrm 165 2986 2394 129 125"
+    },
+    {
+      "path": "rooms[13].coolingLoad",
+      "groundedness": "grounded",
+      "span": "L2.M Bedrm 165 2986 2394 129 125"
+    },
+    {
+      "path": "rooms[13].heatingAvf",
+      "groundedness": "grounded",
+      "span": "L2.M Bedrm 165 2986 2394 129 125"
+    },
+    {
+      "path": "rooms[13].coolingAvf",
+      "groundedness": "grounded",
+      "span": "L2.M Bedrm 165 2986 2394 129 125"
+    },
+    {
+      "path": "house.totalHeatingLoad",
+      "groundedness": "grounded",
+      "span": "Entire House 1515 34334 22162 1400 1400"
+    },
+    {
+      "path": "house.totalCoolingLoad",
+      "groundedness": "grounded",
+      "span": "Entire House 1515 34334 22162 1400 1400"
+    },
+    {
+      "path": "house.totalArea",
+      "groundedness": "grounded",
+      "span": "Entire House 1515 34334 22162 1400 1400"
+    }
+  ]
+}

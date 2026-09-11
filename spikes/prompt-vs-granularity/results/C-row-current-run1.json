@@ -1,0 +1,147 @@
+{
+  "rooms": [
+    {
+      "name": "L1.Bathrm",
+      "area": 47,
+      "heatingLoad": 1521,
+      "coolingLoad": 570,
+      "heatingAvf": 59,
+      "coolingAvf": 42,
+      "sourceSpan": "L1.Bathrm 47 1521 570 59 42"
+    },
+    {
+      "name": "L1.Bedrm",
+      "area": 110,
+      "heatingLoad": 4521,
+      "coolingLoad": 2737,
+      "heatingAvf": 177,
+      "coolingAvf": 201,
+      "sourceSpan": "L1.Bedrm 110 4521 2737 177 201"
+    },
+    {
+      "name": "L1.Dining",
+      "area": 168,
+      "heatingLoad": 3615,
+      "coolingLoad": 1666,
+      "heatingAvf": 141,
+      "coolingAvf": 123,
+      "sourceSpan": "L1.Dining 168 3615 1666 141 123"
+    },
+    {
+      "name": "L1.Entrance",
+      "area": 82,
+      "heatingLoad": 0,
+      "coolingLoad": 0,
+      "heatingAvf": 0,
+      "coolingAvf": 0,
+      "sourceSpan": "L1.Entrance 82 0 0 0 0"
+    },
+    {
+      "name": "L1.Kitchen",
+      "area": 132,
+      "heatingLoad": 2841,
+      "coolingLoad": 2401,
+      "heatingAvf": 111,
+      "coolingAvf": 177,
+      "sourceSpan": "L1.Kitchen 132 2841 2401 111 177"
+    },
+    {
+      "name": "L1.Living",
+      "area": 153,
+      "heatingLoad": 4837,
+      "coolingLoad": 2389,
+      "heatingAvf": 189,
+      "coolingAvf": 176,
+      "sourceSpan": "L1.Living 153 4837 2389 189 176"
+    },
+    {
+      "name": "L1.Pantry",
+      "area": 80,
+      "heatingLoad": 3122,
+      "coolingLoad": 1104,
+      "heatingAvf": 122,
+      "coolingAvf": 81,
+      "sourceSpan": "L1.Pantry 80 3122 1104 122 81"
+    },
+    {
+      "name": "L1.Stairs",
+      "area": 30,
+      "heatingLoad": 0,
+      "coolingLoad": 0,
+      "heatingAvf": 0,
+      "coolingAvf": 0,
+      "sourceSpan": "L1.Stairs 30 0 0 0 0"
+    },
+    {
+      "name": "L2.Bedrm1",
+      "area": 122,
+      "heatingLoad": 1802,
+      "coolingLoad": 2209,
+      "heatingAvf": 78,
+      "coolingAvf": 116,
+      "sourceSpan": "L2.Bedrm1 122 1802 2209 78 116"
+    },
+    {
+      "name": "L2.Bedrm2",
+      "area": 150,
+      "heatingLoad": 2265,
+      "coolingLoad": 2066,
+      "heatingAvf": 98,
+      "coolingAvf": 108,
+      "sourceSpan": "L2.Bedrm2 150 2265 2066 98 108"
+    },
+    {
+      "name": "L2.Bedrm4",
+      "area": 140,
+      "heatingLoad": 2940,
+      "coolingLoad": 2762,
+      "heatingAvf": 127,
+      "coolingAvf": 145,
+      "sourceSpan": "L2.Bedrm4 140 2940 2762 127 145"
+    },
+    {
+      "name": "L2.Bedrm5",
+      "area": 104,
+      "heatingLoad": 3884,
+      "coolingLoad": 2018,
+      "heatingAvf": 168,
+      "coolingAvf": 106,
+      "sourceSpan": "L2.Bedrm5 104 3884 2018 168 106"
+    },
+    {
+      "name": "L2.Corridor",
+      "area": 32,
+      "heatingLoad": 0,
+      "coolingLoad": 0,
+      "heatingAvf": 0,
+      "coolingAvf": 0,
+      "sourceSpan": "L2.Corridor 32 0 0 0 0"
+    },
+    {
+      "name": "L2.M Bedrm",
+      "area": 165,
+      "heatingLoad": 2986,
+      "coolingLoad": 2394,
+      "heatingAvf": 129,
+      "coolingAvf": 125,
+      "sourceSpan": "L2.M Bedrm 165 2986 2394 129 125"
+    }
+  ],
+  "house": {
+    "totalHeatingLoad": {
+      "value": 34334,
+      "confidence": 1,
+      "sourceSpan": "Equipment load 34334 Btuh"
+    },
+    "totalCoolingLoad": {
+      "value": 24251,
+      "confidence": 1,
+      "sourceSpan": "Equipment Total Load (Sen+Lat) 24251 Btuh"
+    },
+    "totalArea": {
+      "value": 1515,
+      "confidence": 1,
+      "sourceSpan": "Area (ft²) 1515 1515"
+    }
+  }
+}

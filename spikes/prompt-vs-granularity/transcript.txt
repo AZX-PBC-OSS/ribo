@@ -1,0 +1,963 @@
+--- Page 1 ---
+Manual S Compliance Report Job: 26-01
+Date: Feb 11, 2026
+1F IDU
+By: Mirian Flores
+Project Information
+Cooling Equipment
+l
+Design Conditions a
+i
+Outdoor design DB: 88.0°F Sensible gain: 10868 Btuhr Entering coil DB: 75.0°F
+T
+Outdoor design WB: 72.0°F Latent gain: 1603 Btuh Entering coil WB: 62.5°F
+Indoor design DB: 75.0°F Total gain: 12471 Btuh
+s
+Indoor RH: 50% Estimated airflow: 80e0 cfm k
+r
+e a
+m
+Manufacturer's Performance Data at Actual Designr Conditions r
+e
+F
+t
+a
+Equipment type: Split ASHP W
+Manufacturer: Fujitsu Model: AOlUH24KUAS1+AMUH24KUAS
+Actual airflow: 800 cfm a o
+N
+Sensible capacity: 12000 Btuh 110% of cload
+Latent capacity: 12000 Btuh 749% of load e
+o v
+Total capacity: 24000 Btuh 192% of load SHR: 50%a
+L h
+tHeating El lquipment
+i
+c w
+Design Conditions a n
+o
+Outdoor design DB: 10.0° d F Heat lsos i s: 20457 Btuh Entering coil DB: 70.0°F
+r
+Indoor design DB: 7e0.0°F e
+V
+R
+d
+i
+a
+P
+Manufacturer's Performance Deata at Actual Design Conditions
+m
+i
+Equipment type: Split ASHPT
+Manufacturer: Fujitsue Model: AOUH24KUAS1+AMUH24KUAS
+n
+Actual airflow: 800 cfm
+O
+Output capacity: 27000 Btuh 132% of load Capacity balance: 9.3 °F
+Supplemental heat required: 0 Btuh Economic balance: -99 °F
+Meets all requirements of ACCA Manual S.
+https://redactlocal.parseextract.com
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 1
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 2 ---
+Manual S Compliance Report Job: 26-01
+Date: Feb 11, 2026
+2F IDU
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Cooling Equipment
+Design Conditions
+Outdoor design DB: 88.0°F Sensible gain: 11449 Btuh Entering coil DB: 75.0°F
+Outdoor design WB: 72.0°F Latent gain: 2038 Btuh Entering coil WB: 62.5°F
+Indoor design DB: 75.0°F Total gain: 13487 Btuh
+Indoor RH: 50% Estimated airflow: 600 cfm
+Manufacturer's Performance Data at Actual Design Conditions
+Equipment type: Split ASHP
+Manufacturer: Fujitsu Model: AOUH18KUAS1+AMUH18KUAS
+Actual airflow: 600 cfm
+Sensible capacity: 12600 Btuh 110% of load
+Latent capacity: 5400 Btuh 265% of load
+Total capacity: 18000 Btuh 133% of load SHR: 70%
+Heating Equipment
+Design Conditions
+Outdoor design DB: 10.0°F Heat loss: 13878 Btuh Entering coil DB: 70.0°F
+Indoor design DB: 70.0°F
+Manufacturer's Performance Data at Actual Design Conditions
+Equipment type: Split ASHP
+Manufacturer: Fujitsu Model: AOUH18KUAS1+AMUH18KUAS
+Actual airflow: 600 cfm
+Output capacity: 21600 Btuh 156% of load Capacity balance: -1 °F
+Supplemental heat required: 0 Btuh Economic balance: -99 °F
+Meets all requirements of ACCA Manual S.
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 2
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 3 ---
+Load Short Form Job: 26-01
+Date: Feb 11, 2026
+Entire House
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Design Information
+Htg Clg Infiltration
+Outside db (°F) 10 88 Method Simplified
+Inside db (°F) 70 75 Construction quality Loose
+Design TD (°F) 60 13 Fireplaces 0
+Daily range - M
+Inside humidity (%) 50 50
+Moisture difference (gr/lb) 48 28
+HEATING EQUIPMENT COOLING EQUIPMENT
+Make n/a Make n/a
+Trade n/a Trade n/a
+Model n/a Cond n/a
+AHRI ref n/a Coil n/a
+AHRI ref n/a
+Efficiency n/a Efficiency n/a
+Heating input Sensible cooling 0 Btuh
+Heating output 0 Btuh Latent cooling 0 Btuh
+Temperature rise 0 °F Total cooling 0 Btuh
+Actual air flow 0 cfm Actual air flow 0 cfm
+Air flow factor 0 cfm/Btuh Air flow factor 0 cfm/Btuh
+Static pressure 0 in H2O Static pressure 0 in H2O
+Space thermostat n/a Load sensible heat ratio 0
+ROOM NAME Area Htg load Clg load Htg AVF Clg AVF
+(ft²) (Btuh) (Btuh) (cfm) (cfm)
+Level 1 ODU 802 20457 10868 800 800
+Level 2 ODU 713 13878 11449 600 600
+Entire House 1515 34334 22162 1400 1400
+Other equip loads 0 0
+Equip. @ 0.93 RSM 20611
+Latent cooling 3641
+TOTALS 1515 34334 24251 1400 1400
+Bold/italic values have been manually overridden
+Calculations approved by ACCA to meet all requirements of Manual J 8th Ed.
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 1
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 4 ---
+Load Short Form Job: 26-01
+Date: Feb 11, 2026
+1F IDU
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Design Information
+Htg Clg Infiltration
+Outside db (°F) 10 88 Method Simplified
+Inside db (°F) 70 75 Construction quality Loose
+Design TD (°F) 60 13 Fireplaces 0
+Daily range - M
+Inside humidity (%) 50 50
+Moisture difference (gr/lb) 48 28
+HEATING EQUIPMENT COOLING EQUIPMENT
+Make Fujitsu Make Fujitsu
+Trade FUJITSU Trade FUJITSU
+Model AOUH24KUAS1 Cond AOUH24KUAS1
+AHRI ref 217290594 Coil AMUH24KUAS
+AHRI ref 217290594
+Efficiency 10.1 HSPF2 Efficiency 11.8 EER2,17.7 SEER2
+Heating input Sensible cooling 12000 Btuh
+Heating output 27000 Btuh @ 47°F Latent cooling 12000 Btuh
+Temperature rise 31 °F Total cooling 24000 Btuh
+Actual air flow 800 cfm Actual air flow 800 cfm
+Air flow factor 0.039 cfm/Btuh Air flow factor 0.074 cfm/Btuh
+Static pressure 0.60 in H2O Static pressure 0.60 in H2O
+Space thermostat Load sensible heat ratio 0.87
+Capacity balance point = 9 °F
+ROOM NAME Area Htg load Clg load Htg AVF Clg AVF
+(ft²) (Btuh) (Btuh) (cfm) (cfm)
+L1.Bathrm 47 1521 570 59 42
+L1.Bedrm 110 4521 2737 177 201
+L1.Dining 168 3615 1666 141 123
+L1.Entrance 82 0 0 0 0
+L1.Kitchen 132 2841 2401 111 177
+L1.Living 153 4837 2389 189 176
+L1.Pantry 80 3122 1104 122 81
+L1.Stairs 30 0 0 0 0
+Bold/italic values have been manually overridden
+Calculations approved by ACCA to meet all requirements of Manual J 8th Ed.
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 2
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 5 ---
+1F IDU 802 20457 10868 800 800
+Other equip loads 0 0
+Equip. @ 0.93 RSM 10108
+Latent cooling 1603
+TOTALS 802 20457 11711 800 800
+Bold/italic values have been manually overridden
+Calculations approved by ACCA to meet all requirements of Manual J 8th Ed.
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 3
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 6 ---
+Load Short Form Job: 26-01
+Date: Feb 11, 2026
+2F IDU
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Design Information
+Htg Clg Infiltration
+Outside db (°F) 10 88 Method Simplified
+Inside db (°F) 70 75 Construction quality Loose
+Design TD (°F) 60 13 Fireplaces 0
+Daily range - M
+Inside humidity (%) 50 50
+Moisture difference (gr/lb) 48 28
+HEATING EQUIPMENT COOLING EQUIPMENT
+Make Fujitsu Make Fujitsu
+Trade FUJITSU Trade FUJITSU
+Model AOUH18KUAS1 Cond AOUH18KUAS1
+AHRI ref 217290593 Coil AMUH18KUAS
+AHRI ref 217290593
+Efficiency 10.5 HSPF2 Efficiency 12.2 EER2,19.2 SEER2
+Heating input Sensible cooling 12600 Btuh
+Heating output 21600 Btuh @ 47°F Latent cooling 5400 Btuh
+Temperature rise 33 °F Total cooling 18000 Btuh
+Actual air flow 600 cfm Actual air flow 600 cfm
+Air flow factor 0.043 cfm/Btuh Air flow factor 0.052 cfm/Btuh
+Static pressure 0.60 in H2O Static pressure 0.60 in H2O
+Space thermostat Load sensible heat ratio 0.85
+Capacity balance point = -1 °F
+ROOM NAME Area Htg load Clg load Htg AVF Clg AVF
+(ft²) (Btuh) (Btuh) (cfm) (cfm)
+L2.Bedrm1 122 1802 2209 78 116
+L2.Bedrm2 150 2265 2066 98 108
+L2.Bedrm4 140 2940 2762 127 145
+L2.Bedrm5 104 3884 2018 168 106
+L2.Corridor 32 0 0 0 0
+L2.M Bedrm 165 2986 2394 129 125
+Bold/italic values have been manually overridden
+Calculations approved by ACCA to meet all requirements of Manual J 8th Ed.
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 4
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 7 ---
+2F IDU 713 13878 11449 600 600
+Other equip loads 0 0
+Equip. @ 0.93 RSM 10648
+Latent cooling 2038
+TOTALS 713 13878 12685 600 600
+Bold/italic values have been manually overridden
+Calculations approved by ACCA to meet all requirements of Manual J 8th Ed.
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 5
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 8 ---
+Component Constructions Job: 26-01
+Date: Feb 11, 2026
+Entire House
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Design Conditions
+Location: Indoor: Heating Cooling
+Lowell, MA, US Indoor temperature (°F) 70 75
+Elevation: 102 ft Design TD (°F) 60 13
+Latitude: 42°N Relative humidity (%) 50 50
+Outdoor: Heating Cooling Moisture difference (gr/lb) 47.6 27.8
+Dry bulb (°F) 10 88 Infiltration:
+Daily range (°F) - 20 ( M ) Method Simplified
+Wet bulb (°F) - 72 Construction quality Loose
+Wind speed (mph) 15.0 7.5 Fireplaces 0
+Construction descriptions Or Area U-value Insul R Htg HTM Loss Clg HTM Gain
+ft² Btuh/ft²-°F ft²-°F/Btuh Btuh/ft² Btuh Btuh/ft² Btuh
+Walls
+12E-0sw: Frm wall, vnl ext, 5/8" wood shth, r-19 cav ins, 5/8" gypsum n 192 0.068 19.0 4.08 783 1.36 261
+board int fnsh, 2"x6" wood frm, 16" o.c. stud e 421 0.068 19.0 4.08 1718 1.36 572
+s 166 0.068 19.0 4.08 677 1.36 226
+w 439 0.068 19.0 4.08 1791 1.36 597
+all 1218 0.068 19.0 4.08 4969 1.36 1656
+16B-19ad: Knee wall, asphalt shingles roof mat, r-35 roof ins, r-19 kw n 175 0.049 19.0 2.94 514 2.35 411
+ins, 1/2" gypsum board int fnsh e 438 0.049 19.0 2.94 1287 2.35 1029
+s 174 0.049 19.0 2.94 512 2.35 409
+w 415 0.049 19.0 2.94 1219 2.35 975
+all 1201 0.049 19.0 2.94 3531 2.35 2825
+Partitions
+(none)
+Windows
+4A5-2ov: 2 glazing, clr low-e outr, argon gas, insulated vinyl frm mat, n 6 0.470 0 28.2 169 12.0 72
+clr innr, 1/2" gap, 1/4" thk; 6.67 ft head ht n 23 0.470 0 28.2 658 12.0 281
+e 56 0.470 0 28.2 1579 35.2 1972
+e 12 0.470 0 28.2 348 35.2 434
+s 32 0.470 0 28.2 902 19.5 625
+s 24 0.470 0 28.2 677 19.5 469
+w 38 0.470 0 28.2 1072 35.2 1338
+w 35 0.470 0 28.2 996 35.2 1244
+all 227 0.470 0 28.2 6401 28.4 6437
+Doors
+(none)
+Ceilings
+16B-38ad: Attic ceiling, asphalt shingles roof mat, r-38 ceil ins, 5/8" 798 0.026 38.0 1.56 1245 1.25 996
+gypsum board int fnsh
+C part ceiling,: C part ceiling, hrd wd flr fnsh, frm flr, 8" thkns, 1/2" 21 0.255 1.0 15.3 322 5.11 107
+gypsum board int fnsh
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 1
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 9 ---
+Floors
+19A-0bswp: Part floor, hrd wd flr fnsh, frm flr, 6" thkns, 5/8" gypsum 12 0.295 0 6.65 80 1.44 17
+board int fnsh
+19A-30bswp: Flr floor, frm flr, 8" thkns, hrd wd flr fnsh, r-30 cav ins, 802 0.034 30.0 1.71 1373 0.37 297
+tight bsmt ovr
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 2
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 10 ---
+Component Constructions Job: 26-01
+Date: Feb 11, 2026
+2F IDU
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Design Conditions
+Location: Indoor: Heating Cooling
+Lowell, MA, US Indoor temperature (°F) 70 75
+Elevation: 102 ft Design TD (°F) 60 13
+Latitude: 42°N Relative humidity (%) 50 50
+Outdoor: Heating Cooling Moisture difference (gr/lb) 47.6 27.8
+Dry bulb (°F) 10 88 Infiltration:
+Daily range (°F) - 20 ( M ) Method Simplified
+Wet bulb (°F) - 72 Construction quality Loose
+Wind speed (mph) 15.0 7.5 Fireplaces 0
+Construction descriptions Or Area U-value Insul R Htg HTM Loss Clg HTM Gain
+ft² Btuh/ft²-°F ft²-°F/Btuh Btuh/ft² Btuh Btuh/ft² Btuh
+Walls
+16B-19ad: Knee wall, asphalt shingles roof mat, r-35 roof ins, r-19 kw n 130 0.049 19.0 2.94 381 2.35 305
+ins, 1/2" gypsum board int fnsh e 438 0.049 19.0 2.94 1287 2.35 1029
+s 174 0.049 19.0 2.94 512 2.35 409
+w 289 0.049 19.0 2.94 849 2.35 679
+all 1030 0.049 19.0 2.94 3028 2.35 2423
+Partitions
+(none)
+Windows
+4A5-2ov: 2 glazing, clr low-e outr, argon gas, insulated vinyl frm mat, n 23 0.470 0 28.2 658 12.0 281
+clr innr, 1/2" gap, 1/4" thk; 6.67 ft head ht e 12 0.470 0 28.2 348 35.2 434
+s 24 0.470 0 28.2 677 19.5 469
+w 35 0.470 0 28.2 996 35.2 1244
+all 95 0.470 0 28.2 2679 25.6 2429
+Doors
+(none)
+Ceilings
+16B-38ad: Attic ceiling, asphalt shingles roof mat, r-38 ceil ins, 5/8" 713 0.026 38.0 1.56 1112 1.25 890
+gypsum board int fnsh
+Floors
+19A-0bswp: Part floor, hrd wd flr fnsh, frm flr, 6" thkns, 5/8" gypsum 12 0.295 0 6.65 80 1.44 17
+board int fnsh
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 3
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 11 ---
+Component Constructions Job: 26-01
+Date: Feb 11, 2026
+1F IDU
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Design Conditions
+Location: Indoor: Heating Cooling
+Lowell, MA, US Indoor temperature (°F) 70 75
+Elevation: 102 ft Design TD (°F) 60 13
+Latitude: 42°N Relative humidity (%) 50 50
+Outdoor: Heating Cooling Moisture difference (gr/lb) 47.6 27.8
+Dry bulb (°F) 10 88 Infiltration:
+Daily range (°F) - 20 ( M ) Method Simplified
+Wet bulb (°F) - 72 Construction quality Loose
+Wind speed (mph) 15.0 7.5 Fireplaces 0
+Construction descriptions Or Area U-value Insul R Htg HTM Loss Clg HTM Gain
+ft² Btuh/ft²-°F ft²-°F/Btuh Btuh/ft² Btuh Btuh/ft² Btuh
+Walls
+12E-0sw: Frm wall, vnl ext, 5/8" wood shth, r-19 cav ins, 5/8" gypsum n 192 0.068 19.0 4.08 783 1.36 261
+board int fnsh, 2"x6" wood frm, 16" o.c. stud e 421 0.068 19.0 4.08 1718 1.36 572
+s 166 0.068 19.0 4.08 677 1.36 226
+w 439 0.068 19.0 4.08 1791 1.36 597
+all 1218 0.068 19.0 4.08 4969 1.36 1656
+16B-19ad: Knee wall, asphalt shingles roof mat, r-35 roof ins, r-19 kw n 45 0.049 19.0 2.94 132 2.35 106
+ins, 1/2" gypsum board int fnsh w 126 0.049 19.0 2.94 370 2.35 296
+all 171 0.049 19.0 2.94 503 2.35 402
+Partitions
+(none)
+Windows
+4A5-2ov: 2 glazing, clr low-e outr, argon gas, insulated vinyl frm mat, n 6 0.470 0 28.2 169 12.0 72
+clr innr, 1/2" gap, 1/4" thk; 6.67 ft head ht e 56 0.470 0 28.2 1579 35.2 1972
+s 32 0.470 0 28.2 902 19.5 625
+w 38 0.470 0 28.2 1072 35.2 1338
+all 132 0.470 0 28.2 3722 30.4 4008
+Doors
+(none)
+Ceilings
+16B-38ad: Attic ceiling, asphalt shingles roof mat, r-38 ceil ins, 5/8" 85 0.026 38.0 1.56 133 1.25 106
+gypsum board int fnsh
+C part ceiling,: C part ceiling, hrd wd flr fnsh, frm flr, 8" thkns, 1/2" 21 0.255 1.0 15.3 322 5.11 107
+gypsum board int fnsh
+Floors
+19A-30bswp: Flr floor, frm flr, 8" thkns, hrd wd flr fnsh, r-30 cav ins, 802 0.034 30.0 1.71 1373 0.37 297
+tight bsmt ovr
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 4
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 12 ---
+Project Summary Job: 26-01
+Date: Feb 11, 2026
+Entire House
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Notes: This design is a guideline, not a requirement.
+The design is subject to change per the contractor's construction restrictions.
+Design Information
+Weather: Lowell, MA, US
+Winter Design Conditions Summer Design Conditions
+Outside db 10 °F Outside db 88 °F
+Inside db 70 °F Inside db 75 °F
+Design TD 60 °F Design TD 13 °F
+Daily range M
+Relative humidity 50 %
+Ventilation Method Moisture difference 28 gr/lb
+Heating Summary Sensible Cooling Equipment Load Sizing
+Structure 34334 Btuh Structure 22162 Btuh
+Ducts 0 Btuh Ducts 0 Btuh
+Central vent (0 cfm) 0 Btuh Central vent (0 cfm) 0 Btuh
+Humidification 0 Btuh Blower 0 Btuh
+Piping 0 Btuh
+Equipment load 34334 Btuh Use manufacturer's data n
+Rate/swing multiplier 0.93
+Infiltration Equipment sensible load 20611 Btuh
+Method Simplified Latent Cooling Equipment Load Sizing
+Construction quality Loose
+Fireplaces 0 Structure 3641 Btuh
+Ducts 0 Btuh
+Central vent (0 cfm) 0 Btuh
+Heating Cooling
+Area (ft²) 1515 1515 Equipment latent load 3641 Btuh
+Volume (ft³) 14400 14400
+Air changes/hour 1.04 0.54 Equipment Total Load (Sen+Lat) 24251 Btuh
+Equiv. AVF (cfm) 250 130 Req. total capacity at 0.70 SHR 2.5 ton
+Heating Equipment Summary Cooling Equipment Summary
+Make n/a Make n/a
+Trade n/a Trade n/a
+Model n/a Cond n/a
+AHRI ref n/a Coil n/a
+AHRI ref n/a
+Efficiency n/a Efficiency n/a
+Heating input Sensible cooling 0 Btuh
+Heating output 0 Btuh Latent cooling 0 Btuh
+Temperature rise 0 °F Total cooling 0 Btuh
+Actual air flow 0 cfm Actual air flow 0 cfm
+Air flow factor 0 cfm/Btuh Air flow factor 0 cfm/Btuh
+Static pressure 0 in H2O Static pressure 0 in H2O
+Space thermostat n/a Load sensible heat ratio 0
+Bold/italic values have been manually overridden
+Calculations approved by ACCA to meet all requirements of Manual J 8th Ed.
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 1
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 13 ---
+Project Summary Job: 26-01
+Date: Feb 11, 2026
+1F IDU
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Notes: This design is a guideline, not a requirement.
+The design is subject to change per the contractor's construction restrictions.
+Design Information
+Weather: Lowell, MA, US
+Winter Design Conditions Summer Design Conditions
+Outside db 10 °F Outside db 88 °F
+Inside db 70 °F Inside db 75 °F
+Design TD 60 °F Design TD 13 °F
+Daily range M
+Relative humidity 50 %
+Ventilation Method MJ8 Moisture difference 28 gr/lb
+Heating Summary Sensible Cooling Equipment Load Sizing
+Structure 20457 Btuh Structure 10868 Btuh
+Ducts 0 Btuh Ducts 0 Btuh
+Central vent (0 cfm) 0 Btuh Central vent (0 cfm) 0 Btuh
+Humidification 0 Btuh Blower 0 Btuh
+Piping 0 Btuh
+Equipment load 20457 Btuh Use manufacturer's data n
+Rate/swing multiplier 0.93
+Infiltration Equipment sensible load 10108 Btuh
+Method Simplified Latent Cooling Equipment Load Sizing
+Construction quality Loose
+Fireplaces 0 Structure 1603 Btuh
+Ducts 0 Btuh
+Central vent (0 cfm) 0 Btuh
+Heating Cooling
+Area (ft²) 802 802 Equipment latent load 1603 Btuh
+Volume (ft³) 7983 7983
+Air changes/hour 1.08 0.56 Equipment Total Load (Sen+Lat) 11711 Btuh
+Equiv. AVF (cfm) 143 74 Req. total capacity at 0.50 SHR 1.7 ton
+Heating Equipment Summary Cooling Equipment Summary
+Make Fujitsu Make Fujitsu
+Trade FUJITSU Trade FUJITSU
+Model AOUH24KUAS1 Cond AOUH24KUAS1
+AHRI ref 217290594 Coil AMUH24KUAS
+AHRI ref 217290594
+Efficiency 10.1 HSPF2 Efficiency 11.8 EER2,17.7 SEER2
+Heating input Sensible cooling 12000 Btuh
+Heating output 27000 Btuh @ 47°F Latent cooling 12000 Btuh
+Temperature rise 31 °F Total cooling 24000 Btuh
+Actual air flow 800 cfm Actual air flow 800 cfm
+Air flow factor 0.039 cfm/Btuh Air flow factor 0.074 cfm/Btuh
+Static pressure 0.60 in H2O Static pressure 0.60 in H2O
+Space thermostat Load sensible heat ratio 0.87
+Capacity balance point = 9 °F
+Bold/italic values have been manually overridden
+Calculations approved by ACCA to meet all requirements of Manual J 8th Ed.
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 2
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 14 ---
+Project Summary Job: 26-01
+Date: Feb 11, 2026
+2F IDU
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Notes: This design is a guideline, not a requirement.
+The design is subject to change per the contractor's construction restrictions.
+Design Information
+Weather: Lowell, MA, US
+Winter Design Conditions Summer Design Conditions
+Outside db 10 °F Outside db 88 °F
+Inside db 70 °F Inside db 75 °F
+Design TD 60 °F Design TD 13 °F
+Daily range M
+Relative humidity 50 %
+Ventilation Method MJ8 Moisture difference 28 gr/lb
+Heating Summary Sensible Cooling Equipment Load Sizing
+Structure 13878 Btuh Structure 11449 Btuh
+Ducts 0 Btuh Ducts 0 Btuh
+Central vent (0 cfm) 0 Btuh Central vent (0 cfm) 0 Btuh
+Humidification 0 Btuh Blower 0 Btuh
+Piping 0 Btuh
+Equipment load 13878 Btuh Use manufacturer's data n
+Rate/swing multiplier 0.93
+Infiltration Equipment sensible load 10648 Btuh
+Method Simplified Latent Cooling Equipment Load Sizing
+Construction quality Loose
+Fireplaces 0 Structure 2038 Btuh
+Ducts 0 Btuh
+Central vent (0 cfm) 0 Btuh
+Heating Cooling
+Area (ft²) 713 713 Equipment latent load 2038 Btuh
+Volume (ft³) 6417 6417
+Air changes/hour 0.99 0.52 Equipment Total Load (Sen+Lat) 12685 Btuh
+Equiv. AVF (cfm) 106 55 Req. total capacity at 0.70 SHR 1.3 ton
+Heating Equipment Summary Cooling Equipment Summary
+Make Fujitsu Make Fujitsu
+Trade FUJITSU Trade FUJITSU
+Model AOUH18KUAS1 Cond AOUH18KUAS1
+AHRI ref 217290593 Coil AMUH18KUAS
+AHRI ref 217290593
+Efficiency 10.5 HSPF2 Efficiency 12.2 EER2,19.2 SEER2
+Heating input Sensible cooling 12600 Btuh
+Heating output 21600 Btuh @ 47°F Latent cooling 5400 Btuh
+Temperature rise 33 °F Total cooling 18000 Btuh
+Actual air flow 600 cfm Actual air flow 600 cfm
+Air flow factor 0.043 cfm/Btuh Air flow factor 0.052 cfm/Btuh
+Static pressure 0.60 in H2O Static pressure 0.60 in H2O
+Space thermostat Load sensible heat ratio 0.85
+Capacity balance point = -1 °F
+Bold/italic values have been manually overridden
+Calculations approved by ACCA to meet all requirements of Manual J 8th Ed.
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 3
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 15 ---
+Load Multizone Summary Report Job: 26-01
+Date: Feb 11, 2026
+By: Mirian Flores
+Infiltration Summary
+Heating Cooling
+ZONE NAME Volume ACH AVF HTM Volume ACH AVF HTM
+ft³ cfm Btuh/ft² ft³ cfm Btuh/ft²
+2F IDU 6417 0.99 106 6.2 6417 0.52 55 0.7
+1F IDU 7983 1.08 143 6.2 7983 0.56 74 0.7
+Entire House 14400 1.04 250 6.2 14400 0.54 130 0.7
+Load and AVF Summary
+ROOM NAME Area Htg load Clg load Htg AVF Clg AVF
+ft² Btuh Btuh cfm cfm
+L2.Bedrm1 122 1802 2209 78 116
+L2.Bedrm2 150 2265 2066 98 108
+L2.Bedrm4 140 2940 2762 127 145
+L2.Bedrm5 104 3884 2018 168 106
+L2.Corridor 32 0 0 0 0
+L2.M Bedrm 165 2986 2394 129 125
+2F IDU 713 13878 11449 600 600
+L1.Bathrm 47 1521 570 59 42
+L1.Bedrm 110 4521 2737 177 201
+L1.Dining 168 3615 1666 141 123
+L1.Entrance 82 0 0 0 0
+L1.Kitchen 132 2841 2401 111 177
+L1.Living 153 4837 2389 189 176
+L1.Pantry 80 3122 1104 122 81
+L1.Stairs 30 0 0 0 0
+1F IDU 802 20457 10868 800 800
+Entire House 1515 34334 22162 1400 1400
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 1
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 16 ---
+N
+Level 1
+8 "
+L1.Entrance
+189 cfm
+L1.Living
+8 "
+L1.Stairs 189 cfm
+324 cfm
+6 x 10 141 cfm
+ODU: AOUH24KUAS1
+Nom Heat Cap: 27K
+8 " 7 "
+Nom Cool Cap: 24K 8 x 10 8 x 10
+L1.Dining
+Min Max Heat Range:
+5.4K-32K Min Max Cool L1.Bedrm
+Range: 5.4K-28K
+201 cfm
+177 cfm
+12 x 10 8 "
+L1.Kitchen
+14 x 10
+LL=3/8", SL=5/8"
+Len=35.0
+300 cfm 9 . " IDU: AMUH24KUAS
+Nom Heat Cap: 27K
+8 "
+Nom Cool Cap: 24K
+L1.Bathrm
+5 "
+7 "
+59 cfm 122 cfm
+L1.Pantry
+Job #: 26-01 Scale: 1 : 83
+Performed by Mirian Flores for:
+Page 1
+Jose Cueto Right-Suite® Universal 2025
+32 Blossom St
+25.0.05 RSU23863
+Lowell, MA 01852
+2026-Jun-12 16:11:58
+Phone: 978-737-3048
+...owell MA 01852 (Air Man H&C).rup
+info@airmanheatingac.com
+
+--- Page 17 ---
+N
+Level 2
+65 cfm 65 cfm
+L2.OTB
+5 "
+6 "
+4 x 10
+L2.M Bedrm
+7 "
+129 cfm
+L2.Stairs
+7 "
+116 cfm
+L2.Bedrm1
+8 x 10 L2.Bedrm2
+6 " 108 cfm
+7 "
+7 "
+8 x 10
+116 cfm
+108 cfm
+ODU: AMUH18KUAS
+Nom Heat Cap: 21.6K
+Nom Cool Cap: 18K 7 " 9 "
+Min Max Heat Range:
+295 cfm
+3.1K-24K Min Max Cool
+Range: 3.1K-20.1K L2.Bedrm4
+145 cfm 10 x 14
+LL=1/4", SL=1/2"
+168 cfm
+Len=34.0
+14 x 10
+8 "
+L2.Corridor
+L2.Bedrm5
+IDU: AMUH18KUAS
+Nom Heat Cap: 18K
+Nom Cool Cap: 18K
+Job #: 26-01 Scale: 1 : 83
+Performed by Mirian Flores for:
+Page 2
+Jose Cueto Right-Suite® Universal 2025
+32 Blossom St
+25.0.05 RSU23863
+Lowell, MA 01852
+2026-Jun-12 16:11:58
+Phone: 978-737-3048
+...owell MA 01852 (Air Man H&C).rup
+info@airmanheatingac.com
+
+--- Page 18 ---
+Duct System Summary Job: 26-01
+Date: Feb 11, 2026
+1F IDU
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Heating Cooling
+External static pressure 0.60 in H2O 0.60 in H2O
+Pressure losses 0.29 in H2O 0.29 in H2O
+Available static pressure 0.31 in H2O 0.31 in H2O
+Supply / return available pressure 0.170 / 0.140 in H2O 0.170 / 0.140 in H2O
+Lowest friction rate 0.082 in/100ft 0.082 in/100ft
+Actual air flow 800 cfm 800 cfm
+Total effective length (TEL) 377 ft
+Supply Branch Detail Table
+Design Htg Clg Design Diam H x W Duct Actual Ftg.Eqv
+Name (Btuh) (cfm) (cfm) FR (in) (in) Matl Ln (ft) Ln (ft) Trunk
+L1.Bathrm h 1521 59 42 0.094 5.0 0x0 ShMt 12.0 170.0 st3
+L1.Bedrm c 2737 177 201 0.092 8.0 0x0 ShMt 25.0 160.0 st2
+L1.Dining h 3615 141 123 0.082 7.0 0x0 ShMt 27.0 180.0 st2A
+L1.Kitchen c 2401 111 177 0.098 8.0 0x0 ShMt 4.0 170.0 st2
+L1.Living h 4837 189 176 0.112 8.0 0x0 ShMt 37.0 115.0 st2A
+L1.Pantry h 3122 122 81 0.100 7.0 0x0 ShMt 11.0 160.0 st3
+Supply Trunk Detail Table
+Trunk Htg Clg Design Veloc Diam H x W Duct
+Name Type (cfm) (cfm) FR (fpm) (in) (in) Material Trunk
+st3 Peak AVF 182 123 0.094 520 8.0 0 x 0 ShtMetl
+st2 Peak AVF 618 677 0.082 696 12.4 10 x 14 ShtMetl
+st2A Peak AVF 331 299 0.082 595 9.5 10 x 8 ShtMetl st2
+Return Branch Detail Table
+Grille Htg Clg TEL Design Veloc Diam H x W Stud/Joist Duct
+Name Size (in) (cfm) (cfm) (ft) FR (fpm) (in) (in) Opening (in) Matl Trunk
+rb15 0x0 293 300 76.0 0.184 679 9.0 0x 0 ShMt
+rb5 0x0 189 176 170.0 0.082 542 8.0 0x 0 ShMt rt4
+rb14 0x0 318 324 158.0 0.088 594 10.0 0x 0 ShMt rt5
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 1
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 19 ---
+Return Trunk Detail Table
+Trunk Htg Clg Design Veloc Diam H x W Duct
+Name Type (cfm) (cfm) FR (fpm) (in) (in) Material Trunk
+rt3 Peak AVF 507 500 0.082 609 11.1 10 x 12 ShtMetl
+rt4 Peak AVF 189 176 0.082 454 7.7 10 x 6 ShtMetl rt3
+rt5 Peak AVF 318 324 0.088 583 9.3 10 x 8 ShtMetl rt3
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 2
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 20 ---
+Duct System Summary Job: 26-01
+Date: Feb 11, 2026
+2F IDU
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Heating Cooling
+External static pressure 0.60 in H2O 0.60 in H2O
+Pressure losses 0.29 in H2O 0.29 in H2O
+Available static pressure 0.31 in H2O 0.31 in H2O
+Supply / return available pressure 0.134 / 0.176 in H2O 0.134 / 0.176 in H2O
+Lowest friction rate 0.061 in/100ft 0.061 in/100ft
+Actual air flow 600 cfm 600 cfm
+Total effective length (TEL) 506 ft
+Supply Branch Detail Table
+Design Htg Clg Design Diam H x W Duct Actual Ftg.Eqv
+Name (Btuh) (cfm) (cfm) FR (in) (in) Matl Ln (ft) Ln (ft) Trunk
+L2.Bedrm1 c 2209 78 116 0.065 7.0 0x0 ShMt 26.0 180.0 st1A
+L2.Bedrm2 c 2066 98 108 0.069 7.0 0x0 ShMt 33.0 160.0 st1
+L2.Bedrm4 c 2762 127 145 0.073 7.0 0x0 ShMt 13.0 170.0 st1
+L2.Bedrm5 h 3884 168 106 0.070 8.0 0x0 ShMt 10.2 180.0 st1
+L2.M Bedrm h 1493 65 63 0.079 5.0 0x0 ShMt 44.0 125.0 st1B
+L2.M Bedrm-A h 1493 65 63 0.061 6.0 0x0 ShMt 48.0 170.0 st1A
+Supply Trunk Detail Table
+Trunk Htg Clg Design Veloc Diam H x W Duct
+Name Type (cfm) (cfm) FR (fpm) (in) (in) Material Trunk
+st1B Peak AVF 65 63 0.079 232 5.2 10 x 4 ShtMetl st1A
+st1A Peak AVF 207 241 0.061 434 8.9 10 x 8 ShtMetl st1
+st1 Peak AVF 600 600 0.061 617 12.6 10 x 14 ShtMetl
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 3
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 21 ---
+Return Branch Detail Table
+Grille Htg Clg TEL Design Veloc Diam H x W Stud/Joist Duct
+Name Size (in) (cfm) (cfm) (ft) FR (fpm) (in) (in) Opening (in) Matl Trunk
+rb13 0x0 295 250 116.0 0.152 668 9.0 0x 0 ShMt rt1
+rb11 0x0 98 108 130.0 0.136 551 6.0 0x 0 ShMt rt1
+rb12 0x0 78 116 201.0 0.088 433 7.0 0x 0 ShMt rt1A
+rb10 0x0 129 125 288.0 0.061 483 7.0 0x 0 ShMt rt1A
+Return Trunk Detail Table
+Trunk Htg Clg Design Veloc Diam H x W Duct
+Name Type (cfm) (cfm) FR (fpm) (in) (in) Material Trunk
+rt1 Peak AVF 600 600 0.061 617 12.6 14 x 10 ShtMetl
+rt1A Peak AVF 207 241 0.061 434 8.9 10 x 8 ShtMetl rt1
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 4
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 22 ---
+Static Pressure and Friction Rate Job: 26-01
+Date: Feb 11, 2026
+1F IDU
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Available Static Pressure
+Heating Cooling
+(in H2O) (in H2O)
+External static pressure 0.60 0.60
+Pressure losses
+Coil 0.05 0.05
+Heat exchanger 0.05 0.05
+Supply diffusers 0.03 0.03
+Return grilles 0.03 0.03
+Filter 0.10 0.10
+Humidifier 0 0
+Balancing damper 0.03 0.03
+Other device 0 0
+Available static pressure 0.31 0.31
+Total Effective Length
+Supply Return
+(ft) (ft)
+Measured length of run-out 9 1
+Measured length of trunk 18 24
+Equivalent length of fittings 180 145
+Total length 207 170
+Total effective length 377
+Friction Rate
+Heating Cooling
+(in/100ft) (in/100ft)
+Supply Ducts 0.082 OK 0.082 OK
+Return Ducts 0.082 OK 0.082 OK
+Fitting Equivalent Length Details
+Supply 4AD=60, 2I1=75, 12O1=10, 1A=35: TotalEL=180
+Return 6M=20, 8AE=10, 10A=75, 5A=40: TotalEL=145
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 1
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 23 ---
+Static Pressure and Friction Rate Job: 26-01
+Date: Feb 11, 2026
+2F IDU
+By: Mirian Flores
+Project Information
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Available Static Pressure
+Heating Cooling
+(in H2O) (in H2O)
+External static pressure 0.60 0.60
+Pressure losses
+Coil 0.05 0.05
+Heat exchanger 0.05 0.05
+Supply diffusers 0.03 0.03
+Return grilles 0.03 0.03
+Filter 0.10 0.10
+Humidifier 0 0
+Balancing damper 0.03 0.03
+Other device 0 0
+Available static pressure 0.31 0.31
+Total Effective Length
+Supply Return
+(ft) (ft)
+Measured length of run-out 13 1
+Measured length of trunk 35 32
+Equivalent length of fittings 170 255
+Total length 218 288
+Total effective length 506
+Friction Rate
+Heating Cooling
+(in/100ft) (in/100ft)
+Supply Ducts 0.061 OK 0.061 OK
+Return Ducts 0.061 OK 0.061 OK
+Fitting Equivalent Length Details
+Supply 4AD=60, 2I0=65, 12O1=10, 1A=35: TotalEL=170
+Return 6M=20, 6C6=115, 6CB=25, 12F1=20, 6CA=10, 6CB=25, 5A=40: TotalEL=255
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863 Page 2
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N
+
+--- Page 24 ---
+Duct Free Summary Report
+For: Jose Cueto, Air Man Heating & Cooling
+32 Blossom St, Lowell, MA 01852
+Phone: 978-737-3048
+Email: info@airmanheatingac.com
+Mfr SysType Name UnitType Model ClgNomCap ClgActCap ClgLoad HtgNomCapHtgActCap HtgLoad LiqLine SuctLineVerSep SuctLine
+(Btuh) (Btuh) (Btuh) (Btuh) (Btuh) (Btuh) (ft) TEL
+FUJI H Level 2 ODU OS AOUH1... 18000 17280 13487 19200 18432 13878 1/4" 1/2" 8.0 40(.f0t)
+2F IDU ID ADUH1... 18000 17280 13487 19200 18432 13878 1/4" 1/2" 8.0 40.0
+FUJI H Level 1 ODU OS AOUH2... 24000 22800 12471 24000 22720 20457 3/8" 5/8" 8.0 44.6
+1F IDU ID ARUH3... 30000 28800 12471 32000 30720 20457 3/8" 5/8" 8.0 44.6
+2026-Jun-12 16:11:01
+Right-Suite® Universal 2025 25.0.05 RSU23863
+Page 1
+...2 Blossom St, Lowell MA 01852 (Air Man H&C).rup Calc = MJ8 Front Door faces: N

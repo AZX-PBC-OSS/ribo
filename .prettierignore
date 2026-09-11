@@ -15,3 +15,6 @@ spikes/extraction-search-plan/results/*/*/
 # Extraction-snuggpro spike: generated result JSON + run logs (regenerable; formatting
 # would change the exact bytes the runner writes and is not meaningful here).
 spikes/extraction-snuggpro/results/**
+
+# Prompt-vs-granularity spike: generated extraction results + scores (regenerable).
+spikes/prompt-vs-granularity/results/**
