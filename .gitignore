@@ -12,6 +12,7 @@ coverage/
 # never committed.
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+docs/.vitepress/.temp/
 docs/reference/
 # Same rule: `docs:accuracy` regenerates this whole page from the committed run records in
 # packages/ribo-adapter-snuggpro/acceptance/runs/. Those artifacts ARE committed; this
