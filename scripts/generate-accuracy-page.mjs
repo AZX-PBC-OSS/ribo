@@ -278,13 +278,28 @@ function historyLine(values, label) {
 
 // ---------------------------------------------------------------- sections
 
-function staleBanner(stale) {
-  return stale
-    ? `<div class="ar-stale" role="note"><b>These numbers are stale.</b> This run was measured
-against a different version of the Snugg Pro schema than the one in the tree today. The field
-set and enum vocabulary shape what &ldquo;normal&rdquo; looks like, so these rates are not
-comparable to the current schema. Re-run the acceptance gate.</div>`
+/**
+ * Unconditional: extraction quality is not currently measured, and this says so and why,
+ * every regeneration. The annotated corpus is written in a field vocabulary the adapter no
+ * longer uses, so `acceptance/gate.manual.ts` deliberately refuses to emit a score against
+ * it. Without this, the page below shows rate cards and a coverage grid that look like a
+ * live measurement while /guide/comparison explicitly declines to quote any accuracy figure
+ * &mdash; two pages of the same site disagreeing about whether a number exists. Never quote
+ * the superseded hallucination/enum figures here; they were measured against that same dead
+ * vocabulary and repeating them (with or without a caveat) would just requote them.
+ */
+function measurementGapBanner(stale) {
+  const staleAddendum = stale
+    ? ` It was also captured against a different version of the Snugg Pro schema than the one
+in the tree today, so it no longer even reflects that superseded corpus faithfully.`
     : "";
+  return `<div class="ar-stale" role="note"><b>Extraction quality is not currently measured.</b>
+The annotated corpus this gate scores against (<code>spikes/extraction-snuggpro/ground-truth/</code>)
+is written in a field vocabulary the adapter no longer uses, so
+<code>packages/ribo-adapter-snuggpro/acceptance/gate.manual.ts</code> deliberately refuses to emit
+a score against it rather than publish one that no longer means anything. What follows is the last
+run recorded before the gate started refusing &mdash; useful as a worked example of how the gate
+scores a transcript, not as a claim about current extraction accuracy.${staleAddendum}</div>`;
 }
 
 function intro(run) {
@@ -1012,7 +1027,7 @@ produce one — see \`packages/ribo-adapter-snuggpro/acceptance/README.md\`.
     // div is already closed.
     const body = [
       `<div class="ar">`,
-      staleBanner(stale),
+      measurementGapBanner(stale),
       intro(run),
       workedExample(run),
       finding(run, counts),

@@ -740,9 +740,10 @@ export class Outbox {
    * Record what a human decided about a parked session, and move it forward.
    *
    * The only way out of `awaiting-review` on a session, and it **only** works
-   * from `awaiting-review`. Same guard, same `incrementalModify` pattern, and
-   * the same ABA-race analysis as {@link submitReview} on recordings — see
-   * that method's doc comment for the mechanism; it applies here unchanged.
+   * from `awaiting-review`. Guarded by `incrementalModify`, which RxDB re-runs
+   * against the current document on write conflict, so the status check and the
+   * mutation cannot be split by a second tab or a duplicate submission — the
+   * same guard shape as {@link reopenSessionForReview}'s own status check below.
    *
    * - `accepted` / `edited` → `writing`, with `attempts` reset so the write
    *   gets a clean backoff budget. The relay picks the session up on its next
@@ -814,7 +815,7 @@ export class Outbox {
    * ## Where it lands, and why that is a decision
    *
    * **`awaiting-review` when the recording set is unchanged** — the common case,
-   * a correction to what was already dictated. Re-extraction costs a model call
+   * a correction to what was already captured. Re-extraction costs a model call
    * over the whole field set, and there is nothing new for it to read.
    *
    * **`extracting` when the set has moved**, so the relay re-extracts and then
@@ -992,7 +993,8 @@ export class Outbox {
  * survives the write unexamined. `patch()` does not have this hole — it parses the
  * whole projection. The alternative was naming RxDB's four metadata keys here
  * instead, which fails the other way round: the day RxDB adds a fifth, every
- * `submitReview` starts throwing `unrecognized_keys` on a healthy document. A
+ * `incrementalModify` caller in this file — `writeTranscript` included — starts
+ * throwing `unrecognized_keys` on a healthy document. A
  * strange persisted field passing through is recoverable; a method that cannot
  * write at all is not.
  */

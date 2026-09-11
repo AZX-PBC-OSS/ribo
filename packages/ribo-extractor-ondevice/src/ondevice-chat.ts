@@ -21,7 +21,7 @@ import { SessionHolder } from "./session.js";
 /**
  * Stable engine id for on-device extraction through Chrome's Prompt API.
  *
- * Mirrors {@link ONDEVICE_WHISPER_ENGINE}: short, opaque, and stamped into
+ * Mirrors `ONDEVICE_WHISPER_ENGINE` (`@azx/ribo-transcriber-ondevice`): short, opaque, and stamped into
  * provenance so the outbox can distinguish a managed from an on-device run.
  */
 export const ONDEVICE_CHAT_ENGINE = "ondevice-chat";

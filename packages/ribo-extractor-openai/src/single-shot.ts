@@ -21,7 +21,7 @@
  * endpoint) share this same {@link Extractor} seam; see Task 5.
  *
  * The prompt assembly, the pre-parse `finishReason` check, the terminal-transport
- * classification, and the two parse helpers live in {@link file://./extraction-common.ts}
+ * classification, and the two parse helpers live in {@link ./extraction-common.ts}
  * — shared with the per-group extractor (R3 Task 2) so the hard-won reasoning
  * behind each is not copied.
  */
@@ -103,14 +103,14 @@ export interface SingleShotOptions<
  *   3. **Trust boundary.** Parse the response with `target.extractionSchema`, then
  *      run `normalize`. A response that is not JSON throws a plain `Error` (still
  *      transient/retryable); a response that parses as JSON but violates the schema
- *      throws a {@link SchemaParseError}. Both are classified as transient by
+ *      throws a `SchemaParseError`. Both are classified as transient by
  *      `ribo-core`'s `isTransientFailure`, so the queue retries rather than losing a
  *      recording someone drove to a house to make. The schema failure is also
  *      recognisable, so a strategy ladder can fall through to a different shape. The
  *      terminal cases (truncation, content filtering) are caught earlier by
  *      `assertStopFinishReason`.
  *
- * Steps 2 and 3 use the shared helpers in {@link file://./extraction-common.ts},
+ * Steps 2 and 3 use the shared helpers in {@link ./extraction-common.ts},
  * where the full reasoning behind each is documented.
  */
 export function singleShotExtractor<V extends Record<string, unknown>, P = NoProvenance>({

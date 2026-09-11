@@ -80,19 +80,17 @@ until a registry is chosen.
 
 **Independent versioning.** Each publishable package versions on its own line — there are no `fixed`
 or `linked` groups. A change to `@azx/ribo-adapter-snuggpro` bumps only that package (and its
-dependents); it never drags `@azx/ribo-core` along. The five release targets, all `@azx/`-scoped and
-all currently `0.0.0`:
+dependents); it never drags `@azx/ribo-core` along. A release target is any package under
+`packages/*` that doesn't set `"private": true` — check there rather than trusting a count here. As
+of this writing that's nine packages, all `@azx/`-scoped and all currently `0.0.0`: `ribo-core`,
+`ribo-ui-react`, `ribo-transcriber-ondevice`, `ribo-extractor-openai`, `ribo-extractor-ondevice`,
+`ribo-adapter-snuggpro`, `ribo-transcriber-managed`, `ribo-transcriber-managed-docs`, and
+`ribo-transcriber-pdfjs`.
 
-- `@azx/ribo-core`
-- `@azx/ribo-ui-react`
-- `@azx/ribo-transcriber-ondevice`
-- `@azx/ribo-extractor-openai`
-- `@azx/ribo-adapter-snuggpro`
-
-The two non-publishable packages are excluded from versioning and publishing entirely: the private
-`playground` app and `@azx/tsconfig` (build-only compiler config), both `private: true`. Changesets
-skips private packages by default; `privatePackages: { version: false, tag: false }` makes that
-explicit in the config.
+The non-publishable packages are excluded from versioning and publishing entirely: the private
+`playground` app, `@azx/tsconfig` (build-only compiler config), and `@azx/build-config` (shared
+build config), all `private: true`. Changesets skips private packages by default;
+`privatePackages: { version: false, tag: false }` makes that explicit in the config.
 
 **Semver, and what pre-1.0 means here.** Every package is `0.x`. While pre-1.0 we follow the 0.x
 reading of semver literally: **a MINOR bump may break** (features and breaking changes both land as
@@ -101,14 +99,16 @@ contract-stability commitment**: a package's first `1.0.0` is where we start tre
 surface as a contract and reserve breaking changes for major bumps. Cutting a `1.0` is a deliberate,
 per-package statement, not a routine bump.
 
-**The `ribo-core` peer-range policy.** `@azx/ribo-ui-react` and `@azx/ribo-transcriber-ondevice`
-take `@azx/ribo-core` as a **peer** dependency — the shared-instance case, where a consumer holds
-core objects and hands them to the plasmid, so both must see one copy of core (`AGENTS.md` §6).
-Those peer declarations use `workspace:^`, which pnpm rewrites to a caret range (`^<version>`) at
-publish time; the caret (rather than the exact `workspace:*` link) means an **in-range** core release
-does not force consumers to pull a new plasmid. Type-only and test-only devDependencies on core (and
-the adapter's dev-only dependency on `@azx/ribo-extractor-openai`) stay `workspace:*` — they never
-ship, so an exact link is fine. Nothing here is a plain runtime `dependency` on core today.
+**The `ribo-core` peer-range policy.** Only `@azx/ribo-ui-react` takes `@azx/ribo-core` as a
+**peer** dependency — the shared-instance case, where a consumer holds core's runtime objects and
+hands them to the plasmid, so both must see one copy of core (`AGENTS.md` §6.2 has the full
+criterion: runtime object-identity sharing, not "leaf vs. not"). `@azx/ribo-transcriber-ondevice`,
+`@azx/ribo-extractor-openai` and `@azx/ribo-adapter-snuggpro` all depend on `@azx/ribo-core` as a
+plain runtime `dependency` instead, for that reason. The peer declaration uses `workspace:^`, which
+pnpm rewrites to a caret range (`^<version>`) at publish time; the caret (rather than the exact
+`workspace:*` link) means an **in-range** core release does not force consumers to pull a new
+plasmid. Type-only and test-only devDependencies on core (and the adapter's dev-only dependency on
+`@azx/ribo-extractor-openai`) stay `workspace:*` — they never ship, so an exact link is fine.
 
 A core release is therefore a **deliberate, coordinated event, not a silent transitive bump**: when
 `@azx/ribo-core` changes, Changesets flags every package that peers on it and proposes a bump for

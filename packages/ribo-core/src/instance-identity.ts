@@ -31,7 +31,7 @@ export interface RankedCandidate extends ExistingRecord {
 }
 
 /**
- * A human decision about whether a dictated instance should be linked to an existing
+ * A human decision about whether a captured instance should be linked to an existing
  * record or created as a new one.
  */
 export type InstanceLinkDecision =
@@ -47,6 +47,6 @@ export type LinkTarget = string | null;
 /**
  * Link targets per collection group. The array length matches the resolved instance
  * count for that group, and indices follow the first-mention order established by
- * {@link buildInstancePositions}.
+ * `buildInstancePositions` (`review.ts`).
  */
 export type LinkTargets = Readonly<Record<string, ReadonlyArray<LinkTarget>>>;

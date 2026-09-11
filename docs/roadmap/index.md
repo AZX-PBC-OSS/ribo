@@ -1,10 +1,11 @@
 # Ribo — Roadmap
 
-Ribo is a reusable **voice-capture SDK** for field data collection: record a dictation, transcribe it
-(on-device WASM or a managed STT service), extract structured fields from the transcript, let a human
-review and accept them, then write the result back into a host tool through a thin per-tool adapter.
-The first target is home-energy audits in Snugg Pro. The SDK lives in this repo; the consuming field
-app lives in a separate repo and is not built here.
+Ribo is a browser-side, offline-first pipeline for turning an unstructured capture — a dictation, a
+PDF, later a photo — into structured, checkable data in a system of record, with a human in the
+loop: transcribe the capture, extract structured fields from the transcript, let a human review and
+accept them, then write the result back into a host tool through a thin per-tool adapter. Snugg Pro
+is the reference adapter — home-energy audits — not the subject. The library lives in this repo; the
+consuming field app lives in a separate repo and is not built here.
 
 This directory is the project's roadmap — the design specs and per-phase plans, committed as records
 of what was planned and why. It is excluded from the published docs site (via `srcExclude` in
@@ -129,6 +130,16 @@ review hook. R1, R1.5 and R2 are all done; the rest proceed in dependency order:
 3. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
    Includes the `.npmrc` registry config, `publishConfig.access` change, and release-workflow
    activation. Nothing is published today.
+   **Blocker to clear before the first publish: the nine package READMEs link to the docs with
+   repo-relative paths** (`../../docs/guide/*.md`). Those resolve on the forge and are correct
+   there today — a deliberate choice, since no deployed docs origin exists to point at yet — but
+   a published README is rendered from the tarball root, where `../../docs` does not exist, so
+   every one of those links 404s on npm. Decide at publish time: rewrite them to absolute
+   `github.com/AZX-PBC-OSS/ribo/blob/main/docs/...` URLs (works everywhere, no dependency on a
+   docs deploy), or to the docs site's own URLs if one is live by then. Roughly 20 links across
+   nine files; `pnpm docs:build` does **not** check them, so whichever is chosen needs a manual
+   pass. Surfaced by the docs repositioning pass (see
+   [design](design/docs-repositioning-design.md)).
 4. **R5 — correct the docs the newer decisions falsify.** Doc 10 §3.1's Vite-library-mode mandate and
    doc 04's styled-components design are superseded by the tsdown-for-all and headless-hook-layer
    decisions; R5 rewrites them (and finishes what R1.5 left it: doc 04's `ReviewCard` example and the
@@ -144,6 +155,26 @@ review hook. R1, R1.5 and R2 are all done; the rest proceed in dependency order:
 Discovered while building R1.5 and investigating the Snugg Pro API. Recorded here so they are decided
 rather than rediscovered.
 
+- **Vocabulary: "contract" replaces "seam", and "plasmid" goes away. Decided 2026-09-11; the code
+  has not caught up.** A prose pass over the published docs cut both terms from the package
+  READMEs — "plasmid" is internal shorthand a newcomer cannot decode, and "seam" is vaguer than
+  "contract" for what `Transcriber`, `Extractor` and `ToolAdapter` actually are. The maintainer
+  confirmed the library should follow, but not urgently. What still uses the old words:
+  `AGENTS.md` (§6.1 defines the `ribo-<category>-<variant>` scheme in terms of plasmids, and
+  "seam" recurs throughout), doc comments across `packages/*/src`, and the design docs in this
+  directory. None of it is user-facing, which is why it can wait — but a split vocabulary between
+  the published docs and the repo's own notes is exactly the kind of drift this project keeps
+  having to correct, so it should not wait indefinitely. No identifier changes are implied: this
+  is prose only.
+
+- **Correction (2026-09-10): extraction, review and write moved off the recording.** Earlier entries
+  in "What has shipped" above (R2 in particular) describe one state machine and name
+  `Outbox.submitReview` / `Outbox.reopenForReview` — accurate when written, and left as-is; they are
+  historical records, not current API. The session-ownership work since then split the pipeline into
+  two persisted state machines: a recording (`OUTBOX_STATUSES`, capture and transcription only) and a
+  session (`SESSION_STATUSES`, extraction through write-back). The current methods are
+  `Outbox.submitSessionReview` and `Outbox.reopenSessionForReview`; see
+  `packages/ribo-core/src/queue/schema.ts` and `session-schema.ts` for the two status lists.
 - **~~Do we ask the model for Snugg's literal enum strings, or keep readable tokens and map?~~
   Answered: literal strings (2026-08-06).** The schema now asks the model for `"6% - Well sealed"` and
   `"Not Tested"` directly, which deletes the per-enum translation layer rather than planning it, and
@@ -325,6 +356,16 @@ So nobody re-litigates it:
   compose via `firstCapable` / `fallbackTranscriber`. **Pre-measurement**: the design recommends
   measuring image-input availability, download size, latency, and nameplate accuracy before
   building, and does not state any of those as facts.
+- [Docs Repositioning — Plan](design/docs-repositioning-plan.md) — the sixteen-task execution plan
+  for the design below, in four shippable tranches. Also the record of four pieces of stale prose
+  found while planning it, the substantive one being that the pipeline is now **two** state
+  machines (recording and session), not the single one AGENTS.md §1 still describes.
+- [Docs Repositioning — Design](design/docs-repositioning-design.md) — retiring "voice-capture SDK"
+  for what the library actually became: a structured-extraction pipeline for any capture. Records
+  the answer to "why not Docling or Mistral directly" (a category error — they plug into the
+  `Transcriber` seam), a TanStack-shaped information architecture with a Comparison page that marks
+  Ribo down where it loses, the honesty rails for the three things that are not finished (npm
+  publication, extraction measurement, write-back), and why `Transcriber` keeps its name.
 
 ## Phase records
 

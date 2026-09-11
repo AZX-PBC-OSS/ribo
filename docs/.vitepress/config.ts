@@ -27,7 +27,7 @@ export default defineConfig({
   lang: "en-US",
   title: "Ribo",
   description:
-    "A reusable voice-capture SDK for field data collection: capture, on-device transcription, extraction, and human review with provenance.",
+    "Structured extraction from any source: documents, dictation, or both at once — with provenance you can check, human review as a contract, and offline-first durability.",
   // Helix's static host matches request paths to files exactly and falls back to the site's
   // index.html for anything that doesn't match (see docs/AGENTS or the helix-app skill). Clean
   // URLs link to paths without a `.html` extension, which never match the on-disk file on a host
@@ -42,32 +42,42 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: "Guide", link: "/guide/" },
-      { text: "Capabilities", link: "/capabilities/" },
+      { text: "Comparison", link: "/guide/comparison" },
       { text: "Offline-first", link: "/offline-first/" },
       { text: "Deep Dives", link: "/deep-dives/" },
       { text: "Reference", link: "/reference/" },
       { text: "Design", link: "/design/" },
     ],
     sidebar: {
+      // One `/guide/` directory, two sidebar groups. A sibling `guides/` directory was
+      // considered and rejected: two paths one character apart are a permanent source of
+      // wrong links. See docs/roadmap/design/docs-repositioning-design.md §4.
       "/guide/": [
         {
-          text: "Guide",
+          text: "Getting Started",
           items: [
-            { text: "Introduction", link: "/guide/" },
-            { text: "Getting Started", link: "/guide/getting-started" },
-            { text: "The Core Loop", link: "/guide/core-loop" },
-            { text: "The Offline Outbox", link: "/guide/outbox" },
+            { text: "Overview", link: "/guide/" },
+            { text: "Motivation", link: "/guide/motivation" },
+            { text: "Comparison", link: "/guide/comparison" },
+            { text: "Installation", link: "/guide/installation" },
+            { text: "Quick Start", link: "/guide/quick-start" },
+            { text: "Important Defaults", link: "/guide/important-defaults" },
           ],
         },
-      ],
-      "/capabilities/": [
         {
-          text: "Capabilities",
+          text: "Guides",
           items: [
-            { text: "Overview", link: "/capabilities/" },
-            { text: "Transcription", link: "/capabilities/transcription" },
-            { text: "Extraction", link: "/capabilities/extraction" },
-            { text: "Adapters", link: "/capabilities/adapters" },
+            { text: "Captures & Sources", link: "/guide/captures-and-sources" },
+            { text: "Sessions", link: "/guide/sessions" },
+            { text: "Extraction", link: "/guide/extraction" },
+            { text: "Schema at Scale", link: "/guide/schema-at-scale" },
+            { text: "Provenance", link: "/guide/provenance" },
+            { text: "Review", link: "/guide/review" },
+            { text: "Write-back", link: "/guide/write-back" },
+            { text: "Offline & the Outbox", link: "/guide/offline-and-the-outbox" },
+            { text: "Arbitration & Fallback", link: "/guide/arbitration" },
+            { text: "React Hooks", link: "/guide/react" },
+            { text: "Typesafety", link: "/guide/typesafety" },
           ],
         },
       ],
@@ -95,6 +105,11 @@ export default defineConfig({
             { text: "Extraction: Measured", link: "/deep-dives/accuracy" },
             { text: "Real Field Audio", link: "/deep-dives/real-audio" },
             { text: "The Snugg Pro Data Model", link: "/deep-dives/snuggpro-data-model" },
+            { text: "Schema at Scale: Measured", link: "/deep-dives/schema-scale" },
+            {
+              text: "Provenance: Measured",
+              link: "/deep-dives/provenance-measurement",
+            },
           ],
         },
       ],

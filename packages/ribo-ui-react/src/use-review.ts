@@ -68,7 +68,7 @@ export interface UseReviewOptions {
   /**
    * Existing records of each collection group, keyed by the group path (e.g. `"hvac"`).
    *
-   * These are surfaced at review for a human to link a dictated instance against. They
+   * These are surfaced at review for a human to link a captured instance against. They
    * never enter the extraction step; the host supplies them after extraction has produced
    * its grounded values. Absent groups mean no existing records.
    */

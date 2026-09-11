@@ -7,7 +7,7 @@ import type { OnnxDtype } from "./protocol.js";
  * `transformers-cache`, keyed by the file's full request URL (its `FileCache`, verified against the
  * 4.2.0 tarball). So we can tell `needs-download` from `ready` **without downloading anything**:
  * open that cache and look for this model's weight file among the keys. This is what lets
- * {@link ../index.ts OnDeviceTranscriber.capability} answer honestly (plan Task 2, item 5).
+ * {@link ./index.ts OnDeviceTranscriber.capability} answer honestly (plan Task 2, item 5).
  */
 
 /** The `CacheStorage` bucket transformers.js writes model files into. */

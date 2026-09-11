@@ -1,46 +1,31 @@
 # @azx/ribo-transcriber-ondevice
 
-**On-device Whisper**, implementing `@azx/ribo-core`'s `Transcriber` so it is substitutable for any
-other engine and composes through `firstCapable` with no queue changes. Inference runs in a Web Worker
-via `@huggingface/transformers`; the model is downloaded once (explicitly, user-initiated) and cached
-for offline use. This is a **separate package** from `ribo-core` on purpose:
-`@huggingface/transformers` pulls `onnxruntime-node` and `sharp` as hard dependencies with postinstall
-scripts — a cost no `ribo-core` consumer that never transcribes on-device should inherit.
+On-device speech transcription for Ribo — Moonshine by default, with Whisper models still
+selectable. It implements `@azx/ribo-core`'s `Transcriber` contract, so it swaps in for any other
+engine and composes through `firstCapable` or `hedged`. Inference runs in a Web Worker via
+`@huggingface/transformers`; the model downloads once (explicitly, user-initiated) and is cached for
+offline use.
 
-Measured on clean authored audio, `whisper-base.en` (fp32, WASM) runs at **RTF ~0.16** (≈6× real time)
-with **8.0 % WER**, and a warm start rebuilds the pipeline from cache — with no network — in **~0.8 s**.
-These are a floor, not a field forecast. **iOS is out of scope** for on-device today (use the managed STT
-path there).
+## When to use it
 
-## Installation
+Use it as the free, private, offline-capable transcription engine — `capability()` measures the
+device's real-time factor at `prime()` time and reports `too-slow` on hardware that can't keep up,
+so a caller can fall back rather than guess.
 
-```bash
-pnpm add @azx/ribo-transcriber-ondevice @azx/ribo-core
-```
+Skip it, or pair it with [`@azx/ribo-transcriber-managed`](../ribo-transcriber-managed/README.md) as
+a fallback, when the device fails that gate — and skip it on iOS, which is out of scope for
+on-device today. It's a separate package from `@azx/ribo-core` because `@huggingface/transformers`
+pulls `onnxruntime-node` and `sharp` as hard dependencies with postinstall scripts, a cost no
+non-transcribing consumer should inherit.
 
-> Not yet published to a public registry — in this workspace it is consumed as a `workspace:` dependency.
-
-## Public API at a glance
-
-- **`OnDeviceTranscriber`** — the `Transcriber` implementation. `capability()` reads the Cache API to
-  tell `needs-download` from `ready`; `prime(onProgress)` downloads and caches the model with visible
-  progress; `transcribe(recording, audio)` decodes the `Blob` to 16 kHz mono PCM and runs Whisper.
-- **Config** — `OnDeviceTranscriberOptions`, `TranscribeHints`, `DEFAULT_MODEL_ID`,
-  `MODEL_DOWNLOAD_BYTES`, `estimateDownloadBytes`, `buildHintPrompt`.
-- **Cache** — `TRANSFORMERS_CACHE_NAME`, `isModelCached`.
-- **Engine id** — `ONDEVICE_WHISPER_ENGINE` (stamped onto every `Transcript`).
-- **Worker protocol** — `PrimeConfig`, `PrimeProgress`, `TranscribeWorkerRequest`, `decodeTo16kMono`.
-
-The worker ships as a **separate published entry** (`@azx/ribo-transcriber-ondevice/worker`) — the
-consumer constructs it in their own build context (never `new Worker(...)` inside library code; see
-`AGENTS.md` §5.2).
-
-## Minimal example
+## Composing it
 
 ```ts
+import { firstCapable } from "@azx/ribo-core";
+import { ManagedTranscriber } from "@azx/ribo-transcriber-managed";
 import { OnDeviceTranscriber } from "@azx/ribo-transcriber-ondevice";
 
-const transcriber = new OnDeviceTranscriber({
+const onDevice = new OnDeviceTranscriber({
   wasmPaths: "/ort/", // same-origin ONNX Runtime files
   createWorker: () =>
     new Worker(new URL("@azx/ribo-transcriber-ondevice/worker", import.meta.url), {
@@ -48,8 +33,14 @@ const transcriber = new OnDeviceTranscriber({
     }),
 });
 
-await transcriber.prime((progress) => console.log(progress)); // user-initiated download
-const transcript = await transcriber.transcribe(recording, audio);
+await onDevice.prime((progress) => console.log(progress)); // user-initiated download
+
+// On-device first — it's free and private — falling back to managed speech when
+// `capability()` reports `too-slow` or the model isn't primed yet.
+const transcriber = firstCapable([onDevice, new ManagedTranscriber({ endpoint: managedEndpoint })]);
 ```
 
-See the [API Reference](../../docs/reference/) (generated) for the full surface.
+## Learn more
+
+- Guide: [Captures & Sources](../../docs/guide/captures-and-sources.md)
+- [Repo root](../../README.md)

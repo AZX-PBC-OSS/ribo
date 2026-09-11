@@ -75,7 +75,7 @@ export interface ExtractionResult<F> {
    * It exists because a review card has to be able to say "this draft came from the on-device
    * beta model" — the reviewer's question is not which engine produced field 12, it is whether
    * to trust this card less than usual. Reaching the card takes more than this field: see
-   * {@link toExtractStep} and the relay's extract step.
+   * {@link toSessionExtractStep} and the relay's extract step.
    *
    * `strategy` is the same idea for the *approach* axis: `engine` is *which transport*,
    * `strategy` is *which strategy* inside that transport. It is optional for the same reason
@@ -97,7 +97,7 @@ export interface ExtractionResult<F> {
  * A plain builder, not a capability contract (the transcriber's `capability()` roster is for
  * runtime device variance; strategy choice here is configuration). One method: hand it the
  * transcript text, get back parsed fields plus provenance. Network-bound, which is why the relay
- * runs it as a queued step — see {@link toExtractStep}.
+ * runs it as a queued step — see {@link toSessionExtractStep}.
  */
 export interface Extractor<F> {
   extract(transcript: string): Promise<ExtractionResult<F>>;
@@ -167,7 +167,7 @@ export interface FakeExtractorOptions {
  *
  * The parallel of `FakeTranscriber`: a shipped test double, not scaffolding. It lets the relay,
  * the tests and the playground drive capture → transcribe → **extract** → review → write with no
- * network and no key. Substitute it into the queue with `toExtractStep(new FakeExtractor(...))`.
+ * network and no key. Substitute it into the queue with `toSessionExtractStep(new FakeExtractor(...))`.
  */
 export class FakeExtractor<F> implements Extractor<F> {
   readonly #fields: F;

@@ -74,7 +74,7 @@ export type ConnectivityProbe = (signal: AbortSignal) => Promise<Response>;
  *
  * The field app wires this to `window` (`online`/`offline`) — and may fold in
  * `document`'s `visibilitychange`, so returning to a backgrounded tab re-checks
- * — each firing the same `onChange`. `onChange` reads {@link isOnline} itself;
+ * — each firing the same `onChange`. `onChange` reads {@link ConnectivityOptions.isOnline} itself;
  * the callback carries no payload.
  */
 export type ConnectivityEventBinder = (onChange: () => void) => () => void;

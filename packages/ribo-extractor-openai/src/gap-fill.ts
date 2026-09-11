@@ -25,7 +25,7 @@
  * move, and usage reports the base run plus one call.
  *
  * The finish-reason gate, terminal-transport classification and parse helpers
- * are the shared ones from {@link file://./extraction-common.ts}. The leaf
+ * are the shared ones from {@link ./extraction-common.ts}. The leaf
  * walk and merge below share the codebase's one generic RUNTIME walker over
  * `Enveloped<V>` data — the walker in `enveloped()` is schema-time and serves
  * a different purpose.
@@ -277,7 +277,7 @@ Reaffirming null is a fully valid answer. Never commit to a value the transcript
  * directive as the system prompt, the candidate list (each field's path and its
  * own already-found quote) as a user turn, and the transcript LAST — the
  * injection boundary (everything after the instructions is the auditor's
- * dictation, never instructions) depends on that ordering.
+ * transcript, never instructions) depends on that ordering.
  */
 const buildGapFillMessages = <V extends Record<string, unknown>>(
   target: ExtractionTarget<V>,

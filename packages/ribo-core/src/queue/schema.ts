@@ -4,7 +4,7 @@ import { z } from "zod";
 import { baseCaptureItemSchema } from "../capture-item.js";
 import { transcriptSchema } from "../transcript.js";
 
-/** The RxDB collection name. One collection for recordings; sessions have their own. */
+/** The RxDB collection name. One collection for outbox items (audio or document); sessions have their own. */
 export const OUTBOX_COLLECTION_NAME = "outbox";
 
 /**
@@ -19,7 +19,7 @@ export const OUTBOX_COLLECTION_NAME = "outbox";
 export const AUDIO_ATTACHMENT_ID = "audio";
 
 /**
- * The recording state machine — capture and transcription only.
+ * The outbox item's state machine — capture and transcription only.
  *
  * ```
  * recording → queued → transcribing → transcribed
@@ -29,18 +29,19 @@ export const AUDIO_ATTACHMENT_ID = "audio";
  * ```
  *
  * Extraction, review and write moved to the **session** (`session-schema.ts`).
- * The recording narrows to what it is: metadata for one captured dictation and
- * the transcript that came out of it. Once transcribed, the recording is
- * finished from the relay's perspective — the session owns the next steps.
+ * The outbox item narrows to what it is: metadata for one captured item — audio
+ * or document — and the transcript that came out of it. Once transcribed, the
+ * item is finished from the relay's perspective — the session owns the next
+ * steps.
  *
  * **`dead` is the only terminal state.** `failed` is a *resting* state: the
  * relay picks it back up once `nextAttemptAt` has passed, which is why
  * `failed ∈ ACTIVE_OUTBOX_STATUSES`. An item leaves `failed` for `dead` only by
  * exhausting `maxAttempts` or by a terminal failure classification.
  *
- * `discarded` means the contractor threw that recording away. Its words should
+ * `discarded` means the auditor threw that capture away. Its words should
  * not return through a later extraction — `session-extract.ts` excludes
- * `discarded` recordings from the joined transcript.
+ * `discarded` items from the joined transcript.
  */
 export const OUTBOX_STATUSES = [
   "recording",
@@ -55,11 +56,11 @@ export const OUTBOX_STATUSES = [
 export type OutboxStatus = (typeof OUTBOX_STATUSES)[number];
 
 /**
- * Statuses the relay will still act on for a recording.
+ * Statuses the relay will still act on for an outbox item.
  *
  * `queued` (waiting to transcribe), `transcribing` (in flight), and `failed`
  * (resting, retryable after backoff). **`transcribed` is NOT active** — the
- * relay is done with the recording; the session owns the next steps.
+ * relay is done with the item; the session owns the next steps.
  */
 export const ACTIVE_OUTBOX_STATUSES = [
   "queued",
@@ -79,7 +80,7 @@ export function isActiveStatus(status: OutboxStatus): boolean {
 
 /**
  * Statuses the relay will not act on again unattended. `transcribed` is here
- * because the relay is done with the recording — the session owns extraction
+ * because the relay is done with the item — the session owns extraction
  * and write. `dead` is terminal; `discarded` is a human decision.
  */
 export const FINISHED_OUTBOX_STATUSES = [
@@ -95,7 +96,7 @@ export const FINISHED_OUTBOX_STATUSES = [
 export const RECORDING_OUTBOX_STATUSES = ["recording"] as const;
 
 /**
- * The persisted shape of one recording document — exactly the fields that live
+ * The persisted shape of one outbox item — exactly the fields that live
  * in IndexedDB, and nothing else.
  *
  * This is a **trust boundary** in both directions (AGENTS.md §4): documents that
@@ -109,7 +110,7 @@ export const RECORDING_OUTBOX_STATUSES = ["recording"] as const;
  *
  * **Session-level fields moved to `session-schema.ts` in v6** (extracted,
  * extractedBy, reviewOutcome, writeResult, writtenInstances, idempotencyKey).
- * The recording keeps capture and transcription; the session owns everything
+ * The item keeps capture and transcription; the session owns everything
  * downstream.
  */
 export const outboxDocumentSchema = z
@@ -118,30 +119,30 @@ export const outboxDocumentSchema = z
     id: z.string().min(1),
     /**
      * Monotonic ordering key. The relay processes the lowest-`seq` **active**
-     * recording first, which preserves capture order for transcription.
+     * item first, which preserves capture order for transcription.
      */
     seq: z.number().int().nonnegative(),
     status: z.enum(OUTBOX_STATUSES),
     /**
-     * The session this recording belongs to. Required — every recording is
+     * The session this item belongs to. Required — every item is
      * enqueued into a session. The session owns extraction, review and write
-     * state; the recording is capture + transcription only.
+     * state; the item is capture + transcription only.
      */
     sessionId: z.string().min(1),
     /**
-     * How many times transcription has failed for this recording. Drives the
+     * How many times transcription has failed for this item. Drives the
      * backoff curve and, against `RelayOptions.maxAttempts`, when the relay
      * gives up and calls it `dead`.
      */
     attempts: z.number().int().nonnegative(),
     /**
-     * Earliest ISO timestamp at which this recording may be attempted again.
+     * Earliest ISO timestamp at which this item may be attempted again.
      * Persisted rather than held in a timer so the backoff schedule survives a
      * reload — on iOS the tab is the only execution context there is, and it
      * dies often.
      */
     nextAttemptAt: z.iso.datetime(),
-    /** When the recording entered the queue. */
+    /** When the item entered the queue. */
     enqueuedAt: z.iso.datetime(),
     /** Message from the most recent failure, for the "needs attention" UI. */
     lastError: z.string().optional(),

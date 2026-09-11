@@ -102,11 +102,11 @@ export interface ChatUsage {
  * `finishReason` is **optional on the type** because making it required would break
  * every existing `ChatClient` implementation and turn a minor bump into a breaking
  * one. That means the type alone cannot promise truncation is always detected. The
- * promise is made by the implementations instead: {@link file://./openai-chat.ts}
+ * promise is made by the implementations instead: {@link ./openai-chat.ts}
  * must never return a completion with an absent `finishReason` — a response whose
  * `choices[0].finish_reason` is missing, non-string, or not one of the three known
  * members is a {@link ChatError} of kind `malformed-response`, not a completion with
- * the field left off. {@link file://../../ribo-adapter-snuggpro/acceptance/cli-chat.ts}
+ * the field left off. `ribo-adapter-snuggpro/acceptance/cli-chat.ts`
  * cannot truncate, so its inability to report a finish reason is sound. An optional
  * field that implementations are required to populate is a contract a reader cannot
  * infer from the type.
@@ -126,7 +126,7 @@ export interface ChatCallOptions {
 /**
  * A chat-completions transport. One method: send a request, get the assistant's
  * message content back. Implementations own the wire concern (auth, base URL,
- * error status) — see {@link file://./openai-chat.ts}. Extractors own prompt
+ * error status) — see {@link ./openai-chat.ts}. Extractors own prompt
  * assembly and the trust boundary and never touch the network directly.
  */
 export interface ChatClient {
@@ -175,7 +175,7 @@ export type ChatUnavailableReason =
  * download finishes, and the managed path becomes `unavailable` the moment the
  * uplink drops. Nothing may treat this as a value read once at init.
  *
- * Mirrors {@link TranscriberCapability} in `ribo-core/src/transcriber.ts` with one
+ * Mirrors `TranscriberCapability` in `ribo-core/src/transcriber.ts` with one
  * intentional difference: `needs-download` carries **no byte count**. The Prompt
  * API reports progress as a 0..1 fraction and `total` is always 1, so no real size
  * is available; inventing a number would make the consent screen dishonest. Use

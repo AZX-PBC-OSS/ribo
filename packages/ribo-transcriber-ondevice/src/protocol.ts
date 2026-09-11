@@ -2,8 +2,8 @@
  * @file The **private** main↔worker message contract for `@azx/ribo-transcriber-ondevice`.
  *
  * This is *not* `ribo-core`'s `Transcriber` boundary (that speaks `Blob`, doc 11 §4). It is the
- * internal protocol this package owns between the main thread ({@link ../index.ts}) and the
- * inference worker ({@link ../worker.ts}). Both ends import these types so a change to the wire
+ * internal protocol this package owns between the main thread ({@link ./index.ts}) and the
+ * inference worker ({@link ./worker.ts}). Both ends import these types so a change to the wire
  * shape is a compile error on the other side.
  *
  * Two conversations flow over it. **Priming** (Phase 3 Task 2 — model download + cache, defined
@@ -51,7 +51,7 @@ export interface PrimeConfig {
    * Same-origin base URL the ONNX Runtime `.wasm`/`.mjs` files are served from — assigned to
    * `env.backends.onnx.wasm.wasmPaths` in the worker. Must end in `/`. The default is a jsDelivr
    * CDN URL, which breaks the offline guarantee and trips strict host CSPs; the consumer supplies
-   * this so the bytes come from their own origin. See {@link ../config.ts} and doc 01.
+   * this so the bytes come from their own origin. See {@link ./config.ts} and doc 01.
    */
   readonly wasmPaths: string;
   /**
@@ -118,7 +118,7 @@ export type PrimeProgress =
  *    thread cannot produce token ids — it can only ship the **text**, and the worker turns it into a
  *    prefix.
  *
- * Hence the seam carries the hint text; {@link ../worker.ts} owns the text → `decoder_input_ids`
+ * Hence the seam carries the hint text; {@link ./worker.ts} owns the text → `decoder_input_ids`
  * step. See the worker for the exact prompt construction and the prefix-stripping that keeps the
  * jargon out of the returned transcript.
  */
