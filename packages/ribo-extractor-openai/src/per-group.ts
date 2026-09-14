@@ -71,6 +71,8 @@ import {
   DEFAULT_BACKOFF_CAP_MS,
   deriveRetryBudget,
   fullJitterDelay,
+  mapWithPool,
+  mergeGroupPieces,
   nextUnitId,
   PER_CALL_CEILING_MS,
   TerminalQueueError,
@@ -213,60 +215,6 @@ const defaultDelay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Run `fn` over `items` with at most `limit` calls in flight at once, preserving
- * order. Rejects on the first failure (via `Promise.all`): any group failing
- * fails the extraction, so the first rejection is the extraction's rejection.
- *
- * **Stops pulling new work after a failure.** When any worker's `fn` rejects,
- * the `failed` flag is set and `abort.abort()` is called. Other workers check
- * the flag (or the aborted signal) before pulling the next item and return
- * immediately — so a failing extraction does not start every remaining group's
- * call. Without this, workers kept pulling from the queue after a sibling
- * rejected, and those calls outlived the rejected `extract()`. That was a
- * minor waste before retries and a real problem once retries multiplied the
- * call count.
- *
- * **Aborts in-flight calls.** The `AbortController` is shared with `fn` via
- * the closure in `perGroupExtractor`, which passes `abort.signal` to every
- * `chat.complete` call. When a worker fails and calls `abort.abort()`,
- * in-flight calls in other workers reject with `ChatError.aborted`, and the
- * retry loop does not retry an aborted call. This prevents calls from
- * outliving the rejected `extract()` — both new work (stopped by the flag)
- * and in-flight work (cancelled by the signal).
- */
-async function mapWithPool<T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-  abort: AbortController,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  let failed = false;
-  const worker = async (): Promise<void> => {
-    while (next < items.length) {
-      // Stop pulling new work after any worker has failed. The abort signal
-      // cancels in-flight calls in other workers; this check stops workers
-      // that are between calls from starting new ones.
-      if (failed || abort.signal.aborted) return;
-      const index = next++;
-      try {
-        results[index] = await fn(items[index]!, index);
-      } catch (cause) {
-        if (!failed) {
-          failed = true;
-          abort.abort();
-        }
-        throw cause;
-      }
-    }
-  };
-  const size = Math.min(Math.max(1, limit), items.length);
-  await Promise.all(Array.from({ length: size }, () => worker()));
-  return results;
-}
-
-/**
  * The leaf keys one partitioned piece of a group asks the model for — read back
  * out of `group.schema` rather than threaded through as separate state, so this
  * can never drift from the schema the call is actually pinned to.
@@ -282,43 +230,6 @@ export function partitionedLeafKeys(group: ExtractionGroup): readonly string[] {
   const value = shape[group.key]!;
   const candidate = value instanceof z.ZodArray ? (value.element as z.ZodType) : value;
   return Object.keys((candidate as z.ZodObject<z.ZodRawShape>).shape);
-}
-
-/**
- * Recombine two group values that are both pieces of the SAME key (a
- * partitioned group's leaves, split across two or more calls) into one.
- *
- * A singleton group's pieces are each a plain leaf-envelope object; they combine
- * by shallow merge, since every piece carries a disjoint subset of leaf keys.
- *
- * A collection group's pieces are each a full array of instances, one element
- * per instance, but each element carries only that piece's leaf subset (per the
- * file header: split within one instance's fields, never across instances or the
- * array wrapper). Recombining is therefore element-WISE by index: index `i` in
- * every piece is the same instance. This assumes every piece's call agreed on the
- * same instance count and order — both calls extract from the identical
- * transcript, so in practice they do — but if they disagree (a real model
- * inconsistency, not a code defect), the merge does not hide it: a short instance
- * is missing the other piece's keys, which the full extraction schema requires,
- * so the second trust-boundary parse (`parseWithSchema` below) rejects the merge
- * with a `SchemaParseError` rather than silently emitting a partial instance.
- */
-export function mergeGroupPieces(existing: unknown, incoming: unknown): unknown {
-  if (Array.isArray(existing) && Array.isArray(incoming)) {
-    const length = Math.max(existing.length, incoming.length);
-    const merged: unknown[] = [];
-    for (let i = 0; i < length; i++) {
-      merged.push({
-        ...(existing[i] as Record<string, unknown> | undefined),
-        ...(incoming[i] as Record<string, unknown> | undefined),
-      });
-    }
-    return merged;
-  }
-  return {
-    ...(existing as Record<string, unknown>),
-    ...(incoming as Record<string, unknown>),
-  };
 }
 
 /** A group with its JSON Schema and error-context pre-computed at construction time. */

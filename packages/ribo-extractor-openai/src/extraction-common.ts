@@ -22,16 +22,22 @@
  *     blips: a refusal repeats on the same input, and `unsupported` is a
  *     configuration error no retry fixes.
  *
- * The prompt assembly ({@link buildMessages}) and the two parse helpers
- * ({@link parseJsonContent}, {@link parseWithSchema}) are shared because both
- * extractors cross the same trust boundary the same way — extracting them keeps
- * that boundary in one place rather than two.
+ * The prompt assembly ({@link buildMessages}) and the JSON parse
+ * ({@link parseJsonContent}) are shared because both extractors cross the same
+ * trust boundary the same way — extracting them keeps that boundary in one
+ * place rather than two. The zod parse (`parseWithSchema`) has moved the same
+ * way again, into core beside `SchemaParseError`, so `groupedExtractor`'s
+ * second parse is the same function as this first parse.
  */
 
-import type { z } from "zod";
-
-import { SchemaParseError, TerminalQueueError } from "@azx/ribo-core";
+import { TerminalQueueError } from "@azx/ribo-core";
 import type { ExtractionTarget, NoProvenance } from "@azx/ribo-core";
+
+// The trust-boundary parse lives in core beside `SchemaParseError` — it is the
+// one function every extractor (and `groupedExtractor`'s second parse) crosses,
+// so the two parses cannot drift. Re-exported to keep this module's public
+// surface and every internal import unchanged.
+export { parseWithSchema } from "@azx/ribo-core";
 
 import { ChatError } from "./chat-client.js";
 import type {
@@ -308,33 +314,4 @@ export function parseJsonContent(content: string, context: string): unknown {
   } catch (cause) {
     throw new Error(`${context} was not valid JSON`, { cause });
   }
-}
-
-/**
- * Parse `raw` against a zod schema, throwing a {@link SchemaParseError} on failure.
- *
- * A response that does not satisfy the schema is *sampled*: the same request can fail
- * zod once and pass on re-send, so the failure stays transient/retryable. The queue
- * keeps retrying rather than losing a recording someone drove to a house to make. At the
- * same time the error is now recognisable: a strategy ladder can see it and fall through
- * to a different shape instead of sampling the same broken one indefinitely. Both halves
- * matter — making it transient alone would keep the ladder from moving on; making it
- * terminal alone would strip retries from the very recordings that have no second chance.
- * The terminal cases (truncation, content filtering) are caught earlier by
- * {@link assertStopFinishReason}.
- *
- * @param context - a descriptive prefix for the error
- */
-export function parseWithSchema<T>(schema: z.ZodType<T>, raw: unknown, context: string): T {
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    // `output` carries the rejected payload so a self-correction retry
-    // (schema-retry.ts) can show the model its own answer as a conversation
-    // turn — never by touching the transcript.
-    throw new SchemaParseError(`${context} did not match the schema: ${parsed.error.message}`, {
-      cause: parsed.error,
-      output: raw,
-    });
-  }
-  return parsed.data;
 }

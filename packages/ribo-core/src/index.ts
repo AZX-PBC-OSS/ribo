@@ -302,6 +302,24 @@ export type { FallbackCandidate } from "./fallback-extractor.js";
 export { raceExtractor } from "./race-extractor.js";
 export type { RaceCandidate } from "./race-extractor.js";
 
+// The grouped run: take a per-key map of group extractors and own the
+// cross-group work — coverage at construction, a bounded pool, the derived
+// retry budget, sibling abort, the merge, the second trust-boundary parse,
+// usage and `statedEmptyGroups`. A third combinator over the same `Extractor`
+// seam, so per-group heterogeneity is composition rather than options
+// (per-group-composition-design.md §4.2).
+export { groupedExtractor } from "./grouped-extractor.js";
+export type { GroupedExtractorOptions, GroupMap } from "./grouped-extractor.js";
+
+// The primitives `groupedExtractor` composes, exported because the extractor
+// strategies in `ribo-extractor-openai` share them: `mapWithPool` was two
+// byte-identical copies there (per-group and instance-fill) before it moved
+// here; `mergeGroupPieces` recombines a partitioned group's pieces; and
+// `parseWithSchema` is THE trust-boundary parse every extractor crosses.
+export { mapWithPool } from "./map-with-pool.js";
+export { mergeGroupPieces } from "./merge-group-pieces.js";
+export { parseWithSchema } from "./parse-with-schema.js";
+
 // Work safety: the one honest "is my work safe?" answer, derived purely from the
 // outbox, the storage persistence grant and connectivity — so every presenter
 // classifies identically. Only synced work is truly safe; the rest is a gradient.

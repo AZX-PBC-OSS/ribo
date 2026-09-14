@@ -21,6 +21,8 @@ import {
   DEFAULT_BACKOFF_CAP_MS,
   deriveRetryBudget,
   fullJitterDelay,
+  mapWithPool,
+  mergeGroupPieces,
   nextUnitId,
   PER_CALL_CEILING_MS,
   TerminalQueueError,
@@ -54,7 +56,7 @@ import {
   parseWithSchema,
 } from "./extraction-common.js";
 import type { ExtractOptions } from "@azx/ribo-core";
-import { mergeGroupPieces, partitionedLeafKeys } from "./per-group.js";
+import { partitionedLeafKeys } from "./per-group.js";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 
 // Re-export the generic inventory/fill vocabulary from core, where both the
@@ -143,40 +145,6 @@ const DEFAULT_INSTANCE_CAP = 10;
  */
 const defaultDelay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Run `fn` over `items` with at most `limit` calls in flight at once, preserving
- * order. Rejects on the first failure and aborts in-flight work. Same logic as
- * {@link perGroupExtractor}.
- */
-async function mapWithPool<T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-  abort: AbortController,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  let failed = false;
-  const worker = async (): Promise<void> => {
-    while (next < items.length) {
-      if (failed || abort.signal.aborted) return;
-      const index = next++;
-      try {
-        results[index] = await fn(items[index]!, index);
-      } catch (cause) {
-        if (!failed) {
-          failed = true;
-          abort.abort();
-        }
-        throw cause;
-      }
-    }
-  };
-  const size = Math.min(Math.max(1, limit), items.length);
-  await Promise.all(Array.from({ length: size }, () => worker()));
-  return results;
-}
 
 /** A prepared group, with its per-instance fill schema and error context. */
 interface PreparedGroup {
