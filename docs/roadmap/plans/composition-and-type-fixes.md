@@ -6,8 +6,10 @@
 > premise turns out to be wrong against the actual code, stop and say so rather than improvising
 > around it.
 >
-> Task 17 was added after this plan was reviewed, from a question neither source document covers:
-> how the `AnnotatedTranscript` annotations bag gets types. It is Phase A and independent.
+> Tasks 17 and 18 were added after this plan was reviewed, from a question neither source
+> document covers: how the `AnnotatedTranscript` annotations bag gets types, and who is allowed to
+> fill it. **Task 18 must land before Task 17** — it decides what shape Task 17 is typing. Both
+> are otherwise independent of Tasks 1–16.
 
 **Goal:** Make each top-level schema group its own composable `Extractor`, and fix the type-story
 defects the review found — threading `P` through two wrappers that lost it, constraining a
@@ -547,7 +549,8 @@ Report the number and the decision.
 
 ## Task 17: Type the annotations bag through the transcriber→combiner leg
 
-**Phase:** A. Independent of every other task, including Task 9 — verified below.
+**Phase:** A. Independent of Task 9 — verified below — but **depends on Task 18**, which decides
+whether transcribers can fill the bag and therefore what this task is typing.
 
 **Files:** `packages/ribo-core/src/annotated-transcript.ts` (the `AnnotatedTranscript` interface),
 `packages/ribo-core/src/transcript-combiner.ts` (`TranscriptCombiner`, `createDefaultTranscriptCombiner`,
@@ -604,3 +607,63 @@ the other member. A second test asserting the default combiner still returns an 
 output type says so. The existing `transcript-combiner.test.ts` suite (12 tests, including the
 byte-for-byte output gate and the missing-annotation `TypeError`) is the regression gate and must
 pass untouched — this task changes types, not behaviour.
+
+## Task 18: Let a transcriber produce annotations — `Transcript.annotations` and outbox v7
+
+**Phase:** A for the decision, but it must land **before** Task 17, which types the bag this task
+gives transcribers access to. Independent of Tasks 9–12.
+
+**Files:** `packages/ribo-core/src/transcript.ts` (`transcriptSchema`),
+`packages/ribo-core/src/queue/schema.ts` (`outboxRxSchema`, currently `version: 6`),
+`packages/ribo-core/src/queue/database.ts` (`OUTBOX_MIGRATION_STRATEGIES`, currently keyed 1–6),
+`packages/ribo-core/src/queue/session-extract.ts` (`listSessionTranscriptParts`, which builds the
+bag today), `packages/ribo-core/src/annotated-transcript.ts` and
+`packages/ribo-core/src/transcript.ts` doc comments (both currently describe this as a gap and
+must be updated to describe the built behaviour).
+
+**Problem:** `AnnotatedTranscript` carries an annotations bag, but a `Transcriber` cannot
+contribute to it. `transcribe` returns a `Transcript`, which has no annotations field, so the bag
+is populated entirely by the relay from outbox row metadata — `seq`, `kind` and `id`. A document
+transcriber holding page boundaries, table structure, or a provider's own structured response has
+nowhere to put them, which is the case a third-party document-AI package hits immediately.
+
+An earlier doc comment asserted that document transcribers populate the bag. They never could.
+
+**What to do:** Add an optional annotations field to `transcriptSchema`, shaped as the same open
+record `AnnotatedTranscript` uses. Because `transcriptSchema` is persisted inside the outbox
+document, this is a **stored-schema change**: bump `outboxRxSchema` to version 7 and add a
+strategy keyed `7` to `OUTBOX_MIGRATION_STRATEGIES`. The field is optional and absent on existing
+documents, so the strategy is the identity function — strategies 1 through 5 are already identity
+and are the precedent for that being correct rather than lazy.
+
+Then make `listSessionTranscriptParts` merge the transcript's own annotations with the queue
+metadata it already supplies, and decide and document which wins on a key collision. Prefer
+namespacing over precedence if the collision is plausible; `seq`, `kind` and `id` are generic
+enough that a transcriber could reasonably use them.
+
+**The constraint that makes this more than a field addition:** this library has real users, and
+the outbox and sessions collections share one database. A missing or wrong migration strands
+recordings, which is the worst failure this codebase has. RxDB migrations are per-document and
+checkpoint-resumable, so the strategy must be idempotent — running it twice on the same document
+yields the same result — and must not reach across collections.
+
+**Tests that must fail first:**
+
+- A migration test opening a database at version 6 containing a transcribed item, then reopening
+  at version 7, and asserting the item survives with its transcript intact and its annotations
+  absent rather than `undefined`-valued or `{}`. The existing `v6-migration-backfill` changeset
+  and whatever test covers the v5→v6 migration are the model to follow.
+- A round-trip test: a transcriber returns a transcript carrying annotations, the item is
+  persisted, the outbox is closed and reopened, and `listSessionTranscriptParts` yields a part
+  whose bag contains them. Reopening is the point — in-memory pass-through would satisfy a weaker
+  test and miss the durability this exists for.
+- A collision test pinning the documented rule for a transcriber annotation named `seq`.
+- The existing outbox and relay suites, including the cross-tab browser tests, are the regression
+  gate and must pass untouched.
+
+**What would make this the wrong call:** if no transcriber ever produces annotations, this is a
+migration on a database with real users bought for nothing. The counter-argument is that the bag
+already exists and is already consumed, so the channel is half-built either way, and the
+alternative — transcriber state travelling through plugin-scoped storage — is the right answer for
+state shared across the transcribe→extract boundary but not for structure that describes the
+transcript itself.

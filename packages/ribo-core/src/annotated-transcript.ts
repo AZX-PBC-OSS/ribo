@@ -32,10 +32,26 @@ export interface AnnotatedTranscript {
    */
   readonly text: string;
   /**
-   * Open bag of annotations alongside the text. Left empty by dictation
-   * transcribers; document transcribers may populate it with page boundaries,
-   * table structure, or per-capture attribution when a real consumer needs them.
-   * Does not affect grounding — `isSpanGrounded` reads `text` only.
+   * Open bag of annotations alongside the text. Does not affect grounding —
+   * `isSpanGrounded` reads `text` only.
+   *
+   * **Today this is populated by core, not by transcribers.** The relay fills it from outbox row
+   * metadata (`seq`, `kind`, `id` — see `listSessionTranscriptParts`), and the default combiner
+   * reads those to build per-capture markers. A `Transcriber` has no way to contribute: it returns
+   * a {@link Transcript}, which carries no annotations field, so page boundaries and table
+   * structure have nowhere to go.
+   *
+   * That is a gap, not the intended end state — an earlier version of this comment claimed
+   * transcribers populate the bag, which was never true. Closing it means adding the field to
+   * `Transcript`, which is persisted inside the outbox document, so it is a stored-schema change
+   * needing an outbox version bump and a migration strategy rather than a type edit. Decided and
+   * planned; see the plan in `docs/roadmap/plans/`.
+   *
+   * Note also that annotations do **not** survive combination: a {@link TranscriptCombiner}
+   * returns one transcript with its own bag, and the default returns an empty one. Per-part
+   * annotations are an input to combination, not a channel through it. State that has to reach an
+   * extractor from a transcriber belongs in plugin-scoped storage, which is keyed by capture and
+   * survives both the combine step and a reload.
    */
   readonly annotations: Readonly<Record<string, unknown>>;
 }

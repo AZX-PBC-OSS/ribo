@@ -12,6 +12,14 @@ import { z } from "zod";
  * downstream needs them yet, and a shape nobody consumes is a shape nobody keeps
  * honest.
  *
+ * Neither are annotations, and that one is now a known gap rather than a deliberate omission.
+ * {@link AnnotatedTranscript} carries an annotations bag, but a transcriber cannot reach it: this
+ * type is what `transcribe` returns and it has no such field, so the bag is filled by core from
+ * queue metadata instead. A document transcriber with page boundaries or table structure to
+ * report has nowhere to put them. Adding the field here is decided; because this object is
+ * persisted inside the outbox document, it is an outbox version bump plus a migration strategy,
+ * not a type edit. See the plan in `docs/roadmap/plans/`.
+ *
  * **Confidence here is the transcriber's overall score for the utterance, and it is not
  * load-bearing.** Per-field confidence is a different thing entirely: it lives in the provenance
  * envelope (`provenance.ts`, `Extracted<T>`) and is documented there as non-load-bearing —
