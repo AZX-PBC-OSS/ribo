@@ -18,8 +18,15 @@ import type { AnnotatedTranscript } from "./annotated-transcript.js";
  * The relay supplies the array; the combiner decides how the texts join. A
  * caller who wants a different policy writes their own combiner instead of
  * asking for a second flag on the default.
+ *
+ * Two type parameters, not one: the combined transcript's annotations are not any input's. The
+ * default returns an empty bag, so a single parameter would make it claim a shape it never
+ * produces.
  */
-export type TranscriptCombiner = (parts: AnnotatedTranscript[]) => AnnotatedTranscript;
+export type TranscriptCombiner<
+  In = Readonly<Record<string, unknown>>,
+  Out = Readonly<Record<string, unknown>>,
+> = (parts: readonly AnnotatedTranscript<In>[]) => AnnotatedTranscript<Out>;
 
 /**
  * Options for {@link createDefaultTranscriptCombiner}.
@@ -103,9 +110,11 @@ function captureMarker(part: AnnotatedTranscript, index: number): string {
  */
 export function createDefaultTranscriptCombiner(
   options?: DefaultTranscriptCombinerOptions,
-): TranscriptCombiner {
+): TranscriptCombiner<Readonly<Record<string, unknown>>, Record<string, never>> {
   const { markCaptures = false } = options ?? {};
-  return (parts: AnnotatedTranscript[]): AnnotatedTranscript => {
+  // `Record<string, never>` in the return position is the point of the second parameter: this
+  // combiner emits an empty bag, and saying so stops a caller reading input annotations off it.
+  return (parts): AnnotatedTranscript<Record<string, never>> => {
     if (markCaptures) {
       return {
         text: parts.map((p, i) => captureMarker(p, i) + p.text).join(""),

@@ -60,7 +60,7 @@ export type { CaptureItem, DocumentCapture } from "./capture-item.js";
 export { transcriptSchema } from "./transcript.js";
 export type { Transcript } from "./transcript.js";
 export { decodeEntities } from "./decode-entities.js";
-export type { AnnotatedTranscript } from "./annotated-transcript.js";
+export type { AnnotatedTranscript, CaptureAnnotations } from "./annotated-transcript.js";
 
 // Transcript combination: the pure contract that turns per-capture
 // transcripts into one, and the default combiner that reproduces the previous

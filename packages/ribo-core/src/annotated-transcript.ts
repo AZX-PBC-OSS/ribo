@@ -1,3 +1,10 @@
+/** The capture metadata annotations written by the relay. */
+export type CaptureAnnotations = Readonly<{
+  readonly "capture.seq": number;
+  readonly "capture.kind": "audio" | "document";
+  readonly "capture.id": string;
+}>;
+
 /**
  * @file The structured value an extractor receives: a canonical text plus an
  * open bag of annotations alongside it.
@@ -24,8 +31,11 @@
  * left undefined until a real transcriber produces them. A speculative schema
  * for a consumer that does not exist will be wrong, and it will be load-bearing
  * by the time anyone finds out.
+ *
+ * @typeParam P - the shape of the annotations bag. Defaults to
+ * `Readonly<Record<string, unknown>>` for backward compatibility.
  */
-export interface AnnotatedTranscript {
+export interface AnnotatedTranscript<P = Readonly<Record<string, unknown>>> {
   /**
    * The canonical text — the exact string extracted spans are checked against.
    * What a model quotes from and what `isSpanGrounded` checks against.
@@ -51,6 +61,9 @@ export interface AnnotatedTranscript {
    * annotations are an input to combination, not a channel through it. State that has to reach an
    * extractor from a transcriber belongs in plugin-scoped storage, which is keyed by capture and
    * survives both the combine step and a reload.
+   *
+   * @typeParam P - the shape of this part's annotations bag. Defaults to
+   * `Readonly<Record<string, unknown>>` for backward compatibility.
    */
-  readonly annotations: Readonly<Record<string, unknown>>;
+  readonly annotations: Readonly<P>;
 }
