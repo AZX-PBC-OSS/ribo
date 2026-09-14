@@ -4,7 +4,7 @@ import { buildFieldPath, parseFieldPath, stripOptionalNullable } from "./field-p
 import type { FieldPath, FieldPathSegment } from "./field-path.js";
 import type { RequiredOnCreate } from "./adapter.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
-import { ROW_SOURCE_SPAN_KEY } from "./enveloped.js";
+import { ROW_SOURCE_SPAN_KEY, validateProvenance } from "./enveloped.js";
 import type { ProvenanceGranularity } from "./enveloped.js";
 import { spanGroundedness } from "./provenance.js";
 import type { Extracted, SpanGroundedness } from "./provenance.js";
@@ -666,12 +666,15 @@ const collectFields = (
  * empty-but-present collections are marked on {@link ReviewRequest.tree}'s group state
  * so the submit path can still distinguish "there are none" from "touch nothing".
  */
-export const buildReviewRequest = (
+export const buildReviewRequest = <T extends z.ZodObject>(
   extracted: Record<string, unknown>,
   transcript: Transcript,
-  valuesSchema: z.ZodObject,
-  options: BuildReviewRequestOptions = {},
+  valuesSchema: T,
+  options: BuildReviewRequestOptions<T> = {},
 ): ReviewRequest => {
+  const provenance = options.provenance ?? {};
+  validateProvenance(valuesSchema, provenance as Readonly<Record<string, ProvenanceGranularity>>);
+
   const fields: Record<FieldPath, ReviewField> = {};
   const tree: ReviewNode[] = [];
   const requiredOnCreate = options.requiredOnCreate ?? {};
@@ -683,7 +686,7 @@ export const buildReviewRequest = (
     transcript,
     requiredOnCreate,
     statedEmptyGroups,
-    options.provenance ?? {},
+    provenance as Readonly<Record<string, ProvenanceGranularity>>,
     "leaf",
     null,
     fields,
@@ -711,6 +714,17 @@ const emptyCollectionPaths = (nodes: readonly ReviewNode[]): FieldPath[] =>
   });
 
 /**
+ * A provenance granularity for each top-level group of a values schema.
+ *
+ * The keys are constrained to real top-level keys of `T`, so a typo in a group
+ * name is a compile error. The runtime validation in {@link buildReviewRequest}
+ * catches the same mistake for callers building the options in JavaScript.
+ */
+export type ProvenanceMap<T extends z.ZodObject> = {
+  readonly [K in keyof z.infer<T> & string]?: ProvenanceGranularity;
+};
+
+/**
  * The adapter facts `buildReviewRequest` cannot read off the values schema.
  *
  * An options object rather than more positional parameters: this is where
@@ -718,7 +732,7 @@ const emptyCollectionPaths = (nodes: readonly ReviewNode[]): FieldPath[] =>
  * field descriptions are the obvious next one), and each addition should not
  * be another signature change for every caller.
  */
-export interface BuildReviewRequestOptions {
+export interface BuildReviewRequestOptions<T extends z.ZodObject = z.ZodObject> {
   /**
    * Leaf names, grouped by the group that owns the create endpoint, that the host
    * tool requires in order to CREATE the record. Unknown groups and leaves are
@@ -757,7 +771,7 @@ export interface BuildReviewRequestOptions {
    * fields of one row share their row's span, and under `"none"` they carry none and read as
    * ungrounded. Groups absent from the map keep today's per-leaf envelope.
    */
-  readonly provenance?: Readonly<Record<string, ProvenanceGranularity>>;
+  readonly provenance?: ProvenanceMap<T>;
 }
 
 /**

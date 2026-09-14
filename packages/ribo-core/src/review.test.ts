@@ -779,6 +779,20 @@ test("a nested leaf can be required when its group declares it", () => {
   expect(marked.fields.rValue?.required).toBe(false);
 });
 
+test("provenance keys are constrained to top-level schema keys at compile time", () => {
+  // @ts-expect-error "roof" is not a top-level group of atticSchema
+  const _invalid = () => buildReviewRequest({}, transcript, atticSchema, { provenance: { roof: "row" } });
+  expect(_invalid).toBeDefined();
+});
+
+test("provenance with an unknown group key throws at runtime", () => {
+  expect(() =>
+    buildReviewRequest({}, transcript, atticSchema, {
+      provenance: { roof: "row" } as Record<string, "row" | "leaf" | "none">,
+    }),
+  ).toThrow('provenance names group "roof", which is not a top-level property');
+});
+
 /* R1.6 Task 6 — review enumerates instances from data, leaves from schema.
  *
  * The invariant, restated: the data determines how many instances exist; the schema
