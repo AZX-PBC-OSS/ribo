@@ -130,7 +130,7 @@ export interface ChatCallOptions {
  * assembly and the trust boundary and never touch the network directly.
  */
 export interface ChatClient {
-  complete(request: ChatRequest, options?: ChatCallOptions): Promise<ChatCompletion>;
+  complete: (request: ChatRequest, options?: ChatCallOptions) => Promise<ChatCompletion>;
 }
 
 /**
@@ -240,7 +240,7 @@ export interface CapableChatClient extends ChatClient {
    * Rejecting is allowed and is treated as `unavailable` with reason `"unknown"`;
    * a probe is not permitted to take the caller down.
    */
-  capability(): Promise<ChatCapability>;
+  capability: () => Promise<ChatCapability>;
 }
 
 /**

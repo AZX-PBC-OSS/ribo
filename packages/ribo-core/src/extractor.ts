@@ -101,7 +101,7 @@ export interface ExtractionResult<F> {
  * relay runs it as a queued step — see {@link toSessionExtractStep}.
  */
 export interface Extractor<F> {
-  extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<F>>;
+  extract: (transcript: AnnotatedTranscript) => Promise<ExtractionResult<F>>;
 }
 
 /**

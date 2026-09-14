@@ -28,13 +28,13 @@ import {
  */
 export interface PluginStorage {
   /** Read one key, or `undefined` if it was never set (or has been swept). */
-  get<T = unknown>(key: string): Promise<T | undefined>;
+  get: <T = unknown>(key: string) => Promise<T | undefined>;
   /** Write one key, overwriting any prior value. */
-  set(key: string, value: unknown): Promise<void>;
+  set: (key: string, value: unknown) => Promise<void>;
   /** Delete one key. Silently succeeds if the key does not exist. */
-  delete(key: string): Promise<void>;
+  delete: (key: string) => Promise<void>;
   /** Every key this plugin has written for this capture, sorted. */
-  keys(): Promise<string[]>;
+  keys: () => Promise<string[]>;
 }
 
 /** The RxDB collection holding plugin-storage entries. */

@@ -165,7 +165,7 @@ export interface Transcriber<S extends CaptureItem = Recording> {
    * Rejecting is allowed and is treated as `unavailable` with reason `"unknown"`; a probe is not
    * permitted to take the caller down.
    */
-  capability(): Promise<TranscriberCapability>;
+  capability: () => Promise<TranscriberCapability>;
 
   /**
    * Transcribe one capture item.

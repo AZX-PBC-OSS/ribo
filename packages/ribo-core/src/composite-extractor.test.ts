@@ -17,8 +17,8 @@ import { compositeExtractor } from "./composite-extractor.js";
  */
 
 interface MutableClock {
-  now(): number;
-  advance(ms: number): void;
+  now: () => number;
+  advance: (ms: number) => void;
 }
 
 function makeClock(): MutableClock {

@@ -163,7 +163,7 @@ export interface LiveSession {
    * runs asynchronously and the resulting text arrives on `segments$` when it
    * completes.
    */
-  feed(frame: Float32Array): void;
+  feed: (frame: Float32Array) => void;
 
   /**
    * Close the session. Posts a `liveClose` to the worker and marks this session
@@ -175,7 +175,7 @@ export interface LiveSession {
    * finishes), at which point the host's `complete` callback fires and it can
    * tear down. See {@link segments$} for why the stream stays open after close.
    */
-  close(): void;
+  close: () => void;
 }
 
 /**
@@ -193,7 +193,7 @@ export interface LiveTranscriber {
    * batch probe cannot express. Returns `ready` only when both the ASR model and
    * the streaming VAD are cached and available.
    */
-  liveCapability(): Promise<TranscriberCapability>;
+  liveCapability: () => Promise<TranscriberCapability>;
 
   /**
    * Open a live session for a recording. Loads the streaming VAD model if it is
@@ -201,5 +201,5 @@ export interface LiveTranscriber {
    * utterance text. Rejects if the VAD model cannot be loaded — the caller should
    * treat that as "no preview for this recording", not as a recording failure.
    */
-  openSession(recording: Recording): Promise<LiveSession>;
+  openSession: (recording: Recording) => Promise<LiveSession>;
 }

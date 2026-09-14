@@ -1371,7 +1371,7 @@ test("the first items$ emission carrying a new item already has its audio", asyn
   // this, so if the bytes are not queryable here they are not queryable at all
   // for that render. Only the *settling* of the promise is awaited, and it is
   // captured before `enqueue` resolves.
-  let subscription: { unsubscribe(): void } | undefined;
+  let subscription: { unsubscribe: () => void } | undefined;
   const atFirstSighting = new Promise<{ item: OutboxItem; audio: Blob | undefined }>((resolve) => {
     subscription = outbox.items$.subscribe((items) => {
       const item = items[0];

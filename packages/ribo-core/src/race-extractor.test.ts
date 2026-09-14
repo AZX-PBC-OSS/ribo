@@ -7,8 +7,8 @@ import type { AnnotatedTranscript } from "./annotated-transcript.js";
 // does not include `@types/node`. Declaring `process` locally keeps the test scoped
 // rather than widening the package's tsconfig for a single Node-specific assertion.
 declare const process: {
-  on(event: "unhandledRejection", handler: (reason: unknown) => void): void;
-  off(event: "unhandledRejection", handler: (reason: unknown) => void): void;
+  on: (event: "unhandledRejection", handler: (reason: unknown) => void) => void;
+  off: (event: "unhandledRejection", handler: (reason: unknown) => void) => void;
 };
 import {
   acceptAnySuccess,

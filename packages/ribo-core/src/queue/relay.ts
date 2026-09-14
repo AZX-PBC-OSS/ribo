@@ -113,7 +113,7 @@ export type SessionWriteStep = (input: SessionWriteInput) => Promise<SessionWrit
  * `Connectivity` model satisfies it structurally.
  */
 export interface ConnectivitySource {
-  subscribe(listener: (state: ConnectivityState) => void): Unsubscribe;
+  subscribe: (listener: (state: ConnectivityState) => void) => Unsubscribe;
 }
 
 // ---------------------------------------------------------------------------
@@ -169,10 +169,10 @@ export interface RelayOptions extends BackoffOptions {
 // ---------------------------------------------------------------------------
 
 export interface Relay {
-  syncNow(): Promise<void>;
-  start(connectivity?: ConnectivitySource): Promise<void>;
-  stop(): void;
-  settled(): Promise<void>;
+  syncNow: () => Promise<void>;
+  start: (connectivity?: ConnectivitySource) => Promise<void>;
+  stop: () => void;
+  settled: () => Promise<void>;
 }
 
 function messageOf(error: unknown): string {

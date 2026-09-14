@@ -148,14 +148,14 @@ export interface Connectivity {
    * Observe {@link ConnectivityState}. Called **immediately** with the current
    * state, then once on every change. Returns the unsubscribe handle.
    */
-  subscribe(listener: (state: ConnectivityState) => void): Unsubscribe;
+  subscribe: (listener: (state: ConnectivityState) => void) => Unsubscribe;
   /**
    * Bind the event source and evaluate once. Idempotent — a second call while
    * already started is a no-op.
    */
-  start(): void;
+  start: () => void;
   /** Unbind the event source, cancel any in-flight probe and pending window. */
-  stop(): void;
+  stop: () => void;
 }
 
 export function createConnectivity(options: ConnectivityOptions): Connectivity {

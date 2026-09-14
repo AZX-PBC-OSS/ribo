@@ -118,7 +118,7 @@ export function fallbackTranscriber<S extends CaptureItem = CaptureItem>(
 
 /** A probe is not permitted to take the caller down; a thrown probe is unavailable. */
 async function probe(transcriber: {
-  capability(): Promise<TranscriberCapability>;
+  capability: () => Promise<TranscriberCapability>;
 }): Promise<TranscriberCapability> {
   try {
     return await transcriber.capability();

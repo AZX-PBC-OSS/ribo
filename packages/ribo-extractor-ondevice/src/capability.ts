@@ -48,6 +48,7 @@ export interface LanguageModelPromptOptions {
  * and each call runs on a {@link LanguageModelSession.clone} of it so one group's answer never
  * sits in another group's context.
  */
+/* eslint-disable @typescript-eslint/method-signature-style */
 export interface LanguageModelSession {
   /** Total tokens this session can hold, input and output together. Measured at 9,216. */
   readonly contextWindow: number;
@@ -67,11 +68,14 @@ export interface LanguageModelSession {
   clone(): Promise<LanguageModelSession>;
   destroy(): void;
 }
+/* eslint-enable @typescript-eslint/method-signature-style */
 
+/* eslint-disable @typescript-eslint/method-signature-style */
 export interface LanguageModel {
   availability(): Promise<LanguageModelAvailability>;
   create(options?: LanguageModelCreateOptions): Promise<LanguageModelSession>;
 }
+/* eslint-enable @typescript-eslint/method-signature-style */
 
 export type PrimeProgressListener = (progress: DownloadProgressEvent) => void;
 

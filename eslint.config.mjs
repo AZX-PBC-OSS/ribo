@@ -28,6 +28,18 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
 
   {
+    files: [
+      "packages/ribo-core/**/*.{ts,tsx}",
+      "packages/ribo-adapter-snuggpro/**/*.{ts,tsx}",
+      "packages/ribo-extractor-openai/**/*.{ts,tsx}",
+    ],
+    languageOptions: { globals: { ...globals.browser } },
+    rules: {
+      "@typescript-eslint/method-signature-style": ["error", "property"],
+    },
+  },
+
+  {
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "module",
