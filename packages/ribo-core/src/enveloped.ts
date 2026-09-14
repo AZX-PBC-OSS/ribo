@@ -220,18 +220,21 @@ const envelopeObject = (
 export const validateProvenance = (
   values: z.ZodObject,
   provenance: Readonly<Record<string, ProvenanceGranularity>>,
+  // Named so the thrown message blames the caller's entry point. `buildReviewRequest` reuses this
+  // check, and a JS caller told `enveloped():` would go looking in the wrong place.
+  caller = "enveloped()",
 ): void => {
   const shape = values.shape;
   for (const [key, granularity] of Object.entries(provenance)) {
     if (!GRANULARITIES.includes(granularity)) {
       throw new Error(
-        `enveloped(): unknown provenance granularity "${String(granularity)}" for group "${key}"` +
+        `${caller}: unknown provenance granularity "${String(granularity)}" for group "${key}"` +
           ` — expected one of ${GRANULARITIES.map((g) => `"${g}"`).join(", ")}.`,
       );
     }
     if (!Object.hasOwn(shape, key)) {
       throw new Error(
-        `enveloped(): provenance names group "${key}", which is not a top-level property of the ` +
+        `${caller}: provenance names group "${key}", which is not a top-level property of the ` +
           `values schema. Its groups are: ${Object.keys(shape).join(", ")}.`,
       );
     }
@@ -243,7 +246,7 @@ export const validateProvenance = (
         : stripped;
     if (!(candidate instanceof z.ZodObject)) {
       throw new Error(
-        `enveloped(): "row" provenance on group "${key}" needs an object (or an array of them) ` +
+        `${caller}: "row" provenance on group "${key}" needs an object (or an array of them) ` +
           'to hang the row\'s sourceSpan on, but that group is a leaf. Use "none" if the leaf ' +
           "should carry no provenance.",
       );

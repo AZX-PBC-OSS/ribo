@@ -148,7 +148,7 @@ export {
   snuggProInstructions,
 } from "./instructions.js";
 export type { SnuggRule } from "./instructions.js";
-export type { FillScope } from "@azx/ribo-extractor-openai";
+export type { FillScope } from "@azx/ribo-core";
 export { snuggExamples } from "./examples.js";
 
 // The Task 9 inventory-pass roster: the schema that parses the house-wide

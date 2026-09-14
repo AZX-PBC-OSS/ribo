@@ -673,7 +673,11 @@ export const buildReviewRequest = <T extends z.ZodObject>(
   options: BuildReviewRequestOptions<T> = {},
 ): ReviewRequest => {
   const provenance = options.provenance ?? {};
-  validateProvenance(valuesSchema, provenance as Readonly<Record<string, ProvenanceGranularity>>);
+  validateProvenance(
+    valuesSchema,
+    provenance as Readonly<Record<string, ProvenanceGranularity>>,
+    "buildReviewRequest()",
+  );
 
   const fields: Record<FieldPath, ReviewField> = {};
   const tree: ReviewNode[] = [];

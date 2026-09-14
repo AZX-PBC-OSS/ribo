@@ -7,4 +7,3 @@ Type `buildReviewRequest`'s `provenance` option against the values schema and va
 
 - `BuildReviewRequestOptions` and `useReview` are now generic over `valuesSchema`, so an unknown group key in `provenance` is a compile error.
 - A JavaScript caller passing an unknown group key now gets the same `validateProvenance` error that `enveloped()` throws.
-- `validateProvenance` is now exported from `@azx/ribo-core`.
