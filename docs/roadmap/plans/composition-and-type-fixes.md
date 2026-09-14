@@ -667,3 +667,55 @@ already exists and is already consumed, so the channel is half-built either way,
 alternative — transcriber state travelling through plugin-scoped storage — is the right answer for
 state shared across the transcribe→extract boundary but not for structure that describes the
 transcript itself.
+
+## Task 19: give the relay's session extract a cancellation channel
+
+**Phase:** E. Independent. Added after review of Task 9.
+
+**Files:** `packages/ribo-core/src/queue/relay.ts` (`#sessionExtract`, around the `withTimeout`
+call), `packages/ribo-core/src/extractor.ts` (`toSessionExtractStep`),
+`packages/ribo-core/src/queue/session-extract.ts` (`SessionExtractInput` / `SessionExtractStep`).
+
+**Problem:** Task 9 gave `Extractor.extract` an abort signal and threaded it to every transport,
+but the relay cannot use it. `toSessionExtractStep` drops the options it is handed, and
+`#sessionExtract` wraps the step in `withTimeout` with no signal to cancel. So a session
+extraction that exceeds `stepTimeoutMs` rejects while its HTTP request runs to completion —
+exactly the failure Task 9's changeset named as a motivation and did not fix.
+
+**What to do:** Give the session-extract step a way to receive a signal and hand it to the
+extractor, and have `withTimeout` abort a controller when it fires rather than only rejecting.
+Decide whether the signal belongs on `SessionExtractInput` or as a second parameter matching
+`Extractor.extract`'s shape, and say which and why — the two contracts sitting side by side with
+different conventions is the kind of drift this repo keeps correcting.
+
+**Test that must fail first:** A relay test where the extract step exceeds the step timeout, and
+the extractor's transport observes an abort — not merely that the relay moved on. Assert on what
+the transport saw, the way `fallback-extractor.test.ts`'s propagation test does. Prove it
+discriminates: break the wiring, watch it fail, restore, and report the observed output.
+
+## Task 20: an aborted three-phase extraction must reject, not resolve empty
+
+**Phase:** E. Independent. Added after review of Task 9.
+
+**Files:** `packages/ribo-extractor-ondevice/src/three-phase-extractor.ts` — the three retry loops
+and the group-level catch that nulls a group's leaves and continues.
+
+**Problem:** No retry loop checks `signal.aborted`, and the abort's throw is swallowed by the
+group-level catch, which nulls that group's leaves and moves to the next group. So `extract()`
+resolves **successfully with all-null fields** and an inflated `usage.calls` from phantom retries,
+rather than rejecting. A caller who aborted gets something that looks like a clean extraction
+finding nothing — which is worse than an error, because nothing downstream distinguishes it from
+a document that genuinely said nothing.
+
+This predates Task 9 in the sense that abort was previously unreachable here. It is reachable now.
+
+**What to do:** Make an abort propagate out as a rejection. The group-level catch exists to let
+one group's failure null its leaves without losing the others, which is right for an extraction
+failure and wrong for a cancellation — so the catch needs to distinguish them and rethrow. Check
+whether the same swallow-and-continue shape exists in `inventory()`
+(`packages/ribo-extractor-openai/src/instance-fill.ts`), which the review noted receives no signal
+at all.
+
+**Test that must fail first:** Abort mid-extraction and assert `extract()` **rejects**. A test
+asserting only that fields are null would pass against today's broken behaviour, which is the
+trap. Also assert `usage.calls` does not count retries that never ran.
