@@ -17,6 +17,11 @@ export type { SingleShotOptions } from "./single-shot.js";
 export { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 export type { ExtractionGroup } from "./split-schema.js";
 
+// Projection of an extraction target onto one top-level group key — the pure
+// narrow half of per-group prompt assembly, reusable by any strategy.
+export { projectTarget } from "./project-target.js";
+export type { ProjectTargetOptions } from "./project-target.js";
+
 // The per-group managed-LLM extractor (R3 Task 2) — one chat call per top-level
 // group, concurrently with a bounded pool, assembled into one result. The
 // sibling of `singleShotExtractor`; same `Extractor` seam.

@@ -42,6 +42,7 @@ import type {
   ChatRequest,
   ChatUsage,
 } from "./chat-client.js";
+import { projectTarget } from "./project-target.js";
 
 /**
  * Running token totals for a multi-call extraction.
@@ -209,26 +210,16 @@ export function buildGroupMessages<V extends Record<string, unknown>, P = NoProv
   leafKeys?: readonly string[],
 ): ChatMessage[] {
   const perGroup = groupInstructions !== undefined && groupKey !== "";
-  const instructions = perGroup ? groupInstructions!(groupKey) : target.instructions;
-  const messages: ChatMessage[] = [{ role: "system", content: instructions }];
-  for (const example of target.examples ?? []) {
-    if (perGroup) {
-      const projected = singleton
-        ? projectSingletonExample(example, groupKey)
-        : projectExample(example, groupKey);
-      if (projected === null) continue;
-      const fields = leafKeys
-        ? { [groupKey]: narrowToLeaves(projected.fields[groupKey], leafKeys) }
-        : projected.fields;
-      messages.push({ role: "user", content: projected.transcript });
-      messages.push({ role: "assistant", content: JSON.stringify(fields) });
-    } else {
-      messages.push({ role: "user", content: example.transcript });
-      messages.push({ role: "assistant", content: JSON.stringify(example.fields) });
-    }
+  if (!perGroup) {
+    return buildMessages(target, transcript);
   }
-  messages.push({ role: "user", content: transcript });
-  return messages;
+
+  const projected = projectTarget(target, groupKey, {
+    instructions: groupInstructions(groupKey),
+    leafKeys,
+    singleton,
+  });
+  return buildMessages(projected, transcript);
 }
 
 /**
