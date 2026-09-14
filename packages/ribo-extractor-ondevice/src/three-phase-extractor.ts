@@ -250,7 +250,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
 
       const parsed = target.extractionSchema.parse(result);
       return {
-        fields: parsed as Enveloped<V, P>,
+        fields: parsed,
         usage: { calls: emitter.getCalls(), engine: chat.engine },
       };
     },

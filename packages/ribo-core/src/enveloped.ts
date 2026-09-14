@@ -217,7 +217,7 @@ const envelopeObject = (
  * nobody wanted, with nothing to say so. `"row"` on a top-level leaf has no row object to hang the
  * span on, so the granularity would simply not happen.
  */
-const validateProvenance = (
+export const validateProvenance = (
   values: z.ZodObject,
   provenance: Readonly<Record<string, ProvenanceGranularity>>,
 ): void => {

@@ -6,6 +6,7 @@ import type { SessionItem } from "./queue/session-schema.js";
 import type { Transcript } from "./transcript.js";
 
 interface AtticFields {
+  [key: string]: string;
   atticInsulation: string;
 }
 
@@ -201,4 +202,14 @@ test("toSessionExtractStep reports no statedEmptyGroups when the extractor does 
   });
 
   expect(result.statedEmptyGroups).toBeUndefined();
+});
+
+test("toSessionExtractStep rejects an extractor whose fields are a primitive", () => {
+  // @ts-expect-error FakeExtractor<number> does not satisfy the Record<string, unknown> bound
+  toSessionExtractStep(new FakeExtractor(42));
+});
+
+test("toSessionExtractStep accepts an extractor whose fields are an object", () => {
+  const extractor = new FakeExtractor({ key: "val" });
+  expect(toSessionExtractStep(extractor)).toBeDefined();
 });

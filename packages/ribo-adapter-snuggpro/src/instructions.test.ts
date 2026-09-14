@@ -12,7 +12,7 @@ import {
   snuggProInstructions,
   TRANSCRIPT_SECTION,
 } from "./instructions.js";
-import type { FillScope } from "./instructions.js";
+import type { FillScope } from "@azx/ribo-extractor-openai";
 import type { SnuggValues } from "./schema.js";
 
 /**

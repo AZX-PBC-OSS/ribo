@@ -134,10 +134,11 @@ export type ExtractorStatus =
  * indexed blind: `snuggExamples` is a public export, and an empty one should fail
  * loudly here, not surface as an `undefined` fields object downstream.
  */
-const sampleFields = snuggExamples[0]?.fields;
-if (sampleFields === undefined) {
+const firstExample = snuggExamples[0];
+if (firstExample === undefined) {
   throw new Error("snuggExamples is empty — no fixture fields for the FakeExtractor default");
 }
+const sampleFields = firstExample.fields;
 
 /** Options for {@link buildExtractorStep} and {@link buildExtractorWiring}. */
 export interface BuildExtractorOptions {

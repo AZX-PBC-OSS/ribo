@@ -1,7 +1,7 @@
 import type { ToolAdapter } from "./adapter.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import type { NoProvenance } from "./enveloped.js";
-import type { SessionExtractStep, ExtractedFieldMap } from "./queue/relay.js";
+import type { SessionExtractStep } from "./queue/relay.js";
 
 /**
  * @file The extraction contract: how a transcript becomes structured host-tool fields.
@@ -145,11 +145,13 @@ export type ExtractionTarget<V extends Record<string, unknown>, P = NoProvenance
  * the whole point of session-level extraction: the model sees one text, not one
  * per capture.
  */
-export function toSessionExtractStep<F>(extractor: Extractor<F>): SessionExtractStep {
+export function toSessionExtractStep<F extends Record<string, unknown>>(
+  extractor: Extractor<F>,
+): SessionExtractStep {
   return async ({ transcript }) => {
     const result = await extractor.extract(transcript);
     return {
-      fields: result.fields as ExtractedFieldMap,
+      fields: result.fields,
       engine: result.usage.engine,
       usage: result.usage,
       statedEmptyGroups: result.statedEmptyGroups,
