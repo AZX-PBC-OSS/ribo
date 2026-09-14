@@ -780,8 +780,9 @@ test("a nested leaf can be required when its group declares it", () => {
 });
 
 test("provenance keys are constrained to top-level schema keys at compile time", () => {
+  const badOptions = { provenance: { roof: "row" as const } };
   // @ts-expect-error "roof" is not a top-level group of atticSchema
-  const _invalid = () => buildReviewRequest({}, transcript, atticSchema, { provenance: { roof: "row" } });
+  const _invalid = () => buildReviewRequest({}, transcript, atticSchema, badOptions);
   expect(_invalid).toBeDefined();
 });
 

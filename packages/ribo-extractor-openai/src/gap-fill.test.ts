@@ -733,7 +733,9 @@ describe("gapFillOptions provenance parameter", () => {
       extractionSchema: enveloped(rowSchema, { provenance: { rooms: "row" } }),
       instructions: "Extract rooms as a row group.",
     };
-    const base: Extractor<Enveloped<RowValues, { rooms: "row" }>> = new FakeExtractor({ rooms: [] });
+    const base: Extractor<Enveloped<RowValues, { rooms: "row" }>> = new FakeExtractor({
+      rooms: [],
+    });
     gapFillExtractor({ base, target: rowTarget, chat: {} as ChatClient, model: "test" });
   });
 

@@ -153,7 +153,11 @@ describe("SessionHolder", () => {
   });
 
   test("SessionCapabilityError is exported from the barrel", () => {
-    const capability = { status: "unavailable", reason: "unsupported-platform", detail: "test" } as const;
+    const capability = {
+      status: "unavailable",
+      reason: "unsupported-platform",
+      detail: "test",
+    } as const;
     const error = new BarrelSessionCapabilityError(capability);
     expect(error).toBeInstanceOf(SessionCapabilityError);
   });

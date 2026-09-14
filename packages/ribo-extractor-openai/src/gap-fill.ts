@@ -210,10 +210,9 @@ const mapLeaves = (
  * with a null span is a plain, honest abstention and is NOT collected: there is
  * nothing to hand back for a second look.
  */
-export function findAbstainedLeaves<
-  V extends Record<string, unknown>,
-  P = NoProvenance,
->(fields: Enveloped<V, P>): readonly AbstainedLeaf[] {
+export function findAbstainedLeaves<V extends Record<string, unknown>, P = NoProvenance>(
+  fields: Enveloped<V, P>,
+): readonly AbstainedLeaf[] {
   const found: AbstainedLeaf[] = [];
   mapLeaves(fields, [], (leaf, path) => {
     if (leaf.value === null && leaf.sourceSpan !== null) {
@@ -247,10 +246,10 @@ export function findAbstainedLeaves<
  * spans per run and re-asking converted about half of them to verbatim quotes. The values were
  * usually right; the citations had been reformatted or synthesised.
  */
-export function findUngroundedLeaves<
-  V extends Record<string, unknown>,
-  P = NoProvenance,
->(fields: Enveloped<V, P>, transcript: string): readonly AbstainedLeaf[] {
+export function findUngroundedLeaves<V extends Record<string, unknown>, P = NoProvenance>(
+  fields: Enveloped<V, P>,
+  transcript: string,
+): readonly AbstainedLeaf[] {
   const found: AbstainedLeaf[] = [];
   mapLeaves(fields, [], (leaf, path) => {
     if (
@@ -279,18 +278,17 @@ export function formatLeafPath(path: readonly (string | number)[]): string {
  * else keeps its identity. Returns a fresh structure whenever anything changed;
  * the base result is never mutated.
  */
-export function mergeGapFilledLeaves<
-  V extends Record<string, unknown>,
-  P = NoProvenance,
->(fields: Enveloped<V, P>, followUp: Readonly<Record<string, Extracted<unknown>>>): Enveloped<V, P> {
+export function mergeGapFilledLeaves<V extends Record<string, unknown>, P = NoProvenance>(
+  fields: Enveloped<V, P>,
+  followUp: Readonly<Record<string, Extracted<unknown>>>,
+): Enveloped<V, P> {
   // The cast is safe by the walk's contract: replacing leaf envelopes with
   // same-shaped leaf envelopes preserves the Enveloped<V, P> structure, and the
   // follow-up entries were parsed against the leaves' own schemas.
-  return mapLeaves(
-    fields,
-    [],
-    (leaf, path) => followUp[formatLeafPath(path)] ?? leaf,
-  ) as Enveloped<V, P>;
+  return mapLeaves(fields, [], (leaf, path) => followUp[formatLeafPath(path)] ?? leaf) as Enveloped<
+    V,
+    P
+  >;
 }
 
 /**
@@ -363,10 +361,7 @@ Setting null is a fully valid answer and is the right one whenever the transcrip
  * injection boundary (everything after the instructions is the auditor's
  * transcript, never instructions) depends on that ordering.
  */
-const buildGapFillMessages = <
-  V extends Record<string, unknown>,
-  P = NoProvenance,
->(
+const buildGapFillMessages = <V extends Record<string, unknown>, P = NoProvenance>(
   target: ExtractionTarget<V, P>,
   transcript: string,
   candidates: readonly AbstainedLeaf[],

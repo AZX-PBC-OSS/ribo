@@ -1,7 +1,7 @@
 import type { ToolAdapter } from "./adapter.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import type { NoProvenance } from "./enveloped.js";
-import type { SessionExtractStep, ExtractedFieldMap } from "./queue/relay.js";
+import type { SessionExtractStep } from "./queue/relay.js";
 
 /**
  * @file The extraction contract: how a transcript becomes structured host-tool fields.

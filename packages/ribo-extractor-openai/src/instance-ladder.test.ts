@@ -12,7 +12,6 @@ import type {
   ExtractionArbiter,
   ExtractionTarget,
   ExtractionUnit,
-  Extractor,
   ResultOutcome,
 } from "@azx/ribo-core";
 
