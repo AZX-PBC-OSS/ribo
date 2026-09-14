@@ -268,9 +268,13 @@ the same slot:
   "as a `PluginStorage` handed to a plugin alongside its input". That is this options bag. Decide the
   two together so the contract is widened once, not twice.
 
-Declare `extract` as a function-typed property, not a method, for the reason `transcriber.ts`
-already documents (method parameters are bivariant under `strictFunctionTypes`; a narrow group
-extractor must fail a wide slot, which is the whole point of `Pick<…>` in §4.1). Blast radius is
+Declare `extract` as a function-typed property, not a method, for consistency with
+`Transcriber.transcribe` and `ToolAdapter.write` — and because the options bag is a parameter, the
+position where method bivariance can bite the day it varies with a type parameter. It is **not**
+needed for the `Pick<…>` narrowing in §4.1: `F` sits in the return position, which is covariant for
+methods and properties alike, so a narrow group extractor already fails a wide slot under today's
+method syntax (verified by a compile probe — `type-story-findings.md` D1; an earlier draft of this
+paragraph claimed otherwise). Blast radius is
 P4's list — six implementations, `FakeExtractor`, `toSessionExtractStep`, two call sites in
 `arbitration.ts` — and, like P4, the argument is timing: nothing is published.
 
