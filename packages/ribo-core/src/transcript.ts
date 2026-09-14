@@ -12,13 +12,16 @@ import { z } from "zod";
  * downstream needs them yet, and a shape nobody consumes is a shape nobody keeps
  * honest.
  *
- * Neither are annotations, and that one is now a known gap rather than a deliberate omission.
- * {@link AnnotatedTranscript} carries an annotations bag, but a transcriber cannot reach it: this
- * type is what `transcribe` returns and it has no such field, so the bag is filled by core from
- * queue metadata instead. A document transcriber with page boundaries or table structure to
- * report has nowhere to put them. Adding the field here is decided; because this object is
- * persisted inside the outbox document, it is an outbox version bump plus a migration strategy,
- * not a type edit. See the plan in `docs/roadmap/plans/`.
+ * Annotations are an optional field on this type. When a transcriber produces them (page
+ * boundaries, table structure, a provider's own structured response), they travel alongside
+ * the text into the outbox document and are merged into the {@link AnnotatedTranscript}
+ * annotations bag by `listSessionTranscriptParts`. The relay also supplies capture metadata
+ * (`capture.seq`, `capture.kind`, `capture.id`) into the same bag; the `capture.` prefix is a
+ * reserved namespace so a transcriber's own `seq` or `id` cannot collide with it. A transcriber
+ * that produces no annotations simply omits the field — existing documents have no annotations,
+ * which is the correct state for them. Because this object is persisted inside the outbox
+ * document, adding the field required an outbox version bump (v6 → v7) and a migration strategy;
+ * the strategy is identity, since the field is optional and absent on existing documents.
  *
  * **Confidence here is the transcriber's overall score for the utterance, and it is not
  * load-bearing.** Per-field confidence is a different thing entirely: it lives in the provenance
@@ -57,6 +60,23 @@ export const transcriptSchema = z.strictObject({
    * nullable because not every engine emits it; see the note above before using it for anything.
    */
   confidence: z.number().min(0).max(1).optional(),
+  /**
+   * Optional annotations bag — structured data a transcriber contributes alongside
+   * the text (page boundaries, table structure, provider metadata). Shaped as the same
+   * open record {@link AnnotatedTranscript} uses, so it merges directly into the
+   * annotations bag that an extractor receives.
+   *
+   * Optional because not every transcriber produces annotations; absent is the correct
+   * state for a transcript that carries none. Persisted inside the outbox document, so
+   * adding this field required outbox schema version 7 and a migration strategy (identity,
+   * since the field is optional).
+   *
+   * The relay populates the annotations bag with capture metadata under a reserved
+   * `capture.` prefix (`capture.seq`, `capture.kind`, `capture.id`); a transcriber's own
+   * annotations are spread at the top level and cannot collide with those keys unless the
+   * transcriber deliberately uses the reserved prefix.
+   */
+  annotations: z.record(z.string(), z.unknown()).optional(),
 });
 
 /** Inferred from {@link transcriptSchema} — never hand-declared alongside it. */

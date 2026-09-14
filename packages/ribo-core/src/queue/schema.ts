@@ -264,7 +264,7 @@ export type OutboxPatch = Partial<
  * document against each other so they cannot drift apart unnoticed.
  */
 export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
-  version: 6,
+  version: 7,
   primaryKey: "id",
   type: "object",
   properties: {

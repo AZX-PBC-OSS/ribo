@@ -31,10 +31,10 @@ export interface DefaultTranscriptCombinerOptions {
    * value to the capture it came from. Mirrors the page-marker convention
    * (`\n===== PAGE n =====\n`) from `@azx/ribo-transcriber-pdfjs`.
    *
-   * The marker is built from `seq`, `kind`, and `id` in each part's
-   * `annotations` bag — the relay populates these from the outbox item. The
-   * bag is open by design; the default combiner reads these keys and nothing
-   * else.
+   *    The marker is built from `capture.seq`, `capture.kind`, and `capture.id`
+   *    in each part's `annotations` bag — the relay populates these from the
+   *    outbox item under a reserved `capture.` prefix. The bag is open by design;
+   *    the default combiner reads these keys and nothing else.
    *
    * Defaults to `false`: the joined text is unchanged for existing callers.
    * What every extractor sees does not shift unless the caller explicitly opts
@@ -55,7 +55,7 @@ export interface DefaultTranscriptCombinerOptions {
 const CAPTURE_MARKER_PREFIX = "\n===== CAPTURE ";
 
 /** The annotation keys a marker is built from, in the order they appear in it. */
-const MARKER_KEYS = ["seq", "kind", "id"] as const;
+const MARKER_KEYS = ["capture.seq", "capture.kind", "capture.id"] as const;
 
 /**
  * Build the per-capture marker for one part.
@@ -64,13 +64,18 @@ const MARKER_KEYS = ["seq", "kind", "id"] as const;
  * `isSpanGrounded` still finds a verbatim quote from within the transcript as a
  * substring of the joined text. The `\n` at each end of the marker separates it
  * from surrounding text without needing a join space.
+ *
+ * The keys are read from the `capture.` namespace the relay reserves for
+ * capture metadata. The marker output still reads `seq:N kind:K id:I` — the
+ * namespace is where the value comes from, not what the marker says.
  */
 function captureMarker(part: AnnotatedTranscript, index: number): string {
   const a = part.annotations;
-  // Read explicitly rather than `String(a.seq)`. The bag is `unknown`-valued, so a part built
-  // without these keys would stringify to `seq:undefined` and inject that into the canonical
-  // text — the string a model quotes from and a reviewer reads. Silent garbage in the grounding
-  // substrate is the one failure this file must not produce, so a missing key is an error.
+  // Read explicitly rather than `String(a["capture.seq"])`. The bag is
+  // `unknown`-valued, so a part built without these keys would stringify to
+  // `seq:undefined` and inject that into the canonical text — the string a model
+  // quotes from and a reviewer reads. Silent garbage in the grounding substrate
+  // is the one failure this file must not produce, so a missing key is an error.
   const marker = MARKER_KEYS.map((key) => {
     const value = a[key];
     if (typeof value !== "string" && typeof value !== "number") {
@@ -80,7 +85,8 @@ function captureMarker(part: AnnotatedTranscript, index: number): string {
           `outbox item; a hand-built part must supply them.`,
       );
     }
-    return `${key}:${value}`;
+    // The marker reads `seq:N` not `capture.seq:N` — the namespace is internal.
+    return `${key.slice("capture.".length)}:${value}`;
   }).join(" ");
   return `${CAPTURE_MARKER_PREFIX}${marker} =====\n`;
 }

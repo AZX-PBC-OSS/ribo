@@ -16,7 +16,7 @@ import { createDefaultTranscriptCombiner } from "./transcript-combiner.js";
 
 /** Build a part the way the relay does: text from the transcript, metadata from the item. */
 function part(seq: number, kind: string, id: string, text: string): AnnotatedTranscript {
-  return { text, annotations: { seq, kind, id } };
+  return { text, annotations: { "capture.seq": seq, "capture.kind": kind, "capture.id": id } };
 }
 
 test("multiple parts join with a single space when markCaptures is false", () => {
@@ -115,14 +115,19 @@ test("markCaptures rejects a part missing its marker annotations", () => {
   const combine = createDefaultTranscriptCombiner({ markCaptures: true });
 
   expect(() => combine([{ text: "hello", annotations: {} }])).toThrow(TypeError);
-  expect(() => combine([{ text: "hello", annotations: {} }])).toThrow(/seq/);
-  expect(() => combine([{ text: "hello", annotations: { seq: 0, kind: "audio" } }])).toThrow(
-    /\bid\b/,
-  );
+  expect(() => combine([{ text: "hello", annotations: {} }])).toThrow(/capture\.seq/);
+  expect(() =>
+    combine([{ text: "hello", annotations: { "capture.seq": 0, "capture.kind": "audio" } }]),
+  ).toThrow(/\bcapture\.id\b/);
 });
 
 test("markCaptures accepts numeric and string marker annotations", () => {
   const combine = createDefaultTranscriptCombiner({ markCaptures: true });
-  const out = combine([{ text: "hello", annotations: { seq: 0, kind: "audio", id: "rec-1" } }]);
+  const out = combine([
+    {
+      text: "hello",
+      annotations: { "capture.seq": 0, "capture.kind": "audio", "capture.id": "rec-1" },
+    },
+  ]);
   expect(out.text).toBe("\n===== CAPTURE seq:0 kind:audio id:rec-1 =====\nhello");
 });

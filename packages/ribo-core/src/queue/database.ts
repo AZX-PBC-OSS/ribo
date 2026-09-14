@@ -175,6 +175,16 @@ const V5_SESSION_OWNED_STATUSES = new Set(["extracting", "awaiting-review", "wri
  * state machine narrows to capture + transcription: `extracting`, `awaiting-review`,
  * `writing` and `done` are gone; `transcribed` is new.
  *
+ * v6 → v7 adds an optional `annotations` field to the `transcript` sub-object,
+ * so a transcriber can contribute structured data (page boundaries, table
+ * structure) alongside the text. The field is optional and absent on existing
+ * documents, so the strategy is identity — the same reasoning as strategies 1
+ * through 5: an absent optional field needs no transformation. `transcript` is
+ * typed as `{ type: "object" }` in the RxDB schema, so RxDB neither validates
+ * nor indexes its interior and the new field is invisible to it; the version
+ * bump is still required because RxDB refuses to open a collection whose stored
+ * schema version does not match the declared one.
+ *
  * RxDB migration strategies run per-document within a collection and cannot
  * create documents in another collection. The split is therefore done as
  * **expand/contract**, the standard way to divide one entity into two:
@@ -255,6 +265,7 @@ export const OUTBOX_MIGRATION_STRATEGIES = {
     next.sessionId = migratedSessionId((doc.recording as { ctx?: unknown } | undefined)?.ctx);
     return next as OutboxDocument;
   },
+  7: (doc: OutboxDocument) => doc,
 };
 
 /**

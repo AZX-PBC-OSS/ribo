@@ -544,7 +544,7 @@ test("a custom combiner injected through the relay is the one that runs", async 
   // combiner, not its own.
   const outbox = await openTestOutbox(uniqueName());
   const custom: TranscriptCombiner = (parts) => ({
-    text: parts.map((p) => `[${String(p.annotations.seq)}] ${p.text}`).join("\n---\n"),
+    text: parts.map((p) => `[${String(p.annotations["capture.seq"])}] ${p.text}`).join("\n---\n"),
     annotations: {},
   });
   const harness = await buildRelay(outbox, { combineTranscripts: custom });
@@ -562,7 +562,7 @@ test("parts reach the combiner sorted by seq, not in database order", async () =
   const outbox = await openTestOutbox(uniqueName());
   const seenSeqs: number[] = [];
   const capturing: TranscriptCombiner = (parts) => {
-    seenSeqs.push(...parts.map((p) => Number(p.annotations.seq)));
+    seenSeqs.push(...parts.map((p) => Number(p.annotations["capture.seq"])));
     return { text: parts.map((p) => p.text).join(" "), annotations: {} };
   };
   const harness = await buildRelay(outbox, { combineTranscripts: capturing });

@@ -35,17 +35,16 @@ export interface AnnotatedTranscript {
    * Open bag of annotations alongside the text. Does not affect grounding —
    * `isSpanGrounded` reads `text` only.
    *
-   * **Today this is populated by core, not by transcribers.** The relay fills it from outbox row
-   * metadata (`seq`, `kind`, `id` — see `listSessionTranscriptParts`), and the default combiner
-   * reads those to build per-capture markers. A `Transcriber` has no way to contribute: it returns
-   * a {@link Transcript}, which carries no annotations field, so page boundaries and table
-   * structure have nowhere to go.
-   *
-   * That is a gap, not the intended end state — an earlier version of this comment claimed
-   * transcribers populate the bag, which was never true. Closing it means adding the field to
-   * `Transcript`, which is persisted inside the outbox document, so it is a stored-schema change
-   * needing an outbox version bump and a migration strategy rather than a type edit. Decided and
-   * planned; see the plan in `docs/roadmap/plans/`.
+   * **Two sources merge into the bag.** The relay fills `capture.seq`,
+   * `capture.kind`, and `capture.id` from outbox row metadata, so a combiner
+   * that builds per-capture markers has what it needs without reaching back into
+   * the database. A `Transcriber` that produces its own annotations (page
+   * boundaries, table structure, a provider's own structured response) spreads
+   * them at the top level alongside the relay's keys. The `capture.` prefix is a
+   * reserved namespace: a transcriber's own `seq` or `id` cannot collide with
+   * the relay's metadata, because the relay's keys are namespaced under `capture.`
+   * and the transcriber's are not. If a transcriber does use a `capture.`-prefixed
+   * key, the relay's value wins.
    *
    * Note also that annotations do **not** survive combination: a {@link TranscriptCombiner}
    * returns one transcript with its own bag, and the default returns an empty one. Per-part

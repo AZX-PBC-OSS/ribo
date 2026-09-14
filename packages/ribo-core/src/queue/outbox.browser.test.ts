@@ -10,6 +10,7 @@ import type { Recording } from "../recording.js";
 import { summarizeWork } from "../work-safety.js";
 import { FINISHED_SESSION_STATUSES } from "./session-schema.js";
 import { openOutbox, type Outbox } from "./outbox.js";
+import { listSessionTranscriptParts } from "./session-extract.js";
 import { OUTBOX_MIGRATION_STRATEGIES, backfillSessions, removeOutboxDatabase } from "./database.js";
 import { chunkName } from "./chunk-names.js";
 import {
@@ -207,10 +208,10 @@ test("step outputs written before a close are readable after a reopen", async ()
 });
 
 // ---------------------------------------------------------------------------
-// The v0 → v6 schema migration.
+// The v0 → v7 schema migration.
 //
-// A reopen does not test this: `openOutbox` can only ever create a v6 store, so
-// two opens against the same name both see version 6, nothing migrates, and the
+// A reopen does not test this: `openOutbox` can only ever create a v7 store, so
+// two opens against the same name both see version 7, nothing migrates, and the
 // test would pass whether or not the migration plugin and strategy exist at all
 // — the exact "passes while production is broken" shape this file's own header
 // warns about for the durability test above.
@@ -223,14 +224,14 @@ test("step outputs written before a close are readable after a reopen", async ()
 // store (one per `<collection>-<version>`, holding that version's schema), not
 // from the presence of rows in the versioned physical database. A hand-written
 // `docs` row with no matching internal meta document is invisible to
-// `mustMigrate()` — RxDB just creates a fresh v6 collection and never looks at
+// `mustMigrate()` — RxDB just creates a fresh v7 collection and never looks at
 // the row, so the test would report a pass while testing nothing, which is a
 // worse failure mode than the reopen it was meant to replace.
 //
 // So the v0 store here is seeded through RxDB's own public API instead: a real
 // collection, created at `version: 0` with the schema this file *used* to have
 // before this change, populates that internal bookkeeping for real. Opening a
-// v6 database over the same name then runs the actual migration path, not an
+// v7 database over the same name then runs the actual migration path, not an
 // imitation of it.
 // ---------------------------------------------------------------------------
 
@@ -324,7 +325,7 @@ async function seedVersionZeroOutbox(name: string, document: V0OutboxDocument): 
   await database.close();
 }
 
-test("an outbox stored at schema version 0 opens and migrates to version 6", async () => {
+test("an outbox stored at schema version 0 opens and migrates to version 7", async () => {
   const name = uniqueName();
   await seedVersionZeroOutbox(name, v0Document());
 
@@ -817,6 +818,177 @@ test("the extraction survives when a later recording carries it, not the first",
   // cache as valid and suppress the session-wide re-extraction that repairs it.
   expect(session?.extractedFromRecordingIds).toEqual(["second"]);
   await outbox.close();
+});
+
+// ---------------------------------------------------------------------------
+// The v6 → v7 schema migration — transcript annotations.
+//
+// v7 adds an optional `annotations` field to the `transcript` sub-object, so a
+// transcriber can contribute structured data (page boundaries, table structure)
+// alongside the text. The field is optional and absent on existing documents, so
+// the migration strategy is identity. The test seeds a real v6 collection with a
+// transcribed item, reopens through the real path (which is now v7), and asserts
+// the item survives with its transcript intact and the `annotations` key truly
+// absent — not `undefined`-valued (which a present-but-undefined key would also
+// satisfy), not `{}`.
+//
+// Without the strategy for version 7, RxDB refuses to open the collection at all —
+// the error arrives at open time and does not mention migrations (see the comment
+// on `OUTBOX_MIGRATION_STRATEGIES` in `database.ts`). So the test failing without
+// the migration is not a data-integrity assertion but an open-time failure.
+// ---------------------------------------------------------------------------
+
+/** The outbox RxDB schema as it was at version 6 — identical to v7 except the version. */
+const OUTBOX_RX_SCHEMA_V6: RxJsonSchema<OutboxDocument> = {
+  version: 6,
+  primaryKey: "id",
+  type: "object",
+  properties: {
+    id: { type: "string", maxLength: 64 },
+    seq: { type: "number", minimum: 0, maximum: 1_000_000_000, multipleOf: 1 },
+    status: { type: "string", maxLength: 16 },
+    sessionId: { type: "string", maxLength: 64 },
+    attempts: { type: "integer", minimum: 0 },
+    nextAttemptAt: { type: "string", maxLength: 32 },
+    enqueuedAt: { type: "string", maxLength: 32 },
+    lastError: { type: "string" },
+    recording: { type: "object" },
+    transcript: { type: "object" },
+    capture: { type: "object" },
+    preview: { type: "object" },
+    legacy: { type: "object" },
+  },
+  required: [
+    "id",
+    "seq",
+    "status",
+    "sessionId",
+    "attempts",
+    "nextAttemptAt",
+    "enqueuedAt",
+    "recording",
+  ],
+  indexes: ["seq"],
+  attachments: {},
+};
+
+/** A v6 outbox document with a transcript that has no annotations field. */
+function v6TranscribedDocument(): OutboxDocument {
+  return {
+    id: "v6-item",
+    seq: 0,
+    status: "transcribed",
+    sessionId: "sess-1",
+    attempts: 1,
+    nextAttemptAt: "2026-07-23T10:05:00.000Z",
+    enqueuedAt: "2026-07-23T10:00:00.000Z",
+    recording: {
+      id: "rec-1",
+      capturedAt: "2026-07-23T10:00:00.000Z",
+      kind: "audio",
+      durationMs: 4200,
+      mimeType: "audio/webm",
+      ctx: {},
+    },
+    transcript: {
+      recordingId: "rec-1",
+      text: "the attic is R-19",
+      engine: "ondevice-whisper",
+    },
+  };
+}
+
+/**
+ * Seed a real outbox collection at schema version 6. Unlike the v0 seeding, this
+ * needs the migration plugin registered (RxDB requires it for any version above 0).
+ */
+async function seedVersionSixOutbox(name: string, document: OutboxDocument): Promise<void> {
+  addRxPlugin(RxDBAttachmentsPlugin);
+  addRxPlugin(RxDBMigrationSchemaPlugin);
+  const database: RxDatabase<{ outbox: RxCollection<OutboxDocument> }> = await createRxDatabase({
+    name,
+    storage: getRxStorageDexie(),
+    multiInstance: true,
+    eventReduce: true,
+    cleanupPolicy: {},
+  });
+  await database.addCollections({
+    [OUTBOX_COLLECTION_NAME]: { schema: OUTBOX_RX_SCHEMA_V6 },
+  });
+  await database.collections.outbox.insert(document);
+  await database.close();
+}
+
+test("an outbox stored at schema version 6 opens and migrates to version 7", async () => {
+  const name = uniqueName();
+  await seedVersionSixOutbox(name, v6TranscribedDocument());
+
+  const outbox = await open(name);
+  const items = await outbox.list({});
+
+  expect(items).toHaveLength(1);
+  expect(items[0]?.id).toBe("v6-item");
+  expect(items[0]?.status).toBe("transcribed");
+
+  // The transcript survived intact — text and engine are unchanged.
+  expect(items[0]?.transcript).toBeDefined();
+  expect(items[0]?.transcript?.text).toBe("the attic is R-19");
+  expect(items[0]?.transcript?.engine).toBe("ondevice-whisper");
+
+  // The annotations key is truly absent from the persisted transcript — not
+  // `undefined`-valued (which a present-but-undefined key would also satisfy),
+  // not `{}`. This is the property the identity strategy preserves: an optional
+  // field that was never written is not written by the migration either.
+  expect(items[0]?.transcript).not.toHaveProperty("annotations");
+
+  await outbox.close();
+});
+
+// ---------------------------------------------------------------------------
+// Round-trip: a transcriber's annotations survive a close and reopen.
+//
+// Reopening is the point — an in-memory pass-through would satisfy a weaker test
+// and miss the durability this exists for. The transcript (with annotations) is
+// written through `writeTranscript`, the outbox is closed, a fresh handle is
+// opened, and `listSessionTranscriptParts` yields a part whose bag contains the
+// transcriber's keys alongside the relay's namespaced `capture.*` metadata.
+// ---------------------------------------------------------------------------
+
+test("a transcriber's annotations survive a close and reopen through listSessionTranscriptParts", async () => {
+  const name = uniqueName();
+
+  const first = await open(name);
+  const session = await first.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const item = await first.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
+  await first.writeTranscript(
+    item.id,
+    {
+      recordingId: recording.id,
+      text: "the attic is R-19",
+      engine: "ondevice-whisper",
+      annotations: { pages: [{ start: 0, end: 120 }], source: "managed-docs" },
+    },
+    { status: "transcribed" },
+  );
+  await first.close();
+
+  // A fresh handle — the bytes must come from IndexedDB, not memory.
+  const second = await open(name);
+  const { parts } = await listSessionTranscriptParts(second, session.id);
+
+  expect(parts).toHaveLength(1);
+  expect(parts[0]?.text).toBe("the attic is R-19");
+
+  // The transcriber's annotations survived the round-trip.
+  expect(parts[0]?.annotations["pages"]).toEqual([{ start: 0, end: 120 }]);
+  expect(parts[0]?.annotations["source"]).toBe("managed-docs");
+
+  // The relay's capture metadata is namespaced under `capture.` and coexists.
+  expect(parts[0]?.annotations["capture.seq"]).toBe(item.seq);
+  expect(parts[0]?.annotations["capture.kind"]).toBe("audio");
+  expect(parts[0]?.annotations["capture.id"]).toBe(item.id);
+
+  await second.close();
 });
 
 // ---------------------------------------------------------------------------
