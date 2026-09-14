@@ -55,7 +55,15 @@ export type { SchemaRetryOptions } from "./schema-retry.js";
 // Per-group prompt assembly: `buildGroupMessages` builds per-group chat messages
 // (instructions + projected examples + transcript), and `projectExample` narrows
 // a few-shot example to a single group's key. Exported for testing (R3 Task 4).
-export { buildGroupMessages, projectExample } from "./extraction-common.js";
+export {
+  assertStopFinishReason,
+  buildGroupMessages,
+  buildMessages,
+  completeOrClassify,
+  parseJsonContent,
+  parseWithSchema,
+  projectExample,
+} from "./extraction-common.js";
 
 // The Task 9 inventory-pass extraction phase: one house-wide call that returns a
 // roster of candidate instances per collection group, parsed through a supplied
