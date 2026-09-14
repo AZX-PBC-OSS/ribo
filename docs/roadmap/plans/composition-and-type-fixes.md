@@ -2,9 +2,12 @@
 
 > **For anyone implementing this, human or agent:** work task-by-task. Tasks in Phase A are
 > independent and may land in any order. Phase B must precede Phase C. Phase D is sequential
-> within itself and depends on Phases C. Phase E is independent of everything else. If a task's
+> within itself and depends on Phase C. Phase E is independent of everything else. If a task's
 > premise turns out to be wrong against the actual code, stop and say so rather than improvising
 > around it.
+>
+> Task 17 was added after this plan was reviewed, from a question neither source document covers:
+> how the `AnnotatedTranscript` annotations bag gets types. It is Phase A and independent.
 
 **Goal:** Make each top-level schema group its own composable `Extractor`, and fix the type-story
 defects the review found — threading `P` through two wrappers that lost it, constraining a
@@ -24,7 +27,8 @@ pnpm 10.34.5 catalog.
 
 **Design:** [`../design/per-group-composition-design.md`](../design/per-group-composition-design.md)
 — read §1–§4 before Task 9. [`../design/type-story-findings.md`](../design/type-story-findings.md)
-— read B1–B6 and P1–P8 before Task 1.
+— read B1–B6 and P1–P8 before Task 1. Neither document covers the annotations bag; Task 17
+states its own evidence.
 
 ## Global Constraints
 
@@ -540,3 +544,63 @@ Report the number and the decision.
   it. Deferred by the design itself.
 
 - **O1–O6 (observations):** No action proposed by the findings document itself.
+
+## Task 17: Type the annotations bag through the transcriber→combiner leg
+
+**Phase:** A. Independent of every other task, including Task 9 — verified below.
+
+**Files:** `packages/ribo-core/src/annotated-transcript.ts` (the `AnnotatedTranscript` interface),
+`packages/ribo-core/src/transcript-combiner.ts` (`TranscriptCombiner`, `createDefaultTranscriptCombiner`,
+`captureMarker`), `packages/ribo-core/src/queue/session-extract.ts` (the producer at the
+`annotations: { seq, kind, id }` literal), `packages/ribo-core/src/queue/relay.ts`
+(`RelayOptions.combineTranscripts`), `packages/ribo-core/src/index.ts` (exports).
+
+**Problem:** `AnnotatedTranscript.annotations` is `Readonly<Record<string, unknown>>`. Neither
+source document covers it — the type-story findings reviewed nine packages and 21 items and does
+not mention annotations at all, despite this being the newest contract in the tree.
+
+The bag was left open deliberately, on the grounds that a schema for a consumer that does not
+exist would be wrong. That consumer now exists and the cost is already visible: `session-extract.ts`
+writes `seq`, `kind` and `id`, `transcript-combiner.ts` reads all three back, and because the
+compiler can check nothing across that gap, `captureMarker` hand-validates each key at runtime and
+throws a `TypeError` naming the part index. A producer and a consumer **in the same package** need
+a runtime guard to agree on three fields.
+
+**What to do:** Give `AnnotatedTranscript` a type parameter for the bag, defaulted so existing
+code is unaffected: the annotations property becomes the parameter rather than
+`Record<string, unknown>`. Give `TranscriptCombiner` **two** parameters, one for the parts it
+consumes and one for the transcript it returns — the combined transcript's annotations are not any
+input's annotations, and the default combiner returns an empty bag today, so a single parameter
+would force it to claim a shape it does not produce. Declare the capture annotations the relay
+already writes as a named exported type, and type the producer and `captureMarker` against it.
+
+Keep `captureMarker`'s runtime guard. The parameter makes the shape known at compile time within
+our own pipeline; it does not validate, and the guard is what catches a hand-built part or a
+plugin that declares one shape and writes another.
+
+**Four properties verified by compile probe before writing this task** — reproduce them as the
+first step rather than trusting this text:
+
+1. A narrow transcript assigns into a wider union slot (the annotations property is covariant), so
+   a pdfjs transcript and a dictation transcript coexist in one parts array typed as their union.
+2. A discriminated union narrows at the read site. The bag already carries a usable discriminant:
+   the relay writes `kind` from `recording.kind`, which is `audio` or `document`.
+3. A two-parameter combiner accepts a union in and returns a different annotation type out.
+4. **An extractor that ignores annotations still accepts any of them.** This is the load-bearing
+   one: `Extractor` needs no second type parameter, because nothing downstream of the combiner
+   reads annotations. Confirm by grep before starting — if a reader has appeared, this task's shape
+   changes and the plan needs revisiting.
+
+**Explicitly not in scope:** runtime validation of annotations via a zod schema parsed at the read.
+That is the right answer where annotations cross a genuine trust boundary — a provider's response,
+or a plugin shipped by someone else — and it composes with this change rather than competing with
+it. Nothing produces annotations from outside our own pipeline today, so it is deferred. Record it
+as an open question rather than building it.
+
+**Test that must fail first:** A type-level test asserting that two transcripts with different
+annotation shapes assign into one union-typed parts array, and that the discriminant narrows to the
+correct member's fields on each branch — with `@ts-expect-error` on a read of a field belonging to
+the other member. A second test asserting the default combiner still returns an empty bag and its
+output type says so. The existing `transcript-combiner.test.ts` suite (12 tests, including the
+byte-for-byte output gate and the missing-annotation `TypeError`) is the regression gate and must
+pass untouched — this task changes types, not behaviour.
