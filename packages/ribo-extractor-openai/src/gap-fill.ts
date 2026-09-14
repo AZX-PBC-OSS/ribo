@@ -44,6 +44,7 @@ import type {
   ExtractionTarget,
   ExtractionUsage,
   GapFillUnit,
+  NoProvenance,
 } from "@azx/ribo-core";
 
 import type { ChatClient, ChatMessage, ChatUsage } from "./chat-client.js";
@@ -67,6 +68,7 @@ import {
  */
 export interface GapFillOptions<
   V extends Record<string, unknown>,
+  P = NoProvenance,
 > extends ExtractionObserver<GapFillUnit> {
   /**
    * The wrapped extractor. Its result is the base the follow-up merges into.
@@ -77,7 +79,7 @@ export interface GapFillOptions<
    * whatever `onUnit` the caller gave the base when constructing it. `onUnit` on
    * THIS options object observes the follow-up call only.
    */
-  readonly base: Extractor<Enveloped<V>>;
+  readonly base: Extractor<Enveloped<V, P>>;
   /**
    * The field knowledge: the follow-up reads its scoped schema from
    * `extractionSchema` and builds on `instructions`. Few-shot `examples` are NOT
@@ -86,7 +88,7 @@ export interface GapFillOptions<
    * the scoped `response_format` forbids (the mismatch the per-group extractor's
    * leaf narrowing exists to avoid).
    */
-  readonly target: ExtractionTarget<V>;
+  readonly target: ExtractionTarget<V, P>;
   /** The injected chat transport for the follow-up call. A fake in tests. */
   readonly chat: ChatClient;
   /** The model id passed through to the endpoint. */
@@ -104,7 +106,7 @@ export interface GapFillOptions<
    * merged whole so the follow-up's fresh leaves go through the same pass. Never
    * runs on the passthrough path. Defaults to identity.
    */
-  readonly normalize?: (fields: Enveloped<V>) => Enveloped<V>;
+  readonly normalize?: (fields: Enveloped<V, P>) => Enveloped<V, P>;
   /**
    * Which kinds of gap to re-ask about. Defaults to `["abstained"]` — the original behaviour.
    *
@@ -208,9 +210,10 @@ const mapLeaves = (
  * with a null span is a plain, honest abstention and is NOT collected: there is
  * nothing to hand back for a second look.
  */
-export function findAbstainedLeaves<V extends Record<string, unknown>>(
-  fields: Enveloped<V>,
-): readonly AbstainedLeaf[] {
+export function findAbstainedLeaves<
+  V extends Record<string, unknown>,
+  P = NoProvenance,
+>(fields: Enveloped<V, P>): readonly AbstainedLeaf[] {
   const found: AbstainedLeaf[] = [];
   mapLeaves(fields, [], (leaf, path) => {
     if (leaf.value === null && leaf.sourceSpan !== null) {
@@ -244,10 +247,10 @@ export function findAbstainedLeaves<V extends Record<string, unknown>>(
  * spans per run and re-asking converted about half of them to verbatim quotes. The values were
  * usually right; the citations had been reformatted or synthesised.
  */
-export function findUngroundedLeaves<V extends Record<string, unknown>>(
-  fields: Enveloped<V>,
-  transcript: string,
-): readonly AbstainedLeaf[] {
+export function findUngroundedLeaves<
+  V extends Record<string, unknown>,
+  P = NoProvenance,
+>(fields: Enveloped<V, P>, transcript: string): readonly AbstainedLeaf[] {
   const found: AbstainedLeaf[] = [];
   mapLeaves(fields, [], (leaf, path) => {
     if (
@@ -276,18 +279,18 @@ export function formatLeafPath(path: readonly (string | number)[]): string {
  * else keeps its identity. Returns a fresh structure whenever anything changed;
  * the base result is never mutated.
  */
-export function mergeGapFilledLeaves<V extends Record<string, unknown>>(
-  fields: Enveloped<V>,
-  followUp: Readonly<Record<string, Extracted<unknown>>>,
-): Enveloped<V> {
+export function mergeGapFilledLeaves<
+  V extends Record<string, unknown>,
+  P = NoProvenance,
+>(fields: Enveloped<V, P>, followUp: Readonly<Record<string, Extracted<unknown>>>): Enveloped<V, P> {
   // The cast is safe by the walk's contract: replacing leaf envelopes with
-  // same-shaped leaf envelopes preserves the Enveloped<V> structure, and the
+  // same-shaped leaf envelopes preserves the Enveloped<V, P> structure, and the
   // follow-up entries were parsed against the leaves' own schemas.
   return mapLeaves(
     fields,
     [],
     (leaf, path) => followUp[formatLeafPath(path)] ?? leaf,
-  ) as Enveloped<V>;
+  ) as Enveloped<V, P>;
 }
 
 /**
@@ -360,8 +363,11 @@ Setting null is a fully valid answer and is the right one whenever the transcrip
  * injection boundary (everything after the instructions is the auditor's
  * transcript, never instructions) depends on that ordering.
  */
-const buildGapFillMessages = <V extends Record<string, unknown>>(
-  target: ExtractionTarget<V>,
+const buildGapFillMessages = <
+  V extends Record<string, unknown>,
+  P = NoProvenance,
+>(
+  target: ExtractionTarget<V, P>,
   transcript: string,
   candidates: readonly AbstainedLeaf[],
 ): ChatMessage[] => {
@@ -481,7 +487,7 @@ const combinedUsage = (
  *      a fresh result object; `normalize` runs once over the merged whole, and
  *      usage sums the base run plus this call.
  */
-export function gapFillExtractor<V extends Record<string, unknown>>({
+export function gapFillExtractor<V extends Record<string, unknown>, P = NoProvenance>({
   base,
   target,
   chat,
@@ -490,14 +496,14 @@ export function gapFillExtractor<V extends Record<string, unknown>>({
   normalize = (fields) => fields,
   onUnit,
   targets = ["abstained"],
-}: GapFillOptions<V>): Extractor<Enveloped<V>> {
+}: GapFillOptions<V, P>): Extractor<Enveloped<V, P>> {
   const wanted = new Set<GapFillTarget>(targets);
   const context = `gapFillExtractor: model response for "${target.name}"`;
   // `-`, not `:` — the schema-name charset constraint documented in per-group.
   const name = `${target.name}-gap-fill`;
 
   return {
-    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V>>> {
+    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
       const baseResult = await base.extract(transcript);
       const candidates = [
         ...(wanted.has("abstained") ? findAbstainedLeaves(baseResult.fields) : []),
@@ -559,7 +565,7 @@ export function gapFillExtractor<V extends Record<string, unknown>>({
           acceptImprovements(parsed, candidates, transcript.text),
         );
 
-        const result: ExtractionResult<Enveloped<V>> = {
+        const result: ExtractionResult<Enveloped<V, P>> = {
           fields: normalize(merged),
           // Mirrors per-group: `raw` is the assembled whole the final normalize ran
           // over, so both calls' contributions stay visible in one place.

@@ -1,5 +1,5 @@
 import { enveloped, FakeExtractor, isTransientFailure, SchemaParseError } from "@azx/ribo-core";
-import type { Enveloped, ExtractionTarget, GapFillUnit } from "@azx/ribo-core";
+import type { Enveloped, ExtractionTarget, Extractor, GapFillUnit } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
@@ -709,5 +709,44 @@ describe("findUngroundedLeaves", () => {
     };
     expect(findUngroundedLeaves(abstainedWithBadSpan, groundedTranscript)).toEqual([]);
     expect(findAbstainedLeaves(abstainedWithBadSpan).map((l) => l.kind)).toEqual(["abstained"]);
+  });
+});
+
+describe("gapFillOptions provenance parameter", () => {
+  test("accepts a target whose provenance declares a row group", () => {
+    const rowSchema = z
+      .object({
+        rooms: z
+          .array(
+            z
+              .object({
+                name: z.string().nullable().optional(),
+              })
+              .strict(),
+          )
+          .optional(),
+      })
+      .strict();
+    type RowValues = z.infer<typeof rowSchema>;
+    const rowTarget: ExtractionTarget<RowValues, { rooms: "row" }> = {
+      name: "row-demo",
+      extractionSchema: enveloped(rowSchema, { provenance: { rooms: "row" } }),
+      instructions: "Extract rooms as a row group.",
+    };
+    const base: Extractor<Enveloped<RowValues, { rooms: "row" }>> = new FakeExtractor({ rooms: [] });
+    gapFillExtractor({ base, target: rowTarget, chat: {} as ChatClient, model: "test" });
+  });
+
+  test("rejects a base extractor whose enveloped type does not match the target", () => {
+    type OtherValues = { other: string };
+    const target: ExtractionTarget<{ rooms: string }, { rooms: "row" }> = {} as ExtractionTarget<
+      { rooms: string },
+      { rooms: "row" }
+    >;
+    const base: Extractor<Enveloped<OtherValues>> = new FakeExtractor({
+      other: "x",
+    } as unknown as Enveloped<OtherValues>);
+    // @ts-expect-error base extractor's Enveloped<OtherValues> is not assignable to the target's Enveloped<{rooms:string},{rooms:"row"}>
+    gapFillExtractor({ base, target, chat: {} as ChatClient, model: "test" });
   });
 });
