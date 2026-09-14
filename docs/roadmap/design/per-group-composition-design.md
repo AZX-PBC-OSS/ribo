@@ -79,7 +79,8 @@ address.
 ### 2.3 The strategies are whole-schema too
 
 `threePhaseExtractor` throws at construction if **any** group was derived at `"row"` or `"none"`
-(`three-phase-extractor.ts` `extractGroups`). The refusal is right for that group and wrong for the
+(`packages/ribo-extractor-ondevice/src/three-phase-extractor.ts`, `extractGroups`). The refusal is
+right for that group and wrong for the
 other nineteen: one row group makes the on-device path unusable for a schema whose other groups it
 handles perfectly well. `group-provenance-granularity-design.md` §8 records the fix as "a different
 strategy, not a patch" — which is exactly a per-group strategy choice with nowhere to be made.
@@ -185,7 +186,7 @@ Behaviour, all of it already specified by R3 and the observability design, reloc
   already-built-candidates rule from `extraction-observability-design.md` §0.3, applied
   consistently.
 
-### 4.3 `perGroupExtractor` becomes a preset
+### 4.3 `perGroupExtractor` becomes a preset — and the preset's plan is a value
 
 `splitExtractionSchema(target.extractionSchema, cap)` → for each piece,
 `singleShotExtractor({ target: projectTarget(target, key, { leafKeys, singleton, instructions:
@@ -195,6 +196,62 @@ and `perGroupSingletonExtractor` remain names for the two `singleton` settings. 
 and the existing per-group suite (44 tests, including partitioning and progress units) is the
 regression gate, along with the adapter's `per-group-cap.test.ts` and the frozen fixture, which
 this design does not touch (the derivation is unchanged).
+
+**The intermediate step is exported, not hidden.** If the preset built its map internally, the
+common case — the defaults everywhere except one group — would mean reconstructing twenty entries
+by hand with `projectTarget`, and nobody would; hosts would keep calling `perGroupExtractor` and
+the per-group capability would go unused. So the preset is two steps, and the first is public:
+
+- `perGroupPlan({ target, chat, model, maxTokens, groupInstructions, singleton,
+maxNullableUnionsPerGroup })` returns `{ groups, targets }`: `groups` is the exhaustive per-key map
+  of default entries (a `singleShotExtractor` per piece), and `targets` is the index-aligned map of
+  the projected `ExtractionTarget`s those entries were built from. Both are plain values a host can
+  read, log, assert on and spread.
+- `perGroupExtractor(options)` is `groupedExtractor({ target, groups: perGroupPlan(options).groups,
+…timing })` and nothing more.
+
+**Overriding one group wraps the default rather than rebuilding it.** For an unpartitioned group a
+spread is enough: `groups: { ...plan.groups, rooms: singleShotExtractor({ target: plan.targets.rooms,
+chat: cheapChat, model: cheapModel }) }`. The projected target is what makes that line short — the
+caller never touches `projectTarget` for the group it is replacing, let alone the nineteen it is not.
+
+A partitioned group is where a bare spread breaks down, and the obvious example is partitioned:
+`health` is fourteen enveloped leaves, twenty-eight nullable unions against a cap of sixteen, so
+`plan.groups.health` is **two** entries sharing the key, and `gapFillExtractor({ base:
+plan.groups.health })` does not type-check. Rather than make every override author learn which
+groups are partitioned, `overrideGroups(plan, { health: (entry, target) => gapFillExtractor({ base:
+entry, target, chat, model }) })` applies an override function **per piece**, handing it the piece's
+extractor and its projected target, and returns the full map with the other keys untouched. The
+same function replaces a group outright by ignoring its first argument. Wrapping per piece is also
+the semantically right unit: a piece's gap-fill re-asks exactly that piece's leaves against a
+schema that fits, at the cost of one follow-up call per piece instead of one per group. A
+group-level wrapper over merged pieces would need the pieces recombined first, which would move
+partitioning inside the group extractor and out of the combinator's pool — changing today's
+scheduling and splitting the retry budget across two levels. Declined; `Extractor | readonly
+Extractor[]` per key stays the combinator's shape, and `overrideGroups` is the ergonomic layer
+over it.
+
+**Why exhaustive plus spread, rather than exhaustive plus explicit.** The map type stays
+exhaustive: a missing group is a compile error, never a silent skip, and the construction-time
+coverage check catches a JS caller. An explicit twenty-line map is more greppable than a spread,
+and that argument was weighed: what a reviewer needs to know is _which groups deviate from the
+default_, and a spread with two overrides states exactly that, while twenty explicit lines bury the
+two that matter among eighteen that restate the preset. The full running map is still a value —
+`plan.groups` after overrides — so a test or a status panel can enumerate it and name the
+overridden keys; that is the diffability an explicit map would have provided, recovered where it is
+actually consumed.
+
+**When the default and an override disagree about `model` or `maxTokens`, nothing happens, and that
+is the design.** The plan's `chat`, `model` and `maxTokens` reach only the default entries it
+builds; an override carries its own by construction and the combinator never sees either. There is
+no merge, so there is no conflict to resolve. What the combinator _does_ own is shared across every
+entry regardless of who built it — `concurrency`, `maxRetries`, `stepTimeoutMs`,
+`perCallCeilingMs`, backoff, `normalize` — and one of those needs saying: `perCallCeilingMs` is a
+physical bound on the slowest entry, so a host that routes one group to a slower model raises the
+combinator's ceiling to that model's, not the default's. `usage` sums from each entry's result, so
+an override that makes more calls (a gap-fill's follow-up, a self-correction retry) is counted
+honestly; and the combinator's `GroupUnit` reports the group whichever extractor ran it, with the
+override's own inner units flowing through whatever `onUnit` the override was built with.
 
 ### 4.4 One contract change: `extract(transcript, options?)` with a signal
 
@@ -300,6 +357,11 @@ options?: { instructions?: string; leafKeys?: readonly string[]; singleton?: boo
   where `groups` is `{ [K in keyof V & string]: Extractor<Pick<Enveloped<V, P>, K>> |
 readonly Extractor<Pick<Enveloped<V, P>, K>>[] }`, and the options object extends
   `BackoffOptions`, `ExtractionObserver<GroupUnit>` and `RetryBudgetObserver` — in `ribo-core`.
+- `perGroupPlan<V, P>(options: PerGroupOptions<V, P>): { groups: GroupMap<V, P>; targets:
+GroupTargets<V, P> }` where `GroupTargets` mirrors `GroupMap` key for key and index for index
+  with the projected `ExtractionTarget`s; and `overrideGroups<V, P>(plan, overrides: Partial<{ [K]:
+(entry: Extractor<Pick<…, K>>, target: ExtractionTarget<Pick<V, K>, Pick<P, K>>, index: number) =>
+Extractor<Pick<…, K>> }>): GroupMap<V, P>` — both in `ribo-extractor-openai` beside the preset.
 - `Extractor<F>.extract: (transcript: AnnotatedTranscript, options?: ExtractOptions) =>
 Promise<ExtractionResult<F>>` with `ExtractOptions` carrying `signal?` now and P2's storage handle
   when that lands — in `ribo-core`.
@@ -357,6 +419,11 @@ Promise<ExtractionResult<F>>` with `ExtractOptions` carrying `signal?` now and P
   the same wrapper around the whole extractor does not (type-level, pinned both ways).
 - `schemaRetryExtractor` around one group re-asks with that group's one-key schema and a message
   list built from the projected target, never the full schema.
+- `overrideGroups(plan, { health: … })` returns a map whose every non-`health` entry is
+  reference-equal to `plan.groups`'s, whose `health` override was invoked once per piece with that
+  piece's projected target, and which rejects an unknown key at the type level.
+- A group replaced through the plan's projected target sends requests only through the override's
+  own chat; the plan's `chat` receives none for that key and all of them for every other key.
 
 ## 10. Sequencing
 
@@ -364,8 +431,8 @@ Promise<ExtractionResult<F>>` with `ExtractOptions` carrying `signal?` now and P
    even if its wiring lands later.
 2. `projectTarget`, pure, with its tests — `buildGroupMessages` re-expressed over it.
 3. `groupedExtractor` in core, with the tests in §9.
-4. `perGroupExtractor` / `perGroupArrayExtractor` / `perGroupSingletonExtractor` as presets; the
-   existing suite green unchanged.
+4. `perGroupPlan` and `overrideGroups`, then `perGroupExtractor` / `perGroupArrayExtractor` /
+   `perGroupSingletonExtractor` as presets over them; the existing suite green unchanged.
 5. Guide updates and the `schema-retry.ts` header.
 
 Later, each on its own evidence: `scopedInstanceExtractor` onto the same pool and retry; the
