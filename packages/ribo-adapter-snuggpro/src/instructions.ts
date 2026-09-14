@@ -26,7 +26,9 @@
  * extractor.
  */
 
-import type { FillScope } from "@azx/ribo-extractor-openai";
+// Core, not the extractor: this type is in an exported signature, and the extractor is only a
+// devDependency here.
+import type { FillScope } from "@azx/ribo-core";
 
 /** The top-level groups of the Snugg Pro extraction schema. */
 export const SNUGG_GROUP_KEYS = [
