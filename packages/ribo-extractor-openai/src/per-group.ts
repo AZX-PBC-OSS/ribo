@@ -11,8 +11,8 @@
  * (largest is `health` at 13,273) and fits with its descriptions. That is the
  * point of the exercise; restoring them is Task 5.
  *
- * **Same seam.** `extract(transcript) → ExtractionResult<F>` is unchanged. The
- * relay, the outbox and `ribo-core` are not touched.
+ * **Same seam.** `extract(annotatedTranscript) → ExtractionResult<F>` is
+ * unchanged in shape. The relay, the outbox and `ribo-core` are not touched.
  *
  * **Everything here speaks `Enveloped<V, P>`, not `V`** — for the same reason as
  * {@link singleShotExtractor}: the four things this file does with fields
@@ -76,6 +76,7 @@ import {
   TerminalQueueError,
 } from "@azx/ribo-core";
 import type {
+  AnnotatedTranscript,
   BackoffOptions,
   Enveloped,
   ExtractionObserver,
@@ -537,7 +538,7 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
   const backoffOpts: BackoffOptions = { baseMs: backoffBaseMs, capMs: backoffCapMs, random };
 
   return {
-    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V, P>>> {
+    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
       // One AbortController for the whole extraction. When any group fails
       // (terminally or past its retry budget), abort is called: in-flight calls
       // in other workers reject with ChatError.aborted, and workers stop
@@ -556,7 +557,7 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
           const messages = buildGroupMessages(
             target,
             entry.group.key,
-            transcript,
+            transcript.text,
             groupInstructions,
             singleton,
             entry.leafKeys,

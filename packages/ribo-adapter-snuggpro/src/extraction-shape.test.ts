@@ -97,7 +97,10 @@ async function captureJsonSchema(): Promise<Record<string, unknown>> {
   const extractor = singleShotExtractor({ target, chat, model: "gpt-test" });
 
   try {
-    await extractor.extract("A dictated audit transcript, contents irrelevant here.");
+    await extractor.extract({
+      text: "A dictated audit transcript, contents irrelevant here.",
+      annotations: {},
+    });
   } catch {
     // Expected: the canned "{}" response fails the schema; the request was already captured.
   }

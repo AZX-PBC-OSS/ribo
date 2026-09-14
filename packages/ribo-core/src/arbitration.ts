@@ -1,4 +1,5 @@
 import type { Extractor, ExtractionResult } from "./extractor.js";
+import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { isTransientFailure } from "./queue/backoff.js";
 import { SchemaParseError } from "./schema-parse-error.js";
 
@@ -341,7 +342,7 @@ export function createSequentialExtractor<F>(options: SequentialExtractorOptions
   validateCandidates(candidates);
 
   return {
-    extract: async (transcript: string): Promise<ExtractionResult<F>> => {
+    extract: async (transcript: AnnotatedTranscript): Promise<ExtractionResult<F>> => {
       const rejected: { readonly id: string; readonly detail: unknown }[] = [];
       const outcomes: ExtractionOutcome<F>[] = [];
 
@@ -420,7 +421,7 @@ export function createConcurrentExtractor<F>(options: ConcurrentExtractorOptions
   validateCandidates(candidates);
 
   return {
-    extract: async (transcript: string): Promise<ExtractionResult<F>> => {
+    extract: async (transcript: AnnotatedTranscript): Promise<ExtractionResult<F>> => {
       const outcomes: ExtractionOutcome<F>[] = [];
       let wake = makeWake();
       let settledCount = 0;

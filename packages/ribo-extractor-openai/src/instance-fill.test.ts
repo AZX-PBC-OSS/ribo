@@ -165,7 +165,7 @@ describe("scopedInstanceExtractor", () => {
       buildFillInstructions,
     });
 
-    const result = await extractor.extract("the full transcript");
+    const result = await extractor.extract({ text: "the full transcript", annotations: {} });
 
     expect(result.fields.widgets).toHaveLength(2);
     expect(result.fields.widgets?.[0]?.color.value).toBe("red");
@@ -202,7 +202,9 @@ describe("scopedInstanceExtractor", () => {
       buildFillInstructions,
     });
 
-    await expect(extractor.extract("the full transcript")).rejects.toBeInstanceOf(SchemaParseError);
+    await expect(
+      extractor.extract({ text: "the full transcript", annotations: {} }),
+    ).rejects.toBeInstanceOf(SchemaParseError);
   });
 
   test("the scope block names sibling discriminators, spans, and excluded candidates", async () => {
@@ -251,7 +253,7 @@ describe("scopedInstanceExtractor", () => {
       buildFillInstructions,
     });
 
-    await extractor.extract("the full transcript");
+    await extractor.extract({ text: "the full transcript", annotations: {} });
 
     const firstFill = requests.find(
       (r) => r.response_format.json_schema.name === "demo-widgets-fill-0",
@@ -294,7 +296,7 @@ describe("scopedInstanceExtractor", () => {
       buildFillInstructions,
     });
 
-    await extractor.extract(transcript);
+    await extractor.extract({ text: transcript, annotations: {} });
 
     const widgetFill = requests.find(
       (r) => r.response_format.json_schema.name === "demo-widgets-fill-0",
@@ -330,7 +332,7 @@ describe("scopedInstanceExtractor", () => {
       buildFillInstructions,
     });
 
-    const result = await extractor.extract("the full transcript");
+    const result = await extractor.extract({ text: "the full transcript", annotations: {} });
 
     expect(result.fields.widgets).toEqual([]);
     expect(
@@ -372,7 +374,9 @@ describe("scopedInstanceExtractor", () => {
       instanceCap: 1,
     });
 
-    await expect(extractor.extract("the full transcript")).rejects.toThrow("cap");
+    await expect(
+      extractor.extract({ text: "the full transcript", annotations: {} }),
+    ).rejects.toThrow("cap");
   });
 
   test("a stated-none group surfaces on statedEmptyGroups and makes zero fill calls", async () => {
@@ -397,7 +401,7 @@ describe("scopedInstanceExtractor", () => {
       buildFillInstructions,
     });
 
-    const result = await extractor.extract("the full transcript");
+    const result = await extractor.extract({ text: "the full transcript", annotations: {} });
 
     expect(result.statedEmptyGroups).toEqual({ widgets: "there's no attic access" });
     expect(result.statedEmptyGroups?.gadgets).toBeUndefined();
@@ -432,7 +436,7 @@ describe("scopedInstanceExtractor", () => {
       buildFillInstructions,
     });
 
-    const result = await extractor.extract("the full transcript");
+    const result = await extractor.extract({ text: "the full transcript", annotations: {} });
 
     // The singleton branch runs exactly as today regardless of roster shape.
     expect(result.fields.house?.name.value).toBe("main");
@@ -679,7 +683,7 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
       buildFillInstructions,
     });
 
-    const result = await extractor.extract("the full transcript");
+    const result = await extractor.extract({ text: "the full transcript", annotations: {} });
 
     // One call per piece per instance for the collection group, one per piece
     // for the singleton group, plus the inventory call.
@@ -743,7 +747,7 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
       model: "demo-model",
       inventory: async () => bigRoster,
       buildFillInstructions,
-    }).extract("the full transcript");
+    }).extract({ text: "the full transcript", annotations: {} });
 
     expect(requests).toHaveLength(6);
     for (const request of requests) {
@@ -771,7 +775,9 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
       instanceCap: 1,
     });
 
-    await expect(extractor.extract("the full transcript")).rejects.toThrow("cap");
+    await expect(
+      extractor.extract({ text: "the full transcript", annotations: {} }),
+    ).rejects.toThrow("cap");
     expect(requests).toHaveLength(0);
   });
 
@@ -798,7 +804,7 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
       buildFillInstructions,
     });
 
-    const result = await extractor.extract("the full transcript");
+    const result = await extractor.extract({ text: "the full transcript", annotations: {} });
 
     expect(requests.map((r) => r.response_format.json_schema.name)).toEqual([
       "demo-widgets-fill-0",
@@ -867,7 +873,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       inventory: async () => twoCandidateRoster,
       buildFillInstructions,
       onUnit,
-    }).extract("transcript");
+    }).extract({ text: "transcript", annotations: {} });
 
     // One inventory start/done pair, then two instance start/done pairs.
     expect(events).toHaveLength(6);
@@ -917,7 +923,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       inventory: async () => roster,
       buildFillInstructions,
       onUnit,
-    }).extract("transcript");
+    }).extract({ text: "transcript", annotations: {} });
 
     // Inventory start/done, but no instance units — the stated-empty path is silent.
     expect(events.filter((e) => e.unit === "inventory")).toHaveLength(2);
@@ -940,7 +946,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
         },
         buildFillInstructions,
         onUnit,
-      }).extract("transcript"),
+      }).extract({ text: "transcript", annotations: {} }),
     ).rejects.toThrow("inventory failed");
 
     // Inventory start then error; no instance units.
@@ -965,7 +971,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       inventory: async () => bigRoster,
       buildFillInstructions,
       onUnit,
-    }).extract("the full transcript");
+    }).extract({ text: "the full transcript", annotations: {} });
 
     // The systems group (10 leaves) partitions into 2 pieces at the default cap.
     // For instance 1, there should be two start events with the same (key, instance)
@@ -1003,7 +1009,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       inventory: async () => roster,
       buildFillInstructions,
       onUnit,
-    }).extract("transcript");
+    }).extract({ text: "transcript", annotations: {} });
 
     // The house singleton emits one instance unit with instance: 1, instances: 1.
     const houseStarts = events.filter(
@@ -1040,7 +1046,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       inventory: async () => roster,
       buildFillInstructions,
       onUnit: () => {},
-    }).extract("transcript");
+    }).extract({ text: "transcript", annotations: {} });
 
     const resultWithout = await scopedInstanceExtractor({
       target,
@@ -1048,7 +1054,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       model: "m",
       inventory: async () => roster,
       buildFillInstructions,
-    }).extract("transcript");
+    }).extract({ text: "transcript", annotations: {} });
 
     // Results are identical.
     expect(resultWithout.fields).toEqual(resultWith.fields);
@@ -1075,7 +1081,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       maxRetries: 2,
       stepTimeoutMs: 362_999,
       onRetryBudget: (b) => void budgets.push(b),
-    }).extract("transcript");
+    }).extract({ text: "transcript", annotations: {} });
 
     // The budget was reduced (derived 0 < requested 2), so onRetryBudget fired.
     expect(budgets).toHaveLength(1);
@@ -1103,7 +1109,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
         maxRetries: 2,
         stepTimeoutMs: 362_999,
         requireRetryBudget: true,
-      }).extract("transcript"),
+      }).extract({ text: "transcript", annotations: {} }),
     ).rejects.toBeInstanceOf(TerminalQueueError);
     // No fill calls were made — the throw is before the pool.
     expect(strict.requests).toHaveLength(0);
@@ -1119,7 +1125,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       concurrency: 1,
       maxRetries: 2,
       stepTimeoutMs: 362_999,
-    }).extract("transcript");
+    }).extract({ text: "transcript", annotations: {} });
 
     expect(result.fields.widgets).toHaveLength(2);
     expect(lenient.requests).toHaveLength(2);

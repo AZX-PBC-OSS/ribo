@@ -34,3 +34,17 @@ test("does not double-decode — a literal & is not touched", () => {
   expect(decodeEntities("Tom & Jerry")).toBe("Tom & Jerry");
   expect(decodeEntities("& &amp; &")).toBe("& & &");
 });
+
+test("an out-of-range numeric reference passes through instead of throwing", () => {
+  // `String.fromCodePoint` throws a RangeError above U+10FFFF, which would crash a transcriber
+  // mid-document over text that is simply not an entity.
+  expect(decodeEntities("cost &#99999999; each")).toBe("cost &#99999999; each");
+  expect(decodeEntities("hex &#x7FFFFFFF; here")).toBe("hex &#x7FFFFFFF; here");
+  expect(decodeEntities("max &#x10FFFF; ok")).toBe(`max ${String.fromCodePoint(0x10ffff)} ok`);
+});
+
+test("named entities decode regardless of case", () => {
+  // HTML5 defines &AMP; alongside &amp;.
+  expect(decodeEntities("Heating &AMP; Cooling")).toBe("Heating & Cooling");
+  expect(decodeEntities("Heating &amp; Cooling")).toBe("Heating & Cooling");
+});

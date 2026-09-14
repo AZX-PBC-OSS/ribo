@@ -5,6 +5,7 @@ import { afterEach, expect, test } from "vitest";
 import type { DocumentCapture } from "../capture-item.js";
 import { FakeExtractor, toSessionExtractStep } from "../extractor.js";
 import { isSpanGrounded } from "../provenance.js";
+import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
 import type { Recording } from "../recording.js";
 import { removeOutboxDatabase } from "./database.js";
 import { openOutbox, type Outbox } from "./outbox.js";
@@ -149,11 +150,15 @@ test("page markers survive into the extractor's input", async () => {
   const step = toSessionExtractStep(extractor);
   const joined = await joinSessionTranscript(outbox, session.id);
 
-  await step({ session, transcript: joined.text, recordingIds: joined.recordingIds });
+  await step({
+    session,
+    transcript: { text: joined.text, annotations: {} },
+    recordingIds: joined.recordingIds,
+  });
 
   expect(extractor.calls).toHaveLength(1);
-  expect(extractor.calls[0]).toContain("===== PAGE 1 =====");
-  expect(extractor.calls[0]).toContain("===== PAGE 2 =====");
+  expect(extractor.calls[0]!.text).toContain("===== PAGE 1 =====");
+  expect(extractor.calls[0]!.text).toContain("===== PAGE 2 =====");
 });
 
 // ---------------------------------------------------------------------------
@@ -201,7 +206,11 @@ test("per-capture markers delimit each capture's text when markCaptures is true"
     { status: "transcribed" },
   );
 
-  const joined = await joinSessionTranscript(outbox, session.id, { markCaptures: true });
+  const joined = await joinSessionTranscript(
+    outbox,
+    session.id,
+    createDefaultTranscriptCombiner({ markCaptures: true }),
+  );
 
   // Each capture is preceded by a marker in the page-marker family.
   expect(joined.text).toContain("===== CAPTURE");
@@ -275,7 +284,11 @@ test("span grounding survives per-capture markers", async () => {
     { status: "transcribed" },
   );
 
-  const joined = await joinSessionTranscript(outbox, session.id, { markCaptures: true });
+  const joined = await joinSessionTranscript(
+    outbox,
+    session.id,
+    createDefaultTranscriptCombiner({ markCaptures: true }),
+  );
 
   // A verbatim quote from within the dictation's text is still grounded.
   expect(isSpanGrounded("the attic insulation is R-19", joined.text)).toBe(true);
@@ -316,12 +329,20 @@ test("per-capture markers survive into the extractor's input", async () => {
 
   const extractor = new FakeExtractor({ invoiceNumber: "58534" });
   const step = toSessionExtractStep(extractor);
-  const joined = await joinSessionTranscript(outbox, session.id, { markCaptures: true });
+  const joined = await joinSessionTranscript(
+    outbox,
+    session.id,
+    createDefaultTranscriptCombiner({ markCaptures: true }),
+  );
 
-  await step({ session, transcript: joined.text, recordingIds: joined.recordingIds });
+  await step({
+    session,
+    transcript: { text: joined.text, annotations: {} },
+    recordingIds: joined.recordingIds,
+  });
 
   expect(extractor.calls).toHaveLength(1);
-  expect(extractor.calls[0]).toContain("===== CAPTURE");
-  expect(extractor.calls[0]).toContain("kind:document");
-  expect(extractor.calls[0]).toContain("kind:audio");
+  expect(extractor.calls[0]!.text).toContain("===== CAPTURE");
+  expect(extractor.calls[0]!.text).toContain("kind:document");
+  expect(extractor.calls[0]!.text).toContain("kind:audio");
 });

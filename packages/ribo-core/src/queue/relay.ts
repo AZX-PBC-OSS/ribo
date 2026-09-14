@@ -1,4 +1,5 @@
 import type { ExtractionUsage } from "../extractor.js";
+import type { AnnotatedTranscript } from "../annotated-transcript.js";
 import type { CaptureItem } from "../capture-item.js";
 import type { Transcriber } from "../transcriber.js";
 import { transcriptSchema } from "../transcript.js";
@@ -13,8 +14,9 @@ import type { Outbox } from "./outbox.js";
 import { isActiveStatus } from "./schema.js";
 import type { OutboxItem, OutboxPatch } from "./schema.js";
 import type { SessionItem, SessionPatch } from "./session-schema.js";
-import { joinSessionTranscript } from "./session-extract.js";
-import type { JoinSessionTranscriptOptions } from "./session-extract.js";
+import { listSessionTranscriptParts } from "./session-extract.js";
+import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
+import type { TranscriptCombiner } from "../transcript-combiner.js";
 import type { ConnectivityState, ConnectivityStatus, Unsubscribe } from "../connectivity.js";
 
 /** Structured fields produced by extraction. */
@@ -26,8 +28,8 @@ export type ExtractedFieldMap = Record<string, unknown>;
 
 export interface SessionExtractInput {
   session: SessionItem;
-  /** The joined transcript text of all transcribed recordings, in capture order. */
-  transcript: string;
+  /** The joined transcript of all transcribed recordings, in capture order. */
+  transcript: AnnotatedTranscript;
   /** The recording ids that produced `transcript`, sorted — the cache key. */
   recordingIds: readonly string[];
 }
@@ -145,11 +147,14 @@ export interface RelayOptions extends BackoffOptions {
   /** Session-level write: reviewed fields → host tool. */
   sessionWrite: SessionWriteStep;
   /**
-   * Options passed to {@link joinSessionTranscript} when the relay builds the
-   * session's joined transcript. Lets callers opt into per-capture markers
-   * without reaching past the relay. Defaults to `{ markCaptures: false }`.
+   * Combines per-capture transcripts into one. The relay supplies the array
+   * (already sorted by `seq`); the combiner decides how the texts join.
+   * Defaults to {@link createDefaultTranscriptCombiner} (no markers). Inject
+   * a custom combiner to replace the combination policy without forking the
+   * I/O — the combiner is pure, so it is testable with a plain array and no
+   * database.
    */
-  joinOptions?: JoinSessionTranscriptOptions;
+  combineTranscripts?: TranscriptCombiner;
   locks?: LockManager;
   now?: () => number;
   maxAttempts?: number;
@@ -464,14 +469,19 @@ class QueueRelay implements Relay {
   }
 
   async #sessionExtract(session: SessionItem): Promise<void> {
-    const { text, recordingIds } = await joinSessionTranscript(
+    const { parts, recordingIds } = await listSessionTranscriptParts(
       this.#options.outbox,
       session.id,
-      this.#options.joinOptions,
     );
+    const combine = this.#options.combineTranscripts ?? createDefaultTranscriptCombiner();
+    const { text } = combine(parts);
 
     const result = await withTimeout(
-      this.#options.sessionExtract({ session, transcript: text, recordingIds }),
+      this.#options.sessionExtract({
+        session,
+        transcript: { text, annotations: {} },
+        recordingIds,
+      }),
       this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
       "session-extract",
     );

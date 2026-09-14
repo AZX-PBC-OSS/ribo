@@ -6,6 +6,7 @@ import * as api from "./index.js";
 // silent break at a consumer.
 test("re-exports both extractors, the schema split, the OpenAI-compatible transport, and the typed error", () => {
   expect(typeof api.singleShotExtractor).toBe("function");
+  expect(typeof api.schemaRetryExtractor).toBe("function");
   expect(typeof api.perGroupExtractor).toBe("function");
   expect(typeof api.splitExtractionSchema).toBe("function");
   expect(typeof api.openAiChat).toBe("function");

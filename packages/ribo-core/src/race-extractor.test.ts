@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import type { Extractor, ExtractionResult } from "./extractor.js";
+import type { AnnotatedTranscript } from "./annotated-transcript.js";
 
 // The test runs in Vitest's node environment, but `ribo-core` is a browser library and
 // does not include `@types/node`. Declaring `process` locally keeps the test scoped
@@ -24,7 +25,7 @@ function makeExtractor<F>(
     calls?: number;
     engine?: string;
     throws?: unknown;
-    extract?: (transcript: string) => Promise<ExtractionResult<F>>;
+    extract?: (transcript: AnnotatedTranscript) => Promise<ExtractionResult<F>>;
   } = {},
 ): Extractor<F> & { calls: readonly string[] } {
   const calls: string[] = [];
@@ -32,8 +33,8 @@ function makeExtractor<F>(
     // Avoid `async` so a caller-supplied deferred promise is returned directly, without an extra
     // async-function promise wrapping the resolution. That keeps the engine's `.then` handler on
     // the same promise the test resolves, so one microtask flush is enough to observe it.
-    extract: (transcript: string) => {
-      calls.push(transcript);
+    extract: (transcript: AnnotatedTranscript) => {
+      calls.push(transcript.text);
       if (options.extract) return options.extract(transcript);
       if (options.throws !== undefined) return Promise.reject(options.throws);
       return Promise.resolve({
@@ -102,7 +103,7 @@ describe("raceExtractor", () => {
         acceptAnySuccess,
       );
 
-      const result = await extractor.extract("the transcript");
+      const result = await extractor.extract({ text: "the transcript", annotations: {} });
 
       expect(result.fields).toEqual({ value: 2 });
       expect(result.usage).toEqual({ calls: 1, strategy: "fast" });
@@ -144,7 +145,7 @@ describe("raceExtractor", () => {
       acceptAnySuccess,
     );
 
-    const result = await extractor.extract("the transcript");
+    const result = await extractor.extract({ text: "the transcript", annotations: {} });
 
     expect(result.fields).toEqual({ value: 2 });
     expect(result.usage).toEqual({ calls: 1, strategy: "fast" });
@@ -186,7 +187,7 @@ describe("raceExtractor", () => {
       arbiter,
     );
 
-    const extractPromise = extractor.extract("the transcript");
+    const extractPromise = extractor.extract({ text: "the transcript", annotations: {} });
     // The arbiter always returns `continue`, so the extraction will eventually
     // reject with a TypeError at exhaustion. Attach a handler now so that waiting
     // for intermediate states is not reported as an unhandled rejection.
@@ -234,7 +235,7 @@ describe("raceExtractor", () => {
       arbiter,
     );
 
-    const extractPromise = extractor.extract("the transcript");
+    const extractPromise = extractor.extract({ text: "the transcript", annotations: {} });
     // The arbiter always returns `continue`; silence the eventual exhaustion TypeError
     // so intermediate `exhausted` values can be observed without unhandled rejection noise.
     extractPromise.catch(() => {});
@@ -267,7 +268,7 @@ describe("raceExtractor", () => {
       acceptAnySuccess,
     );
 
-    const result = await extractor.extract("the transcript");
+    const result = await extractor.extract({ text: "the transcript", annotations: {} });
 
     expect(result.fields).toEqual({ value: 2 });
     expect(result.usage).toEqual({ calls: 1, strategy: "fast" });

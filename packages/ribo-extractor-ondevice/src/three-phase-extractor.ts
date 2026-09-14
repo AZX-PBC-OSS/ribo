@@ -18,6 +18,7 @@ import { ChatError } from "@azx/ribo-extractor-openai";
 import type { ChatMessage, ChatRequest, ChatUsage } from "@azx/ribo-extractor-openai";
 import { isSpanGrounded, nextUnitId } from "@azx/ribo-core";
 import type {
+  AnnotatedTranscript,
   Enveloped,
   ExtractionObserver,
   Extractor,
@@ -158,7 +159,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
   const model = chat.engine;
 
   return {
-    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V, P>>> {
+    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
       // A group's value is either the flat leaf-envelope map itself (an object-shaped
       // group) or that same map wrapped in a one-element array (an array-shaped, R1.6
       // instance-modeled group — see `Group.isArray`). Every group's leaves are always
@@ -180,7 +181,14 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
 
         let presence: Record<string, boolean>;
         try {
-          presence = await extractPresence(group, transcript, chat, model, maxRetries, emitter);
+          presence = await extractPresence(
+            group,
+            transcript.text,
+            chat,
+            model,
+            maxRetries,
+            emitter,
+          );
         } catch {
           for (const leaf of group.leaves) {
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
@@ -203,7 +211,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
           spans = await extractSpans(
             group,
             activeLeaves,
-            transcript,
+            transcript.text,
             chat,
             model,
             maxRetries,
@@ -223,7 +231,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
             continue;
           }
-          if (!isSpanGrounded(span, transcript)) {
+          if (!isSpanGrounded(span, transcript.text)) {
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
             continue;
           }

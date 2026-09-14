@@ -26,6 +26,7 @@ import {
   TerminalQueueError,
 } from "@azx/ribo-core";
 import type {
+  AnnotatedTranscript,
   BackoffOptions,
   Enveloped,
   ExtractionObserver,
@@ -476,12 +477,12 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
   });
 
   return {
-    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V, P>>> {
+    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
       const inventoryId = nextUnitId();
       onUnit?.({ id: inventoryId, unit: "inventory", phase: "start", attempt: 1 });
       let roster: Roster;
       try {
-        roster = await inventory(transcript);
+        roster = await inventory(transcript.text);
       } catch (cause) {
         onUnit?.({ id: inventoryId, unit: "inventory", phase: "error", attempt: 1, error: cause });
         throw cause;
@@ -508,13 +509,13 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
           const scope = singletonFillScope(group.key || "fields");
           const messages =
             group.key === ""
-              ? buildMessages(target, transcript)
+              ? buildMessages(target, transcript.text)
               : buildFillMessages(
                   target,
                   group.key,
                   0,
                   scope,
-                  transcript,
+                  transcript.text,
                   buildFillInstructions,
                   group.leafKeys,
                 );
@@ -561,7 +562,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
             group.key,
             i,
             scope,
-            transcript,
+            transcript.text,
             buildFillInstructions,
             group.leafKeys,
           );

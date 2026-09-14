@@ -95,5 +95,5 @@ test("a FakeExtractor substitutes into createRelay and its fields land on sessio
 
   // And the extractor really was driven with the joined transcript text, not
   // bypassed.
-  expect(extractor.calls).toEqual(["the attic is R-19"]);
+  expect(extractor.calls.map((t) => t.text)).toEqual(["the attic is R-19"]);
 });

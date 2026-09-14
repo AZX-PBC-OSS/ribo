@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { enveloped } from "./enveloped.js";
 import type { Extractor } from "./extractor.js";
+import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import type { ExistingRecord } from "./instance-identity.js";
 import {
   buildReviewRequest,
@@ -1453,16 +1454,17 @@ describe("reviewOutcomeSchema — instanceKeys length must match fields", () => 
 
 test("the Extractor seam has no structural parameter for existing records", () => {
   // Existing records enter at review, never at extraction. The public Extractor<F> contract
-  // has exactly one parameter: the transcript. A caller can still smuggle records in a
-  // closure, but they cannot do it by changing the signature — this structural check catches
-  // the obvious call-site leak. The residual is honest: a closure can capture anything.
+  // has exactly one parameter: the annotated transcript. A caller can still smuggle records
+  // in a closure, but they cannot do it by changing the signature — this structural check
+  // catches the obvious call-site leak. The residual is honest: a closure can capture
+  // anything.
   type Params = Parameters<Extractor<unknown>["extract"]>;
-  type ExactlyOneString = [string] extends Params
-    ? Params extends [string]
+  type ExactlyOneAnnotatedTranscript = [AnnotatedTranscript] extends Params
+    ? Params extends [AnnotatedTranscript]
       ? true
       : false
     : false;
-  const _assert: ExactlyOneString = true;
+  const _assert: ExactlyOneAnnotatedTranscript = true;
   void _assert;
 });
 

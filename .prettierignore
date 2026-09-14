@@ -18,3 +18,10 @@ spikes/extraction-snuggpro/results/**
 
 # Prompt-vs-granularity spike: generated extraction results + scores (regenerable).
 spikes/prompt-vs-granularity/results/**
+
+# Mistral-native-vs-flattened spike: generated extraction results + scores (regenerable).
+spikes/mistral-native-vs-flattened/results/**
+
+# Matched-schema-scale spike: generated extraction results + scores (regenerable).
+spikes/matched-schema-scale/_runs/**
+spikes/matched-schema-scale/fair-fight/_runs/**

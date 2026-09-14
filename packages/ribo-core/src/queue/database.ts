@@ -11,6 +11,12 @@ import {
   type SessionDocument,
 } from "./session-schema.js";
 import { OUTBOX_COLLECTION_NAME, outboxRxSchema, type OutboxDocument } from "./schema.js";
+import {
+  PLUGIN_STORAGE_COLLECTION_NAME,
+  PLUGIN_STORAGE_MIGRATION_STRATEGIES,
+  pluginStorageRxSchema,
+  type PluginStorageDocument,
+} from "./plugin-storage-schema.js";
 import type { PersistedReviewOutcome } from "../review.js";
 
 /**
@@ -31,8 +37,19 @@ export type OutboxCollection = RxCollection<OutboxDocument>;
  */
 export type SessionCollection = RxCollection<SessionDocument>;
 
-/** The RxDB database this package owns. Two collections: recordings and sessions. */
-export type OutboxDatabase = RxDatabase<{ outbox: OutboxCollection; sessions: SessionCollection }>;
+/**
+ * The RxDB collection holding plugin-scoped storage entries — key-value pairs
+ * namespaced by plugin id and capture id. Core sweeps entries for a capture
+ * when it is dropped or discarded; see `Outbox.pluginStorage`.
+ */
+export type PluginStorageCollection = RxCollection<PluginStorageDocument>;
+
+/** The RxDB database this package owns. Three collections: recordings, sessions and plugin storage. */
+export type OutboxDatabase = RxDatabase<{
+  outbox: OutboxCollection;
+  sessions: SessionCollection;
+  pluginStorage: PluginStorageCollection;
+}>;
 
 /**
  * The v5 session-level fields, carried on the recording document by the v6
@@ -308,6 +325,7 @@ export async function openOutboxDatabase(
   const database = await createRxDatabase<{
     outbox: OutboxCollection;
     sessions: SessionCollection;
+    pluginStorage: PluginStorageCollection;
   }>({
     name,
     storage,
@@ -329,6 +347,10 @@ export async function openOutboxDatabase(
     [SESSION_COLLECTION_NAME]: {
       schema: sessionRxSchema,
       migrationStrategies: SESSION_MIGRATION_STRATEGIES,
+    },
+    [PLUGIN_STORAGE_COLLECTION_NAME]: {
+      schema: pluginStorageRxSchema,
+      migrationStrategies: PLUGIN_STORAGE_MIGRATION_STRATEGIES,
     },
   });
 

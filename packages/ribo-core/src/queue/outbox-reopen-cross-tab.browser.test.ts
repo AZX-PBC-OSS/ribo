@@ -10,10 +10,16 @@ import {
   sessionRxSchema,
 } from "./session-schema.js";
 import {
+  PLUGIN_STORAGE_COLLECTION_NAME,
+  PLUGIN_STORAGE_MIGRATION_STRATEGIES,
+  pluginStorageRxSchema,
+} from "./plugin-storage-schema.js";
+import {
   OUTBOX_MIGRATION_STRATEGIES,
   removeOutboxDatabase,
   type OutboxCollection,
   type OutboxDatabase,
+  type PluginStorageCollection,
   type SessionCollection,
 } from "./database.js";
 import { openOutbox, Outbox } from "./outbox.js";
@@ -98,6 +104,7 @@ async function openSecondConnection(name: string): Promise<Outbox> {
   const database: OutboxDatabase = await createRxDatabase<{
     outbox: OutboxCollection;
     sessions: SessionCollection;
+    pluginStorage: PluginStorageCollection;
   }>({
     name,
     storage: wrappedValidateAjvStorage({ storage: getRxStorageDexie() }),
@@ -120,6 +127,10 @@ async function openSecondConnection(name: string): Promise<Outbox> {
       // independent connections to one database, which the public helper does
       // not expose.
       migrationStrategies: SESSION_MIGRATION_STRATEGIES,
+    },
+    [PLUGIN_STORAGE_COLLECTION_NAME]: {
+      schema: pluginStorageRxSchema,
+      migrationStrategies: PLUGIN_STORAGE_MIGRATION_STRATEGIES,
     },
   });
   const outbox = new Outbox(database);

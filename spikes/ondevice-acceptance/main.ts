@@ -140,7 +140,7 @@ async function runPerGroup(log: (line: string) => void): Promise<void> {
     const transcript = await (await fetch(`/api/transcript?slug=${slug}`)).text();
     const t0 = performance.now();
     try {
-      const result = await extractor.extract(transcript);
+      const result = await extractor.extract({ text: transcript, annotations: {} });
       const ms = Math.round(performance.now() - t0);
       await fetch(`/api/result?slug=${slug}&dir=ondevice`, {
         method: "POST",
@@ -372,7 +372,7 @@ async function runProduction(log: (line: string) => void): Promise<void> {
     const transcript = await (await fetch(`/api/transcript?slug=${slug}`)).text();
     const t0 = performance.now();
     try {
-      const result = await extractor.extract(transcript);
+      const result = await extractor.extract({ text: transcript, annotations: {} });
       calls += result.usage.calls;
       const ms = Math.round(performance.now() - t0);
       await fetch(`/api/result?slug=${slug}&dir=ondevice-production`, {

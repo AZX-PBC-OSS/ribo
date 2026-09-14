@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, expect, expectTypeOf, test, vi } from "vitest";
 
 import type { CaptureItem, DocumentCapture } from "../capture-item.js";
+import type { AnnotatedTranscript } from "../annotated-transcript.js";
+import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
+import type { TranscriptCombiner } from "../transcript-combiner.js";
 import type { Recording } from "../recording.js";
 import { FakeTranscriber } from "../fake-transcriber.js";
 import { firstCapable } from "../first-capable.js";
@@ -18,7 +21,6 @@ import {
   type SessionWriteInput,
   type SessionWriteStep,
 } from "./relay.js";
-import type { JoinSessionTranscriptOptions } from "./session-extract.js";
 import type { OutboxItem } from "./schema.js";
 import type { SessionItem } from "./session-schema.js";
 import type { Transcriber } from "../transcriber.js";
@@ -140,7 +142,7 @@ interface Harness {
   relay: Relay;
   transcriber: Transcriber;
   session: SessionItem;
-  extractCalls: { transcript: string; session: SessionItem }[];
+  extractCalls: { transcript: AnnotatedTranscript; session: SessionItem }[];
   /**
    * The whole {@link SessionWriteInput}, not a projection of it. Tests need to tell
    * `reviewed` (what the human settled on) apart from `session.extracted` (what the
@@ -156,7 +158,7 @@ async function buildRelay(
     transcriber?: Transcriber;
     sessionExtract?: SessionExtractStep;
     sessionWrite?: SessionWriteStep;
-    joinOptions?: JoinSessionTranscriptOptions;
+    combineTranscripts?: TranscriptCombiner;
     maxAttempts?: number;
     random?: () => number;
     dropAudioAfterTranscription?: boolean;
@@ -173,7 +175,7 @@ async function buildRelay(
     overrides.sessionExtract ??
     (async ({ transcript, session }) => {
       extractCalls.push({ transcript, session });
-      return { fields: { atticInsulation: transcript } };
+      return { fields: { atticInsulation: transcript.text } };
     });
 
   const sessionWrite: SessionWriteStep =
@@ -188,7 +190,7 @@ async function buildRelay(
     transcriber: restrictToKind("audio", transcriber),
     sessionExtract,
     sessionWrite,
-    joinOptions: overrides.joinOptions,
+    combineTranscripts: overrides.combineTranscripts,
     now: clock.now,
     // Deterministic full jitter: always the top of the window, so
     // `nextAttemptAt` is predictable without weakening the formula.
@@ -383,7 +385,7 @@ test("a document round-trips the relay — queued → transcribing → transcrib
   const relay = createRelay({
     outbox,
     transcriber: docTranscriber,
-    sessionExtract: async ({ transcript }) => ({ fields: { result: transcript } }),
+    sessionExtract: async ({ transcript }) => ({ fields: { result: transcript.text } }),
     sessionWrite: () => Promise.resolve({ fields: {} }),
     now: clock.now,
     random: () => 1,
@@ -490,7 +492,7 @@ test("the engine an extract step reports is persisted on the item", async () => 
   const outbox = await openTestOutbox(uniqueName());
   const harness = await buildRelay(outbox, {
     sessionExtract: async ({ transcript }) => ({
-      fields: { atticInsulation: transcript },
+      fields: { atticInsulation: transcript.text },
       engine: "ondevice-prompt-api",
     }),
   });
@@ -508,7 +510,7 @@ test("an extract step that reports no engine leaves the column absent", async ()
   // `patch` is incremental and cannot delete a key once written.
   const outbox = await openTestOutbox(uniqueName());
   const harness = await buildRelay(outbox, {
-    sessionExtract: async ({ transcript }) => ({ fields: { atticInsulation: transcript } }),
+    sessionExtract: async ({ transcript }) => ({ fields: { atticInsulation: transcript.text } }),
   });
   await outbox.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
 
@@ -519,18 +521,64 @@ test("an extract step that reports no engine leaves the column absent", async ()
   expect(parked?.extractedBy).toBeUndefined();
 });
 
-test("relay joinOptions reach the joined transcript as capture markers", async () => {
-  // `markCaptures` is designed, documented and shipped on `joinSessionTranscript`,
-  // but the relay is the primary path. The only way to prove the option is wired
-  // through is to see the marker in the transcript the extractor receives.
+test("a combiner with markCaptures reaches the joined transcript through the relay", async () => {
+  // `markCaptures` is a real fix, not incidental: it was dead code on the
+  // primary path until the combiner was injectable through the relay. The only
+  // way to prove the option is wired through is to see the marker in the
+  // transcript the extractor receives.
   const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, { joinOptions: { markCaptures: true } });
+  const harness = await buildRelay(outbox, {
+    combineTranscripts: createDefaultTranscriptCombiner({ markCaptures: true }),
+  });
   await outbox.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
 
   await drainToReview(harness);
 
   expect(harness.extractCalls).toHaveLength(1);
-  expect(harness.extractCalls[0]?.transcript).toContain("===== CAPTURE seq:0");
+  expect(harness.extractCalls[0]?.transcript.text).toContain("===== CAPTURE seq:0");
+});
+
+test("a custom combiner injected through the relay is the one that runs", async () => {
+  // The contract is `(parts) => AnnotatedTranscript`. A combiner that does
+  // something the default never would proves the relay calls the injected
+  // combiner, not its own.
+  const outbox = await openTestOutbox(uniqueName());
+  const custom: TranscriptCombiner = (parts) => ({
+    text: parts.map((p) => `[${String(p.annotations.seq)}] ${p.text}`).join("\n---\n"),
+    annotations: {},
+  });
+  const harness = await buildRelay(outbox, { combineTranscripts: custom });
+  await outbox.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+
+  await drainToReview(harness);
+
+  expect(harness.extractCalls).toHaveLength(1);
+  expect(harness.extractCalls[0]?.transcript.text).toBe("[0] the attic is R-19");
+});
+
+test("parts reach the combiner sorted by seq, not in database order", async () => {
+  // Enqueue three recordings; the combiner sees them in seq-ascending order
+  // regardless of what order the database returns them in.
+  const outbox = await openTestOutbox(uniqueName());
+  const seenSeqs: number[] = [];
+  const capturing: TranscriptCombiner = (parts) => {
+    seenSeqs.push(...parts.map((p) => Number(p.annotations.seq)));
+    return { text: parts.map((p) => p.text).join(" "), annotations: {} };
+  };
+  const harness = await buildRelay(outbox, { combineTranscripts: capturing });
+
+  for (const id of ["c", "a", "b"]) {
+    await outbox.enqueue({
+      recording: { ...recording, id },
+      audio: audio(),
+      sessionId: harness.session.id,
+    });
+  }
+
+  await drainToReview(harness);
+
+  expect(harness.extractCalls).toHaveLength(1);
+  expect(seenSeqs).toEqual([0, 1, 2]);
 });
 
 test("a parked item does not block the recordings behind it", async () => {
@@ -731,7 +779,7 @@ test("resumes at the next step after a reload rather than re-recording or re-tra
 
   expect(explodingTranscriber.calls).toHaveLength(0);
   expect(secondRun.extractCalls).toHaveLength(1);
-  expect(secondRun.extractCalls[0]?.transcript).toBe("the attic is R-19");
+  expect(secondRun.extractCalls[0]?.transcript.text).toBe("the attic is R-19");
   // It resumed at `extract` and ran to the gate, which is as far as the relay can
   // take a session without a human.
   expect((await second.getSession(secondRun.session.id))?.status).toBe("awaiting-review");
@@ -783,7 +831,7 @@ test("an empty transcript transcribes and the session extracts normally", async 
   expect(parked?.status).toBe("transcribed");
   expect(parkedSession?.status).toBe("awaiting-review");
   expect(harness.extractCalls).toHaveLength(1);
-  expect(harness.extractCalls[0]?.transcript).toBe("");
+  expect(harness.extractCalls[0]?.transcript.text).toBe("");
   expect(parkedSession?.extracted).toEqual({ atticInsulation: "" });
   expect(parked?.transcript).toEqual({
     recordingId: "rec-1",
@@ -833,7 +881,7 @@ test("a short but plausible transcript still advances to extraction", async () =
   // review gate, not the guard's park.
   expect(parkedSession?.status).toBe("awaiting-review");
   expect(harness.extractCalls).toHaveLength(1);
-  expect(harness.extractCalls[0]?.transcript).toBe("the attic");
+  expect(harness.extractCalls[0]?.transcript.text).toBe("the attic");
   expect(parked?.transcript?.text).toBe("the attic");
   expect(parkedSession?.extracted).toEqual({ atticInsulation: "the attic" });
 });
@@ -1731,7 +1779,7 @@ test("two relays over one outbox run each step ONCE, not twice", async () => {
 
   // Both relays share these, so the assertion is about total work done across tabs rather than about
   // either tab's own bookkeeping.
-  const extractCalls: string[] = [];
+  const extractCalls: AnnotatedTranscript[] = [];
   let inFlight = 0;
   let maxConcurrent = 0;
 
@@ -1758,7 +1806,7 @@ test("two relays over one outbox run each step ONCE, not twice", async () => {
 
   const extract: SessionExtractStep = async ({ transcript }) => {
     extractCalls.push(transcript);
-    return { fields: { atticInsulation: transcript } };
+    return { fields: { atticInsulation: transcript.text } };
   };
 
   const a = await buildRelay(outbox, { transcriber: slowTranscriber, sessionExtract: extract });
@@ -1799,10 +1847,10 @@ test("a relay that acquires the lock AFTER another finished does not re-run the 
   // Verified by mutation: deleting the re-read leaves the concurrent test above GREEN, because there
   // the loser never gets in at all. This is the case that catches it.
   const outbox = await openTestOutbox(uniqueName());
-  const extractCalls: string[] = [];
+  const extractCalls: AnnotatedTranscript[] = [];
   const extract: SessionExtractStep = async ({ transcript }) => {
     extractCalls.push(transcript);
-    return { fields: { atticInsulation: transcript } };
+    return { fields: { atticInsulation: transcript.text } };
   };
 
   // Holds the second relay at the door until the first is completely finished, then lets it in. A

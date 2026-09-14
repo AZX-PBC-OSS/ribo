@@ -66,7 +66,10 @@ describe("retry-to-success through perGroupExtractor × OnDeviceChat", () => {
     model.sequence = [degenerateResponse(), degenerateResponse(), [wellFormedResponse()]];
 
     const extractor = makeExtractor(model);
-    const result = await extractor.extract("the boiler is oil-fired, eighty-two percent AFUE");
+    const result = await extractor.extract({
+      text: "the boiler is oil-fired, eighty-two percent AFUE",
+      annotations: {},
+    });
 
     expect(result.fields.hvac?.fuel?.value).toBe("Oil");
     expect(result.fields.hvac?.efficiency?.value).toBe(82);
@@ -85,7 +88,10 @@ describe("retry-to-success through perGroupExtractor × OnDeviceChat", () => {
     const extractor = makeExtractor(model);
 
     await expect(
-      extractor.extract("the boiler is oil-fired, eighty-two percent AFUE"),
+      extractor.extract({
+        text: "the boiler is oil-fired, eighty-two percent AFUE",
+        annotations: {},
+      }),
     ).rejects.toSatisfy((error: unknown) => error instanceof Error);
   });
 
@@ -100,7 +106,10 @@ describe("retry-to-success through perGroupExtractor × OnDeviceChat", () => {
     const extractor = makeExtractor(model);
 
     await expect(
-      extractor.extract("the boiler is oil-fired, eighty-two percent AFUE"),
+      extractor.extract({
+        text: "the boiler is oil-fired, eighty-two percent AFUE",
+        annotations: {},
+      }),
     ).rejects.toSatisfy((error: unknown) => error instanceof Error);
 
     expect(model.promptCallCount).toBe(ONDEVICE_PER_GROUP_TIMING.maxRetries + 1);

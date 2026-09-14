@@ -104,3 +104,9 @@ spikes/extraction-snuggpro/results/managed-*/
 
 # Real customer documents. The spike corpus is not ours to publish — see FINDINGS.md.
 spikes/prompt-vs-granularity/transcript.txt
+
+# Mistral-native-vs-flattened spike: raw OCR markdown, extractions and comparison
+# rows contain real customer data (named contractors, preparers, addresses) and are
+# regenerable with the committed runner. The numbers that matter are in
+# spikes/mistral-native-vs-flattened/FINDINGS.md.
+spikes/mistral-native-vs-flattened/results/**

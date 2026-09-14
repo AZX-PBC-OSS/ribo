@@ -38,11 +38,19 @@ export type { InstanceLadderOptions } from "./instance-ladder.js";
 // merge helpers are exported for testing, as `buildGroupMessages` is.
 export {
   findAbstainedLeaves,
+  findUngroundedLeaves,
   formatLeafPath,
   gapFillExtractor,
   mergeGapFilledLeaves,
 } from "./gap-fill.js";
-export type { AbstainedLeaf, GapFillOptions } from "./gap-fill.js";
+export type { AbstainedLeaf, GapFillOptions, GapFillTarget } from "./gap-fill.js";
+
+// The schema-retry combinator: wraps a base extractor with a bounded
+// self-correction loop that feeds a `SchemaParseError` back to the model as
+// conversation turns — the failed output as an assistant turn, the validation
+// error as a user turn — never by touching the transcript.
+export { schemaRetryExtractor } from "./schema-retry.js";
+export type { SchemaRetryOptions } from "./schema-retry.js";
 
 // Per-group prompt assembly: `buildGroupMessages` builds per-group chat messages
 // (instructions + projected examples + transcript), and `projectExample` narrows

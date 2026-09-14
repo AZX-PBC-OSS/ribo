@@ -254,9 +254,10 @@ describe("perGroupExtractor — N groups produce N calls", () => {
       },
     };
 
-    const result = await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract(
-      "Furnace is a Carrier, natural gas. Attic has R-38.",
-    );
+    const result = await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract({
+      text: "Furnace is a Carrier, natural gas. Attic has R-38.",
+      annotations: {},
+    });
 
     expect(result.usage.calls).toBe(2);
     expect(result.usage.promptTokens).toBe(2200);
@@ -283,9 +284,10 @@ describe("perGroupExtractor — N groups produce N calls", () => {
       },
     };
 
-    const result = await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract(
-      "x",
-    );
+    const result = await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract({
+      text: "x",
+      annotations: {},
+    });
 
     expect(result.usage.promptTokens).toBe(1000);
     expect(result.usage.cachedPromptTokens).toBeUndefined();
@@ -300,9 +302,10 @@ describe("perGroupExtractor — N groups produce N calls", () => {
       [groupedName("attic")]: JSON.stringify(atticResponse),
     });
 
-    const result = await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract(
-      "x",
-    );
+    const result = await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract({
+      text: "x",
+      annotations: {},
+    });
 
     expect(result.usage.calls).toBe(2);
     expect(result.usage.promptTokens).toBeUndefined();
@@ -316,7 +319,10 @@ describe("perGroupExtractor — N groups produce N calls", () => {
     });
     const extractor = perGroupExtractor({ target: groupedTarget, chat, model: "m" });
 
-    const result = await extractor.extract("Furnace is a Carrier, natural gas. Attic has R-38.");
+    const result = await extractor.extract({
+      text: "Furnace is a Carrier, natural gas. Attic has R-38.",
+      annotations: {},
+    });
 
     expect(requests).toHaveLength(2);
     expect(result.usage.calls).toBe(2);
@@ -354,7 +360,10 @@ describe("perGroupExtractor — N groups produce N calls", () => {
       [groupedName("attic")]: JSON.stringify(atticResponse),
     });
     const transcript = "Furnace is a Carrier, natural gas. Attic has R-38.";
-    await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract(transcript);
+    await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract({
+      text: transcript,
+      annotations: {},
+    });
 
     // Without `groupInstructions`, both requests carry the SAME messages — the
     // target's full instructions and unprojected examples, with the transcript
@@ -382,7 +391,7 @@ describe("perGroupExtractor — N groups produce N calls", () => {
     });
     const transcript = "Furnace is a Carrier, natural gas. Attic has R-38.";
     await perGroupExtractor({ target: groupedTarget, chat, model: "m", groupInstructions }).extract(
-      transcript,
+      { text: transcript, annotations: {} },
     );
 
     const hvacReq = requests.find(
@@ -438,7 +447,9 @@ describe("perGroupExtractor — trust boundary", () => {
       delay: noDelay,
     });
 
-    await expect(extractor.extract("t")).rejects.toThrow(/did not match the schema/);
+    await expect(extractor.extract({ text: "t", annotations: {} })).rejects.toThrow(
+      /did not match the schema/,
+    );
   });
 
   test("the merged result is validated against the full schema — a bad merge is caught even when every individual response parsed cleanly", async () => {
@@ -469,7 +480,9 @@ describe("perGroupExtractor — trust boundary", () => {
         model: "m",
       });
 
-      await expect(extractor.extract("t")).rejects.toThrow(/did not match the schema/);
+      await expect(extractor.extract({ text: "t", annotations: {} })).rejects.toThrow(
+        /did not match the schema/,
+      );
       expect(fullParseCalled).toBe(true);
     } finally {
       schema.safeParse = originalSafeParse;
@@ -513,7 +526,7 @@ describe("perGroupExtractor — trust boundary", () => {
       chat,
       model: "m",
       normalize: countingNormalize,
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     expect(normalizeCalls).toBe(1);
     // The single normalize pass clamped confidence across the whole shape.
@@ -537,7 +550,7 @@ describe("perGroupExtractor — failure classification", () => {
     );
     const extractor = perGroupExtractor({ target: groupedTarget, chat, model: "m" });
 
-    const error = await extractor.extract("t").then(
+    const error = await extractor.extract({ text: "t", annotations: {} }).then(
       () => {
         throw new Error("expected extract() to reject on a truncated response");
       },
@@ -559,7 +572,7 @@ describe("perGroupExtractor — failure classification", () => {
     );
     const extractor = perGroupExtractor({ target: groupedTarget, chat, model: "m" });
 
-    const error = await extractor.extract("t").then(
+    const error = await extractor.extract({ text: "t", annotations: {} }).then(
       () => {
         throw new Error("expected extract() to reject on a content-filtered response");
       },
@@ -593,7 +606,7 @@ describe("perGroupExtractor — failure classification", () => {
       delay: noDelay,
     });
 
-    const error = await extractor.extract("t").then(
+    const error = await extractor.extract({ text: "t", annotations: {} }).then(
       () => {
         throw new Error("expected extract() to reject");
       },
@@ -623,7 +636,10 @@ describe("perGroupExtractor — non-grouped fallback", () => {
     });
     const extractor = perGroupExtractor({ target: flatTarget, chat, model: "m" });
 
-    const result = await extractor.extract("The wall is R-13, four hundred square feet.");
+    const result = await extractor.extract({
+      text: "The wall is R-13, four hundred square feet.",
+      annotations: {},
+    });
 
     expect(requests).toHaveLength(1);
     expect(result.usage.calls).toBe(1);
@@ -644,7 +660,7 @@ describe("perGroupExtractor — non-grouped fallback", () => {
     const { chat } = fakeGroupChat({ [flatTarget.name]: "Sorry, I can't help. {not json" });
     const extractor = perGroupExtractor({ target: flatTarget, chat, model: "m", delay: noDelay });
 
-    const error = await extractor.extract("t").then(
+    const error = await extractor.extract({ text: "t", annotations: {} }).then(
       () => {
         throw new Error("expected extract() to reject on a non-JSON response");
       },
@@ -660,7 +676,7 @@ describe("perGroupExtractor — non-grouped fallback", () => {
     const { chat } = fakeGroupChat({ [flatTarget.name]: JSON.stringify(flatResponse) }, "length");
     const extractor = perGroupExtractor({ target: flatTarget, chat, model: "m" });
 
-    const error = await extractor.extract("t").then(
+    const error = await extractor.extract({ text: "t", annotations: {} }).then(
       () => {
         throw new Error("expected extract() to reject on a truncated response");
       },
@@ -711,7 +727,10 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
       delay: noDelay,
     });
 
-    const result = await extractor.extract("Furnace is a Carrier. Attic has R-38.");
+    const result = await extractor.extract({
+      text: "Furnace is a Carrier. Attic has R-38.",
+      annotations: {},
+    });
 
     // hvac was called twice (1 initial + 1 retry); attic was called once.
     expect(callCounts[groupedName("hvac")]).toBe(2);
@@ -746,7 +765,9 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
       delay: noDelay,
     });
 
-    await expect(extractor.extract("t")).rejects.toThrow("persistent blip");
+    await expect(extractor.extract({ text: "t", annotations: {} })).rejects.toThrow(
+      "persistent blip",
+    );
 
     // hvac exhausted its budget: 3 calls (1 initial + 2 retries).
     expect(callCounts[groupedName("hvac")]).toBe(3);
@@ -780,7 +801,7 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
       delay: recordingDelay,
     });
 
-    const error = await extractor.extract("t").then(
+    const error = await extractor.extract({ text: "t", annotations: {} }).then(
       () => {
         throw new Error("expected extract() to reject on a terminal failure");
       },
@@ -822,7 +843,7 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
       delay: noDelay,
     });
 
-    await expect(extractor.extract("t")).rejects.toThrow("blip");
+    await expect(extractor.extract({ text: "t", annotations: {} })).rejects.toThrow("blip");
 
     const G = splitExtractionSchema(groupedExtraction).length;
     const totalCalls = Object.values(callCounts).reduce((a, b) => a + b, 0);
@@ -877,7 +898,7 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
       concurrency,
       delay: noDelay,
     });
-    await expect(tightExtractor.extract("t")).rejects.toThrow("blip");
+    await expect(tightExtractor.extract({ text: "t", annotations: {} })).rejects.toThrow("blip");
     const tightTotal = Object.values(tightCounts).reduce((a, b) => a + b, 0);
     // effectiveMaxRetries is capped to 1 (not 2) because maxRetries=2 with
     // backoff would exceed the tight timeout: 3 * 120_000 + 3_000 = 363_000 >
@@ -940,7 +961,9 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
       concurrency: 2,
     });
 
-    await expect(extractor.extract("t")).rejects.toThrow("fail immediately");
+    await expect(extractor.extract({ text: "t", annotations: {} })).rejects.toThrow(
+      "fail immediately",
+    );
 
     // hvac was called once (maxRetries=0). attic was called once (it was
     // in-flight when hvac failed). wall was NEVER started — the pool stopped
@@ -980,7 +1003,10 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
       baseMs: 1000,
     });
 
-    const result = await extractor.extract("The wall is R-13, four hundred square feet.");
+    const result = await extractor.extract({
+      text: "The wall is R-13, four hundred square feet.",
+      annotations: {},
+    });
 
     // Three calls: attempt 0 (fail), attempt 1 (fail), attempt 2 (succeed).
     expect(callCounts[flatTarget.name]).toBe(3);
@@ -1009,7 +1035,10 @@ test("every per-group schema name is within the structured-output name charset",
     [groupedName("attic")]: JSON.stringify(atticResponse),
   });
 
-  await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract("t");
+  await perGroupExtractor({ target: groupedTarget, chat, model: "m" }).extract({
+    text: "t",
+    annotations: {},
+  });
 
   expect(requests.length).toBeGreaterThan(1);
   for (const request of requests) {
@@ -1101,7 +1130,10 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
       "demo-big-big-1": JSON.stringify(piece1Response),
     });
 
-    const result = await perGroupExtractor({ target: bigTarget, chat, model: "m" }).extract("t");
+    const result = await perGroupExtractor({ target: bigTarget, chat, model: "m" }).extract({
+      text: "t",
+      annotations: {},
+    });
 
     // Exactly two calls for the one group — not one (over cap) and not more than
     // the two pieces the split produces.
@@ -1206,7 +1238,10 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
       "demo-items-items-1": JSON.stringify(piece1Response),
     });
 
-    const result = await perGroupExtractor({ target: itemsTarget, chat, model: "m" }).extract("t");
+    const result = await perGroupExtractor({ target: itemsTarget, chat, model: "m" }).extract({
+      text: "t",
+      annotations: {},
+    });
 
     expect(requests).toHaveLength(2);
     expect(result.usage.calls).toBe(2);
@@ -1286,7 +1321,7 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
       chat,
       model: "m",
       groupInstructions,
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     expect(requests).toHaveLength(2);
     for (const request of requests) {
@@ -1322,7 +1357,7 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
       chat,
       model: "m",
       maxNullableUnionsPerGroup: 32,
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     expect(requests).toHaveLength(1);
     expect(result.usage.calls).toBe(1);
@@ -1365,7 +1400,7 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
       chat,
       model: "m",
       maxNullableUnionsPerGroup: 2,
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     expect(requests).toHaveLength(4);
     for (const request of requests) {
@@ -1403,7 +1438,7 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
       onUnit: (e) => events.push(e),
     });
 
-    await extractor.extract("t");
+    await extractor.extract({ text: "t", annotations: {} });
 
     // Each group: one start, one done.
     const hvacEvents = events.filter((e) => e.key === "hvac");
@@ -1448,7 +1483,7 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
       onUnit: (e) => events.push(e),
     });
 
-    await extractor.extract("t");
+    await extractor.extract({ text: "t", annotations: {} });
 
     const hvacEvents = events.filter((e) => e.key === "hvac");
     expect(hvacEvents).toHaveLength(4);
@@ -1493,7 +1528,7 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
       onUnit: (e) => events.push(e),
     });
 
-    await extractor.extract("t");
+    await extractor.extract({ text: "t", annotations: {} });
 
     // Each group is partitioned into 2 pieces, each emitting start + done.
     const hvacEvents = events.filter((e) => e.key === "hvac");
@@ -1533,7 +1568,7 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
       onUnit: (e) => events.push(e),
     });
 
-    await extractor.extract("t").catch(() => {});
+    await extractor.extract({ text: "t", annotations: {} }).catch(() => {});
 
     const hvacEvents = events.filter((e) => e.key === "hvac");
     // Terminal: one start, one error, no retry start.
@@ -1564,7 +1599,7 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
       chat: chatWithUsage,
       model: "m",
       onUnit: (e) => eventsWithUsage.push(e),
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     const doneWith = eventsWithUsage.filter((e) => e.phase === "done");
     expect(doneWith).toHaveLength(2);
@@ -1585,7 +1620,7 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
       chat: chatNoUsage,
       model: "m",
       onUnit: (e) => eventsNoUsage.push(e),
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     const doneWithout = eventsNoUsage.filter((e) => e.phase === "done");
     expect(doneWithout).toHaveLength(2);
@@ -1642,7 +1677,7 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
       onUnit: (e) => events.push(e),
     });
 
-    await expect(extractor.extract("t")).rejects.toThrow();
+    await expect(extractor.extract({ text: "t", annotations: {} })).rejects.toThrow();
     const atSettlement = events.length;
 
     // `Promise.all` rejects the moment the terminal sibling throws (~20ms),
@@ -1692,7 +1727,7 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
       onUnit: (e) => events.push(e),
     });
 
-    await extractor.extract("t");
+    await extractor.extract({ text: "t", annotations: {} });
 
     expect(events).toHaveLength(2);
     expect(events.every((e) => e.key === "")).toBe(true);
@@ -1716,12 +1751,12 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
       target: groupedTarget,
       chat: chat1,
       model: "m",
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
     const result2 = await perGroupExtractor({
       target: groupedTarget,
       chat: chat2,
       model: "m",
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     expect(result1).toEqual(result2);
     expect(requests1).toEqual(requests2);
@@ -1745,7 +1780,7 @@ describe("perGroupExtractor — retry budget (extraction observability)", () => 
       stepTimeoutMs: 100_000,
       onRetryBudget: (e) => budgetEvents.push(e),
     });
-    await extractor.extract("t");
+    await extractor.extract({ text: "t", annotations: {} });
 
     expect(budgetEvents).toHaveLength(1);
     expect(budgetEvents[0]!.requested).toBe(5);
@@ -1765,7 +1800,7 @@ describe("perGroupExtractor — retry budget (extraction observability)", () => 
       stepTimeoutMs: 900_000,
       onRetryBudget: (e) => budgetEventsIntact.push(e),
     });
-    await extractorIntact.extract("t");
+    await extractorIntact.extract({ text: "t", annotations: {} });
     expect(budgetEventsIntact).toHaveLength(0);
   });
 

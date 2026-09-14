@@ -87,6 +87,27 @@ describe("ManagedDocsTranscriber — transcribe", () => {
     expect(transcript.text).toContain("Equipment: Heat pump 3-ton.");
   });
 
+  test("HTML entities in the response content are decoded to literal characters", async () => {
+    // Transcript.text holds rendered text, not escaped markup. A managed document
+    // understanding API may return content with HTML entities (e.g. &amp;), so
+    // decoding happens at the transcriber before the text reaches the outbox.
+    const body = {
+      pages: [
+        {
+          pageNumber: 1,
+          content: "Tom &amp; Jerry Plumbing &amp; Heating",
+        },
+      ],
+    };
+    const { fetchImpl } = fakeFetch(Response.json(body));
+    const t = new ManagedDocsTranscriber({ endpoint: ENDPOINT, fetchImpl });
+
+    const transcript = await t.transcribe(DOC, BYTES);
+
+    expect(transcript.text).toContain("Tom & Jerry Plumbing & Heating");
+    expect(transcript.text).not.toContain("&amp;");
+  });
+
   // --- Failure classification: attempt failure ------------------------------------
 
   test("a 503 throws, and the thrown value is not UnsupportedItemError or TranscriberUnavailableError", async () => {

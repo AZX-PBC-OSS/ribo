@@ -1,7 +1,8 @@
 # Findings from the docs repositioning and the Mistral spike
 
 **Date:** 2026-09-11
-**Status:** Work list. Nothing here is built.
+**Status:** B1-B4 and P1-P4 built (2026-09-11). P5 answered by measurement and
+descoped to a transcriber. One gap recorded under P2.
 
 Everything below surfaced while rewriting the docs or while probing whether Mistral Document AI
 and Instructor.js belong inside Ribo rather than beside it. The docs work is merged (#62). This
@@ -106,7 +107,7 @@ transcribe→extract seam carries.
 
 ## Proposals
 
-### P1. Feed the validation error back on retry
+### P1. Feed the validation error back on retry — **built**
 
 Today a `SchemaParseError` either falls through to another strategy or is resent identically — the
 model is never told what it got wrong. Instructor.js's one genuine idea is to return the
@@ -115,11 +116,20 @@ shape: a bounded, targeted follow-up call.
 
 A small combinator, no new dependency. The clearest win on this list.
 
+**Built** as `schemaRetryExtractor` in `ribo-extractor-openai`, not `ribo-core`. A first attempt
+put it in core and fed the error back by appending it to the transcript string, which is the one
+thing it must not do: `review.ts` checks every span against the real transcript, so the model can
+cite the appended block (spans read as `ungrounded`, the tier reserved for invention) and the
+block carries the model's own previous wrong values, so the retry meant to correct a hallucination
+re-presents it as citable source text. Feedback goes in conversation turns instead, which costs
+provider-neutrality — the only provider-neutral channel a core combinator can write to is the
+transcript, and that has to stay pristine.
+
 (Instructor.js itself: rejected. It requires an `openai` SDK client with
 `dangerouslyAllowBrowser: true`, exposing the key client-side — the thing Ribo's transport design
 exists to prevent. ~53 KB gzip floor, no answer to schema scale, last release 2025-01-27.)
 
-### P2. Plugin-scoped storage, swept by core
+### P2. Plugin-scoped storage, swept by core — **substrate built, delivery not**
 
 Plugins get a storage namespace tied to capture lifetime; core deletes a plugin's keys when a
 capture is dropped or discarded. This is what makes a transcriber and an extractor from the same
@@ -133,7 +143,17 @@ Lifecycle chosen: plugin-scoped namespace, core sweeps. Considered and not chose
 its own (silent leaks), and handing plugins the `Outbox` directly (makes its API a plugin-facing
 contract by accident).
 
-### P3. A combiner seam
+**Status: substrate built, delivery NOT built.** The `pluginStorage` collection, the
+capture-scoped handle, and core's sweep all exist and are tested. The only way to obtain a handle
+is `Outbox.pluginStorage(captureId, pluginId)` — so a plugin can reach its own storage only if the
+application hands it the `Outbox`, which is the option explicitly rejected above.
+
+That is B3's defect shape exactly: designed, documented, shipped, unreachable on the primary path.
+It is recorded rather than fixed because the wiring belongs in the transcriber and extractor
+contracts, and P4 is rewriting those right now. **Close it immediately after P4 lands** — a
+`PluginStorage` handed to a plugin alongside its input, so no plugin ever sees an `Outbox`.
+
+### P3. A combiner seam — **built**
 
 Replace the hardcoded `joinSessionTranscript` call with a pluggable, **pure** combiner:
 `(parts: AnnotatedTranscript[]) => AnnotatedTranscript`. The relay does the I/O — list the
@@ -147,7 +167,7 @@ option, which fixes B3.
 That `markCaptures` is a boolean bolted onto a policy function is the evidence this wants to be a
 seam: someone already felt the pressure here and relieved it with a flag.
 
-### P4. An annotated transcript as the transcribe→extract seam
+### P4. An annotated transcript as the transcribe→extract seam — **built**
 
 `Extractor.extract(transcript: string)` becomes `extract(t: AnnotatedTranscript)`, where the type
 carries a canonical `text` plus an open annotations bag.
@@ -167,7 +187,7 @@ whenever it happens.
 Recommendation: change the shape now, do not invent the contents now — a canonical text plus an
 open bag, and no annotation schema until something produces one.
 
-### P5. A Mistral Document AI package
+### P5. A Mistral Document AI package — **descoped to a transcriber**
 
 Now evidenced rather than speculative. Measured 2026-09-11 against
 `mistral-document-ai-2512` on Azure AI Foundry, one Wrightsoft Manual J, 24 pages:
@@ -186,8 +206,26 @@ Now evidenced rather than speculative. Measured 2026-09-11 against
 No new provenance kind, no bbox conversion. The values were right in both modes — only the
 citation differed, which is why span-checking is the thing that catches this.
 
-Open: whether a Mistral-native path is worth it at all is a _quality_ question this spike did not
-answer. It measured shape, not whether native extraction beats flattened text.
+**Answered 2026-09-11** — `spikes/mistral-native-vs-flattened/`. Two Manual J reports, one
+`enveloped()` schema, five runs per arm per document, OCR held constant so only the extraction
+step differs, and all 65 disagreements adjudicated against the source PDF:
+
+| measure                           | native       | flattened |
+| --------------------------------- | ------------ | --------- |
+| adjudicated correct (of 65)       | 0            | **19**    |
+| spans verbatim                    | 97.8%        | **100%**  |
+| over-fills where the other nulled | 58           | **0**     |
+| latency / round trips             | **41.6s, 1** | 49.5s, 2  |
+
+Native loses or ties every quality measure and wins only on round trips. **A Mistral package is a
+transcriber and nothing more** — no native extractor. Caveats: two documents, both Manual J, and
+the arms had asymmetric prompts (flattened ran Ribo's mature instructions, native a compressed
+`document_annotation_prompt`), which if anything flatters native's ceiling rather than its floor.
+
+One claim in that spike did not survive checking: it reported that Mistral links tables out as
+`[tbl-N.md]` placeholders. Re-measured against both documents, with and without an annotation
+request — zero placeholders, tables already inline, `pages[].tables` always empty. The spike's
+numbers are unaffected (its hydration code is a no-op), but the API claim is corrected in place.
 
 ---
 

@@ -1,0 +1,5 @@
+_runs/
+*.pdf
+*.txt
+!FINDINGS.md
+!*.mjs

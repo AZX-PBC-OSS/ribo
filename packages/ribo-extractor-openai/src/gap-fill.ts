@@ -33,8 +33,9 @@
 
 import { z } from "zod";
 
-import { nextUnitId } from "@azx/ribo-core";
+import { nextUnitId, spanGroundedness } from "@azx/ribo-core";
 import type {
+  AnnotatedTranscript,
   Enveloped,
   Extracted,
   ExtractionObserver,
@@ -104,6 +105,21 @@ export interface GapFillOptions<
    * runs on the passthrough path. Defaults to identity.
    */
   readonly normalize?: (fields: Enveloped<V>) => Enveloped<V>;
+  /**
+   * Which kinds of gap to re-ask about. Defaults to `["abstained"]` — the original behaviour.
+   *
+   * Adding `"ungrounded"` also re-asks leaves that committed to a value while citing text absent
+   * from the transcript. Both kinds travel in one follow-up call, because they share everything
+   * that makes the call expensive: the instructions, the transcript, and the round trip.
+   *
+   * Measured on a 126-leaf Manual J: re-asking converted about half the ungrounded spans to
+   * verbatim quotes. It is off by default because it is a second cost centre on a paid endpoint,
+   * and because a schema whose leaves ask the model for its own judgement rather than for a fact
+   * — a `confidence: "high" | "low"` field inside a provenance envelope — will report every such
+   * leaf as ungrounded forever and re-ask it on every extraction. Those fields do not belong in
+   * an envelope; this option will not rescue them.
+   */
+  readonly targets?: readonly GapFillTarget[];
 }
 
 /**
@@ -119,7 +135,21 @@ export interface AbstainedLeaf {
   readonly path: readonly (string | number)[];
   /** The quote the base extraction already found — handed back to the model in the follow-up. */
   readonly sourceSpan: string;
+  /**
+   * Why this leaf is being re-asked, which decides what the model is told and what the merge
+   * will accept back.
+   *
+   *   - `"abstained"` — a null value beside a real quote. The model found its evidence and did
+   *     not commit; the follow-up asks it to.
+   *   - `"ungrounded"` — a committed value beside a quote that is not in the transcript. The
+   *     value may well be right; the citation is unverifiable, which is the one thing this
+   *     library will not ship silently.
+   */
+  readonly kind: GapFillTarget;
 }
+
+/** Which kind of gap a follow-up call is for. See {@link AbstainedLeaf.kind}. */
+export type GapFillTarget = "abstained" | "ungrounded";
 
 /**
  * Distinguish a leaf envelope from a nested enveloped group. The envelope's own
@@ -184,7 +214,7 @@ export function findAbstainedLeaves<V extends Record<string, unknown>>(
   const found: AbstainedLeaf[] = [];
   mapLeaves(fields, [], (leaf, path) => {
     if (leaf.value === null && leaf.sourceSpan !== null) {
-      found.push({ path, sourceSpan: leaf.sourceSpan });
+      found.push({ path, sourceSpan: leaf.sourceSpan, kind: "abstained" });
     }
     return leaf;
   });
@@ -199,6 +229,39 @@ export function findAbstainedLeaves<V extends Record<string, unknown>>(
  * candidate's structured path is what drives the merge. A local formatter, not
  * `buildFieldPath`, which validates for the review grammar.
  */
+/**
+ * Collect every leaf that committed to a value while citing text that is NOT in the transcript —
+ * `spanGroundedness` of `"ungrounded"`.
+ *
+ * The middle tier is deliberately excluded. A `"near-miss"` span differs only in case, whitespace
+ * or entity encoding; it is the tier that exists to say "this citation is fine, just re-spaced",
+ * and re-asking for those would spend a call on a non-problem.
+ *
+ * A null value is never collected here, however bad its span — {@link findAbstainedLeaves} owns
+ * those, and a leaf belongs to exactly one follow-up.
+ *
+ * Measured motivation: on a 126-leaf Manual J, a one-call extraction returned 15-18 ungrounded
+ * spans per run and re-asking converted about half of them to verbatim quotes. The values were
+ * usually right; the citations had been reformatted or synthesised.
+ */
+export function findUngroundedLeaves<V extends Record<string, unknown>>(
+  fields: Enveloped<V>,
+  transcript: string,
+): readonly AbstainedLeaf[] {
+  const found: AbstainedLeaf[] = [];
+  mapLeaves(fields, [], (leaf, path) => {
+    if (
+      leaf.value !== null &&
+      leaf.sourceSpan !== null &&
+      spanGroundedness(leaf.sourceSpan, transcript) === "ungrounded"
+    ) {
+      found.push({ path, sourceSpan: leaf.sourceSpan, kind: "ungrounded" });
+    }
+    return leaf;
+  });
+  return found;
+}
+
 export function formatLeafPath(path: readonly (string | number)[]): string {
   let out = "";
   for (const segment of path) {
@@ -273,6 +336,24 @@ const GAP_FILL_DIRECTIVE = `A first extraction pass over the transcript found a 
 Reaffirming null is a fully valid answer. Never commit to a value the transcript does not support.`;
 
 /**
+ * The directive for ungrounded candidates.
+ *
+ * It has to make abstaining feel like an answer rather than a failure, because measurement says
+ * the model will not otherwise reach for it: across three runs of a re-ask pass, roughly half the
+ * ungrounded spans became verbatim quotes and **not one** leaf was conceded as null. A model told
+ * only "your quote is wrong" hunts for a better quote for a value it has already committed to.
+ * The merge does not rely on this wording — it refuses any answer that does not improve — but a
+ * correct null is a better outcome than a refused answer, so the prompt asks for it plainly.
+ */
+const UNGROUNDED_DIRECTIVE = `A first extraction pass committed to a value for each field listed by the user, citing the quote shown. Each of those quotes was checked against the transcript and is NOT present in it — the citation was reformatted, assembled from separate places, or invented. The value itself may still be correct.
+
+For each listed field, either:
+- keep the value and replace sourceSpan with text copied character-for-character out of the transcript, or
+- set BOTH value and sourceSpan to null if no such text exists.
+
+Setting null is a fully valid answer and is the right one whenever the transcript does not state the value in copyable form. Do not reformat, re-space, or stitch together a quote: if you cannot paste it out of the transcript, it is not a quote.`;
+
+/**
  * Assemble the follow-up's messages: the target's instructions plus the gap-fill
  * directive as the system prompt, the candidate list (each field's path and its
  * own already-found quote) as a user turn, and the transcript LAST — the
@@ -284,20 +365,72 @@ const buildGapFillMessages = <V extends Record<string, unknown>>(
   transcript: string,
   candidates: readonly AbstainedLeaf[],
 ): ChatMessage[] => {
-  const list = candidates
-    .map(
-      (candidate) =>
-        `Field "${formatLeafPath(candidate.path)}" — quote found: "${candidate.sourceSpan}"`,
-    )
-    .join("\n");
+  const describe = (candidate: AbstainedLeaf): string =>
+    `Field "${formatLeafPath(candidate.path)}" — quote found: "${candidate.sourceSpan}"`;
+  const abstained = candidates.filter((c) => c.kind === "abstained");
+  const ungrounded = candidates.filter((c) => c.kind === "ungrounded");
+
+  // Both kinds share one call, so the system prompt carries only the directives actually
+  // needed: a caller who never enabled `"ungrounded"` sees byte-for-byte the prompt they
+  // saw before this option existed.
+  const directives = [
+    ...(abstained.length > 0 ? [GAP_FILL_DIRECTIVE] : []),
+    ...(ungrounded.length > 0 ? [UNGROUNDED_DIRECTIVE] : []),
+  ].join("\n\n");
+
+  const sections: string[] = [];
+  if (abstained.length > 0) {
+    sections.push(
+      `A first extraction pass left each field below without a value, despite finding the quote shown. Re-examine each one.\n\n${abstained.map(describe).join("\n")}`,
+    );
+  }
+  if (ungrounded.length > 0) {
+    sections.push(
+      `Each field below has a value whose quote is NOT present in the transcript. Re-examine each one.\n\n${ungrounded.map(describe).join("\n")}`,
+    );
+  }
+
   return [
-    { role: "system", content: `${target.instructions}\n\n${GAP_FILL_DIRECTIVE}` },
-    {
-      role: "user",
-      content: `A first extraction pass left each field below without a value, despite finding the quote shown. Re-examine each one.\n\n${list}`,
-    },
+    { role: "system", content: `${target.instructions}\n\n${directives}` },
+    ...sections.map((content): ChatMessage => ({ role: "user", content })),
     { role: "user", content: transcript },
   ];
+};
+
+/**
+ * Drop follow-up answers that do not improve on what the base already had.
+ *
+ * Only `"ungrounded"` candidates are filtered, and the rule is simple: the base leaf already has
+ * a value, so the follow-up has to earn its replacement by either producing a citation that
+ * actually grounds or conceding null. A second unverifiable quote is not progress, and accepting
+ * it would let a re-ask quietly swap one fabricated citation for another.
+ *
+ * This makes the pass **non-regressive**: enabling it can move a leaf from ungrounded to grounded
+ * or to an honest null, and can never make a leaf worse than the base run left it. That property
+ * is what allows it to run automatically. `"abstained"` candidates are untouched — their base
+ * value is null, so anything the follow-up commits to is the answer being sought.
+ */
+const acceptImprovements = (
+  followUp: Readonly<Record<string, Extracted<unknown>>>,
+  candidates: readonly AbstainedLeaf[],
+  transcript: string,
+): Record<string, Extracted<unknown>> => {
+  const accepted: Record<string, Extracted<unknown>> = {};
+  for (const candidate of candidates) {
+    const key = formatLeafPath(candidate.path);
+    const answer = followUp[key];
+    if (answer === undefined) continue;
+    if (candidate.kind === "abstained") {
+      accepted[key] = answer;
+      continue;
+    }
+    const conceded = answer.value === null;
+    const grounds =
+      answer.sourceSpan !== null &&
+      spanGroundedness(answer.sourceSpan, transcript) !== "ungrounded";
+    if (conceded || grounds) accepted[key] = answer;
+  }
+  return accepted;
 };
 
 /**
@@ -356,15 +489,22 @@ export function gapFillExtractor<V extends Record<string, unknown>>({
   maxTokens,
   normalize = (fields) => fields,
   onUnit,
+  targets = ["abstained"],
 }: GapFillOptions<V>): Extractor<Enveloped<V>> {
+  const wanted = new Set<GapFillTarget>(targets);
   const context = `gapFillExtractor: model response for "${target.name}"`;
   // `-`, not `:` — the schema-name charset constraint documented in per-group.
   const name = `${target.name}-gap-fill`;
 
   return {
-    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V>>> {
+    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V>>> {
       const baseResult = await base.extract(transcript);
-      const candidates = findAbstainedLeaves(baseResult.fields);
+      const candidates = [
+        ...(wanted.has("abstained") ? findAbstainedLeaves(baseResult.fields) : []),
+        ...(wanted.has("ungrounded")
+          ? findUngroundedLeaves(baseResult.fields, transcript.text)
+          : []),
+      ];
 
       // The passthrough emits NOTHING: no call is made, so there is no unit to
       // report. A phantom event here would announce work that never happened.
@@ -394,7 +534,7 @@ export function gapFillExtractor<V extends Record<string, unknown>>({
           chat,
           {
             model,
-            messages: buildGapFillMessages(target, transcript, candidates),
+            messages: buildGapFillMessages(target, transcript.text, candidates),
             response_format: {
               type: "json_schema",
               json_schema: { name, schema: jsonSchema, strict: true },
@@ -414,7 +554,10 @@ export function gapFillExtractor<V extends Record<string, unknown>>({
           Extracted<unknown>
         >;
 
-        const merged = mergeGapFilledLeaves(baseResult.fields, parsed);
+        const merged = mergeGapFilledLeaves(
+          baseResult.fields,
+          acceptImprovements(parsed, candidates, transcript.text),
+        );
 
         const result: ExtractionResult<Enveloped<V>> = {
           fields: normalize(merged),

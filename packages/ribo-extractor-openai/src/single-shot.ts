@@ -30,6 +30,7 @@ import { z } from "zod";
 
 import { nextUnitId } from "@azx/ribo-core";
 import type {
+  AnnotatedTranscript,
   Enveloped,
   ExtractionObserver,
   Extractor,
@@ -128,7 +129,7 @@ export function singleShotExtractor<V extends Record<string, unknown>, P = NoPro
   const context = `singleShotExtractor: model response for "${target.name}"`;
 
   return {
-    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V, P>>> {
+    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
       const id = nextUnitId();
       onUnit?.({ id, unit: "whole", phase: "start", attempt: 1 });
       try {
@@ -136,7 +137,7 @@ export function singleShotExtractor<V extends Record<string, unknown>, P = NoPro
           chat,
           {
             model,
-            messages: buildMessages(target, transcript),
+            messages: buildMessages(target, transcript.text),
             response_format: {
               type: "json_schema",
               json_schema: { name: target.name, schema: jsonSchema, strict: true },

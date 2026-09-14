@@ -337,8 +337,12 @@ export function parseJsonContent(content: string, context: string): unknown {
 export function parseWithSchema<T>(schema: z.ZodType<T>, raw: unknown, context: string): T {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
+    // `output` carries the rejected payload so a self-correction retry
+    // (schema-retry.ts) can show the model its own answer as a conversation
+    // turn — never by touching the transcript.
     throw new SchemaParseError(`${context} did not match the schema: ${parsed.error.message}`, {
       cause: parsed.error,
+      output: raw,
     });
   }
   return parsed.data;

@@ -77,7 +77,7 @@ describe("composite observer forwarding", () => {
       acceptAnySuccess,
     );
 
-    await composite.extract("the transcript");
+    await composite.extract({ text: "the transcript", annotations: {} });
 
     // Every inner unit was delivered — not just the composite's own attempts.
     expect(events).toHaveLength(4);
@@ -131,7 +131,7 @@ describe("composite observer forwarding", () => {
       acceptAnySuccess,
     );
 
-    await composite.extract("the transcript");
+    await composite.extract({ text: "the transcript", annotations: {} });
 
     expect(events).toHaveLength(2);
     expect(events[0]?.strategy).toBe("first");

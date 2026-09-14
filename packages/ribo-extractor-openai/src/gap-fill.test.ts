@@ -6,6 +6,7 @@ import { describe, expect, test } from "vitest";
 import type { ChatClient, ChatFinishReason, ChatRequest, ChatUsage } from "./chat-client.js";
 import {
   findAbstainedLeaves,
+  findUngroundedLeaves,
   formatLeafPath,
   gapFillExtractor,
   mergeGapFilledLeaves,
@@ -138,13 +139,13 @@ describe("gapFillExtractor — passthrough (no candidates)", () => {
     });
 
     const transcript = "The roof is asphalt shingles; the walls are brick.";
-    const result = await extractor.extract(transcript);
+    const result = await extractor.extract({ text: transcript, annotations: {} });
 
     expect(result.fields).toBe(committedFields);
     expect(result.usage).toEqual({ calls: 1, promptTokens: 100, completionTokens: 50 });
     expect(requests).toHaveLength(0);
     // The base extractor still ran, on the transcript.
-    expect(base.calls).toEqual([transcript]);
+    expect(base.calls.map((t) => t.text)).toEqual([transcript]);
   });
 });
 
@@ -161,7 +162,7 @@ describe("gapFillExtractor — the follow-up call", () => {
     });
 
     const transcript = "Asphalt shingles. Gas furnace in the basement. The second system hums.";
-    await extractor.extract(transcript);
+    await extractor.extract({ text: transcript, annotations: {} });
 
     expect(requests).toHaveLength(1);
     const req = requests[0]!;
@@ -206,9 +207,10 @@ describe("gapFillExtractor — the merge", () => {
   test("a committed value lands on exactly that leaf; every other leaf keeps the base's identity", async () => {
     const base = new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } });
     const { chat } = fakeChat(JSON.stringify(followUpResponse));
-    const result = await gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract(
-      "t",
-    );
+    const result = await gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract({
+      text: "t",
+      annotations: {},
+    });
 
     // Candidates take the follow-up's answer wholesale — value, confidence, span.
     expect(result.fields.envelope.roof).toEqual(followUpResponse["envelope.roof"]);
@@ -229,9 +231,10 @@ describe("gapFillExtractor — the merge", () => {
     };
     const base = new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } });
     const { chat } = fakeChat(JSON.stringify(reaffirmAll));
-    const result = await gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract(
-      "t",
-    );
+    const result = await gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract({
+      text: "t",
+      annotations: {},
+    });
 
     // The follow-up's explicit null stands — with ITS confidence, not the base's.
     expect(result.fields.envelope.roof).toEqual(reaffirmAll["envelope.roof"]);
@@ -266,7 +269,7 @@ describe("gapFillExtractor — the merge", () => {
       chat,
       model: "m",
       normalize,
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     expect(result.fields.envelope.roof.confidence).toBe(1);
     expect(result.fields.envelope.roof.value).toBe("asphalt_shingle");
@@ -287,9 +290,10 @@ describe("gapFillExtractor — usage", () => {
     const { chat } = fakeChat(JSON.stringify(followUpResponse), {
       usage: { promptTokens: 40, completionTokens: 10, cachedPromptTokens: 5 },
     });
-    const result = await gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract(
-      "t",
-    );
+    const result = await gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract({
+      text: "t",
+      annotations: {},
+    });
 
     expect(result.usage).toEqual({
       calls: 2,
@@ -304,9 +308,10 @@ describe("gapFillExtractor — usage", () => {
     // The distinction `addUsage` exists to protect: absent means "not reported".
     const base = new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } });
     const { chat } = fakeChat(JSON.stringify(followUpResponse));
-    const result = await gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract(
-      "t",
-    );
+    const result = await gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract({
+      text: "t",
+      annotations: {},
+    });
 
     expect(result.usage).toEqual({ calls: 2 });
   });
@@ -324,7 +329,10 @@ describe("gapFillExtractor — the follow-up crosses the same trust boundary", (
     const { chat } = fakeChat(JSON.stringify(invalid));
 
     const error = await catchRejection(
-      gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract("t"),
+      gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract({
+        text: "t",
+        annotations: {},
+      }),
     );
 
     expect(error).toBeInstanceOf(SchemaParseError);
@@ -337,7 +345,10 @@ describe("gapFillExtractor — the follow-up crosses the same trust boundary", (
     const { chat } = fakeChat(JSON.stringify(followUpResponse), { finishReason: "length" });
 
     const error = await catchRejection(
-      gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract("t"),
+      gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract({
+        text: "t",
+        annotations: {},
+      }),
     );
 
     expect((error as Error).message).toContain("maxTokens");
@@ -358,7 +369,7 @@ describe("gapFillExtractor — progress units", () => {
       chat,
       model: "m",
       onUnit: (event) => events.push(event),
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     // One unit — a start and its done — for the ONE follow-up call.
     expect(events).toHaveLength(2);
@@ -390,7 +401,7 @@ describe("gapFillExtractor — progress units", () => {
       chat,
       model: "m",
       onUnit: (event) => events.push(event),
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     expect(events).toEqual([]);
     expect(requests).toHaveLength(0);
@@ -418,7 +429,7 @@ describe("gapFillExtractor — progress units", () => {
       chat: followUpChat.chat,
       model: "m",
       onUnit: (event) => seen.push(`gapfill:${event.unit}:${event.phase}`),
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     expect(seen).toEqual([
       "base:whole:start",
@@ -439,7 +450,7 @@ describe("gapFillExtractor — progress units", () => {
       chat: observed.chat,
       model: "m",
       onUnit: (event) => events.push(event),
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     const silent = fakeChat(JSON.stringify(followUpResponse), { usage: followUpUsage });
     const withoutObserver = await gapFillExtractor({
@@ -447,7 +458,7 @@ describe("gapFillExtractor — progress units", () => {
       target: gapTarget,
       chat: silent.chat,
       model: "m",
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     // The observed run really did observe — otherwise the comparison below proves
     // nothing. This is the half that fails before the hook exists.
@@ -461,8 +472,8 @@ describe("gapFillExtractor — progress units", () => {
 describe("findAbstainedLeaves / formatLeafPath / mergeGapFilledLeaves — the pure helpers", () => {
   test("findAbstainedLeaves collects exactly the value-null-with-quote leaves, with paths and quotes", () => {
     expect(findAbstainedLeaves(abstainingFields)).toEqual([
-      { path: ["envelope", "roof"], sourceSpan: "asphalt shingles" },
-      { path: ["hvac", 1, "systemType"], sourceSpan: "the second system" },
+      { path: ["envelope", "roof"], sourceSpan: "asphalt shingles", kind: "abstained" },
+      { path: ["hvac", 1, "systemType"], sourceSpan: "the second system", kind: "abstained" },
     ]);
     // Plain abstentions and committed leaves are not collected.
     expect(findAbstainedLeaves(committedFields)).toEqual([]);
@@ -483,7 +494,7 @@ describe("findAbstainedLeaves / formatLeafPath / mergeGapFilledLeaves — the pu
     } as unknown as Enveloped<{ tags?: string[] }>;
 
     expect(findAbstainedLeaves(fields)).toEqual([
-      { path: ["tags", 0], sourceSpan: "cathedral ceilings" },
+      { path: ["tags", 0], sourceSpan: "cathedral ceilings", kind: "abstained" },
     ]);
 
     const merged = mergeGapFilledLeaves(fields, {
@@ -522,5 +533,181 @@ describe("findAbstainedLeaves / formatLeafPath / mergeGapFilledLeaves — the pu
 
   test("an empty follow-up returns the base structure itself", () => {
     expect(mergeGapFilledLeaves(abstainingFields, {})).toBe(abstainingFields);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// targets: ["ungrounded"] — re-ask leaves that cite text absent from the transcript.
+
+/** The transcript every ungrounded-target test scores against. */
+const groundedTranscript = "The roof is asphalt shingles; the walls are brick.";
+
+/** `envelope.wall` commits to a value while citing text that is not in the transcript. */
+const fabricatedFields: GapExtraction = {
+  envelope: {
+    roof: { value: "asphalt_shingle", confidence: 0.9, sourceSpan: "asphalt shingles" },
+    wall: { value: "brick", confidence: 0.9, sourceSpan: "Wall material: brick" },
+  },
+  hvac: [],
+};
+
+describe("gapFillExtractor — the ungrounded target", () => {
+  test("is off by default, so an ungrounded span alone makes no follow-up call", async () => {
+    const { chat, requests } = fakeChat("{}");
+    const extractor = gapFillExtractor({
+      base: new FakeExtractor<GapExtraction>(fabricatedFields),
+      target: gapTarget,
+      chat,
+      model: "gpt-test",
+    });
+
+    const result = await extractor.extract({ text: groundedTranscript, annotations: {} });
+
+    expect(requests).toHaveLength(0);
+    expect(result.fields).toBe(fabricatedFields);
+  });
+
+  test("re-asks the ungrounded leaf and accepts a citation that grounds", async () => {
+    const { chat, requests } = fakeChat(
+      JSON.stringify({
+        "envelope.wall": { value: "brick", confidence: 0.9, sourceSpan: "the walls are brick" },
+      }),
+    );
+    const extractor = gapFillExtractor({
+      base: new FakeExtractor<GapExtraction>(fabricatedFields),
+      target: gapTarget,
+      chat,
+      model: "gpt-test",
+      targets: ["ungrounded"],
+    });
+
+    const result = await extractor.extract({ text: groundedTranscript, annotations: {} });
+
+    expect(requests).toHaveLength(1);
+    expect(result.fields.envelope?.wall.sourceSpan).toBe("the walls are brick");
+    // The grounded roof was left alone — only the fabricated leaf was re-asked.
+    expect(result.fields.envelope?.roof.sourceSpan).toBe("asphalt shingles");
+  });
+
+  test("refuses a replacement whose citation is ALSO absent, keeping the base leaf", async () => {
+    // The measured failure mode: asked to fix a citation, the model produces a second
+    // unverifiable one rather than conceding. Swapping one fabrication for another is not
+    // progress, so the pass must be non-regressive.
+    const { chat } = fakeChat(
+      JSON.stringify({
+        "envelope.wall": {
+          value: "brick",
+          confidence: 0.99,
+          sourceSpan: "Walls: brick (exterior)",
+        },
+      }),
+    );
+    const extractor = gapFillExtractor({
+      base: new FakeExtractor<GapExtraction>(fabricatedFields),
+      target: gapTarget,
+      chat,
+      model: "gpt-test",
+      targets: ["ungrounded"],
+    });
+
+    const result = await extractor.extract({ text: groundedTranscript, annotations: {} });
+
+    expect(result.fields.envelope?.wall.sourceSpan).toBe("Wall material: brick");
+    expect(result.fields.envelope?.wall.value).toBe("brick");
+  });
+
+  test("accepts a conceded null even though it carries no citation", async () => {
+    const { chat } = fakeChat(
+      JSON.stringify({ "envelope.wall": { value: null, confidence: 0.1, sourceSpan: null } }),
+    );
+    const extractor = gapFillExtractor({
+      base: new FakeExtractor<GapExtraction>(fabricatedFields),
+      target: gapTarget,
+      chat,
+      model: "gpt-test",
+      targets: ["ungrounded"],
+    });
+
+    const result = await extractor.extract({ text: groundedTranscript, annotations: {} });
+
+    expect(result.fields.envelope?.wall.value).toBeNull();
+    expect(result.fields.envelope?.wall.sourceSpan).toBeNull();
+  });
+
+  test("a near-miss span is not a candidate", async () => {
+    // The middle tier exists to say "this quote is fine, just re-spaced". Re-asking it would
+    // spend a paid call on a non-problem.
+    const nearMiss: GapExtraction = {
+      envelope: {
+        roof: { value: "asphalt_shingle", confidence: 0.9, sourceSpan: "ASPHALT   SHINGLES" },
+        wall: { value: "brick", confidence: 0.9, sourceSpan: "the walls are brick" },
+      },
+      hvac: [],
+    };
+    const { chat, requests } = fakeChat("{}");
+    const extractor = gapFillExtractor({
+      base: new FakeExtractor<GapExtraction>(nearMiss),
+      target: gapTarget,
+      chat,
+      model: "gpt-test",
+      targets: ["ungrounded"],
+    });
+
+    await extractor.extract({ text: groundedTranscript, annotations: {} });
+
+    expect(requests).toHaveLength(0);
+  });
+
+  test("both targets travel in one call", async () => {
+    const mixed: GapExtraction = {
+      envelope: {
+        roof: { value: null, confidence: 0.4, sourceSpan: "asphalt shingles" },
+        wall: { value: "brick", confidence: 0.9, sourceSpan: "Wall material: brick" },
+      },
+      hvac: [],
+    };
+    const { chat, requests } = fakeChat(
+      JSON.stringify({
+        "envelope.roof": {
+          value: "asphalt_shingle",
+          confidence: 0.9,
+          sourceSpan: "asphalt shingles",
+        },
+        "envelope.wall": { value: "brick", confidence: 0.9, sourceSpan: "the walls are brick" },
+      }),
+    );
+    const extractor = gapFillExtractor({
+      base: new FakeExtractor<GapExtraction>(mixed),
+      target: gapTarget,
+      chat,
+      model: "gpt-test",
+      targets: ["abstained", "ungrounded"],
+    });
+
+    const result = await extractor.extract({ text: groundedTranscript, annotations: {} });
+
+    expect(requests).toHaveLength(1);
+    expect(result.fields.envelope?.roof.value).toBe("asphalt_shingle");
+    expect(result.fields.envelope?.wall.sourceSpan).toBe("the walls are brick");
+  });
+});
+
+describe("findUngroundedLeaves", () => {
+  test("collects only committed leaves whose span is absent from the transcript", () => {
+    const found = findUngroundedLeaves(fabricatedFields, groundedTranscript);
+    expect(found.map((leaf) => formatLeafPath(leaf.path))).toEqual(["envelope.wall"]);
+    expect(found[0]?.kind).toBe("ungrounded");
+  });
+
+  test("ignores a null value however bad its span — that is the abstained finder's leaf", () => {
+    const abstainedWithBadSpan: GapExtraction = {
+      envelope: {
+        roof: { value: null, confidence: 0.4, sourceSpan: "Roof: not stated anywhere" },
+        wall: { value: "brick", confidence: 0.9, sourceSpan: "the walls are brick" },
+      },
+      hvac: [],
+    };
+    expect(findUngroundedLeaves(abstainedWithBadSpan, groundedTranscript)).toEqual([]);
+    expect(findAbstainedLeaves(abstainedWithBadSpan).map((l) => l.kind)).toEqual(["abstained"]);
   });
 });

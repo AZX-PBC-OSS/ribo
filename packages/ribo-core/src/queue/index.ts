@@ -26,7 +26,12 @@ export {
   openOutboxDatabase,
   removeOutboxDatabase,
 } from "./database.js";
-export type { OutboxCollection, OutboxDatabase, SessionCollection } from "./database.js";
+export type {
+  OutboxCollection,
+  OutboxDatabase,
+  PluginStorageCollection,
+  SessionCollection,
+} from "./database.js";
 
 export { openOutbox, Outbox } from "./outbox.js";
 export type {
@@ -81,8 +86,19 @@ export type {
   SessionStatus,
 } from "./session-schema.js";
 
-export { joinSessionTranscript } from "./session-extract.js";
-export type { JoinSessionTranscriptOptions } from "./session-extract.js";
+export {
+  PLUGIN_STORAGE_COLLECTION_NAME,
+  PLUGIN_STORAGE_MIGRATION_STRATEGIES,
+  pluginStorageDocumentSchema,
+  pluginStorageEntryId,
+  pluginStorageRxSchema,
+} from "./plugin-storage-schema.js";
+export type { PluginStorageDocument } from "./plugin-storage-schema.js";
+
+export { createPluginStorage } from "./plugin-storage.js";
+export type { PluginStorage } from "./plugin-storage.js";
+
+export { joinSessionTranscript, listSessionTranscriptParts } from "./session-extract.js";
 
 export {
   chunkName,

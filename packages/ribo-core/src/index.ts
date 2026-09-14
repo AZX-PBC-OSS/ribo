@@ -62,6 +62,16 @@ export type { Transcript } from "./transcript.js";
 export { decodeEntities } from "./decode-entities.js";
 export type { AnnotatedTranscript } from "./annotated-transcript.js";
 
+// Transcript combination: the pure contract that turns per-capture
+// transcripts into one, and the default combiner that reproduces the previous
+// `joinSessionTranscript` output. Injected through `RelayOptions.combineTranscripts`
+// so a host can replace the policy without forking the I/O.
+export { createDefaultTranscriptCombiner } from "./transcript-combiner.js";
+export type {
+  DefaultTranscriptCombinerOptions,
+  TranscriptCombiner,
+} from "./transcript-combiner.js";
+
 // Transcription: the contract, the capability model an engine reports itself
 // through, and the error that says "this device cannot" rather than "this clip
 // failed".

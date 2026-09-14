@@ -118,7 +118,7 @@ describe("singleShotExtractor — request shape", () => {
     });
 
     const transcript = "Furnace is a Carrier, natural gas, eighty thousand BTU.";
-    await extractor.extract(transcript);
+    await extractor.extract({ text: transcript, annotations: {} });
 
     expect(requests).toHaveLength(1);
     const req = requests[0]!;
@@ -148,7 +148,10 @@ describe("singleShotExtractor — request shape", () => {
 
   test("the emitted JSON Schema carries no strict-mode-forbidden keywords", async () => {
     const { chat, requests } = fakeChat(JSON.stringify(wellFormed));
-    await singleShotExtractor({ target: demoTarget, chat, model: "m" }).extract("hi");
+    await singleShotExtractor({ target: demoTarget, chat, model: "m" }).extract({
+      text: "hi",
+      annotations: {},
+    });
     const asString = JSON.stringify(requests[0]!.response_format.json_schema.schema);
     // `.min()/.max()` would emit these — the reason `confidence` is a bare z.number().
     expect(asString).not.toContain('"minimum"');
@@ -163,7 +166,10 @@ describe("singleShotExtractor — request shape", () => {
     // bytes sent — and it is the assertion that would catch the extractor being
     // pointed at a patch schema by mistake.
     const { chat, requests } = fakeChat(JSON.stringify(wellFormed));
-    await singleShotExtractor({ target: demoTarget, chat, model: "m" }).extract("hi");
+    await singleShotExtractor({ target: demoTarget, chat, model: "m" }).extract({
+      text: "hi",
+      annotations: {},
+    });
     const schema = requests[0]!.response_format.json_schema.schema as Record<string, unknown>;
 
     const requireEveryKey = (node: Record<string, unknown>, path: string): void => {
@@ -204,7 +210,7 @@ describe("singleShotExtractor — trust boundary", () => {
       chat,
       model: "m",
       normalize: normalizeDemo,
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     // normalizeDemo clamped both envelopes into 0..1; values are untouched.
     expect(result.fields.equipment.confidence).toBe(1);
@@ -222,7 +228,10 @@ describe("singleShotExtractor — trust boundary", () => {
     const { safety: _safety, ...withoutSafety } = clone(wellFormed);
     const { chat } = fakeChat(JSON.stringify(withoutSafety));
     await expect(
-      singleShotExtractor({ target: demoTarget, chat, model: "m" }).extract("t"),
+      singleShotExtractor({ target: demoTarget, chat, model: "m" }).extract({
+        text: "t",
+        annotations: {},
+      }),
     ).rejects.toThrow(/did not match the schema/);
   });
 });
@@ -234,7 +243,7 @@ describe("singleShotExtractor — failure is transient (queue retries), and sche
 
     let error: unknown;
     try {
-      await extractor.extract("t");
+      await extractor.extract({ text: "t", annotations: {} });
       throw new Error("expected extract() to reject on a non-JSON response");
     } catch (caught) {
       error = caught;
@@ -268,7 +277,7 @@ describe("singleShotExtractor — failure is transient (queue retries), and sche
 
     let error: unknown;
     try {
-      await extractor.extract("t");
+      await extractor.extract({ text: "t", annotations: {} });
       throw new Error("expected extract() to reject on a schema-invalid response");
     } catch (caught) {
       error = caught;
@@ -281,7 +290,7 @@ describe("singleShotExtractor — failure is transient (queue retries), and sche
     expect(requests).toHaveLength(1);
 
     // A retry (simulating the queue) succeeds with a different sample.
-    const result = await extractor.extract("t");
+    const result = await extractor.extract({ text: "t", annotations: {} });
     expect(result.fields.equipment.value).toBe("boiler");
     expect(requests).toHaveLength(2);
   });
@@ -299,7 +308,7 @@ describe("singleShotExtractor — pre-parse check (non-stop finishReason)", () =
 
     let error: unknown;
     try {
-      await extractor.extract("t");
+      await extractor.extract({ text: "t", annotations: {} });
       throw new Error("expected extract() to reject on a truncated response");
     } catch (caught) {
       error = caught;
@@ -317,7 +326,7 @@ describe("singleShotExtractor — pre-parse check (non-stop finishReason)", () =
 
     let error: unknown;
     try {
-      await extractor.extract("t");
+      await extractor.extract({ text: "t", annotations: {} });
       throw new Error("expected extract() to reject on a content-filtered response");
     } catch (caught) {
       error = caught;
@@ -340,7 +349,7 @@ describe("singleShotExtractor — pre-parse check (non-stop finishReason)", () =
           ),
       };
       const error = await singleShotExtractor({ target: demoTarget, chat, model: "m" })
-        .extract("t")
+        .extract({ text: "t", annotations: {} })
         .then(
           () => {
             throw new Error(`expected extract() to reject for ${kind}`);
@@ -357,7 +366,7 @@ describe("singleShotExtractor — pre-parse check (non-stop finishReason)", () =
     // allowed to try again. A transport blip behaves the same way and always has.
     const chat: ChatClient = { complete: () => Promise.reject(ChatError.aborted("deadline")) };
     const error = await singleShotExtractor({ target: demoTarget, chat, model: "m" })
-      .extract("t")
+      .extract({ text: "t", annotations: {} })
       .then(
         () => {
           throw new Error("expected extract() to reject");
@@ -379,7 +388,7 @@ describe("singleShotExtractor — pre-parse check (non-stop finishReason)", () =
       const { chat } = fakeChat(JSON.stringify(wellFormed), reason);
       const extractor = singleShotExtractor({ target: demoTarget, chat, model: "m" });
 
-      const error = await extractor.extract("t").then(
+      const error = await extractor.extract({ text: "t", annotations: {} }).then(
         () => {
           throw new Error(`expected extract() to reject on finishReason "${reason}"`);
         },
@@ -397,7 +406,7 @@ describe("singleShotExtractor — pre-parse check (non-stop finishReason)", () =
       chat,
       model: "m",
       normalize: normalizeDemo,
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     expect(result.fields.equipment.value).toBe("boiler");
     expect(result.fields.equipment.confidence).toBe(0.9);
@@ -413,7 +422,7 @@ describe("singleShotExtractor — pre-parse check (non-stop finishReason)", () =
       chat,
       model: "m",
       normalize: normalizeDemo,
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     expect(result.fields.equipment.value).toBe("boiler");
   });
@@ -431,7 +440,7 @@ describe("singleShotExtractor — progress units", () => {
       chat,
       model: "m",
       onUnit: (event) => events.push(event),
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     expect(events).toHaveLength(2);
     const start = events[0]!;
@@ -457,7 +466,7 @@ describe("singleShotExtractor — progress units", () => {
       chat,
       model: "m",
       onUnit: (event) => events.push(event),
-    }).extract("t");
+    }).extract({ text: "t", annotations: {} });
 
     expect(events).toHaveLength(2);
     expect(events[1]!.phase).toBe("done");
@@ -475,7 +484,7 @@ describe("singleShotExtractor — progress units", () => {
       model: "m",
       onUnit: (event) => events.push(event),
     })
-      .extract("t")
+      .extract({ text: "t", annotations: {} })
       .then(
         () => {
           throw new Error("expected extract() to reject");
@@ -506,7 +515,7 @@ describe("singleShotExtractor — progress units", () => {
       model: "m",
       normalize: normalizeDemo,
       onUnit: (event) => events.push(event),
-    }).extract(transcript);
+    }).extract({ text: transcript, annotations: {} });
 
     const silent = fakeChat(JSON.stringify(wellFormed));
     const withoutObserver = await singleShotExtractor({
@@ -514,7 +523,7 @@ describe("singleShotExtractor — progress units", () => {
       chat: silent.chat,
       model: "m",
       normalize: normalizeDemo,
-    }).extract(transcript);
+    }).extract({ text: transcript, annotations: {} });
 
     // The observed run really did observe — otherwise the comparison below proves
     // nothing. This is the half that fails before the hook exists.

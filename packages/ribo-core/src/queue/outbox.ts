@@ -12,9 +12,11 @@ import {
   openOutboxDatabase,
   type OutboxCollection,
   type OutboxDatabase,
+  type PluginStorageCollection,
   type SessionCollection,
 } from "./database.js";
 import { commitRegion, handoffTranscript, writeTail } from "./preview.js";
+import { createPluginStorage, type PluginStorage } from "./plugin-storage.js";
 import { reviewOutcomeSchema, type PersistedReviewOutcome } from "../review.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
@@ -164,6 +166,7 @@ export class Outbox {
   readonly #database: OutboxDatabase;
   readonly #collection: OutboxCollection;
   readonly #sessionsCollection: SessionCollection;
+  readonly #pluginStorageCollection: PluginStorageCollection;
   readonly #now: () => number;
   readonly #createId: () => string;
   readonly #createIdempotencyKey: () => string;
@@ -180,6 +183,7 @@ export class Outbox {
     this.#database = database;
     this.#collection = database.collections.outbox;
     this.#sessionsCollection = database.collections.sessions;
+    this.#pluginStorageCollection = database.collections.pluginStorage;
     this.#now = options.now ?? (() => Date.now());
     this.#createId = options.createId ?? (() => crypto.randomUUID());
     this.#createIdempotencyKey = options.createIdempotencyKey ?? (() => crypto.randomUUID());
@@ -435,12 +439,20 @@ export class Outbox {
    * Apply a partial update. The merged document is validated **before** the write,
    * so a bad status or a malformed timestamp fails here rather than at the next
    * reload, where the failure would look like data corruption.
+   *
+   * When the patch sets `status` to `"discarded"`, every plugin-storage entry
+   * for this capture is swept — the capture's words should not return through a
+   * later extraction, and the plugin state that was only meaningful alongside
+   * those words should not linger either.
    */
   async patch(id: string, patch: OutboxPatch): Promise<OutboxItem> {
     const doc = await this.#collection.findOne(id).exec();
     if (!doc) throw new Error(`outbox: no item with id "${id}"`);
     outboxItemSchema.parse({ ...this.#toItem(doc), ...patch });
     const updated = await doc.incrementalPatch(patch);
+    if (patch.status === "discarded") {
+      await this.#sweepPluginStorage([id]);
+    }
     return this.#toItem(updated);
   }
 
@@ -570,14 +582,16 @@ export class Outbox {
     await doc?.getAttachment(AUDIO_ATTACHMENT_ID)?.remove();
   }
 
-  /** Delete an item and its attachment. */
+  /** Delete an item, its attachment and any plugin-storage entries for it. */
   async remove(id: string): Promise<void> {
     const doc = await this.#collection.findOne(id).exec();
     await doc?.remove();
+    await this.#sweepPluginStorage([id]);
   }
 
   /**
-   * Delete many items and their attachments in one storage write.
+   * Delete many items, their attachments and any plugin-storage entries for
+   * them, in one storage write per collection.
    *
    * Ids that are not in the queue are skipped, so this is idempotent — calling
    * it twice with the same list is not an error.
@@ -587,6 +601,12 @@ export class Outbox {
   async removeMany(ids: readonly string[]): Promise<number> {
     if (ids.length === 0) return 0;
     const result = await this.#collection.bulkRemove([...ids]);
+    // Sweep after the removal so a failed bulkRemove does not orphan the
+    // plugin-storage entries before the capture is gone — and so the sweep
+    // runs even for ids that were already absent (their plugin-storage
+    // entries may still be present if the capture was deleted by another
+    // means).
+    await this.#sweepPluginStorage(ids);
     // `error` collects per-document write failures (a 404 for an id that was
     // already gone, most commonly). Reporting the successes rather than the
     // input length keeps the return value honest about what happened.
@@ -594,7 +614,8 @@ export class Outbox {
   }
 
   /**
-   * Empty the queue — or the part of it matching `query`.
+   * Empty the queue — or the part of it matching `query` — and sweep
+   * plugin-storage entries for every removed item.
    *
    * The "reset this device" primitive, and what a UI's *clear queue* button
    * should call. The `list()`-then-`remove()`-in-a-loop version a consumer
@@ -605,12 +626,54 @@ export class Outbox {
    */
   async clear(query: OutboxQuery = {}): Promise<number> {
     const items = await this.list(query);
-    return await this.removeMany(items.map((item) => item.id));
+    const deleted = await this.removeMany(items.map((item) => item.id));
+    return deleted;
   }
 
   /** Close the database. The instance is unusable afterwards. */
   async close(): Promise<void> {
     await this.#database.close();
+  }
+
+  // -----------------------------------------------------------------------
+  // Plugin-scoped storage
+  // -----------------------------------------------------------------------
+
+  /**
+   * A namespaced, capture-scoped key-value handle a plugin writes through.
+   *
+   * The handle bakes in the `captureId` (an outbox item id) and `pluginId`, so
+   * two plugins cannot read or clobber each other's keys. Core sweeps every
+   * entry for a capture when the capture is dropped ({@link remove},
+   * {@link removeMany}, {@link clear}) or discarded ({@link patch} with
+   * `status: "discarded"`), so a plugin never needs to clean up after itself —
+   * and forgetting to do so can never leak.
+   *
+   * The storage is durable (same RxDB database as the outbox), so the two
+   * halves of a plugin that run in different tabs, minutes apart, see the same
+   * entries. A fresh handle over the same database reads what a prior handle
+   * wrote.
+   */
+  pluginStorage(captureId: string, pluginId: string): PluginStorage {
+    return createPluginStorage(this.#pluginStorageCollection, captureId, pluginId);
+  }
+
+  /**
+   * Delete every plugin-storage entry for the given capture ids.
+   *
+   * Called from {@link remove}, {@link removeMany}, {@link clear} and
+   * {@link patch} (when the status becomes `discarded`) — the four places a
+   * capture leaves the outbox. It removes entries for **every** plugin that
+   * wrote against the capture, not just one, because the sweep is by
+   * `captureId` alone.
+   */
+  async #sweepPluginStorage(captureIds: readonly string[]): Promise<void> {
+    if (captureIds.length === 0) return;
+    const docs = await this.#pluginStorageCollection
+      .find({ selector: { captureId: { $in: [...captureIds] } } })
+      .exec();
+    if (docs.length === 0) return;
+    await this.#pluginStorageCollection.bulkRemove(docs.map((doc) => doc.id));
   }
 
   // -----------------------------------------------------------------------

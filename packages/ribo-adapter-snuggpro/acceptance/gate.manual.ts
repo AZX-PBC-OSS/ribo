@@ -99,8 +99,10 @@ import {
  * the frozen JSON Schema at `../src/__fixtures__/snugg-fields-json-schema.json` plus
  * the static prompt source files `../src/instructions.ts` and `../src/examples.ts` —
  * the schema-conformance artifact AND the full prompt content that shape extraction
- * quality, whether the endpoint enforces shape or a CLI spells it out, so it changes
- * iff what the model is asked for changes) alongside the rates it recorded. Each run
+ * quality, whether the endpoint enforces shape or a CLI spells it out. Hashing whole
+ * source files errs toward invalidating too often — a comment edit moves it — which is
+ * the safe direction: a stale baseline that looks fresh is the failure worth avoiding)
+ * alongside the rates it recorded. Each run
  * recomputes the CURRENT fingerprint and compares it AND the backend identity to
  * its OWN baseline file:
  *   - MATCH  -> the baseline describes this exact schema and backend; assert the
@@ -300,7 +302,7 @@ describe.skipIf(skipSuite)("single-shot extraction — spike-corpus acceptance g
         let fields: unknown = null;
         let problem: string | null = null;
         try {
-          const result = await extractor.extract(transcript);
+          const result = await extractor.extract({ text: transcript, annotations: {} });
           fields = result.fields;
           writeFileSync(join(RESULTS_DIR, `${slug}.json`), `${JSON.stringify(fields, null, 2)}\n`);
         } catch (error) {

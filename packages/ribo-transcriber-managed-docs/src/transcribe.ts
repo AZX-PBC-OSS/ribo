@@ -58,7 +58,7 @@
  * fallback ladder: a document too large for the managed service may be within
  * pdf.js's limits, so the ladder should try the next rung rather than give up.
  */
-import { TranscriberUnavailableError, UnsupportedItemError } from "@azx/ribo-core";
+import { TranscriberUnavailableError, UnsupportedItemError, decodeEntities } from "@azx/ribo-core";
 import type { DocumentCapture, Transcript } from "@azx/ribo-core";
 
 import {
@@ -199,7 +199,7 @@ export async function transcribeViaManagedDocs(
 
   return {
     recordingId: item.id,
-    text,
+    text: decodeEntities(text),
     engine,
   };
 }

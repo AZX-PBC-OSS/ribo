@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { decodeEntities } from "./decode-entities.js";
+
 /**
  * The provenance envelope every extracted field is wrapped in.
  *
@@ -150,50 +152,15 @@ export const isSpanGrounded = (span: string | null, transcript: string): boolean
  */
 export type SpanGroundedness = "grounded" | "near-miss" | "ungrounded";
 
-/**
- * Decode a small, deliberately scoped set of HTML entities. Only the entities that
- * actually occur in markdown / HTML-escaped transcripts are handled (`&amp;`,
- * `&lt;`, `&gt;`, `&quot;`, `&apos;`), plus numeric decimal and hexadecimal forms.
- * Keeps the helper dependency-free and tiny.
- */
-function decodeHtmlEntities(text: string): string {
-  return (
-    text
-      // Named entities first, case-insensitive so `&AMP;` and `&amp;` both land.
-      .replace(/&(?:amp|lt|gt|quot|apos);/gi, (entity) => {
-        switch (entity.toLowerCase()) {
-          case "&amp;":
-            return "&";
-          case "&lt;":
-            return "<";
-          case "&gt;":
-            return ">";
-          case "&quot;":
-            return '"';
-          case "&apos;":
-            return "'";
-          default:
-            return entity;
-        }
-      })
-      .replace(/&#(\d+);/g, (entity, decimal) => {
-        const code = parseInt(decimal, 10);
-        return Number.isNaN(code) || code < 0 || code > 0x10ffff
-          ? entity
-          : String.fromCodePoint(code);
-      })
-      .replace(/&#x([0-9a-f]+);/gi, (entity, hex) => {
-        const code = parseInt(hex, 16);
-        return Number.isNaN(code) || code < 0 || code > 0x10ffff
-          ? entity
-          : String.fromCodePoint(code);
-      })
-  );
-}
-
 /** Case-, whitespace-, quote- and HTML-entity-insensitive form, for the near-miss tier only. */
 const loosen = (text: string): string =>
-  decodeHtmlEntities(text.toLowerCase())
+  // Decode BEFORE lowercasing: a numeric entity for a letter (`&#65;`) decodes to `A`, and a
+  // decode that runs after the lowercase pass leaves it uppercase against a lowercased literal.
+  // Shares `decodeEntities` with the document transcribers deliberately — they render entities
+  // out of `Transcript.text`, and this tier catches a span that arrives encoded anyway (a
+  // provider returning its own markdown). Two decoders would let those two paths disagree.
+  decodeEntities(text)
+    .toLowerCase()
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')
     .replace(/\s+/gu, " ")

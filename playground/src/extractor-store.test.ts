@@ -165,7 +165,11 @@ test("with an API key, the live extractor is the per-group strategy", async () =
 
   // Run the step end to end. The fake chat returns valid per-group responses, so
   // the extraction succeeds and the call count is observable.
-  await extractStep({ session, transcript: transcript.text, recordingIds: ["rec-1"] });
+  await extractStep({
+    session,
+    transcript: { text: transcript.text, annotations: {} },
+    recordingIds: ["rec-1"],
+  });
 
   // One call per partitioned piece, not one per group: the over-cap groups
   // (see `snuggPieces` above) each split into several calls, so the total is
@@ -212,7 +216,11 @@ test("strategy: 'single-shot' is reachable as the alternative (Task 6's baseline
 
   expect(status).toMatchObject({ mode: "live", strategy: "single-shot" });
 
-  await extractStep({ session, transcript: transcript.text, recordingIds: ["rec-1"] });
+  await extractStep({
+    session,
+    transcript: { text: transcript.text, annotations: {} },
+    recordingIds: ["rec-1"],
+  });
 
   // The single-shot extractor makes ONE call carrying the whole schema.
   expect(requests).toHaveLength(1);

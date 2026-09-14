@@ -123,7 +123,7 @@ test.skip("an item extracted on-device is tagged so review can badge it", async 
     onDeviceLanguageModel: onDeviceModel,
   });
 
-  const result = await composite.extract(transcript.text);
+  const result = await composite.extract({ text: transcript.text, annotations: {} });
 
   expect(result.usage.engine).toBe("ondevice-chat");
 });

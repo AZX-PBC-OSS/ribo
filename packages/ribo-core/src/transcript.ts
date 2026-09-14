@@ -4,9 +4,13 @@ import { z } from "zod";
  * The text a {@link Transcriber} produced for one {@link Recording}.
  *
  * Flat and boring on purpose: this is the input to extraction and the text that
- * `isSpanGrounded` checks extracted spans against, so it must be exactly what the model saw.
- * Segments, word timings and speaker labels are not modelled — nothing downstream needs them
- * yet, and a shape nobody consumes is a shape nobody keeps honest.
+ * `isSpanGrounded` checks extracted spans against, so it must be text as a human
+ * reads it — rendered, not escaped markup. Document transcribers decode HTML
+ * entities at the transcriber (see `decodeEntities`) so the canonical text is
+ * already rendered by the time anything quotes from or checks against it.
+ * Segments, word timings and speaker labels are not modelled — nothing
+ * downstream needs them yet, and a shape nobody consumes is a shape nobody keeps
+ * honest.
  *
  * **Confidence here is the transcriber's overall score for the utterance, and it is not
  * load-bearing.** Per-field confidence is a different thing entirely: it lives in the provenance

@@ -130,6 +130,10 @@ describe("spanGroundedness", () => {
     expect(spanGroundedness("it&apos;s done", "it's done")).toBe("near-miss");
     expect(spanGroundedness("&#39;quoted&#39;", "'quoted'")).toBe("near-miss");
     expect(spanGroundedness("&#x2018;quoted&#x2019;", "'quoted'")).toBe("near-miss");
+    // A numeric entity for a LETTER only matches if decoding runs before the lowercase pass —
+    // decode afterwards and `&#65;` stays `A` against a lowercased `a`.
+    expect(spanGroundedness("&#65;ttic", "attic")).toBe("near-miss");
+    expect(spanGroundedness("&#x41;TTIC", "attic")).toBe("near-miss");
     // The verbatim tier stays strict: only an exact substring is grounded.
     expect(isSpanGrounded("attic & R-19", "attic &amp; R-19")).toBe(false);
   });

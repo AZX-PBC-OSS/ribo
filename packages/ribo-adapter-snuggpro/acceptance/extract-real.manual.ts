@@ -130,7 +130,7 @@ test("extract real-audio transcripts through the production extraction path", as
     }
     const transcript = readFileSync(join(REAL_GT_DIR, f), "utf8");
     const t0 = Date.now();
-    const result = await extractor.extract(transcript);
+    const result = await extractor.extract({ text: transcript, annotations: {} });
     writeFileSync(outPath, `${JSON.stringify(result.fields, null, 2)}\n`);
     console.log(`[extract-real] ok ${slug} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
   }

@@ -1,4 +1,5 @@
 import type { ToolAdapter } from "./adapter.js";
+import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import type { NoProvenance } from "./enveloped.js";
 import type { SessionExtractStep, ExtractedFieldMap } from "./queue/relay.js";
 
@@ -96,11 +97,11 @@ export interface ExtractionResult<F> {
  *
  * A plain builder, not a capability contract (the transcriber's `capability()` roster is for
  * runtime device variance; strategy choice here is configuration). One method: hand it the
- * transcript text, get back parsed fields plus provenance. Network-bound, which is why the relay
- * runs it as a queued step — see {@link toSessionExtractStep}.
+ * annotated transcript, get back parsed fields plus provenance. Network-bound, which is why the
+ * relay runs it as a queued step — see {@link toSessionExtractStep}.
  */
 export interface Extractor<F> {
-  extract(transcript: string): Promise<ExtractionResult<F>>;
+  extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<F>>;
 }
 
 /**
@@ -138,9 +139,11 @@ export type ExtractionTarget<V extends Record<string, unknown>, P = NoProvenance
  * session; `raw` stays with the extractor, because it is unbounded model output and the session
  * document is not a log.
  *
- * The session extract step receives the **joined transcript text** (all transcribed recordings
- * in capture order, excluding discarded), not a single `Transcript` object — that is the whole
- * point of session-level extraction.
+ * The session extract step receives the **joined transcript** (all transcribed
+ * recordings in capture order, excluding discarded) as an `AnnotatedTranscript`
+ * — canonical text plus annotations — not a single `Transcript` object. That is
+ * the whole point of session-level extraction: the model sees one text, not one
+ * per capture.
  */
 export function toSessionExtractStep<F>(extractor: Extractor<F>): SessionExtractStep {
   return async ({ transcript }) => {
@@ -173,7 +176,7 @@ export class FakeExtractor<F> implements Extractor<F> {
   readonly #fields: F;
   readonly #raw: unknown;
   readonly #usage: ExtractionResult<unknown>["usage"];
-  readonly #calls: string[] = [];
+  readonly #calls: AnnotatedTranscript[] = [];
 
   constructor(fields: F, options: FakeExtractorOptions = {}) {
     this.#fields = fields;
@@ -181,12 +184,12 @@ export class FakeExtractor<F> implements Extractor<F> {
     this.#usage = options.usage ?? { calls: 0 };
   }
 
-  /** The transcript text of every `extract()` call, in order — for asserting what was passed. */
-  get calls(): readonly string[] {
+  /** The transcript of every `extract()` call, in order — for asserting what was passed. */
+  get calls(): readonly AnnotatedTranscript[] {
     return this.#calls;
   }
 
-  extract(transcript: string): Promise<ExtractionResult<F>> {
+  extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<F>> {
     this.#calls.push(transcript);
     const base = { fields: this.#fields, usage: this.#usage };
     return Promise.resolve(this.#raw === undefined ? base : { ...base, raw: this.#raw });

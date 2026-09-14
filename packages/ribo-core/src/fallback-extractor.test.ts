@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import type { Extractor, ExtractionResult } from "./extractor.js";
+import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { TerminalQueueError, isTransientFailure } from "./queue/backoff.js";
 import type { ExtractionArbiter } from "./arbitration.js";
 import { acceptAnySuccess, terminalFallsThrough } from "./arbitration.js";
@@ -13,8 +14,8 @@ function makeExtractor<F>(
 ): Extractor<F> & { calls: readonly string[] } {
   const calls: string[] = [];
   return {
-    extract: async (transcript: string) => {
-      calls.push(transcript);
+    extract: async (transcript: AnnotatedTranscript) => {
+      calls.push(transcript.text);
       if (options.throws !== undefined) throw options.throws;
       return {
         fields,
@@ -52,7 +53,7 @@ describe("fallbackExtractor", () => {
       terminalFallsThrough,
     );
 
-    const result = await extractor.extract("the transcript");
+    const result = await extractor.extract({ text: "the transcript", annotations: {} });
 
     expect(result.fields).toEqual({ value: 2 });
     expect(result.usage).toEqual({ calls: 1, strategy: "tier2" });
@@ -71,7 +72,7 @@ describe("fallbackExtractor", () => {
       terminalFallsThrough,
     );
 
-    const result = await extractor.extract("the transcript");
+    const result = await extractor.extract({ text: "the transcript", annotations: {} });
 
     expect(result.fields).toEqual({ value: 1 });
     expect(result.usage).toEqual({ calls: 1, strategy: "tier1" });
@@ -95,7 +96,7 @@ describe("fallbackExtractor", () => {
       terminalFallsThrough,
     );
 
-    const result = await extractor.extract("the transcript");
+    const result = await extractor.extract({ text: "the transcript", annotations: {} });
 
     expect(result.usage).toEqual({ calls: 7, engine: "managed", strategy: "tier2" });
   });
@@ -107,7 +108,9 @@ describe("fallbackExtractor", () => {
       terminalFallsThrough,
     );
 
-    await expect(extractor.extract("the transcript")).rejects.toBe(sentinel);
+    await expect(extractor.extract({ text: "the transcript", annotations: {} })).rejects.toBe(
+      sentinel,
+    );
     expect(isTransientFailure(sentinel)).toBe(true);
   });
 
@@ -117,8 +120,12 @@ describe("fallbackExtractor", () => {
       () => ({ continue: true }),
     );
 
-    await expect(extractor.extract("the transcript")).rejects.toThrow(TypeError);
-    await expect(extractor.extract("the transcript")).rejects.toThrow(/arbiter/);
+    await expect(extractor.extract({ text: "the transcript", annotations: {} })).rejects.toThrow(
+      TypeError,
+    );
+    await expect(extractor.extract({ text: "the transcript", annotations: {} })).rejects.toThrow(
+      /arbiter/,
+    );
   });
 
   test("accept with a synthesised result throws a TypeError", async () => {
@@ -135,8 +142,12 @@ describe("fallbackExtractor", () => {
       },
     );
 
-    await expect(extractor.extract("the transcript")).rejects.toThrow(TypeError);
-    await expect(extractor.extract("the transcript")).rejects.toThrow(/result/);
+    await expect(extractor.extract({ text: "the transcript", annotations: {} })).rejects.toThrow(
+      TypeError,
+    );
+    await expect(extractor.extract({ text: "the transcript", annotations: {} })).rejects.toThrow(
+      /result/,
+    );
   });
 
   // Also validation rule 2, and it used to slip past. Comparing
@@ -162,8 +173,10 @@ describe("fallbackExtractor", () => {
       rogue,
     );
 
-    await expect(extractor.extract("the transcript")).rejects.toThrow(TypeError);
-    await expect(extractor.extract("the transcript")).rejects.toThrow(
+    await expect(extractor.extract({ text: "the transcript", annotations: {} })).rejects.toThrow(
+      TypeError,
+    );
+    await expect(extractor.extract({ text: "the transcript", annotations: {} })).rejects.toThrow(
       /not produced by any candidate/,
     );
   });
@@ -179,7 +192,7 @@ describe("fallbackExtractor", () => {
       acceptAnySuccess,
     );
 
-    const result = await extractor.extract("the transcript");
+    const result = await extractor.extract({ text: "the transcript", annotations: {} });
 
     expect(result.fields).toEqual({ value: 1 });
     expect(first.calls).toEqual(["the transcript"]);
