@@ -16,6 +16,7 @@ import { z } from "zod";
 
 import { ChatError } from "@azx/ribo-extractor-openai";
 import type { ChatMessage, ChatRequest, ChatUsage } from "@azx/ribo-extractor-openai";
+import type { ExtractOptions } from "@azx/ribo-core";
 import { isSpanGrounded, nextUnitId } from "@azx/ribo-core";
 import type {
   AnnotatedTranscript,
@@ -28,9 +29,6 @@ import type {
   PhaseUnit,
 } from "@azx/ribo-core";
 
-// Typed against the seam, not against `OnDeviceChat` itself. This extractor only ever
-// calls `complete()` and reads `engine`, so demanding the concrete class would couple it
-// to an implementation it does not use and make it untestable with a plain fake chat.
 import type { CapableChatClient } from "@azx/ribo-extractor-openai";
 
 /** Default retry budget for a single call, matching the spike. */
@@ -159,7 +157,10 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
   const model = chat.engine;
 
   return {
-    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
+    async extract(
+      transcript: AnnotatedTranscript,
+      options?: ExtractOptions,
+    ): Promise<ExtractionResult<Enveloped<V, P>>> {
       // A group's value is either the flat leaf-envelope map itself (an object-shaped
       // group) or that same map wrapped in a one-element array (an array-shaped, R1.6
       // instance-modeled group — see `Group.isArray`). Every group's leaves are always
@@ -188,6 +189,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
             model,
             maxRetries,
             emitter,
+            options?.signal,
           );
         } catch {
           for (const leaf of group.leaves) {
@@ -216,6 +218,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
             model,
             maxRetries,
             emitter,
+            options?.signal,
           );
         } catch {
           for (const leaf of group.leaves) {
@@ -235,7 +238,16 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
             continue;
           }
-          const value = await classifyLeaf(group.key, leaf, span, chat, model, maxRetries, emitter);
+          const value = await classifyLeaf(
+            group.key,
+            leaf,
+            span,
+            chat,
+            model,
+            maxRetries,
+            emitter,
+            options?.signal,
+          );
           groupResult[leaf.key] = {
             value: value ?? null,
             sourceSpan: span,
@@ -344,6 +356,7 @@ async function extractPresence(
   model: string,
   maxRetries: number,
   emitter: PhaseEmitter,
+  signal?: AbortSignal,
 ): Promise<Record<string, boolean>> {
   const schema = buildPhase0Schema(group);
   const request = chatRequest(
@@ -357,7 +370,7 @@ async function extractPresence(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     unit.start(attempt + 1);
     try {
-      const completion = await chat.complete(request);
+      const completion = await chat.complete(request, { signal });
       unit.done(attempt + 1, mapUsage(completion.usage));
       return parsePhase0Response(completion.content, group);
     } catch (error) {
@@ -421,6 +434,7 @@ async function extractSpans(
   model: string,
   maxRetries: number,
   emitter: PhaseEmitter,
+  signal?: AbortSignal,
 ): Promise<Record<string, string | null>> {
   const schema = buildPhase1Schema(activeLeaves);
   const request = chatRequest(
@@ -434,7 +448,7 @@ async function extractSpans(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     unit.start(attempt + 1);
     try {
-      const completion = await chat.complete(request);
+      const completion = await chat.complete(request, { signal });
       unit.done(attempt + 1, mapUsage(completion.usage));
       return parsePhase1Response(completion.content, activeLeaves);
     } catch (error) {
@@ -507,6 +521,7 @@ async function classifyLeaf(
   model: string,
   maxRetries: number,
   emitter: PhaseEmitter,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const bareRequest = chatRequest(
     model,
@@ -518,13 +533,13 @@ async function classifyLeaf(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     unit.start(attempt + 1);
     try {
-      const completion = await chat.complete(bareRequest);
+      const completion = await chat.complete(bareRequest, { signal });
       unit.done(attempt + 1, mapUsage(completion.usage));
       return validateLeafValue(leaf, parsePhase2Bare(completion.content));
     } catch (error) {
       unit.error(attempt + 1, error);
       if (isUnsupportedError(error)) {
-        return classifyWrapped(leaf, span, chat, model, maxRetries, unit, attempt + 2);
+        return classifyWrapped(leaf, span, chat, model, maxRetries, unit, attempt + 2, signal);
       }
     }
   }
@@ -539,6 +554,7 @@ async function classifyWrapped(
   maxRetries: number,
   unit: PhaseUnitEmitter,
   startAttempt: number,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const wrappedSchema = wrapValueSchema(leaf.valueSchema);
   const request = chatRequest(
@@ -551,7 +567,7 @@ async function classifyWrapped(
     const attempt = startAttempt + i;
     unit.start(attempt);
     try {
-      const completion = await chat.complete(request);
+      const completion = await chat.complete(request, { signal });
       unit.done(attempt, mapUsage(completion.usage));
       return validateLeafValue(leaf, parsePhase2Wrapped(completion.content));
     } catch (error) {

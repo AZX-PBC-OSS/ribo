@@ -50,6 +50,7 @@ import {
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
+import type { ExtractOptions } from "@azx/ribo-core";
 
 /**
  * Options for {@link singleShotExtractor}.
@@ -129,7 +130,10 @@ export function singleShotExtractor<V extends Record<string, unknown>, P = NoPro
   const context = `singleShotExtractor: model response for "${target.name}"`;
 
   return {
-    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
+    async extract(
+      transcript: AnnotatedTranscript,
+      options?: ExtractOptions,
+    ): Promise<ExtractionResult<Enveloped<V, P>>> {
       const id = nextUnitId();
       onUnit?.({ id, unit: "whole", phase: "start", attempt: 1 });
       try {
@@ -145,6 +149,7 @@ export function singleShotExtractor<V extends Record<string, unknown>, P = NoPro
             maxTokens,
           },
           "singleShotExtractor",
+          options,
         );
 
         assertStopFinishReason(completion, context);

@@ -53,6 +53,7 @@ import {
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
+import type { ExtractOptions } from "@azx/ribo-core";
 import { mergeGroupPieces, partitionedLeafKeys } from "./per-group.js";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 
@@ -451,7 +452,10 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
   });
 
   return {
-    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
+    async extract(
+      transcript: AnnotatedTranscript,
+      options?: ExtractOptions,
+    ): Promise<ExtractionResult<Enveloped<V, P>>> {
       const inventoryId = nextUnitId();
       onUnit?.({ id: inventoryId, unit: "inventory", phase: "start", attempt: 1 });
       let roster: Roster;
@@ -621,7 +625,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
 
             try {
               const completion = await completeOrClassify(chat, request, job.context, {
-                signal: abort.signal,
+                signal: options?.signal ?? abort.signal,
               });
               // Counted before the gates below, so a truncated response still
               // reports what it cost. NOTE the inventory call's tokens are NOT

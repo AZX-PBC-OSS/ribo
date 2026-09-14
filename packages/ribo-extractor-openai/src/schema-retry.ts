@@ -59,6 +59,7 @@ import {
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
+import type { ExtractOptions } from "@azx/ribo-core";
 
 /** The default retry budget. Small and bounded on purpose: every retry is a real, paid model call. */
 const DEFAULT_MAX_RETRIES = 1;
@@ -174,10 +175,13 @@ export function schemaRetryExtractor<V extends Record<string, unknown>, P = NoPr
   const name = `${target.name}-retry`;
 
   return {
-    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
+    async extract(
+      transcript: AnnotatedTranscript,
+      options?: ExtractOptions,
+    ): Promise<ExtractionResult<Enveloped<V, P>>> {
       let failure: SchemaParseError;
       try {
-        return await base.extract(transcript);
+        return await base.extract(transcript, options);
       } catch (error) {
         if (!(error instanceof SchemaParseError) || maxRetries === 0) throw error;
         failure = error;
@@ -207,6 +211,7 @@ export function schemaRetryExtractor<V extends Record<string, unknown>, P = NoPr
             maxTokens,
           },
           context,
+          options,
         );
         calls += 1;
         addUsage(totals, completion.usage);

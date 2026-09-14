@@ -100,8 +100,15 @@ export interface ExtractionResult<F> {
  * annotated transcript, get back parsed fields plus provenance. Network-bound, which is why the
  * relay runs it as a queued step — see {@link toSessionExtractStep}.
  */
+export interface ExtractOptions {
+  readonly signal?: AbortSignal;
+}
+
 export interface Extractor<F> {
-  extract: (transcript: AnnotatedTranscript) => Promise<ExtractionResult<F>>;
+  extract: (
+    transcript: AnnotatedTranscript,
+    options?: ExtractOptions,
+  ) => Promise<ExtractionResult<F>>;
 }
 
 /**
@@ -191,7 +198,10 @@ export class FakeExtractor<F> implements Extractor<F> {
     return this.#calls;
   }
 
-  extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<F>> {
+  extract(
+    transcript: AnnotatedTranscript,
+    _options?: ExtractOptions,
+  ): Promise<ExtractionResult<F>> {
     this.#calls.push(transcript);
     const base = { fields: this.#fields, usage: this.#usage };
     return Promise.resolve(this.#raw === undefined ? base : { ...base, raw: this.#raw });

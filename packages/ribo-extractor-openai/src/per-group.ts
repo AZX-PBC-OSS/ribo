@@ -98,6 +98,7 @@ import {
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
+import type { ExtractOptions } from "@azx/ribo-core";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 import type { ExtractionGroup } from "./split-schema.js";
 
@@ -538,7 +539,10 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
   const backoffOpts: BackoffOptions = { baseMs: backoffBaseMs, capMs: backoffCapMs, random };
 
   return {
-    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
+    async extract(
+      transcript: AnnotatedTranscript,
+      options?: ExtractOptions,
+    ): Promise<ExtractionResult<Enveloped<V, P>>> {
       // One AbortController for the whole extraction. When any group fails
       // (terminally or past its retry budget), abort is called: in-flight calls
       // in other workers reject with ChatError.aborted, and workers stop
@@ -589,7 +593,13 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
             // start a new call — propagate so this worker stops. mapWithPool
             // checks the signal before pulling new work; this check catches
             // the case where the abort fires between retry attempts.
-            if (abort.signal.aborted) {
+            // `any`, not `??`: the caller's signal and this run's sibling-failure abort are
+            // two independent reasons to stop, and `??` discarded the second whenever a caller
+            // supplied the first.
+            const effectiveSignal = options?.signal
+              ? AbortSignal.any([options.signal, abort.signal])
+              : abort.signal;
+            if (effectiveSignal.aborted) {
               const aborted =
                 lastError ?? new Error("perGroupExtractor: aborted by a sibling failure");
               // NO event here, deliberately, and for two independent reasons.
@@ -618,7 +628,7 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
             totalCalls++;
             try {
               const completion = await completeOrClassify(chat, request, entry.context, {
-                signal: abort.signal,
+                signal: effectiveSignal,
               });
 
               // Before the finish-reason and schema gates, so a truncated or

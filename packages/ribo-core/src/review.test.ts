@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
 import type { enveloped } from "./enveloped.js";
-import type { Extractor } from "./extractor.js";
+import type { ExtractOptions, Extractor } from "./extractor.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import type { ExistingRecord } from "./instance-identity.js";
 import {
@@ -1469,17 +1469,23 @@ describe("reviewOutcomeSchema — instanceKeys length must match fields", () => 
 
 test("the Extractor seam has no structural parameter for existing records", () => {
   // Existing records enter at review, never at extraction. The public Extractor<F> contract
-  // has exactly one parameter: the annotated transcript. A caller can still smuggle records
-  // in a closure, but they cannot do it by changing the signature — this structural check
-  // catches the obvious call-site leak. The residual is honest: a closure can capture
-  // anything.
+  // takes the annotated transcript and an options bag carrying cross-cutting run controls —
+  // nothing field-shaped. A caller can still smuggle records in a closure, but they cannot do
+  // it by changing the signature. The residual is honest: a closure can capture anything.
+  //
+  // Both directions matter. Dropping the second is how this guard would quietly stop guarding:
+  // `[AnnotatedTranscript, ExtractOptions?] extends Params` alone still holds if `extract`
+  // grows a third parameter, which is exactly the leak being watched for.
   type Params = Parameters<Extractor<unknown>["extract"]>;
-  type ExactlyOneAnnotatedTranscript = [AnnotatedTranscript] extends Params
-    ? Params extends [AnnotatedTranscript]
+  type ExactlyTranscriptAndOptions = [
+    AnnotatedTranscript,
+    (ExtractOptions | undefined)?,
+  ] extends Params
+    ? Params extends [AnnotatedTranscript, (ExtractOptions | undefined)?]
       ? true
       : false
     : false;
-  const _assert: ExactlyOneAnnotatedTranscript = true;
+  const _assert: ExactlyTranscriptAndOptions = true;
   void _assert;
 });
 

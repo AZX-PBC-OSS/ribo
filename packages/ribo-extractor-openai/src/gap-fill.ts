@@ -56,6 +56,7 @@ import {
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
+import type { ExtractOptions } from "@azx/ribo-core";
 
 /**
  * Options for {@link gapFillExtractor}.
@@ -498,8 +499,11 @@ export function gapFillExtractor<V extends Record<string, unknown>, P = NoProven
   const name = `${target.name}-gap-fill`;
 
   return {
-    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
-      const baseResult = await base.extract(transcript);
+    async extract(
+      transcript: AnnotatedTranscript,
+      options?: ExtractOptions,
+    ): Promise<ExtractionResult<Enveloped<V, P>>> {
+      const baseResult = await base.extract(transcript, options);
       const candidates = [
         ...(wanted.has("abstained") ? findAbstainedLeaves(baseResult.fields) : []),
         ...(wanted.has("ungrounded")
@@ -543,6 +547,7 @@ export function gapFillExtractor<V extends Record<string, unknown>, P = NoProven
             maxTokens,
           },
           context,
+          options,
         );
 
         assertStopFinishReason(completion, context);
