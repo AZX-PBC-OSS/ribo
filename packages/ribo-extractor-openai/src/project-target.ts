@@ -131,6 +131,8 @@ export function projectTarget<
     narrowedValue = narrowGroupValueToLeaves(narrowedValue, leafKeys);
   }
 
+  // A computed key gives zod `{ [x: string]: ZodType }`, so it cannot infer what we just built.
+  // Asserting a construction we control, unlike narrowing an opaque schema — that uses `instanceof`.
   const projectedSchema = z.strictObject({ [key]: narrowedValue }) as unknown as z.ZodType<
     Enveloped<Pick<V, K>, P>
   >;
