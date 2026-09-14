@@ -230,6 +230,11 @@ export type {
   WriteMetadata,
 } from "./adapter.js";
 
+// Inventory/fill vocabulary shared between an adapter (which builds the roster and
+// fill instructions) and the scoped instance fill strategy (which consumes them).
+// Both packages already depend on core, so this is the neutral home.
+export type { FillScope, Roster, RosterCandidate } from "./inventory-types.js";
+
 // The composition that hands a reviewed patch to an adapter, and the only place
 // `schema.parse` runs before a write. Resolves the destination per item off
 // `recording.ctx`, so two queued recordings from two jobs write to two places.

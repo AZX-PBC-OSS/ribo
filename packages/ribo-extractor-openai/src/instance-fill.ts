@@ -33,10 +33,13 @@ import type {
   Extractor,
   ExtractionResult,
   ExtractionTarget,
+  FillScope,
   InventoryUnit,
   InstanceUnit,
   NoProvenance,
   RetryBudgetObserver,
+  Roster,
+  RosterCandidate,
 } from "@azx/ribo-core";
 
 import type { ChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
@@ -53,38 +56,9 @@ import {
 import { mergeGroupPieces, partitionedLeafKeys } from "./per-group.js";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 
-/** One candidate returned by the inventory pass. */
-export interface RosterCandidate {
-  readonly mentionSpan: string;
-  readonly discriminator: string;
-  readonly distinguishedBy: string | null;
-  readonly eligibility: string;
-  readonly eligibilitySpan: string | null;
-}
-
-/** The house-wide inventory roster: one ordered list per collection group. */
-export interface Roster {
-  readonly [groupKey: string]:
-    | readonly RosterCandidate[]
-    | {
-        readonly stated: "none";
-        readonly span: string;
-      };
-}
-
-/** The scope block passed to `buildFillInstructions` for each per-instance fill. */
-export interface FillScope {
-  /** The group being filled, e.g. `"hvac"`. */
-  readonly groupKey: string;
-  /** The candidate this fill call is for. */
-  readonly positive: RosterCandidate;
-  /** The position of {@link positive} within the roster's current candidates. */
-  readonly positiveIndex: number;
-  /** The other `current` candidates in the same group, declared out of scope. */
-  readonly siblings: readonly RosterCandidate[];
-  /** Candidates in the same group whose eligibility is not `current`, to be recorded nowhere. */
-  readonly excluded: readonly RosterCandidate[];
-}
+// Re-export the generic inventory/fill vocabulary from core, where both the
+// adapter and the extractor strategy can reach it without a package cycle.
+export type { FillScope, Roster, RosterCandidate } from "@azx/ribo-core";
 
 /**
  * Options for {@link scopedInstanceExtractor}.

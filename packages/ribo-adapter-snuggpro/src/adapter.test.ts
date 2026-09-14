@@ -1,11 +1,12 @@
 import { isSpanGrounded, stripOptionalNullable } from "@azx/ribo-core";
-import type { ExistingRecord } from "@azx/ribo-core";
-import { describe, expect, test } from "vitest";
+import type { ExistingRecord, Roster as CoreRoster } from "@azx/ribo-core";
+import { describe, expect, expectTypeOf, test } from "vitest";
 import { z } from "zod";
 import { rankCandidates, SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
 import type { SnuggWriteContext } from "./context.js";
 import { snuggValuesSchema } from "./schema.js";
 import type { SnuggValues } from "./schema.js";
+import type { Roster as SnuggRoster } from "./inventory.js";
 
 test("carries a stable name, instructions and a parsing schema", () => {
   expect(snuggProAdapter.name).toBe(SNUGGPRO_ADAPTER_NAME);
@@ -288,4 +289,10 @@ describe("rankCandidates — contradiction check orders existing records", () =>
     expect(ranked.map((c) => c.uuid)).toEqual(["attic-1", "attic-2"]);
     expect(ranked.every((c) => !c.contradicts)).toBe(true);
   });
+});
+
+test("the adapter's inferred Roster satisfies the core Roster interface", () => {
+  // Structural: the adapter's zod-inferred Roster is narrower (enum eligibility,
+  // two-branch candidate) and must still fit the generic core interface.
+  expectTypeOf<SnuggRoster>().toExtend<CoreRoster>();
 });
