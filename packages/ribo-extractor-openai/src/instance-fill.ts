@@ -625,7 +625,11 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
 
             try {
               const completion = await completeOrClassify(chat, request, job.context, {
-                signal: options?.signal ?? abort.signal,
+                // `any`, not `??` — the caller's signal and the sibling-failure controller
+                // are independent reasons to stop. Substituting one disabled the other.
+                signal: options?.signal
+                  ? AbortSignal.any([options.signal, abort.signal])
+                  : abort.signal,
               });
               // Counted before the gates below, so a truncated response still
               // reports what it cost. NOTE the inventory call's tokens are NOT

@@ -186,6 +186,7 @@ export class FakeExtractor<F> implements Extractor<F> {
   readonly #raw: unknown;
   readonly #usage: ExtractionResult<unknown>["usage"];
   readonly #calls: AnnotatedTranscript[] = [];
+  readonly #callOptions: (ExtractOptions | undefined)[] = [];
 
   constructor(fields: F, options: FakeExtractorOptions = {}) {
     this.#fields = fields;
@@ -198,11 +199,20 @@ export class FakeExtractor<F> implements Extractor<F> {
     return this.#calls;
   }
 
-  extract(
-    transcript: AnnotatedTranscript,
-    _options?: ExtractOptions,
-  ): Promise<ExtractionResult<F>> {
+  /**
+   * The options of every `extract()` call, positionally matching {@link calls}.
+   *
+   * Recorded rather than ignored so a combinator test can assert the signal actually reached the
+   * candidate. Every arbitration engine accepting `options` and forwarding none typechecks, and
+   * did: the parameter is optional, so a dropped forward is invisible without this.
+   */
+  get callOptions(): readonly (ExtractOptions | undefined)[] {
+    return this.#callOptions;
+  }
+
+  extract(transcript: AnnotatedTranscript, options?: ExtractOptions): Promise<ExtractionResult<F>> {
     this.#calls.push(transcript);
+    this.#callOptions.push(options);
     const base = { fields: this.#fields, usage: this.#usage };
     return Promise.resolve(this.#raw === undefined ? base : { ...base, raw: this.#raw });
   }

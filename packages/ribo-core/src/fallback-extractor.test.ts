@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 
+import { FakeExtractor } from "./extractor.js";
 import type { Extractor, ExtractionResult } from "./extractor.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { TerminalQueueError, isTransientFailure } from "./queue/backoff.js";
@@ -224,4 +225,21 @@ describe("fallbackExtractor", () => {
   test("an empty candidate list throws at construction", () => {
     expect(() => fallbackExtractor([], terminalFallsThrough)).toThrow(TypeError);
   });
+});
+
+test("the abort signal reaches candidates through fallbackExtractor", async () => {
+  // The arbitration engines took `options` and forwarded nothing. That typechecks, because the
+  // parameter is optional, so every combinator silently dropped the signal while the contract
+  // said otherwise. Asserting on what the CANDIDATE received is the only thing that catches it.
+  const candidate = new FakeExtractor<{ a: number }>({ a: 1 });
+  const controller = new AbortController();
+  const extractor = fallbackExtractor<{ a: number }>(
+    [{ strategy: "only", extractor: candidate }],
+    acceptAnySuccess,
+  );
+
+  await extractor.extract({ text: "t", annotations: {} }, { signal: controller.signal });
+
+  expect(candidate.callOptions).toHaveLength(1);
+  expect(candidate.callOptions[0]?.signal).toBe(controller.signal);
 });

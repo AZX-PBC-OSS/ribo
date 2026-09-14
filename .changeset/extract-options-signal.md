@@ -17,7 +17,15 @@ controller via `AbortSignal.any` rather than replacing it — they are independe
 and substituting one for the other silently disabled sibling abort whenever a caller passed a
 signal.
 
-This exists because `raceExtractor`'s losing candidates and the relay's timed-out calls kept
-running after nobody wanted their answer, and because a group that is an opaque `Extractor` has no
-other way to be cancelled. The plugin-storage handle is deliberately not in this bag; an options
-object can grow a field without breaking, and that one is not designed yet.
+`fallbackExtractor`, `raceExtractor` and `compositeExtractor` forward it too, through both
+arbitration engines, and `FakeExtractor` now records the options it was handed so a combinator
+test can assert the signal arrived rather than assuming it.
+
+Two motivations are only partly served and are honest about it. A group that is an opaque
+`Extractor` can now be cancelled, which is what the per-group work needs. But the relay still
+wraps its extract step in `withTimeout` with no signal channel, so a timed-out session extraction
+does not yet cancel its request, and `threePhaseExtractor` resolves with all-null fields on abort
+rather than rejecting. Both are recorded as follow-ups.
+
+The plugin-storage handle is deliberately not in this bag; an options object can grow a field
+without breaking, and that one is not designed yet.
