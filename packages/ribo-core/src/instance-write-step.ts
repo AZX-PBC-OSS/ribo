@@ -119,7 +119,7 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
 
     if (Object.keys(singletonPatch).length > 0) {
       const { uuid } = await adapter.write(
-        adapter.schema.parse(singletonPatch) as V,
+        adapter.schema.parse(singletonPatch),
         parsedCtx.data,
         {
           idempotencyKey,
@@ -141,7 +141,7 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
           );
         }
         const { uuid } = await adapter.write(
-          adapter.schema.parse(instancePatch) as V,
+          adapter.schema.parse(instancePatch),
           parsedCtx.data,
           {
             idempotencyKey: instanceIdempotencyKey,
