@@ -76,14 +76,14 @@ type UnitUsage = { readonly inputTokens: number; readonly outputTokens: number }
 
 interface PhaseUnitEmitter {
   readonly id: string;
-  start(attempt: number): void;
-  done(attempt: number, usage?: UnitUsage): void;
-  error(attempt: number, error: unknown): void;
+  start: (attempt: number) => void;
+  done: (attempt: number, usage?: UnitUsage) => void;
+  error: (attempt: number, error: unknown) => void;
 }
 
 interface PhaseEmitter {
-  newUnit(pass: 0 | 1 | 2, key: string, leaf?: string): PhaseUnitEmitter;
-  getCalls(): number;
+  newUnit: (pass: 0 | 1 | 2, key: string, leaf?: string) => PhaseUnitEmitter;
+  getCalls: () => number;
 }
 
 function createEmitter(onUnit: ((event: PhaseUnit) => void) | undefined): PhaseEmitter {

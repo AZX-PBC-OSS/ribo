@@ -28,12 +28,9 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
 
   {
-    files: [
-      "packages/ribo-core/**/*.{ts,tsx}",
-      "packages/ribo-adapter-snuggpro/**/*.{ts,tsx}",
-      "packages/ribo-extractor-openai/**/*.{ts,tsx}",
-    ],
-    languageOptions: { globals: { ...globals.browser } },
+    // Every package, not a subset: the rule exists so the contravariant declaration is the
+    // default nobody has to remember, and a rule covering three of ten packages is not a default.
+    files: ["packages/**/*.{ts,tsx}"],
     rules: {
       "@typescript-eslint/method-signature-style": ["error", "property"],
     },

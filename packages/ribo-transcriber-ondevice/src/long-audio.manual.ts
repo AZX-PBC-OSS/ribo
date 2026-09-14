@@ -142,7 +142,7 @@ test("the library's seek loop is UNREACHABLE through the standard processor", as
   const samples = await decodeTo16kMono(await (await fetch(longWavUrl)).blob());
   const processor = (
     asr as unknown as {
-      processor(a: Float32Array): Promise<{ input_features: { dims: number[] } }>;
+      processor: (a: Float32Array) => Promise<{ input_features: { dims: number[] } }>;
     }
   ).processor;
 

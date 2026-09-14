@@ -226,10 +226,10 @@ export interface ProbabilityDetector {
    * the **new** state to feed into the next call. The frame loop keeps the returned state and
    * passes it to the next `detect` — never the initial state, never a copy.
    */
-  detect(
+  detect: (
     frame: Float32Array,
     state: Float32Array,
-  ): Promise<{ readonly probability: number; readonly state: Float32Array }>;
+  ) => Promise<{ readonly probability: number; readonly state: Float32Array }>;
 }
 
 // ── The frame loop ───────────────────────────────────────────────────────────

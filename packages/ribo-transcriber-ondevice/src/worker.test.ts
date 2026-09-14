@@ -268,8 +268,8 @@ function concatFrames(frames: readonly Float32Array[]): Float32Array {
 /** A deferred — a promise the test resolves on its own schedule. */
 interface Deferred<T> {
   readonly promise: Promise<T>;
-  resolve(value: T): void;
-  reject(error: Error): void;
+  resolve: (value: T) => void;
+  reject: (error: Error) => void;
 }
 
 function makeDeferred<T>(): Deferred<T> {

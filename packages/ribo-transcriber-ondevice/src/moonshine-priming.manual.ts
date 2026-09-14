@@ -69,14 +69,15 @@ test("does a decoder prefix prime Moonshine, or leak into its output?", async ()
   const encoded = tokenizer(promptText, { add_special_tokens: false });
   const prefix = [...(encoded.input_ids.data as BigInt64Array)].map(Number);
 
-  const model = (asr as unknown as { model: { generate(o: unknown): Promise<unknown> } }).model;
-  const processor = (asr as unknown as { processor(a: Float32Array): Promise<unknown> }).processor;
+  const model = (asr as unknown as { model: { generate: (o: unknown) => Promise<unknown> } }).model;
+  const processor = (asr as unknown as { processor: (a: Float32Array) => Promise<unknown> })
+    .processor;
   const inputs = (await processor(clip)) as { input_values: unknown };
 
   const output = (await model.generate({
     inputs: inputs.input_values,
     decoder_input_ids: [prefix],
-  })) as { tolist(): number[][] };
+  })) as { tolist: () => number[][] };
 
   const decoded = tokenizer.batch_decode(output.tolist(), { skip_special_tokens: true })[0] ?? "";
   // Slice off what we injected, exactly as the Whisper path does.

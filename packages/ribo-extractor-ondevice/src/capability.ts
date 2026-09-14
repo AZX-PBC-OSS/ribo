@@ -1,3 +1,6 @@
+// The three `method-signature-style` suppressions below cover declarations that mirror Chrome's
+// Prompt API. Their shape is the platform's, not ours, and the browser injects the objects — we
+// never implement them, so the bivariance the rule guards against cannot bite here.
 import type { ChatCapability } from "@azx/ribo-extractor-openai";
 
 export type LanguageModelAvailability =
@@ -8,12 +11,14 @@ export interface DownloadProgressEvent {
   readonly total: 1;
 }
 
+/* eslint-disable @typescript-eslint/method-signature-style */
 export interface LanguageModelMonitor {
   addEventListener(
     type: "downloadprogress",
     listener: (event: DownloadProgressEvent) => void,
   ): void;
 }
+/* eslint-enable @typescript-eslint/method-signature-style */
 
 /** One role-tagged turn of the session's standing context. */
 export interface LanguageModelPrompt {
