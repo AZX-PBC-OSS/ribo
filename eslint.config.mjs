@@ -70,8 +70,10 @@ export default tseslint.config(
     },
     rules: {
       ...cfg.rules,
-      // Interface and abstract contract methods are async because implementations
-      // await; the declaration site has no `await` expression by design.
+      // 191 hits, every one an implementation of a Promise-returning contract method —
+      // `async write(...) { return x; }` — where `async` is how the return type is satisfied and
+      // there is nothing to await. The alternative is `Promise.resolve` at every such site, which
+      // is worse. NOT because interfaces are exempt: interfaces have no bodies and never fire it.
       "@typescript-eslint/require-await": "off",
     },
   })),
