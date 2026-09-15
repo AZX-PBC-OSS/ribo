@@ -24,6 +24,7 @@ import type {
   Transcript,
   Transcriber,
   TranscriberCapability,
+  TranscribeOptions,
 } from "@azx/ribo-core";
 
 import {
@@ -130,7 +131,14 @@ export class PdfjsTranscriber implements Transcriber<DocumentCapture> {
     return { status: "ready" };
   }
 
-  transcribe: (item: DocumentCapture, bytes: Blob) => Promise<Transcript> = async (item, bytes) => {
+  // The signal is accepted per the widened contract but not honoured yet —
+  // pdf.js offers cancellation via `loadingTask.destroy()` and wiring it up is
+  // this transport's own follow-up, alongside a possible between-pages check.
+  transcribe: (
+    item: DocumentCapture,
+    bytes: Blob,
+    _options?: TranscribeOptions,
+  ) => Promise<Transcript> = async (item, bytes) => {
     const { text } = await readDocumentText(bytes, {
       workerSrc: this.#workerSrc!,
       loadPdfjs: this.#loadPdfjs,

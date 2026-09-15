@@ -12,7 +12,13 @@
  * ManagedTranscriberOptions} for the full constraint.
  */
 import { TranscriberUnavailableError } from "@azx/ribo-core";
-import type { Recording, Transcript, Transcriber, TranscriberCapability } from "@azx/ribo-core";
+import type {
+  Recording,
+  Transcript,
+  Transcriber,
+  TranscriberCapability,
+  TranscribeOptions,
+} from "@azx/ribo-core";
 
 import { MANAGED_AZURE_SPEECH_ENGINE, type ManagedTranscriberOptions } from "./config.js";
 import { transcribeViaManagedAzure } from "./transcribe.js";
@@ -81,7 +87,11 @@ export class ManagedTranscriber implements Transcriber {
     return { status: "ready" };
   }
 
-  async transcribe(recording: Recording, audio: Blob): Promise<Transcript> {
+  async transcribe(
+    recording: Recording,
+    audio: Blob,
+    _options?: TranscribeOptions,
+  ): Promise<Transcript> {
     // If the endpoint or transport is missing, `capability()` would have
     // reported `not-configured` — but `firstCapable` caches capabilities, so
     // the configuration may have changed between the probe and this call.
@@ -94,6 +104,10 @@ export class ManagedTranscriber implements Transcriber {
         detail: "No Azure transcribe endpoint or transport is configured.",
       });
     }
+    // The signal is accepted per the widened contract but not forwarded to the
+    // request yet — forwarding it into the fetch init is this transport's own
+    // follow-up, which must also decide how a deliberate abort avoids burning
+    // the queue's retry budget.
     return transcribeViaManagedAzure(recording, audio, {
       endpoint: this.#endpoint,
       doFetch: this.#doFetch,

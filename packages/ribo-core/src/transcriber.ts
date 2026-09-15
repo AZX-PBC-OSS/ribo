@@ -103,6 +103,24 @@ export function isPermanentlyUnavailable(capability: TranscriberCapability): boo
 }
 
 /**
+ * Run context for one `transcribe` call.
+ *
+ * The sibling of `ExtractOptions` on `Extractor.extract` — same parameter position (an optional
+ * trailing object), same optionality, same shape, so the two run-context contracts do not drift.
+ * An implementation that cannot honour a member must not pretend otherwise: a signal that is
+ * accepted and not forwarded looks like cancellation and is not. Each transport states what it
+ * does with the signal in its own doc comment.
+ */
+export interface TranscribeOptions {
+  /**
+   * Cancels the transcription attempt. The caller (the relay, a hedged race, a host) aborts;
+   * what an abort does is per-transport and stated in each implementation's doc comment. An
+   * implementation must either forward this to the work it does or say plainly that it cannot.
+   */
+  readonly signal?: AbortSignal;
+}
+
+/**
  * Turns captured bytes into a {@link Transcript}.
  *
  * The bytes are passed separately from the capture record on purpose: the record
@@ -170,10 +188,16 @@ export interface Transcriber<S extends CaptureItem = Recording> {
   /**
    * Transcribe one capture item.
    *
+   * The trailing `options` parameter is the same bag `extract` takes —
+   * {@link TranscribeOptions}, currently an optional `signal`. It is an
+   * **options object, not a positional parameter**, exactly so Task-6-style
+   * members can join it without a third parameter ever appearing. Passing
+   * `options` through is the implementation's job; see the type's doc.
+   *
    * See the interface doc for the three failure kinds and why conflating them is the bug
    * this contract exists to prevent.
    */
-  transcribe: (item: S, bytes: Blob) => Promise<Transcript>;
+  transcribe: (item: S, bytes: Blob, options?: TranscribeOptions) => Promise<Transcript>;
 }
 
 export interface TranscriberUnavailableInit {

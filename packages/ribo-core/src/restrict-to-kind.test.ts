@@ -128,3 +128,17 @@ test("something satisfying Transcriber today still satisfies it with no type arg
   const t: Transcriber = new FakeTranscriber();
   expect(t.engine).toBeDefined();
 });
+
+// The caller's options must reach the wrapped transcriber, by identity. A lift
+// that accepted `options` and forwarded none would typecheck — and would make
+// the wrapped engine the one place the caller's signal dies.
+test("the caller's options reach the wrapped transcriber, by identity", async () => {
+  const inner = new FakeTranscriber({ text: "hello" });
+  const wrapped = restrictToKind("audio", inner);
+  const controller = new AbortController();
+
+  await wrapped.transcribe(audioRecording, new Blob([]), { signal: controller.signal });
+
+  expect(inner.callOptions).toHaveLength(1);
+  expect(inner.callOptions[0]?.signal).toBe(controller.signal);
+});

@@ -13,6 +13,7 @@ import {
   type Transcriber,
   type TranscriberCapability,
   type TranscriberUnavailableReason,
+  type TranscribeOptions,
 } from "./transcriber.js";
 
 /**
@@ -289,13 +290,17 @@ class HedgedTranscriber implements CompositeTranscriber {
     return reports[0]!.capability;
   }
 
-  async transcribe(recording: Recording, audio: Blob): Promise<Transcript> {
+  async transcribe(
+    recording: Recording,
+    audio: Blob,
+    options?: TranscribeOptions,
+  ): Promise<Transcript> {
     const primaryCapability = await this.#capabilityOf(this.#primary);
     if (primaryCapability.status !== "ready") {
       // Rule 8: no race — straight delegation to the hedge.
-      return this.#delegate(recording, audio);
+      return this.#delegate(recording, audio, options);
     }
-    return this.#race(recording, audio);
+    return this.#race(recording, audio, options);
   }
 
   invalidate(engine?: string): void {
@@ -311,8 +316,15 @@ class HedgedTranscriber implements CompositeTranscriber {
    * Run the hedge directly — no timer, no race. Used when the primary is not
    * ready (rule 8) or when it threw `TranscriberUnavailableError` before the
    * timer fired (rule 5).
+   *
+   * The caller's options are forwarded whole, on the same rule as the race
+   * paths: whoever runs, runs with the caller's context.
    */
-  async #delegate(recording: Recording, audio: Blob): Promise<Transcript> {
+  async #delegate(
+    recording: Recording,
+    audio: Blob,
+    options?: TranscribeOptions,
+  ): Promise<Transcript> {
     const hedgeCapability = await this.#capabilityOf(this.#hedge);
     if (hedgeCapability.status !== "ready") {
       const primaryCapability = await this.#capabilityOf(this.#primary);
@@ -322,7 +334,7 @@ class HedgedTranscriber implements CompositeTranscriber {
       ]);
     }
     try {
-      return await this.#hedge.transcribe(recording, audio);
+      return await this.#hedge.transcribe(recording, audio, options);
     } catch (error) {
       if (error instanceof TranscriberUnavailableError) {
         this.#demote(this.#hedge.engine, error.capability);
@@ -334,9 +346,23 @@ class HedgedTranscriber implements CompositeTranscriber {
   /**
    * Start the primary, schedule the timer, and race them. The substantive
    * half of the combinator.
+   *
+   * **Signal policy.** The caller's `options` are forwarded **verbatim to both
+   * candidates** — the primary here, the hedge in `#raceAfterTimer` — with no
+   * synthesis in between. The combinator performs no cancellation of its own:
+   * it does not abort the loser when a winner emerges, and it does not wire the
+   * hedge timer to the caller's signal. Cancelling the *loser* is a different
+   * concern from the caller cancelling the *race* — the hedge timer is a
+   * latency policy, not a cancellation (rule 2 keeps the primary's result when
+   * it lands first, so a primary win must never have carried an aborting hedge
+   * signal, and vice versa). Reaping a loser would need a linked per-branch
+   * controller, which changes what candidates observe and is its own design
+   * decision, not a side effect of threading. Both candidates therefore see
+   * exactly what the caller passed: "this transcription is cancelled" delivered
+   * to both, never "one of you lost".
    */
-  async #race(recording: Recording, audio: Blob): Promise<Transcript> {
-    const primaryPromise = this.#primary.transcribe(recording, audio);
+  async #race(recording: Recording, audio: Blob, options?: TranscribeOptions): Promise<Transcript> {
+    const primaryPromise = this.#primary.transcribe(recording, audio, options);
 
     // Attach a handler immediately so a late rejection is never unhandled.
     const taggedPrimary = primaryPromise.then(
@@ -354,7 +380,7 @@ class HedgedTranscriber implements CompositeTranscriber {
 
       if (first === "timer") {
         // Timer fired — start the hedge and race them both.
-        return await this.#raceAfterTimer(recording, audio, primaryPromise, taggedPrimary);
+        return await this.#raceAfterTimer(recording, audio, options, primaryPromise, taggedPrimary);
       }
 
       // Primary settled before the timer.
@@ -382,10 +408,11 @@ class HedgedTranscriber implements CompositeTranscriber {
   async #raceAfterTimer(
     recording: Recording,
     audio: Blob,
+    options: TranscribeOptions | undefined,
     primaryPromise: Promise<Transcript>,
     taggedPrimary: Promise<PrimaryTag>,
   ): Promise<Transcript> {
-    const hedgePromise = this.#hedge.transcribe(recording, audio);
+    const hedgePromise = this.#hedge.transcribe(recording, audio, options);
 
     // Attach a handler so a late hedge rejection is never unhandled.
     const taggedHedge = hedgePromise.then(

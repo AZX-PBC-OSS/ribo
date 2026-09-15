@@ -32,7 +32,7 @@ export function restrictToKind<S extends CaptureItem>(
   return {
     engine: transcriber.engine,
     capability: (): Promise<TranscriberCapability> => transcriber.capability(),
-    transcribe: async (item, bytes): Promise<Transcript> => {
+    transcribe: async (item, bytes, options?): Promise<Transcript> => {
       if (item.kind !== kind) {
         throw new UnsupportedItemError({
           engine: transcriber.engine,
@@ -42,7 +42,9 @@ export function restrictToKind<S extends CaptureItem>(
       }
       // Runtime check guarantees `item` is of kind `S`; the cast is safe and
       // required because TypeScript cannot narrow on a generic comparison.
-      return transcriber.transcribe(item as S, bytes);
+      // The options are forwarded whole — a lift that dropped them would make
+      // the wrapped engine the one place the caller's signal dies.
+      return transcriber.transcribe(item as S, bytes, options);
     },
   };
 }

@@ -18,6 +18,7 @@ import type {
   Transcript,
   Transcriber,
   TranscriberCapability,
+  TranscribeOptions,
 } from "@azx/ribo-core";
 
 import { MANAGED_DOCS_ENGINE, type ManagedDocsTranscriberOptions } from "./config.js";
@@ -94,7 +95,11 @@ export class ManagedDocsTranscriber implements Transcriber<DocumentCapture> {
     return { status: "ready" };
   }
 
-  async transcribe(item: DocumentCapture, bytes: Blob): Promise<Transcript> {
+  async transcribe(
+    item: DocumentCapture,
+    bytes: Blob,
+    _options?: TranscribeOptions,
+  ): Promise<Transcript> {
     if (!this.#endpoint || !this.#doFetch) {
       throw new TranscriberUnavailableError({
         engine: this.engine,
@@ -102,6 +107,9 @@ export class ManagedDocsTranscriber implements Transcriber<DocumentCapture> {
         detail: "No document analysis endpoint or transport is configured.",
       });
     }
+    // The signal is accepted per the widened contract but not forwarded to the
+    // request yet — forwarding it into the fetch init is this transport's own
+    // follow-up.
     return transcribeViaManagedDocs(item, bytes, {
       endpoint: this.#endpoint,
       doFetch: this.#doFetch,

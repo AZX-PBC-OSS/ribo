@@ -94,6 +94,21 @@ test("records every call so a pipeline test can assert what it was handed", asyn
   expect(transcriber.calls[1]?.item.id).toBe("rec-2");
 });
 
+// Recorded, not ignored, so a combinator test can assert the caller's options —
+// the signal by identity — actually reached the candidate. Optional parameters
+// make a dropped forward invisible to the type system.
+test("records the options of every call, positionally, undefined included", async () => {
+  const transcriber = new FakeTranscriber();
+  const controller = new AbortController();
+
+  await transcriber.transcribe(recording("rec-1"), audio());
+  await transcriber.transcribe(recording("rec-2"), audio(), { signal: controller.signal });
+
+  expect(transcriber.callOptions).toHaveLength(2);
+  expect(transcriber.callOptions[0]).toBeUndefined();
+  expect(transcriber.callOptions[1]?.signal).toBe(controller.signal);
+});
+
 test("failWith makes every subsequent call reject", async () => {
   const transcriber = new FakeTranscriber();
   const boom = new Error("model unavailable");
@@ -134,6 +149,7 @@ test("reset clears recorded calls and any queued failure", async () => {
     text: DEFAULT_FAKE_TRANSCRIPT_TEXT,
   });
   expect(transcriber.calls).toHaveLength(1);
+  expect(transcriber.callOptions).toHaveLength(1);
 });
 
 test("resolves asynchronously so callers cannot depend on a synchronous result", async () => {

@@ -13,7 +13,13 @@
  * `Blob` to 16 kHz mono PCM on the main thread (doc 11), transferring it to the worker, biasing the
  * decoder with the configured domain-jargon hints, and returning a stamped {@link Transcript}.
  */
-import type { Recording, Transcript, Transcriber, TranscriberCapability } from "@azx/ribo-core";
+import type {
+  Recording,
+  Transcript,
+  Transcriber,
+  TranscriberCapability,
+  TranscribeOptions,
+} from "@azx/ribo-core";
 
 import { measureRtf } from "./calibration.js";
 import { ondeviceEngineId } from "./engine-id.js";
@@ -340,8 +346,18 @@ export class OnDeviceTranscriber implements Transcriber {
    * runs Whisper on the `Float32Array`, biased by the configured hints (turned into a decoder prefix
    * there). The returned {@link Transcript} is stamped with this transcriber's {@link engine}, so
    * provenance flows into the outbox.
+   *
+   * The options are accepted per the widened contract but the signal is **not honoured yet**:
+   * this transport has no natural cancellation (`worker.terminate()` would kill a primed model
+   * and any in-flight live session), and the mechanism — terminate on abort, a between-chunks
+   * check via the worker protocol, or a documented refusal — is a deliberate decision recorded
+   * in this doc comment when it lands. Until then a caller's abort does not reach the worker.
    */
-  async transcribe(recording: Recording, audio: Blob): Promise<Transcript> {
+  async transcribe(
+    recording: Recording,
+    audio: Blob,
+    _options?: TranscribeOptions,
+  ): Promise<Transcript> {
     const worker = this.#ensureWorker();
     const samples = await decodeTo16kMono(audio);
     const prompt = buildHintPrompt(this.#hints);

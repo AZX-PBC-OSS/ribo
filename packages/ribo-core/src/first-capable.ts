@@ -7,6 +7,7 @@ import {
   type Transcriber,
   type TranscriberCapability,
   type TranscriberUnavailableReason,
+  type TranscribeOptions,
 } from "./transcriber.js";
 
 /**
@@ -176,7 +177,11 @@ class FirstCapableTranscriber implements CompositeTranscriber {
     return reports[0]!.capability;
   }
 
-  async transcribe(recording: Recording, audio: Blob): Promise<Transcript> {
+  async transcribe(
+    recording: Recording,
+    audio: Blob,
+    options?: TranscribeOptions,
+  ): Promise<Transcript> {
     const skipped: EngineCapability[] = [];
 
     for (const transcriber of this.#transcribers) {
@@ -187,7 +192,10 @@ class FirstCapableTranscriber implements CompositeTranscriber {
       }
 
       try {
-        const transcript = await transcriber.transcribe(recording, audio);
+        // Forwarded whole, not unwrapped — the same rule `toSessionExtractStep`
+        // states for the extractor side: dropping members here would strand
+        // them silently. Whichever engine runs receives the caller's options.
+        const transcript = await transcriber.transcribe(recording, audio, options);
         if (skipped.length > 0) {
           this.#onFallback?.({
             recordingId: recording.id,
