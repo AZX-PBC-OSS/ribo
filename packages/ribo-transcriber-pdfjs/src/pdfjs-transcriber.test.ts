@@ -1,8 +1,8 @@
-import { isPermanentlyUnavailable } from "@azx/ribo-core";
+import { isPermanentlyUnavailable, isTransientFailure, TerminalQueueError } from "@azx/ribo-core";
 import type { DocumentCapture } from "@azx/ribo-core";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { PdfjsTranscriber } from "./index.js";
+import { PdfjsTranscriber, resetPdfjsCache } from "./index.js";
 import { PDFJS_ENGINE } from "./config.js";
 import type { PdfDocumentProxy, PdfjsModule } from "./config.js";
 
@@ -61,7 +61,10 @@ describe("PdfjsTranscriber — capability", () => {
     // Inject a counting loader and assert the count stays at zero.
     let loadCount = 0;
     const fakeModule: PdfjsModule = {
-      getDocument: () => ({ promise: Promise.resolve({} as never) }),
+      getDocument: () => ({
+        promise: Promise.resolve({} as never),
+        destroy: () => Promise.resolve(),
+      }),
       GlobalWorkerOptions: { workerSrc: "" },
     };
     const t = new PdfjsTranscriber({
@@ -129,7 +132,7 @@ describe("PdfjsTranscriber — entity decoding", () => {
     } as unknown as PdfDocumentProxy;
 
     const fakeModule: PdfjsModule = {
-      getDocument: () => ({ promise: Promise.resolve(doc) }),
+      getDocument: () => ({ promise: Promise.resolve(doc), destroy: () => Promise.resolve() }),
       GlobalWorkerOptions: { workerSrc: "" },
     };
 
@@ -152,5 +155,183 @@ describe("PdfjsTranscriber — entity decoding", () => {
 
     expect(transcript.text).toContain("Tom & Jerry Plumbing");
     expect(transcript.text).not.toContain("&amp;");
+  });
+});
+
+// ── Cancellation (widen-transcriber-contract plan, Task 4) ────────────────────
+//
+// pdf.js offers a real cancellation lever — `loadingTask.destroy()` — so the
+// shim now exposes it and the signal is wired to it. The assertions are on what
+// pdf.js OBSERVED (which pages were requested, that destroy was called), not
+// merely on the promise rejecting, and on the classification: a cancellation is
+// terminal, so the queue does not burn its retry budget.
+describe("PdfjsTranscriber — cancellation", () => {
+  // The memoized pdf.js import is module-level: without this, these tests
+  // would sweep the entity-decoding test's fake document, whose getPage
+  // records nothing — and the assertions would pass or fail for the wrong
+  // reason entirely.
+  beforeEach(() => {
+    resetPdfjsCache();
+  });
+
+  /** A deferred — a promise the test resolves on its own schedule. */
+  function makeDeferred<T>(): {
+    promise: Promise<T>;
+    resolve: (value: T) => void;
+  } {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((res) => {
+      resolve = res;
+    });
+    return { promise, resolve };
+  }
+
+  interface Harness {
+    readonly transcriber: PdfjsTranscriber;
+    readonly pageCalls: number[];
+    readonly destroyCalls: number;
+    /** Release page 1's held read — with the real page proxy, not a bare stub. */
+    readonly resolvePage1: () => void;
+  }
+
+  /** A 3-page fake document whose page-1 read is held on a deferred, with a recording
+   * loading task. `getPage` and `destroy` record what pdf.js observed. `onAbortBetweenPages`
+   * runs inside the `onPage(1)` hook — the exact synchronous gap between page 1 completing
+   * and page 2 being requested. */
+  function makeHarness(onAbortBetweenPages?: () => void): Harness {
+    const pageCalls: number[] = [];
+    let destroyCalls = 0;
+    const pageProxy = {
+      getTextContent: () =>
+        Promise.resolve({
+          items: [
+            {
+              str: "page text",
+              hasEOL: false,
+              transform: [1, 0, 0, 1, 0, 700],
+              width: 200,
+              height: 10,
+            },
+          ],
+        }),
+    };
+    const page1 = makeDeferred<typeof pageProxy>();
+    const doc: PdfDocumentProxy = {
+      numPages: 3,
+      getPage: (n: number) => {
+        pageCalls.push(n);
+        return n === 1 ? (page1.promise as Promise<never>) : Promise.resolve(pageProxy as never);
+      },
+    };
+    const fakeModule: PdfjsModule = {
+      getDocument: () => ({
+        promise: Promise.resolve(doc),
+        destroy: () => {
+          destroyCalls++;
+          return Promise.resolve();
+        },
+      }),
+      GlobalWorkerOptions: { workerSrc: "" },
+    };
+    const transcriber = new PdfjsTranscriber({
+      workerSrc: FAKE_WORKER_SRC,
+      noTextLayerThreshold: 0,
+      loadPdfjs: () => Promise.resolve(fakeModule),
+      onPage: (event) => {
+        if (event.page === 1) onAbortBetweenPages?.();
+      },
+    });
+    return {
+      transcriber,
+      pageCalls,
+      get destroyCalls(): number {
+        return destroyCalls;
+      },
+      resolvePage1: () => page1.resolve(pageProxy),
+    };
+  }
+
+  const capture: DocumentCapture = {
+    id: "doc-cancel",
+    capturedAt: "2026-09-15T10:00:00.000Z",
+    kind: "document",
+    mimeType: "application/pdf",
+    pageCount: 3,
+    ctx: {},
+  };
+
+  test("an abort while a page read is in flight destroys the loading task and rejects as terminal", async () => {
+    const h = makeHarness();
+    const controller = new AbortController();
+
+    const pending = h.transcriber.transcribe(capture, new Blob([new Uint8Array(0)]), {
+      signal: controller.signal,
+    });
+    // Wait until page 1's read is genuinely in flight, then abort — the sweep is
+    // parked on `getPage(1)`, so this exercises the destroy wiring: pdf.js must
+    // be told to stop while a read is outstanding.
+    await vi.waitFor(() => expect(h.pageCalls).toEqual([1]));
+    controller.abort();
+    h.resolvePage1();
+
+    const error = await pending.catch((e: unknown) => e);
+
+    // pdf.js observed exactly one page request — pages 2 and 3 never ran.
+    expect(h.pageCalls).toEqual([1]);
+    // pdf.js observed the destroy — the loading task was torn down, not left open.
+    expect(h.destroyCalls).toBe(1);
+    // And the classification: terminal, so the queue does not retry a cancelled
+    // transcription the way it retries a flaky network.
+    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(isTransientFailure(error)).toBe(false);
+  });
+
+  test("an abort between pages stops the sweep before the next page is requested", async () => {
+    // The abort fires inside the onPage(1) hook — the synchronous gap between
+    // page 1 completing and page 2 being requested — so this isolates the
+    // between-pages check from the destroy wiring: with the check removed, the
+    // loop still calls getPage(2) (which the abort race then discards) and
+    // pageCalls records it.
+    const h = makeHarness(() => controller.abort());
+    const controller = new AbortController();
+
+    const pending = h.transcriber.transcribe(capture, new Blob([new Uint8Array(0)]), {
+      signal: controller.signal,
+    });
+    h.resolvePage1();
+    const error = await pending.catch((e: unknown) => e);
+
+    // Page 2 was never requested — the sweep stopped at the page boundary.
+    expect(h.pageCalls).toEqual([1]);
+    expect(h.destroyCalls).toBe(1);
+    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(isTransientFailure(error)).toBe(false);
+  });
+
+  test("an already-aborted signal never opens the document", async () => {
+    const h = makeHarness();
+    const controller = new AbortController();
+    controller.abort();
+
+    const error = await h.transcriber
+      .transcribe(capture, new Blob([new Uint8Array(0)]), { signal: controller.signal })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(h.pageCalls).toEqual([]);
+  });
+
+  test("without an abort the sweep completes as before — destroy is not called on success", async () => {
+    // Pins the non-regression: a cancellation must not change the lifecycle for
+    // a sweep that finishes, including a handle whose readText is called twice.
+    const h = makeHarness();
+
+    const pending = h.transcriber.transcribe(capture, new Blob([new Uint8Array(0)]));
+    h.resolvePage1();
+    const transcript = await pending;
+
+    expect(h.pageCalls).toEqual([1, 2, 3]);
+    expect(h.destroyCalls).toBe(0);
+    expect(transcript.engine).toBe(PDFJS_ENGINE);
   });
 });
