@@ -26,6 +26,10 @@
  * extractor.
  */
 
+// Core, not the extractor: this type is in an exported signature, and the extractor is only a
+// devDependency here.
+import type { FillScope } from "@azx/ribo-core";
+
 /** The top-level groups of the Snugg Pro extraction schema. */
 export const SNUGG_GROUP_KEYS = [
   "basedata",
@@ -630,37 +634,6 @@ export function snuggGroupInstructions(key: string): string {
 }
 
 // --- Scoped per-instance fill instructions (Task 10) -------------------------
-
-/**
- * The scope block passed to {@link snuggGroupFillInstructions}. This is the same
- * shape as the generic `FillScope` in `@azx/ribo-extractor-openai` — duplicated
- * here so the adapter does not depend on the extractor package.
- */
-export interface FillScope {
-  readonly groupKey: string;
-  readonly positive: {
-    readonly mentionSpan: string;
-    readonly discriminator: string;
-    readonly distinguishedBy: string | null;
-    readonly eligibility: string;
-    readonly eligibilitySpan: string | null;
-  };
-  readonly positiveIndex: number;
-  readonly siblings: readonly {
-    readonly mentionSpan: string;
-    readonly discriminator: string;
-    readonly distinguishedBy: string | null;
-    readonly eligibility: string;
-    readonly eligibilitySpan: string | null;
-  }[];
-  readonly excluded: readonly {
-    readonly mentionSpan: string;
-    readonly discriminator: string;
-    readonly distinguishedBy: string | null;
-    readonly eligibility: string;
-    readonly eligibilitySpan: string | null;
-  }[];
-}
 
 function renderSiblings(siblings: FillScope["siblings"]): string {
   if (siblings.length === 0) return "None.";

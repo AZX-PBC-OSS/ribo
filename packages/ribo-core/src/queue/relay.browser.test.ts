@@ -544,7 +544,7 @@ test("a custom combiner injected through the relay is the one that runs", async 
   // combiner, not its own.
   const outbox = await openTestOutbox(uniqueName());
   const custom: TranscriptCombiner = (parts) => ({
-    text: parts.map((p) => `[${String(p.annotations.seq)}] ${p.text}`).join("\n---\n"),
+    text: parts.map((p) => `[${String(p.annotations["capture.seq"])}] ${p.text}`).join("\n---\n"),
     annotations: {},
   });
   const harness = await buildRelay(outbox, { combineTranscripts: custom });
@@ -562,7 +562,7 @@ test("parts reach the combiner sorted by seq, not in database order", async () =
   const outbox = await openTestOutbox(uniqueName());
   const seenSeqs: number[] = [];
   const capturing: TranscriptCombiner = (parts) => {
-    seenSeqs.push(...parts.map((p) => Number(p.annotations.seq)));
+    seenSeqs.push(...parts.map((p) => Number(p.annotations["capture.seq"])));
     return { text: parts.map((p) => p.text).join(" "), annotations: {} };
   };
   const harness = await buildRelay(outbox, { combineTranscripts: capturing });
@@ -1761,6 +1761,51 @@ test("a step that never settles fails the attempt instead of stalling the queue"
   // ...and the queue is no longer blocked behind it: the SECOND item was reached.
   const behind = await outbox.get(second.id);
   expect(behind?.status).not.toBe("queued");
+
+  await outbox.close();
+});
+
+test("a session extract that outlives the step timeout aborts the extractor's signal, not just the relay's await", async () => {
+  // `withTimeout` used to only reject its own await: the extract step's HTTP
+  // request kept running to completion behind the rejection — the gap Task 9's
+  // changeset named as a motivation and did not fix. So the assertion is on
+  // what the STEP received and whether that signal was actually ABORTED, not
+  // merely on the relay moving on; a test that only checked the park would
+  // pass against an implementation that forwards nothing.
+  const outbox = await openTestOutbox(uniqueName());
+  const receivedSignals: (AbortSignal | undefined)[] = [];
+  const sessionExtract: SessionExtractStep = async (_input, options) => {
+    receivedSignals.push(options?.signal);
+    // Never settles — the step timeout must fire and cancel it.
+    return new Promise<never>(() => {});
+  };
+
+  const relay = createRelay({
+    outbox,
+    transcriber: restrictToKind("audio", new FakeTranscriber({ text: "the attic is R-19" })),
+    sessionExtract,
+    sessionWrite: async () => undefined,
+    stepTimeoutMs: 50,
+    maxAttempts: 1,
+  });
+
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  await outbox.enqueue({ recording, audio: audio(), sessionId: session.id });
+  await relay.syncNow(); // transcribes the recording
+  await outbox.closeSession(session.id);
+  await relay.syncNow(); // extracts — and exceeds the step timeout
+
+  // The timed-out attempt failed as an ordinary attempt...
+  const parked = await outbox.getSession(session.id);
+  expect(parked?.lastError).toMatch(/did not settle/i);
+
+  // ...but the load-bearing assertion: the transport observed an ABORT, not
+  // abandonment.
+  expect(
+    receivedSignals[0],
+    "the extract step received an options bag with a signal",
+  ).toBeDefined();
+  expect(receivedSignals[0]?.aborted).toBe(true);
 
   await outbox.close();
 });

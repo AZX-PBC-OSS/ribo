@@ -705,7 +705,7 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
     }
 
     // Every instance carries every leaf, from BOTH pieces.
-    const systems = result.fields.systems!;
+    const systems = result.fields.systems;
     expect(systems).toHaveLength(2);
     for (let instance = 0; instance < 2; instance++) {
       for (let leaf = 1; leaf <= 10; leaf++) {
@@ -717,7 +717,7 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
     }
 
     // The singleton group's pieces are likewise recombined.
-    const profile = result.fields.profile!;
+    const profile = result.fields.profile;
     for (let leaf = 1; leaf <= 9; leaf++) {
       const key = `f${leaf}` as keyof typeof profile;
       expect(profile[key].value, `profile.f${leaf}`).toBe(`p-f${leaf}`);

@@ -103,7 +103,7 @@ test("ingestion is synchronous and persistence is a separate stage", async () =>
   // deadlocks, because finalization would be queued behind operations that are waiting on
   // finalization. Resolving at all is the assertion; vitest's own timeout is what fails.
   const done = session.finalize();
-  await expect(done).resolves.toMatchObject({ durationMs: expect.any(Number) });
+  await expect(done).resolves.toMatchObject({ durationMs: expect.any(Number) as number });
 });
 
 test("finalize drains everything ingested before it", async () => {

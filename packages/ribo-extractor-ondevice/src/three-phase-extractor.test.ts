@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { ChatError } from "@azx/ribo-extractor-openai";
 import { enveloped, type ExtractionTarget, type PhaseUnit } from "@azx/ribo-core";
 
@@ -635,6 +635,77 @@ describe("threePhaseExtractor", () => {
 
       expect(result2.fields).toEqual(result1.fields);
       expect(result2.usage.calls).toBe(result1.usage.calls);
+    });
+  });
+
+  describe("an aborted run rejects, it does not resolve empty", () => {
+    // The group-level catch nulls a failed group's leaves and moves on — right
+    // for an extraction failure, catastrophic for a cancellation: a caller who
+    // aborted would get all-null fields indistinguishable from a document that
+    // genuinely said nothing. So every test here asserts the REJECTION; a test
+    // asserting only that fields are null would pass against the old behaviour.
+    test("an already-aborted signal starts no calls and rejects immediately", async () => {
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      model.sequence = [[json({ fuel: true, efficiency: false, notes: false })]];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({ target, chat, maxRetries: 3 });
+
+      const controller = new AbortController();
+      controller.abort();
+
+      const error: unknown = await extractor
+        .extract({ text: "the system is gas", annotations: {} }, { signal: controller.signal })
+        .then(
+          () => undefined,
+          (cause: unknown) => cause,
+        );
+
+      expect(error).toBeInstanceOf(ChatError);
+      expect((error as ChatError).kind).toBe("aborted");
+      // No call was made, not even a doomed one: the abort short-circuits
+      // before the transport is reached.
+      expect(model.promptCallCount).toBe(0);
+    });
+
+    test("an abort during an in-flight phase call rejects, and retries that never ran are not counted", async () => {
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      // A slow multi-chunk stream, so the abort lands MID-call rather than
+      // between calls — the transport must observe the cancellation and the
+      // retry loops must not phantom-retry past it.
+      model.chunks = ['{"fuel":', " true,", ' "efficiency":', " false,", ' "notes":', " false}"];
+      model.chunkDelayMs = 50;
+      const chat = new OnDeviceChat({ languageModel: model });
+
+      const events: PhaseUnit[] = [];
+      const extractor = threePhaseExtractor({
+        target,
+        chat,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+
+      const controller = new AbortController();
+      const run = extractor.extract(
+        { text: "the system is gas", annotations: {} },
+        { signal: controller.signal },
+      );
+      await vi.waitFor(() => expect(model.promptCallCount).toBe(1));
+      controller.abort();
+
+      const error: unknown = await run.then(
+        () => undefined,
+        (cause: unknown) => cause,
+      );
+
+      expect(error).toBeInstanceOf(ChatError);
+      expect((error as ChatError).kind).toBe("aborted");
+      // usage.calls is derived from start events (pinned elsewhere in this
+      // file), so this is the "retries that never ran are not counted"
+      // assertion: only the one attempt that actually started, no phantom
+      // retries fired at an already-aborted signal.
+      expect(events.filter((e) => e.phase === "start")).toHaveLength(1);
     });
   });
 });

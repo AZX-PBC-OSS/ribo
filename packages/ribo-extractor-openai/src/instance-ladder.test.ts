@@ -511,3 +511,45 @@ describe("instanceLadder", () => {
     expect(result.usage.strategy).toBe("tier2");
   });
 });
+
+describe("instanceLadder provenance parameter", () => {
+  test("accepts tier options whose target declares a row group", () => {
+    const rowSchema = z
+      .object({
+        rooms: z
+          .array(
+            z
+              .object({
+                name: z.string().nullable().optional(),
+              })
+              .strict(),
+          )
+          .optional(),
+      })
+      .strict();
+    type RowValues = z.infer<typeof rowSchema>;
+    const rowTarget: ExtractionTarget<RowValues, { rooms: "row" }> = {
+      name: "row-demo",
+      extractionSchema: enveloped(rowSchema, { provenance: { rooms: "row" } }),
+      instructions: "Extract rooms as a row group.",
+    };
+    const chat: ChatClient = {
+      complete: async () => ({ content: "{}", finishReason: "stop" }),
+    };
+
+    const ladder = instanceLadder<RowValues, { rooms: "row" }>({
+      arbiter: terminalFallsThrough,
+      tier1: {
+        target: rowTarget,
+        chat,
+        model: "test",
+        inventory: async () => ({ rooms: [] }),
+        buildFillInstructions: () => "",
+      },
+      tier2: { target: rowTarget, chat, model: "test" },
+      tier3: { target: rowTarget, chat, model: "test", singleton: true },
+    });
+
+    expect(ladder).toBeDefined();
+  });
+});

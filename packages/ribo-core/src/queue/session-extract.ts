@@ -26,9 +26,21 @@ import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
  * excluding `discarded` and `dead`, and build an {@link AnnotatedTranscript}
  * for each.
  *
- * Each part's `annotations` bag carries `seq`, `kind`, and `id` from the
- * outbox item, so a combiner that builds per-capture markers has what it needs
- * without reaching back into the database. The bag is open by design.
+ * Each part's `annotations` bag merges two sources:
+ *
+ * - **Transcriber annotations** (`transcript.annotations`) — spread at the top
+ *   level. A document transcriber that produces page boundaries, table
+ *   structure, or a provider's own structured response puts them here.
+ * - **Capture metadata** — the relay writes `seq`, `kind`, and `id` from the
+ *   outbox item under a reserved `capture.` prefix (`capture.seq`,
+ *   `capture.kind`, `capture.id`). The prefix is reserved so a transcriber's
+ *   own `seq` or `id` cannot collide with the relay's metadata; both coexist in
+ *   the same bag. If a transcriber does use a `capture.`-prefixed key, the
+ *   relay's value wins (spread last).
+ *
+ * The bag is open by design. The default combiner reads `capture.seq`,
+ * `capture.kind`, and `capture.id` to build per-capture markers; nothing else
+ * in core reads the transcriber's own keys.
  *
  * Returns the parts and the sorted capture ids that produced them. The ids are
  * the **cache key**: if they haven't changed since the last extraction, the
@@ -45,7 +57,12 @@ export async function listSessionTranscriptParts(
   return {
     parts: usable.map((r) => ({
       text: r.transcript!.text,
-      annotations: { seq: r.seq, kind: r.recording.kind, id: r.id },
+      annotations: {
+        ...r.transcript!.annotations,
+        "capture.seq": r.seq,
+        "capture.kind": r.recording.kind,
+        "capture.id": r.id,
+      },
     })),
     recordingIds: usable.map((r) => r.id).sort(),
   };

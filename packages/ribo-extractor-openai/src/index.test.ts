@@ -14,3 +14,11 @@ test("re-exports both extractors, the schema split, the OpenAI-compatible transp
   // errors are unreachable from outside the package.
   expect(typeof api.ChatError).toBe("function");
 });
+
+test("re-exports the extraction-common trust-boundary helpers from the barrel", () => {
+  expect(typeof api.assertStopFinishReason).toBe("function");
+  expect(typeof api.completeOrClassify).toBe("function");
+  expect(typeof api.parseWithSchema).toBe("function");
+  expect(typeof api.parseJsonContent).toBe("function");
+  expect(typeof api.buildMessages).toBe("function");
+});

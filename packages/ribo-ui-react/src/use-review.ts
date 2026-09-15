@@ -8,7 +8,7 @@ import type {
   Outbox,
   PersistedReviewOutcome,
   RankedCandidate,
-  ProvenanceGranularity,
+  ProvenanceMap,
   RequiredOnCreate,
   ReviewFields,
   ReviewIssue,
@@ -31,7 +31,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useOutboxItems } from "./use-outbox-items.js";
 import { useRiboInstance } from "./use-ribo-instance.js";
 
-export interface UseReviewOptions {
+export interface UseReviewOptions<T extends z.ZodObject = z.ZodObject> {
   /**
    * The adapter's **patch** schema (`ToolAdapter.schema`) — what decides which
    * leaves exist and what a legal value for each one is.
@@ -47,7 +47,7 @@ export interface UseReviewOptions {
    * keystroke. An adapter's schema is a module-level constant, which is the
    * intended shape of this argument.
    */
-  readonly valuesSchema: z.ZodObject;
+  readonly valuesSchema: T;
   /**
    * Leaf names grouped by the group that owns the create endpoint — passed straight
    * through to `buildReviewRequest`'s `requiredOnCreate`, so each named leaf on every
@@ -64,7 +64,7 @@ export interface UseReviewOptions {
    * inline object literal is a new reference every render and rebuilds `fields` on
    * every render along with it.
    */
-  readonly requiredOnCreate?: RequiredOnCreate;
+  readonly requiredOnCreate?: RequiredOnCreate<z.infer<T>>;
   /**
    * Existing records of each collection group, keyed by the group path (e.g. `"hvac"`).
    *
@@ -85,7 +85,7 @@ export interface UseReviewOptions {
    * **Hold it still, like `valuesSchema`** — it is a `useMemo` dependency, and an inline object
    * literal rebuilds every field on every render.
    */
-  readonly provenance?: Readonly<Record<string, ProvenanceGranularity>>;
+  readonly provenance?: ProvenanceMap<T>;
   /**
    * Tool-specific ordering of existing records for one instance.
    *
@@ -279,7 +279,8 @@ const addInstanceToSnapshot = (
 ): Record<string, unknown> => {
   const clone = cloneExtracted(extracted);
   const current = clone[group];
-  clone[group] = Array.isArray(current) ? [...current, {}] : [{}];
+  const items = Array.isArray(current) ? (current as unknown[]) : null;
+  clone[group] = items !== null ? [...items, {}] : [{}];
   return clone;
 };
 
@@ -402,9 +403,9 @@ const remapAfterInstanceRemove = <T>(
  * being visible the moment the card shows a different one, not linger because it
  * happened to be stored in a `useState` with no notion of "whose" it was.
  */
-export function useReview(
+export function useReview<T extends z.ZodObject>(
   session: SessionItem | undefined,
-  options: UseReviewOptions,
+  options: UseReviewOptions<T>,
 ): UseReviewResult {
   const { valuesSchema, requiredOnCreate, existingRecords, provenance, rankCandidates } = options;
   const outbox = useRiboInstance("outbox", options.outbox);
@@ -668,7 +669,9 @@ export function useReview(
       if (request === undefined) {
         throw new Error("ribo: cannot add an instance to a review that is not ready.");
       }
-      const groupField = valuesSchema.shape[group];
+      // `.shape` indexes to `any` on a bare ZodObject; the undefined check below is what makes
+      // this safe, so narrow to the type the shape actually holds rather than suppressing twice.
+      const groupField: z.ZodType | undefined = valuesSchema.shape[group] as z.ZodType | undefined;
       if (groupField === undefined) {
         throw new Error(`ribo: "${group}" is not a group of this review schema.`);
       }

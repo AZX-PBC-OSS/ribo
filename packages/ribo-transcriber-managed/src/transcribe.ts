@@ -28,7 +28,7 @@
  *   routes elsewhere.
  * - **413 → terminal.** The payload is too large for the transport. Retrying
  *   an oversized body forever is worse than failing it. Throw
- *   {@link TerminalQueueError} — the queue's existing terminal vocabulary, not
+ *   `TerminalQueueError` — the queue's existing terminal vocabulary, not
  *   a second retry classifier.
  */
 import { TerminalQueueError, TranscriberUnavailableError } from "@azx/ribo-core";

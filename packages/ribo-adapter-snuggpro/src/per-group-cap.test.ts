@@ -29,6 +29,16 @@ import {
  */
 
 /**
+ * `(schema as z.ZodObject).shape`, narrowed — a bare `z.ZodObject`'s `.shape` indexes to
+ * `any`, so the test narrows it once here (the same move `ribo-core`'s `fieldAt` makes)
+ * instead of suppressing `no-unsafe-assignment` at each use.
+ */
+const shapeOf = (schema: z.ZodType): z.ZodObject["shape"] => (schema as z.ZodObject).shape;
+
+/** `shape[key]` for a key that came from the shape's own keys — a `ZodType` by construction. */
+const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
+
+/**
  * Walk a JSON Schema node and return the maximum nesting depth, counting one level per
  * `properties` descent — the same counting method `extraction-shape.test.ts` uses, so
  * the two tests agree on what a "level" is.
@@ -129,8 +139,8 @@ test("the real derived schema splits collection groups as arrays", () => {
     "pv",
   ]);
   for (const group of groups) {
-    const shape = (group.schema as z.ZodObject).shape;
-    const inner = shape[group.key];
+    const shape = shapeOf(group.schema);
+    const inner = fieldAt(shape, group.key);
     if (collectionKeys.has(group.key)) {
       expect(inner, `group "${group.key}" must be a ZodArray`).toBeInstanceOf(z.ZodArray);
     } else {
@@ -177,10 +187,10 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
    * always leaf envelopes, never further nested sub-groups.
    */
   function groupLeafCount(group: ExtractionGroup): number {
-    const shape = (group.schema as z.ZodObject).shape;
-    const value = shape[group.key]!;
+    const shape = shapeOf(group.schema);
+    const value = fieldAt(shape, group.key);
     const candidate = value instanceof z.ZodArray ? (value.element as z.ZodType) : value;
-    return Object.keys((candidate as z.ZodObject).shape).length;
+    return Object.keys(shapeOf(candidate)).length;
   }
 
   test("before partitioning, basedata, hvac, attic, vault, window, dhw, health, job, utilities and refrigerator all exceed the 8-leaf cap — the bug this guard exists to catch", () => {
@@ -323,10 +333,10 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
 
       // No leaf key is duplicated across the pieces.
       const allLeafKeys = pieces.flatMap((p) => {
-        const shape = (p.schema as z.ZodObject).shape;
-        const value = shape[p.key]!;
+        const shape = shapeOf(p.schema);
+        const value = fieldAt(shape, p.key);
         const candidate = value instanceof z.ZodArray ? (value.element as z.ZodType) : value;
-        return Object.keys((candidate as z.ZodObject).shape);
+        return Object.keys(shapeOf(candidate));
       });
       expect(new Set(allLeafKeys).size).toBe(allLeafKeys.length);
     }

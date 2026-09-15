@@ -57,7 +57,7 @@ export type {
  * {@link transcribe} POSTs the document bytes to the endpoint through the
  * injected `fetch`, and maps the response onto a `Transcript` whose `engine` is
  * `managed-docs`. The response is flattened into text with page markers and table
- * separators matching pdf.js conventions. See {@link ./transcribe.ts} for the
+ * separators matching pdf.js conventions. See `transcribe.ts` for the
  * request path and failure classification — the split keeps this file focused
  * on the class and its capability reporting.
  */

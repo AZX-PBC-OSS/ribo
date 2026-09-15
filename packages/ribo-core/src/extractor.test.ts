@@ -6,6 +6,7 @@ import type { SessionItem } from "./queue/session-schema.js";
 import type { Transcript } from "./transcript.js";
 
 interface AtticFields {
+  [key: string]: string;
   atticInsulation: string;
 }
 
@@ -201,4 +202,32 @@ test("toSessionExtractStep reports no statedEmptyGroups when the extractor does 
   });
 
   expect(result.statedEmptyGroups).toBeUndefined();
+});
+
+test("toSessionExtractStep forwards the options bag to the extractor's second parameter", async () => {
+  // The relay's cancellation channel only exists if the step forwards it: the
+  // parameter is optional, so a step that drops it typechecks and silently
+  // strands every signal. Assert on what the EXTRACTOR received — the same
+  // shape `fallback-extractor.test.ts` uses for the arbitration engines.
+  const extractor = new FakeExtractor<AtticFields>({ atticInsulation: "R-19" });
+  const controller = new AbortController();
+  const step = toSessionExtractStep(extractor);
+
+  await step(
+    { session, transcript: { text: transcript.text, annotations: {} }, recordingIds: ["rec-1"] },
+    { signal: controller.signal },
+  );
+
+  expect(extractor.callOptions).toHaveLength(1);
+  expect(extractor.callOptions[0]?.signal).toBe(controller.signal);
+});
+
+test("toSessionExtractStep rejects an extractor whose fields are a primitive", () => {
+  // @ts-expect-error FakeExtractor<number> does not satisfy the Record<string, unknown> bound
+  toSessionExtractStep(new FakeExtractor(42));
+});
+
+test("toSessionExtractStep accepts an extractor whose fields are an object", () => {
+  const extractor = new FakeExtractor({ key: "val" });
+  expect(toSessionExtractStep(extractor)).toBeDefined();
 });

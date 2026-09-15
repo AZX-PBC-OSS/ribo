@@ -17,15 +17,27 @@ export type { SingleShotOptions } from "./single-shot.js";
 export { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 export type { ExtractionGroup } from "./split-schema.js";
 
+// Projection of an extraction target onto one top-level group key — the pure
+// narrow half of per-group prompt assembly, reusable by any strategy.
+export { projectTarget } from "./project-target.js";
+export type { ProjectTargetOptions } from "./project-target.js";
+
 // The per-group managed-LLM extractor (R3 Task 2) — one chat call per top-level
 // group, concurrently with a bounded pool, assembled into one result. The
-// sibling of `singleShotExtractor`; same `Extractor` seam.
+// sibling of `singleShotExtractor`; same `Extractor` seam. Composition plan
+// Task 12 re-expressed it as a preset over core's `groupedExtractor`: the
+// derived plan (`perGroupPlan`) and the per-group override layer
+// (`overrideGroups`) are exported so a host can take the defaults everywhere
+// and replace or wrap one group — per piece, so a partitioned group's override
+// applies to every piece — without rebuilding the other nineteen.
 export {
+  overrideGroups,
   perGroupArrayExtractor,
   perGroupExtractor,
+  perGroupPlan,
   perGroupSingletonExtractor,
 } from "./per-group.js";
-export type { PerGroupOptions } from "./per-group.js";
+export type { GroupOverride, GroupTargets, PerGroupOptions, PerGroupPlan } from "./per-group.js";
 
 // Task 16 — the R1.6 instance-modeling strategy ladder: three tiers composed
 // through `fallbackExtractor` so that the strongest strategy can fall back to
@@ -55,7 +67,15 @@ export type { SchemaRetryOptions } from "./schema-retry.js";
 // Per-group prompt assembly: `buildGroupMessages` builds per-group chat messages
 // (instructions + projected examples + transcript), and `projectExample` narrows
 // a few-shot example to a single group's key. Exported for testing (R3 Task 4).
-export { buildGroupMessages, projectExample } from "./extraction-common.js";
+export {
+  assertStopFinishReason,
+  buildGroupMessages,
+  buildMessages,
+  completeOrClassify,
+  parseJsonContent,
+  parseWithSchema,
+  projectExample,
+} from "./extraction-common.js";
 
 // The Task 9 inventory-pass extraction phase: one house-wide call that returns a
 // roster of candidate instances per collection group, parsed through a supplied

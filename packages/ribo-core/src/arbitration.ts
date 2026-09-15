@@ -1,4 +1,4 @@
-import type { Extractor, ExtractionResult } from "./extractor.js";
+import type { ExtractOptions, Extractor, ExtractionResult } from "./extractor.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { isTransientFailure } from "./queue/backoff.js";
 import { SchemaParseError } from "./schema-parse-error.js";
@@ -342,7 +342,10 @@ export function createSequentialExtractor<F>(options: SequentialExtractorOptions
   validateCandidates(candidates);
 
   return {
-    extract: async (transcript: AnnotatedTranscript): Promise<ExtractionResult<F>> => {
+    extract: async (
+      transcript: AnnotatedTranscript,
+      options?: ExtractOptions,
+    ): Promise<ExtractionResult<F>> => {
       const rejected: { readonly id: string; readonly detail: unknown }[] = [];
       const outcomes: ExtractionOutcome<F>[] = [];
 
@@ -365,7 +368,7 @@ export function createSequentialExtractor<F>(options: SequentialExtractorOptions
         }
 
         try {
-          const result = await candidate.extractor.extract(transcript);
+          const result = await candidate.extractor.extract(transcript, options);
           outcomes.push(resultOutcome(candidate.id, result));
         } catch (error) {
           outcomes.push(errorOutcome(candidate.id, error));
@@ -421,7 +424,10 @@ export function createConcurrentExtractor<F>(options: ConcurrentExtractorOptions
   validateCandidates(candidates);
 
   return {
-    extract: async (transcript: AnnotatedTranscript): Promise<ExtractionResult<F>> => {
+    extract: async (
+      transcript: AnnotatedTranscript,
+      options?: ExtractOptions,
+    ): Promise<ExtractionResult<F>> => {
       const outcomes: ExtractionOutcome<F>[] = [];
       let wake = makeWake();
       let settledCount = 0;
@@ -431,7 +437,7 @@ export function createConcurrentExtractor<F>(options: ConcurrentExtractorOptions
         // Attach both branches immediately so a late rejection is never unhandled, even if we
         // return early on another candidate's success. `hedged.ts` documents the same discipline
         // for transcribers; the same hazard exists here for any race.
-        candidate.extractor.extract(transcript).then(
+        candidate.extractor.extract(transcript, options).then(
           (result) => {
             outcomes.push(resultOutcome(candidate.id, result));
             settledCount += 1;

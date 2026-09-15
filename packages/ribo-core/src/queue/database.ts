@@ -73,7 +73,7 @@ export interface LegacySessionFields {
 
 /** Read the migration carrier off a recording document. */
 function legacyOf(doc: OutboxDocument): LegacySessionFields | undefined {
-  return doc.legacy as LegacySessionFields | undefined;
+  return doc.legacy;
 }
 
 /**
@@ -175,6 +175,26 @@ const V5_SESSION_OWNED_STATUSES = new Set(["extracting", "awaiting-review", "wri
  * state machine narrows to capture + transcription: `extracting`, `awaiting-review`,
  * `writing` and `done` are gone; `transcribed` is new.
  *
+ * v6 → v7 adds an optional `annotations` field to the `transcript` sub-object,
+ * so a transcriber can contribute structured data (page boundaries, table
+ * structure) alongside the text. The field is optional and absent on existing
+ * documents, so the strategy is identity — the same reasoning as strategies 1
+ * through 5: an absent optional field needs no transformation.
+ *
+ * **The bump is not needed to read the new field, and that is worth stating plainly** because the
+ * obvious justification is circular. `transcript` is `{ type: "object" }` in the RxDB schema, so
+ * RxDB neither validates nor indexes its interior; the stored schema is otherwise unchanged, and
+ * annotations round-trip through a close and reopen at version 6 with no strategy at all
+ * (measured, by reverting the bump and running the round-trip test).
+ *
+ * What the bump buys is a clean failure on DOWNGRADE. `transcriptSchema` is a `z.strictObject`,
+ * so old code reading a document written by new code rejects it for the unknown key — and without
+ * a version bump RxDB opens the collection happily and that rejection surfaces deep in the
+ * application, on a recording the user can see. At version 7, old code refuses at `addCollections`
+ * with a version mismatch instead. A stale cached bundle or a rolled-back deploy is an ordinary
+ * event for a browser SDK, so the trade is a per-document identity pass now against a legible
+ * failure then.
+ *
  * RxDB migration strategies run per-document within a collection and cannot
  * create documents in another collection. The split is therefore done as
  * **expand/contract**, the standard way to divide one entity into two:
@@ -255,6 +275,7 @@ export const OUTBOX_MIGRATION_STRATEGIES = {
     next.sessionId = migratedSessionId((doc.recording as { ctx?: unknown } | undefined)?.ctx);
     return next as OutboxDocument;
   },
+  7: (doc: OutboxDocument) => doc,
 };
 
 /**
@@ -502,7 +523,7 @@ function sessionDocumentFromMigratedGroup(
     ...(source ? { extractedFromRecordingIds: [source.id] } : {}),
     ...(reviewed ? { reviewOutcome: bagOf(reviewed).reviewOutcome } : {}),
     ...(written ? { writeResult: bagOf(written).writeResult } : {}),
-  } as SessionDocument;
+  };
 }
 
 /**

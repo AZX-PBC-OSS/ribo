@@ -49,7 +49,7 @@ test("no enum member anywhere in the extraction schema contains a double quote",
     for (const value of values) {
       expect(
         typeof value === "string" && !value.includes('"'),
-        `${path}: enum member "${value}" must not contain a double quote`,
+        `${path}: enum member ${JSON.stringify(value)} must not contain a double quote`,
       ).toBe(true);
     }
   }

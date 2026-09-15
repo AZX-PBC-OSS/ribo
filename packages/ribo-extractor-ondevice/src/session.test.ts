@@ -3,6 +3,7 @@ import type { ScheduleTimer } from "@azx/ribo-core";
 
 import { FakeLanguageModel } from "./test-support/fake-language-model.js";
 import { SessionCapabilityError, SessionHolder } from "./session.js";
+import { SessionCapabilityError as BarrelSessionCapabilityError } from "./index.js";
 
 class FakeTimer {
   #callbacks: (() => void)[] = [];
@@ -149,5 +150,15 @@ describe("SessionHolder", () => {
     expect(base.cloneCount).toBe(2);
     expect(model.sessions[1]!.destroyed).toBe(true);
     expect(model.sessions[2]!.destroyed).toBe(true);
+  });
+
+  test("SessionCapabilityError is exported from the barrel", () => {
+    const capability = {
+      status: "unavailable",
+      reason: "unsupported-platform",
+      detail: "test",
+    } as const;
+    const error = new BarrelSessionCapabilityError(capability);
+    expect(error).toBeInstanceOf(SessionCapabilityError);
   });
 });

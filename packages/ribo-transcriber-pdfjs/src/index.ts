@@ -102,8 +102,7 @@ export class PdfjsTranscriber implements Transcriber<DocumentCapture> {
     this.#workerSrc = options.workerSrc;
     this.#noTextLayerThreshold = options.noTextLayerThreshold ?? DEFAULT_NO_TEXT_LAYER_THRESHOLD;
     this.#onPage = options.onPage;
-    this.#loadPdfjs =
-      options.loadPdfjs ?? (async () => (await import("pdfjs-dist")) as unknown as PdfjsModule);
+    this.#loadPdfjs = options.loadPdfjs ?? (async () => await import("pdfjs-dist"));
   }
 
   async capability(): Promise<TranscriberCapability> {

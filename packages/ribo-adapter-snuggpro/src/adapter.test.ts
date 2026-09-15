@@ -1,11 +1,12 @@
 import { isSpanGrounded, stripOptionalNullable } from "@azx/ribo-core";
-import type { ExistingRecord } from "@azx/ribo-core";
-import { describe, expect, test } from "vitest";
+import type { ExistingRecord, RequiredOnCreate, Roster as CoreRoster } from "@azx/ribo-core";
+import { describe, expect, expectTypeOf, test } from "vitest";
 import { z } from "zod";
 import { rankCandidates, SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
 import type { SnuggWriteContext } from "./context.js";
 import { snuggValuesSchema } from "./schema.js";
 import type { SnuggValues } from "./schema.js";
+import type { Roster as SnuggRoster } from "./inventory.js";
 
 test("carries a stable name, instructions and a parsing schema", () => {
   expect(snuggProAdapter.name).toBe(SNUGGPRO_ADAPTER_NAME);
@@ -21,6 +22,11 @@ test("carries a stable name, instructions and a parsing schema", () => {
 const example = snuggProAdapter.examples?.[0];
 if (!example) throw new Error("expected the Snugg Pro adapter to carry a few-shot example");
 
+/** `shape[key]` for a key from the shape's own keys — a bare shape indexes to `any`, so
+ * the test narrows once here (the same move `ribo-core`'s `fieldAt` makes) instead of
+ * suppressing `no-unsafe-argument` at each use. */
+const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
+
 /** Collect the leaf names inside one group's schema, recursing into arrays and nested objects. */
 function leafNames(schema: z.ZodType): string[] {
   const stripped = stripOptionalNullable(schema);
@@ -29,8 +35,8 @@ function leafNames(schema: z.ZodType): string[] {
   }
   if (stripped instanceof z.ZodObject) {
     const names: string[] = [];
-    for (const [key, child] of Object.entries(stripped.shape)) {
-      const childNames = leafNames(child);
+    for (const key of Object.keys(stripped.shape)) {
+      const childNames = leafNames(fieldAt(stripped.shape, key));
       if (childNames.length === 0) {
         names.push(key);
       } else {
@@ -49,8 +55,8 @@ function groupLeafNames(schema: z.ZodType): Record<string, string[]> {
   const stripped = stripOptionalNullable(schema);
   if (!(stripped instanceof z.ZodObject)) return {};
   const result: Record<string, string[]> = {};
-  for (const [key, child] of Object.entries(stripped.shape)) {
-    result[key] = leafNames(child);
+  for (const key of Object.keys(stripped.shape)) {
+    result[key] = leafNames(fieldAt(stripped.shape, key));
   }
   return result;
 }
@@ -219,6 +225,24 @@ test("no other group declares a required leaf — a partial dictation writes cle
   expect(groups.filter((g) => g !== "hvac" && g !== "job")).toEqual([]);
 });
 
+test("requiredOnCreate is typed against the values schema", () => {
+  // Valid groups and leaves compile.
+  expectTypeOf({
+    hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
+    job: ["firstName"],
+  } as const).toMatchTypeOf<RequiredOnCreate<SnuggValues>>();
+
+  // @ts-expect-error - "notAGroup" is not a top-level group of the Snugg values schema.
+  const _badGroup: RequiredOnCreate<SnuggValues> = { notAGroup: ["leaf"] };
+
+  // @ts-expect-error - "notALeaf" is not a leaf of the hvac group.
+  const _badLeaf: RequiredOnCreate<SnuggValues> = { hvac: ["notALeaf"] };
+
+  // Satisfy the no-unused-vars rule for the intentionally failing declarations.
+  void _badGroup;
+  void _badLeaf;
+});
+
 describe("rankCandidates — contradiction check orders existing records", () => {
   const existing: ExistingRecord[] = [
     {
@@ -288,4 +312,10 @@ describe("rankCandidates — contradiction check orders existing records", () =>
     expect(ranked.map((c) => c.uuid)).toEqual(["attic-1", "attic-2"]);
     expect(ranked.every((c) => !c.contradicts)).toBe(true);
   });
+});
+
+test("the adapter's inferred Roster satisfies the core Roster interface", () => {
+  // Structural: the adapter's zod-inferred Roster is narrower (enum eligibility,
+  // two-branch candidate) and must still fit the generic core interface.
+  expectTypeOf<SnuggRoster>().toExtend<CoreRoster>();
 });

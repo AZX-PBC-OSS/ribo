@@ -21,6 +21,8 @@ import {
   DEFAULT_BACKOFF_CAP_MS,
   deriveRetryBudget,
   fullJitterDelay,
+  mapWithPool,
+  mergeGroupPieces,
   nextUnitId,
   PER_CALL_CEILING_MS,
   TerminalQueueError,
@@ -33,10 +35,13 @@ import type {
   Extractor,
   ExtractionResult,
   ExtractionTarget,
+  FillScope,
   InventoryUnit,
   InstanceUnit,
   NoProvenance,
   RetryBudgetObserver,
+  Roster,
+  RosterCandidate,
 } from "@azx/ribo-core";
 
 import type { ChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
@@ -50,41 +55,13 @@ import {
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
-import { mergeGroupPieces, partitionedLeafKeys } from "./per-group.js";
+import type { ExtractOptions } from "@azx/ribo-core";
+import { partitionedLeafKeys } from "./per-group.js";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 
-/** One candidate returned by the inventory pass. */
-export interface RosterCandidate {
-  readonly mentionSpan: string;
-  readonly discriminator: string;
-  readonly distinguishedBy: string | null;
-  readonly eligibility: string;
-  readonly eligibilitySpan: string | null;
-}
-
-/** The house-wide inventory roster: one ordered list per collection group. */
-export interface Roster {
-  readonly [groupKey: string]:
-    | readonly RosterCandidate[]
-    | {
-        readonly stated: "none";
-        readonly span: string;
-      };
-}
-
-/** The scope block passed to `buildFillInstructions` for each per-instance fill. */
-export interface FillScope {
-  /** The group being filled, e.g. `"hvac"`. */
-  readonly groupKey: string;
-  /** The candidate this fill call is for. */
-  readonly positive: RosterCandidate;
-  /** The position of {@link positive} within the roster's current candidates. */
-  readonly positiveIndex: number;
-  /** The other `current` candidates in the same group, declared out of scope. */
-  readonly siblings: readonly RosterCandidate[];
-  /** Candidates in the same group whose eligibility is not `current`, to be recorded nowhere. */
-  readonly excluded: readonly RosterCandidate[];
-}
+// Re-export the generic inventory/fill vocabulary from core, where both the
+// adapter and the extractor strategy can reach it without a package cycle.
+export type { FillScope, Roster, RosterCandidate } from "@azx/ribo-core";
 
 /**
  * Options for {@link scopedInstanceExtractor}.
@@ -93,7 +70,7 @@ export interface FillScope {
  * because the job count is not known until then. This is a real difference from
  * {@link perGroupExtractor}, which derives at construction and throws there:
  * a zero-derived budget with `requireRetryBudget` throws a
- * {@link TerminalQueueError} from `extract()`, not at construction — no retry
+ * `TerminalQueueError` from `extract()`, not at construction — no retry
  * fixes a configuration error, and the queue should reach `dead` rather than
  * burn its attempt budget rediscovering that.
  */
@@ -168,40 +145,6 @@ const DEFAULT_INSTANCE_CAP = 10;
  */
 const defaultDelay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Run `fn` over `items` with at most `limit` calls in flight at once, preserving
- * order. Rejects on the first failure and aborts in-flight work. Same logic as
- * {@link perGroupExtractor}.
- */
-async function mapWithPool<T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-  abort: AbortController,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  let failed = false;
-  const worker = async (): Promise<void> => {
-    while (next < items.length) {
-      if (failed || abort.signal.aborted) return;
-      const index = next++;
-      try {
-        results[index] = await fn(items[index]!, index);
-      } catch (cause) {
-        if (!failed) {
-          failed = true;
-          abort.abort();
-        }
-        throw cause;
-      }
-    }
-  };
-  const size = Math.min(Math.max(1, limit), items.length);
-  await Promise.all(Array.from({ length: size }, () => worker()));
-  return results;
-}
 
 /** A prepared group, with its per-instance fill schema and error context. */
 interface PreparedGroup {
@@ -286,7 +229,7 @@ export function projectFillExample<F extends Record<string, unknown>>(
   const narrow = (element: unknown): unknown =>
     leafKeys ? narrowToLeaves(element, leafKeys) : element;
   if (Array.isArray(groupValue)) {
-    const element = groupValue[instanceIndex] ?? groupValue[0];
+    const element: unknown = (groupValue[instanceIndex] ?? groupValue[0]) as unknown;
     if (element === undefined) return null;
     return { transcript: example.transcript, fields: { [groupKey]: narrow(element) } };
   }
@@ -477,7 +420,10 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
   });
 
   return {
-    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
+    async extract(
+      transcript: AnnotatedTranscript,
+      options?: ExtractOptions,
+    ): Promise<ExtractionResult<Enveloped<V, P>>> {
       const inventoryId = nextUnitId();
       onUnit?.({ id: inventoryId, unit: "inventory", phase: "start", attempt: 1 });
       let roster: Roster;
@@ -537,7 +483,8 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
           continue;
         }
 
-        const current = rosterGroup.filter((c) => c.eligibility === "current");
+        const candidates = rosterGroup as readonly RosterCandidate[];
+        const current = candidates.filter((c) => c.eligibility === "current");
 
         if (current.length === 0) {
           groupResult[group.key] = [];
@@ -615,7 +562,10 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
           let lastError: unknown;
           for (let attempt = 0; attempt <= effectiveMaxRetries; attempt++) {
             if (abort.signal.aborted) {
-              throw lastError ?? new Error("scopedInstanceExtractor: aborted by a sibling failure");
+              if (lastError instanceof Error) {
+                throw lastError;
+              }
+              throw new Error("scopedInstanceExtractor: aborted by a sibling failure");
             }
 
             onUnit?.({
@@ -647,7 +597,11 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
 
             try {
               const completion = await completeOrClassify(chat, request, job.context, {
-                signal: abort.signal,
+                // `any`, not `??` — the caller's signal and the sibling-failure controller
+                // are independent reasons to stop. Substituting one disabled the other.
+                signal: options?.signal
+                  ? AbortSignal.any([options.signal, abort.signal])
+                  : abort.signal,
               });
               // Counted before the gates below, so a truncated response still
               // reports what it cost. NOTE the inventory call's tokens are NOT

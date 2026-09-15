@@ -3,7 +3,7 @@
  *
  * POST the document bytes to the managed document analysis endpoint through the
  * injected `fetch`, and map the response onto a {@link Transcript}. The response
- * is flattened into text by {@link ./response.ts}, using page markers and table
+ * is flattened into text by `response.ts`, using page markers and table
  * separators that match `@azx/ribo-transcriber-pdfjs`'s conventions.
  *
  * **The URL is the configured endpoint as-is.** The package does not prefix

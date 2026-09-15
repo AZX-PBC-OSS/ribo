@@ -1,107 +1,104 @@
 /**
- * The per-group managed-LLM extractor — R3 Task 2. The sibling of
- * {@link singleShotExtractor}: instead of one chat call carrying the whole
- * `extractionSchema`, it splits the schema into top-level groups
- * ({@link splitExtractionSchema}), runs one call per group concurrently with a
- * bounded pool, and assembles one result.
+ * @file `perGroupExtractor` — the per-group preset over core's
+ * {@link groupedExtractor} (composition plan Task 12,
+ * `per-group-composition-design.md` §4.3).
  *
- * **Why split.** With the vendor field descriptions the whole schema is 39,741
- * bytes against a hard 32,768 cap, so today we strip them — losing the vendor's
- * authoritative text for 51 fields. Each group is a fraction of the whole
- * (largest is `health` at 13,273) and fits with its descriptions. That is the
- * point of the exercise; restoring them is Task 5.
+ * The scheduling half of the old implementation — the bounded pool, the derived
+ * retry budget, the retry loop, the sibling abort, the merge by key, the second
+ * trust-boundary parse, the single `normalize`, the usage sum — moved to
+ * {@link groupedExtractor} (Task 11). What stays here is the DERIVED PLAN:
+ * which pieces the schema splits into ({@link splitExtractionSchema}) and the
+ * default {@link singleShotExtractor} built for each piece over a projected
+ * target ({@link projectTarget}) — plus {@link overrideGroups}, the ergonomic
+ * layer that lets a host replace or wrap ONE group's default entries without
+ * rebuilding the other nineteen by hand.
  *
- * **Same seam.** `extract(annotatedTranscript) → ExtractionResult<F>` is
- * unchanged in shape. The relay, the outbox and `ribo-core` are not touched.
+ * **The intermediate step is exported, not hidden.** If the preset built its map
+ * internally, the common case — the defaults everywhere except one group — would
+ * mean reconstructing twenty entries by hand, and nobody would; hosts would keep
+ * calling the preset and the per-group capability would go unused. So the preset
+ * is two steps, and the first is public: {@link perGroupPlan} returns the
+ * exhaustive per-key map of default entries and the projected targets they were
+ * built from, as plain values a host can read, log, assert on and spread, and
+ * {@link perGroupExtractor} is `groupedExtractor({ target, groups:
+ * perGroupPlan(options).groups, …timing })` and nothing more.
  *
- * **Everything here speaks `Enveloped<V, P>`, not `V`** — for the same reason as
- * {@link singleShotExtractor}: the four things this file does with fields
- * (constrain the model, parse each response, imitate the example assistant turns,
- * and normalize) are all the provenance-enveloped shape the model emits.
+ * **Requests are byte-identical to the pre-combinator implementation** —
+ * `response_format.json_schema.name`, the schema, the message list, the order —
+ * which is the regression gate: this package's `per-group.test.ts` suite
+ * (including partitioning and progress units), the adapter's
+ * `per-group-cap.test.ts`, and the adapter's frozen JSON Schema fixture. Three
+ * details carry that identity:
  *
- * **The trust boundary runs twice.** Each response is parsed against its own
- * group schema at the point of receipt; the merged whole is then parsed against
- * the full `extractionSchema` before returning. The second parse catches a merge
- * that produced a shape no single call would have — it is not redundant.
+ *   - **The structured-output name** is today's construction:
+ *     `${target.name}-${key}` with a 0-based `-<part>` suffix on a partitioned
+ *     piece, set on the projected target (`projectTarget` keeps the target's
+ *     own name; the plan overrides it, because the name IS the request's
+ *     `json_schema.name`).
+ *   - **The schema each call is pinned to** is the projected one-key strict
+ *     object `projectTarget` builds — the same shape, built from the same leaf
+ *     schemas, that the old code took from the split's piece.
+ *   - **The messages** are the projected target's — its instructions and
+ *     examples. When `groupInstructions` is provided, `projectTarget` supplies
+ *     the group's instructions and the examples projected to the group (and
+ *     narrowed to a partitioned piece's leaves); when it is not, the plan
+ *     restores the target's full unprojected examples, which is what the old
+ *     `buildGroupMessages` did for every call in that mode.
  *
- * **Normalization runs once**, on the merged result: `normalizeFields` clamps
- * confidence across the whole enveloped shape, and running it per group would
- * run it seven times on seven partial shapes for no benefit.
+ * **Two semantics moved with the retry unit, both documented in design §7.**
+ * The unit of retry is now the group entry's `extract()` rather than the chat
+ * call alone — a wrapper inside a retried group is retried with it. And
+ * `usage.calls` sums what the entries report, so each default entry counts the
+ * chat calls it made for the current run — failed attempts included, the way
+ * the old loop counted them — and reports the count on its successful result.
  *
- * **Bounded per-group retry (Task 3).** A group that fails transiently is
- * retried a bounded number of times while successful groups are held, so one
- * blip does not discard six good calls. **Terminal failures are never
- * retried** — {@link assertStopFinishReason} already classifies truncation
- * (`finishReason: "length"`) and content filtering as
- * {@link TerminalQueueError} precisely because re-sending an identical request
- * truncates at the identical point; retrying those would burn the budget for
- * nothing and hide a configuration problem behind a retry storm. If a group
- * still fails after its retries, `extract()` throws and the relay's existing
- * backoff, attempt count and `dead` handling take over unchanged.
+ * **Everything here speaks `Enveloped<V, P>`, not `V`** — the four things the
+ * plan does with fields (constrain the model, parse each response, imitate the
+ * example assistant turns, normalize) are all the provenance-enveloped shape
+ * the model emits. See `single-shot.ts`'s header for the full rationale.
  *
- * **Backoff between retries.** A transient failure is not re-sent immediately:
- * the loop backs off using {@link fullJitterDelay} — the same exponential
- * full-jitter function the relay uses to schedule its own retries — so a reader
- * meets one backoff policy in this codebase, not two. The delay is injectable
- * (`delay` option) so tests do not sleep; the default is a real `setTimeout`.
+ * **The trust boundary still runs twice.** Each entry parses its response
+ * against its own piece schema at the point of receipt; the combinator then
+ * parses the merged whole against the full `extractionSchema` before
+ * returning. The second parse catches a merge that produced a shape no single
+ * call would have — it is not redundant.
  *
- * **429s are treated alike.** A `429 rate_limited` whose body says "retry
- * shortly" (too many requests this second) and one whose body says "burst spend
- * budget exhausted" (spend limit hit) are both retried with backoff. We cannot
- * reliably tell them apart from the status alone, and parsing the body for a
- * distinguishing signal is vendor-specific and fragile — a wording change breaks
- * the heuristic. Treating them alike is defensible: a burst-spend 429 simply
- * keeps failing through the per-group retry budget and then throws to the relay,
- * whose own backoff and `dead` handling take over. The backoff prevents a retry
- * storm, and the asymmetry that makes `isTransientFailure` default to retryable
- * applies here too — wrongly retrying a terminal 429 costs a few delayed
- * requests, while wrongly declaring a transient 429 terminal silently loses a
- * recording someone drove to a house to make.
+ * **Singleton mode.** `perGroupSingletonExtractor` (Tier 3) narrows each
+ * collection group to a single element per call: the projected target carries
+ * the singleton schema, so the model emits one object and cannot represent a
+ * second instance. The entry then wraps the parsed singleton back into a
+ * one-element array before the combinator's merge and full-schema parse, so
+ * the final result still matches the original extraction schema.
  *
- * **The non-grouped fallback.** A target whose schema is not an object of groups
- * gets one entry covering the whole schema from `splitExtractionSchema`, so this
- * extractor makes one call — exactly as today. The second trust-boundary parse
- * is a no-op in that case (the group schema IS the full schema), but harmless.
+ * **The non-grouped fallback.** A target whose schema is not an object of
+ * groups yields one entry covering the whole schema ({@link splitExtractionSchema}'s
+ * fallback, keyed `""`), so this extractor makes one call — exactly as today.
+ * The second trust-boundary parse is a no-op in that case (the piece schema IS
+ * the full schema), but harmless.
  */
 
 import { z } from "zod";
 
-import {
-  DEFAULT_BACKOFF_BASE_MS,
-  DEFAULT_BACKOFF_CAP_MS,
-  deriveRetryBudget,
-  fullJitterDelay,
-  nextUnitId,
-  PER_CALL_CEILING_MS,
-  TerminalQueueError,
-} from "@azx/ribo-core";
+import { groupedExtractor } from "@azx/ribo-core";
 import type {
-  AnnotatedTranscript,
   BackoffOptions,
   Enveloped,
   ExtractionObserver,
-  ExtractionResult,
   ExtractionTarget,
   Extractor,
+  GroupMap,
   GroupUnit,
   NoProvenance,
   RetryBudgetObserver,
 } from "@azx/ribo-core";
 
 import type { ChatClient } from "./chat-client.js";
-import type { UsageTotals } from "./extraction-common.js";
-import {
-  addUsage,
-  assertStopFinishReason,
-  buildGroupMessages,
-  completeOrClassify,
-  parseJsonContent,
-  parseWithSchema,
-} from "./extraction-common.js";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 import type { ExtractionGroup } from "./split-schema.js";
+import { projectTarget } from "./project-target.js";
+import { singleShotExtractor } from "./single-shot.js";
 
-/** Options for {@link perGroupExtractor}. */
+/** Options for {@link perGroupExtractor} and {@link perGroupPlan}. */
 export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProvenance>
   extends BackoffOptions, ExtractionObserver<GroupUnit>, RetryBudgetObserver {
   /** The field knowledge: `name`, `extractionSchema`, `instructions`, and few-shot `examples`. */
@@ -118,41 +115,35 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
   readonly maxTokens?: number;
   /**
    * The deterministic, model-free pass run AFTER the second trust-boundary parse
-   * — on the MERGED result, not per group. See {@link SingleShotOptions.normalize}
-   * for the full rationale; the difference here is that it runs once across the
-   * whole enveloped shape rather than once per partial shape.
+   * — on the MERGED result, not per group, by the combinator. See
+   * {@link SingleShotOptions.normalize} for the full rationale; the difference
+   * here is that it runs once across the whole enveloped shape rather than once
+   * per partial shape.
    */
   readonly normalize?: (fields: Enveloped<V, P>) => Enveloped<V, P>;
   /**
-   * Max concurrent group calls. The calls run concurrently with a bounded pool so
-   * the worst case (all groups plus their inner retries plus their backoff
-   * delays) fits inside the relay's `stepTimeoutMs` — seven sequential calls
-   * would not. Defaults to 4.
+   * Max concurrent group calls, applied by the combinator's pool. Defaults to 4.
    */
   readonly concurrency?: number;
   /**
    * Max retries per group after a transient failure (so the total attempts per
-   * group is `maxRetries + 1`). Terminal failures ({@link TerminalQueueError} —
+   * group is `maxRetries + 1`). Terminal failures (`TerminalQueueError` —
    * truncation, content filtering, refusal, unsupported) are never retried and
-   * never delay. Defaults to 2. The default is derived from the step-timeout
-   * relationship — see {@link perGroupExtractor} and the comment where it caps
-   * the retry budget.
+   * never delay. Defaults to 2, capped by the derived budget — see
+   * `deriveRetryBudget`.
    */
   readonly maxRetries?: number;
   /**
    * The relay's step timeout — the wall-clock ceiling inside which all group
-   * calls plus their retries plus their backoff delays must complete. The relay
-   * wraps `extract()` in `withTimeout(stepTimeoutMs)`; a timeout here presents as
-   * a failed extraction with no indication that some groups succeeded. Defaults
+   * calls plus their retries plus their backoff delays must complete. Defaults
    * to `900_000` (15 minutes), matching the relay's `DEFAULT_STEP_TIMEOUT_MS`.
-   * The retry budget is capped so the worst case fits inside this — see the
-   * comment in {@link perGroupExtractor}.
+   * The retry budget is capped so the worst case fits inside this.
    */
   readonly stepTimeoutMs?: number;
   /**
    * Conservative upper bound on one chat call's wall-clock duration, used to
    * derive the retry budget from the step-timeout relationship. Defaults to
-   * {@link PER_CALL_CEILING_MS} (120,000 ms), the measured ceiling for the
+   * `PER_CALL_CEILING_MS` (120,000 ms), the measured ceiling for the
    * managed transport. A faster transport (e.g., on-device) should lower this so
    * the retry budget is sized honestly.
    */
@@ -160,7 +151,7 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
   /**
    * Injectable sleep used between retry attempts, so tests do not wait real
    * seconds. Defaults to `setTimeout`. The value passed is the
-   * {@link fullJitterDelay} result in milliseconds.
+   * `fullJitterDelay` result in milliseconds.
    */
   readonly delay?: (ms: number) => Promise<void>;
   /**
@@ -205,74 +196,13 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
 }
 
 /**
- * The default {@link PerGroupOptions.delay} — a real `setTimeout` sleep. Tests
- * inject a fake that records the value and resolves immediately.
- */
-const defaultDelay = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Run `fn` over `items` with at most `limit` calls in flight at once, preserving
- * order. Rejects on the first failure (via `Promise.all`): any group failing
- * fails the extraction, so the first rejection is the extraction's rejection.
- *
- * **Stops pulling new work after a failure.** When any worker's `fn` rejects,
- * the `failed` flag is set and `abort.abort()` is called. Other workers check
- * the flag (or the aborted signal) before pulling the next item and return
- * immediately — so a failing extraction does not start every remaining group's
- * call. Without this, workers kept pulling from the queue after a sibling
- * rejected, and those calls outlived the rejected `extract()`. That was a
- * minor waste before retries and a real problem once retries multiplied the
- * call count.
- *
- * **Aborts in-flight calls.** The `AbortController` is shared with `fn` via
- * the closure in `perGroupExtractor`, which passes `abort.signal` to every
- * `chat.complete` call. When a worker fails and calls `abort.abort()`,
- * in-flight calls in other workers reject with `ChatError.aborted`, and the
- * retry loop does not retry an aborted call. This prevents calls from
- * outliving the rejected `extract()` — both new work (stopped by the flag)
- * and in-flight work (cancelled by the signal).
- */
-async function mapWithPool<T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-  abort: AbortController,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  let failed = false;
-  const worker = async (): Promise<void> => {
-    while (next < items.length) {
-      // Stop pulling new work after any worker has failed. The abort signal
-      // cancels in-flight calls in other workers; this check stops workers
-      // that are between calls from starting new ones.
-      if (failed || abort.signal.aborted) return;
-      const index = next++;
-      try {
-        results[index] = await fn(items[index]!, index);
-      } catch (cause) {
-        if (!failed) {
-          failed = true;
-          abort.abort();
-        }
-        throw cause;
-      }
-    }
-  };
-  const size = Math.min(Math.max(1, limit), items.length);
-  await Promise.all(Array.from({ length: size }, () => worker()));
-  return results;
-}
-
-/**
  * The leaf keys one partitioned piece of a group asks the model for — read back
  * out of `group.schema` rather than threaded through as separate state, so this
  * can never drift from the schema the call is actually pinned to.
  *
  * `group.schema` is `z.strictObject({ [group.key]: value })`, where `value` is
  * either the piece's narrowed group object (a singleton group, e.g. `health`) or
- * a `ZodArray` of it (a collection group, e.g. `hvac`) — {@link partitionGroup}'s
+ * a `ZodArray` of it (a collection group, e.g. `hvac`) — `partitionGroup`'s
  * output shape. This unwraps the same way `splitExtractionSchema`'s own
  * `groupCandidate` does, to reach the object whose keys are this piece's leaves.
  */
@@ -284,475 +214,350 @@ export function partitionedLeafKeys(group: ExtractionGroup): readonly string[] {
 }
 
 /**
- * Recombine two group values that are both pieces of the SAME key (a
- * partitioned group's leaves, split across two or more calls) into one.
- *
- * A singleton group's pieces are each a plain leaf-envelope object; they combine
- * by shallow merge, since every piece carries a disjoint subset of leaf keys.
- *
- * A collection group's pieces are each a full array of instances, one element
- * per instance, but each element carries only that piece's leaf subset (per the
- * file header: split within one instance's fields, never across instances or the
- * array wrapper). Recombining is therefore element-WISE by index: index `i` in
- * every piece is the same instance. This assumes every piece's call agreed on the
- * same instance count and order — both calls extract from the identical
- * transcript, so in practice they do — but if they disagree (a real model
- * inconsistency, not a code defect), the merge does not hide it: a short instance
- * is missing the other piece's keys, which the full extraction schema requires,
- * so the second trust-boundary parse (`parseWithSchema` below) rejects the merge
- * with a `SchemaParseError` rather than silently emitting a partial instance.
+ * The projected {@link ExtractionTarget}s behind a {@link PerGroupPlan}'s groups:
+ * {@link GroupMap} key for key and index for index. Each is the target the
+ * corresponding default entry was built from — the schema is always the piece's
+ * one-key strict object, the name is the request's `json_schema.name`, and the
+ * instructions/examples are the group's own when the plan carries
+ * `groupInstructions` (the target's full unprojected ones when it does not,
+ * which is what the requests have always carried in that mode). A host overriding
+ * a group builds its replacement from `plan.targets[key]` and never touches
+ * {@link projectTarget} for the group it is replacing, let alone the nineteen it
+ * is not.
  */
-export function mergeGroupPieces(existing: unknown, incoming: unknown): unknown {
-  if (Array.isArray(existing) && Array.isArray(incoming)) {
-    const length = Math.max(existing.length, incoming.length);
-    const merged: unknown[] = [];
-    for (let i = 0; i < length; i++) {
-      merged.push({
-        ...(existing[i] as Record<string, unknown> | undefined),
-        ...(incoming[i] as Record<string, unknown> | undefined),
-      });
+export type GroupTargets<V extends Record<string, unknown>, P = NoProvenance> =
+  | {
+      readonly [K in keyof V & string]:
+        ExtractionTarget<Pick<V, K>, P> | readonly ExtractionTarget<Pick<V, K>, P>[];
     }
-    return merged;
-  }
-  return {
-    ...(existing as Record<string, unknown>),
-    ...(incoming as Record<string, unknown>),
-  };
-}
+  | { readonly "": ExtractionTarget<V, P> };
 
-/** A group with its JSON Schema and error-context pre-computed at construction time. */
-interface PreparedGroup {
-  /**
-   * The original group entry from {@link splitExtractionSchema}, including
-   * `part`/`parts` when the group's leaves were partitioned across multiple
-   * calls (see the file header's "Leaf-count partitioning" in `split-schema.ts`).
-   */
-  readonly group: ExtractionGroup;
-  /**
-   * The schema this call is parsed against. Under singleton mode this may be a
-   * narrowed single-element schema; otherwise it is the same as `group.schema`.
-   */
-  readonly schema: z.ZodType;
-  /** The JSON Schema sent to the model in `response_format`. */
-  readonly jsonSchema: Record<string, unknown>;
-  /** The `response_format.json_schema.name` — identifies the group in the request. */
-  readonly name: string;
-  /** The descriptive prefix for error messages from this group's call. */
-  readonly context: string;
-  /**
-   * True when the original group is a collection but singleton mode narrowed the
-   * request to one element; the parsed response must be wrapped back into a
-   * one-element array before the full schema sees it.
-   */
-  readonly wrapToArray: boolean;
-  /**
-   * The leaf keys THIS piece asks the model for, present only when `group.part`
-   * is defined (the group was partitioned). Passed to {@link buildGroupMessages}
-   * so a few-shot example narrows to the same subset the `response_format`
-   * constrains this call to, rather than showing the model an example carrying
-   * fields this call cannot produce.
-   */
-  readonly leafKeys?: readonly string[];
+/** What {@link perGroupPlan} returns — see {@link GroupMap} and {@link GroupTargets}. */
+export interface PerGroupPlan<V extends Record<string, unknown>, P = NoProvenance> {
+  /** The exhaustive per-key map of default entries — a `singleShotExtractor` per piece. */
+  readonly groups: GroupMap<V, P>;
+  /** The projected targets those entries were built from, index-aligned with `groups`. */
+  readonly targets: GroupTargets<V, P>;
 }
 
 /**
- * Build a per-group {@link Extractor} for a target.
+ * The plan's default entry for one piece: a {@link singleShotExtractor} over the
+ * piece's projected target, wrapped so that
  *
- * On each `extract`:
- *   1. Split the target's `extractionSchema` into per-group schemas
- *      ({@link splitExtractionSchema}). A non-grouped schema yields one entry
- *      covering the whole schema — one call, today's behaviour.
- *   2. Build per-group messages: when `groupInstructions` is provided, each
- *      grouped call gets its own instructions (universal + group-specific rules)
- *      and a projected example (one top-level key in the assistant turn);
- *      otherwise every call gets the full prompt — today's behaviour. The
- *      transcript stays last. Each call's `response_format` is pinned to that
- *      group's schema. Message assembly runs **once per entry**, outside the
- *      retry loop.
- *   3. Run the calls concurrently with a bounded pool. For each response:
- *      - **Bounded retry** (Task 3): a transient failure is retried up to
- *        `maxRetries` times while successful groups are held, with
- *        {@link fullJitterDelay} backoff between attempts. Terminal failures
- *        ({@link TerminalQueueError}) are never retried and never delay. If a
- *        group still fails, `extract()` throws and the relay's existing
- *        machinery takes over unchanged.
- *      - **Pre-parse check** ({@link assertStopFinishReason}): reject a
- *        non-`"stop"` completion before parsing, so truncation is not
- *        misreported as invalid JSON. Terminal, not retried.
- *      - **First trust-boundary parse** ({@link parseWithSchema}): parse the
- *        response against its own group schema.
- *   4. Merge the parsed responses by top-level key: ordinarily each response has
- *      exactly one key so assignment produces the whole, but a group carrying more
- *      nullable unions than {@link MAX_NULLABLE_UNIONS_PER_CALL} was partitioned by
- *      {@link splitExtractionSchema} into multiple entries sharing one key
- *      (`ExtractionGroup.part`/`parts`) — those pieces' responses are recombined
- *      (see {@link mergeGroupPieces}) rather than one overwriting the other.
- *   5. **Second trust-boundary parse**: parse the merged whole against the full
- *      `extractionSchema`. Catches a merge that produced a shape no single call
- *      would have.
- *   6. **Normalize once** on the merged result.
- *
- * `usage.calls` reports the real number of calls made, including retries.
+ *   - under singleton mode, its parsed one-element response is wrapped back
+ *     into the array the full schema expects (the wrap the old merge applied),
+ *     and
+ *   - its reported `usage.calls` counts every chat call the piece made for the
+ *     CURRENT run — failed attempts included, the way the pre-combinator loop
+ *     counted them. The combinator sums what entries report and an entry that
+ *     throws on attempt 1 never reports a result, so the entry counts its own
+ *     calls: keyed by the run's signal, which the combinator hands it fresh per
+ *     run and identical across a run's retry attempts.
  */
-export function perGroupExtractor<V extends Record<string, unknown>, P = NoProvenance>({
-  target,
+function defaultPieceEntry<W extends Record<string, unknown>, P = NoProvenance>({
+  pieceTarget,
   chat,
   model,
   maxTokens,
-  normalize = (fields) => fields,
-  concurrency = 4,
-  maxRetries = 2,
-  stepTimeoutMs = 900_000,
-  perCallCeilingMs = PER_CALL_CEILING_MS,
-  delay = defaultDelay,
-  baseMs,
-  capMs,
-  random,
-  groupInstructions,
-  singleton = false,
-  maxNullableUnionsPerGroup,
-  onUnit,
-  onRetryBudget,
-  requireRetryBudget = false,
-}: PerGroupOptions<V, P>): Extractor<Enveloped<V, P>> {
-  // Split at construction time — the group list is a pure function of the schema
-  // and does not depend on the transcript. A non-grouped schema yields one entry
-  // covering the whole schema (key: ""), which makes one call — today's behaviour.
-  //
-  // The cap is always supplied (defaulting to MAX_NULLABLE_UNIONS_PER_CALL) so a
-  // group that would overflow one call's response schema is partitioned here
-  // rather than rejected provider-side — see split-schema.ts's file header for the
-  // limit the default is derived from. A caller whose route is bound by a
-  // different limit opts into its own number via `maxNullableUnionsPerGroup`.
-  //
-  // It is counted in NULLABLE UNIONS rather than leaves, which is what lets a group
-  // that declared `"row"` or `"none"` provenance fit in one call instead of being
-  // split for nothing. The two units coincide exactly while every leaf is enveloped
-  // (two unions each), so this changed no existing partition boundary.
-  const groups = splitExtractionSchema(
+  wrapKey,
+}: {
+  readonly pieceTarget: ExtractionTarget<W, P>;
+  readonly chat: ChatClient;
+  readonly model: string;
+  readonly maxTokens?: number;
+  /** The group key whose parsed singleton value is wrapped back into an array. */
+  readonly wrapKey?: string;
+}): Extractor<Enveloped<W, P>> {
+  const entry = singleShotExtractor({ target: pieceTarget, chat, model, maxTokens });
+  const callsByRun = new WeakMap<AbortSignal, number>();
+  return {
+    extract: async (transcript, options) => {
+      // A single-shot entry makes exactly one chat call per attempt of its
+      // extract() — including an attempt that fails at the transport, the
+      // finish-reason gate or the schema parse. The count survives the failed
+      // attempt and rides the next successful result out.
+      const signal = options?.signal;
+      const calls = signal === undefined ? 1 : (callsByRun.get(signal) ?? 0) + 1;
+      if (signal !== undefined) callsByRun.set(signal, calls);
+
+      const result = await entry.extract(transcript, options);
+      const fields =
+        wrapKey === undefined
+          ? result.fields
+          : // The entry parsed the singleton schema `{ [key]: element }`; the
+            // full schema expects `{ [key]: [element] }`. The cast names the
+            // wrap the old merge applied — same construction, one level down.
+            ({ [wrapKey]: [(result.fields as Record<string, unknown>)[wrapKey]] } as Enveloped<
+              W,
+              P
+            >);
+      return { ...result, fields, usage: { ...result.usage, calls } };
+    },
+  };
+}
+
+/**
+ * Build the plan behind {@link perGroupExtractor}: the exhaustive per-key map of
+ * default entries (a {@link singleShotExtractor} per piece, over a
+ * {@link projectTarget}-projected target) and the projected targets those
+ * entries were built from. Both are plain values a host can read, log, assert
+ * on and spread — and the input to {@link overrideGroups}.
+ *
+ * The timing knobs the options carry (`concurrency`, `maxRetries`, backoff,
+ * `onUnit`, …) are the combinator's business and are ignored here; only the
+ * per-piece construction inputs are read.
+ */
+export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance>(
+  options: PerGroupOptions<V, P>,
+): PerGroupPlan<V, P> {
+  const {
+    target,
+    chat,
+    model,
+    maxTokens,
+    groupInstructions,
+    singleton = false,
+    maxNullableUnionsPerGroup,
+  } = options;
+
+  // Split at plan time — the group list is a pure function of the schema and
+  // does not depend on the transcript. The cap is always supplied (defaulting
+  // to MAX_NULLABLE_UNIONS_PER_CALL) so a group that would overflow one call's
+  // response schema is partitioned rather than rejected provider-side. A
+  // non-grouped schema yields one fallback entry with key "".
+  const pieces = splitExtractionSchema(
     target.extractionSchema,
     maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL,
   );
 
-  // Pre-compute each group's JSON Schema and error-context at construction time.
-  // The JSON Schema generation (`z.toJSONSchema`) is not cheap, and the schema
-  // does not change between calls.
-  const prepared: readonly PreparedGroup[] = groups.map((group) => {
-    let schema: z.ZodType = group.schema;
-    let wrapToArray = false;
+  // The non-grouped fallback: the schema is not an object of groups, so there
+  // are no pieces to compose — one entry covering the whole schema, keyed "",
+  // built over the target itself (its own name, instructions and unprojected
+  // examples). The combinator merges such an entry by assigning its fields
+  // flat, exactly as the old merge did.
+  const first = pieces[0];
+  if (pieces.length === 1 && first !== undefined && first.key === "") {
+    return {
+      groups: { "": defaultPieceEntry({ pieceTarget: target, chat, model, maxTokens }) },
+      targets: { "": target },
+    };
+  }
 
-    // Singleton mode: a collection group is narrowed to one element per call. The
-    // model emits a single object and the response is wrapped back into an array
-    // before the full schema sees it — so the result still validates against the
-    // original collection schema while being unable to represent a second instance.
-    // This operates on `group.schema` regardless of whether it is a whole group or
-    // one partitioned piece — a piece's schema has the identical
-    // `{ [key]: ZodArray | ZodObject }` shape, just over fewer leaves, so this
-    // narrowing needs no change to see a piece.
-    if (singleton && group.key !== "" && group.schema instanceof z.ZodObject) {
-      const shape = (group.schema as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodType>;
-      const value = shape[group.key];
-      if (value instanceof z.ZodArray) {
-        schema = z.strictObject({ [group.key]: value.element });
-        wrapToArray = true;
+  // Group the pieces by key, preserving the split's order: a partitioned
+  // group's pieces are contiguous, so each key's list is index-aligned with its
+  // `part` numbers.
+  const byKey = new Map<string, ExtractionGroup[]>();
+  for (const group of pieces) {
+    const existing = byKey.get(group.key);
+    byKey.set(group.key, existing ? [...existing, group] : [group]);
+  }
+
+  // The maps are built as plain records because the loop's key arrives as a
+  // runtime string; the cast at the return names the invariant that makes it
+  // sound — these keys ARE the schema shape's keys, and the schema is
+  // `Enveloped<V, P>`, so they are exactly `keyof V & string`.
+  const groups: Record<string, unknown> = {};
+  const targets: Record<string, unknown> = {};
+
+  for (const [groupKey, keyPieces] of byKey) {
+    const key = groupKey as keyof V & string;
+    const pieceEntries: unknown[] = [];
+    const pieceTargets: unknown[] = [];
+
+    for (const group of keyPieces) {
+      // The leaf keys one partitioned piece asks the model for, so its few-shot
+      // example narrows to the same subset the response_format constrains this
+      // call to. Read from the piece's own schema — it cannot drift from it.
+      const leafKeys = group.part !== undefined ? partitionedLeafKeys(group) : undefined;
+
+      // Whether the piece's parsed response must be wrapped back into a
+      // one-element array before the full schema sees it — singleton mode on a
+      // collection group, detected on the piece's own schema exactly as the
+      // pre-combinator implementation detected it.
+      let wrapToArray = false;
+      if (singleton && group.key !== "" && group.schema instanceof z.ZodObject) {
+        const shape = (group.schema as z.ZodObject<z.ZodRawShape>).shape as Record<
+          string,
+          z.ZodType
+        >;
+        if (shape[group.key] instanceof z.ZodArray) wrapToArray = true;
       }
+
+      // The structured-output name — identifies the group in the request.
+      // `-`, not `:` — a structured-output schema name is constrained to
+      // [A-Za-z0-9_-] by at least one platform route (Helix rejects a colon
+      // with a generic `400 validation_failed`, which reads identically to an
+      // over-cap schema and costs an afternoon to tell apart). A partitioned
+      // piece appends `-<part>` (0-based) so two calls sharing a group key
+      // still get distinct names.
+      const partSuffix = group.part !== undefined ? `-${group.part}` : "";
+      const name = `${target.name}-${group.key}${partSuffix}`;
+
+      // When `groupInstructions` is provided the call gets its own instructions
+      // and a projected example (narrowed to this piece's leaves under
+      // partitioning, first element under singleton); otherwise it gets the
+      // target's full instructions and UNPROJECTED examples — today's
+      // behaviour, so the requests stay byte-identical.
+      const withGroupPrompt = groupInstructions !== undefined && group.key !== "";
+      const projected = projectTarget<V, P, typeof key>(target, key, {
+        instructions: withGroupPrompt ? groupInstructions(group.key) : undefined,
+        leafKeys,
+        singleton,
+      });
+      const pieceTarget: ExtractionTarget<Pick<V, typeof key>, P> = withGroupPrompt
+        ? { ...projected, name }
+        : { ...projected, name, examples: target.examples };
+
+      pieceEntries.push(
+        defaultPieceEntry<Pick<V, typeof key>, P>({
+          pieceTarget,
+          chat,
+          model,
+          maxTokens,
+          wrapKey: wrapToArray ? group.key : undefined,
+        }),
+      );
+      pieceTargets.push(pieceTarget);
     }
 
-    const jsonSchema = z.toJSONSchema(schema, { target: "draft-2020-12" }) as Record<
-      string,
-      unknown
-    >;
-    // `-`, not `:` — a structured-output schema name is constrained to
-    // [A-Za-z0-9_-] by at least one platform route (Helix rejects a colon with a
-    // generic `400 validation_failed`, which reads identically to an over-cap
-    // schema and costs an afternoon to tell apart). Keep the separator inside the
-    // charset every route accepts. A partitioned piece appends `-<part>` so two
-    // calls sharing a group key (e.g. `hvac`) still get distinct names.
-    const partSuffix = group.part !== undefined ? `-${group.part}` : "";
-    const name = group.key ? `${target.name}-${group.key}${partSuffix}` : target.name;
-    const context = group.key
-      ? group.part !== undefined
-        ? `perGroupExtractor: model response for "${target.name}" group "${group.key}" (part ${group.part + 1}/${group.parts})`
-        : `perGroupExtractor: model response for "${target.name}" group "${group.key}"`
-      : `perGroupExtractor: model response for "${target.name}"`;
-    // Only a partitioned piece needs its few-shot example narrowed — an
-    // unpartitioned group's example already carries exactly its leaves.
-    const leafKeys = group.part !== undefined ? partitionedLeafKeys(group) : undefined;
-    return { group, schema, jsonSchema, name, context, wrapToArray, leafKeys };
-  });
+    // One entry for an unpartitioned key; the ordered piece list for a
+    // partitioned one. The shape is the combinator's own
+    // `Extractor | readonly Extractor[]` per key.
+    groups[key] = pieceEntries.length === 1 ? pieceEntries[0] : pieceEntries;
+    targets[key] = pieceTargets.length === 1 ? pieceTargets[0] : pieceTargets;
+  }
 
-  // The relay wraps extract() in withTimeout(stepTimeoutMs). All group calls
-  // plus their retries plus their backoff delays must fit inside it. The worst
-  // case — every group exhausting its full retry budget — runs this many
-  // sequential chat calls:
-  //
-  //   ceil(G / concurrency) * (effectiveMaxRetries + 1)
-  //
-  // where G = prepared.length, each call taking up to `perCallCeilingMs`, and
-  // between calls a backoff delay of up to min(cap, base * 2^attempts). We
-  // derive effectiveMaxRetries so the worst case — call time PLUS accumulated
-  // backoff — fits within stepTimeoutMs. A caller who lowers stepTimeoutMs or
-  // perCallCeilingMs gets a proportionally lower retry budget rather than a step
-  // timeout that presents as a bare extraction failure with no indication that
-  // some groups succeeded.
-  //
-  // The revised relationship is:
-  //
-  //   ceil(G / concurrency) * ((maxRetries + 1) * perCallCeilingMs
-  //                             + maxAccumulatedBackoff(maxRetries)) <= stepTimeoutMs
-  //
-  // With the defaults (stepTimeoutMs = 900_000, concurrency = 4,
-  // maxRetries = 2, perCallCeilingMs = 120_000, base = 1_000, cap = 300_000)
-  // and the Snugg target's 7 groups: maxAccumulatedBackoff(2) = 1_000 + 2_000 =
-  // 3_000; per-group budget = 3 * 120_000 + 3_000 = 363_000; worst case =
-  // ceil(7/4) * 363_000 = 726_000 — inside the 15-minute step timeout.
-  const backoffBaseMs = baseMs ?? DEFAULT_BACKOFF_BASE_MS;
-  const backoffCapMs = capMs ?? DEFAULT_BACKOFF_CAP_MS;
-  const batches = Math.ceil(prepared.length / concurrency);
-  const budget = deriveRetryBudget({
-    requested: maxRetries,
-    batches,
+  return { groups: groups as GroupMap<V, P>, targets: targets as GroupTargets<V, P> };
+}
+
+/**
+ * One group's override: a function applied PER PIECE of that group's plan entry,
+ * handing it the piece's default extractor, the piece's projected target, and
+ * the piece's index. Its return replaces that piece.
+ *
+ * Per piece is the semantically right unit — not a convenience: a group can be
+ * PARTITIONED into multiple pieces when it exceeds the nullable-union cap (the
+ * Snugg Pro `health` group is exactly such a group), and an override API that
+ * silently applied to only the first piece would be worse than none. A piece's
+ * wrapper re-asks exactly that piece's leaves against a schema that fits. The
+ * same function can also replace a group outright — by ignoring its first
+ * argument and building from the second; the piece's projected target keeps the
+ * partitioning intact for a replacement that maps over pieces.
+ */
+export type GroupOverride<
+  V extends Record<string, unknown>,
+  P = NoProvenance,
+  K extends keyof V & string = keyof V & string,
+> = (
+  entry: Extractor<Pick<Enveloped<V, P>, K>>,
+  target: ExtractionTarget<Pick<V, K>, P>,
+  index: number,
+) => Extractor<Pick<Enveloped<V, P>, K>>;
+
+/**
+ * Apply per-group overrides to a {@link perGroupPlan} result: the defaults
+ * everywhere, except the groups named in `overrides`.
+ *
+ * Returns the FULL map — untouched keys are reference-equal to `plan.groups`'s,
+ * so a host spreads the result into `groupedExtractor`'s `groups` (or hands it
+ * straight over) and a test or status panel can still enumerate the running map
+ * and name the overridden keys. An override key the plan does not carry is a
+ * compile error for a TypeScript caller (the overrides object is keyed by the
+ * schema's own top-level keys) and a construction-time throw naming the key for
+ * a JS caller — including any override against a non-grouped fallback plan,
+ * which has no per-group entries to override.
+ */
+export function overrideGroups<V extends Record<string, unknown>, P = NoProvenance>(
+  plan: PerGroupPlan<V, P>,
+  overrides: { readonly [K in keyof V & string]?: GroupOverride<V, P, K> },
+): GroupMap<V, P> {
+  // The same read/write-through-a-record cast the plan's builder and the
+  // combinator's coverage check use: the map's keys are the schema's own
+  // top-level keys, checked at construction.
+  const groupRecord = plan.groups as Readonly<Record<string, unknown>>;
+  const targetRecord = plan.targets as Readonly<Record<string, unknown>>;
+  const overrideRecord = overrides as Readonly<
+    Record<string, ((entry: never, target: never, index: number) => unknown) | undefined>
+  >;
+
+  // Shallow copy: untouched keys keep their references.
+  const result: Record<string, unknown> = { ...groupRecord };
+
+  for (const key of Object.keys(overrideRecord)) {
+    const override = overrideRecord[key];
+    if (override === undefined) continue;
+    if (!(key in groupRecord)) {
+      if ("" in groupRecord) {
+        throw new Error(
+          `overrideGroups: the plan's schema is not an object of groups, so there are ` +
+            `no per-group entries to override (asked to override "${key}").`,
+        );
+      }
+      throw new Error(
+        `overrideGroups: the plan has no group "${key}" — its schema's top-level keys ` +
+          `are ${Object.keys(groupRecord)
+            .map((existing) => `"${existing}"`)
+            .join(", ")}.`,
+      );
+    }
+    const entry = groupRecord[key];
+    const pieceTargets = targetRecord[key];
+    const call = override as (entry: unknown, target: unknown, index: number) => unknown;
+    result[key] = Array.isArray(entry)
+      ? (entry as readonly unknown[]).map((piece, index) =>
+          call(piece, (pieceTargets as readonly unknown[])[index], index),
+        )
+      : call(entry, pieceTargets, 0);
+  }
+
+  return result as GroupMap<V, P>;
+}
+
+/**
+ * The per-group managed-LLM extractor — the preset. One chat call per top-level
+ * group (per partitioned piece), concurrently with a bounded pool, assembled
+ * into one result. It is {@link groupedExtractor} over {@link perGroupPlan}'s
+ * default map and nothing more: the combinator owns the pool, the retry budget,
+ * the retry, the sibling abort, the merge, the second trust-boundary parse, the
+ * single `normalize`, the usage sum and the `GroupUnit` events.
+ *
+ * `usage.calls` reports the real number of calls made, including retries — the
+ * default entries count their own calls per run, failed attempts included.
+ */
+export function perGroupExtractor<V extends Record<string, unknown>, P = NoProvenance>(
+  options: PerGroupOptions<V, P>,
+): Extractor<Enveloped<V, P>> {
+  const {
+    target,
+    normalize,
+    concurrency,
+    maxRetries,
     stepTimeoutMs,
     perCallCeilingMs,
-    baseMs: backoffBaseMs,
-    capMs: backoffCapMs,
+    delay,
+    baseMs,
+    capMs,
+    random,
+    onUnit,
+    onRetryBudget,
+    requireRetryBudget,
+  } = options;
+  return groupedExtractor({
+    target,
+    groups: perGroupPlan(options).groups,
+    normalize,
+    concurrency,
+    maxRetries,
+    stepTimeoutMs,
+    perCallCeilingMs,
+    delay,
+    baseMs,
+    capMs,
+    random,
+    onUnit,
+    onRetryBudget,
+    requireRetryBudget,
   });
-  const effectiveMaxRetries = budget.derived;
-  // Fire onRetryBudget only when the budget was reduced — a consumer that asked
-  // for 5 and got 5 has nothing to act on. The default must stay non-throwing:
-  // the current production wiring derives to zero, so throwing by default would
-  // break the live path in the same change that makes it visible (§0.5).
-  if (budget.derived < budget.requested) {
-    onRetryBudget?.(budget);
-  }
-  if (requireRetryBudget && budget.derived === 0 && budget.requested > 0) {
-    throw new Error(
-      `perGroupExtractor: retry budget derived to 0 (requested ${budget.requested}) — ` +
-        `increase stepTimeoutMs (${stepTimeoutMs}), lower perCallCeilingMs (${perCallCeilingMs}), ` +
-        `or lower concurrency (${concurrency}) to fit at least one retry`,
-    );
-  }
-  // Pre-compute the backoff options object once — passed to fullJitterDelay on
-  // every retry. The random function defaults to Math.random inside
-  // fullJitterDelay when not supplied here.
-  const backoffOpts: BackoffOptions = { baseMs: backoffBaseMs, capMs: backoffCapMs, random };
-
-  return {
-    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
-      // One AbortController for the whole extraction. When any group fails
-      // (terminally or past its retry budget), abort is called: in-flight calls
-      // in other workers reject with ChatError.aborted, and workers stop
-      // pulling new work (mapWithPool checks the signal). This prevents the
-      // calls-outlive-extract() waste that retries would multiply.
-      const abort = new AbortController();
-      let totalCalls = 0;
-
-      const totals: UsageTotals = {};
-      const responses = await mapWithPool(
-        prepared,
-        concurrency,
-        async (entry) => {
-          // Message assembly runs once per entry — OUTSIDE the retry loop.
-          // The retry wraps only the chat call, not the prompt construction.
-          const messages = buildGroupMessages(
-            target,
-            entry.group.key,
-            transcript.text,
-            groupInstructions,
-            singleton,
-            entry.leafKeys,
-          );
-          const request = {
-            model,
-            messages,
-            response_format: {
-              type: "json_schema" as const,
-              json_schema: { name: entry.name, schema: entry.jsonSchema, strict: true as const },
-            },
-            maxTokens,
-          };
-
-          // Mint one id per prepared entry before the loop — stable across every
-          // attempt of this entry, so a consumer correlates start/done/error
-          // without bookkeeping. attempt is what distinguishes retries.
-          const id = nextUnitId();
-          const key = entry.group.key;
-          // Internal representation is 0-based and optional; the event is 1-based
-          // and always present, with an unpartitioned group reporting part: 1,
-          // parts: 1 — a consumer must not need two code paths for "one" and "several".
-          const part = (entry.group.part ?? 0) + 1;
-          const parts = entry.group.parts ?? 1;
-
-          let lastError: unknown;
-          for (let attempt = 0; attempt <= effectiveMaxRetries; attempt++) {
-            // If a sibling group's failure has aborted the extraction, don't
-            // start a new call — propagate so this worker stops. mapWithPool
-            // checks the signal before pulling new work; this check catches
-            // the case where the abort fires between retry attempts.
-            if (abort.signal.aborted) {
-              const aborted =
-                lastError ?? new Error("perGroupExtractor: aborted by a sibling failure");
-              // NO event here, deliberately, and for two independent reasons.
-              //
-              // This check runs at the TOP of the loop, before this iteration's
-              // `start`, so attempt `attempt + 1` never began — announcing it
-              // would invent a retry that did not happen, and `attempt` is the
-              // only way a retry is observable at all. Re-reporting `attempt`
-              // is no better: when it is > 0 that attempt already settled with
-              // its own `error` in the catch below, and when it is 0 nothing
-              // started at all.
-              //
-              // And the timing is worse than the numbering. `mapWithPool` uses
-              // `Promise.all`, so `extract()` rejects the instant a sibling
-              // fails — while this worker may still be asleep in its backoff.
-              // Anything emitted here therefore arrives AFTER the extraction
-              // has settled, telling a progress panel that a finished run is
-              // still going. The unit's last live attempt is already reported;
-              // that no further attempt follows is said by the absence of a
-              // next `start`.
-              throw aborted;
-            }
-
-            onUnit?.({ id, unit: "group", phase: "start", attempt: attempt + 1, key, part, parts });
-
-            totalCalls++;
-            try {
-              const completion = await completeOrClassify(chat, request, entry.context, {
-                signal: abort.signal,
-              });
-
-              // Before the finish-reason and schema gates, so a truncated or
-              // rejected response still counts the tokens it burned. Retries
-              // accumulate too — `usage.calls` already counts them, and a token
-              // total that silently excluded them would disagree with it.
-              addUsage(totals, completion.usage);
-
-              assertStopFinishReason(completion, entry.context);
-
-              const raw = parseJsonContent(completion.content, entry.context);
-
-              // First trust-boundary parse: validate against this group's own
-              // schema. A response carrying another group's key is rejected
-              // here — the split narrows rather than merely relabels. Under
-              // singleton mode this is the narrowed single-element schema, so a
-              // multi-instance response is rejected before it can be wrapped.
-              const parsed = parseWithSchema(entry.schema, raw, entry.context);
-              onUnit?.({
-                id,
-                unit: "group",
-                phase: "done",
-                attempt: attempt + 1,
-                key,
-                part,
-                parts,
-                // Omitted rather than set to `undefined` when the transport
-                // reports nothing: absent means "not reported", and this repo
-                // already keeps that distinction load-bearing for
-                // `ExtractionUsage.cachedPromptTokens`. `usage: undefined` would
-                // still answer `"usage" in event` with true.
-                ...(completion.usage !== undefined
-                  ? {
-                      usage: {
-                        inputTokens: completion.usage.promptTokens,
-                        outputTokens: completion.usage.completionTokens,
-                      },
-                    }
-                  : {}),
-              });
-              return parsed;
-            } catch (cause) {
-              lastError = cause;
-              onUnit?.({
-                id,
-                unit: "group",
-                phase: "error",
-                attempt: attempt + 1,
-                key,
-                part,
-                parts,
-                error: cause,
-              });
-              // Terminal failures are never retried —
-              // assertStopFinishReason throws TerminalQueueError for
-              // truncation and content filtering precisely because re-sending
-              // an identical request reproduces the same result.
-              // completeOrClassify similarly classifies refusal/unsupported as
-              // TerminalQueueError. Retrying those would burn the budget for
-              // nothing and hide a configuration problem behind a retry storm.
-              if (cause instanceof TerminalQueueError) throw cause;
-              // If aborted by a sibling failure, don't retry — propagate.
-              if (abort.signal.aborted) throw cause;
-              // Transient failure — back off before the next attempt if budget
-              // remains. fullJitterDelay takes the failure count before this
-              // failure (matching the relay's convention), so the first retry
-              // draws from [0, base]. The delay is injected so tests do not
-              // sleep; the default is a real setTimeout. After the delay, the
-              // loop's top-of-iteration abort check catches a sibling failure
-              // that fired while we were sleeping.
-              if (attempt < effectiveMaxRetries) {
-                await delay(fullJitterDelay(attempt, backoffOpts));
-              }
-            }
-          }
-          // Budget exhausted — rethrow the last transient error. The error
-          // event for the final attempt was already fired in the catch above;
-          // this throw propagates to the relay's existing backoff, attempt
-          // count and dead handling unchanged.
-          throw lastError;
-        },
-        abort,
-      );
-
-      // Merge by shallow assignment — each grouped response has exactly one
-      // top-level key, so assigning in sequence produces the whole without
-      // re-keying. In singleton mode, collection-group responses are wrapped back
-      // into a one-element array so the merged shape still validates against the
-      // original extraction schema. `responses` is index-aligned with `prepared`
-      // (mapWithPool preserves order), so pairing them by index — rather than
-      // reading each response's own keys — is what lets two entries share the
-      // same `group.key` (a partitioned group's pieces) without one clobbering
-      // the other.
-      const merged: Record<string, unknown> = {};
-      for (let i = 0; i < prepared.length; i++) {
-        const entry = prepared[i]!;
-        // Each response parsed against a strict object schema is a record with
-        // string keys. The cast is safe because the first trust-boundary parse
-        // already validated the shape.
-        const response = responses[i] as Record<string, unknown>;
-
-        if (entry.group.key === "") {
-          // The non-grouped fallback: the response IS the whole merged object
-          // already (its schema is the full extraction schema, not a one-key
-          // slice) — assign its keys directly rather than nesting under "".
-          Object.assign(merged, response);
-          continue;
-        }
-
-        const key = entry.group.key;
-        const raw = response[key];
-        const value = entry.wrapToArray ? [raw] : raw;
-        // A key already present in `merged` means an earlier piece of the SAME
-        // partitioned group already contributed its slice — recombine rather
-        // than overwrite. See `mergeGroupPieces`.
-        merged[key] = key in merged ? mergeGroupPieces(merged[key], value) : value;
-      }
-
-      // Second trust-boundary parse: validate the merged whole against the full
-      // extraction schema. This is not redundant — it catches a merge that
-      // produced a shape no single call would have.
-      const mergeContext = `perGroupExtractor: merged response for "${target.name}"`;
-      const parsed = parseWithSchema(target.extractionSchema, merged, mergeContext);
-
-      // Normalization runs once on the merged result — normalizeFields clamps
-      // confidence across the whole enveloped shape; running it per group would
-      // run it seven times on seven partial shapes for no benefit.
-      return {
-        fields: normalize(parsed),
-        raw: merged,
-        usage: { calls: totalCalls, ...totals },
-      };
-    },
-  };
 }
 
 /**

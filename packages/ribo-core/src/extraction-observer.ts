@@ -104,5 +104,5 @@ export function stampStrategy<U extends ExtractionUnit>(
   onUnit: ((event: U) => void) | undefined,
 ): ((event: U) => void) | undefined {
   if (onUnit === undefined) return undefined;
-  return (event: U) => onUnit({ ...event, strategy } as U);
+  return (event: U) => onUnit({ ...event, strategy });
 }

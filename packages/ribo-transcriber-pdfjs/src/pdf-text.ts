@@ -168,7 +168,7 @@ export async function openDocument(
 ): Promise<OpenDocumentHandle> {
   const pdfjs = await loadPdfjs(
     options.workerSrc,
-    options.loadPdfjs ?? (async () => (await import("pdfjs-dist")) as unknown as PdfjsModule),
+    options.loadPdfjs ?? (async () => await import("pdfjs-dist")),
   );
 
   const buf = await bytes.arrayBuffer();

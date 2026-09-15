@@ -267,6 +267,25 @@ measurement under specific conditions rather than as a property of cell-level ci
 
 ## Open questions
 
+- **A timed-out transcription keeps running.** `relay.ts`'s `#transcribe` wraps
+  `transcriber.transcribe(...)` in `withTimeout` with no `onTimeout` hook, so the relay moves on
+  while the request completes unseen — the symmetric gap to the one Task 19 fixed for the extract
+  path. A review called the fix one line; it is not. `Transcriber.transcribe` is
+  `(item, bytes) => Promise<Transcript>` with no options parameter, so there is nothing to hand a
+  signal to. Closing it means widening the `Transcriber` contract the way Task 9 widened
+  `Extractor`, across five transcriber implementations plus `FakeTranscriber` and anything a host
+  has written. Worth doing — the same argument applies, and doing it before publishing is far
+  cheaper than after — but it is a task, not a patch.
+
+- **`inventory()` cannot be cancelled.** `ScopedFillOptions.inventory` is
+  `(transcript: string) => Promise<Roster>` and is called without a signal, so an abort cannot stop
+  the inventory pass. Adjacent: the fill loop's pre-check and catch consult only the internal
+  sibling-abort controller, so a caller's abort burns the retry budget before rejecting. Found
+  while building Task 20 and deliberately left alone — the inventory seam predates the
+  `ExtractOptions` contract and changing it is a contract change, not a fix.
+  `scopedInstanceExtractor` does at least rethrow rather than resolving empty, so this is a
+  wasted-work problem rather than a wrong-answer one.
+
 - **TypeDoc residuals.** 21 "resolved but not included" warnings need an export or a
   `typedoc.json` change; 7 more come from `ribo-core` JSDoc inherited into other packages'
   implementing classes and resolve in-package but not when inherited.

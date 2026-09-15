@@ -21,7 +21,7 @@
  * endpoint) share this same {@link Extractor} seam; see Task 5.
  *
  * The prompt assembly, the pre-parse `finishReason` check, the terminal-transport
- * classification, and the two parse helpers live in {@link ./extraction-common.ts}
+ * classification, and the two parse helpers live in `extraction-common.ts`
  * — shared with the per-group extractor (R3 Task 2) so the hard-won reasoning
  * behind each is not copied.
  */
@@ -50,6 +50,7 @@ import {
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
+import type { ExtractOptions } from "@azx/ribo-core";
 
 /**
  * Options for {@link singleShotExtractor}.
@@ -111,7 +112,7 @@ export interface SingleShotOptions<
  *      terminal cases (truncation, content filtering) are caught earlier by
  *      `assertStopFinishReason`.
  *
- * Steps 2 and 3 use the shared helpers in {@link ./extraction-common.ts},
+ * Steps 2 and 3 use the shared helpers in `extraction-common.ts`,
  * where the full reasoning behind each is documented.
  */
 export function singleShotExtractor<V extends Record<string, unknown>, P = NoProvenance>({
@@ -129,7 +130,10 @@ export function singleShotExtractor<V extends Record<string, unknown>, P = NoPro
   const context = `singleShotExtractor: model response for "${target.name}"`;
 
   return {
-    async extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<Enveloped<V, P>>> {
+    async extract(
+      transcript: AnnotatedTranscript,
+      options?: ExtractOptions,
+    ): Promise<ExtractionResult<Enveloped<V, P>>> {
       const id = nextUnitId();
       onUnit?.({ id, unit: "whole", phase: "start", attempt: 1 });
       try {
@@ -145,6 +149,7 @@ export function singleShotExtractor<V extends Record<string, unknown>, P = NoPro
             maxTokens,
           },
           "singleShotExtractor",
+          options,
         );
 
         assertStopFinishReason(completion, context);

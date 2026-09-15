@@ -7,8 +7,8 @@ import type { AnnotatedTranscript } from "./annotated-transcript.js";
 // does not include `@types/node`. Declaring `process` locally keeps the test scoped
 // rather than widening the package's tsconfig for a single Node-specific assertion.
 declare const process: {
-  on(event: "unhandledRejection", handler: (reason: unknown) => void): void;
-  off(event: "unhandledRejection", handler: (reason: unknown) => void): void;
+  on: (event: "unhandledRejection", handler: (reason: unknown) => void) => void;
+  off: (event: "unhandledRejection", handler: (reason: unknown) => void) => void;
 };
 import {
   acceptAnySuccess,
@@ -24,7 +24,6 @@ function makeExtractor<F>(
   options: {
     calls?: number;
     engine?: string;
-    throws?: unknown;
     extract?: (transcript: AnnotatedTranscript) => Promise<ExtractionResult<F>>;
   } = {},
 ): Extractor<F> & { calls: readonly string[] } {
@@ -36,7 +35,6 @@ function makeExtractor<F>(
     extract: (transcript: AnnotatedTranscript) => {
       calls.push(transcript.text);
       if (options.extract) return options.extract(transcript);
-      if (options.throws !== undefined) return Promise.reject(options.throws);
       return Promise.resolve({
         fields,
         usage: { calls: options.calls ?? 1, engine: options.engine },

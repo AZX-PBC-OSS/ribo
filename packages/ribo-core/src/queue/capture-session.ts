@@ -42,13 +42,13 @@ export interface CaptureSessionOptions {
 
 export interface CaptureSession {
   /** Synchronous ingestion — appends to an ordered buffer and returns. */
-  ingest(blob: Blob): void;
+  ingest: (blob: Blob) => void;
   /** User-initiated `Recorder.resume()` — resets the emission baseline. */
-  resumed(): void;
+  resumed: () => void;
   /** Close ingestion, drain, merge, decode-verify, commit. Resolves when done. */
-  finalize(): Promise<{ audio: Blob; durationMs: number; item: OutboxItem }>;
+  finalize: () => Promise<{ audio: Blob; durationMs: number; item: OutboxItem }>;
   /** Abort: stop accepting data and remove the row. Fire-and-forget. */
-  abort(): void;
+  abort: () => void;
   readonly itemId: string;
   readonly sourceId: string;
   readonly health$: Observable<CaptureHealth>;

@@ -102,7 +102,7 @@ export interface ChatUsage {
  * `finishReason` is **optional on the type** because making it required would break
  * every existing `ChatClient` implementation and turn a minor bump into a breaking
  * one. That means the type alone cannot promise truncation is always detected. The
- * promise is made by the implementations instead: {@link ./openai-chat.ts}
+ * promise is made by the implementations instead: `openai-chat.ts`
  * must never return a completion with an absent `finishReason` — a response whose
  * `choices[0].finish_reason` is missing, non-string, or not one of the three known
  * members is a {@link ChatError} of kind `malformed-response`, not a completion with
@@ -126,11 +126,11 @@ export interface ChatCallOptions {
 /**
  * A chat-completions transport. One method: send a request, get the assistant's
  * message content back. Implementations own the wire concern (auth, base URL,
- * error status) — see {@link ./openai-chat.ts}. Extractors own prompt
+ * error status) — see `openai-chat.ts`. Extractors own prompt
  * assembly and the trust boundary and never touch the network directly.
  */
 export interface ChatClient {
-  complete(request: ChatRequest, options?: ChatCallOptions): Promise<ChatCompletion>;
+  complete: (request: ChatRequest, options?: ChatCallOptions) => Promise<ChatCompletion>;
 }
 
 /**
@@ -240,7 +240,7 @@ export interface CapableChatClient extends ChatClient {
    * Rejecting is allowed and is treated as `unavailable` with reason `"unknown"`;
    * a probe is not permitted to take the caller down.
    */
-  capability(): Promise<ChatCapability>;
+  capability: () => Promise<ChatCapability>;
 }
 
 /**

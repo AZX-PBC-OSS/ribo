@@ -15,3 +15,5 @@ export type { OnDeviceChatOptions } from "./ondevice-chat.js";
 
 export { threePhaseExtractor } from "./three-phase-extractor.js";
 export type { ThreePhaseExtractorOptions } from "./three-phase-extractor.js";
+
+export { SessionCapabilityError } from "./session.js";

@@ -118,13 +118,9 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
     };
 
     if (Object.keys(singletonPatch).length > 0) {
-      const { uuid } = await adapter.write(
-        adapter.schema.parse(singletonPatch) as V,
-        parsedCtx.data,
-        {
-          idempotencyKey,
-        },
-      );
+      const { uuid } = await adapter.write(adapter.schema.parse(singletonPatch), parsedCtx.data, {
+        idempotencyKey,
+      });
       receipts.singleton = uuid;
     }
 
@@ -140,13 +136,9 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
               "receipts cannot be safely recorded without a real key.",
           );
         }
-        const { uuid } = await adapter.write(
-          adapter.schema.parse(instancePatch) as V,
-          parsedCtx.data,
-          {
-            idempotencyKey: instanceIdempotencyKey,
-          },
-        );
+        const { uuid } = await adapter.write(adapter.schema.parse(instancePatch), parsedCtx.data, {
+          idempotencyKey: instanceIdempotencyKey,
+        });
         receipts.instances[group] ??= {};
         receipts.instances[group][instanceKey] = uuid;
       }

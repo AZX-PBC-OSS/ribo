@@ -1,7 +1,7 @@
 import type { ToolAdapter } from "./adapter.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import type { NoProvenance } from "./enveloped.js";
-import type { SessionExtractStep, ExtractedFieldMap } from "./queue/relay.js";
+import type { SessionExtractStep } from "./queue/relay.js";
 
 /**
  * @file The extraction contract: how a transcript becomes structured host-tool fields.
@@ -100,8 +100,15 @@ export interface ExtractionResult<F> {
  * annotated transcript, get back parsed fields plus provenance. Network-bound, which is why the
  * relay runs it as a queued step — see {@link toSessionExtractStep}.
  */
+export interface ExtractOptions {
+  readonly signal?: AbortSignal;
+}
+
 export interface Extractor<F> {
-  extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<F>>;
+  extract: (
+    transcript: AnnotatedTranscript,
+    options?: ExtractOptions,
+  ) => Promise<ExtractionResult<F>>;
 }
 
 /**
@@ -144,12 +151,19 @@ export type ExtractionTarget<V extends Record<string, unknown>, P = NoProvenance
  * — canonical text plus annotations — not a single `Transcript` object. That is
  * the whole point of session-level extraction: the model sees one text, not one
  * per capture.
+ *
+ * The step's optional second parameter is the same `ExtractOptions` bag
+ * `extract` takes, and it is forwarded whole — not unwrapped. The relay passes
+ * a signal it aborts when the step timeout fires; a bag that dropped members
+ * here would strand them silently, so the forward stays a pure hand-through.
  */
-export function toSessionExtractStep<F>(extractor: Extractor<F>): SessionExtractStep {
-  return async ({ transcript }) => {
-    const result = await extractor.extract(transcript);
+export function toSessionExtractStep<F extends Record<string, unknown>>(
+  extractor: Extractor<F>,
+): SessionExtractStep {
+  return async ({ transcript }, options) => {
+    const result = await extractor.extract(transcript, options);
     return {
-      fields: result.fields as ExtractedFieldMap,
+      fields: result.fields,
       engine: result.usage.engine,
       usage: result.usage,
       statedEmptyGroups: result.statedEmptyGroups,
@@ -177,6 +191,7 @@ export class FakeExtractor<F> implements Extractor<F> {
   readonly #raw: unknown;
   readonly #usage: ExtractionResult<unknown>["usage"];
   readonly #calls: AnnotatedTranscript[] = [];
+  readonly #callOptions: (ExtractOptions | undefined)[] = [];
 
   constructor(fields: F, options: FakeExtractorOptions = {}) {
     this.#fields = fields;
@@ -189,8 +204,20 @@ export class FakeExtractor<F> implements Extractor<F> {
     return this.#calls;
   }
 
-  extract(transcript: AnnotatedTranscript): Promise<ExtractionResult<F>> {
+  /**
+   * The options of every `extract()` call, positionally matching {@link calls}.
+   *
+   * Recorded rather than ignored so a combinator test can assert the signal actually reached the
+   * candidate. Every arbitration engine accepting `options` and forwarding none typechecks, and
+   * did: the parameter is optional, so a dropped forward is invisible without this.
+   */
+  get callOptions(): readonly (ExtractOptions | undefined)[] {
+    return this.#callOptions;
+  }
+
+  extract(transcript: AnnotatedTranscript, options?: ExtractOptions): Promise<ExtractionResult<F>> {
     this.#calls.push(transcript);
+    this.#callOptions.push(options);
     const base = { fields: this.#fields, usage: this.#usage };
     return Promise.resolve(this.#raw === undefined ? base : { ...base, raw: this.#raw });
   }

@@ -44,7 +44,7 @@ import { describeLocated, zodIssues } from "./zod-issues.js";
  * A reviewed patch that fails `adapter.schema`, or a `ctx` that fails
  * `adapter.ctxSchema`, will fail identically on every retry: the inputs are already
  * persisted and nothing about a second attempt changes them. So both throw a
- * {@link TerminalQueueError}, which `isTransientFailure` classifies as non-retryable and
+ * `TerminalQueueError`, which `isTransientFailure` classifies as non-retryable and
  * the relay records as `dead` on the first failure.
  */
 

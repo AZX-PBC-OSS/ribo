@@ -65,7 +65,7 @@ export async function extractInventory<R>(
       type: "json_schema",
       json_schema: {
         name,
-        schema: z.toJSONSchema(schema, { target: "draft-2020-12" }) as Record<string, unknown>,
+        schema: z.toJSONSchema(schema, { target: "draft-2020-12" }),
         strict: true,
       },
     },

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
-import type { Extractor, ExtractionResult } from "./extractor.js";
+import { FakeExtractor } from "./extractor.js";
+import type { Extractor } from "./extractor.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { TerminalQueueError, isTransientFailure } from "./queue/backoff.js";
 import type { ExtractionArbiter } from "./arbitration.js";
@@ -10,7 +11,7 @@ import { fallbackExtractor } from "./fallback-extractor.js";
 function makeExtractor<F>(
   id: string,
   fields: F,
-  options: { calls?: number; engine?: string; throws?: unknown } = {},
+  options: { calls?: number; engine?: string; throws?: Error } = {},
 ): Extractor<F> & { calls: readonly string[] } {
   const calls: string[] = [];
   return {
@@ -20,7 +21,7 @@ function makeExtractor<F>(
       return {
         fields,
         usage: { calls: options.calls ?? 1, engine: options.engine },
-      } as ExtractionResult<F>;
+      };
     },
     get calls() {
       return calls;
@@ -224,4 +225,21 @@ describe("fallbackExtractor", () => {
   test("an empty candidate list throws at construction", () => {
     expect(() => fallbackExtractor([], terminalFallsThrough)).toThrow(TypeError);
   });
+});
+
+test("the abort signal reaches candidates through fallbackExtractor", async () => {
+  // The arbitration engines took `options` and forwarded nothing. That typechecks, because the
+  // parameter is optional, so every combinator silently dropped the signal while the contract
+  // said otherwise. Asserting on what the CANDIDATE received is the only thing that catches it.
+  const candidate = new FakeExtractor<{ a: number }>({ a: 1 });
+  const controller = new AbortController();
+  const extractor = fallbackExtractor<{ a: number }>(
+    [{ strategy: "only", extractor: candidate }],
+    acceptAnySuccess,
+  );
+
+  await extractor.extract({ text: "t", annotations: {} }, { signal: controller.signal });
+
+  expect(candidate.callOptions).toHaveLength(1);
+  expect(candidate.callOptions[0]?.signal).toBe(controller.signal);
 });

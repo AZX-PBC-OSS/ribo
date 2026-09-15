@@ -70,7 +70,7 @@ export async function holdLock<T>(
 ): Promise<HeldLock<T> | undefined> {
   let entered!: (held: HeldLock<T>) => void;
   const acquired = new Promise<HeldLock<T> | undefined>((resolve) => {
-    entered = resolve as (held: HeldLock<T>) => void;
+    entered = resolve;
   });
 
   let markReleased!: () => void;
@@ -104,5 +104,5 @@ export async function isLockFree(
   name: string,
   locks: LockManager = navigator.locks,
 ): Promise<boolean> {
-  return (await locks.request(name, { ifAvailable: true }, (lock) => lock !== null)) as boolean;
+  return await locks.request(name, { ifAvailable: true }, (lock) => lock !== null);
 }

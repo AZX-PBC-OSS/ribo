@@ -89,6 +89,14 @@ function groupRequestName(group: ExtractionGroup): string {
   return group.key ? `${SNUGGPRO_ADAPTER_NAME}-${group.key}${suffix}` : SNUGGPRO_ADAPTER_NAME;
 }
 
+/** `(schema as z.ZodObject).shape` — a bare `z.ZodObject`'s `.shape` indexes to `any`,
+ * so the test narrows it once here (the same move `ribo-core`'s `fieldAt` makes) instead
+ * of suppressing `no-unsafe-assignment` at each use. */
+const shapeOf = (schema: z.ZodType): z.ZodObject["shape"] => (schema as z.ZodObject).shape;
+
+/** `shape[key]` for a key that came from the shape's own keys — a `ZodType` by construction. */
+const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
+
 /**
  * The leaf keys ONE prepared entry asks for — the whole group's keys when
  * unpartitioned, or just this piece's subset when partitioned. Mirrors
@@ -96,10 +104,10 @@ function groupRequestName(group: ExtractionGroup): string {
  * own schema so it can never drift from what the real call is pinned to.
  */
 function entryLeafKeys(group: ExtractionGroup): readonly string[] {
-  const shape = (group.schema as z.ZodObject).shape;
-  const value = shape[group.key]!;
+  const shape = shapeOf(group.schema);
+  const value = fieldAt(shape, group.key);
   const candidate = value instanceof z.ZodArray ? (value.element as z.ZodType) : value;
-  return Object.keys((candidate as z.ZodObject).shape);
+  return Object.keys(shapeOf(candidate));
 }
 
 /** Narrow one instance object (or singleton group object) down to `leafKeys`. */

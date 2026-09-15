@@ -192,6 +192,16 @@ authority for everything in §5 and §6 below.
 - **`import type`** for type-only imports (`verbatimModuleSyntax` + an ESLint rule enforce it).
 - **Public entry points only** across packages — import `@azx/ribo-core`, never
   `@azx/ribo-core/src/...`.
+- **A lint rule is enabled to be satisfied, not silenced.** Turning a rule off for a file class, or
+  adding an inline disable, is a change to what the codebase guarantees and needs the same
+  justification as changing the code would. A repeated suppression is a missing helper: the same
+  disable with the same reason at six call sites is one type problem, not six judgements — `fieldAt`
+  in `packages/ribo-core/src/enveloped.ts` narrows zod's `any`-indexing `.shape` once and is the
+  worked example. If a rule is genuinely wrong for a case, the narrowest possible scope (a line, not
+  a file) plus a reason that names the specific technical obstacle, not a category — "this file
+  walks internals" is not a reason; "this test throws a non-Error sentinel on purpose, and the
+  throw is the subject" is. Test files are not exempt: fixture code is where a stray `any` is most
+  likely to hide a wrong shape.
 - Formatting is Prettier's (`.prettierrc.json`: semicolons, double quotes, trailing commas, 100
   columns). Do not hand-format; run `pnpm format`.
 

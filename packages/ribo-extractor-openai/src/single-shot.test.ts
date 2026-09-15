@@ -170,7 +170,7 @@ describe("singleShotExtractor — request shape", () => {
       text: "hi",
       annotations: {},
     });
-    const schema = requests[0]!.response_format.json_schema.schema as Record<string, unknown>;
+    const schema = requests[0]!.response_format.json_schema.schema;
 
     const requireEveryKey = (node: Record<string, unknown>, path: string): void => {
       if (node.type !== "object") return;
@@ -532,4 +532,40 @@ describe("singleShotExtractor — progress units", () => {
     expect(withoutObserver).toEqual(withObserver);
     expect(silent.requests).toEqual(observed.requests);
   });
+});
+
+// --- Task 9: the abort signal must reach the transport -----------------------
+
+test("an abort passed to extract() reaches the chat transport, not just the promise", async () => {
+  // The failure this guards is an `ExtractOptions` that every implementation accepts and none
+  // forwards: the promise rejects, the HTTP request keeps running, and a test asserting only
+  // the rejection passes over a no-op. So the assertion is on what the TRANSPORT saw.
+  let sawSignal: AbortSignal | undefined;
+  let aborted = false;
+
+  const chat: ChatClient = {
+    complete: (_request, options) =>
+      new Promise((_resolve, reject) => {
+        sawSignal = options?.signal;
+        options?.signal?.addEventListener("abort", () => {
+          aborted = true;
+          reject(new Error("aborted"));
+        });
+        // Never settles on its own — only the abort can end this call.
+      }),
+  };
+
+  const controller = new AbortController();
+  const extractor = singleShotExtractor({ target: demoTarget, chat, model: "m" });
+  const pending = extractor.extract({ text: "t", annotations: {} }, { signal: controller.signal });
+
+  // The transport received the caller's signal, not a fresh one.
+  expect(sawSignal).toBe(controller.signal);
+
+  controller.abort();
+  await expect(pending).rejects.toThrow();
+
+  // The discriminating assertion: the transport's own abort handler ran. Without forwarding,
+  // `sawSignal` is undefined and this stays false while the promise above still rejects.
+  expect(aborted).toBe(true);
 });
