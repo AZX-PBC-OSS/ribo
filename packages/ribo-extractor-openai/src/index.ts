@@ -24,13 +24,20 @@ export type { ProjectTargetOptions } from "./project-target.js";
 
 // The per-group managed-LLM extractor (R3 Task 2) — one chat call per top-level
 // group, concurrently with a bounded pool, assembled into one result. The
-// sibling of `singleShotExtractor`; same `Extractor` seam.
+// sibling of `singleShotExtractor`; same `Extractor` seam. Composition plan
+// Task 12 re-expressed it as a preset over core's `groupedExtractor`: the
+// derived plan (`perGroupPlan`) and the per-group override layer
+// (`overrideGroups`) are exported so a host can take the defaults everywhere
+// and replace or wrap one group — per piece, so a partitioned group's override
+// applies to every piece — without rebuilding the other nineteen.
 export {
+  overrideGroups,
   perGroupArrayExtractor,
   perGroupExtractor,
+  perGroupPlan,
   perGroupSingletonExtractor,
 } from "./per-group.js";
-export type { PerGroupOptions } from "./per-group.js";
+export type { GroupOverride, GroupTargets, PerGroupOptions, PerGroupPlan } from "./per-group.js";
 
 // Task 16 — the R1.6 instance-modeling strategy ladder: three tiers composed
 // through `fallbackExtractor` so that the strongest strategy can fall back to

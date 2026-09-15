@@ -70,11 +70,22 @@ import { parseWithSchema } from "./parse-with-schema.js";
  * recombined with `mergeGroupPieces`. The map type is exhaustive over `V`'s
  * keys, so a missing group is a compile error; the construction-time coverage
  * check catches a JS caller.
+ *
+ * The `""` arm is the **non-grouped fallback**: a map whose ONLY key is `""`
+ * declares one entry covering the whole schema — the shape
+ * `splitExtractionSchema`'s fallback yields for a schema that is not an object
+ * of groups, and the shape `perGroupExtractor` sends today (one call, the full
+ * schema, `GroupUnit` events keyed `""`). Design §4.7: the preset keeps that
+ * derived behaviour; a hand composer names keys instead. Coverage is not
+ * checked for this arm — the entry IS the whole coverage declaration, and the
+ * second trust-boundary parse validates what it returns.
  */
-export type GroupMap<V extends Record<string, unknown>, P = NoProvenance> = {
-  readonly [K in keyof V & string]:
-    Extractor<Pick<Enveloped<V, P>, K>> | readonly Extractor<Pick<Enveloped<V, P>, K>>[];
-};
+export type GroupMap<V extends Record<string, unknown>, P = NoProvenance> =
+  | {
+      readonly [K in keyof V & string]:
+        Extractor<Pick<Enveloped<V, P>, K>> | readonly Extractor<Pick<Enveloped<V, P>, K>>[];
+    }
+  | { readonly "": Extractor<Enveloped<V, P>> };
 
 /** Options for {@link groupedExtractor}. */
 export interface GroupedExtractorOptions<V extends Record<string, unknown>, P = NoProvenance>
@@ -218,17 +229,39 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
   // `ZodType<Enveloped<V, P>>` at the type level, and `Enveloped` is a mapped
   // type over `keyof V`, so the runtime keys of its shape are exactly `V`'s
   // string keys — the cast only names what the type already guarantees.
+  const groupRecord = groups as Readonly<Record<string, unknown>>;
+
+  // The non-grouped fallback arm first: a map whose only key is "" declares one
+  // entry covering the whole schema, so the per-key coverage check does not
+  // apply (see GroupMap). Combining "" with per-key entries is a contradiction
+  // — either the schema has groups or it does not — and is refused, not merged.
+  const fallbackEntry = groupRecord[""];
+  const isFallback = fallbackEntry !== undefined;
+  if (isFallback) {
+    const others = Object.keys(groupRecord).filter((key) => key !== "");
+    if (others.length > 0) {
+      throw new Error(
+        `groupedExtractor: the "" key declares the non-grouped fallback — one entry ` +
+          `covering the whole schema — and cannot be combined with per-key entries ` +
+          `(${others.map((key) => `"${key}"`).join(", ")}).`,
+      );
+    }
+  }
+
   const schema = target.extractionSchema;
-  if (!(schema instanceof z.ZodObject)) {
+  if (!isFallback && !(schema instanceof z.ZodObject)) {
     throw new Error(
       `groupedExtractor: target "${target.name}"'s extractionSchema is not a zod object, ` +
         `so there are no top-level keys to cover with groups.`,
     );
   }
-  const schemaKeys = Object.keys(schema.shape) as readonly (keyof V & string)[];
+  const schemaKeys = Object.keys(
+    isFallback ? {} : (schema as z.ZodObject).shape,
+  ) as readonly (keyof V & string)[];
+
   // A `GroupMap` is keyed by `keyof V & string`; read back through a plain
   // record so the coverage check can index it with the schema's runtime keys.
-  const groupRecord = groups as Readonly<Record<string, unknown>>;
+  // Skipped for the fallback arm — the entry IS the whole coverage declaration.
   const missing = schemaKeys.filter((key) => !(key in groupRecord));
   if (missing.length > 0) {
     throw new Error(
@@ -238,7 +271,9 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
         `second-parse failure after every call had been paid for.`,
     );
   }
-  const extra = Object.keys(groupRecord).filter((key) => !schemaKeys.includes(key));
+  const extra = isFallback
+    ? []
+    : Object.keys(groupRecord).filter((key) => !schemaKeys.includes(key));
   if (extra.length > 0) {
     throw new Error(
       `groupedExtractor: groups names top-level key(s) ` +
@@ -252,19 +287,28 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
   // part numbers are 1-based and total the piece count, matching the GroupUnit
   // vocabulary an unpartitioned entry reports as part 1 of 1 — a consumer must
   // not need two code paths for "one" and "several".
-  const entries: readonly GroupEntry[] = schemaKeys.flatMap((key) => {
-    const entry = groupRecord[key] as
-      Extractor<Record<string, unknown>> | readonly Extractor<Record<string, unknown>>[];
-    const pieces = Array.isArray(entry)
-      ? (entry as readonly Extractor<Record<string, unknown>>[])
-      : [entry as Extractor<Record<string, unknown>>];
-    return pieces.map((extractor, index) => ({
-      key,
-      part: index + 1,
-      parts: pieces.length,
-      extractor,
-    }));
-  });
+  const entries: readonly GroupEntry[] = isFallback
+    ? [
+        {
+          key: "",
+          part: 1,
+          parts: 1,
+          extractor: fallbackEntry as Extractor<Record<string, unknown>>,
+        },
+      ]
+    : schemaKeys.flatMap((key) => {
+        const entry = groupRecord[key] as
+          Extractor<Record<string, unknown>> | readonly Extractor<Record<string, unknown>>[];
+        const pieces = Array.isArray(entry)
+          ? (entry as readonly Extractor<Record<string, unknown>>[])
+          : [entry as Extractor<Record<string, unknown>>];
+        return pieces.map((extractor, index) => ({
+          key,
+          part: index + 1,
+          parts: pieces.length,
+          extractor,
+        }));
+      });
 
   // The relay wraps extract() in withTimeout(stepTimeoutMs). All entries plus
   // their retries plus their backoff delays must fit inside it. The budget is
@@ -464,6 +508,14 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i]!;
         const fields = results[i]!.fields;
+        if (entry.key === "") {
+          // The non-grouped fallback: the entry's fields ARE the whole merged
+          // object already (its schema is the full extraction schema, not a
+          // one-key slice) — assign its keys directly rather than nesting
+          // under "".
+          Object.assign(merged, fields);
+          continue;
+        }
         const value = fields[entry.key];
         merged[entry.key] =
           entry.key in merged ? mergeGroupPieces(merged[entry.key], value) : value;

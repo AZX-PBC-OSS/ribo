@@ -547,6 +547,75 @@ describe("groupedExtractor — GroupUnit events", () => {
   });
 });
 
+// --- The non-grouped fallback arm --------------------------------------------
+
+describe("groupedExtractor — the non-grouped fallback arm", () => {
+  /**
+   * A flat patch: top-level properties are leaf envelopes, so `splitExtractionSchema`'s
+   * fallback yields one entry with key "" covering the whole schema — the shape the per-group
+   * preset sends for a non-grouped schema (design §4.7). The entry's fields ARE the whole
+   * result, so the fake returns a full `Fields` and the merge must assign them flat, not
+   * nest them under "".
+   */
+  function wholeEntry(value: Fields): Extractor<Fields> & { readonly calls: number } {
+    let calls = 0;
+    return {
+      extract: () => {
+        calls += 1;
+        return Promise.resolve({ fields: value, usage: { calls: 1 } });
+      },
+      get calls() {
+        return calls;
+      },
+    };
+  }
+
+  const whole = { hvac: hvacLeaf("Boiler"), attic: atticLeaf("10-12") };
+
+  test('a map whose only key is "" schedules one whole-schema entry: events keyed "", fields merged flat', async () => {
+    const events: GroupUnit[] = [];
+    const onUnit: ExtractionObserver<GroupUnit>["onUnit"] = (event) => events.push(event);
+    const entry = wholeEntry(whole);
+    const extractor = groupedExtractor({
+      target,
+      groups: { "": entry } as GroupMap<Values>,
+      onUnit,
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.fields).toEqual(whole);
+    expect(result.usage).toEqual({ calls: 1 });
+    // One entry, so the events carry the fallback vocabulary: key "", part 1 of 1.
+    expect(events.map((event) => [event.phase, event.key, event.part, event.parts])).toEqual([
+      ["start", "", 1, 1],
+      ["done", "", 1, 1],
+    ]);
+  });
+
+  test('the "" key combined with per-key entries throws at construction', () => {
+    const entry = wholeEntry(whole);
+    // The cast is the JS-caller path — the type level cannot express the mix either.
+    const groups = { "": entry, hvac: entry } as unknown as GroupMap<Values>;
+    expect(() => groupedExtractor({ target, groups })).toThrowError(/non-grouped fallback/);
+  });
+
+  test("the fallback entry's retry budget derives from one entry — one batch", () => {
+    const budgets: RetryBudget[] = [];
+    groupedExtractor({
+      target,
+      groups: { "": wholeEntry(whole) } as GroupMap<Values>,
+      concurrency: 4,
+      maxRetries: 3,
+      stepTimeoutMs: 700_000,
+      onRetryBudget: (event) => budgets.push(event),
+    });
+    // 1 entry / concurrency 4 = 1 batch. r=3 → 1 × (4·120000 + 7000) = 487000 ≤ 700000,
+    // so nothing is reduced and the event does not fire — the derivation ran on 1 entry.
+    expect(budgets).toEqual([]);
+  });
+});
+
 // --- Concurrency bound --------------------------------------------------------
 
 describe("groupedExtractor — the pool is bounded", () => {
