@@ -6,7 +6,7 @@ import type { TranscriberCapability } from "./transcriber.js";
 /**
  * @file The live-transcription seam — utterance-level preview during recording.
  *
- * Where `ranscriber.ts Transcriber` is the batch seam (whole-recording
+ * Where `transcriber.ts Transcriber` is the batch seam (whole-recording
  * transcription after `stop()`), this is the streaming seam: feed audio frames in
  * while the microphone is open and get utterance text back as each pause closes.
  *

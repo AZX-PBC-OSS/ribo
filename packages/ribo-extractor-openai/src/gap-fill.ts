@@ -25,7 +25,7 @@
  * move, and usage reports the base run plus one call.
  *
  * The finish-reason gate, terminal-transport classification and parse helpers
- * are the shared ones from `xtraction-common.ts`. The leaf
+ * are the shared ones from `extraction-common.ts`. The leaf
  * walk and merge below share the codebase's one generic RUNTIME walker over
  * `Enveloped<V>` data — the walker in `enveloped()` is schema-time and serves
  * a different purpose.

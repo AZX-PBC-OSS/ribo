@@ -1,7 +1,7 @@
 /**
  * @file Streaming voice-activity detection — the live frame loop.
  *
- * Where `egmentation.ts` runs pyannote over the whole recording after `stop()`, this
+ * Where `segmentation.ts` runs pyannote over the whole recording after `stop()`, this
  * module runs Silero VAD one 512-sample frame at a time **during** recording, carrying the
  * model's recurrent state tensor forward. Revision 7 demotes the VAD from a filter to a
  * trigger: it decides **when** to transcribe and where a commit boundary falls, never **what**
@@ -54,7 +54,7 @@ import { STREAMING_VAD_MODEL_ID } from "./config.js";
 /** Silero's frame size — 512 samples at 16 kHz = 32 ms per frame. */
 export const VAD_FRAME_SIZE = 512;
 
-/** The sample rate Silero expects. Matches Whisper's (`ecode.ts`). */
+/** The sample rate Silero expects. Matches Whisper's (`decode.ts`). */
 export const VAD_SAMPLE_RATE = 16_000;
 
 /** Probability at which a frame ENTERS speech. */
@@ -559,7 +559,7 @@ export class RegionVad {
 
 /**
  * Minimal structural view of the Silero model and transformers.js's `Tensor`. Loosely typed at
- * the seam for the same reason `orker.ts`'s `AsrPipeline` is: importing transformers.js
+ * the seam for the same reason `worker.ts`'s `AsrPipeline` is: importing transformers.js
  * types into the static graph would pull `onnxruntime-node` into the node-side unit tests.
  */
 interface SileroModelLike {
@@ -587,7 +587,7 @@ const SILERO_STATE_SIZE = 2 * 1 * 128;
  * same same-origin `wasmPaths` config.
  *
  * The import of `@huggingface/transformers` is **dynamic** — inside this factory, not at module
- * top level — for the same reason `orker.ts` defers it: the Node entry pulls
+ * top level — for the same reason `worker.ts` defers it: the Node entry pulls
  * `onnxruntime-node`, which would break the node-side unit tests that import this module for the
  * frame-loop logic alone. Only the manual browser test calls this factory.
  *

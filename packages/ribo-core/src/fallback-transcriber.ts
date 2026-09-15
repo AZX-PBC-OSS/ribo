@@ -19,7 +19,7 @@ import type { Transcriber, TranscriberCapability } from "./transcriber.js";
  * from the settled outcomes. That is the distinguishing property; a reader who
  * thinks it is "firstCapable with retries" will wire it wrongly.
  *
- * A sibling of `allback-extractor.ts | fallbackExtractor`, not a
+ * A sibling of `fallback-extractor.ts | fallbackExtractor`, not a
  * generalisation of the extractor engine. See the document-transcription plan
  * Task 4's Intent for the three-part argument for why a sibling is the right
  * call.

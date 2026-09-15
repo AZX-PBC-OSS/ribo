@@ -1,5 +1,5 @@
 /**
- * @file Consumer-facing configuration for `ndex.ts OnDeviceTranscriber` and the model
+ * @file Consumer-facing configuration for `index.ts OnDeviceTranscriber` and the model
  * download-size registry.
  *
  * The one non-negotiable option is {@link OnDeviceTranscriberOptions.wasmPaths}: it is **required**
@@ -42,7 +42,7 @@ import type { OnnxDtype } from "./protocol.js";
  * a caller believe they are primed when they are not, and silently applying them would return that
  * comma as somebody's transcript.
  *
- * See `orker.ts` for how the assembled text becomes a `decoder_input_ids` prefix on the
+ * See `worker.ts` for how the assembled text becomes a `decoder_input_ids` prefix on the
  * models that do support it (transformers.js 4.2.0's `prompt_ids` field is inert — a Task 3 finding).
  */
 export interface TranscribeHints {
@@ -235,7 +235,7 @@ export function estimateDownloadBytes(modelId: string, includeVad = true): numbe
 }
 
 /**
- * Options for `ndex.ts OnDeviceTranscriber`.
+ * Options for `index.ts OnDeviceTranscriber`.
  */
 export interface OnDeviceTranscriberOptions {
   /**
