@@ -138,7 +138,9 @@ export interface TranscribeWorkerRequest {
 }
 
 /** Main → worker. `"prime"` downloads+caches; `"transcribe"` runs batch inference;
- * `"liveOpen"`/`"liveFeed"`/`"liveClose"` are the live conversation (Task 3 live seam). */
+ * `"cancelTranscribe"` aborts an outstanding batch (the cancellation channel for
+ * `TranscribeOptions.signal`); `"liveOpen"`/`"liveFeed"`/`"liveClose"` are the live conversation
+ * (Task 3 live seam). */
 export type MainToWorkerMessage =
   | {
       readonly type: "prime";
@@ -152,6 +154,19 @@ export type MainToWorkerMessage =
       /** Same pipeline config as prime — the worker holds no config of its own (Task 2). */
       readonly config: PrimeConfig;
       readonly request: TranscribeWorkerRequest;
+    }
+  | {
+      /**
+       * Abort the batch transcription identified by `requestId`. The worker marks the request
+       * cancelled; the batch loop checks at its start and between chunks, stops at the next
+       * boundary, and replies with an ordinary `error` — which the main thread maps to a
+       * cancellation when its own signal has aborted. Deliberately **not** `worker.terminate()`:
+       * the worker is shared with the live conversation (a terminate on a batch abort would kill
+       * a user's in-flight dictation preview) and holds the primed model that `prime()` exists to
+       * avoid paying for twice. Unknown or already-settled request ids are a silent no-op.
+       */
+      readonly type: "cancelTranscribe";
+      readonly requestId: string;
     }
   | {
       readonly type: "liveOpen";

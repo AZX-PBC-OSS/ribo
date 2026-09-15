@@ -543,6 +543,32 @@ export function serialize<T>(work: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * Cancellation registry for batch transcriptions, keyed by `requestId`.
+ *
+ * The channel for `TranscribeOptions.signal` on this transport: the main thread
+ * posts `cancelTranscribe` when its signal fires, the batch loop observes the
+ * flag at its start and between chunks, and the entry is deleted when the
+ * request settles — so a cancel for an unknown or already-settled id is a
+ * no-op, never a leak. This is deliberately **not** `worker.terminate()`:
+ * the worker is shared with the live conversation, and a terminate on a batch
+ * abort would kill a user's in-flight dictation preview as well as the primed
+ * model that `prime()` exists to avoid paying for twice.
+ */
+const cancelledTranscribes = new Map<string, { aborted: boolean }>();
+
+/** Test-only: drop every cancellation entry, so tests start from a clean registry. */
+export function clearCancelledTranscribes(): void {
+  cancelledTranscribes.clear();
+}
+
+/** The error thrown when the batch loop observes a cancellation. */
+function cancelledError(): Error {
+  return new Error(
+    "on-device transcription was aborted by the caller's signal — stopping at the next chunk boundary",
+  );
+}
+
+/**
  * Transcribe the decoded samples, segmenting anything past Whisper's 30 s receptive field.
  *
  * ## Two decisions worth stating, because both could reasonably have gone the other way
@@ -564,17 +590,32 @@ export function serialize<T>(work: () => Promise<T>): Promise<T> {
  * Chunks run **sequentially**: they share one ORT session, so overlapping `generate` calls would
  * contend for it rather than finish sooner.
  */
-async function transcribe(config: PrimeConfig, request: TranscribeWorkerRequest): Promise<string> {
+/**
+ * Run the batch inference. `requestId` correlates the caller's cancellation:
+ * the loop checks the registry before starting work and between chunks, so a
+ * cancelled request either never runs inference at all (still queued behind
+ * `serialize` when the cancel arrived) or stops at the next chunk boundary —
+ * at most one ≤30 s pass late, never a full-length zombie keeping the shared
+ * worker (and every live session and queued batch behind it) busy.
+ */
+async function transcribe(
+  config: PrimeConfig,
+  request: TranscribeWorkerRequest,
+  isCancelled: () => boolean,
+): Promise<string> {
   return serialize(async () => {
+    if (isCancelled()) throw cancelledError();
     const pipeline = await getPipeline(config);
     const { samples } = request;
     const chunks = await planChunks(config, samples);
     if (chunks.length === 0) return "";
+    if (isCancelled()) throw cancelledError();
 
     const prefix = request.prompt ? buildDecoderPrefix(pipeline, request.prompt) : [];
 
     const texts: string[] = [];
     for (const { start, end } of chunks) {
+      if (isCancelled()) throw cancelledError();
       // `subarray`, not `slice`: a VIEW over the samples already in memory, so a 10-minute recording
       // (~38 MB) is not re-copied per chunk. Verified safe against the feature extractor, which
       // reads `audio.slice(0, n_samples)` / `waveform.set(audio)` — both view-relative, neither
@@ -1169,12 +1210,33 @@ export async function handleMessage(
   }
   if (message.type === "transcribe") {
     const { requestId, config, request } = message;
+    // Register before the serialize queue can even look at the request, so a
+    // cancel that arrives while the request is still queued (behind a live
+    // session's transcription, say) is honoured the moment its turn comes —
+    // the entry is what a queued-but-unstarted request checks first.
+    cancelledTranscribes.set(requestId, { aborted: false });
     try {
-      const text = await transcribe(config, request);
+      const text = await transcribe(
+        config,
+        request,
+        () => cancelledTranscribes.get(requestId)?.aborted === true,
+      );
       post({ type: "transcribed", requestId, text });
     } catch (error) {
       post({ type: "error", requestId, message: errorMessage(error) });
+    } finally {
+      // Settled — a late `cancelTranscribe` for this id must be a no-op, not
+      // a registry leak.
+      cancelledTranscribes.delete(requestId);
     }
+    return;
+  }
+  if (message.type === "cancelTranscribe") {
+    // Only mark entries that are actually outstanding: an unknown id is a
+    // request that already settled (or never existed here), and marking it
+    // would leak the entry.
+    const entry = cancelledTranscribes.get(message.requestId);
+    if (entry) entry.aborted = true;
     return;
   }
   if (message.type === "liveOpen") {
