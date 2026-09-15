@@ -61,6 +61,15 @@ export type {
  * separators matching pdf.js conventions. See `transcribe.ts` for the
  * request path and failure classification — the split keeps this file focused
  * on the class and its capability reporting.
+ *
+ * ## Cancellation
+ *
+ * The signal is **honoured**: `TranscribeOptions.signal` is forwarded into the
+ * fetch request init, so an abort tears down the in-flight HTTP request, and an
+ * already-aborted signal cancels before the request is sent. A cancellation
+ * rejects with `TerminalQueueError` rather than an abort error, so the queue
+ * does not mistake it for a flaky network and burn the retry budget — see
+ * `transcribe.ts` for the full classification. Mirrors `ManagedTranscriber`.
  */
 export class ManagedDocsTranscriber implements Transcriber<DocumentCapture> {
   readonly engine = MANAGED_DOCS_ENGINE;
@@ -98,7 +107,7 @@ export class ManagedDocsTranscriber implements Transcriber<DocumentCapture> {
   async transcribe(
     item: DocumentCapture,
     bytes: Blob,
-    _options?: TranscribeOptions,
+    options?: TranscribeOptions,
   ): Promise<Transcript> {
     if (!this.#endpoint || !this.#doFetch) {
       throw new TranscriberUnavailableError({
@@ -107,13 +116,11 @@ export class ManagedDocsTranscriber implements Transcriber<DocumentCapture> {
         detail: "No document analysis endpoint or transport is configured.",
       });
     }
-    // The signal is accepted per the widened contract but not forwarded to the
-    // request yet — forwarding it into the fetch init is this transport's own
-    // follow-up.
     return transcribeViaManagedDocs(item, bytes, {
       endpoint: this.#endpoint,
       doFetch: this.#doFetch,
       engine: this.engine,
+      signal: options?.signal,
     });
   }
 }

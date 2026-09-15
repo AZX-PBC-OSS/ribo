@@ -47,6 +47,15 @@ export type { ManagedTranscriberOptions } from "./config.js";
  * `combinedPhrases[0].text` (design §7). See `transcribe.ts` for the
  * request path and failure classification — the split keeps this file focused
  * on the class and its capability reporting.
+ *
+ * ## Cancellation
+ *
+ * The signal is **honoured**: `TranscribeOptions.signal` is forwarded into the
+ * fetch request init, so an abort tears down the in-flight HTTP request, and an
+ * already-aborted signal cancels before the request is sent. A cancellation
+ * rejects with `TerminalQueueError` rather than an abort error, so the queue
+ * does not mistake it for a flaky network and burn the retry budget — see
+ * `transcribe.ts` for the full classification.
  */
 export class ManagedTranscriber implements Transcriber {
   readonly engine = MANAGED_AZURE_SPEECH_ENGINE;
@@ -90,7 +99,7 @@ export class ManagedTranscriber implements Transcriber {
   async transcribe(
     recording: Recording,
     audio: Blob,
-    _options?: TranscribeOptions,
+    options?: TranscribeOptions,
   ): Promise<Transcript> {
     // If the endpoint or transport is missing, `capability()` would have
     // reported `not-configured` — but `firstCapable` caches capabilities, so
@@ -104,15 +113,12 @@ export class ManagedTranscriber implements Transcriber {
         detail: "No Azure transcribe endpoint or transport is configured.",
       });
     }
-    // The signal is accepted per the widened contract but not forwarded to the
-    // request yet — forwarding it into the fetch init is this transport's own
-    // follow-up, which must also decide how a deliberate abort avoids burning
-    // the queue's retry budget.
     return transcribeViaManagedAzure(recording, audio, {
       endpoint: this.#endpoint,
       doFetch: this.#doFetch,
       engine: this.engine,
       vocabulary: this.#vocabulary,
+      signal: options?.signal,
     });
   }
 }
