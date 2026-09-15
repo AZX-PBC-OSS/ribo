@@ -733,18 +733,26 @@ test("the outcome is a discriminated union, not `T | null`", () => {
   const outcome = anyOutcome();
 
   // @ts-expect-error - `fields` only exists once the union is narrowed; this is
-  // exactly what `T | null` could not express.
-  const _fields = outcome.fields;
+  // exactly what `T | null` could not express. The index itself is the assertion,
+  // asked at the type level — `keyof` a union is only its members' common keys, so
+  // `fields` fails to index the unnarrowed outcome.
+  const unnarrowed: ReviewOutcome["fields"] = { "rValue.value": { value: 1 } };
 
+  expect(unnarrowed).toBeDefined();
   expect(outcome.status).toBe("discarded");
 });
 
 test("ReviewOutcome no longer takes a type parameter", () => {
-  // @ts-expect-error - not generic. `fields` is the reassembled nested object, and
-  // `ToolAdapter.schema.parse` at the write step is what turns it into `V`.
-  const outcome: ReviewOutcome<{ rValue: number }> = { status: "discarded" };
-
+  const outcome: ReviewOutcome = { status: "discarded" };
   expect(outcome.status).toBe("discarded");
+
+  // @ts-expect-error - not generic. `fields` is the reassembled nested object, and
+  // `ToolAdapter.schema.parse` at the write step is what turns it into `V`. The
+  // instantiation is the whole assertion — if ReviewOutcome ever became generic
+  // again, the directive would go unused and tsc would fail this file. It is held
+  // in a type alias rather than a value annotation: annotating a value with a
+  // failed instantiation marks that value error-typed for the whole file.
+  type _WithTypeArgs = ReviewOutcome<{ rValue: number }>;
 });
 
 test("an edited decision must actually carry a value", () => {

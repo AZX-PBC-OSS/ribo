@@ -2,7 +2,14 @@ import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
-const typeAwareFiles = ["packages/*/src/**/*.{ts,tsx}", "playground/src/**/*.{ts,tsx}"];
+const typeAwareFiles = [
+  "packages/*/src/**/*.{ts,tsx}",
+  "playground/src/**/*.{ts,tsx}",
+  // The e2e specs have their own project (playground/tsconfig.e2e.json, include:
+  // ["e2e"]), so the project service finds them — they get the same type-aware
+  // gate as every other test file.
+  "playground/e2e/**/*.{ts,tsx}",
+];
 
 export default tseslint.config(
   {
@@ -19,10 +26,6 @@ export default tseslint.config(
       "docs/.vitepress/cache/**",
       "docs/.vitepress/dist/**",
       "docs/reference/**",
-      // Spikes are exploratory scratch code, not shipped or part of the everyday
-      // build/test surface. Linting them type-aware would pull in ad-hoc
-      // tsconfigs that do not exist; keep them out of the gate.
-      "spikes/**",
     ],
   },
 
@@ -38,8 +41,13 @@ export default tseslint.config(
   // Scoped to source files only: package-root config files are intentionally
   // outside their tsconfig `include` and stay syntactic-only.
   ...tseslint.configs.recommendedTypeChecked.map((cfg) => ({
-    files: typeAwareFiles,
+    // `files` must come AFTER the spread: the preset's middle entry
+    // (`typescript-eslint/eslint-recommended`) carries its own all-TS `files`,
+    // which would otherwise outscope this one — and drag the projectService
+    // onto every .ts file on disk, including spikes in no tsconfig, which then
+    // fail with "was not found by the project service".
     ...cfg,
+    files: typeAwareFiles,
     languageOptions: {
       ...cfg.languageOptions,
       parserOptions: {
@@ -67,26 +75,6 @@ export default tseslint.config(
       "@typescript-eslint/require-await": "off",
     },
   })),
-
-  // Test files deliberately probe and stub external APIs, so unsafe `any` from
-  // test doubles, zod internals and browser mocks is expected. Disable the
-  // type-aware rules that fire on deliberate fixture code while keeping the
-  // rest of the type-aware rules active.
-  {
-    files: ["**/*.test.{ts,tsx}", "**/*.browser.test.{ts,tsx}"],
-    rules: {
-      "@typescript-eslint/no-unsafe-assignment": "off",
-      "@typescript-eslint/no-unsafe-argument": "off",
-      "@typescript-eslint/no-unsafe-member-access": "off",
-      "@typescript-eslint/no-unsafe-return": "off",
-      "@typescript-eslint/no-base-to-string": "off",
-      "@typescript-eslint/no-redundant-type-constituents": "off",
-      "@typescript-eslint/only-throw-error": "off",
-      "@typescript-eslint/prefer-promise-reject-errors": "off",
-      "@typescript-eslint/restrict-template-expressions": "off",
-      "@typescript-eslint/unbound-method": "off",
-    },
-  },
 
   {
     // Every package, not a subset: the rule exists so the contravariant declaration is the

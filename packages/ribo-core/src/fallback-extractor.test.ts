@@ -11,7 +11,7 @@ import { fallbackExtractor } from "./fallback-extractor.js";
 function makeExtractor<F>(
   id: string,
   fields: F,
-  options: { calls?: number; engine?: string; throws?: unknown } = {},
+  options: { calls?: number; engine?: string; throws?: Error } = {},
 ): Extractor<F> & { calls: readonly string[] } {
   const calls: string[] = [];
   return {

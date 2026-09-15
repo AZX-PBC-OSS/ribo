@@ -86,7 +86,7 @@ interface EntryCall {
 /** Behaviour knobs for a fake group entry. */
 interface EntryBehavior {
   /** Fail every attempt with this error (a TerminalQueueError, say). */
-  readonly failure?: unknown;
+  readonly failure?: Error;
   /** Fail the first `failTimes` attempts transiently, then succeed. */
   readonly failTimes?: number;
   /** Never settle on their own; reject when the observed signal aborts. */
@@ -95,7 +95,7 @@ interface EntryBehavior {
   readonly statedEmptyGroups?: Readonly<Record<string, string>>;
 }
 
-function groupEntry<K extends keyof Fields & string>(
+function groupEntry<K extends keyof Fields>(
   key: K,
   value: Fields[K],
   behavior: EntryBehavior = {},

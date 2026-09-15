@@ -44,7 +44,7 @@ describe("probeLanguageModel", () => {
     expect(result).toMatchObject({
       status: "unavailable",
       reason: "model-unavailable",
-      detail: expect.stringContaining("unavailable"),
+      detail: expect.stringContaining("unavailable") as string,
     });
   });
 
@@ -74,7 +74,7 @@ describe("probeLanguageModel", () => {
     await expect(probeLanguageModel(model)).resolves.toMatchObject({
       status: "unavailable",
       reason: "unknown",
-      detail: expect.stringContaining("availability probe exploded"),
+      detail: expect.stringContaining("availability probe exploded") as string,
     });
   });
 });
@@ -108,7 +108,7 @@ describe("primeLanguageModel", () => {
     expect(result).toMatchObject({
       status: "unavailable",
       reason: "not-configured",
-      detail: expect.stringContaining("user gesture"),
+      detail: expect.stringContaining("user gesture") as string,
     });
   });
 });

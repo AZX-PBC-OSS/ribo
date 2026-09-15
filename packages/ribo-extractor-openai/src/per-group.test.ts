@@ -462,7 +462,8 @@ describe("perGroupExtractor — trust boundary", () => {
     // `safeParse`) at construction time, so the split is unaffected. Only the
     // full-schema parse at extract time calls the overridden `safeParse`.
     const schema = enveloped(groupedPatch);
-    const originalSafeParse = schema.safeParse;
+    // Bound immediately — this reference is only restored in `finally`, never called.
+    const originalSafeParse = schema.safeParse.bind(schema);
     let fullParseCalled = false;
     schema.safeParse = ((_data: unknown) => {
       fullParseCalled = true;

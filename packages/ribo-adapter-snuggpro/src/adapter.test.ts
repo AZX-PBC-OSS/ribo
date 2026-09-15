@@ -22,6 +22,11 @@ test("carries a stable name, instructions and a parsing schema", () => {
 const example = snuggProAdapter.examples?.[0];
 if (!example) throw new Error("expected the Snugg Pro adapter to carry a few-shot example");
 
+/** `shape[key]` for a key from the shape's own keys — a bare shape indexes to `any`, so
+ * the test narrows once here (the same move `ribo-core`'s `fieldAt` makes) instead of
+ * suppressing `no-unsafe-argument` at each use. */
+const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
+
 /** Collect the leaf names inside one group's schema, recursing into arrays and nested objects. */
 function leafNames(schema: z.ZodType): string[] {
   const stripped = stripOptionalNullable(schema);
@@ -30,8 +35,8 @@ function leafNames(schema: z.ZodType): string[] {
   }
   if (stripped instanceof z.ZodObject) {
     const names: string[] = [];
-    for (const [key, child] of Object.entries(stripped.shape)) {
-      const childNames = leafNames(child);
+    for (const key of Object.keys(stripped.shape)) {
+      const childNames = leafNames(fieldAt(stripped.shape, key));
       if (childNames.length === 0) {
         names.push(key);
       } else {
@@ -50,8 +55,8 @@ function groupLeafNames(schema: z.ZodType): Record<string, string[]> {
   const stripped = stripOptionalNullable(schema);
   if (!(stripped instanceof z.ZodObject)) return {};
   const result: Record<string, string[]> = {};
-  for (const [key, child] of Object.entries(stripped.shape)) {
-    result[key] = leafNames(child);
+  for (const key of Object.keys(stripped.shape)) {
+    result[key] = leafNames(fieldAt(stripped.shape, key));
   }
   return result;
 }

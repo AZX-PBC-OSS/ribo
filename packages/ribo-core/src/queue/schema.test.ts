@@ -68,9 +68,9 @@ test("every indexed field is required and carries the bounds RxDB needs to encod
         expect(property).toHaveProperty("maxLength");
       } else if (property && "type" in property && property.type === "number") {
         expect(property).toMatchObject({
-          minimum: expect.any(Number),
-          maximum: expect.any(Number),
-          multipleOf: expect.any(Number),
+          minimum: expect.any(Number) as number,
+          maximum: expect.any(Number) as number,
+          multipleOf: expect.any(Number) as number,
         });
       }
     }

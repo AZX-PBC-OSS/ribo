@@ -226,7 +226,9 @@ describe("enveloped() — arrays recurse into elements, not one envelope for the
     // named properties would multiply it.
     const countProperties = (node: unknown): number => {
       if (typeof node !== "object" || node === null) return 0;
-      if (Array.isArray(node)) return node.reduce((sum, n) => sum + countProperties(n), 0);
+      if (Array.isArray(node)) {
+        return (node as unknown[]).reduce<number>((sum, n) => sum + countProperties(n), 0);
+      }
       const obj = node as Record<string, unknown>;
       let sum = 0;
       if (typeof obj.properties === "object" && obj.properties !== null) {

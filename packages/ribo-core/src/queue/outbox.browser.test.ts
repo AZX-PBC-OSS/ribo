@@ -96,7 +96,9 @@ function idbDatabaseName(outboxName: string, schemaVersion = outboxRxSchema.vers
 function promisify<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    // The type says `DOMException | null`, but `onerror` only fires with an error
+    // set — reject with a real Error rather than a possibly-null value.
+    request.onerror = () => reject(request.error ?? new DOMException("IndexedDB request failed"));
   });
 }
 
@@ -117,7 +119,12 @@ async function readRawStore(outboxName: string, store: "docs" | "attachments"): 
         `IndexedDB database "${idbDatabaseName(outboxName)}" has no "${store}" store — nothing was persisted`,
       );
     }
-    return await promisify(database.transaction(store, "readonly").objectStore(store).getAll());
+    // `getAll()` is typed `any[]`; the caller wants the raw persisted bytes, so
+    // narrow to `unknown[]` — every consumer below re-parses or inspects.
+    const rows: unknown[] = await promisify(
+      database.transaction(store, "readonly").objectStore(store).getAll(),
+    );
+    return rows;
   } finally {
     database.close();
   }

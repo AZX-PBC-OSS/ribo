@@ -96,6 +96,11 @@ function unwrapArray(schema: z.ZodType): z.ZodType {
   return schema instanceof z.ZodArray ? (schema.element as z.ZodType) : schema;
 }
 
+/** `shape[key]` for a key from the shape's own keys — a bare shape indexes to `any`, so
+ * the test narrows once here (the same move `ribo-core`'s `fieldAt` makes) instead of
+ * suppressing `no-unsafe-argument` at each use. */
+const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
+
 function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
   const unwrapped = unwrapArray(schema);
   if (!(unwrapped instanceof z.ZodObject)) return [];
@@ -108,7 +113,7 @@ function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
 
   const leaves: string[] = [];
   for (const key of keys) {
-    const child = unwrapArray(shape[key]);
+    const child = unwrapArray(fieldAt(shape, key));
     if (child instanceof z.ZodObject) {
       leaves.push(...enumerateLeaves(child, prefix ? `${prefix}.${key}` : key));
     }

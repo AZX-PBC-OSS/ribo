@@ -658,7 +658,7 @@ describe("threePhaseExtractor", () => {
         .extract({ text: "the system is gas", annotations: {} }, { signal: controller.signal })
         .then(
           () => undefined,
-          (cause) => cause,
+          (cause: unknown) => cause,
         );
 
       expect(error).toBeInstanceOf(ChatError);
@@ -696,7 +696,7 @@ describe("threePhaseExtractor", () => {
 
       const error: unknown = await run.then(
         () => undefined,
-        (cause) => cause,
+        (cause: unknown) => cause,
       );
 
       expect(error).toBeInstanceOf(ChatError);

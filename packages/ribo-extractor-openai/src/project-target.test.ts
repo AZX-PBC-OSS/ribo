@@ -223,7 +223,7 @@ describe("projectTarget", () => {
   });
 
   test("throws when the key is not a top-level property of the schema", () => {
-    expect(() => projectTarget(groupedTarget, "wall" as keyof GroupedValues & string)).toThrow(
+    expect(() => projectTarget(groupedTarget, "wall" as keyof GroupedValues)).toThrow(
       /target "demo-grouped" has no top-level key "wall"/,
     );
   });
