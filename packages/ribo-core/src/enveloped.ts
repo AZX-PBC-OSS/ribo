@@ -185,6 +185,15 @@ const envelopeField = (
  * values and then quotes the line it read them off — the same value-then-citation order
  * `extractedSchema` puts a leaf's own span in.
  */
+/**
+ * `shape[key]` for a key that came from `Object.keys(shape)`.
+ *
+ * A bare `z.ZodObject`'s `.shape` indexes to `any`, so every call site otherwise suppresses
+ * `no-unsafe-argument` and repeats the same justification. The key came from the shape's own
+ * keys, so the value is a `ZodType` by construction — narrowed once here instead.
+ */
+const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
+
 const envelopeObject = (
   obj: z.ZodObject,
   path: string,
@@ -194,8 +203,7 @@ const envelopeObject = (
   const shape = obj.shape;
   const enveloped: RawShape = {};
   for (const key of Object.keys(shape)) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- zod .shape is typed any; we only forward keys that are part of the schema
-    enveloped[key] = envelopeField(shape[key], childPath(path, key), granularity, false);
+    enveloped[key] = envelopeField(fieldAt(shape, key), childPath(path, key), granularity, false);
   }
   if (granularity === "row" && isRow) {
     if (Object.hasOwn(enveloped, ROW_SOURCE_SPAN_KEY)) {
@@ -240,8 +248,7 @@ export const validateProvenance = (
       );
     }
     if (granularity !== "row") continue;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- zod .shape is typed any; the candidate is validated below
-    const stripped = stripOptionalNullable(shape[key]);
+    const stripped = stripOptionalNullable(fieldAt(shape, key));
     const candidate =
       stripped instanceof z.ZodArray
         ? stripOptionalNullable(stripped.element as z.ZodType)
@@ -359,8 +366,12 @@ export const enveloped = <T extends z.ZodObject, const P extends ProvenanceMap<T
   for (const key of Object.keys(shape)) {
     // The group object itself is a row unit under `"row"`; a collection's array branch overrides
     // this to per-element, which is why `isRow` is set here rather than only inside the walk.
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- zod .shape is typed any; we only forward keys that are part of the schema
-    derived[key] = envelopeField(shape[key], childPath("", key), provenance[key] ?? "leaf", true);
+    derived[key] = envelopeField(
+      fieldAt(shape, key),
+      childPath("", key),
+      provenance[key] ?? "leaf",
+      true,
+    );
   }
   return z.strictObject(derived) as z.ZodObject<EnvelopedShape<T["shape"], P>, z.core.$strict>;
 };

@@ -669,12 +669,12 @@ export function useReview<T extends z.ZodObject>(
       if (request === undefined) {
         throw new Error("ribo: cannot add an instance to a review that is not ready.");
       }
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- zod .shape is typed any; the undefined check validates the key
-      const groupField = valuesSchema.shape[group];
+      // `.shape` indexes to `any` on a bare ZodObject; the undefined check below is what makes
+      // this safe, so narrow to the type the shape actually holds rather than suppressing twice.
+      const groupField: z.ZodType | undefined = valuesSchema.shape[group] as z.ZodType | undefined;
       if (groupField === undefined) {
         throw new Error(`ribo: "${group}" is not a group of this review schema.`);
       }
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- zod .shape field is typed any; runtime instanceof check validates it below
       const stripped = stripOptionalNullable(groupField);
       if (!(stripped instanceof z.ZodArray)) {
         throw new Error(
