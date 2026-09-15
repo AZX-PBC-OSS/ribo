@@ -191,7 +191,12 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
             emitter,
             options?.signal,
           );
-        } catch {
+        } catch (error) {
+          // A cancellation must not be mistaken for a failed group: nulling
+          // these leaves and moving on would resolve the run with all-null
+          // fields — indistinguishable from a document that genuinely said
+          // nothing. An extraction failure keeps the swallow-and-continue.
+          if (isCancellation(error, options?.signal)) throw error;
           for (const leaf of group.leaves) {
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
           }
@@ -220,7 +225,9 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
             emitter,
             options?.signal,
           );
-        } catch {
+        } catch (error) {
+          // Same discrimination as the presence catch above.
+          if (isCancellation(error, options?.signal)) throw error;
           for (const leaf of group.leaves) {
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
           }
@@ -368,6 +375,15 @@ async function extractPresence(
   const unit = emitter.newUnit(0, group.key);
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (signal?.aborted) {
+      // Checked BEFORE `unit.start`, so an attempt cancelled by the abort is
+      // neither run nor counted — `usage.calls` must not grow for retries
+      // that never happened.
+      throw ChatError.aborted(
+        "threePhaseExtractor: the run was aborted — not starting the next attempt",
+        signal.reason,
+      );
+    }
     unit.start(attempt + 1);
     try {
       const completion = await chat.complete(request, { signal });
@@ -446,6 +462,13 @@ async function extractSpans(
   const unit = emitter.newUnit(1, group.key);
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (signal?.aborted) {
+      // Same pre-attempt check as phase 0 — see the comment there.
+      throw ChatError.aborted(
+        "threePhaseExtractor: the run was aborted — not starting the next attempt",
+        signal.reason,
+      );
+    }
     unit.start(attempt + 1);
     try {
       const completion = await chat.complete(request, { signal });
@@ -531,6 +554,13 @@ async function classifyLeaf(
   );
   const unit = emitter.newUnit(2, groupKey, leaf.key);
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (signal?.aborted) {
+      // Same pre-attempt check as phases 0 and 1 — see the comment there.
+      throw ChatError.aborted(
+        "threePhaseExtractor: the run was aborted — not starting the next attempt",
+        signal.reason,
+      );
+    }
     unit.start(attempt + 1);
     try {
       const completion = await chat.complete(bareRequest, { signal });
@@ -565,6 +595,14 @@ async function classifyWrapped(
   );
   for (let i = 0; i <= maxRetries; i++) {
     const attempt = startAttempt + i;
+    if (signal?.aborted) {
+      // Same pre-attempt check as the other phases — see the comment in
+      // `extractPresence`.
+      throw ChatError.aborted(
+        "threePhaseExtractor: the run was aborted — not starting the next attempt",
+        signal.reason,
+      );
+    }
     unit.start(attempt);
     try {
       const completion = await chat.complete(request, { signal });
@@ -663,4 +701,20 @@ function validateLeafValue(leaf: Leaf, value: unknown): unknown {
 
 function isUnsupportedError(error: unknown): boolean {
   return error instanceof ChatError && error.kind === "unsupported";
+}
+
+/**
+ * Whether an error escaping a phase call is a CANCELLATION rather than an
+ * extraction failure — the distinction the group-level catch must make before
+ * it nulls a group's leaves and moves on.
+ *
+ * Two checks, because they catch different things. The caller's own signal is
+ * authoritative: once it has fired, anything going wrong is the unwind, not a
+ * failure. A `ChatError` of kind `"aborted"` is the transport's contractual
+ * word for the same event (`ChatCallOptions.signal`: implementations must stop
+ * work and reject with `ChatError.aborted`), and it is honoured even when the
+ * caller's signal has not yet observed the abort.
+ */
+function isCancellation(error: unknown, signal: AbortSignal | undefined): boolean {
+  return signal?.aborted === true || (error instanceof ChatError && error.kind === "aborted");
 }
