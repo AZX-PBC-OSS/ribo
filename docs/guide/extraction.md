@@ -42,10 +42,11 @@ cancelled rather than left running behind the rejection; a host driving an extra
 pass its own. Each transport states what it does with the signal in its own docs — the fetch-based
 ones abort the in-flight request, the on-device engine cancels between phases without killing the
 model session — and an implementation that cannot honour it must say so plainly rather than accept
-it and ignore it. A cancelled extraction rejects rather than returning a partial result, and the
-managed route classifies that abort as **retryable** on purpose: the abort is caller-initiated, and
-a host that cancels on a deadline may well succeed on a later attempt with a fresh one. (The
-transcription side makes the opposite call — see [Captures & Sources](/guide/captures-and-sources).)
+it and ignore it. A cancelled extraction rejects rather than returning a partial result, and **both** extract
+routes classify that abort as retryable on purpose — the on-device engine rejects with
+`ChatError.aborted` just as the managed one does. The abort is caller-initiated, and a host that
+cancels on a deadline may well succeed on a later attempt with a fresh one. (The transcription
+side makes the opposite call — see [Captures & Sources](/guide/captures-and-sources).)
 
 ## `ExtractionTarget`: the field knowledge an extractor needs
 
