@@ -11,7 +11,7 @@
  *     misreported as "invalid JSON". Both are deterministic — re-sending an
  *     identical request with an identical `maxTokens` truncates at the same
  *     point, and a content filter fires on the same content — so they throw
- *     {@link TerminalQueueError}, which `isTransientFailure` classifies as
+ *     `TerminalQueueError`, which `isTransientFailure` classifies as
  *     non-retryable. Without this a plain `Error` would be treated as transient
  *     and burn every relay attempt.
  *
@@ -143,7 +143,8 @@ export function projectSingletonExample<F extends Record<string, unknown>>(
   const value = projected.fields[groupKey];
   if (Array.isArray(value)) {
     if (value.length === 0) return null;
-    return { transcript: projected.transcript, fields: { [groupKey]: value[0] } };
+    const first: unknown = value[0] as unknown;
+    return { transcript: projected.transcript, fields: { [groupKey]: first } };
   }
   return projected;
 }
@@ -194,12 +195,12 @@ export function narrowToLeaves(value: unknown, leafKeys: readonly string[]): unk
  * {@link buildMessages}.
  *
  * @param singleton - When true and the group is a collection, project each
- *   example to a single element (via {@link projectSingletonExample}) so the
+ *   example to a single element (via `projectSingletonExample`) so the
  *   assistant turn imitates the singleton response the model is asked for. The
  *   default (`false`) keeps the array shape.
  * @param leafKeys - When supplied, the projected example's group value (and, for
  *   a collection group, every instance in it) is further narrowed to exactly
- *   these keys via {@link narrowToLeaves} — the shape a partitioned piece
+ *   these keys via `narrowToLeaves` — the shape a partitioned piece
  *   (`ExtractionGroup.part`) actually asks the model for. Without this, a
  *   partitioned call's few-shot example would show the model an assistant turn
  *   carrying the WHOLE group's fields while its `response_format` accepts only a
@@ -277,7 +278,7 @@ export async function completeOrClassify(
  * JSON" rather than the real cause. The `"length"` message names `maxTokens`, the knob
  * that fixes it.
  *
- * Throws {@link TerminalQueueError}, NOT a plain `Error`: `isTransientFailure` treats any
+ * Throws `TerminalQueueError`, NOT a plain `Error`: `isTransientFailure` treats any
  * error without a numeric `status` as retryable, and both of these are deterministic.
  * Re-sending an identical request with an identical `maxTokens` truncates at the identical
  * point, and a content filter fires again on the same content — so a plain `Error` would

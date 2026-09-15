@@ -1115,7 +1115,7 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
 
     if (outcome.status !== "edited") throw new Error("unreachable");
     expect(outcome.rejectedFields).toHaveLength(3);
-    const firstSurvivor = outcome.fields.hvac as unknown as Record<string, unknown>[];
+    const firstSurvivor = outcome.fields.hvac as Record<string, unknown>[];
     expect(firstSurvivor).toHaveLength(1);
     expect(firstSurvivor[0]).toEqual({
       hvacSystemEquipmentType: "Furnace",
@@ -1259,7 +1259,7 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
     const outcome = resolveReview(request, { status: "submitted", decisions });
 
     if (outcome.status !== "edited") throw new Error("unreachable");
-    const afterRemoval = outcome.fields.hvac as unknown as Record<string, unknown>[];
+    const afterRemoval = outcome.fields.hvac as Record<string, unknown>[];
     expect(afterRemoval).toHaveLength(2);
     // First-mention order among the surviving keys is k2, then k3.
     expect(afterRemoval[0]).toEqual({
@@ -1299,7 +1299,7 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
     });
 
     if (outcome.status !== "accepted") throw new Error("unreachable");
-    const orderedHvac = outcome.fields.hvac as unknown as Record<string, unknown>[];
+    const orderedHvac = outcome.fields.hvac as Record<string, unknown>[];
     expect(orderedHvac[0]).toEqual({
       hvacSystemEquipmentType: "First",
       hvacHeatingEnergySource: "Electricity",

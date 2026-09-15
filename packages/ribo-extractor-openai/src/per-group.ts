@@ -127,10 +127,10 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
   readonly concurrency?: number;
   /**
    * Max retries per group after a transient failure (so the total attempts per
-   * group is `maxRetries + 1`). Terminal failures ({@link TerminalQueueError} —
+   * group is `maxRetries + 1`). Terminal failures (`TerminalQueueError` —
    * truncation, content filtering, refusal, unsupported) are never retried and
    * never delay. Defaults to 2, capped by the derived budget — see
-   * {@link deriveRetryBudget}.
+   * `deriveRetryBudget`.
    */
   readonly maxRetries?: number;
   /**
@@ -143,7 +143,7 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
   /**
    * Conservative upper bound on one chat call's wall-clock duration, used to
    * derive the retry budget from the step-timeout relationship. Defaults to
-   * {@link PER_CALL_CEILING_MS} (120,000 ms), the measured ceiling for the
+   * `PER_CALL_CEILING_MS` (120,000 ms), the measured ceiling for the
    * managed transport. A faster transport (e.g., on-device) should lower this so
    * the retry budget is sized honestly.
    */
@@ -151,7 +151,7 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
   /**
    * Injectable sleep used between retry attempts, so tests do not wait real
    * seconds. Defaults to `setTimeout`. The value passed is the
-   * {@link fullJitterDelay} result in milliseconds.
+   * `fullJitterDelay` result in milliseconds.
    */
   readonly delay?: (ms: number) => Promise<void>;
   /**
@@ -202,7 +202,7 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
  *
  * `group.schema` is `z.strictObject({ [group.key]: value })`, where `value` is
  * either the piece's narrowed group object (a singleton group, e.g. `health`) or
- * a `ZodArray` of it (a collection group, e.g. `hvac`) — {@link partitionGroup}'s
+ * a `ZodArray` of it (a collection group, e.g. `hvac`) — `partitionGroup`'s
  * output shape. This unwraps the same way `splitExtractionSchema`'s own
  * `groupCandidate` does, to reach the object whose keys are this piece's leaves.
  */

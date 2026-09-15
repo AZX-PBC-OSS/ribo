@@ -22,5 +22,28 @@
   "disableSources": true,
   "useCodeBlocks": true,
   "expandObjects": true,
-  "docsRoot": "."
+  "docsRoot": ".",
+  "validation": {
+    "invalidLink": false
+  },
+  "blockTags": [
+    "@file",
+    "@param",
+    "@returns",
+    "@throws",
+    "@typeParam",
+    "@remarks",
+    "@see",
+    "@example",
+    "@deprecated",
+    "@internal",
+    "@private",
+    "@protected",
+    "@alpha",
+    "@beta",
+    "@experimental",
+    "@default",
+    "@hidden",
+    "@ignore"
+  ]
 }

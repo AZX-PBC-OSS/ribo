@@ -1,7 +1,7 @@
 /**
  * @file Configuration for the managed document transcriber.
  *
- * The engine id and the options interface live here so {@link ./index.ts} can stay
+ * The engine id and the options interface live here so `ndex.ts` can stay
  * focused on the class. The engine id is a published constant — it rides into every
  * `Transcript.engine` this package produces and into the outbox document, so a
  * rename is a migration, not a refactor (see `transcript.ts`).

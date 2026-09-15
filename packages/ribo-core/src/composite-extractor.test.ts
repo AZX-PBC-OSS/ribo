@@ -1,5 +1,5 @@
 import { DEFAULT_CAPABILITY_TTL_MS } from "./first-capable.js";
-import type { Extractor, ExtractionResult } from "./extractor.js";
+import type { Extractor } from "./extractor.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { describe, expect, test } from "vitest";
 
@@ -59,7 +59,7 @@ function fakeExtractor<F>(
       return {
         fields,
         usage: { calls: options.calls ?? 1, engine: options.engine },
-      } as ExtractionResult<F>;
+      };
     },
     get calls() {
       return calls;

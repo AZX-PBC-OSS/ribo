@@ -908,7 +908,8 @@ function FieldEditor({
         ? value
         : value === null || value === undefined
           ? ""
-          : String(value);
+          : // eslint-disable-next-line @typescript-eslint/no-base-to-string -- defensive fallback for non-string literal values in a ZodString/ZodLiteral branch
+            String(value);
     return (
       <input
         aria-label={label}

@@ -64,7 +64,7 @@ export interface UseReviewOptions<T extends z.ZodObject = z.ZodObject> {
    * inline object literal is a new reference every render and rebuilds `fields` on
    * every render along with it.
    */
-  readonly requiredOnCreate?: RequiredOnCreate;
+  readonly requiredOnCreate?: RequiredOnCreate<z.infer<T>>;
   /**
    * Existing records of each collection group, keyed by the group path (e.g. `"hvac"`).
    *
@@ -279,7 +279,8 @@ const addInstanceToSnapshot = (
 ): Record<string, unknown> => {
   const clone = cloneExtracted(extracted);
   const current = clone[group];
-  clone[group] = Array.isArray(current) ? [...current, {}] : [{}];
+  const items = Array.isArray(current) ? (current as unknown[]) : null;
+  clone[group] = items !== null ? [...items, {}] : [{}];
   return clone;
 };
 
@@ -668,10 +669,12 @@ export function useReview<T extends z.ZodObject>(
       if (request === undefined) {
         throw new Error("ribo: cannot add an instance to a review that is not ready.");
       }
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- zod .shape is typed any; the undefined check validates the key
       const groupField = valuesSchema.shape[group];
       if (groupField === undefined) {
         throw new Error(`ribo: "${group}" is not a group of this review schema.`);
       }
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- zod .shape field is typed any; runtime instanceof check validates it below
       const stripped = stripOptionalNullable(groupField);
       if (!(stripped instanceof z.ZodArray)) {
         throw new Error(

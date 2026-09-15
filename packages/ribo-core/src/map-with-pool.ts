@@ -37,7 +37,7 @@ export async function mapWithPool<T, R>(
   fn: (item: T, index: number) => Promise<R>,
   abort: AbortController,
 ): Promise<R[]> {
-  const results: R[] = new Array(items.length);
+  const results: R[] = new Array<R>(items.length);
   let next = 0;
   let failed = false;
   const worker = async (): Promise<void> => {

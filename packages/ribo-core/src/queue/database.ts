@@ -73,7 +73,7 @@ export interface LegacySessionFields {
 
 /** Read the migration carrier off a recording document. */
 function legacyOf(doc: OutboxDocument): LegacySessionFields | undefined {
-  return doc.legacy as LegacySessionFields | undefined;
+  return doc.legacy;
 }
 
 /**
@@ -523,7 +523,7 @@ function sessionDocumentFromMigratedGroup(
     ...(source ? { extractedFromRecordingIds: [source.id] } : {}),
     ...(reviewed ? { reviewOutcome: bagOf(reviewed).reviewOutcome } : {}),
     ...(written ? { writeResult: bagOf(written).writeResult } : {}),
-  } as SessionDocument;
+  };
 }
 
 /**

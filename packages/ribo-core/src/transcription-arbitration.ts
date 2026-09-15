@@ -9,7 +9,7 @@ import { UnsupportedItemError } from "./unsupported-item.js";
  * next candidate, or whether to give up and let the relay's backoff handle the
  * failure.
  *
- * This is a **sibling** of {@link ./arbitration.ts | arbitration.ts}, not a
+ * This is a **sibling** of `rbitration.ts | arbitration.ts`, not a
  * generalisation of it. The extractor engine is parameterised by the field map
  * `F`, stamps `usage.strategy` on accept, and recognises `SchemaParseError`;
  * none of that applies here. A `Transcript` carries its own `engine` (required,
@@ -23,7 +23,7 @@ import { UnsupportedItemError } from "./unsupported-item.js";
  *
  * The honest residual risk of a sibling rather than a shared module is **drift**:
  * a fourth lesson learned on one side now has two homes. If you fix a bug here,
- * check whether {@link ./arbitration.ts | arbitration.ts} has the same one, and
+ * check whether `rbitration.ts | arbitration.ts` has the same one, and
  * vice versa.
  */
 

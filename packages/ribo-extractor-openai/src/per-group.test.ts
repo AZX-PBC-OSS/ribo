@@ -182,7 +182,7 @@ const groupedName = (key: string): string => `${groupedTarget.name}-${key}`;
 /**
  * A {@link ChatClient} that tracks per-group call counts and delegates to a
  * per-group handler, dispatching by `response_format.json_schema.name`. The
- * handler receives the 1-based attempt number and the {@link AbortSignal}, so a
+ * handler receives the 1-based attempt number and the `AbortSignal`, so a
  * test can fail the first N attempts, succeed on attempt N+1, or check whether
  * the signal was passed. If a handler throws, the error propagates as a
  * rejected promise — simulating a transport failure or other transient error.
@@ -204,7 +204,7 @@ function fakeRetryChat(
       callCounts[name] = (callCounts[name] ?? 0) + 1;
       requests.push(request);
       signals.push(options?.signal);
-      const attempt = callCounts[name]!;
+      const attempt = callCounts[name];
       const handler = handlers[name] ?? handlers["*"];
       if (!handler) throw new Error(`fakeRetryChat: no handler for "${name}"`);
       return handler(attempt, options?.signal);
@@ -234,7 +234,7 @@ describe("perGroupExtractor — N groups produce N calls", () => {
           : JSON.stringify(atticResponse);
         return Promise.resolve({
           content,
-          finishReason: "stop" as ChatFinishReason,
+          finishReason: "stop",
           // Deliberately different per call, so a sum cannot be mistaken for
           // either one of them, and a cold/warm split is visible.
           usage: name.endsWith("-hvac")
@@ -278,7 +278,7 @@ describe("perGroupExtractor — N groups produce N calls", () => {
           content: name.endsWith("-hvac")
             ? JSON.stringify(hvacResponse)
             : JSON.stringify(atticResponse),
-          finishReason: "stop" as ChatFinishReason,
+          finishReason: "stop",
           usage: { promptTokens: 500, completionTokens: 50 },
         });
       },
@@ -1150,7 +1150,7 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
     }
 
     // Recombined into one coherent 10-field document.
-    const fields = result.fields as unknown as BigExtraction;
+    const fields = result.fields;
     for (let i = 1; i <= 10; i++) {
       const key = `f${i}` as keyof BigExtraction["big"];
       expect(fields.big[key].value, `big.f${i}`).toBe(`a${i}`);
@@ -1258,7 +1258,7 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
 
     // Recombined element-wise: two full 9-field instances, in roster order, each
     // built from the SAME array index across both calls.
-    const fields = result.fields as unknown as ItemsExtraction;
+    const fields = result.fields;
     expect(fields.items).toHaveLength(2);
     for (let instance = 0; instance < 2; instance++) {
       for (let leaf = 1; leaf <= 9; leaf++) {
@@ -1367,7 +1367,7 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
     };
     expect(Object.keys(schema.properties.big.properties)).toHaveLength(10);
 
-    const fields = result.fields as unknown as BigExtraction;
+    const fields = result.fields;
     for (let i = 1; i <= 10; i++) {
       const key = `f${i}` as keyof BigExtraction["big"];
       expect(fields.big[key].value, `big.f${i}`).toBe(`a${i}`);
@@ -1589,7 +1589,7 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
           content: name.endsWith("-hvac")
             ? JSON.stringify(hvacResponse)
             : JSON.stringify(atticResponse),
-          finishReason: "stop" as ChatFinishReason,
+          finishReason: "stop",
           usage: { promptTokens: 100, completionTokens: 20 },
         });
       },

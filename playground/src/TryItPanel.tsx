@@ -350,7 +350,10 @@ function FieldRow({ leaf, text }: { leaf: Leaf; text: string }) {
         {value === null ? (
           <span style={muted}>not stated (addressed in the text)</span>
         ) : (
-          <span style={monospace}>{String(value)}</span>
+          <span style={monospace}>
+            {/* eslint-disable-next-line @typescript-eslint/no-base-to-string -- leaf values are primitives rendered for the playground preview */}
+            {String(value)}
+          </span>
         )}
       </div>
       {sourceSpan !== null && (

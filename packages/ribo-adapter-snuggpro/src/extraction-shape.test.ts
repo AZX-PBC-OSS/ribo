@@ -180,7 +180,7 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
     }
     if (node === null || typeof node !== "object") return;
     const obj = node as Record<string, unknown>;
-    if (obj.properties) properties += Object.keys(obj.properties as object).length;
+    if (obj.properties) properties += Object.keys(obj.properties).length;
     if (Array.isArray(obj.enum)) enumValues += obj.enum.length;
     for (const [key, child] of Object.entries(obj)) {
       walk(child, key === "properties" ? depth + 1 : depth);

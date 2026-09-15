@@ -158,7 +158,7 @@ export interface Transcriber<S extends CaptureItem = Recording> {
    *
    * **Expected to be called often and expected to be cheap.** Implementations that probe
    * something expensive (a WebGPU adapter request, a model-file stat) should memoize internally;
-   * {@link firstCapable} additionally caches the answer so a queue drain of forty recordings
+   * `firstCapable` additionally caches the answer so a queue drain of forty recordings
    * does not re-probe forty times. Both layers are deliberate — an implementation used bare
    * still needs to be cheap.
    *
@@ -199,7 +199,7 @@ export interface TranscriberUnavailableInit {
  * sit on opposite sides of that line on purpose.
  *
  * The exception is a roster on which *every* engine is permanently unavailable; only
- * {@link firstCapable} can know that, and it throws a `TerminalQueueError` instead.
+ * `firstCapable` can know that, and it throws a `TerminalQueueError` instead.
  */
 export class TranscriberUnavailableError extends Error {
   override readonly name = "TranscriberUnavailableError";

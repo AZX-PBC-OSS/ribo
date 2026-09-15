@@ -2,6 +2,8 @@ import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+const typeAwareFiles = ["packages/*/src/**/*.{ts,tsx}", "playground/src/**/*.{ts,tsx}"];
+
 export default tseslint.config(
   {
     ignores: [
@@ -17,20 +19,79 @@ export default tseslint.config(
       "docs/.vitepress/cache/**",
       "docs/.vitepress/dist/**",
       "docs/reference/**",
+      // Spikes are exploratory scratch code, not shipped or part of the everyday
+      // build/test surface. Linting them type-aware would pull in ad-hoc
+      // tsconfigs that do not exist; keep them out of the gate.
+      "spikes/**",
     ],
   },
 
   js.configs.recommended,
 
-  // Syntactic rules only for now. Type-aware linting (recommendedTypeChecked +
-  // projectService) lands once packages have real source to point at — see the
-  // Phase 1 plan. Adding it here would only lint an empty repo.
+  // Syntactic TypeScript rules for every TS/TSX file (and the loose .mjs scripts
+  // that are not part of a package tsconfig). Type-aware rules are layered on
+  // top of this only for files inside package/playground source trees.
   ...tseslint.configs.recommended,
+
+  // Type-aware linting. projectService discovers each package's tsconfig.json
+  // automatically, so recommendedTypeChecked rules have real source to point at.
+  // Scoped to source files only: package-root config files are intentionally
+  // outside their tsconfig `include` and stay syntactic-only.
+  ...tseslint.configs.recommendedTypeChecked.map((cfg) => ({
+    files: typeAwareFiles,
+    ...cfg,
+    languageOptions: {
+      ...cfg.languageOptions,
+      parserOptions: {
+        ...(cfg.languageOptions?.parserOptions || {}),
+        projectService: {
+          allowDefaultProject: [
+            "*.ts",
+            "*.mjs",
+            "scripts/*.mjs",
+            "scripts/*/*.mjs",
+            "packages/*/tsdown.config.ts",
+            "packages/*/vitest.acceptance.config.ts",
+            "packages/*/vitest.manual.config.ts",
+            "packages/ribo-adapter-snuggpro/acceptance/*.manual.ts",
+            "docs/.vitepress/config.ts",
+          ],
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 100,
+        },
+      },
+    },
+    rules: {
+      ...cfg.rules,
+      // Interface and abstract contract methods are async because implementations
+      // await; the declaration site has no `await` expression by design.
+      "@typescript-eslint/require-await": "off",
+    },
+  })),
+
+  // Test files deliberately probe and stub external APIs, so unsafe `any` from
+  // test doubles, zod internals and browser mocks is expected. Disable the
+  // type-aware rules that fire on deliberate fixture code while keeping the
+  // rest of the type-aware rules active.
+  {
+    files: ["**/*.test.{ts,tsx}", "**/*.browser.test.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-base-to-string": "off",
+      "@typescript-eslint/no-redundant-type-constituents": "off",
+      "@typescript-eslint/only-throw-error": "off",
+      "@typescript-eslint/prefer-promise-reject-errors": "off",
+      "@typescript-eslint/restrict-template-expressions": "off",
+      "@typescript-eslint/unbound-method": "off",
+    },
+  },
 
   {
     // Every package, not a subset: the rule exists so the contravariant declaration is the
     // default nobody has to remember, and a rule covering three of ten packages is not a default.
-    files: ["packages/**/*.{ts,tsx}"],
+    files: ["packages/*/src/**/*.{ts,tsx}"],
     rules: {
       "@typescript-eslint/method-signature-style": ["error", "property"],
     },

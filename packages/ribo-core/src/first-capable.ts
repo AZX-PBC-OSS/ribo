@@ -72,7 +72,7 @@ export interface FirstCapableOptions {
   onFallback?: (event: TranscriberFallback) => void;
 }
 
-/** What {@link firstCapable} returns: a `Transcriber` plus the roster it is made of. */
+/** What `firstCapable` returns: a `Transcriber` plus the roster it is made of. */
 export interface CompositeTranscriber extends Transcriber {
   /**
    * Every delegate's current capability, in preference order — the roster a download screen

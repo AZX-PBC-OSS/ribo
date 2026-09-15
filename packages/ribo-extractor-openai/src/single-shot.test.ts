@@ -170,7 +170,7 @@ describe("singleShotExtractor — request shape", () => {
       text: "hi",
       annotations: {},
     });
-    const schema = requests[0]!.response_format.json_schema.schema as Record<string, unknown>;
+    const schema = requests[0]!.response_format.json_schema.schema;
 
     const requireEveryKey = (node: Record<string, unknown>, path: string): void => {
       if (node.type !== "object") return;

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { buildFieldPath, parseFieldPath, stripOptionalNullable } from "./field-path.js";
 import type { FieldPath, FieldPathSegment } from "./field-path.js";
-import type { RequiredOnCreate } from "./adapter.js";
+import type { RequiredOnCreate, RequiredOnCreateMap } from "./adapter.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 import { ROW_SOURCE_SPAN_KEY, validateProvenance } from "./enveloped.js";
 import type { ProvenanceGranularity } from "./enveloped.js";
@@ -266,7 +266,7 @@ export interface ReviewRequest {
    *
    * `fields` encodes structure in the path text, so every host rebuilt this with
    * `parseFieldPath` — three review models doing the same parse, each free to get instance
-   * keys or nesting subtly wrong. {@link collectFields} has the structure in hand while it
+   * keys or nesting subtly wrong. `collectFields` has the structure in hand while it
    * descends and used to throw it away.
    *
    * **A second view, never a second source.** A leaf lives once, in `fields`; the tree holds
@@ -364,7 +364,7 @@ export type ReviewOutcome =
       readonly linkTargets?: LinkTargets;
       /**
        * Real per-instance keys (`k1`, `k2`, ...), aligned by position with the same
-       * group's array in `fields` — see {@link buildInstanceKeys}.
+       * group's array in `fields` — see `buildInstanceKeys`.
        */
       readonly instanceKeys?: Readonly<Record<string, readonly string[]>>;
     }
@@ -384,7 +384,7 @@ export type ReviewOutcome =
       readonly linkTargets?: LinkTargets;
       /**
        * Real per-instance keys (`k1`, `k2`, ...), aligned by position with the same
-       * group's array in `fields` — see {@link buildInstanceKeys}.
+       * group's array in `fields` — see `buildInstanceKeys`.
        */
       readonly instanceKeys?: Readonly<Record<string, readonly string[]>>;
     }
@@ -526,7 +526,7 @@ const collectFields = (
   prefixSegments: readonly FieldPathSegment[],
   node: unknown,
   transcript: Transcript,
-  requiredOnCreate: RequiredOnCreate,
+  requiredOnCreate: RequiredOnCreateMap,
   statedEmptyGroups: Readonly<Record<string, string>>,
   provenance: Readonly<Record<string, ProvenanceGranularity>>,
   granularity: ProvenanceGranularity,
@@ -673,11 +673,7 @@ export const buildReviewRequest = <T extends z.ZodObject>(
   options: BuildReviewRequestOptions<T> = {},
 ): ReviewRequest => {
   const provenance = options.provenance ?? {};
-  validateProvenance(
-    valuesSchema,
-    provenance as Readonly<Record<string, ProvenanceGranularity>>,
-    "buildReviewRequest()",
-  );
+  validateProvenance(valuesSchema, provenance, "buildReviewRequest()");
 
   const fields: Record<FieldPath, ReviewField> = {};
   const tree: ReviewNode[] = [];
@@ -690,7 +686,7 @@ export const buildReviewRequest = <T extends z.ZodObject>(
     transcript,
     requiredOnCreate,
     statedEmptyGroups,
-    provenance as Readonly<Record<string, ProvenanceGranularity>>,
+    provenance,
     "leaf",
     null,
     fields,
@@ -743,7 +739,7 @@ export interface BuildReviewRequestOptions<T extends z.ZodObject = z.ZodObject> 
    * ignored here — an adapter is responsible for keeping its own declaration honest,
    * and `ToolAdapter.requiredOnCreate` says how to guard that.
    */
-  readonly requiredOnCreate?: RequiredOnCreate;
+  readonly requiredOnCreate?: RequiredOnCreate<z.infer<T>>;
   /**
    * Existing records of each collection group, keyed by the group path (e.g. `"hvac"`).
    *
@@ -782,7 +778,7 @@ export interface BuildReviewRequestOptions<T extends z.ZodObject = z.ZodObject> 
  * Did the submission actually decide `path`?
  *
  * `Object.hasOwn` rather than a bare `!== undefined` index read, so this reads the
- * submission the same way {@link completenessIssues} reports on it: the
+ * submission the same way `completenessIssues` reports on it: the
  * unexpected-path half enumerates with `Object.keys`, which is own-keys-only, and a
  * prototype-aware read here would make the two halves disagree — a decisions object
  * with `Object.prototype` in its chain would count a leaf named `"toString"` as
@@ -1090,7 +1086,7 @@ const setAtPath = (
  * Four things it refuses, each with a {@link ReviewValidationError} naming the leaf:
  *
  *   - **A submission whose leaf set is not the request's** — see
- *     {@link completenessIssues}. This is the guarantee `FieldDecisions` used to get
+ *     `completenessIssues`. This is the guarantee `FieldDecisions` used to get
  *     from the type system for free.
  *   - **A value its leaf's schema rejects.** Without this the schema on
  *     {@link ReviewField} would be decoration: a UI submitting `"thirty"` for a

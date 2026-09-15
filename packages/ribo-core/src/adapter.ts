@@ -2,7 +2,8 @@ import type { core, ZodObject, ZodType } from "zod";
 
 import type { Enveloped, NoProvenance } from "./enveloped.js";
 /**
- * Required-on-create declarations per group.
+ * Required-on-create declarations per group, typed against the adapter's value
+ * schema so a typo in a group or leaf name is a compile error.
  *
  * Keys are the group path (e.g. `"hvac"`), and values are the leaf names within
  * that group (e.g. `["hvacSystemEquipmentType", "hvacUpgradeAction"]`). A record is
@@ -15,8 +16,24 @@ import type { Enveloped, NoProvenance } from "./enveloped.js";
  * The leaf names are local to the group, not full dotted paths, because the group
  * is the create-end boundary: Snugg Pro requires these two fields to create an
  * HVAC record, not to create any record anywhere.
+ *
+ * Leaf names resolve against the group's own shape: a collection group's element type, a
+ * singleton group's own keys, and for a top-level leaf the group key itself — the same name the
+ * runtime matches against.
  */
-export type RequiredOnCreate = Readonly<Record<string, readonly string[]>>;
+export type RequiredOnCreate<V extends Record<string, unknown>> = Readonly<{
+  [K in keyof V & string]?: readonly GroupLeafKey<V[K], K>[];
+}>;
+
+/** The valid leaf names within one group, keyed by the group's own top-level key. */
+type GroupLeafKey<G, K extends string> = G extends readonly (infer E)[]
+  ? keyof NonNullable<E> & string
+  : G extends Record<string, unknown>
+    ? keyof NonNullable<G> & string
+    : K;
+
+/** Loose runtime shape used inside review.ts, where the schema has already been walked. */
+export type RequiredOnCreateMap = Readonly<Record<string, readonly string[]>>;
 
 /**
  * An object schema that is both **walkable** and **binding**: it has a `shape`, so
@@ -230,7 +247,7 @@ export interface ToolAdapter<V extends Record<string, unknown>, C, P = NoProvena
    * that only exist after extraction; this shape marks the leaves on every instance
    * as review builds the request.
    */
-  readonly requiredOnCreate?: RequiredOnCreate;
+  readonly requiredOnCreate?: RequiredOnCreate<V>;
   readonly instructions: string;
   /** Optional few-shot examples, in the enveloped shape the model emits. */
   readonly examples?: readonly ToolAdapterExample<Enveloped<V, P>>[];

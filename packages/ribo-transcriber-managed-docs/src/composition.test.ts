@@ -54,12 +54,12 @@ describe("fallbackTranscriber composition — managed-docs + pdfjs", () => {
     let pdfjsCalled = false;
     const managed = new ManagedDocsTranscriber({
       endpoint: ENDPOINT,
-      fetchImpl: (() =>
+      fetchImpl: () =>
         Promise.resolve(
           Response.json({
             pages: [{ pageNumber: 1, content: "Managed text from the service." }],
           }),
-        )) as typeof fetch,
+        ),
     });
     const pdfjs: Transcriber<DocumentCapture> = {
       engine: "pdfjs",
@@ -85,8 +85,7 @@ describe("fallbackTranscriber composition — managed-docs + pdfjs", () => {
     // the ladder routes to pdf.js, which reads it.
     const managed = new ManagedDocsTranscriber({
       endpoint: ENDPOINT,
-      fetchImpl: (() =>
-        Promise.resolve(new Response("Unsupported Media Type", { status: 415 }))) as typeof fetch,
+      fetchImpl: () => Promise.resolve(new Response("Unsupported Media Type", { status: 415 })),
     });
     const pdfjs = fakePdfjs("Pdf.js text extraction result.");
 
@@ -103,10 +102,7 @@ describe("fallbackTranscriber composition — managed-docs + pdfjs", () => {
     // to pdf.js.
     const managed = new ManagedDocsTranscriber({
       endpoint: ENDPOINT,
-      fetchImpl: (() =>
-        Promise.resolve(
-          Response.json({ pages: [{ pageNumber: 1, content: "" }] }),
-        )) as typeof fetch,
+      fetchImpl: () => Promise.resolve(Response.json({ pages: [{ pageNumber: 1, content: "" }] })),
     });
     const pdfjs = fakePdfjs("Pdf.js OCR result.");
 
@@ -120,13 +116,13 @@ describe("fallbackTranscriber composition — managed-docs + pdfjs", () => {
   test("an encrypted error from managed-docs falls through to pdfjs", async () => {
     const managed = new ManagedDocsTranscriber({
       endpoint: ENDPOINT,
-      fetchImpl: (() =>
+      fetchImpl: () =>
         Promise.resolve(
           Response.json(
             { error: { code: "EncryptedDocument", message: "Password required." } },
             { status: 422 },
           ),
-        )) as typeof fetch,
+        ),
     });
     const pdfjs = fakePdfjs("Pdf.js read the document.");
 
@@ -143,8 +139,7 @@ describe("fallbackTranscriber composition — managed-docs + pdfjs", () => {
     let pdfjsCalled = false;
     const managed = new ManagedDocsTranscriber({
       endpoint: ENDPOINT,
-      fetchImpl: (() =>
-        Promise.resolve(new Response("Service Unavailable", { status: 503 }))) as typeof fetch,
+      fetchImpl: () => Promise.resolve(new Response("Service Unavailable", { status: 503 })),
     });
     const pdfjs: Transcriber<DocumentCapture> = {
       engine: "pdfjs",
@@ -165,8 +160,7 @@ describe("fallbackTranscriber composition — managed-docs + pdfjs", () => {
   test("every rung throwing UnsupportedItemError gives up with a terminal error", async () => {
     const managed = new ManagedDocsTranscriber({
       endpoint: ENDPOINT,
-      fetchImpl: (() =>
-        Promise.resolve(new Response("Unsupported", { status: 415 }))) as typeof fetch,
+      fetchImpl: () => Promise.resolve(new Response("Unsupported", { status: 415 })),
     });
     const pdfjs: Transcriber<DocumentCapture> = {
       engine: "pdfjs",

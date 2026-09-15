@@ -58,11 +58,11 @@ export interface ConnectivityState {
 /**
  * The reachability probe.
  *
- * Resolve with an **ok** {@link Response} to report healthy; a non-ok response,
+ * Resolve with an **ok** `Response` to report healthy; a non-ok response,
  * a thrown error (DNS failure, `TypeError: Failed to fetch`) or an abort all
  * count as unreachable. Keep it cheap: a `HEAD`/`204` against the gateway health
  * path is the intended shape — a few bytes, no body to read. It is handed an
- * {@link AbortSignal} that fires when the hard timeout elapses; a well-behaved
+ * `AbortSignal` that fires when the hard timeout elapses; a well-behaved
  * probe passes it to `fetch` so the socket is torn down rather than left hanging.
  */
 export type ConnectivityProbe = (signal: AbortSignal) => Promise<Response>;

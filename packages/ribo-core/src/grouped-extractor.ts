@@ -107,9 +107,9 @@ export interface GroupedExtractorOptions<V extends Record<string, unknown>, P = 
   /**
    * Max retries per group entry after a transient failure (so the total attempts
    * per entry is `maxRetries + 1`). Terminal failures
-   * ({@link TerminalQueueError} — truncation, content filtering, refusal,
+   * (`TerminalQueueError` — truncation, content filtering, refusal,
    * unsupported) are never retried and never delay. Defaults to 2, capped by
-   * the derived budget — see {@link deriveRetryBudget}.
+   * the derived budget — see `deriveRetryBudget`.
    */
   readonly maxRetries?: number;
   /**
@@ -121,7 +121,7 @@ export interface GroupedExtractorOptions<V extends Record<string, unknown>, P = 
   /**
    * Conservative upper bound on ONE GROUP ENTRY's `extract()` wall-clock
    * duration, used to derive the retry budget. Defaults to
-   * {@link PER_CALL_CEILING_MS} (120,000 ms). An entry that makes several calls
+   * `PER_CALL_CEILING_MS` (120,000 ms). An entry that makes several calls
    * (a gap-fill's follow-up, an inner retry loop) or a slower transport should
    * raise this so the budget is sized honestly.
    */
@@ -129,7 +129,7 @@ export interface GroupedExtractorOptions<V extends Record<string, unknown>, P = 
   /**
    * Injectable sleep used between retry attempts, so tests do not wait real
    * seconds. Defaults to `setTimeout`. The value passed is the
-   * {@link fullJitterDelay} result in milliseconds.
+   * `fullJitterDelay` result in milliseconds.
    */
   readonly delay?: (ms: number) => Promise<void>;
   /**
@@ -188,7 +188,7 @@ interface GroupEntry {
  *   1. Run the flattened group entries concurrently with a bounded pool. Each
  *      entry's `extract()` receives the run's combined signal (the caller's
  *      `AbortSignal.any`-ed with the run's own sibling-abort controller).
- *   2. Retry each entry on transient failure, with {@link fullJitterDelay}
+ *   2. Retry each entry on transient failure, with `fullJitterDelay`
  *      backoff, up to the derived budget. Emit a `GroupUnit` (`key`, `part`,
  *      `parts`, `attempt`) around each entry's `extract()` — the honest unit of
  *      the entry's work. An entry's own inner units (a `WholeUnit` from a
@@ -389,13 +389,6 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
             // pulling new work; this check catches the case where an abort
             // fires between retry attempts.
             if (effectiveSignal.aborted) {
-              const aborted =
-                lastError ??
-                new Error(
-                  callerSignal?.aborted
-                    ? "groupedExtractor: aborted by the caller's signal"
-                    : "groupedExtractor: aborted by a sibling failure",
-                );
               // NO event here, deliberately, and for two independent reasons.
               //
               // This check runs at the TOP of the loop, before this attempt's
@@ -414,7 +407,14 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
               // still going. The unit's last live attempt is already reported;
               // that no further attempt follows is said by the absence of a
               // next `start`.
-              throw aborted;
+              if (lastError instanceof Error) {
+                throw lastError;
+              }
+              throw new Error(
+                callerSignal?.aborted
+                  ? "groupedExtractor: aborted by the caller's signal"
+                  : "groupedExtractor: aborted by a sibling failure",
+              );
             }
 
             onUnit?.({ id, unit: "group", phase: "start", attempt: attempt + 1, key, part, parts });

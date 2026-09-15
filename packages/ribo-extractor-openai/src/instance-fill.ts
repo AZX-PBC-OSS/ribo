@@ -70,7 +70,7 @@ export type { FillScope, Roster, RosterCandidate } from "@azx/ribo-core";
  * because the job count is not known until then. This is a real difference from
  * {@link perGroupExtractor}, which derives at construction and throws there:
  * a zero-derived budget with `requireRetryBudget` throws a
- * {@link TerminalQueueError} from `extract()`, not at construction — no retry
+ * `TerminalQueueError` from `extract()`, not at construction — no retry
  * fixes a configuration error, and the queue should reach `dead` rather than
  * burn its attempt budget rediscovering that.
  */
@@ -229,7 +229,7 @@ export function projectFillExample<F extends Record<string, unknown>>(
   const narrow = (element: unknown): unknown =>
     leafKeys ? narrowToLeaves(element, leafKeys) : element;
   if (Array.isArray(groupValue)) {
-    const element = groupValue[instanceIndex] ?? groupValue[0];
+    const element: unknown = (groupValue[instanceIndex] ?? groupValue[0]) as unknown;
     if (element === undefined) return null;
     return { transcript: example.transcript, fields: { [groupKey]: narrow(element) } };
   }
@@ -483,7 +483,8 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
           continue;
         }
 
-        const current = rosterGroup.filter((c) => c.eligibility === "current");
+        const candidates = rosterGroup as readonly RosterCandidate[];
+        const current = candidates.filter((c) => c.eligibility === "current");
 
         if (current.length === 0) {
           groupResult[group.key] = [];
@@ -561,7 +562,10 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
           let lastError: unknown;
           for (let attempt = 0; attempt <= effectiveMaxRetries; attempt++) {
             if (abort.signal.aborted) {
-              throw lastError ?? new Error("scopedInstanceExtractor: aborted by a sibling failure");
+              if (lastError instanceof Error) {
+                throw lastError;
+              }
+              throw new Error("scopedInstanceExtractor: aborted by a sibling failure");
             }
 
             onUnit?.({

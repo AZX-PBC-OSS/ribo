@@ -35,7 +35,7 @@ export function useRiboInstance<K extends keyof RiboInstances>(
       `ribo: no "${key}" available. Construct one (${HOW_TO_SUPPLY[key]}) and pass it to <RiboProvider value={{ ${key} }}>, or hand it to this hook directly. The host owns instance lifetime — see @azx/ribo-ui-react's RiboProvider docs.`,
     );
   }
-  return resolved as NonNullable<RiboInstances[K]>;
+  return resolved;
 }
 
 /**

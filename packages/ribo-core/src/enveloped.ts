@@ -117,7 +117,7 @@ export type ProvenanceMap<T extends z.ZodObject> = Partial<
   Record<keyof T["shape"] & string, ProvenanceGranularity>
 >;
 
-/** {@link enveloped}'s options. */
+/** `enveloped`'s options. */
 export interface EnvelopedOptions<P> {
   /** Per-group provenance granularity — see {@link ProvenanceGranularity}. */
   readonly provenance?: P;
@@ -194,6 +194,7 @@ const envelopeObject = (
   const shape = obj.shape;
   const enveloped: RawShape = {};
   for (const key of Object.keys(shape)) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- zod .shape is typed any; we only forward keys that are part of the schema
     enveloped[key] = envelopeField(shape[key], childPath(path, key), granularity, false);
   }
   if (granularity === "row" && isRow) {
@@ -239,7 +240,8 @@ export const validateProvenance = (
       );
     }
     if (granularity !== "row") continue;
-    const stripped = stripOptionalNullable(shape[key]!);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- zod .shape is typed any; the candidate is validated below
+    const stripped = stripOptionalNullable(shape[key]);
     const candidate =
       stripped instanceof z.ZodArray
         ? stripOptionalNullable(stripped.element as z.ZodType)
@@ -325,7 +327,7 @@ type EnvelopedShape<S extends RawShape, P> = {
 };
 
 /**
- * The default `P`: a map with no keys, so {@link GranularityOf} answers `"leaf"` for every group.
+ * The default `P`: a map with no keys, so `GranularityOf` answers `"leaf"` for every group.
  *
  * `Record<never, ProvenanceGranularity>` rather than `Record<string, never>`, which looks
  * equivalent and is not: the latter's `keyof` is `string`, so every key would match and resolve to
@@ -357,13 +359,14 @@ export const enveloped = <T extends z.ZodObject, const P extends ProvenanceMap<T
   for (const key of Object.keys(shape)) {
     // The group object itself is a row unit under `"row"`; a collection's array branch overrides
     // this to per-element, which is why `isRow` is set here rather than only inside the walk.
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- zod .shape is typed any; we only forward keys that are part of the schema
     derived[key] = envelopeField(shape[key], childPath("", key), provenance[key] ?? "leaf", true);
   }
   return z.strictObject(derived) as z.ZodObject<EnvelopedShape<T["shape"], P>, z.core.$strict>;
 };
 
 /**
- * The plain-value-space counterpart to {@link enveloped}: given the inferred type of a patch
+ * The plain-value-space counterpart to `enveloped`: given the inferred type of a patch
  * (optional/nullable leaves included), compute the inferred type of its derived extraction
  * schema. `NonNullable` strips the leaf's `| null | undefined` before deciding whether it is a
  * nested object or a leaf, mirroring {@link stripOptionalNullable} at the type level — without it,

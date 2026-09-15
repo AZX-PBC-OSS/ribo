@@ -38,7 +38,7 @@ export type { ManagedTranscriberOptions } from "./config.js";
  * {@link transcribe} POSTs the recording's audio blob as `multipart/form-data`
  * to the Fast Transcription endpoint through the injected `fetch`, and maps
  * the response onto a `Transcript`. The transcript text is
- * `combinedPhrases[0].text` (design §7). See {@link ./transcribe.ts} for the
+ * `combinedPhrases[0].text` (design §7). See `ranscribe.ts` for the
  * request path and failure classification — the split keeps this file focused
  * on the class and its capability reporting.
  */

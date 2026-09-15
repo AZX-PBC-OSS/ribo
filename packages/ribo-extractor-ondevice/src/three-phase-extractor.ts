@@ -66,7 +66,7 @@ export interface ThreePhaseExtractorOptions<
   readonly target: ExtractionTarget<V, P>;
   /** The on-device chat transport. */
   readonly chat: CapableChatClient;
-  /** Max retries per model call. Defaults to {@link DEFAULT_MAX_RETRIES}. */
+  /** Max retries per model call. Defaults to `DEFAULT_MAX_RETRIES`. */
   readonly maxRetries?: number;
 }
 
@@ -348,7 +348,7 @@ function chatRequest(
 ): ChatRequest {
   return {
     model,
-    messages: messages as ChatMessage[],
+    messages: messages,
     response_format: {
       type: "json_schema",
       json_schema: { name, schema, strict: true },
@@ -426,7 +426,7 @@ function buildPhase0Messages(group: Group, transcript: string): ChatMessage[] {
 }
 
 function parsePhase0Response(content: string, group: Group): Record<string, boolean> {
-  const raw = JSON.parse(content);
+  const raw: unknown = JSON.parse(content);
   if (!isSchemaNode(raw)) {
     throw new Error("Phase 0 response is not a JSON object");
   }
@@ -518,7 +518,7 @@ function parsePhase1Response(
   content: string,
   leaves: readonly Leaf[],
 ): Record<string, string | null> {
-  const raw = JSON.parse(content);
+  const raw: unknown = JSON.parse(content);
   if (!isSchemaNode(raw)) {
     throw new Error("Phase 1 response is not a JSON object");
   }
@@ -668,7 +668,7 @@ function parsePhase2Bare(content: string): unknown {
 }
 
 function parsePhase2Wrapped(content: string): unknown {
-  const raw = JSON.parse(content);
+  const raw: unknown = JSON.parse(content);
   if (!isSchemaNode(raw) || !("value" in raw)) {
     throw new Error("Wrapped phase 2 response is not an object with a single 'value' key");
   }

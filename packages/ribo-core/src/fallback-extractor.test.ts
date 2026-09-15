@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { FakeExtractor } from "./extractor.js";
-import type { Extractor, ExtractionResult } from "./extractor.js";
+import type { Extractor } from "./extractor.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { TerminalQueueError, isTransientFailure } from "./queue/backoff.js";
 import type { ExtractionArbiter } from "./arbitration.js";
@@ -21,7 +21,7 @@ function makeExtractor<F>(
       return {
         fields,
         usage: { calls: options.calls ?? 1, engine: options.engine },
-      } as ExtractionResult<F>;
+      };
     },
     get calls() {
       return calls;

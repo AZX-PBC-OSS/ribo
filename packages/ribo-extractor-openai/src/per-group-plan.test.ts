@@ -108,10 +108,10 @@ function fakeChat(responses: Record<string, string>): {
 
 const planGroups = <V extends Record<string, unknown>, P>(
   plan: PerGroupPlan<V, P>,
-): Record<string, unknown> => plan.groups as Record<string, unknown>;
+): Record<string, unknown> => plan.groups;
 const planTargets = <V extends Record<string, unknown>, P>(
   plan: PerGroupPlan<V, P>,
-): Record<string, unknown> => plan.targets as Record<string, unknown>;
+): Record<string, unknown> => plan.targets;
 
 // --- The plan -----------------------------------------------------------------
 
@@ -148,10 +148,7 @@ describe("perGroupPlan — the derived plan", () => {
     // Each projected schema is the piece's one-key strict object: health's
     // pieces carry their own leaf subsets (5 + 5), the others the whole group.
     const healthSchema = (t: ExtractionTarget<Pick<Values, "health">>): Record<string, unknown> =>
-      ((t.extractionSchema as unknown as z.ZodObject).shape.health as z.ZodObject).shape as Record<
-        string,
-        unknown
-      >;
+      ((t.extractionSchema as unknown as z.ZodObject).shape.health as z.ZodObject).shape;
     expect(
       Object.keys((healthTargets[0]!.extractionSchema as unknown as z.ZodObject).shape),
     ).toEqual(["health"]);
@@ -361,7 +358,7 @@ describe("overrideGroups — the running example", () => {
     // evidence and did not commit); piece 1 abstains on nothing. Each piece's
     // gap-fill follows up on ITS OWN abstentions against a schema that fits the
     // piece — the reason overrides apply per piece.
-    const abstainingPiece = healthPiece(1, 5) as Record<string, unknown>;
+    const abstainingPiece = healthPiece(1, 5);
     const health0 = abstainingPiece.health as Record<string, unknown>;
     health0.h3 = { value: null, confidence: 0.9, sourceSpan: "spray foam present" };
 

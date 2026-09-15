@@ -1,5 +1,5 @@
 import { isSpanGrounded, stripOptionalNullable } from "@azx/ribo-core";
-import type { ExistingRecord, Roster as CoreRoster } from "@azx/ribo-core";
+import type { ExistingRecord, RequiredOnCreate, Roster as CoreRoster } from "@azx/ribo-core";
 import { describe, expect, expectTypeOf, test } from "vitest";
 import { z } from "zod";
 import { rankCandidates, SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
@@ -218,6 +218,24 @@ test("no other group declares a required leaf — a partial dictation writes cle
   // the basement is never blocked on the attic.
   const groups = Object.keys(snuggProAdapter.requiredOnCreate ?? {});
   expect(groups.filter((g) => g !== "hvac" && g !== "job")).toEqual([]);
+});
+
+test("requiredOnCreate is typed against the values schema", () => {
+  // Valid groups and leaves compile.
+  expectTypeOf({
+    hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
+    job: ["firstName"],
+  } as const).toMatchTypeOf<RequiredOnCreate<SnuggValues>>();
+
+  // @ts-expect-error - "notAGroup" is not a top-level group of the Snugg values schema.
+  const _badGroup: RequiredOnCreate<SnuggValues> = { notAGroup: ["leaf"] };
+
+  // @ts-expect-error - "notALeaf" is not a leaf of the hvac group.
+  const _badLeaf: RequiredOnCreate<SnuggValues> = { hvac: ["notALeaf"] };
+
+  // Satisfy the no-unused-vars rule for the intentionally failing declarations.
+  void _badGroup;
+  void _badLeaf;
 });
 
 describe("rankCandidates — contradiction check orders existing records", () => {

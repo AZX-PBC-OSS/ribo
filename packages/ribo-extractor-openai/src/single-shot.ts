@@ -21,7 +21,7 @@
  * endpoint) share this same {@link Extractor} seam; see Task 5.
  *
  * The prompt assembly, the pre-parse `finishReason` check, the terminal-transport
- * classification, and the two parse helpers live in {@link ./extraction-common.ts}
+ * classification, and the two parse helpers live in `xtraction-common.ts`
  * — shared with the per-group extractor (R3 Task 2) so the hard-won reasoning
  * behind each is not copied.
  */
@@ -112,7 +112,7 @@ export interface SingleShotOptions<
  *      terminal cases (truncation, content filtering) are caught earlier by
  *      `assertStopFinishReason`.
  *
- * Steps 2 and 3 use the shared helpers in {@link ./extraction-common.ts},
+ * Steps 2 and 3 use the shared helpers in `xtraction-common.ts`,
  * where the full reasoning behind each is documented.
  */
 export function singleShotExtractor<V extends Record<string, unknown>, P = NoProvenance>({

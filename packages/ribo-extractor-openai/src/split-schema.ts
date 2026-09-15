@@ -60,6 +60,10 @@
  * bound it measured in unions, not in leaves.
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment --
+   This file walks Zod schema internals. Zod 4's classic API exposes `.shape`, `.element`
+   and `.unwrap()` as `any`; each use is guarded by runtime `instanceof z.Zod*` checks. */
+
 import { z } from "zod";
 
 import { isExtractedSchema } from "@azx/ribo-core";
@@ -225,7 +229,7 @@ function partitionGroup(
   maxUnions: number,
 ): ExtractionGroup[] {
   const propertyKeys = Object.keys(candidate.shape);
-  const weights = propertyKeys.map((k) => nullableUnions(candidate.shape[k]!));
+  const weights = propertyKeys.map((k) => nullableUnions(candidate.shape[k]));
   const total = weights.reduce((sum, weight) => sum + weight, 0);
 
   if (total <= maxUnions) {
@@ -307,7 +311,7 @@ const isGroupObject = (obj: z.ZodObject): boolean =>
  * @param maxNullableUnionsPerGroup - When supplied, a group carrying more nullable
  *   unions than this is further partitioned into multiple entries sharing its
  *   `key` (see the file header's "Nullable-union partitioning" and
- *   {@link partitionGroup}). Omitted, the split keeps one-entry-per-group
+ *   `partitionGroup`). Omitted, the split keeps one-entry-per-group
  *   behaviour; both extractor callers pass a value (defaulting to
  *   {@link MAX_NULLABLE_UNIONS_PER_CALL}) so their per-call schemas stay under the
  *   provider limits regardless.

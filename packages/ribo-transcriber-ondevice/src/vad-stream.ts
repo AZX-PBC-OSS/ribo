@@ -1,7 +1,7 @@
 /**
  * @file Streaming voice-activity detection — the live frame loop.
  *
- * Where {@link ./segmentation.ts} runs pyannote over the whole recording after `stop()`, this
+ * Where `egmentation.ts` runs pyannote over the whole recording after `stop()`, this
  * module runs Silero VAD one 512-sample frame at a time **during** recording, carrying the
  * model's recurrent state tensor forward. Revision 7 demotes the VAD from a filter to a
  * trigger: it decides **when** to transcribe and where a commit boundary falls, never **what**
@@ -54,7 +54,7 @@ import { STREAMING_VAD_MODEL_ID } from "./config.js";
 /** Silero's frame size — 512 samples at 16 kHz = 32 ms per frame. */
 export const VAD_FRAME_SIZE = 512;
 
-/** The sample rate Silero expects. Matches Whisper's ({@link ./decode.ts}). */
+/** The sample rate Silero expects. Matches Whisper's (`ecode.ts`). */
 export const VAD_SAMPLE_RATE = 16_000;
 
 /** Probability at which a frame ENTERS speech. */
@@ -559,7 +559,7 @@ export class RegionVad {
 
 /**
  * Minimal structural view of the Silero model and transformers.js's `Tensor`. Loosely typed at
- * the seam for the same reason {@link ./worker.ts}'s `AsrPipeline` is: importing transformers.js
+ * the seam for the same reason `orker.ts`'s `AsrPipeline` is: importing transformers.js
  * types into the static graph would pull `onnxruntime-node` into the node-side unit tests.
  */
 interface SileroModelLike {
@@ -587,7 +587,7 @@ const SILERO_STATE_SIZE = 2 * 1 * 128;
  * same same-origin `wasmPaths` config.
  *
  * The import of `@huggingface/transformers` is **dynamic** — inside this factory, not at module
- * top level — for the same reason {@link ./worker.ts} defers it: the Node entry pulls
+ * top level — for the same reason `orker.ts` defers it: the Node entry pulls
  * `onnxruntime-node`, which would break the node-side unit tests that import this module for the
  * frame-loop logic alone. Only the manual browser test calls this factory.
  *
@@ -629,9 +629,9 @@ export async function createSileroDetector(config: {
       const srTensor = new Tensor("int64", BigInt64Array.from([BigInt(VAD_SAMPLE_RATE)]), [1]);
       const stateTensor = new Tensor("float32", state, [2, 1, 128]);
       const output = await model({
-        input: inputTensor as unknown,
-        sr: srTensor as unknown,
-        state: stateTensor as unknown,
+        input: inputTensor,
+        sr: srTensor,
+        state: stateTensor,
       });
 
       const probData = output["output"]?.data as number[] | Float32Array | undefined;

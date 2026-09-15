@@ -62,7 +62,7 @@ const defaultScheduleTimer: ScheduleTimer = (fn, delayMs) => {
  * `undefined` when no prediction is available (before calibration).
  *
  * The host computes this from whatever it measured — typically a real-time
- * factor multiplied by {@link Recording.durationMs}. `ribo-core` never sees
+ * factor multiplied by `Recording.durationMs`. `ribo-core` never sees
  * the RTF; it sees only the resulting number.
  */
 export type PredictedDurationMs = (recording: Recording) => number | undefined;
@@ -233,7 +233,7 @@ export interface HedgedOptions {
  * failure surfaces as an unhandled rejection.
  *
  * Returns a {@link CompositeTranscriber} so it is drop-in interchangeable with
- * {@link firstCapable}: `capabilities()` and `invalidate()` keep working, and
+ * `firstCapable`: `capabilities()` and `invalidate()` keep working, and
  * the primary may itself be a `firstCapable` composite.
  */
 export function hedged(

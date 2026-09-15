@@ -286,7 +286,7 @@ test("Accept, Edit and Reject each record the decision they claim, and reach sub
   if (outcome.status !== "edited") {
     throw new Error(`expected an "edited" outcome (a leaf was rejected), got "${outcome.status}"`);
   }
-  const fields = outcome.fields as Record<string, unknown>;
+  const fields = outcome.fields;
   const hvac = fields.hvac as Record<string, unknown>[] | undefined;
   const attic = fields.attic as Record<string, unknown>[] | undefined;
   const wall = fields.wall as Record<string, unknown>[] | undefined;

@@ -21,7 +21,7 @@ import { narrowToLeaves, projectExample, projectSingletonExample } from "./extra
 /**
  * Narrow a group value (a group object or a `z.array` of them) to a subset of
  * leaf keys, mirroring {@link splitExtractionSchema}'s partition step and
- * {@link narrowToLeaves}'s value step.
+ * `narrowToLeaves`'s value step.
  *
  * The returned value keeps the same array/non-array shape as the input, but
  * the object shape inside it carries only `leafKeys`. Throws if a requested
@@ -85,8 +85,8 @@ export interface ProjectTargetOptions {
  * requested), whose few-shot examples are projected to that key, and whose
  * instructions are either supplied or inherited.
  *
- * The target's schema must be a {@link z.ZodObject} with `key` as one of its
- * shape properties — that is the grouped schema shape {@link enveloped}
+ * The target's schema must be a `z.ZodObject` with `key` as one of its
+ * shape properties — that is the grouped schema shape `enveloped`
  * produces. A non-grouped schema should bypass projection entirely rather than
  * call this function.
  *
@@ -140,8 +140,8 @@ export function projectTarget<
   const projectedExamples: ToolAdapterExample<Enveloped<Pick<V, K>, P>>[] = [];
   for (const example of target.examples ?? []) {
     const projected = singleton
-      ? projectSingletonExample(example as ToolAdapterExample<Enveloped<V, P>>, key)
-      : projectExample(example as ToolAdapterExample<Enveloped<V, P>>, key);
+      ? projectSingletonExample(example, key)
+      : projectExample(example, key);
     if (projected === null) continue;
 
     const fields =

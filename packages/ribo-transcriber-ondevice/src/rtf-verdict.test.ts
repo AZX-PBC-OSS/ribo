@@ -47,15 +47,15 @@ function fakeCacheStorage(initial: Record<string, Record<string, string>> = {}):
         buckets.set(name, bucket);
       }
       return Promise.resolve({
-        keys: () => Promise.resolve([...bucket!.keys()].map((url) => ({ url }) as Request)),
+        keys: () => Promise.resolve([...bucket.keys()].map((url) => ({ url }) as Request)),
         match: (request: Request | string) => {
           const url = typeof request === "string" ? request : request.url;
-          const body = bucket!.get(url);
-          return Promise.resolve(body !== undefined ? (new Response(body) as Response) : undefined);
+          const body = bucket.get(url);
+          return Promise.resolve(body !== undefined ? new Response(body) : undefined);
         },
         put: (request: Request, response: Response) =>
           response.text().then((body) => {
-            bucket!.set(request.url, body);
+            bucket.set(request.url, body);
             return Promise.resolve();
           }),
       } as unknown as Cache);

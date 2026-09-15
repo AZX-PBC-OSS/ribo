@@ -316,3 +316,17 @@ rather than anything silent. Nothing to do; recorded so it is not rediscovered a
 - Audit the on-device Whisper worker protocol types (`ribo-transcriber-ondevice/src/protocol.ts`,
   `worker.ts`) beyond the cast survey; their `as unknown as` casts wrap transformers.js pipeline
   objects whose types the library does not export.
+
+## Trial result: `exactOptionalPropertyTypes` (P2)
+
+**Measured 2026-09-15: 52 TypeScript errors across the workspace with the flag enabled.**
+
+Left off. The flag would enforce the absent-versus-`undefined` distinction this repo documents at
+length and currently maintains by discipline alone — `UsageTotals` and the conditional-spread
+pattern in the extractors exist precisely because `{ usage: undefined }` and `{}` must not be
+confused. So the flag is aligned with the codebase's intent, and 52 is a tractable number.
+
+It is not free, though: every one of those sites is a real decision about whether a property is
+optional-and-absent or optional-and-explicitly-undefined, and getting one wrong silently changes
+behaviour at a boundary the type system was supposed to be guarding. That is a focused piece of
+work with its own review, not a flag flip to fold into unrelated tasks.

@@ -438,7 +438,7 @@ const SESSION_RX_SCHEMA_V0: RxJsonSchema<Record<string, unknown>> = {
   ],
   indexes: ["openedAt", "ref"],
   attachments: {},
-} as RxJsonSchema<Record<string, unknown>>;
+};
 
 test("a v0 session survives the v1 bump that added extractionUsage", async () => {
   // Adding an OPTIONAL field still needs the version bump: RxDB validates the
@@ -575,7 +575,7 @@ test("v5 recordings with no assessmentId get singleton sessions", async () => {
       mimeType: "audio/webm",
       ctx: {}, // no assessmentId
     },
-  } as V0OutboxDocument);
+  });
 
   const outbox = await open(name);
   const items = await outbox.list({});
@@ -620,7 +620,7 @@ test("a v5 recording whose ctx is a primitive migrates to a session the outbox c
       mimeType: "audio/webm",
       ctx: "job-42",
     },
-  } as unknown as V0OutboxDocument);
+  });
 
   // The assertion is that this resolves at all.
   const outbox = await open(name);
@@ -652,7 +652,7 @@ test("a v5 recording still awaiting transcription is not stranded in a finished 
       mimeType: "audio/webm",
       ctx: { assessmentId: "job-mid" },
     },
-  } as V0OutboxDocument);
+  });
 
   const outbox = await open(name);
   const [item] = await outbox.list({});
@@ -687,7 +687,7 @@ test("backfilling twice leaves one session, not two", async () => {
       mimeType: "audio/webm",
       ctx: { assessmentId: "job-twice" },
     },
-  } as V0OutboxDocument);
+  });
 
   // The first open migrates and backfills. The second re-runs the backfill over
   // rows that still carry their `legacy` bag — which is exactly what happens on
@@ -717,7 +717,7 @@ test("the migration carrier is cleared once its session holds the data", async (
       mimeType: "audio/webm",
       ctx: { assessmentId: "job-clear" },
     },
-  } as V0OutboxDocument);
+  });
 
   const outbox = await open(name);
   // v6 is not deployed, so the carrier never needs to outlive the backfill that
@@ -747,11 +747,11 @@ test("a backfill that already created the session does not insert it twice", asy
       mimeType: "audio/webm",
       ctx: { assessmentId: "job-crash" },
     },
-  } as V0OutboxDocument);
+  });
 
   const outbox = await open(name);
   const [doc] = await outbox.database.collections.outbox.find().exec();
-  await doc!.incrementalPatch({ legacy: { extracted: { hvac: "furnace" } } } as never);
+  await doc!.incrementalPatch({ legacy: { extracted: { hvac: "furnace" } } });
 
   await backfillSessions(outbox.database);
 
@@ -800,7 +800,7 @@ test("the extraction survives when a later recording carries it, not the first",
     recording: { ...baseRec, id: "r2" },
     extracted: { hvac: "furnace" },
     extractedBy: "gpt-4o",
-  } as unknown as V0OutboxDocument);
+  });
   await db0.close();
 
   const outbox = await open(name);

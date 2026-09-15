@@ -97,7 +97,7 @@ export interface SchemaRetryOptions<V extends Record<string, unknown>, P = NoPro
   /**
    * How many self-correction calls to make after the base fails. Every retry
    * is a real call to a paid endpoint, so the budget defaults to
-   * {@link DEFAULT_MAX_RETRIES} and must be a non-negative integer — `0`
+   * `DEFAULT_MAX_RETRIES` and must be a non-negative integer — `0`
    * disables retrying and passes the base's outcome through unchanged.
    */
   readonly maxRetries?: number;
