@@ -25,12 +25,12 @@ open → extracting → awaiting-review → writing → done
 
 The split is structural, enforced in two places at once:
 
-- **The type system.** `Extractor` takes a transcript's text and returns fields — it has no
-  parameter that could carry a `CaptureItem`, so it cannot know or care whether that text came from
-  a microphone or a PDF. `isSpanGrounded` checks a `sourceSpan` against transcript text the same
-  way regardless of source. The review contract addresses leaf paths against a values schema; it
-  has never seen a `Recording` or a `DocumentCapture`, only the joined text that produced the
-  fields it's reviewing.
+- **The type system.** `Extractor` takes an annotated transcript — one canonical text plus an
+  annotations bag — and returns fields; it has no parameter that could carry a `CaptureItem`, so it
+  cannot know or care whether that text came from a microphone or a PDF. `isSpanGrounded` checks a
+  `sourceSpan` against the transcript's text the same way regardless of source. The review contract
+  addresses leaf paths against a values schema; it has never seen a `Recording` or a
+  `DocumentCapture`, only the joined transcript that produced the fields it's reviewing.
 - **The persistence layer.** `OutboxDocument` (the recording) carries capture and transcription
   fields only. `SessionDocument` carries `extracted`, `extractedBy`, `reviewOutcome`, `writeResult`,
   and the write destination `ctx` — every field the pipeline touches from extraction onward moved
@@ -40,30 +40,61 @@ That's why adding PDF support required **no change** to `Extractor`, `isSpanGrou
 or the review contract. That code was written against session-level text; a document capture is a
 second way to produce it.
 
-## `joinSessionTranscript`: many captures, one transcript
+## Many captures, one transcript: the combiner contract
 
 A session's transcript isn't stored — it's assembled on demand from every recording that belongs to
-it:
+it, in two pieces with one seam between them.
+
+The I/O half is `listSessionTranscriptParts`, which lists the session's `transcribed` recordings in
+capture order (`seq`-ascending), excluding `discarded` and `dead`, and builds an
+`AnnotatedTranscript` per capture. A recording still `queued` or `transcribing` simply isn't there
+yet, and a **`discarded` recording is excluded outright**: if the reviewer decides a capture
+shouldn't count — a duplicate dictation, a photo of the wrong invoice — discarding it removes its
+words from every future extraction without deleting the recording itself:
 
 ```ts
-import { joinSessionTranscript } from "@azx/ribo-core";
+import { listSessionTranscriptParts } from "@azx/ribo-core";
 
-const { text, recordingIds } = await joinSessionTranscript(outbox, session.id);
+const { parts, recordingIds } = await listSessionTranscriptParts(outbox, session.id);
 ```
 
-It returns exactly two things: the joined `text`, and the sorted `recordingIds` that produced it —
-the cache key a re-extraction compares against to know whether the recording set actually changed.
-Nothing in the return shape says whether any of it came from a microphone — that is the point.
-`joinSessionTranscript` joins all three captures into one `text` without asking which is which.
+Each part carries that capture's text and an annotations bag merging two sources: whatever the
+transcriber itself produced (a document engine's page markers, a provider's own structured
+response), plus the relay's capture metadata — `capture.seq`, `capture.kind`, `capture.id` — under
+a reserved `capture.` prefix, so a transcriber's own `seq` or `id` cannot collide with it. The
+`recordingIds` are the sorted capture ids that produced the parts — the cache key a re-extraction
+compares against to know whether the recording set actually changed.
 
-Only `transcribed` recordings are included, in capture order (`seq`-ascending) — a recording still
-`queued` or `transcribing` simply isn't there yet, and **`discarded` recordings are excluded
-outright**. If the reviewer decides a capture shouldn't count — a duplicate dictation, a photo of
-the wrong invoice — discarding it removes its words from every future extraction without deleting
-the recording itself.
+The policy half is `TranscriptCombiner` — a **pure** function that takes the parts and returns one
+transcript:
 
-Pass `{ markCaptures: true }` to get **per-capture attribution markers** woven into the joined text,
-one line ahead of each capture's content:
+```ts
+import { createDefaultTranscriptCombiner } from "@azx/ribo-core";
+
+// types: type TranscriptCombiner<In, Out> =
+//   (parts: readonly AnnotatedTranscript<In>[]) => AnnotatedTranscript<Out>;
+const combiner = createDefaultTranscriptCombiner();
+```
+
+Purity is the contract's point: a combiner that takes the `Outbox`, or reads anything, reproduces
+the defect this seam exists to fix — the old fused implementation could not be tested
+without a database and could not be replaced at all. The relay supplies the array; the combiner
+decides how the texts join. A caller who wants a different policy writes their own combiner
+instead of asking for a second flag on the default, and injects it through
+`RelayOptions.combineTranscripts`:
+
+```ts
+import { createRelay, createDefaultTranscriptCombiner } from "@azx/ribo-core";
+
+const relay = createRelay({
+  // ...
+  combineTranscripts: createDefaultTranscriptCombiner({ markCaptures: true }),
+});
+```
+
+The default combiner joins the texts with a single space — byte-for-byte what this page has always
+described. Pass `{ markCaptures: true }` to get **per-capture attribution markers** woven in, one
+line ahead of each capture's content:
 
 ```
 ===== CAPTURE seq:1 kind:document id:cap-invoice =====
@@ -76,10 +107,24 @@ one line ahead of each capture's content:
 
 Each marker carries `seq` (capture order, for a reviewer's "the third one"), `kind` (`audio` or
 `document`, no row lookup needed), and `id` (the outbox item id a citation can resolve straight back
-to). The marker sits before a capture's text, never inside it, so a `sourceSpan` the model quotes
-from within one capture still passes `isSpanGrounded` as a verbatim substring of the joined text.
-Off by default — the joined text a non-marked caller sees is unchanged — because emitting markers
-unconditionally would change what every existing extractor sees.
+to), with its values read from the part's `capture.`-namespaced annotations. The marker sits before
+a capture's text, never inside it, so a `sourceSpan` the model quotes from within one capture still
+passes `isSpanGrounded` as a verbatim substring of the joined text.
+Marking is off by default — the joined text a non-marked caller sees is unchanged — because
+emitting markers unconditionally would change
+what every existing extractor sees.
+
+`joinSessionTranscript` is the convenience that does both — list the parts, hand them to a combiner
+(its optional third parameter, defaulting to the unmarked default) — and returns just the joined
+`text` plus the `recordingIds` cache key. It is the older, I/O-fused face of the same seam; the
+relay itself uses `listSessionTranscriptParts` and a combiner, and a host replacing the policy
+injects one through `combineTranscripts` rather than forking the I/O.
+
+One thing annotations deliberately do not do is **survive combination**: the combiner returns one
+transcript with its own bag, and the default returns an empty one. Per-part annotations are an input
+to combination, not a channel through it — state that has to reach an extractor from a transcriber
+belongs in [plugin storage](/guide/plugin-storage), which is keyed by capture and survives both the
+combine step and a reload.
 
 ## The session lifecycle
 
@@ -132,17 +177,18 @@ outbox.watchSessions({ status: "awaiting-review" }).subscribe((sessions) => {
 
 The heat-pump quote reviewer's job opens as one session. The supplier invoice and the Manual J
 report enqueue as `DocumentCapture` items — `pdfjs` (or `managed-docs` for a scanned page it can't
-read) transcribes each into text. The reviewer's own dictation enqueues as a `Recording`, transcribed
-by whichever audio engine is configured, and all three transcribe independently, on their own
-schedule, into the same session. When the reviewer closes the session, `joinSessionTranscript`
-produces one transcript spanning all three, extraction runs once against it, and the review screen
-shows a single set of fields — equipment cost from the invoice, sizing from the Manual J, the
-exception the reviewer dictated — each citation still checkable against whichever capture it came
-from.
+read) transcribes each into text. The reviewer's own dictation enqueues as a `Recording`,
+transcribed by whichever audio engine is configured, and all three transcribe independently, on
+their own schedule, into the same session. When the reviewer closes the session, the relay lists
+the three transcripts and hands them to its combiner — one transcript spanning all three —
+extraction runs once against it, and the review screen shows a single set of fields — equipment
+cost from the invoice, sizing from the Manual J, the exception the reviewer dictated — each
+citation still checkable against whichever capture it came from.
 
 ## Next
 
 [Provenance](/guide/provenance) covers what a session's extracted fields look like once they exist —
 the envelope, the span check, and the granularity knob. [Schema at Scale](/guide/schema-at-scale)
 covers why a session's extraction has to be partitioned across several calls once the target schema
-is a real system of record's.
+is a real system of record's, and [Per-Group Composition](/guide/per-group) covers what to do when
+one of those groups needs different treatment from the rest.

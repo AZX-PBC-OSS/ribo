@@ -1,29 +1,52 @@
 # Extraction
 
-A session's transcript is just text — [Sessions](/guide/sessions) covers how several captures
-become one — until something turns it into fields a system of record can accept. An `Extractor<F>` is
-that something: the one seam that calls a model, and the only thing that changes when you swap a
-fake for a real engine, or one real engine for another.
+A session's transcript — [Sessions](/guide/sessions) covers how several captures become one — is
+text plus context about where it came from, until something turns it into fields a system of record
+can accept. An `Extractor<F>` is that something: the one seam that calls a model, and the only thing
+that changes when you swap a fake for a real engine, or one real engine for another.
 
 ## The `Extractor<F>` seam
 
 ```ts
-import type { Extractor, ExtractionResult } from "@azx/ribo-core";
+import type { AnnotatedTranscript, Extractor, ExtractionResult } from "@azx/ribo-core";
 
 interface Extractor<F> {
-  extract(transcript: string): Promise<ExtractionResult<F>>;
+  extract(transcript: AnnotatedTranscript, options?: ExtractOptions): Promise<ExtractionResult<F>>;
 }
 ```
 
 One method, and it never sees a `CaptureItem`, a `Recording`, or a `DocumentCapture` — only the
-joined transcript text a session assembled. An extractor that took a capture would have to know
-whether the words came from a microphone or a scanner, and nothing about turning text into fields
-cares. This is the same structural split [Sessions](/guide/sessions) describes, from the other side.
+joined transcript a session assembles. An extractor that took a capture would have to know whether
+the words came from a microphone or a scanner, and nothing about turning text into fields cares.
+This is the same structural split [Sessions](/guide/sessions) describes, from the other side.
+
+The input is an `AnnotatedTranscript`, not a bare string. Its `text` is the one canonical string
+that extracted spans are checked against — what the model quotes from and what `isSpanGrounded`
+checks against, exactly as it always has. Around it sits an open `annotations` bag: a document
+transcriber's page boundaries or table structure, the relay's per-capture metadata under the
+reserved `capture.` prefix — whatever the upstream stages produced. The bag is deliberately left
+schema-free until a real transcriber produces real annotations, and it does not affect grounding:
+`isSpanGrounded(span, transcript.text)` is the same check it always was.
 
 `ExtractionResult<F>` carries the parsed `fields`; an optional `raw` payload kept for debugging; a
 `usage` block (calls made, token counts, and which `engine` and `strategy` produced the result —
 covered from the composition side in [Arbitration & Fallback](/guide/arbitration)); and an optional
 `statedEmptyGroups`, for a roster-based strategy's explicit "none of these" answers per group.
+
+## Run options: cancellation is part of the contract
+
+The trailing `options` bag currently carries one member, `signal?: AbortSignal` — the same optional
+trailing object `Transcriber.transcribe` takes, so the two run-context contracts do not drift. The
+relay passes a signal that it aborts when the extraction step's timeout fires, so a hung model
+call is cancelled rather than left running behind the rejection; a host driving an extractor by hand
+can pass its own. Each transport states what it does with the signal in its own docs — the
+fetch-based ones abort the in-flight request, the on-device engine cancels between phases without
+killing the model session — and an implementation that cannot honour it must say so plainly rather
+than accept it and ignore it. A cancelled extraction rejects rather than returning a partial
+result, and **both** extraction routes classify that abort as retryable on purpose — the on-device
+engine rejects with `ChatError.aborted` just as the managed one does. The abort is caller-initiated,
+and a host that cancels on a deadline may well succeed on a later attempt with a fresh one. (The
+transcription side makes the opposite call — see [Captures & Sources](/guide/captures-and-sources).)
 
 ## `ExtractionTarget`: the field knowledge an extractor needs
 
@@ -107,7 +130,13 @@ A real target schema does not fit through one call, though — `singleShotExtrac
 real system of record's field count runs into a structured-output API's own limits.
 [Schema at Scale](/guide/schema-at-scale) is the full mechanism for how this package's other
 exports — `splitExtractionSchema`, `perGroupExtractor`, `instanceLadder`, `gapFillExtractor` — get a
-real schema through in several calls instead of one; this page does not restate it.
+real schema through in several calls instead of one; this page does not restate it. The package also
+ships two wrappers that sit around any base extractor: `schemaRetryExtractor` catches a
+`SchemaParseError` and re-asks the model once, telling it in-band what failed validation (see
+[Arbitration & Fallback](/guide/arbitration) for why that error is retryable and recognisable), and
+`gapFillExtractor` makes one bounded follow-up call over leaves that abstained despite quoting
+evidence. Where those wrappers shine per group rather than over the whole schema is
+[Per-Group Composition](/guide/per-group).
 
 ### `@azx/ribo-extractor-ondevice`: `threePhaseExtractor`
 
@@ -136,6 +165,8 @@ transcript, not as a claim about current accuracy.
 ## Next
 
 [Arbitration & Fallback](/guide/arbitration) covers composing more than one of the extractors above
-into a strategy ladder, a race, or a capability-selected roster. [Schema at Scale](/guide/schema-at-scale)
-covers partitioning a real schema across calls, and [Provenance](/guide/provenance) covers the
-envelope every one of these extractors fills in.
+into a strategy ladder, a race, or a capability-selected roster.
+[Schema at Scale](/guide/schema-at-scale) covers partitioning a real schema across calls,
+[Per-Group Composition](/guide/per-group) covers giving one group its own extractor once it is
+partitioned, and [Provenance](/guide/provenance) covers the envelope every one of these extractors
+fills in.

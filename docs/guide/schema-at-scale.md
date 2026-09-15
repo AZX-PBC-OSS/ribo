@@ -66,7 +66,7 @@ ceiling or split a group that never needed to be split.
 `splitExtractionSchema` (`@azx/ribo-extractor-openai`) is the pure, model-free half of this: given a
 target's `extractionSchema`, it derives one `ExtractionGroup` per top-level key the schema's own
 `enveloped()` derivation produced — no adapter wiring, no hard-coded group list. Pass a
-`maxNullableUnionsPerGroup` (both extractors below default it to the exported
+`maxNullableUnionsPerGroup` (the extractors below default it to the exported
 `MAX_NULLABLE_UNIONS_PER_CALL`, 16), and any group over that count is partitioned further into
 multiple entries that all share the same top-level `key`, so the response still lands under one
 property the caller expects.
@@ -78,22 +78,34 @@ const groups = splitExtractionSchema(target.extractionSchema, MAX_NULLABLE_UNION
 // one entry per group, or several sharing a key for a group over the cap
 ```
 
-`perGroupExtractor` is the caller that turns that split into calls: one chat request per group (or
-per partition), run concurrently against a bounded pool, each response parsed against its own group
-schema before the whole is reassembled and parsed again against the full `extractionSchema` — a
-second trust-boundary check that catches a merge shape no single call would have produced. It has
-two siblings for the instance-modeling ladder below: `perGroupArrayExtractor`, whose per-group
-response is an array of instances, and `perGroupSingletonExtractor`, whose per-group response is
-exactly one.
+`perGroupExtractor` turns that split into calls: one chat request per group (or per partition), run
+concurrently against a bounded pool, each response parsed against its own group schema before the
+whole is reassembled and parsed again against the full `extractionSchema` — a second trust-boundary
+check that catches a merge shape no single call would have produced. Underneath, it is a preset over
+core's `groupedExtractor` — the run-owner that schedules the calls, retries them, aborts siblings on
+a terminal failure, and merges — with `perGroupPlan` deriving the default per-group entries from
+`splitExtractionSchema`. That layering is why one group can be given a different model, strategy or
+wrapper while the other nineteen keep the preset's defaults:
+[Per-Group Composition](/guide/per-group) is that capability, and this page does not restate it. The
+preset has two siblings for the instance-modeling ladder below: `perGroupArrayExtractor`, whose
+per-group response is an array of instances, and `perGroupSingletonExtractor`, whose per-group
+response is exactly one.
 
 Splitting a call in two does not make abstention disappear on its own, so a separate pass sits on
 top of whichever extractor produced the result. `gapFillExtractor` wraps a base extractor and, after
-it returns, calls `findAbstainedLeaves` to collect every leaf where the model quoted a real
-`sourceSpan` but still left `value: null` — an **abstained-with-evidence** leaf: not "found nothing,"
-but "found the right passage and didn't commit to it." With any candidates, it makes exactly one
-bounded follow-up call scoped to just those leaves, handing the model back its own quote and asking
-it to either commit to the value or explicitly reaffirm `null`. With no candidates, the base result
-passes through unchanged — no second call, no wrapper.
+it returns, collects every leaf where the model quoted a real `sourceSpan` but still left
+`value: null` — an **abstained-with-evidence** leaf: not "found nothing," but "found the right
+passage and didn't commit to it." With any candidates, it makes exactly one bounded follow-up call
+scoped to just those leaves, handing the model back its own quote and asking it to either commit to
+the value or explicitly reaffirm `null`. With no candidates, the base result passes through
+unchanged — no second call, no wrapper. Its `targets` option widens the pass: the default
+`["abstained"]` is the behaviour above, and `targets: ["abstained", "ungrounded"]` also re-asks
+leaves that committed to a value while citing text absent from the transcript — both kinds travel
+in the one follow-up call, since they share everything that makes it expensive. On a 126-leaf Manual
+J, re-asking converted about half the ungrounded spans to verbatim quotes; it is off by default
+because it is a second cost centre on a paid endpoint, and because a leaf that asks the model for
+its own judgement rather than a fact will report ungrounded forever. Those leaves do not belong in
+an envelope; the option will not rescue them.
 
 Repeating resources — a house's several HVAC systems, several water heaters — need a different shape
 of call than a fixed set of top-level groups, because the number of instances isn't known ahead of
@@ -127,9 +139,12 @@ nullable-union cap.
 
 ## Next
 
+[Per-Group Composition](/guide/per-group) covers what the partition makes possible — giving one
+group its own model, strategy or wrapper while the rest keep the defaults.
 [Provenance](/guide/provenance) covers the granularity knob this page's union counts depend on, and
 [Typesafety](/guide/typesafety) covers the `enveloped()` derivation that produces the schema being
-partitioned in the first place. [Comparison](/guide/comparison) is where this differentiator sits
-next to what other tools do instead. The full measurement — the bisection that found the
-nullable-union ceiling, the byte-cap numbers, and everything this page only summarizes — is in
+partitioned in the first place.
+[Comparison](/guide/comparison) is where this differentiator sits next to what other tools do
+instead. The full measurement — the bisection that found the nullable-union ceiling, the byte-cap
+numbers, and everything this page only summarizes — is in
 [Schema at Scale: Measured](/deep-dives/schema-scale).
