@@ -95,7 +95,7 @@ Mechanical; an hour.
   reimplemented", and `extractor-arbitration-design.md` §3.1 exports the arbitration engine
   precisely so a consumer can write a combinator the repo did not anticipate — but a consumer
   writing a strategy cannot reach the trust-boundary gates that make one correct, and will copy
-  them. `spikes/matched-schema-scale/harness.mjs` did exactly that.
+  them. The harness behind `docs/deep-dives/native-extraction.md` did exactly that.
 
 **Fix:** export both sets. The `extraction-common.ts` header already documents each helper as
 public-quality; nothing else changes.

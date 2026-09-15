@@ -35,8 +35,8 @@ Two further findings shaped the decision:
   invoice; row spans came back 14/14 verbatim. The unit of citation was fighting the model, not
   only the token budget.
 
-  > **Addendum, 2026-09-11 — this bullet did not reproduce.** A 2x2 factorial
-  > (`spikes/prompt-vs-granularity/`), five runs per cell, put per-cell citation at 99.5% verbatim
+  > **Addendum, 2026-09-11 — this bullet did not reproduce.** A 2x2 factorial (write-up in
+  > `docs/deep-dives/provenance-measurement.md`), five runs per cell, put per-cell citation at 99.5% verbatim
   > and per-row at 98.8% — leaf marginally ahead of row, and no sign of the gap. That run differs
   > from this one in document, schema and extraction mechanism (`singleShotExtractor` with
   > Anthropic `tool_use`, against this one's `perGroupExtractor` through the Helix gateway), so it

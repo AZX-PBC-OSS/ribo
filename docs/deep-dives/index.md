@@ -27,5 +27,9 @@ route, one corpus or one snapshot is labeled as such.
 - **[Schema at Scale: Measured](/deep-dives/schema-scale)** — the hard ceilings a structured-output request runs
   into as a real target schema grows, including one that isn't published anywhere and had to be found
   by bisecting real calls.
+- **[Native Extraction: Measured](/deep-dives/native-extraction)** — whether a document-AI endpoint
+  can do Ribo's extraction step itself: three rounds against Mistral Document AI, a fair-fight
+  re-run after the first comparison was found unfair, and a vendor-API claim corrected in place.
 - **[Provenance: Measured](/deep-dives/provenance-measurement)** — what unit a citation should
-  cover — one field, one row, or nothing — measured in fabrication rate and call cost.
+  cover — one field, one row, or nothing — measured in fabrication rate and call cost, including
+  the re-run that failed to find the accuracy gap the knob was first justified by.
