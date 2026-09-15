@@ -903,13 +903,17 @@ function FieldEditor({
   // treats `""` and `null` differently at the API, that concrete case is the
   // trigger to add the distinction back — not a preemptive one here.
   if (kind instanceof z.ZodString || kind instanceof z.ZodLiteral) {
+    // A ZodString leaf is a string or null; a ZodLiteral leaf may also hold a number
+    // or boolean literal. Anything else cannot round-trip through a text box, so it
+    // is serialised rather than object-stringified.
     const current =
       typeof value === "string"
         ? value
         : value === null || value === undefined
           ? ""
-          : // eslint-disable-next-line @typescript-eslint/no-base-to-string -- defensive fallback for non-string literal values in a ZodString/ZodLiteral branch
-            String(value);
+          : typeof value === "number" || typeof value === "boolean"
+            ? String(value)
+            : (JSON.stringify(value) ?? "");
     return (
       <input
         aria-label={label}

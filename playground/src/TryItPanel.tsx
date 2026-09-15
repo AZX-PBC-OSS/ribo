@@ -339,6 +339,18 @@ function ResultView({ result }: { result: RunResult }) {
   );
 }
 
+/**
+ * Render one leaf value for the preview. Extraction values are primitives or null —
+ * a non-primitive means the model invented a shape the schema did not declare, so it
+ * is serialised rather than object-stringified.
+ */
+function renderLeafValue(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return JSON.stringify(value) ?? "";
+}
+
 function FieldRow({ leaf, text }: { leaf: Leaf; text: string }) {
   const { value, sourceSpan } = leaf.envelope;
   const grounded = isSpanGrounded(sourceSpan, text);
@@ -350,10 +362,7 @@ function FieldRow({ leaf, text }: { leaf: Leaf; text: string }) {
         {value === null ? (
           <span style={muted}>not stated (addressed in the text)</span>
         ) : (
-          <span style={monospace}>
-            {/* eslint-disable-next-line @typescript-eslint/no-base-to-string -- leaf values are primitives rendered for the playground preview */}
-            {String(value)}
-          </span>
+          <span style={monospace}>{renderLeafValue(value)}</span>
         )}
       </div>
       {sourceSpan !== null && (

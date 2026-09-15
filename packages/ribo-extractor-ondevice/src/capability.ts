@@ -1,6 +1,3 @@
-// The three `method-signature-style` suppressions below cover declarations that mirror Chrome's
-// Prompt API. Their shape is the platform's, not ours, and the browser injects the objects — we
-// never implement them, so the bivariance the rule guards against cannot bite here.
 import type { ChatCapability } from "@azx/ribo-extractor-openai";
 
 export type LanguageModelAvailability =
@@ -11,14 +8,12 @@ export interface DownloadProgressEvent {
   readonly total: 1;
 }
 
-/* eslint-disable @typescript-eslint/method-signature-style */
 export interface LanguageModelMonitor {
-  addEventListener(
+  addEventListener: (
     type: "downloadprogress",
     listener: (event: DownloadProgressEvent) => void,
-  ): void;
+  ) => void;
 }
-/* eslint-enable @typescript-eslint/method-signature-style */
 
 /** One role-tagged turn of the session's standing context. */
 export interface LanguageModelPrompt {
@@ -53,7 +48,6 @@ export interface LanguageModelPromptOptions {
  * and each call runs on a {@link LanguageModelSession.clone} of it so one group's answer never
  * sits in another group's context.
  */
-/* eslint-disable @typescript-eslint/method-signature-style */
 export interface LanguageModelSession {
   /** Total tokens this session can hold, input and output together. Measured at 9,216. */
   readonly contextWindow: number;
@@ -67,20 +61,17 @@ export interface LanguageModelSession {
    * window. The constraint is enforced at the sampler and does not consume context, so pricing
    * the prompt alone is the correct measurement rather than a limitation.
    */
-  measureContextUsage(input: string, options?: LanguageModelPromptOptions): Promise<number>;
-  promptStreaming(input: string, options?: LanguageModelPromptOptions): AsyncIterable<string>;
+  measureContextUsage: (input: string, options?: LanguageModelPromptOptions) => Promise<number>;
+  promptStreaming: (input: string, options?: LanguageModelPromptOptions) => AsyncIterable<string>;
   /** A fresh context sharing this session's standing prompt. */
-  clone(): Promise<LanguageModelSession>;
-  destroy(): void;
+  clone: () => Promise<LanguageModelSession>;
+  destroy: () => void;
 }
-/* eslint-enable @typescript-eslint/method-signature-style */
 
-/* eslint-disable @typescript-eslint/method-signature-style */
 export interface LanguageModel {
-  availability(): Promise<LanguageModelAvailability>;
-  create(options?: LanguageModelCreateOptions): Promise<LanguageModelSession>;
+  availability: () => Promise<LanguageModelAvailability>;
+  create: (options?: LanguageModelCreateOptions) => Promise<LanguageModelSession>;
 }
-/* eslint-enable @typescript-eslint/method-signature-style */
 
 export type PrimeProgressListener = (progress: DownloadProgressEvent) => void;
 
