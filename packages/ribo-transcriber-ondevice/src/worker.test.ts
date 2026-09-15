@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from "vitest";
 import { WHISPER_SAMPLE_RATE } from "./decode.js";
 import {
   WORKER_ENTRY_NAME,
+  clearCancelledTranscribes,
   clearLiveSessions,
   handleMessage,
   injectLiveSession,
@@ -1047,5 +1048,158 @@ describe("Test 7 — coalesced commit buffer exceeding the 30s window is split",
     }
 
     clearLiveSessions();
+  });
+});
+
+// ── Batch cancellation: the chunk loop honours `cancelTranscribe` ─────────────
+//
+// The `TranscribeOptions.signal` channel for this transport. `terminate()` is
+// deliberately NOT the mechanism — the worker is shared with the live
+// conversation (a terminate on a batch abort would kill a user's in-flight
+// dictation preview) and holds the primed model `prime()` paid for. Instead the
+// main thread posts `cancelTranscribe { requestId }`; the batch loop checks the
+// flag before starting work and between chunks. `@huggingface/transformers` is
+// mocked for the same reason as the `allowRemoteModels` test above: the real
+// dynamic import drags in `onnxruntime-node`, unbuilt in node.
+describe("batch cancellation — the chunk loop honours cancelTranscribe", () => {
+  /** A mocked transformers module whose ASR pipeline counts `generate` calls and holds the
+   * first one on a deferred the test controls. Returns the closure state to assert on. */
+  function mockTransformersWithHeldFirstGenerate(): {
+    generateCalls: () => number;
+    firstChunk: Deferred<unknown>;
+  } {
+    const firstChunk = makeDeferred<unknown>();
+    let generateCalls = 0;
+    vi.doMock("@huggingface/transformers", () => {
+      const env: { allowRemoteModels: boolean; backends: { onnx: { wasm: object } } } = {
+        allowRemoteModels: false,
+        backends: { onnx: { wasm: {} } },
+      };
+      const asrPipeline = {
+        tokenizer: {
+          encode: () => [],
+          decode: () => "chunk text",
+        },
+        model: {
+          generation_config: {},
+          generate: async () => {
+            generateCalls++;
+            if (generateCalls === 1) return firstChunk.promise;
+            return [{ tolist: () => [1, 2, 3] }];
+          },
+        },
+        processor: async () => ({ input_values: new Float32Array(1) }),
+      };
+      return {
+        env,
+        pipeline: async () => asrPipeline,
+        AutoProcessor: { from_pretrained: vi.fn() },
+        AutoModelForAudioFrameClassification: { from_pretrained: vi.fn() },
+      };
+    });
+    return { generateCalls: () => generateCalls, firstChunk };
+  }
+
+  test("a cancel between chunks stops the batch: the second chunk's inference never runs", async () => {
+    clearCancelledTranscribes();
+    vi.resetModules();
+    const { generateCalls, firstChunk } = mockTransformersWithHeldFirstGenerate();
+    const worker = await import("./worker.js");
+
+    // 120 s of audio with no VAD configured → the fixed-window march → several chunks.
+    const requestId = "batch-cancel-mid-chunks";
+    const posts: WorkerToMainMessage[] = [];
+    const post = (msg: WorkerToMainMessage): void => {
+      posts.push(msg);
+    };
+    const run = worker.handleMessage(
+      {
+        type: "transcribe",
+        requestId,
+        config: { modelId: "test-cancel-model", wasmPaths: "/ort/" },
+        request: { samples: new Float32Array(120 * WHISPER_SAMPLE_RATE) },
+      },
+      post,
+    );
+
+    // Let chunk 1 reach its (held) generate call.
+    await settle();
+    expect(generateCalls()).toBe(1);
+
+    // The caller's signal fired mid-batch → the main thread posts the cancel message.
+    await worker.handleMessage({ type: "cancelTranscribe", requestId }, post);
+
+    // Release chunk 1. The loop must now stop: chunk 2 never reaches generate.
+    firstChunk.resolve([{ tolist: () => [1, 2, 3] }]);
+    await run;
+
+    expect(generateCalls()).toBe(1);
+    // The cancellation comes back as an error reply (the main thread maps it to a
+    // cancellation when its own signal has aborted) — never as a `transcribed`.
+    const errorPost = posts.find((m) => m.type === "error");
+    expect(errorPost).toMatchObject({ type: "error", requestId });
+    if (errorPost?.type === "error") expect(errorPost.message).toMatch(/aborted by the caller/i);
+    expect(posts.some((m) => m.type === "transcribed")).toBe(false);
+
+    vi.doUnmock("@huggingface/transformers");
+    vi.resetModules();
+    clearCancelledTranscribes();
+  });
+
+  test("a cancel that arrives while the request is still queued behind serialize skips inference entirely", async () => {
+    clearCancelledTranscribes();
+    vi.resetModules();
+    const { generateCalls, firstChunk } = mockTransformersWithHeldFirstGenerate();
+    const worker = await import("./worker.js");
+
+    const posts: WorkerToMainMessage[] = [];
+    const post = (msg: WorkerToMainMessage): void => {
+      posts.push(msg);
+    };
+    // Request 1: short (one chunk), holds the serialize chain on its generate.
+    const holderRun = worker.handleMessage(
+      {
+        type: "transcribe",
+        requestId: "batch-holder",
+        config: { modelId: "test-cancel-model", wasmPaths: "/ort/" },
+        request: { samples: new Float32Array(1 * WHISPER_SAMPLE_RATE) },
+      },
+      post,
+    );
+    await settle();
+    expect(generateCalls()).toBe(1);
+
+    // Request 2: long (multi-chunk), queued behind request 1. Cancelled BEFORE it starts.
+    const queuedRun = worker.handleMessage(
+      {
+        type: "transcribe",
+        requestId: "batch-queued",
+        config: { modelId: "test-cancel-model", wasmPaths: "/ort/" },
+        request: { samples: new Float32Array(120 * WHISPER_SAMPLE_RATE) },
+      },
+      post,
+    );
+    await worker.handleMessage({ type: "cancelTranscribe", requestId: "batch-queued" }, post);
+
+    // Release the holder. The queued request's turn comes: it must observe the
+    // cancellation at its start check and run zero chunks.
+    firstChunk.resolve([{ tolist: () => [1, 2, 3] }]);
+    await holderRun;
+    await queuedRun;
+
+    // Exactly one generate call — the holder's. A queued-but-cancelled request
+    // that still ran inference would add its chunks on top of this.
+    expect(generateCalls()).toBe(1);
+    const queuedError = posts.find((m) => m.type === "error");
+    expect(queuedError).toMatchObject({ type: "error", requestId: "batch-queued" });
+    if (queuedError?.type === "error")
+      expect(queuedError.message).toMatch(/aborted by the caller/i);
+    expect(posts.some((m) => m.type === "transcribed" && m.requestId === "batch-queued")).toBe(
+      false,
+    );
+
+    vi.doUnmock("@huggingface/transformers");
+    vi.resetModules();
+    clearCancelledTranscribes();
   });
 });

@@ -15,6 +15,24 @@
 export const PDFJS_ENGINE = "pdfjs";
 
 /**
+ * The handle `pdfjs.getDocument(params)` returns — pdf.js's `PDFDocumentLoadingTask`,
+ * narrowed to the members this package uses.
+ *
+ * `destroy` is the transport's cancellation lever (the widen-transcriber-contract
+ * plan, Task 4): it terminates pdf.js's worker and rejects the pending `promise`
+ * and any in-flight page reads. It was previously absent from this shim — the real
+ * module has always had it — which is why cancellation could not be wired here
+ * before. Real pdf.js's task carries many more members; anything else stays
+ * undeclared.
+ */
+export interface PdfLoadingTask {
+  /** Resolves to the document proxy, or rejects when destroyed or invalid. */
+  promise: Promise<PdfDocumentProxy>;
+  /** Terminate the worker and reject pending work. Idempotent in real pdf.js. */
+  destroy: () => Promise<void>;
+}
+
+/**
  * The subset of the `pdfjs-dist` module API this package consumes.
  *
  * Defined here rather than imported from `pdfjs-dist` types so the lazy
@@ -23,7 +41,7 @@ export const PDFJS_ENGINE = "pdfjs";
  * `getDocument` and `GlobalWorkerOptions`.
  */
 export interface PdfjsModule {
-  getDocument: (params: Record<string, unknown>) => { promise: Promise<PdfDocumentProxy> };
+  getDocument: (params: Record<string, unknown>) => PdfLoadingTask;
   GlobalWorkerOptions: { workerSrc: string };
 }
 

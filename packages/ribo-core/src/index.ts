@@ -83,6 +83,7 @@ export {
 } from "./transcriber.js";
 export type {
   Transcriber,
+  TranscribeOptions,
   TranscriberCapability,
   TranscriberUnavailableInit,
   TranscriberUnavailableReason,

@@ -276,3 +276,45 @@ test("an over-long key is rejected at the boundary, not at the index layer", asy
   await storage.set("k".repeat(256), "v");
   expect(await storage.get("k".repeat(256))).toBe("v");
 });
+
+// ---------------------------------------------------------------------------
+// Delivery scopes: the two partial applications of pluginStorage — one keyed by
+// capture (what the relay hands a transcriber), one keyed by plugin (what a
+// host hands an extractor at construction).
+// ---------------------------------------------------------------------------
+
+test("captureStorage.forPlugin is the same keyspace as pluginStorage(captureId, pluginId)", async () => {
+  const { outbox, captureId } = await freshOutbox();
+
+  const viaScope = outbox.captureStorage(captureId).forPlugin("plugin-A");
+  await viaScope.set("k", { v: 1 });
+
+  // The substrate accessor reads what the scope wrote — one keyspace, two handles.
+  expect(await outbox.pluginStorage(captureId, "plugin-A").get("k")).toEqual({ v: 1 });
+  expect(await viaScope.keys()).toEqual(["k"]);
+});
+
+test("pluginStorageScope.capture is the same keyspace as pluginStorage(captureId, pluginId)", async () => {
+  const { outbox, captureId } = await freshOutbox();
+
+  await outbox.pluginStorage(captureId, "plugin-A").set("k", "written-by-transcriber");
+
+  const scope = outbox.pluginStorageScope("plugin-A");
+  expect(await scope.capture(captureId).get("k")).toBe("written-by-transcriber");
+});
+
+test("pluginStorageScope.captures enumerates only this plugin's captures, sorted", async () => {
+  const { outbox, captureId: cap1 } = await freshOutbox();
+  const session = await outbox.openSession({ ctx: { jobId: "job-2" }, ref: "job-2" });
+  const item2 = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
+  const cap2 = item2.id;
+
+  await outbox.pluginStorage(cap1, "plugin-A").set("k", "v1");
+  await outbox.pluginStorage(cap2, "plugin-A").set("k", "v2");
+  // Another plugin's entry for cap1 must not put cap1 in plugin-B's enumeration.
+  await outbox.pluginStorage(cap1, "plugin-B").set("k", "b");
+
+  const scope = outbox.pluginStorageScope("plugin-A");
+  expect(await scope.captures()).toEqual([cap1, cap2].sort());
+  expect(await outbox.pluginStorageScope("plugin-B").captures()).toEqual([cap1]);
+});

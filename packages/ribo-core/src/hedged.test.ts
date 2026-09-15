@@ -10,6 +10,7 @@ import {
   TranscriberUnavailableError,
   type Transcriber,
   type TranscriberCapability,
+  type TranscribeOptions,
 } from "./transcriber.js";
 
 const recording = (id = "rec-1"): Recording => ({
@@ -33,11 +34,13 @@ const deferredTranscriber = (
   let resolveFn!: (text: string) => void;
   let rejectFn!: (error: Error) => void;
   let calls = 0;
+  const callOptions: (TranscribeOptions | undefined)[] = [];
   const transcriber: Transcriber = {
     engine,
     capability: () => Promise.resolve(capability),
-    transcribe: (rec: Recording) => {
+    transcribe: (rec: Recording, _bytes: Blob, options?: TranscribeOptions) => {
       calls++;
+      callOptions.push(options);
       return new Promise((res, rej) => {
         resolveFn = (text: string) => res({ recordingId: rec.id, text, engine });
         rejectFn = rej;
@@ -48,6 +51,9 @@ const deferredTranscriber = (
     transcriber,
     get calls() {
       return calls;
+    },
+    get callOptions() {
+      return callOptions;
     },
     resolve: (text = `${engine} text`) => resolveFn(text),
     reject: (error: Error) => rejectFn(error),
@@ -486,4 +492,33 @@ test("nothing is ready but something could be: transient, so the queue retries",
   expect(error).toBeInstanceOf(TranscriberUnavailableError);
   expect(error).not.toBeInstanceOf(TerminalQueueError);
   expect(isTransientFailure(error)).toBe(true);
+});
+
+// The caller's signal must reach BOTH racing candidates, verbatim. The hedge
+// timer is a latency policy, not a cancellation: cancelling the loser is a
+// different concern from the caller cancelling the race, so no per-branch
+// signal is synthesised here. A combinator that accepted `options` and
+// forwarded none would typecheck — the identity assertion is the only guard.
+test("the caller's options reach both racing candidates, by identity", async () => {
+  const primary = deferredTranscriber("ondevice");
+  const hedge = new FakeTranscriber({ engine: "managed", text: "managed text" });
+  const timer = fakeTimer();
+  const composite = hedged(primary.transcriber, hedge, {
+    delay,
+    scheduleTimer: timer.schedule,
+  });
+  const controller = new AbortController();
+
+  const result = composite.transcribe(recording(), audio(), { signal: controller.signal });
+  await waitFor(() => timer.isScheduled);
+  timer.fire();
+  await waitFor(() => hedge.calls.length === 1);
+  primary.resolve();
+  const transcript = await result;
+
+  expect(transcript.engine).toBe("managed");
+  expect(primary.callOptions).toHaveLength(1);
+  expect(primary.callOptions[0]?.signal).toBe(controller.signal);
+  expect(hedge.callOptions).toHaveLength(1);
+  expect(hedge.callOptions[0]?.signal).toBe(controller.signal);
 });

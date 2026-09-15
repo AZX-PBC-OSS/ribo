@@ -428,11 +428,28 @@ class QueueRelay implements Relay {
     if (!audio) {
       throw new TerminalQueueError(`audio attachment is missing for item ${item.id}`);
     }
+    // The step's signal and the step timeout are one mechanism, not two: when
+    // the deadline fires the controller aborts, so the transcriber's in-flight
+    // work (a fetch request, a worker's chunk loop, a pdf.js loading task) is
+    // cancelled rather than left to run to completion behind the rejection.
+    // Same wiring as `#sessionExtract` below.
+    const stepAbort = new AbortController();
     const transcript = transcriptSchema.parse(
       await withTimeout(
-        this.#options.transcriber.transcribe(item.recording, audio),
+        this.#options.transcriber.transcribe(item.recording, audio, {
+          signal: stepAbort.signal,
+          // The transcriber's half of the plugin-storage delivery: a handle
+          // scoped to THIS capture, with the plugin naming itself through
+          // `forPlugin` — the relay cannot know which engine a selection
+          // combinator will pick, so it scopes what it knows and the engine
+          // supplies the identity it knows. An extractor from the same plugin
+          // reads these entries back through `Outbox.pluginStorageScope`,
+          // minted at that extractor's construction.
+          storage: this.#options.outbox.captureStorage(item.id),
+        }),
         this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
         "transcribe",
+        () => stepAbort.abort("relay: the transcribe step timed out"),
       ),
     );
     // Transitions to `transcribed` — extraction and write are session-level now.

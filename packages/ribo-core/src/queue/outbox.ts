@@ -16,7 +16,14 @@ import {
   type SessionCollection,
 } from "./database.js";
 import { commitRegion, handoffTranscript, writeTail } from "./preview.js";
-import { createPluginStorage, type PluginStorage } from "./plugin-storage.js";
+import {
+  createCaptureStorageScope,
+  createPluginStorage,
+  createPluginStorageScope,
+  type CaptureStorageScope,
+  type PluginStorage,
+  type PluginStorageScope,
+} from "./plugin-storage.js";
 import { reviewOutcomeSchema, type PersistedReviewOutcome } from "../review.js";
 import {
   ACTIVE_OUTBOX_STATUSES,
@@ -656,6 +663,33 @@ export class Outbox {
    */
   pluginStorage(captureId: string, pluginId: string): PluginStorage {
     return createPluginStorage(this.#pluginStorageCollection, captureId, pluginId);
+  }
+
+  /**
+   * Storage scoped to one capture, with the plugin yet to name itself.
+   *
+   * This is the handle shape the relay puts in `TranscribeOptions.storage`:
+   * the capture is fixed by the caller (the relay, which is draining that
+   * capture) and the plugin dimension is supplied by whoever receives the
+   * scope — a transcriber naming itself, conventionally by its `engine` id.
+   * See {@link CaptureStorageScope} for what the handle promises.
+   */
+  captureStorage(captureId: string): CaptureStorageScope {
+    return createCaptureStorageScope(this.#pluginStorageCollection, captureId);
+  }
+
+  /**
+   * Storage scoped to one plugin, across every capture it has entries for —
+   * the **construction-time** handle a host hands an extractor, which knows
+   * which plugin it is building. The plugin's transcriber half writes
+   * per-capture entries through `TranscribeOptions.storage`; this scope is how
+   * the extractor half reads them back, one capture at a time, with live reads
+   * so a swept capture is never returned stale. See {@link PluginStorageScope}
+   * for what a plugin author can and cannot rely on — in particular that the
+   * scope is **not** bounded to a session.
+   */
+  pluginStorageScope(pluginId: string): PluginStorageScope {
+    return createPluginStorageScope(this.#pluginStorageCollection, pluginId);
   }
 
   /**

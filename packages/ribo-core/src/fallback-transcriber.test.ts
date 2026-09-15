@@ -288,4 +288,26 @@ describe("fallbackTranscriber", () => {
     await expect(composite.transcribe(recording(), audio())).rejects.toBe(oom);
     expect(second.calls).toHaveLength(0);
   });
+
+  // The caller's options must reach every candidate that runs, by identity. A
+  // combinator that accepted `options` and forwarded none typechecks, because
+  // the parameter is optional — the identity assertion is the only guard (the
+  // same lesson as fallbackExtractor's abort-signal test).
+  test("the caller's options reach every candidate that runs, by identity", async () => {
+    const first = fake("pdfjs");
+    first.failWithUnsupported("no-text-layer", "scanned PDF");
+    const second = fake("ocr", { text: "OCR text" });
+    const composite = fallbackTranscriber([first, second], unsupportedFallsThrough);
+    const controller = new AbortController();
+
+    const transcript = await composite.transcribe(recording(), audio(), {
+      signal: controller.signal,
+    });
+
+    expect(transcript.engine).toBe("ocr");
+    expect(first.callOptions).toHaveLength(1);
+    expect(first.callOptions[0]?.signal).toBe(controller.signal);
+    expect(second.callOptions).toHaveLength(1);
+    expect(second.callOptions[0]?.signal).toBe(controller.signal);
+  });
 });

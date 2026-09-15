@@ -1,6 +1,7 @@
 import type { CaptureItem } from "./capture-item.js";
 import type { Recording } from "./recording.js";
 import type { Transcript } from "./transcript.js";
+import type { CaptureStorageScope } from "./queue/plugin-storage.js";
 
 /**
  * @file The transcription contract: what an engine can do, and what happened when it tried.
@@ -103,6 +104,43 @@ export function isPermanentlyUnavailable(capability: TranscriberCapability): boo
 }
 
 /**
+ * Run context for one `transcribe` call.
+ *
+ * The sibling of `ExtractOptions` on `Extractor.extract` — same parameter position (an optional
+ * trailing object), same optionality, same shape, so the two run-context contracts do not drift.
+ * An implementation that cannot honour a member must not pretend otherwise: a signal that is
+ * accepted and not forwarded looks like cancellation and is not. Each transport states what it
+ * does with the signal in its own doc comment.
+ */
+export interface TranscribeOptions {
+  /**
+   * Cancels the transcription attempt. The caller (the relay, a hedged race, a host) aborts;
+   * what an abort does is per-transport and stated in each implementation's doc comment. An
+   * implementation must either forward this to the work it does or say plainly that it cannot.
+   */
+  readonly signal?: AbortSignal;
+  /**
+   * The plugin-storage handle for **this capture**, supplied by the caller that has one — the
+   * relay, which drains captures through an outbox. A host driving a transcriber by hand has
+   * none to give, so the member is optional and an implementation that needs storage must
+   * handle its absence rather than assume it.
+   *
+   * The handle is scoped to the capture being transcribed; the transcriber names its own
+   * plugin — conventionally its {@link Transcriber.engine} id — through
+   * {@link CaptureStorageScope.forPlugin}, so two engines picked for the same capture land in
+   * separate namespaces and cannot read or clobber each other's keys. Entries are durable
+   * (they survive a close-and-reopen and are visible from another tab) and core sweeps them
+   * when the capture is dropped or discarded, so a plugin never cleans up after itself. An
+   * extractor from the same plugin reads them back through `Outbox.pluginStorageScope(pluginId)`
+   * — the construction-time handle, since the relay cannot name the plugin an opaque extract
+   * step belongs to.
+   *
+   * This is the only storage a plugin ever sees. The `Outbox` itself is never handed to one.
+   */
+  readonly storage?: CaptureStorageScope;
+}
+
+/**
  * Turns captured bytes into a {@link Transcript}.
  *
  * The bytes are passed separately from the capture record on purpose: the record
@@ -170,10 +208,16 @@ export interface Transcriber<S extends CaptureItem = Recording> {
   /**
    * Transcribe one capture item.
    *
+   * The trailing `options` parameter is the same bag `extract` takes —
+   * {@link TranscribeOptions}, currently an optional `signal`. It is an
+   * **options object, not a positional parameter**, exactly so Task-6-style
+   * members can join it without a third parameter ever appearing. Passing
+   * `options` through is the implementation's job; see the type's doc.
+   *
    * See the interface doc for the three failure kinds and why conflating them is the bug
    * this contract exists to prevent.
    */
-  transcribe: (item: S, bytes: Blob) => Promise<Transcript>;
+  transcribe: (item: S, bytes: Blob, options?: TranscribeOptions) => Promise<Transcript>;
 }
 
 export interface TranscriberUnavailableInit {

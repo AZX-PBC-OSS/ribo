@@ -13,7 +13,14 @@
  * `Blob` to 16 kHz mono PCM on the main thread (doc 11), transferring it to the worker, biasing the
  * decoder with the configured domain-jargon hints, and returning a stamped {@link Transcript}.
  */
-import type { Recording, Transcript, Transcriber, TranscriberCapability } from "@azx/ribo-core";
+import { TerminalQueueError } from "@azx/ribo-core";
+import type {
+  Recording,
+  Transcript,
+  Transcriber,
+  TranscriberCapability,
+  TranscribeOptions,
+} from "@azx/ribo-core";
 
 import { measureRtf } from "./calibration.js";
 import { ondeviceEngineId } from "./engine-id.js";
@@ -340,10 +347,60 @@ export class OnDeviceTranscriber implements Transcriber {
    * runs Whisper on the `Float32Array`, biased by the configured hints (turned into a decoder prefix
    * there). The returned {@link Transcript} is stamped with this transcriber's {@link engine}, so
    * provenance flows into the outbox.
+   *
+   * ## Cancellation — the signal IS honoured, and `terminate()` is deliberately not the mechanism
+   *
+   * `TranscribeOptions.signal` is honoured at three points:
+   *
+   * 1. **Before the decode.** An already-aborted signal starts nothing — no
+   *    `AudioContext`, no worker message.
+   * 2. **After the decode, before the worker is engaged.**
+   * 3. **Between inference chunks, inside the worker.** The main thread posts a
+   *    `cancelTranscribe { requestId }` protocol message when the signal fires; the worker's batch
+   *    loop checks the flag before starting work and between chunks, and replies with an ordinary
+   *    `error`, which this side maps to a `TerminalQueueError` when its own signal has aborted.
+   *    Cancellation latency is therefore bounded by one chunk — at most Whisper's 30 s window —
+   *    and a request that was still queued behind `serialize` when the cancel arrived skips its
+   *    inference entirely.
+   *
+   * **Why not `worker.terminate()`:** the worker channel is shared with live transcription — batch
+   * replies are matched by `requestId`, live replies by `sessionId`, precisely so they do not
+   * crosstalk — so a terminate on a batch abort would also kill a user's in-flight dictation
+   * preview, and would throw away the primed model that `prime()` exists to avoid paying for twice.
+   * A batch cancellation consequently has **no effect on any live session**: the cancel message is
+   * keyed by `requestId` and cannot crosstalk, the cancelled batch stops at the next chunk boundary
+   * (freeing the serialized inference chain sooner for the live session's next turn), and the worker
+   * itself stays warm. {@link dispose} remains the only thing that ever terminates the worker.
+   *
+   * A cancellation rejects with `TerminalQueueError` — the same classification the fetch transports
+   * use — so the queue does not burn its retry budget re-running work the caller withdrew.
    */
-  async transcribe(recording: Recording, audio: Blob): Promise<Transcript> {
+  async transcribe(
+    recording: Recording,
+    audio: Blob,
+    options?: TranscribeOptions,
+  ): Promise<Transcript> {
+    const signal = options?.signal;
+    const cancelled = (when: string, cause?: unknown): TerminalQueueError =>
+      new TerminalQueueError(
+        `on-device: transcription of recording ${recording.id} was cancelled ${when} — ` +
+          `the caller's AbortSignal fired. A cancelled transcription is never retried.`,
+        { cause },
+      );
+
+    // (1) The caller withdrew before the call — decode nothing, post nothing.
+    if (signal?.aborted) {
+      throw cancelled("before it started");
+    }
+
     const worker = this.#ensureWorker();
     const samples = await decodeTo16kMono(audio);
+
+    // (2) The signal may have fired during the decode — do not engage the worker.
+    if (signal?.aborted) {
+      throw cancelled("during the decode step");
+    }
+
     const prompt = buildHintPrompt(this.#hints);
     const request: TranscribeWorkerRequest = { samples, ...(prompt ? { prompt } : {}) };
     const requestId = crypto.randomUUID();
@@ -354,11 +411,37 @@ export class OnDeviceTranscriber implements Transcriber {
       config: this.#pipelineConfig(),
       request,
     };
-    // Transfer the samples' backing buffer so the ~N MB of PCM moves rather than copies (doc 11 §2).
-    const text = await this.#awaitReply(worker, message, "transcribed", "transcribing", undefined, [
-      samples.buffer,
-    ]);
-    return { recordingId: recording.id, text: text ?? "", engine: this.engine };
+    // (3) Forward the abort into the worker protocol: the batch loop stops at the next chunk
+    // boundary. Removed when the request settles, so a late abort posts nothing.
+    const onAbort = (): void => {
+      const cancel: MainToWorkerMessage = { type: "cancelTranscribe", requestId };
+      worker.postMessage(cancel);
+    };
+    signal?.addEventListener("abort", onAbort);
+
+    try {
+      // Transfer the samples' backing buffer so the ~N MB of PCM moves rather than copies (doc 11 §2).
+      const text = await this.#awaitReply(
+        worker,
+        message,
+        "transcribed",
+        "transcribing",
+        undefined,
+        [samples.buffer],
+      );
+      return { recordingId: recording.id, text: text ?? "", engine: this.engine };
+    } catch (error) {
+      // An error reply while the caller's signal has aborted is the cancellation
+      // coming back from the worker's chunk-boundary check. Distinguished from a
+      // genuine attempt failure (an OOM, an ORT error) so the queue does not
+      // retry withdrawn work.
+      if (signal?.aborted) {
+        throw cancelled("during inference", error);
+      }
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", onAbort);
+    }
   }
 
   /** The pipeline construction config the worker needs — the consumer's model/runtime choices. */

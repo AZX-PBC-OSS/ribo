@@ -1,10 +1,11 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 import {
   createRelay,
   openOutbox,
   removeOutboxDatabase,
   restrictToKind,
+  TerminalQueueError,
   type Outbox,
   type Recording,
   type SessionExtractStep,
@@ -231,6 +232,95 @@ test("transcribe rejects (attempt failure) when the worker reports an error", as
   await expect(
     transcriber.transcribe(recording, wavBlob([constant(0.1, 16_000)], 16_000)),
   ).rejects.toThrow(/OOM/);
+});
+
+// ── Cancellation (widen-transcriber-contract plan, Task 3) ────────────────────
+//
+// The main-thread half of the signal channel: an abort must post
+// `cancelTranscribe` for the in-flight batch's requestId — asserted on the
+// message the worker OBSERVES, not on the promise rejecting — and an error
+// reply that arrives while the caller's signal is aborted is classified as a
+// cancellation (terminal), not an attempt failure.
+
+test("an abort mid-transcription posts cancelTranscribe for the in-flight batch's requestId", async () => {
+  // A silent worker: the batch is in flight and nothing replies, which is
+  // exactly the state an abort is meant to interrupt.
+  const worker = new FakeWorker(() => []);
+  const transcriber = new OnDeviceTranscriber({
+    wasmPaths: WASM_PATHS,
+    workerTimeoutMs: 100,
+    createWorker: () => worker as unknown as Worker,
+  });
+  const controller = new AbortController();
+
+  const pending = transcriber.transcribe(recording, wavBlob([constant(0.1, 16_000)], 16_000), {
+    signal: controller.signal,
+  });
+  // Wait until the batch request is actually on the channel, then abort.
+  await vi.waitFor(() =>
+    expect(worker.posted.some((p) => p.message.type === "transcribe")).toBe(true),
+  );
+  controller.abort();
+
+  const transcribeMsg = worker.posted.find((p) => p.message.type === "transcribe")!.message;
+  const cancelMsg = worker.posted.find((p) => p.message.type === "cancelTranscribe")?.message;
+  // The worker observed a cancel message whose requestId matches the batch it
+  // belongs to — no crosstalk, and no terminate (the FakeWorker's terminate is
+  // never the mechanism; only dispose() may call it).
+  expect(transcribeMsg.type === "transcribe").toBe(true);
+  expect(cancelMsg?.type === "cancelTranscribe").toBe(true);
+  if (cancelMsg?.type === "cancelTranscribe" && transcribeMsg.type === "transcribe") {
+    expect(cancelMsg.requestId).toBe(transcribeMsg.requestId);
+  }
+
+  // The worker never replies (silent death); the attempt then fails — as a
+  // cancellation (terminal), not as the retryable worker-timeout it would
+  // otherwise be classified as.
+  const error = await pending.catch((e: unknown) => e);
+  expect(error).toBeInstanceOf(TerminalQueueError);
+});
+
+test("an error reply arriving while the caller's signal is aborted is classified as a cancellation, not an attempt failure", async () => {
+  // A controllable worker: the test decides when the error reply is emitted, so
+  // the abort deterministically precedes it — the order the worker's chunk-boundary
+  // cancellation actually produces.
+  class ManualWorker {
+    readonly posted: MainToWorkerMessage[] = [];
+    #listener?: (event: unknown) => void;
+    addEventListener(type: string, fn: (event: unknown) => void): void {
+      if (type === "message") this.#listener = fn;
+    }
+    removeEventListener(type: string, fn: (event: unknown) => void): void {
+      if (type === "message" && this.#listener === fn) this.#listener = undefined;
+    }
+    postMessage(message: MainToWorkerMessage): void {
+      this.posted.push(message);
+    }
+    emit(message: WorkerToMainMessage): void {
+      this.#listener?.({ data: message });
+    }
+  }
+  const worker = new ManualWorker();
+  const transcriber = new OnDeviceTranscriber({
+    wasmPaths: WASM_PATHS,
+    createWorker: () => worker as unknown as Worker,
+  });
+  const controller = new AbortController();
+
+  const pending = transcriber.transcribe(recording, wavBlob([constant(0.1, 16_000)], 16_000), {
+    signal: controller.signal,
+  });
+  await vi.waitFor(() => expect(worker.posted.some((m) => m.type === "transcribe")).toBe(true));
+  controller.abort();
+  const posted = worker.posted[0];
+  worker.emit({
+    type: "error",
+    requestId: posted?.type === "transcribe" ? posted.requestId : "",
+    message: "stopped at the chunk boundary",
+  });
+
+  const error = await pending.catch((e: unknown) => e);
+  expect(error).toBeInstanceOf(TerminalQueueError);
 });
 
 // ── relay substitutability: drop-in for FakeTranscriber, zero relay changes ───────────────────────

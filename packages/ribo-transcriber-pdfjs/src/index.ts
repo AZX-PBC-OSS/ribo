@@ -24,6 +24,7 @@ import type {
   Transcript,
   Transcriber,
   TranscriberCapability,
+  TranscribeOptions,
 } from "@azx/ribo-core";
 
 import {
@@ -89,6 +90,16 @@ export type {
  * pdf.js's own password / invalid-PDF exceptions are mapped to
  * `UnsupportedItemError` (`encrypted` / `unsupported-format`); anything else
  * rethrows unchanged, because it is an attempt failure and the queue owns it.
+ *
+ * ## Cancellation
+ *
+ * The signal is **honoured**: pdf.js's own cancellation lever —
+ * `loadingTask.destroy()` — is wired to it, so an abort terminates pdf.js's
+ * worker and rejects the pending open and any in-flight page read; the sweep
+ * additionally checks the signal at the top of every page, so work already
+ * loaded stops at the next page boundary. A cancellation rejects with
+ * `TerminalQueueError`, not a raw pdf.js exception, so the queue does not
+ * mistake it for a flaky network and burn the retry budget — see `pdf-text.ts`.
  */
 export class PdfjsTranscriber implements Transcriber<DocumentCapture> {
   readonly engine = PDFJS_ENGINE;
@@ -130,13 +141,18 @@ export class PdfjsTranscriber implements Transcriber<DocumentCapture> {
     return { status: "ready" };
   }
 
-  transcribe: (item: DocumentCapture, bytes: Blob) => Promise<Transcript> = async (item, bytes) => {
+  transcribe: (
+    item: DocumentCapture,
+    bytes: Blob,
+    options?: TranscribeOptions,
+  ) => Promise<Transcript> = async (item, bytes, options) => {
     const { text } = await readDocumentText(bytes, {
       workerSrc: this.#workerSrc!,
       loadPdfjs: this.#loadPdfjs,
       noTextLayerThreshold: this.#noTextLayerThreshold,
       engine: this.engine,
       onPage: this.#onPage,
+      signal: options?.signal,
     });
 
     return {

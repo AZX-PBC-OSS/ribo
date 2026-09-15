@@ -213,3 +213,84 @@ describe("ManagedTranscriber — transcribe", () => {
     expect(definition.phraseList).toBeDefined();
   });
 });
+
+// --- Cancellation — Task 2 of the widen-transcriber-contract plan -----------------
+//
+// Two properties must hold, and neither may be asserted on "the promise
+// rejected": the transport must OBSERVE the caller's signal (by identity, and
+// by actually being torn down by it), and a cancellation must be classified
+// terminal so the queue does not burn its retry budget re-running work the
+// caller withdrew.
+
+describe("ManagedTranscriber — cancellation", () => {
+  test("the caller's signal reaches the fetch init — by identity", async () => {
+    const { fetchImpl, calls } = fakeFetch(Response.json(OK_BODY));
+    const t = new ManagedTranscriber({ endpoint: ENDPOINT, fetchImpl });
+    const controller = new AbortController();
+
+    await t.transcribe(RECORDING, AUDIO, { signal: controller.signal });
+
+    expect(calls[0]!.init.signal).toBe(controller.signal);
+  });
+
+  test("aborting mid-flight aborts the in-flight request — the transport observed the abort, and the rejection is terminal", async () => {
+    // A fetch double with REAL abort semantics: it rejects only when the signal
+    // it was handed fires. If the implementation stops forwarding the signal,
+    // this promise never settles and the test times out — a hung test IS the
+    // observation that the transport never saw the abort. An implementation that
+    // forwards the signal but not the classification fails the assertions below.
+    let observed: AbortSignal | undefined;
+    const fetchImpl = ((_input: RequestInfo | URL, init?: RequestInit) => {
+      observed = init?.signal ?? undefined;
+      return new Promise<Response>((_, reject) => {
+        observed?.addEventListener("abort", () =>
+          reject(new DOMException("This operation was aborted", "AbortError")),
+        );
+      });
+    }) as typeof fetch;
+    const t = new ManagedTranscriber({ endpoint: ENDPOINT, fetchImpl });
+    const controller = new AbortController();
+
+    const pending = t.transcribe(RECORDING, AUDIO, { signal: controller.signal });
+    controller.abort();
+    const error = await pending.catch((e: unknown) => e);
+
+    // The transport observed the abort, not merely a rejection.
+    expect(observed?.aborted).toBe(true);
+    // ...and the classification: terminal, so the queue does not retry a
+    // cancelled transcription the way it retries a flaky network.
+    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(isTransientFailure(error)).toBe(false);
+  });
+
+  test("an already-aborted signal cancels before the request is sent", async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls++;
+      return Response.json(OK_BODY);
+    }) as typeof fetch;
+    const t = new ManagedTranscriber({ endpoint: ENDPOINT, fetchImpl });
+    const controller = new AbortController();
+    controller.abort();
+
+    const error = await t
+      .transcribe(RECORDING, AUDIO, { signal: controller.signal })
+      .catch((e: unknown) => e);
+
+    // The caller withdrew before the call — nothing may reach the network.
+    expect(calls).toBe(0);
+    expect(error).toBeInstanceOf(TerminalQueueError);
+  });
+
+  test("a genuine network failure stays retryable — the cancellation path must not swallow it", async () => {
+    const fetchImpl = (() => Promise.reject(new TypeError("Failed to fetch"))) as typeof fetch;
+    const t = new ManagedTranscriber({ endpoint: ENDPOINT, fetchImpl });
+
+    const error = await t
+      .transcribe(RECORDING, AUDIO, { signal: new AbortController().signal })
+      .catch((e: unknown) => e);
+
+    expect(error).not.toBeInstanceOf(TerminalQueueError);
+    expect(isTransientFailure(error)).toBe(true);
+  });
+});

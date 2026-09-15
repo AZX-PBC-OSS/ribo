@@ -6,6 +6,7 @@ import {
   type Transcriber,
   type TranscriberCapability,
   type TranscriberUnavailableReason,
+  type TranscribeOptions,
 } from "./transcriber.js";
 import { UnsupportedItemError, type UnsupportedItemReason } from "./unsupported-item.js";
 
@@ -64,6 +65,7 @@ export class FakeTranscriber<S extends CaptureItem = Recording> implements Trans
   readonly engine: string;
 
   readonly #calls: FakeTranscribeCall<S>[] = [];
+  readonly #callOptions: (TranscribeOptions | undefined)[] = [];
   readonly #responses = new Map<string, FakeTranscriberResponse>();
   readonly #defaultText: string;
   readonly #defaultConfidence: number | undefined;
@@ -87,6 +89,18 @@ export class FakeTranscriber<S extends CaptureItem = Recording> implements Trans
   /** Every call so far, including calls that were made to fail. */
   get calls(): readonly FakeTranscribeCall<S>[] {
     return this.#calls;
+  }
+
+  /**
+   * The options of every `transcribe()` call, positionally matching {@link calls}.
+   *
+   * Recorded rather than ignored so a combinator test can assert the caller's options — the
+   * `AbortSignal` by identity — actually reached the candidate. A combinator that accepts
+   * `options` and forwards none typechecks, and did in the extractor's case: the parameter
+   * is optional, so a dropped forward is invisible without this.
+   */
+  get callOptions(): readonly (TranscribeOptions | undefined)[] {
+    return this.#callOptions;
   }
 
   /**
@@ -157,11 +171,12 @@ export class FakeTranscriber<S extends CaptureItem = Recording> implements Trans
   }
 
   /**
-   * Drop recorded calls, the probe count and any queued failure, and restore the capability the
-   * fake was constructed with. Canned responses survive.
+   * Drop recorded calls, options, the probe count and any queued failure, and restore the
+   * capability the fake was constructed with. Canned responses survive.
    */
   reset(): void {
     this.#calls.length = 0;
+    this.#callOptions.length = 0;
     this.#capabilityCalls = 0;
     this.#capability = this.#initialCapability;
     this.#persistentFailure = undefined;
@@ -173,8 +188,9 @@ export class FakeTranscriber<S extends CaptureItem = Recording> implements Trans
     return Promise.resolve(this.#capability);
   }
 
-  async transcribe(item: S, bytes: Blob): Promise<Transcript> {
+  async transcribe(item: S, bytes: Blob, options?: TranscribeOptions): Promise<Transcript> {
     this.#calls.push({ item, bytes });
+    this.#callOptions.push(options);
 
     const failure = this.#takeFailure();
     if (failure) throw failure;

@@ -1810,6 +1810,51 @@ test("a session extract that outlives the step timeout aborts the extractor's si
   await outbox.close();
 });
 
+test("a transcribe that outlives the step timeout aborts the transcriber's signal, not just the relay's await", async () => {
+  // The symmetric gap to the session-extract test above: `#transcribe` wrapped
+  // `transcriber.transcribe(...)` in `withTimeout` with no `onTimeout` hook, so a
+  // timed-out transcription rejected while its work ran to completion unseen. The
+  // assertion is on what the TRANSCRIBER received and whether that signal was
+  // actually ABORTED — a test that only checked the park would pass against an
+  // implementation that forwards nothing.
+  const outbox = await openTestOutbox(uniqueName());
+  const receivedSignals: (AbortSignal | undefined)[] = [];
+  const hung: Transcriber<CaptureItem> = {
+    engine: "hung",
+    capability: async () => ({ status: "ready" }) as const,
+    transcribe: (_item, _bytes, options) => {
+      receivedSignals.push(options?.signal);
+      // Never settles — the step timeout must fire and cancel it.
+      return new Promise<never>(() => {});
+    },
+  };
+
+  const relay = createRelay({
+    outbox,
+    transcriber: hung,
+    sessionExtract: async () => ({ fields: {}, usage: { calls: 1 } }),
+    sessionWrite: async () => undefined,
+    stepTimeoutMs: 50,
+    maxAttempts: 1,
+  });
+
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  await outbox.enqueue({ recording, audio: audio(), sessionId: session.id });
+  await relay.syncNow(); // transcribes — and exceeds the step timeout
+
+  // The timed-out attempt failed as an ordinary attempt (maxAttempts: 1, so it
+  // rests at `dead` — the error is recorded either way)...
+  const parked = await outbox.list();
+  expect(parked[0]?.lastError).toMatch(/did not settle/i);
+
+  // ...but the load-bearing assertion: the transport observed an ABORT, not
+  // abandonment.
+  expect(receivedSignals[0], "the transcriber received an options bag with a signal").toBeDefined();
+  expect(receivedSignals[0]?.aborted).toBe(true);
+
+  await outbox.close();
+});
+
 // ---------------------------------------------------------------------------
 // Two tabs, one queue
 // ---------------------------------------------------------------------------

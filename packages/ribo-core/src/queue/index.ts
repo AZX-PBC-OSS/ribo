@@ -95,8 +95,12 @@ export {
 } from "./plugin-storage-schema.js";
 export type { PluginStorageDocument } from "./plugin-storage-schema.js";
 
-export { createPluginStorage } from "./plugin-storage.js";
-export type { PluginStorage } from "./plugin-storage.js";
+export {
+  createCaptureStorageScope,
+  createPluginStorage,
+  createPluginStorageScope,
+} from "./plugin-storage.js";
+export type { CaptureStorageScope, PluginStorage, PluginStorageScope } from "./plugin-storage.js";
 
 export { joinSessionTranscript, listSessionTranscriptParts } from "./session-extract.js";
 

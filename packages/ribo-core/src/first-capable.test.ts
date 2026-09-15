@@ -329,3 +329,41 @@ test("the composite is itself a Transcriber, so it composes", async () => {
   // Provenance is the engine that actually produced the text, never the wrapper.
   expect((await outer.transcribe(recording(), audio())).engine).toBe("ondevice-whisper");
 });
+
+// The caller's options must reach the selected transcriber, by identity. A
+// selection combinator that accepted `options` and forwarded none typechecks,
+// because the parameter is optional — the identity assertion is the only guard
+// (the same lesson as fallbackExtractor's abort-signal test).
+test("the caller's options reach the selected transcriber, by identity", async () => {
+  const first = onDevice();
+  const second = managed();
+  const composite = firstCapable([first, second]);
+  const controller = new AbortController();
+
+  const transcript = await composite.transcribe(recording(), audio(), {
+    signal: controller.signal,
+  });
+
+  expect(transcript.engine).toBe("ondevice-whisper");
+  expect(first.callOptions).toHaveLength(1);
+  expect(first.callOptions[0]?.signal).toBe(controller.signal);
+  // The candidates never selected stay uncalled — options included.
+  expect(second.callOptions).toHaveLength(0);
+});
+
+test("the caller's options reach the engine a fallback selected, by identity", async () => {
+  const first = onDevice({
+    capability: { status: "unavailable", reason: "offline", detail: "no network" },
+  });
+  const second = managed();
+  const composite = firstCapable([first, second]);
+  const controller = new AbortController();
+
+  const transcript = await composite.transcribe(recording(), audio(), {
+    signal: controller.signal,
+  });
+
+  expect(transcript.engine).toBe("managed-azure");
+  expect(second.callOptions).toHaveLength(1);
+  expect(second.callOptions[0]?.signal).toBe(controller.signal);
+});

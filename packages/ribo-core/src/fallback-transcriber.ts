@@ -6,7 +6,7 @@ import {
   type TranscriptionArbiterInput,
   type TranscriptionOutcome,
 } from "./transcription-arbitration.js";
-import type { Transcriber, TranscriberCapability } from "./transcriber.js";
+import type { Transcriber, TranscriberCapability, TranscribeOptions } from "./transcriber.js";
 
 /**
  * @file `fallbackTranscriber` — try transcribers in order and let an arbiter
@@ -82,7 +82,7 @@ export function fallbackTranscriber<S extends CaptureItem = CaptureItem>(
       }
       return reports[0]!.capability;
     },
-    transcribe: async (item: S, bytes: Blob): Promise<Transcript> => {
+    transcribe: async (item: S, bytes: Blob, options?: TranscribeOptions): Promise<Transcript> => {
       const outcomes: TranscriptionOutcome[] = [];
 
       let index = 0;
@@ -91,7 +91,10 @@ export function fallbackTranscriber<S extends CaptureItem = CaptureItem>(
         index += 1;
 
         try {
-          const transcript = await transcriber.transcribe(item, bytes);
+          // Forwarded whole — every candidate that runs receives the caller's
+          // options, the same hand-through rule `toSessionExtractStep` states
+          // for the extractor side.
+          const transcript = await transcriber.transcribe(item, bytes, options);
           outcomes.push({ candidate: transcriber.engine, result: transcript });
         } catch (error) {
           outcomes.push({ candidate: transcriber.engine, error });

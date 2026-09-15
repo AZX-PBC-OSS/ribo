@@ -12,7 +12,13 @@
  * ManagedTranscriberOptions} for the full constraint.
  */
 import { TranscriberUnavailableError } from "@azx/ribo-core";
-import type { Recording, Transcript, Transcriber, TranscriberCapability } from "@azx/ribo-core";
+import type {
+  Recording,
+  Transcript,
+  Transcriber,
+  TranscriberCapability,
+  TranscribeOptions,
+} from "@azx/ribo-core";
 
 import { MANAGED_AZURE_SPEECH_ENGINE, type ManagedTranscriberOptions } from "./config.js";
 import { transcribeViaManagedAzure } from "./transcribe.js";
@@ -41,6 +47,15 @@ export type { ManagedTranscriberOptions } from "./config.js";
  * `combinedPhrases[0].text` (design §7). See `transcribe.ts` for the
  * request path and failure classification — the split keeps this file focused
  * on the class and its capability reporting.
+ *
+ * ## Cancellation
+ *
+ * The signal is **honoured**: `TranscribeOptions.signal` is forwarded into the
+ * fetch request init, so an abort tears down the in-flight HTTP request, and an
+ * already-aborted signal cancels before the request is sent. A cancellation
+ * rejects with `TerminalQueueError` rather than an abort error, so the queue
+ * does not mistake it for a flaky network and burn the retry budget — see
+ * `transcribe.ts` for the full classification.
  */
 export class ManagedTranscriber implements Transcriber {
   readonly engine = MANAGED_AZURE_SPEECH_ENGINE;
@@ -81,7 +96,11 @@ export class ManagedTranscriber implements Transcriber {
     return { status: "ready" };
   }
 
-  async transcribe(recording: Recording, audio: Blob): Promise<Transcript> {
+  async transcribe(
+    recording: Recording,
+    audio: Blob,
+    options?: TranscribeOptions,
+  ): Promise<Transcript> {
     // If the endpoint or transport is missing, `capability()` would have
     // reported `not-configured` — but `firstCapable` caches capabilities, so
     // the configuration may have changed between the probe and this call.
@@ -99,6 +118,7 @@ export class ManagedTranscriber implements Transcriber {
       doFetch: this.#doFetch,
       engine: this.engine,
       vocabulary: this.#vocabulary,
+      signal: options?.signal,
     });
   }
 }

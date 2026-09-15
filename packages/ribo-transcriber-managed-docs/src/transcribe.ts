@@ -52,13 +52,27 @@
  * explicitly names a document property (format, size, encryption) or where the
  * 200 response demonstrably has no text map to item unsuitability.
  *
+ * - **The caller's signal aborted → cancellation, terminal.** The signal is
+ *   forwarded into the fetch init, so an abort tears down the in-flight HTTP
+ *   request. The rejection is rethrown as a `TerminalQueueError` — a cancelled
+ *   transcription is the caller withdrawing the work, and the queue must not
+ *   spend its retry budget re-running it. Without this, an abort reads to
+ *   `isTransientFailure` exactly like a flaky network (an error with no
+ *   `status` defaults to retryable) and the item is re-sent until `dead` for
+ *   the worst possible reason. Mirrors `ribo-transcriber-managed`.
+ *
  * Contrast the managed audio transcriber, which maps 413 to
  * `TerminalQueueError` (terminal, not routed to a next engine). Here 413 maps
  * to `UnsupportedItemError` instead, because this package composes in a
  * fallback ladder: a document too large for the managed service may be within
  * pdf.js's limits, so the ladder should try the next rung rather than give up.
  */
-import { TranscriberUnavailableError, UnsupportedItemError, decodeEntities } from "@azx/ribo-core";
+import {
+  TranscriberUnavailableError,
+  TerminalQueueError,
+  UnsupportedItemError,
+  decodeEntities,
+} from "@azx/ribo-core";
 import type { DocumentCapture, Transcript } from "@azx/ribo-core";
 
 import {
@@ -77,6 +91,42 @@ export interface TranscribeViaManagedDocsOptions {
   readonly doFetch: typeof fetch;
   /** `Transcriber.engine` — stamped onto the resulting `Transcript.engine`. */
   readonly engine: string;
+  /**
+   * The caller's cancellation signal, from `TranscribeOptions.signal`. Forwarded
+   * into the fetch request init — an abort tears down the in-flight HTTP
+   * request — and checked before the request is sent, so an already-aborted
+   * signal never reaches the network at all. A cancellation rejects with
+   * `TerminalQueueError`; see the failure-classification table above.
+   */
+  readonly signal?: AbortSignal;
+}
+
+/**
+ * Is this fetch rejection a cancellation rather than a transport failure?
+ *
+ * Two observations, either of which settles it: the caller's own signal has
+ * aborted (the authoritative fact — whoever aborted withdrew the work), or the
+ * rejection itself is abort-shaped (`name === "AbortError"`, what a real
+ * `fetch` rejects with when its signal fires). Checked in that order, so an
+ * injected fetch that rejects abort-shaped is honoured even if the signal
+ * snapshot raced. Mirrors `ribo-transcriber-managed/src/transcribe.ts`.
+ */
+function isAbortRejection(cause: unknown, signal: AbortSignal | undefined): boolean {
+  if (signal?.aborted) return true;
+  return (cause as { name?: string } | null | undefined)?.name === "AbortError";
+}
+
+/**
+ * The error a cancelled transcription throws. Terminal on purpose: a
+ * cancellation is not a failure of the transport, the engine or the item, and
+ * retrying it would restart work the caller explicitly withdrew.
+ */
+function cancellationError(engine: string, endpoint: string, cause: unknown): TerminalQueueError {
+  return new TerminalQueueError(
+    `${engine}: the transcription request to ${endpoint} was cancelled by the caller's ` +
+      `AbortSignal — a cancelled transcription is never retried.`,
+    { cause },
+  );
 }
 
 /**
@@ -93,7 +143,13 @@ export async function transcribeViaManagedDocs(
   bytes: Blob,
   options: TranscribeViaManagedDocsOptions,
 ): Promise<Transcript> {
-  const { endpoint, doFetch, engine } = options;
+  const { endpoint, doFetch, engine, signal } = options;
+
+  // An already-aborted signal means the caller withdrew before this call —
+  // start nothing, touch no network.
+  if (signal?.aborted) {
+    throw cancellationError(engine, endpoint, undefined);
+  }
 
   let response: Response;
   try {
@@ -101,8 +157,15 @@ export async function transcribeViaManagedDocs(
       method: "POST",
       headers: { "Content-Type": bytes.type || "application/octet-stream" },
       body: bytes,
+      signal,
     });
   } catch (cause) {
+    // The caller's signal fired — a deliberate cancellation, not a transport
+    // failure. Terminal, so the queue does not burn its retry budget re-running
+    // work the caller withdrew. Mirrors `ribo-transcriber-managed`.
+    if (isAbortRejection(cause, signal)) {
+      throw cancellationError(engine, endpoint, cause);
+    }
     throw new Error(
       `${engine}: request to ${endpoint} failed: ` +
         `${cause instanceof Error ? cause.message : String(cause)}`,

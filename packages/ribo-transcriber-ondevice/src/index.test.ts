@@ -1,6 +1,7 @@
 import { expect, test, vi } from "vitest";
 
-import type { Transcriber } from "@azx/ribo-core";
+import { TerminalQueueError, isTransientFailure } from "@azx/ribo-core";
+import type { Recording, Transcriber } from "@azx/ribo-core";
 
 import {
   buildHintPrompt,
@@ -286,4 +287,46 @@ test("buildHintPrompt joins vocabulary and prompt, or returns undefined when emp
   expect(
     buildHintPrompt({ vocabulary: ["blower door", "ACH50"], prompt: "home energy assessment" }),
   ).toBe("blower door, ACH50. home energy assessment");
+});
+
+// ── Cancellation (widen-transcriber-contract plan, Task 3) ────────────────────
+//
+// Node-safe because the first cancellation check precedes the decode step — an
+// already-aborted signal must start nothing, not even an AudioContext. The
+// mid-flight mechanics are protocol-level and covered in worker.test.ts (the
+// chunk loop) and transcribe.browser.test.ts (the main thread's cancel message).
+
+const REC: Recording = {
+  id: "rec-cancel",
+  capturedAt: "2026-09-15T10:00:00.000Z",
+  kind: "audio",
+  durationMs: 500,
+  mimeType: "audio/webm;codecs=opus",
+  ctx: {},
+};
+
+test("an already-aborted signal rejects as terminal before the worker is even created", async () => {
+  let workersCreated = 0;
+  const transcriber = new OnDeviceTranscriber({
+    wasmPaths: WASM_PATHS,
+    createWorker: () => {
+      workersCreated++;
+      return new FakeWorker((command) => [
+        { type: "primed", requestId: command.requestId },
+      ]) as unknown as Worker;
+    },
+  });
+  const controller = new AbortController();
+  controller.abort();
+
+  const error = await transcriber
+    .transcribe(REC, new Blob(["x"]), { signal: controller.signal })
+    .catch((e: unknown) => e);
+
+  // Terminal, not retryable: the queue must not spend its retry budget on work
+  // the caller withdrew.
+  expect(error).toBeInstanceOf(TerminalQueueError);
+  expect(isTransientFailure(error)).toBe(false);
+  // Nothing was engaged — no worker, so no decode, no postMessage.
+  expect(workersCreated).toBe(0);
 });
