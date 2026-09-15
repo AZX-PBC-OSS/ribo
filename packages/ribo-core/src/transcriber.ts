@@ -1,6 +1,7 @@
 import type { CaptureItem } from "./capture-item.js";
 import type { Recording } from "./recording.js";
 import type { Transcript } from "./transcript.js";
+import type { CaptureStorageScope } from "./queue/plugin-storage.js";
 
 /**
  * @file The transcription contract: what an engine can do, and what happened when it tried.
@@ -118,6 +119,25 @@ export interface TranscribeOptions {
    * implementation must either forward this to the work it does or say plainly that it cannot.
    */
   readonly signal?: AbortSignal;
+  /**
+   * The plugin-storage handle for **this capture**, supplied by the caller that has one — the
+   * relay, which drains captures through an outbox. A host driving a transcriber by hand has
+   * none to give, so the member is optional and an implementation that needs storage must
+   * handle its absence rather than assume it.
+   *
+   * The handle is scoped to the capture being transcribed; the transcriber names its own
+   * plugin — conventionally its {@link Transcriber.engine} id — through
+   * {@link CaptureStorageScope.forPlugin}, so two engines picked for the same capture land in
+   * separate namespaces and cannot read or clobber each other's keys. Entries are durable
+   * (they survive a close-and-reopen and are visible from another tab) and core sweeps them
+   * when the capture is dropped or discarded, so a plugin never cleans up after itself. An
+   * extractor from the same plugin reads them back through `Outbox.pluginStorageScope(pluginId)`
+   * — the construction-time handle, since the relay cannot name the plugin an opaque extract
+   * step belongs to.
+   *
+   * This is the only storage a plugin ever sees. The `Outbox` itself is never handed to one.
+   */
+  readonly storage?: CaptureStorageScope;
 }
 
 /**
