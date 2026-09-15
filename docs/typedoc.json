@@ -23,9 +23,6 @@
   "useCodeBlocks": true,
   "expandObjects": true,
   "docsRoot": ".",
-  "validation": {
-    "invalidLink": false
-  },
   "blockTags": [
     "@file",
     "@param",

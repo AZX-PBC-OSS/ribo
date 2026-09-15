@@ -330,3 +330,22 @@ It is not free, though: every one of those sites is a real decision about whethe
 optional-and-absent or optional-and-explicitly-undefined, and getting one wrong silently changes
 behaviour at a boundary the type system was supposed to be guarding. That is a focused piece of
 work with its own review, not a flag flip to fold into unrelated tasks.
+
+## Why seven TypeDoc link warnings are accepted (B4 follow-up)
+
+`docs:api` reports 0 errors and 7 warnings, and that is deliberate.
+
+All seven are `{@link CaptureItem}` and `{@link AnnotatedTranscript}` in JSDoc written on
+`ribo-core` contracts and **inherited** into implementing classes in the transcriber packages,
+where a bare link target is out of scope. The original findings already named this category as
+distinct from the resolvable ones.
+
+Two fixes were measured and both are worse:
+
+- `validation.invalidLink: false` meets a zero-warning gate by muting the validator, which hides
+  these seven **and every future real break**. That is what Task 14 shipped and it is reverted.
+- Qualifying as `{@link @azx/ribo-core!Symbol | Symbol}` raises the count to **42** — this
+  TypeDoc reads the qualified form as a literal symbol name rather than a cross-package
+  reference.
+
+Warnings do not fail the build. Seven lines of output is the price of the validator still working.
