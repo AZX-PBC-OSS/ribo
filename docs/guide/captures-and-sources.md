@@ -120,13 +120,14 @@ transcribe step's timeout fires — the signal and the timeout are one mechanism
 transcription is cancelled rather than left running behind the rejection. What an abort does is
 per-transport, and each implementation states it in its own docs:
 
-- The **fetch-based** engines (`@azx/ribo-transcriber-managed`, `@azx/ribo-transcriber-managed-docs`)
-  forward the signal into the fetch init, so an abort tears down the in-flight HTTP request.
+- The **fetch-based** engines (`@azx/ribo-transcriber-managed`,
+  `@azx/ribo-transcriber-managed-docs`) forward the signal into the fetch init, so an abort tears
+  down the in-flight HTTP request.
 - **`pdfjs`** destroys the pdf.js loading task on abort, and additionally checks the signal at the
   top of every page, so work already queued for the next page stops too.
 - The **on-device** engine sends a `cancelTranscribe` message to its worker and the worker's batch
   loop stops between chunks — deliberately not `worker.terminate()`, which would throw away the
-  loaded model with the cancelled clip.
+  loaded model along with the cancelled clip.
 
 Every one of the shipped engines classifies a caller-aborted transcription as a `TerminalQueueError`
 — the caller withdrew the work, and the queue must not spend its retry budget re-running it. That
@@ -136,11 +137,12 @@ reads any error without one as retryable — so without it, a cancelled capture 
 plainly rather than accept it and ignore it: a signal that is accepted and not forwarded looks like
 cancellation and is not.
 
-**`storage?: CaptureStorageScope`** is the capture-scoped handle a transcriber writes durable,
-plugin-namespaced state through — page annotations, a provider's own structured response — for an
-extractor from the same plugin to read back later. The relay supplies it; a host driving a
-transcriber by hand has none to give, so it is optional and an engine that needs storage must handle
-its absence. [Plugin Storage](/guide/plugin-storage) covers the handle in full.
+**`storage?: CaptureStorageScope`** is the capture-scoped handle a transcriber uses to write
+durable, plugin-namespaced state — page annotations, a provider's own structured response — for an
+extractor
+from the same plugin to read back later. The relay supplies it; a host driving a transcriber by hand
+has none to give, so it is optional, and an engine that needs storage must handle its absence.
+[Plugin Storage](/guide/plugin-storage) covers the handle in full.
 
 ## `restrictToKind`: lifting a narrow engine into a wider slot
 

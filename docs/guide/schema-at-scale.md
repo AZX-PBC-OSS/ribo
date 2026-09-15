@@ -85,11 +85,11 @@ check that catches a merge shape no single call would have produced. Underneath,
 core's `groupedExtractor` — the run-owner that schedules the calls, retries them, aborts siblings on
 a terminal failure, and merges — with `perGroupPlan` deriving the default per-group entries from
 `splitExtractionSchema`. That layering is why one group can be given a different model, strategy or
-wrapper while the other nineteen keep the preset's defaults: [Per-Group
-Composition](/guide/per-group) is that capability, and this page does not restate it. The preset has
-two siblings for the instance-modeling ladder below: `perGroupArrayExtractor`, whose per-group
-response is an array of instances, and `perGroupSingletonExtractor`, whose per-group response is
-exactly one.
+wrapper while the other nineteen keep the preset's defaults:
+[Per-Group Composition](/guide/per-group) is that capability, and this page does not restate it. The
+preset has two siblings for the instance-modeling ladder below: `perGroupArrayExtractor`, whose
+per-group response is an array of instances, and `perGroupSingletonExtractor`, whose per-group
+response is exactly one.
 
 Splitting a call in two does not make abstention disappear on its own, so a separate pass sits on
 top of whichever extractor produced the result. `gapFillExtractor` wraps a base extractor and, after
@@ -100,12 +100,12 @@ scoped to just those leaves, handing the model back its own quote and asking it 
 the value or explicitly reaffirm `null`. With no candidates, the base result passes through
 unchanged — no second call, no wrapper. Its `targets` option widens the pass: the default
 `["abstained"]` is the behaviour above, and `targets: ["abstained", "ungrounded"]` also re-asks
-leaves that committed to a value while citing text absent from the transcript — both kinds travel in
-the one follow-up call, since they share everything that makes it expensive. On a 126-leaf Manual J,
-re-asking converted about half the ungrounded spans to verbatim quotes; it is off by default because
-it is a second cost centre on a paid endpoint, and because a leaf that asks the model for its own
-judgement rather than a fact will report ungrounded forever. Those leaves do not belong in an
-envelope; the option will not rescue them.
+leaves that committed to a value while citing text absent from the transcript — both kinds travel
+in the one follow-up call, since they share everything that makes it expensive. On a 126-leaf Manual
+J, re-asking converted about half the ungrounded spans to verbatim quotes; it is off by default
+because it is a second cost centre on a paid endpoint, and because a leaf that asks the model for
+its own judgement rather than a fact will report ungrounded forever. Those leaves do not belong in
+an envelope; the option will not rescue them.
 
 Repeating resources — a house's several HVAC systems, several water heaters — need a different shape
 of call than a fixed set of top-level groups, because the number of instances isn't known ahead of
@@ -140,10 +140,11 @@ nullable-union cap.
 ## Next
 
 [Per-Group Composition](/guide/per-group) covers what the partition makes possible — giving one
-group its own model, strategy or wrapper while the rest keep the defaults. [Provenance](/guide/provenance)
-covers the granularity knob this page's union counts depend on, and
+group its own model, strategy or wrapper while the rest keep the defaults.
+[Provenance](/guide/provenance) covers the granularity knob this page's union counts depend on, and
 [Typesafety](/guide/typesafety) covers the `enveloped()` derivation that produces the schema being
-partitioned in the first place. [Comparison](/guide/comparison) is where this differentiator sits
-next to what other tools do instead. The full measurement — the bisection that found the
-nullable-union ceiling, the byte-cap numbers, and everything this page only summarizes — is in
+partitioned in the first place.
+[Comparison](/guide/comparison) is where this differentiator sits next to what other tools do
+instead. The full measurement — the bisection that found the nullable-union ceiling, the byte-cap
+numbers, and everything this page only summarizes — is in
 [Schema at Scale: Measured](/deep-dives/schema-scale).

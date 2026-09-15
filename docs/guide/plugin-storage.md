@@ -5,11 +5,11 @@ which pages carried a table, what a provider's own structured response said, a p
 normalization it computed. The obvious channels all fail. Module variables and class fields die with
 the tab — and the two halves of a plugin may run in **different tabs, minutes apart**, since
 transcription and extraction are separate relay steps. Annotations on the transcript don't survive
-combination: a `TranscriptCombiner` returns one transcript with its own bag, and per-part annotations
-are an input to combination, not a channel through it (see [Sessions](/guide/sessions)).
+combination: a `TranscriptCombiner` returns one transcript with its own bag, and per-part
+annotations are an input to combination, not a channel through it (see [Sessions](/guide/sessions)).
 
-So the outbox carries a third thing beside the capture and its transcript: a durable,
-namespaced key-value store, and the two handles plugins read and write it through.
+So the outbox carries a third thing beside the capture and its transcript: a durable, namespaced
+key-value store, plus the two handles plugins use to read and write it.
 
 ## What a handle promises
 
@@ -92,8 +92,9 @@ const myExtractor: Extractor<MyFields> = {
 ```
 
 An extraction runs over a session joined from several captures, so the writes a sibling transcriber
-made are reached one capture at a time — `scope.capture(captureId)` for a known id, `scope.captures()`
-to discover them. Both are live: entries added between two extractions appear, and swept ones
+made are reached one capture at a time — `scope.capture(captureId)` for a known id,
+`scope.captures()` to discover them. Both are live: entries added between two extractions appear,
+and swept ones
 disappear.
 
 ## The limitation: not session-bounded

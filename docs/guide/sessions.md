@@ -76,11 +76,12 @@ import { createDefaultTranscriptCombiner } from "@azx/ribo-core";
 const combiner = createDefaultTranscriptCombiner();
 ```
 
-Purity is the contract's point: a combiner that takes the `Outbox`, or reads anything, has
-reproduced the defect this seam exists to fix — the old fused implementation could not be tested
+Purity is the contract's point: a combiner that takes the `Outbox`, or reads anything, reproduces
+the defect this seam exists to fix — the old fused implementation could not be tested
 without a database and could not be replaced at all. The relay supplies the array; the combiner
-decides how the texts join. A caller who wants a different policy writes their own combiner instead
-of asking for a second flag on the default, and injects it through `RelayOptions.combineTranscripts`:
+decides how the texts join. A caller who wants a different policy writes their own combiner
+instead of asking for a second flag on the default, and injects it through
+`RelayOptions.combineTranscripts`:
 
 ```ts
 import { createRelay, createDefaultTranscriptCombiner } from "@azx/ribo-core";
@@ -106,10 +107,11 @@ line ahead of each capture's content:
 
 Each marker carries `seq` (capture order, for a reviewer's "the third one"), `kind` (`audio` or
 `document`, no row lookup needed), and `id` (the outbox item id a citation can resolve straight back
-to), read from the part's `capture.`-namespaced annotations. The marker sits before a capture's
-text, never inside it, so a `sourceSpan` the model quotes from within one capture still passes
-`isSpanGrounded` as a verbatim substring of the joined text. Marking is off by default — the joined
-text a non-marked caller sees is unchanged — because emitting markers unconditionally would change
+to), with its values read from the part's `capture.`-namespaced annotations. The marker sits before
+a capture's text, never inside it, so a `sourceSpan` the model quotes from within one capture still
+passes `isSpanGrounded` as a verbatim substring of the joined text.
+Marking is off by default — the joined text a non-marked caller sees is unchanged — because
+emitting markers unconditionally would change
 what every existing extractor sees.
 
 `joinSessionTranscript` is the convenience that does both — list the parts, hand them to a combiner
@@ -175,14 +177,13 @@ outbox.watchSessions({ status: "awaiting-review" }).subscribe((sessions) => {
 
 The heat-pump quote reviewer's job opens as one session. The supplier invoice and the Manual J
 report enqueue as `DocumentCapture` items — `pdfjs` (or `managed-docs` for a scanned page it can't
-read) transcribes each into text. The reviewer's own dictation enqueues as a `Recording`, transcribed
-by whichever audio engine is configured, and all three transcribe independently, on their own
-schedule, into the same session. When the reviewer closes the session, the relay lists the three
-transcripts and hands them to its combiner — one transcript spanning all three — extraction runs
-once against it, and the review screen
-shows a single set of fields — equipment cost from the invoice, sizing from the Manual J, the
-exception the reviewer dictated — each citation still checkable against whichever capture it came
-from.
+read) transcribes each into text. The reviewer's own dictation enqueues as a `Recording`,
+transcribed by whichever audio engine is configured, and all three transcribe independently, on
+their own schedule, into the same session. When the reviewer closes the session, the relay lists
+the three transcripts and hands them to its combiner — one transcript spanning all three —
+extraction runs once against it, and the review screen shows a single set of fields — equipment
+cost from the invoice, sizing from the Manual J, the exception the reviewer dictated — each
+citation still checkable against whichever capture it came from.
 
 ## Next
 

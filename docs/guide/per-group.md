@@ -34,10 +34,10 @@ them. A grouped schema yields the per-key arm of the map, and a test can enumera
 shared key. (The map type is a union whose other arm, keyed `""`, is the non-grouped fallback
 described below; narrowing on `""` discards it for a grouped schema.)
 
-`perGroupExtractor` is nothing more than `groupedExtractor` over `plan.groups` — the preset exists so
-the common case stays one call, not because the plan is hidden. Exporting it is the whole mechanism:
-if building the map were internal, "the defaults everywhere except one group" would mean
-reconstructing the other nineteen entries by hand, nobody would, and per-group capability would go
+`perGroupExtractor` is nothing more than `groupedExtractor` over `plan.groups` — the preset exists
+so the common case stays one call, not because the plan is hidden. Exporting it is the whole
+mechanism: if building the map were internal, "the defaults everywhere except one group" would mean
+reconstructing the other nineteen entries by hand; nobody would, and per-group capability would go
 unused.
 
 ## One group, different treatment: `overrideGroups`
@@ -78,7 +78,7 @@ construction-time throw naming the key for a JS caller. The construction-time co
 A group whose leaves exceed the nullable-union cap is **partitioned** — split into several calls
 that share one top-level key, so the response still lands under one property
 ([Schema at Scale](/guide/schema-at-scale) explains why; the Snugg Pro `health` group is exactly
-such a group). An override that silently applied to only the first piece would be worse than none:
+such a one). An override that silently applied to only the first piece would be worse than none:
 the second piece would go out on the default path, and the group's treatment would depend on how it
 happened to partition.
 
@@ -100,12 +100,12 @@ overrideGroups(plan, {
 
 ## What the combinator owns
 
-`groupedExtractor` (`@azx/ribo-core`) is the run-owner every one of these entries runs inside. It
-owns the work that is genuinely cross-group, so no override has to re-implement any of it:
+`groupedExtractor` (`@azx/ribo-core`) is the run-owner inside which every one of these entries runs.
+It owns the work that is genuinely cross-group, so no override has to re-implement any of it:
 
 - **Coverage, checked at construction.** Every top-level key of `target.extractionSchema` must be
   named in `groups`, and no key outside it may be — a missing group would otherwise surface as a
-  second-parse failure after every call had been paid for.
+  second-parse failure after every call has been paid for.
 - **Scheduling.** A bounded pool (default concurrency 4) over the flattened entries, a partitioned
   group's pieces among them.
 - **Retry.** The unit of retry is the group entry's `extract()` — so a wrapper inside a retried
@@ -120,7 +120,7 @@ owns the work that is genuinely cross-group, so no override has to re-implement 
 - **One `normalize`, summed usage.** The model-free normalize pass runs once on the merged result;
   `usage.calls` sums what the entries reported.
 
-Progress reports through the same `onUnit` hook as every other strategy, as one `GroupUnit` per
+Progress is reported through the same `onUnit` hook as every other strategy, as one `GroupUnit` per
 entry carrying `key`, `part`, `parts`, and `attempt` — a partitioned group's pieces report
 `part: 1, parts: 2`, and a consumer does not need two code paths for "one" and "several".
 
@@ -148,10 +148,10 @@ shapes `perGroupPlan` builds — and a projected target can be handed to _any_ s
 a replacement from inside an override without touching the other nineteen groups.
 
 Two edges of the map are worth knowing. A group entry can be an **ordered list** of extractors —
-that is what a partitioned group is — and a map whose only key is `""` declares the **non-grouped
-fallback**: one entry covering the whole schema, the shape the preset yields when the target isn't
-an object of groups. The fallback cannot be combined with per-key entries; either the schema has
-groups or it doesn't.
+that is what a partitioned group is — and a map whose only key is `""` declares the
+**non-grouped fallback**: one entry covering the whole schema, the shape the preset yields when the
+target isn't an object of groups. The fallback cannot be combined with per-key entries; either the
+schema has groups or it doesn't.
 
 ## Next
 

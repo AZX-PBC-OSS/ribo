@@ -23,7 +23,7 @@ Six stages. Most are an interface you can replace; the two that are not are mark
 The pipeline splits cleanly in the middle, and the split is the point. **Capture and transcription
 know what a microphone is. Everything downstream does not.** A session's transcript is one canonical
 text — with an open annotations bag beside it, and nothing that names what produced it — so
-extraction, provenance, review and write-back never learned where the words came from, which is why
+extraction, provenance, review and write-back never learn where the words came from, which is why
 adding PDF support required no change to any of them.
 
 ## What makes it different

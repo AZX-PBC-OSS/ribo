@@ -16,7 +16,7 @@ interface Extractor<F> {
 ```
 
 One method, and it never sees a `CaptureItem`, a `Recording`, or a `DocumentCapture` — only the
-joined transcript a session assembled. An extractor that took a capture would have to know whether
+joined transcript a session assembles. An extractor that took a capture would have to know whether
 the words came from a microphone or a scanner, and nothing about turning text into fields cares.
 This is the same structural split [Sessions](/guide/sessions) describes, from the other side.
 
@@ -37,16 +37,16 @@ covered from the composition side in [Arbitration & Fallback](/guide/arbitration
 
 The trailing `options` bag currently carries one member, `signal?: AbortSignal` — the same optional
 trailing object `Transcriber.transcribe` takes, so the two run-context contracts do not drift. The
-relay passes a signal it aborts when the extraction step's timeout fires, so a hung model call is
-cancelled rather than left running behind the rejection; a host driving an extractor by hand can
-pass its own. Each transport states what it does with the signal in its own docs — the fetch-based
-ones abort the in-flight request, the on-device engine cancels between phases without killing the
-model session — and an implementation that cannot honour it must say so plainly rather than accept
-it and ignore it. A cancelled extraction rejects rather than returning a partial result, and **both** extract
-routes classify that abort as retryable on purpose — the on-device engine rejects with
-`ChatError.aborted` just as the managed one does. The abort is caller-initiated, and a host that
-cancels on a deadline may well succeed on a later attempt with a fresh one. (The transcription
-side makes the opposite call — see [Captures & Sources](/guide/captures-and-sources).)
+relay passes a signal that it aborts when the extraction step's timeout fires, so a hung model
+call is cancelled rather than left running behind the rejection; a host driving an extractor by hand
+can pass its own. Each transport states what it does with the signal in its own docs — the
+fetch-based ones abort the in-flight request, the on-device engine cancels between phases without
+killing the model session — and an implementation that cannot honour it must say so plainly rather
+than accept it and ignore it. A cancelled extraction rejects rather than returning a partial
+result, and **both** extraction routes classify that abort as retryable on purpose — the on-device
+engine rejects with `ChatError.aborted` just as the managed one does. The abort is caller-initiated,
+and a host that cancels on a deadline may well succeed on a later attempt with a fresh one. (The
+transcription side makes the opposite call — see [Captures & Sources](/guide/captures-and-sources).)
 
 ## `ExtractionTarget`: the field knowledge an extractor needs
 
@@ -165,7 +165,8 @@ transcript, not as a claim about current accuracy.
 ## Next
 
 [Arbitration & Fallback](/guide/arbitration) covers composing more than one of the extractors above
-into a strategy ladder, a race, or a capability-selected roster. [Schema at Scale](/guide/schema-at-scale)
-covers partitioning a real schema across calls, [Per-Group Composition](/guide/per-group) covers
-giving one group its own extractor once it is partitioned, and [Provenance](/guide/provenance)
-covers the envelope every one of these extractors fills in.
+into a strategy ladder, a race, or a capability-selected roster.
+[Schema at Scale](/guide/schema-at-scale) covers partitioning a real schema across calls,
+[Per-Group Composition](/guide/per-group) covers giving one group its own extractor once it is
+partitioned, and [Provenance](/guide/provenance) covers the envelope every one of these extractors
+fills in.
