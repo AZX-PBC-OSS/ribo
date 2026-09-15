@@ -206,9 +206,10 @@ Now evidenced rather than speculative. Measured 2026-09-11 against
 No new provenance kind, no bbox conversion. The values were right in both modes — only the
 citation differed, which is why span-checking is the thing that catches this.
 
-**Answered 2026-09-11** — `spikes/mistral-native-vs-flattened/`. Two Manual J reports, one
-`enveloped()` schema, five runs per arm per document, OCR held constant so only the extraction
-step differs, and all 65 disagreements adjudicated against the source PDF:
+**Answered 2026-09-11** — measured against two Manual J reports (the write-up lives in
+`docs/deep-dives/native-extraction.md`). One `enveloped()` schema, five runs per arm per document,
+OCR held constant so only the extraction step differs, and all 65 disagreements adjudicated against
+the source PDF:
 
 | measure                           | native       | flattened |
 | --------------------------------- | ------------ | --------- |
@@ -233,8 +234,9 @@ numbers are unaffected (its hydration code is a no-op), but the API claim is cor
 
 ### The 37% per-cell fabrication figure did not reproduce
 
-Measured 2026-09-11, `spikes/prompt-vs-granularity/`. A 2x2 factorial —
-leaf/row granularity x current/pinned prompt wording — five runs per cell, `claude-haiku-4-5`
+Measured 2026-09-11 — a 2x2 factorial, written up in
+`docs/deep-dives/provenance-measurement.md` ("The accuracy gap did not reproduce"). Leaf/row
+granularity x current/pinned prompt wording, five runs per cell, `claude-haiku-4-5`
 through `singleShotExtractor`, scored with `spanGroundedness`:
 
 | arm           | verbatim | per-run rates            |

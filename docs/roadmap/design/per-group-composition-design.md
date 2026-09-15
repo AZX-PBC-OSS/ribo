@@ -50,15 +50,17 @@ quality**"). So this design stands on composition and correctness evidence, all 
 
 ### 2.1 The library's own author hand-rolled the combinator
 
-`spikes/matched-schema-scale/harness.mjs` `runArmB` is a per-group extractor written from scratch:
-four hand-declared parts, a `singleShotExtractor` per part, `Promise.all`, a per-part retry loop,
-merge by key, usage summed — and no second trust-boundary parse. The comment explains why:
-`perGroupExtractor` was the first choice and `splitExtractionSchema` collapsed the schema to one
-call. The specific collapse cause (`isGroupObject` refusing an array-of-envelopes property) has
-since been fixed by `isExtractedSchema`, but the all-or-nothing rule remains — one top-level key
-that is not a group still collapses _every_ group into one call — and, more to the point, the shape
-of the workaround is the finding. When the derived grouping did not fit, the only recourse was to
-rebuild the combinator by hand and lose a trust-boundary check doing it.
+The harness for the matched-schema measurement behind
+`docs/deep-dives/native-extraction.md` (a 126-leaf Manual J, flatten-then-extract arm) carried a
+per-group extractor written from scratch: four hand-declared parts, a `singleShotExtractor` per
+part, `Promise.all`, a per-part retry loop, merge by key, usage summed — and no second
+trust-boundary parse. The reason: `perGroupExtractor` was the first choice and
+`splitExtractionSchema` collapsed the schema to one call. The specific collapse cause
+(`isGroupObject` refusing an array-of-envelopes property) has since been fixed by
+`isExtractedSchema`, but the all-or-nothing rule remains — one top-level key that is not a group
+still collapses _every_ group into one call — and, more to the point, the shape of the workaround
+is the finding. When the derived grouping did not fit, the only recourse was to rebuild the
+combinator by hand and lose a trust-boundary check doing it.
 
 ### 2.2 The wrappers are whole-schema, and two of them break on per-group facts
 

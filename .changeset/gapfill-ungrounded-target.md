@@ -18,7 +18,7 @@ citation actually grounds, or if the model concedes the value to null. A second 
 is refused and the base leaf stands, so enabling this can never leave a leaf worse than the base
 run did. That property is what lets it run automatically.
 
-Measured on a 126-leaf Manual J (`spikes/matched-schema-scale/`): a one-call extraction returned
+Measured on a 126-leaf Manual J: a one-call extraction returned
 15-18 ungrounded spans per run and re-asking converted about half to verbatim quotes. In that
 measurement no leaf was ever conceded as null, which is why the merge enforces the improvement
 rather than trusting the prompt to produce it.
