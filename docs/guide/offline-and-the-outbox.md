@@ -35,7 +35,8 @@ else — and `ACTIVE_OUTBOX_STATUSES` says so directly: `queued`, `transcribing`
 it — extraction and write happen at the session level, against the joined transcript of every
 recording that belongs to it, and the recording itself never moves again except by a human decision.
 `discarded` is that decision: the reviewer threw a capture away — a duplicate dictation, a photo of
-the wrong invoice — and `joinSessionTranscript` excludes discarded recordings from every future
+the wrong invoice — and the session's transcript assembly
+([`listSessionTranscriptParts`](/guide/sessions)) excludes discarded recordings from every future
 extraction, without deleting the row itself.
 
 ### The session machine

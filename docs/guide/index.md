@@ -15,15 +15,16 @@ Six stages. Most are an interface you can replace; the two that are not are mark
 | -------------- | --------------------------------------------------------------------------- | ------------------------------------ |
 | **Capture**    | A recording, a PDF, or a document arrives as a `CaptureItem`                | —                                    |
 | **Transcribe** | The capture becomes citable text                                            | `Transcriber`                        |
-| **Session**    | One or more captures are joined into a single transcript                    | —                                    |
+| **Session**    | One or more captures are combined into a single transcript                  | `TranscriptCombiner`                 |
 | **Extract**    | The transcript becomes fields, against a target schema too big for one call | `Extractor`                          |
 | **Review**     | A human accepts or corrects each field, with its source quote in view       | [the review contract](/guide/review) |
 | **Write**      | The accepted values are written to the host system                          | [`ToolAdapter`](/guide/write-back)   |
 
 The pipeline splits cleanly in the middle, and the split is the point. **Capture and transcription
-know what a microphone is. Everything downstream does not.** A session's transcript is just text
-with attribution markers, so extraction, provenance, review and write-back never learned what
-produced it — which is why adding PDF support required no change to any of them.
+know what a microphone is. Everything downstream does not.** A session's transcript is one canonical
+text — with an open annotations bag beside it, and nothing that names what produced it — so
+extraction, provenance, review and write-back never learned where the words came from, which is why
+adding PDF support required no change to any of them.
 
 ## What makes it different
 

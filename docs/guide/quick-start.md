@@ -52,7 +52,7 @@ const extractor = new FakeExtractor(
     followUpDate: { value: null, confidence: 1, sourceSpan: null },
   }),
 );
-const { fields } = await extractor.extract(transcript.text);
+const { fields } = await extractor.extract({ text: transcript.text, annotations: {} });
 
 // 6. Check a field. `isSpanGrounded` confirms the quote is actually in the transcript —
 //    the same check a review screen runs before showing a field as trustworthy.
