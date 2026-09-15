@@ -143,7 +143,10 @@ Lifecycle chosen: plugin-scoped namespace, core sweeps. Considered and not chose
 its own (silent leaks), and handing plugins the `Outbox` directly (makes its API a plugin-facing
 contract by accident).
 
-**Status: substrate built, delivery NOT built.** The `pluginStorage` collection, the
+**Status: built and delivered.** Delivery landed with the Transcriber contract widening —
+transcribers receive a capture-scoped handle through `TranscribeOptions`, extractors a
+plugin-scoped `PluginStorageScope` at construction. The paragraph below records why delivery was
+deferred at the time. The `pluginStorage` collection, the
 capture-scoped handle, and core's sweep all exist and are tested. The only way to obtain a handle
 is `Outbox.pluginStorage(captureId, pluginId)` — so a plugin can reach its own storage only if the
 application hands it the `Outbox`, which is the option explicitly rejected above.
@@ -267,7 +270,9 @@ measurement under specific conditions rather than as a property of cell-level ci
 
 ## Open questions
 
-- **A timed-out transcription keeps running.** `relay.ts`'s `#transcribe` wraps
+- ~~**A timed-out transcription keeps running.**~~ **Closed** by the Transcriber contract widening —
+  `#transcribe` now aborts a per-attempt controller on timeout, and every transport honours the
+  signal. Original text: `relay.ts`'s `#transcribe` wraps
   `transcriber.transcribe(...)` in `withTimeout` with no `onTimeout` hook, so the relay moves on
   while the request completes unseen — the symmetric gap to the one Task 19 fixed for the extract
   path. A review called the fix one line; it is not. `Transcriber.transcribe` is
@@ -277,7 +282,8 @@ measurement under specific conditions rather than as a property of cell-level ci
   has written. Worth doing — the same argument applies, and doing it before publishing is far
   cheaper than after — but it is a task, not a patch.
 
-- **`inventory()` cannot be cancelled.** `ScopedFillOptions.inventory` is
+- **`inventory()` cannot be cancelled.** _Still open — the contract widening reached
+  `Transcriber` and the relay, not this seam._ `ScopedFillOptions.inventory` is
   `(transcript: string) => Promise<Roster>` and is called without a signal, so an abort cannot stop
   the inventory pass. Adjacent: the fill loop's pre-check and catch consult only the internal
   sibling-abort controller, so a caller's abort burns the retry budget before rejecting. Found
