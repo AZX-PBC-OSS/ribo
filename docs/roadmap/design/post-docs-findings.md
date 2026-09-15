@@ -267,6 +267,15 @@ measurement under specific conditions rather than as a property of cell-level ci
 
 ## Open questions
 
+- **`inventory()` cannot be cancelled.** `ScopedFillOptions.inventory` is
+  `(transcript: string) => Promise<Roster>` and is called without a signal, so an abort cannot stop
+  the inventory pass. Adjacent: the fill loop's pre-check and catch consult only the internal
+  sibling-abort controller, so a caller's abort burns the retry budget before rejecting. Found
+  while building Task 20 and deliberately left alone — the inventory seam predates the
+  `ExtractOptions` contract and changing it is a contract change, not a fix.
+  `scopedInstanceExtractor` does at least rethrow rather than resolving empty, so this is a
+  wasted-work problem rather than a wrong-answer one.
+
 - **TypeDoc residuals.** 21 "resolved but not included" warnings need an export or a
   `typedoc.json` change; 7 more come from `ribo-core` JSDoc inherited into other packages'
   implementing classes and resolve in-package but not when inherited.
