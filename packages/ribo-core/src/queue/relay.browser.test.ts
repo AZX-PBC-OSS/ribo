@@ -1765,6 +1765,51 @@ test("a step that never settles fails the attempt instead of stalling the queue"
   await outbox.close();
 });
 
+test("a session extract that outlives the step timeout aborts the extractor's signal, not just the relay's await", async () => {
+  // `withTimeout` used to only reject its own await: the extract step's HTTP
+  // request kept running to completion behind the rejection — the gap Task 9's
+  // changeset named as a motivation and did not fix. So the assertion is on
+  // what the STEP received and whether that signal was actually ABORTED, not
+  // merely on the relay moving on; a test that only checked the park would
+  // pass against an implementation that forwards nothing.
+  const outbox = await openTestOutbox(uniqueName());
+  const receivedSignals: (AbortSignal | undefined)[] = [];
+  const sessionExtract: SessionExtractStep = async (_input, options) => {
+    receivedSignals.push(options?.signal);
+    // Never settles — the step timeout must fire and cancel it.
+    return new Promise<never>(() => {});
+  };
+
+  const relay = createRelay({
+    outbox,
+    transcriber: restrictToKind("audio", new FakeTranscriber({ text: "the attic is R-19" })),
+    sessionExtract,
+    sessionWrite: async () => undefined,
+    stepTimeoutMs: 50,
+    maxAttempts: 1,
+  });
+
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  await outbox.enqueue({ recording, audio: audio(), sessionId: session.id });
+  await relay.syncNow(); // transcribes the recording
+  await outbox.closeSession(session.id);
+  await relay.syncNow(); // extracts — and exceeds the step timeout
+
+  // The timed-out attempt failed as an ordinary attempt...
+  const parked = await outbox.getSession(session.id);
+  expect(parked?.lastError).toMatch(/did not settle/i);
+
+  // ...but the load-bearing assertion: the transport observed an ABORT, not
+  // abandonment.
+  expect(
+    receivedSignals[0],
+    "the extract step received an options bag with a signal",
+  ).toBeDefined();
+  expect(receivedSignals[0]?.aborted).toBe(true);
+
+  await outbox.close();
+});
+
 // ---------------------------------------------------------------------------
 // Two tabs, one queue
 // ---------------------------------------------------------------------------

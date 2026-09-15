@@ -151,12 +151,17 @@ export type ExtractionTarget<V extends Record<string, unknown>, P = NoProvenance
  * — canonical text plus annotations — not a single `Transcript` object. That is
  * the whole point of session-level extraction: the model sees one text, not one
  * per capture.
+ *
+ * The step's optional second parameter is the same `ExtractOptions` bag
+ * `extract` takes, and it is forwarded whole — not unwrapped. The relay passes
+ * a signal it aborts when the step timeout fires; a bag that dropped members
+ * here would strand them silently, so the forward stays a pure hand-through.
  */
 export function toSessionExtractStep<F extends Record<string, unknown>>(
   extractor: Extractor<F>,
 ): SessionExtractStep {
-  return async ({ transcript }) => {
-    const result = await extractor.extract(transcript);
+  return async ({ transcript }, options) => {
+    const result = await extractor.extract(transcript, options);
     return {
       fields: result.fields,
       engine: result.usage.engine,
