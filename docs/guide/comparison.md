@@ -20,7 +20,8 @@ instead of a raw `fetch` loop — including the rows where Ribo is the wrong ans
 ## What we measured
 
 Everything below this heading came out of Ribo's own `spanGroundedness`, pointed at a competitor
-and then at ourselves. The spikes are in the repo and the harnesses run.
+and then at ourselves. The harnesses that ran it were one-off scripts, not committed;
+[Native Extraction: Measured](/deep-dives/native-extraction) is the full record.
 
 ### The test
 
@@ -87,8 +88,12 @@ temperature is not settable, so part of the stability difference is access to a 
 property of the models. And we adjudicated the disagreements ourselves, which is the weakest link
 in any comparison written by one of the parties.
 
-The harnesses are in `spikes/matched-schema-scale/` and `spikes/mistral-native-vs-flattened/`. Run
-them against your own documents; that is the only comparison that decides anything for you.
+The harnesses behind these runs were one-off scripts wired to that corpus — real customer documents
+we will not publish — and are not committed here.
+[Native Extraction: Measured](/deep-dives/native-extraction) records the full method: the pinned
+span instruction both arms received, the scoring tiers, and everything above we could not control
+for. Rebuild it against your own documents; that is the only comparison that decides anything for
+you.
 
 ## Feature matrix
 
