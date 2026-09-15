@@ -24,6 +24,7 @@ import type {
   ExtractionObserver,
   ExtractionUnit,
   Extractor,
+  NoProvenance,
 } from "@azx/ribo-core";
 
 import { perGroupArrayExtractor, perGroupSingletonExtractor } from "./per-group.js";
@@ -34,15 +35,16 @@ import type { ScopedFillOptions } from "./instance-fill.js";
 /** Options for {@link instanceLadder}. */
 export interface InstanceLadderOptions<
   V extends Record<string, unknown>,
+  P = NoProvenance,
 > extends ExtractionObserver {
   /** Arbiter that decides, after each tier settles, whether to accept, continue, or give up. */
-  readonly arbiter: ExtractionArbiter<Enveloped<V>>;
+  readonly arbiter: ExtractionArbiter<Enveloped<V, P>>;
   /** Tier 1 — house-wide inventory pass followed by scoped per-instance fills. */
-  readonly tier1: ScopedFillOptions<V>;
+  readonly tier1: ScopedFillOptions<V, P>;
   /** Tier 2 — per-group calls with array responses (weaker isolation, still multi-instance). */
-  readonly tier2: PerGroupOptions<V>;
+  readonly tier2: PerGroupOptions<V, P>;
   /** Tier 3 — per-group calls with singleton responses (cannot represent a second instance). */
-  readonly tier3: PerGroupOptions<V>;
+  readonly tier3: PerGroupOptions<V, P>;
 }
 
 /**
@@ -77,9 +79,9 @@ function mergeTierObserver<U extends ExtractionUnit>(
  * A tier's own `onUnit` is not dropped — both fire, and the ladder's copy is
  * the stamped one.
  */
-export function instanceLadder<V extends Record<string, unknown>>(
-  options: InstanceLadderOptions<V>,
-): Extractor<Enveloped<V>> {
+export function instanceLadder<V extends Record<string, unknown>, P = NoProvenance>(
+  options: InstanceLadderOptions<V, P>,
+): Extractor<Enveloped<V, P>> {
   const { arbiter, tier1, tier2, tier3, onUnit } = options;
   return fallbackExtractor(
     [

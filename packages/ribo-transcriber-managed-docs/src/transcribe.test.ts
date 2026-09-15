@@ -42,7 +42,10 @@ function fakeFetch(response: Response): {
 } {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const fetchImpl = ((input: RequestInfo | URL, init?: RequestInit) => {
-    calls.push({ url: String(input), init: init ?? {} });
+    // A `Request` has no meaningful string form, so take the URL off whichever
+    // member of the union arrived rather than coercing the whole object.
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    calls.push({ url, init: init ?? {} });
     return Promise.resolve(response);
   }) as typeof fetch;
   return { fetchImpl, calls };
@@ -85,6 +88,27 @@ describe("ManagedDocsTranscriber — transcribe", () => {
     expect(transcript.text).toContain("Subtotal | $70,903.33");
     expect(transcript.text).toContain("\n===== PAGE 2 =====\n");
     expect(transcript.text).toContain("Equipment: Heat pump 3-ton.");
+  });
+
+  test("HTML entities in the response content are decoded to literal characters", async () => {
+    // Transcript.text holds rendered text, not escaped markup. A managed document
+    // understanding API may return content with HTML entities (e.g. &amp;), so
+    // decoding happens at the transcriber before the text reaches the outbox.
+    const body = {
+      pages: [
+        {
+          pageNumber: 1,
+          content: "Tom &amp; Jerry Plumbing &amp; Heating",
+        },
+      ],
+    };
+    const { fetchImpl } = fakeFetch(Response.json(body));
+    const t = new ManagedDocsTranscriber({ endpoint: ENDPOINT, fetchImpl });
+
+    const transcript = await t.transcribe(DOC, BYTES);
+
+    expect(transcript.text).toContain("Tom & Jerry Plumbing & Heating");
+    expect(transcript.text).not.toContain("&amp;");
   });
 
   // --- Failure classification: attempt failure ------------------------------------

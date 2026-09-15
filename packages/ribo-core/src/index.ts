@@ -59,6 +59,18 @@ export {
 export type { CaptureItem, DocumentCapture } from "./capture-item.js";
 export { transcriptSchema } from "./transcript.js";
 export type { Transcript } from "./transcript.js";
+export { decodeEntities } from "./decode-entities.js";
+export type { AnnotatedTranscript, CaptureAnnotations } from "./annotated-transcript.js";
+
+// Transcript combination: the pure contract that turns per-capture
+// transcripts into one, and the default combiner that reproduces the previous
+// `joinSessionTranscript` output. Injected through `RelayOptions.combineTranscripts`
+// so a host can replace the policy without forking the I/O.
+export { createDefaultTranscriptCombiner } from "./transcript-combiner.js";
+export type {
+  DefaultTranscriptCombinerOptions,
+  TranscriptCombiner,
+} from "./transcript-combiner.js";
 
 // Transcription: the contract, the capability model an engine reports itself
 // through, and the error that says "this device cannot" rather than "this clip
@@ -218,6 +230,11 @@ export type {
   WriteMetadata,
 } from "./adapter.js";
 
+// Inventory/fill vocabulary shared between an adapter (which builds the roster and
+// fill instructions) and the scoped instance fill strategy (which consumes them).
+// Both packages already depend on core, so this is the neutral home.
+export type { FillScope, Roster, RosterCandidate } from "./inventory-types.js";
+
 // The composition that hands a reviewed patch to an adapter, and the only place
 // `schema.parse` runs before a write. Resolves the destination per item off
 // `recording.ctx`, so two queued recordings from two jobs write to two places.
@@ -239,6 +256,7 @@ export type {
   ExtractionUsage,
   ExtractionTarget,
   FakeExtractorOptions,
+  ExtractOptions,
 } from "./extractor.js";
 
 // Arbitration: the decision vocabulary that lets a host classify extraction
@@ -283,6 +301,24 @@ export type { FallbackCandidate } from "./fallback-extractor.js";
 // `fallbackExtractor` so concurrency is opt-in by name, not a scheduling flag.
 export { raceExtractor } from "./race-extractor.js";
 export type { RaceCandidate } from "./race-extractor.js";
+
+// The grouped run: take a per-key map of group extractors and own the
+// cross-group work — coverage at construction, a bounded pool, the derived
+// retry budget, sibling abort, the merge, the second trust-boundary parse,
+// usage and `statedEmptyGroups`. A third combinator over the same `Extractor`
+// seam, so per-group heterogeneity is composition rather than options
+// (per-group-composition-design.md §4.2).
+export { groupedExtractor } from "./grouped-extractor.js";
+export type { GroupedExtractorOptions, GroupMap } from "./grouped-extractor.js";
+
+// The primitives `groupedExtractor` composes, exported because the extractor
+// strategies in `ribo-extractor-openai` share them: `mapWithPool` was two
+// byte-identical copies there (per-group and instance-fill) before it moved
+// here; `mergeGroupPieces` recombines a partitioned group's pieces; and
+// `parseWithSchema` is THE trust-boundary parse every extractor crosses.
+export { mapWithPool } from "./map-with-pool.js";
+export { mergeGroupPieces } from "./merge-group-pieces.js";
+export { parseWithSchema } from "./parse-with-schema.js";
 
 // Work safety: the one honest "is my work safe?" answer, derived purely from the
 // outbox, the storage persistence grant and connectivity — so every presenter

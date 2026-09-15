@@ -141,12 +141,13 @@ each backend gets its OWN baseline file, all committed to git:
 | `codex-cli`  | `baseline.codex-cli.json`                                                           |
 
 Every baseline file carries a `schemaFingerprint` (a sha256 of the frozen JSON
-Schema at `../src/__fixtures__/snugg-fields-json-schema.json` — exactly the
-artifact the shape contract is built from, whether enforced by the endpoint or
-spelled out in a CLI prompt) **and** a `backend` field (`openai:<model>`,
-`claude-cli`, or `codex-cli`) recorded INSIDE the JSON, not merely implied by the
-filename — so a future copy/rename mistake cannot silently make two incomparable
-numbers look comparable.
+Schema at `../src/__fixtures__/snugg-fields-json-schema.json` **plus** the full
+prompt source files `../src/instructions.ts` and `../src/examples.ts` — the
+shape-contract artifact AND the static prompt content that shape extraction
+quality, whether enforced by the endpoint or spelled out in a CLI prompt) **and**
+a `backend` field (`openai:<model>`, `claude-cli`, or `codex-cli`) recorded INSIDE
+the JSON, not merely implied by the filename — so a future copy/rename mistake
+cannot silently make two incomparable numbers look comparable.
 
 Each run computes its CURRENT fingerprint and backend identity and compares BOTH to
 its own baseline file:

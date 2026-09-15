@@ -38,6 +38,11 @@ const SNUGG_GROUPS = [
 
 const ENVELOPE_KEYS = new Set(["value", "confidence", "sourceSpan"]);
 
+/** `shape[key]` for a key from the shape's own keys — a bare shape indexes to `any`, so
+ * the test narrows once here (the same move `ribo-core`'s `fieldAt` makes) instead of
+ * suppressing `no-unsafe-argument` at each use. */
+const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
+
 /**
  * Walk a zod object schema and collect the dotted paths to every envelope — every
  * `{ value, confidence, sourceSpan }` leaf. An envelope is identified by its key set,
@@ -57,7 +62,7 @@ function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
 
   const leaves: string[] = [];
   for (const key of keys) {
-    const child = shape[key];
+    const child = fieldAt(shape, key);
     leaves.push(...enumerateLeaves(child, prefix ? `${prefix}.${key}` : key));
   }
   return leaves;

@@ -39,7 +39,7 @@ import { TerminalQueueError } from "./queue/backoff.js";
  *
  * ## Terminal for this engine+item pair
  *
- * Extends {@link TerminalQueueError} so `isTransientFailure` classifies it as
+ * Extends `TerminalQueueError` so `isTransientFailure` classifies it as
  * non-retryable: a relay retry _is_ retrying the same engine on the same item,
  * so without this a bare pdf.js transcriber handed a scanned PDF burns eight
  * backed-off attempts over ~10 minutes before landing in `dead`. The error is
@@ -83,7 +83,7 @@ export interface UnsupportedItemInit {
  * "This engine cannot handle this item" — _item unsuitability_, the third
  * failure class.
  *
- * See the {@link ./unsupported-item.ts | module doc} for the distinction from
+ * See the `unsupported-item.ts | module doc` for the distinction from
  * attempt failure and capability failure, and for why the name is
  * "Unsupported" rather than "Untranscribable".
  *

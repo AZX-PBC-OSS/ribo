@@ -96,10 +96,13 @@ import {
  * carries the backend identity as a field inside the JSON (`backend`), not merely
  * implied by its filename, so a future copy/rename mistake cannot silently make two
  * incomparable runs look comparable. Each baseline carries a fingerprint (sha256 of
- * the frozen JSON Schema at `../src/__fixtures__/snugg-fields-json-schema.json` —
- * exactly the artifact the schema-conformance contract is built from, whether
- * enforced by the endpoint or spelled out in a CLI prompt, so it changes iff what
- * the model is asked for changes) alongside the rates it recorded. Each run
+ * the frozen JSON Schema at `../src/__fixtures__/snugg-fields-json-schema.json` plus
+ * the static prompt source files `../src/instructions.ts` and `../src/examples.ts` —
+ * the schema-conformance artifact AND the full prompt content that shape extraction
+ * quality, whether the endpoint enforces shape or a CLI spells it out. Hashing whole
+ * source files errs toward invalidating too often — a comment edit moves it — which is
+ * the safe direction: a stale baseline that looks fresh is the failure worth avoiding)
+ * alongside the rates it recorded. Each run
  * recomputes the CURRENT fingerprint and compares it AND the backend identity to
  * its OWN baseline file:
  *   - MATCH  -> the baseline describes this exact schema and backend; assert the
@@ -166,6 +169,8 @@ const FIXTURE_SCHEMA_PATH = join(
   "__fixtures__",
   "snugg-fields-json-schema.json",
 );
+const INSTRUCTIONS_PATH = join(HERE, "..", "src", "instructions.ts");
+const EXAMPLES_PATH = join(HERE, "..", "src", "examples.ts");
 // One baseline FILE per backend (see "BASELINE FRESHNESS" above) — `openai`'s filename is
 // unchanged so every run before this one still resolves.
 const BASELINE_PATH = join(
@@ -173,12 +178,19 @@ const BASELINE_PATH = join(
   backendId === "openai" ? "baseline.json" : `baseline.${backendId}.json`,
 );
 
-/** Hash of the exact JSON Schema sent to the model — the fingerprint a baseline is captured
- * against. Reads the FROZEN fixture (`extraction-shape.test.ts` pins it), not a live derivation,
- * so this fingerprint changes iff that fixture is deliberately re-captured. */
+/** Hash of the JSON schema plus the prompt source files that shape extraction quality. The
+ * schema fixture is frozen (`extraction-shape.test.ts` pins it), and the instructions / few-shot
+ * examples are the static prompt content the adapter feeds the model, so this fingerprint
+ * changes whenever any of those three artifacts change. */
 function currentSchemaFingerprint(): string {
-  const raw = readFileSync(FIXTURE_SCHEMA_PATH, "utf8");
-  return `sha256:${createHash("sha256").update(raw).digest("hex")}`;
+  const schema = readFileSync(FIXTURE_SCHEMA_PATH, "utf8");
+  const instructions = readFileSync(INSTRUCTIONS_PATH, "utf8");
+  const examples = readFileSync(EXAMPLES_PATH, "utf8");
+  return `sha256:${createHash("sha256")
+    .update(schema)
+    .update(instructions)
+    .update(examples)
+    .digest("hex")}`;
 }
 
 interface Baseline {
@@ -290,7 +302,7 @@ describe.skipIf(skipSuite)("single-shot extraction — spike-corpus acceptance g
         let fields: unknown = null;
         let problem: string | null = null;
         try {
-          const result = await extractor.extract(transcript);
+          const result = await extractor.extract({ text: transcript, annotations: {} });
           fields = result.fields;
           writeFileSync(join(RESULTS_DIR, `${slug}.json`), `${JSON.stringify(fields, null, 2)}\n`);
         } catch (error) {
@@ -463,7 +475,7 @@ describe.skipIf(skipSuite)("single-shot extraction — spike-corpus acceptance g
       console.log(`[acceptance] ---- baseline (${BASELINE_PATH}) ----`);
       if (freshBaseline) {
         console.log(
-          `  schema fingerprint AND backend match the committed baseline (captured ${freshBaseline.capturedAt}, ` +
+          `  schema + prompt fingerprint AND backend match the committed baseline (captured ${freshBaseline.capturedAt}, ` +
             `backend ${freshBaseline.backend}) — asserting the rate bands below.`,
         );
         console.log(
@@ -474,7 +486,7 @@ describe.skipIf(skipSuite)("single-shot extraction — spike-corpus acceptance g
         console.log(
           baseline === null
             ? `  no baseline file yet at this path — this run's numbers ARE the first baseline for this schema+backend.`
-            : `  the committed baseline was captured against a DIFFERENT schema and/or backend ` +
+            : `  the committed baseline was captured against a DIFFERENT schema/prompt and/or backend ` +
                 `(schemaFingerprint ${baseline.schemaFingerprint} vs current ${fingerprint}; ` +
                 `backend ${baseline.backend} vs current ${backendIdentity}) — untrustworthy, not asserted against.`,
         );

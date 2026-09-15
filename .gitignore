@@ -101,3 +101,4 @@ spikes/extraction-snuggpro/results/ondevice*/
 # above — the harness IS committed (`spikes/managed-three-phase/`), its output is not, and
 # the numbers that matter are in docs/implementation/20-managed-three-phase-extraction.md.
 spikes/extraction-snuggpro/results/managed-*/
+

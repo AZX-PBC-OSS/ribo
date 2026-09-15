@@ -16,8 +16,8 @@ import type { CaptureHealth, CaptureSession } from "@azx/ribo-core";
  * `useWorkSafety` behaves as it does today.
  */
 export interface CaptureCoordinator {
-  register(session: CaptureSession): () => void;
-  active(): CaptureSession | undefined;
+  register: (session: CaptureSession) => () => void;
+  active: () => CaptureSession | undefined;
   readonly health$: Observable<CaptureHealth | undefined>;
 }
 

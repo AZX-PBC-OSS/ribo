@@ -1,13 +1,14 @@
 import { describe, expect, test } from "vitest";
 
 import { DEFAULT_CAPABILITY_TTL_MS } from "./first-capable.js";
-import type { Extractor, ExtractionResult } from "./extractor.js";
+import type { Extractor } from "./extractor.js";
+import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import type { CapabilitySource, SelectableCapability } from "./composite-extractor.js";
 import { compositeExtractor } from "./composite-extractor.js";
 
 interface MutableClock {
-  now(): number;
-  advance(ms: number): void;
+  now: () => number;
+  advance: (ms: number) => void;
 }
 
 function makeClock(): MutableClock {
@@ -57,13 +58,17 @@ function fakeExtractor<F>(
 ): Extractor<F> & { calls: readonly string[] } {
   const calls: string[] = [];
   return {
-    extract: async (transcript: string) => {
-      calls.push(transcript);
+    extract: async (transcript: AnnotatedTranscript) => {
+      calls.push(transcript.text);
+      // The rule-5 test throws a non-Error sentinel on purpose — it pins that a
+      // selected extractor's rejection propagates UNTOUCHED, so the throw must stay
+      // whatever value the test supplied.
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
       if (options.throws !== undefined) throw options.throws;
       return {
         fields,
         usage: { calls: options.calls ?? 1, engine: options.engine },
-      } as ExtractionResult<F>;
+      };
     },
     get calls() {
       return calls;
@@ -86,7 +91,7 @@ describe("compositeExtractor rules", () => {
       { source: secondSource, extractor: secondExtractor },
     ]);
 
-    await expect(extractor.extract("x")).rejects.toBe(sentinel);
+    await expect(extractor.extract({ text: "x", annotations: {} })).rejects.toBe(sentinel);
     expect(firstExtractor.calls).toEqual(["x"]);
     expect(secondExtractor.calls).toEqual([]);
     expect(secondSource.probeCount).toBe(0);
@@ -97,7 +102,7 @@ describe("compositeExtractor rules", () => {
     const inner = fakeExtractor({ a: 1 }, { engine: "on-device" });
     const extractor = compositeExtractor([{ source, extractor: inner }]);
 
-    const result = await extractor.extract("x");
+    const result = await extractor.extract({ text: "x", annotations: {} });
 
     expect(result.usage).toEqual({ calls: 1, engine: "managed" });
   });
@@ -106,7 +111,7 @@ describe("compositeExtractor rules", () => {
     const source = throwingSource("managed", new Error("probe boom"));
     const extractor = compositeExtractor([{ source, extractor: fakeExtractor({}) }]);
 
-    await expect(extractor.extract("x")).rejects.toThrow(
+    await expect(extractor.extract({ text: "x", annotations: {} })).rejects.toThrow(
       "managed: unavailable (unknown) — capability probe failed: probe boom",
     );
   });
@@ -131,11 +136,11 @@ describe("compositeExtractor rules", () => {
       now: clock.now,
     });
 
-    await extractor.extract("a");
+    await extractor.extract({ text: "a", annotations: {} });
     expect(source.probeCount).toBe(1);
 
     clock.advance(DEFAULT_CAPABILITY_TTL_MS + 1);
-    await extractor.extract("b");
+    await extractor.extract({ text: "b", annotations: {} });
     expect(source.probeCount).toBe(2);
   });
 });

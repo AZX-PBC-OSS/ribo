@@ -107,6 +107,10 @@ export default defineConfig({
             { text: "The Snugg Pro Data Model", link: "/deep-dives/snuggpro-data-model" },
             { text: "Schema at Scale: Measured", link: "/deep-dives/schema-scale" },
             {
+              text: "Native Extraction: Measured",
+              link: "/deep-dives/native-extraction",
+            },
+            {
               text: "Provenance: Measured",
               link: "/deep-dives/provenance-measurement",
             },

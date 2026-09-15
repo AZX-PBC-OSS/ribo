@@ -117,7 +117,7 @@ export type ProvenanceMap<T extends z.ZodObject> = Partial<
   Record<keyof T["shape"] & string, ProvenanceGranularity>
 >;
 
-/** {@link enveloped}'s options. */
+/** `enveloped`'s options. */
 export interface EnvelopedOptions<P> {
   /** Per-group provenance granularity — see {@link ProvenanceGranularity}. */
   readonly provenance?: P;
@@ -185,6 +185,15 @@ const envelopeField = (
  * values and then quotes the line it read them off — the same value-then-citation order
  * `extractedSchema` puts a leaf's own span in.
  */
+/**
+ * `shape[key]` for a key that came from `Object.keys(shape)`.
+ *
+ * A bare `z.ZodObject`'s `.shape` indexes to `any`, so every call site otherwise suppresses
+ * `no-unsafe-argument` and repeats the same justification. The key came from the shape's own
+ * keys, so the value is a `ZodType` by construction — narrowed once here instead.
+ */
+const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
+
 const envelopeObject = (
   obj: z.ZodObject,
   path: string,
@@ -194,7 +203,7 @@ const envelopeObject = (
   const shape = obj.shape;
   const enveloped: RawShape = {};
   for (const key of Object.keys(shape)) {
-    enveloped[key] = envelopeField(shape[key], childPath(path, key), granularity, false);
+    enveloped[key] = envelopeField(fieldAt(shape, key), childPath(path, key), granularity, false);
   }
   if (granularity === "row" && isRow) {
     if (Object.hasOwn(enveloped, ROW_SOURCE_SPAN_KEY)) {
@@ -217,33 +226,36 @@ const envelopeObject = (
  * nobody wanted, with nothing to say so. `"row"` on a top-level leaf has no row object to hang the
  * span on, so the granularity would simply not happen.
  */
-const validateProvenance = (
+export const validateProvenance = (
   values: z.ZodObject,
   provenance: Readonly<Record<string, ProvenanceGranularity>>,
+  // Named so the thrown message blames the caller's entry point. `buildReviewRequest` reuses this
+  // check, and a JS caller told `enveloped():` would go looking in the wrong place.
+  caller = "enveloped()",
 ): void => {
   const shape = values.shape;
   for (const [key, granularity] of Object.entries(provenance)) {
     if (!GRANULARITIES.includes(granularity)) {
       throw new Error(
-        `enveloped(): unknown provenance granularity "${String(granularity)}" for group "${key}"` +
+        `${caller}: unknown provenance granularity "${String(granularity)}" for group "${key}"` +
           ` — expected one of ${GRANULARITIES.map((g) => `"${g}"`).join(", ")}.`,
       );
     }
     if (!Object.hasOwn(shape, key)) {
       throw new Error(
-        `enveloped(): provenance names group "${key}", which is not a top-level property of the ` +
+        `${caller}: provenance names group "${key}", which is not a top-level property of the ` +
           `values schema. Its groups are: ${Object.keys(shape).join(", ")}.`,
       );
     }
     if (granularity !== "row") continue;
-    const stripped = stripOptionalNullable(shape[key]!);
+    const stripped = stripOptionalNullable(fieldAt(shape, key));
     const candidate =
       stripped instanceof z.ZodArray
         ? stripOptionalNullable(stripped.element as z.ZodType)
         : stripped;
     if (!(candidate instanceof z.ZodObject)) {
       throw new Error(
-        `enveloped(): "row" provenance on group "${key}" needs an object (or an array of them) ` +
+        `${caller}: "row" provenance on group "${key}" needs an object (or an array of them) ` +
           'to hang the row\'s sourceSpan on, but that group is a leaf. Use "none" if the leaf ' +
           "should carry no provenance.",
       );
@@ -322,7 +334,7 @@ type EnvelopedShape<S extends RawShape, P> = {
 };
 
 /**
- * The default `P`: a map with no keys, so {@link GranularityOf} answers `"leaf"` for every group.
+ * The default `P`: a map with no keys, so `GranularityOf` answers `"leaf"` for every group.
  *
  * `Record<never, ProvenanceGranularity>` rather than `Record<string, never>`, which looks
  * equivalent and is not: the latter's `keyof` is `string`, so every key would match and resolve to
@@ -354,13 +366,18 @@ export const enveloped = <T extends z.ZodObject, const P extends ProvenanceMap<T
   for (const key of Object.keys(shape)) {
     // The group object itself is a row unit under `"row"`; a collection's array branch overrides
     // this to per-element, which is why `isRow` is set here rather than only inside the walk.
-    derived[key] = envelopeField(shape[key], childPath("", key), provenance[key] ?? "leaf", true);
+    derived[key] = envelopeField(
+      fieldAt(shape, key),
+      childPath("", key),
+      provenance[key] ?? "leaf",
+      true,
+    );
   }
   return z.strictObject(derived) as z.ZodObject<EnvelopedShape<T["shape"], P>, z.core.$strict>;
 };
 
 /**
- * The plain-value-space counterpart to {@link enveloped}: given the inferred type of a patch
+ * The plain-value-space counterpart to `enveloped`: given the inferred type of a patch
  * (optional/nullable leaves included), compute the inferred type of its derived extraction
  * schema. `NonNullable` strips the leaf's `| null | undefined` before deciding whether it is a
  * nested object or a leaf, mirroring {@link stripOptionalNullable} at the type level — without it,

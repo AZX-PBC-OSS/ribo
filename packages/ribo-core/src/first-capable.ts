@@ -72,21 +72,21 @@ export interface FirstCapableOptions {
   onFallback?: (event: TranscriberFallback) => void;
 }
 
-/** What {@link firstCapable} returns: a `Transcriber` plus the roster it is made of. */
+/** What `firstCapable` returns: a `Transcriber` plus the roster it is made of. */
 export interface CompositeTranscriber extends Transcriber {
   /**
    * Every delegate's current capability, in preference order — the roster a download screen
    * renders from. Reads through the same cache `transcribe` uses, so asking is cheap and the
    * answer cannot disagree with what selection would do.
    */
-  capabilities(): Promise<readonly EngineCapability[]>;
+  capabilities: () => Promise<readonly EngineCapability[]>;
   /**
    * Drop cached capabilities and re-probe on next use: one engine by id, or all of them.
    *
    * This is how "the model finished downloading" and "the device came back online" are
    * announced. Cheaper and far more responsive than shortening the TTL.
    */
-  invalidate(engine?: string): void;
+  invalidate: (engine?: string) => void;
 }
 
 interface CacheEntry {

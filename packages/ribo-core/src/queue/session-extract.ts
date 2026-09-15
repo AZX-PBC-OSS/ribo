@@ -1,77 +1,71 @@
 import type { Outbox } from "./outbox.js";
-import type { OutboxItem } from "./schema.js";
 import type { SessionItem } from "./session-schema.js";
+import type { AnnotatedTranscript } from "../annotated-transcript.js";
+import type { TranscriptCombiner } from "../transcript-combiner.js";
+import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
 
 /**
- * @file Session-level extraction: join every transcribed capture's transcript
- * text in capture order, excluding `discarded`, and provide the cache key that
- * makes "I forgot the crawlspace" cheap.
+ * @file Session-level extraction: list a session's transcribed captures in
+ * capture order (excluding `discarded` and `dead`), build an
+ * {@link AnnotatedTranscript} for each, and hand the array to a
+ * {@link TranscriptCombiner} for the policy.
+ *
+ * The I/O (listing, filtering, sorting, building parts) lives here; the
+ * combination policy lives in the combiner, which is pure. That split is the
+ * point: the combiner is testable with a plain array and no database, and a
+ * host can replace it without forking the I/O.
  *
  * This is the app's `runJobExtraction.ts` rule, promoted: the auditor threw
  * that capture away, and its words should not return through a later
  * extraction. It runs when the session is closed (the auditor is done walking
  * the house), keyed by the capture set, re-running when the set changes.
- *
- * When {@link JoinSessionTranscriptOptions.markCaptures} is true, each capture's
- * text is preceded by a per-capture marker so a model can attribute a value to
- * the capture it came from — mirroring the page-marker convention from
- * `@azx/ribo-transcriber-pdfjs`.
  */
 
 /**
- * Options for {@link joinSessionTranscript}.
- */
-export interface JoinSessionTranscriptOptions {
-  /**
-   * When true, prefix each capture's transcript text with a per-capture marker
-   * (`\n===== CAPTURE seq:N kind:K id:I =====\n`) so a model can attribute a
-   * value to the capture it came from. Mirrors the page-marker convention
-   * (`\n===== PAGE n =====\n`) from `@azx/ribo-transcriber-pdfjs`.
-   *
-   * The marker carries three things a downstream consumer needs to resolve a
-   * citation back to a row:
-   *
-   * - **`seq`** — the capture-order index, stable and human-readable. Gives a
-   *   reviewer "this was the third capture."
-   * - **`kind`** — `audio` or `document`, one word. Tells a reviewer what kind
-   *   of source they are looking at without a row lookup.
-   * - **`id`** — the outbox item id, the primary key `outbox.get(id)` resolves.
-   *   This is what `recordingIds` already returns, so a consumer that has the
-   *   structured array can cross-reference directly. A UUID is not natural
-   *   language, so it is unambiguous against real transcript content.
-   *
-   * All three are assigned at enqueue time and never change across a retry.
-   *
-   * Defaults to `false`: the joined text is unchanged for existing callers, so
-   * what every extractor sees does not shift unless the caller explicitly opts
-   * in. The risk of unconditional emission is real — an extractor might produce
-   * different output when it sees markers, and that is a behaviour change for
-   * every caller — and the risk of opt-in is merely that a host must know to
-   * turn it on, which is acceptable for a design-forward change.
-   */
-  markCaptures?: boolean;
-}
-
-/**
- * The per-capture marker prefix. The full marker for a capture is
- * `` `\n===== CAPTURE seq:${seq} kind:${kind} id:${id} =====\n` ``.
+ * List a session's transcribed captures in capture order (seq-ascending),
+ * excluding `discarded` and `dead`, and build an {@link AnnotatedTranscript}
+ * for each.
  *
- * Mirrors the page-marker convention from `@azx/ribo-transcriber-pdfjs`:
- * a `===== … =====` line on its own, surrounded by newlines, so it is
- * greppable, unambiguous against real transcript content, and cheap in tokens.
- */
-const CAPTURE_MARKER_PREFIX = "\n===== CAPTURE ";
-
-/**
- * Build the per-capture marker for one outbox item.
+ * Each part's `annotations` bag merges two sources:
  *
- * The marker sits **before** the capture's text, never inside it — so
- * `isSpanGrounded` still finds a verbatim quote from within the transcript as a
- * substring of the joined text. The `\n` at each end of the marker separates it
- * from surrounding text without needing a join space.
+ * - **Transcriber annotations** (`transcript.annotations`) — spread at the top
+ *   level. A document transcriber that produces page boundaries, table
+ *   structure, or a provider's own structured response puts them here.
+ * - **Capture metadata** — the relay writes `seq`, `kind`, and `id` from the
+ *   outbox item under a reserved `capture.` prefix (`capture.seq`,
+ *   `capture.kind`, `capture.id`). The prefix is reserved so a transcriber's
+ *   own `seq` or `id` cannot collide with the relay's metadata; both coexist in
+ *   the same bag. If a transcriber does use a `capture.`-prefixed key, the
+ *   relay's value wins (spread last).
+ *
+ * The bag is open by design. The default combiner reads `capture.seq`,
+ * `capture.kind`, and `capture.id` to build per-capture markers; nothing else
+ * in core reads the transcriber's own keys.
+ *
+ * Returns the parts and the sorted capture ids that produced them. The ids are
+ * the **cache key**: if they haven't changed since the last extraction, the
+ * extraction is still valid and need not re-run.
  */
-function captureMarker(item: OutboxItem): string {
-  return `${CAPTURE_MARKER_PREFIX}seq:${item.seq} kind:${item.recording.kind} id:${item.id} =====\n`;
+export async function listSessionTranscriptParts(
+  outbox: Outbox,
+  sessionId: string,
+): Promise<{ parts: AnnotatedTranscript[]; recordingIds: string[] }> {
+  const recordings = await outbox.list({ sessionId });
+  const usable = recordings
+    .filter((r) => r.status === "transcribed" && r.transcript !== undefined)
+    .sort((a, b) => a.seq - b.seq);
+  return {
+    parts: usable.map((r) => ({
+      text: r.transcript!.text,
+      annotations: {
+        ...r.transcript!.annotations,
+        "capture.seq": r.seq,
+        "capture.kind": r.recording.kind,
+        "capture.id": r.id,
+      },
+    })),
+    recordingIds: usable.map((r) => r.id).sort(),
+  };
 }
 
 /**
@@ -79,29 +73,25 @@ function captureMarker(item: OutboxItem): string {
  * `sessionId`, in capture order (seq-ascending), excluding `discarded` and
  * `dead`.
  *
+ * A convenience that calls {@link listSessionTranscriptParts} for the I/O and
+ * `combiner` for the policy. The combiner defaults to
+ * {@link createDefaultTranscriptCombiner} (no markers), so existing callers
+ * see the same text they always have. Pass a custom combiner to replace the
+ * combination policy without forking the I/O.
+ *
  * Returns the joined text and the sorted capture ids that produced it. The
  * ids are the **cache key**: if they haven't changed since the last extraction,
  * the extraction is still valid and need not re-run.
- *
- * When `options.markCaptures` is true, each capture's text is preceded by a
- * per-capture marker — see {@link JoinSessionTranscriptOptions.markCaptures}.
  */
 export async function joinSessionTranscript(
   outbox: Outbox,
   sessionId: string,
-  options?: JoinSessionTranscriptOptions,
+  combiner?: TranscriptCombiner,
 ): Promise<{ text: string; recordingIds: string[] }> {
-  const recordings = await outbox.list({ sessionId });
-  const usable = recordings
-    .filter((r) => r.status === "transcribed" && r.transcript !== undefined)
-    .sort((a, b) => a.seq - b.seq);
-  const { markCaptures = false } = options ?? {};
-  return {
-    text: markCaptures
-      ? usable.map((r) => captureMarker(r) + r.transcript!.text).join("")
-      : usable.map((r) => r.transcript!.text).join(" "),
-    recordingIds: usable.map((r) => r.id).sort(),
-  };
+  const { parts, recordingIds } = await listSessionTranscriptParts(outbox, sessionId);
+  const combine = combiner ?? createDefaultTranscriptCombiner();
+  const { text } = combine(parts);
+  return { text, recordingIds };
 }
 
 /**

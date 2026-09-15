@@ -34,6 +34,17 @@ Two further findings shaped the decision:
   `claude-haiku-4-5` fabricated 37% of _per-cell_ citations on a Manual J (17 of 46) and 18% on an
   invoice; row spans came back 14/14 verbatim. The unit of citation was fighting the model, not
   only the token budget.
+
+  > **Addendum, 2026-09-11 — this bullet did not reproduce.** A 2x2 factorial (write-up in
+  > `docs/deep-dives/provenance-measurement.md`), five runs per cell, put per-cell citation at 99.5% verbatim
+  > and per-row at 98.8% — leaf marginally ahead of row, and no sign of the gap. That run differs
+  > from this one in document, schema and extraction mechanism (`singleShotExtractor` with
+  > Anthropic `tool_use`, against this one's `perGroupExtractor` through the Helix gateway), so it
+  > does not refute the 37% so much as fail to find it. Read the figure as a measurement under the
+  > conditions above, not as a property of cell-level citation. **The decision stands on the token
+  > budget and reviewer-experience arguments**, which are independent of fabrication rate and are
+  > unaffected.
+
 - **A mixed schema was already achievable by hand.** A `rowSourceSpan` field declared on the row
   object, with a hand-built `extractionSchema`, works today — the measurement above is that. What
   was missing was the ability to **derive** it, which is the whole point of `enveloped()`.

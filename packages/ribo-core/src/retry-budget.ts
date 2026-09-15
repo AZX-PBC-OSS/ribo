@@ -51,7 +51,7 @@ export interface RetryBudgetObserver {
 
 /**
  * Worst-case accumulated backoff for one call exhausting `retries` retries —
- * the sum of {@link fullJitterDelay} results when `random()` returns 1 every
+ * the sum of `fullJitterDelay` results when `random()` returns 1 every
  * time, so each delay is `min(cap, base * 2^attempts)`. The real delay is
  * always ≤ this; the budget derivation uses the worst case so the step timeout
  * is never exceeded by backoff alone.

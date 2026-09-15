@@ -73,7 +73,10 @@ function fakeChat(body: string): { chat: ChatClient; requests: ChatRequest[] } {
 test("a 15-leaf row group is extracted in ONE call, with a row span per instance", async () => {
   const { chat, requests } = fakeChat(JSON.stringify({ rooms: [row(1), row(2)] }));
 
-  const result = await perGroupExtractor({ target: roomsTarget, chat, model: "m" }).extract("t");
+  const result = await perGroupExtractor({ target: roomsTarget, chat, model: "m" }).extract({
+    text: "t",
+    annotations: {},
+  });
 
   // The whole point: 15 plain leaves plus a row span is 16 nullable unions, which fits. A leaf
   // cap of 8 would have made this two calls and two partial answers to merge.
@@ -92,7 +95,10 @@ test("a 15-leaf row group is extracted in ONE call, with a row span per instance
 test("the request's response schema asks for plain leaves and one row span", async () => {
   const { chat, requests } = fakeChat(JSON.stringify({ rooms: [row(1)] }));
 
-  await perGroupExtractor({ target: roomsTarget, chat, model: "m" }).extract("t");
+  await perGroupExtractor({ target: roomsTarget, chat, model: "m" }).extract({
+    text: "t",
+    annotations: {},
+  });
 
   const schema = requests[0]!.response_format.json_schema.schema as {
     properties: { rooms: { items: { properties: Record<string, unknown>; required: string[] } } };

@@ -100,7 +100,7 @@ async function parkedItem() {
 async function probe(
   session: SessionItem | undefined,
   outbox: Outbox,
-  extra: Partial<UseReviewOptions> = {},
+  extra: Partial<UseReviewOptions<typeof valuesSchema>> = {},
 ) {
   const seen: { current: UseReviewResult | undefined } = { current: undefined };
   function Probe({ subject }: { subject: SessionItem | undefined }) {

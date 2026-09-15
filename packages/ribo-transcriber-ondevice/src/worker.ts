@@ -104,19 +104,19 @@ export function normalizeProgress(item: RawProgressItem): PrimeProgress | null {
  */
 interface AsrPipeline {
   readonly tokenizer: {
-    encode(text: string, options?: { add_special_tokens?: boolean }): number[];
-    decode(ids: number[], options?: { skip_special_tokens?: boolean }): string;
+    encode: (text: string, options?: { add_special_tokens?: boolean }) => number[];
+    decode: (ids: number[], options?: { skip_special_tokens?: boolean }) => string;
   };
   readonly model: {
     readonly generation_config?: {
       readonly decoder_start_token_id?: number;
       readonly no_timestamps_token_id?: number | null;
     };
-    generate(inputs: Record<string, unknown>): Promise<unknown>;
+    generate: (inputs: Record<string, unknown>) => Promise<unknown>;
   };
   // Whisper's feature extractor returns `input_features` (a mel spectrogram); Moonshine's returns
   // `input_values` (the waveform, unpadded). Both are the single positional input to `generate`.
-  processor(audio: Float32Array): Promise<{ input_features?: unknown; input_values?: unknown }>;
+  processor: (audio: Float32Array) => Promise<{ input_features?: unknown; input_values?: unknown }>;
 }
 
 /**
@@ -628,11 +628,11 @@ interface LiveWorkerSession {
    * dynamic-importing transformers.js.
    */
   readonly vad: {
-    feed(frame: Float32Array): Promise<RegionFrameResult>;
-    drain(): Promise<Float32Array>;
+    feed: (frame: Float32Array) => Promise<RegionFrameResult>;
+    drain: () => Promise<Float32Array>;
     readonly samples: Float32Array;
     /** Trimmed speech-span samples for the refresh path's transcription input. Null = no speech. */
-    speechSpanSamples(): Float32Array | null;
+    speechSpanSamples: () => Float32Array | null;
   };
   /**
    * Transcribe one region's samples. Bundles `getPipeline` + `transcribeChunk`

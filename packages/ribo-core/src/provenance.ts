@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { decodeEntities } from "./decode-entities.js";
+
 /**
  * The provenance envelope every extracted field is wrapped in.
  *
@@ -150,9 +152,19 @@ export const isSpanGrounded = (span: string | null, transcript: string): boolean
  */
 export type SpanGroundedness = "grounded" | "near-miss" | "ungrounded";
 
-/** Case-, whitespace- and quote-insensitive form, for the near-miss tier only. */
+/** Case-, whitespace-, quote- and HTML-entity-insensitive form, for the near-miss tier only. */
 const loosen = (text: string): string =>
-  text.toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
+  // Decode BEFORE lowercasing: a numeric entity for a letter (`&#65;`) decodes to `A`, and a
+  // decode that runs after the lowercase pass leaves it uppercase against a lowercased literal.
+  // Shares `decodeEntities` with the document transcribers deliberately — they render entities
+  // out of `Transcript.text`, and this tier catches a span that arrives encoded anyway (a
+  // provider returning its own markdown). Two decoders would let those two paths disagree.
+  decodeEntities(text)
+    .toLowerCase()
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/\s+/gu, " ")
+    .trim();
 
 export const spanGroundedness = (span: string | null, transcript: string): SpanGroundedness => {
   if (isSpanGrounded(span, transcript)) return "grounded";

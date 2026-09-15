@@ -19,7 +19,7 @@ import { expect, test } from "vitest";
  */
 
 interface MaybeLanguageModel {
-  availability(): Promise<string>;
+  availability: () => Promise<string>;
 }
 
 function languageModel(): MaybeLanguageModel | undefined {
@@ -49,7 +49,7 @@ test("reports availability when the API is present, and skips when it is not", a
 
 test("records what create() does here, without waiting for a download", async ({ skip }) => {
   const model = languageModel() as
-    { availability(): Promise<string>; create(o?: unknown): Promise<unknown> } | undefined;
+    { availability: () => Promise<string>; create: (o?: unknown) => Promise<unknown> } | undefined;
   skip(model === undefined, "no LanguageModel global");
 
   // This is the question Task 12 actually turns on. `downloadable` says the API is

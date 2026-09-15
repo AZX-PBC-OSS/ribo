@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { ChatError } from "@azx/ribo-extractor-openai";
 import { enveloped, type ExtractionTarget, type PhaseUnit } from "@azx/ribo-core";
 
@@ -61,7 +61,10 @@ describe("threePhaseExtractor", () => {
       [json({ yearBuilt: false, access: false })],
     ];
 
-    const result = await makeExtractor(model).extract("the system is gas");
+    const result = await makeExtractor(model).extract({
+      text: "the system is gas",
+      annotations: {},
+    });
 
     expect(result.fields.hvac.fuel.value).toBe("Gas");
     expect(result.fields.hvac.fuel.sourceSpan).toBe("the system is gas");
@@ -105,7 +108,10 @@ describe("threePhaseExtractor", () => {
 
     const chat = new OnDeviceChat({ languageModel: model });
     const extractor = threePhaseExtractor({ target: siteOnlyTarget, chat, maxRetries: 3 });
-    const result = await extractor.extract("nothing about the site was said");
+    const result = await extractor.extract({
+      text: "nothing about the site was said",
+      annotations: {},
+    });
 
     expect(result.fields.site.yearBuilt.value).toBeNull();
     expect(result.fields.site.access.value).toBeNull();
@@ -140,7 +146,7 @@ describe("threePhaseExtractor", () => {
 
     const chat = new OnDeviceChat({ languageModel: model });
     const extractor = threePhaseExtractor({ target: singleLeafTarget, chat, maxRetries: 3 });
-    const result = await extractor.extract("the boiler is oil-fired");
+    const result = await extractor.extract({ text: "the boiler is oil-fired", annotations: {} });
 
     expect(result.fields.hvac.fuel.value).toBe("Oil");
     expect(result.fields.hvac.fuel.sourceSpan).toBe("the boiler is oil-fired");
@@ -175,7 +181,7 @@ describe("threePhaseExtractor", () => {
 
     const chat = new OnDeviceChat({ languageModel: model });
     const extractor = threePhaseExtractor({ target: singleLeafTarget, chat, maxRetries: 3 });
-    const result = await extractor.extract("the system is gas");
+    const result = await extractor.extract({ text: "the system is gas", annotations: {} });
 
     expect(result.fields.hvac.fuel.value).toBeNull();
     expect(result.fields.hvac.fuel.sourceSpan).toBeNull();
@@ -193,7 +199,10 @@ describe("threePhaseExtractor", () => {
       [json({ yearBuilt: false, access: false })],
     ];
 
-    const result = await makeExtractor(model).extract("the boiler is oil-fired");
+    const result = await makeExtractor(model).extract({
+      text: "the boiler is oil-fired",
+      annotations: {},
+    });
 
     expect(Object.keys(result.fields.hvac)).toEqual(["fuel", "efficiency", "notes"]);
     expect(Object.keys(result.fields.site)).toEqual(["yearBuilt", "access"]);
@@ -219,7 +228,10 @@ describe("threePhaseExtractor", () => {
       [json({ yearBuilt: false, access: false })],
     ];
 
-    const result = await makeExtractor(model).extract("the system is gas");
+    const result = await makeExtractor(model).extract({
+      text: "the system is gas",
+      annotations: {},
+    });
 
     expect(result.usage.calls).toBe(4);
     expect(result.usage.engine).toBe("ondevice-chat");
@@ -271,7 +283,7 @@ describe("threePhaseExtractor", () => {
 
       const chat = new OnDeviceChat({ languageModel: model });
       const extractor = threePhaseExtractor({ target: instanceTarget, chat, maxRetries: 3 });
-      const result = await extractor.extract("the system is gas");
+      const result = await extractor.extract({ text: "the system is gas", annotations: {} });
 
       // Before the fix, `hvac` (an array-shaped group) is dropped entirely by the
       // schema walk, and `target.extractionSchema.parse()` throws on the missing
@@ -295,7 +307,10 @@ describe("threePhaseExtractor", () => {
 
       const chat = new OnDeviceChat({ languageModel: model });
       const extractor = threePhaseExtractor({ target: instanceTarget, chat, maxRetries: 3 });
-      const result = await extractor.extract("nothing relevant was said");
+      const result = await extractor.extract({
+        text: "nothing relevant was said",
+        annotations: {},
+      });
 
       // Matches `perGroupSingletonExtractor`'s convention elsewhere in this codebase:
       // a collection group always comes back as a one-element array, never an empty
@@ -337,7 +352,7 @@ describe("threePhaseExtractor", () => {
 
     const chat = new OnDeviceChat({ languageModel: model });
     const extractor = threePhaseExtractor({ target: singleLeafTarget, chat, maxRetries: 3 });
-    const result = await extractor.extract("the boiler is oil-fired");
+    const result = await extractor.extract({ text: "the boiler is oil-fired", annotations: {} });
 
     expect(result.fields.hvac.fuel.value).toBe("Oil");
     expect(result.fields.hvac.fuel.sourceSpan).toBe("the boiler is oil-fired");
@@ -428,7 +443,7 @@ describe("threePhaseExtractor", () => {
         maxRetries: 3,
         onUnit: (e) => events.push(e),
       });
-      await extractor.extract(transcript);
+      await extractor.extract({ text: transcript, annotations: {} });
 
       const starts = events.filter((e) => e.phase === "start");
 
@@ -467,7 +482,7 @@ describe("threePhaseExtractor", () => {
         maxRetries: 3,
         onUnit: (e) => events.push(e),
       });
-      await extractor.extract("the system is gas");
+      await extractor.extract({ text: "the system is gas", annotations: {} });
 
       const pass0Events = events.filter((e) => e.pass === 0);
       expect(pass0Events.length).toBeGreaterThan(0);
@@ -495,7 +510,7 @@ describe("threePhaseExtractor", () => {
         maxRetries: 3,
         onUnit: (e) => events.push(e),
       });
-      const result = await extractor.extract("nothing relevant");
+      const result = await extractor.extract({ text: "nothing relevant", annotations: {} });
 
       const hvacErrors = events.filter((e) => e.key === "hvac" && e.phase === "error");
       expect(hvacErrors).toHaveLength(4);
@@ -540,7 +555,7 @@ describe("threePhaseExtractor", () => {
         maxRetries: 3,
         onUnit: (e) => events.push(e),
       });
-      await extractor.extract("the system is gas");
+      await extractor.extract({ text: "the system is gas", annotations: {} });
 
       const phase2 = events.filter((e) => e.pass === 2);
       const ids = new Set(phase2.map((e) => e.id));
@@ -581,7 +596,7 @@ describe("threePhaseExtractor", () => {
         maxRetries: 3,
         onUnit: (e) => events.push(e),
       });
-      const result = await extractor.extract(transcript);
+      const result = await extractor.extract({ text: transcript, annotations: {} });
 
       const startCount = events.filter((e) => e.phase === "start").length;
       expect(result.usage.calls).toBe(startCount);
@@ -598,7 +613,7 @@ describe("threePhaseExtractor", () => {
       ];
       const chat1 = new OnDeviceChat({ languageModel: model1 });
       const extractor1 = threePhaseExtractor({ target, chat: chat1, maxRetries: 3 });
-      const result1 = await extractor1.extract("the system is gas");
+      const result1 = await extractor1.extract({ text: "the system is gas", annotations: {} });
 
       const model2 = new FakeLanguageModel();
       model2.availabilityValue = "available";
@@ -616,10 +631,81 @@ describe("threePhaseExtractor", () => {
         maxRetries: 3,
         onUnit: (e) => events.push(e),
       });
-      const result2 = await extractor2.extract("the system is gas");
+      const result2 = await extractor2.extract({ text: "the system is gas", annotations: {} });
 
       expect(result2.fields).toEqual(result1.fields);
       expect(result2.usage.calls).toBe(result1.usage.calls);
+    });
+  });
+
+  describe("an aborted run rejects, it does not resolve empty", () => {
+    // The group-level catch nulls a failed group's leaves and moves on — right
+    // for an extraction failure, catastrophic for a cancellation: a caller who
+    // aborted would get all-null fields indistinguishable from a document that
+    // genuinely said nothing. So every test here asserts the REJECTION; a test
+    // asserting only that fields are null would pass against the old behaviour.
+    test("an already-aborted signal starts no calls and rejects immediately", async () => {
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      model.sequence = [[json({ fuel: true, efficiency: false, notes: false })]];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({ target, chat, maxRetries: 3 });
+
+      const controller = new AbortController();
+      controller.abort();
+
+      const error: unknown = await extractor
+        .extract({ text: "the system is gas", annotations: {} }, { signal: controller.signal })
+        .then(
+          () => undefined,
+          (cause: unknown) => cause,
+        );
+
+      expect(error).toBeInstanceOf(ChatError);
+      expect((error as ChatError).kind).toBe("aborted");
+      // No call was made, not even a doomed one: the abort short-circuits
+      // before the transport is reached.
+      expect(model.promptCallCount).toBe(0);
+    });
+
+    test("an abort during an in-flight phase call rejects, and retries that never ran are not counted", async () => {
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      // A slow multi-chunk stream, so the abort lands MID-call rather than
+      // between calls — the transport must observe the cancellation and the
+      // retry loops must not phantom-retry past it.
+      model.chunks = ['{"fuel":', " true,", ' "efficiency":', " false,", ' "notes":', " false}"];
+      model.chunkDelayMs = 50;
+      const chat = new OnDeviceChat({ languageModel: model });
+
+      const events: PhaseUnit[] = [];
+      const extractor = threePhaseExtractor({
+        target,
+        chat,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+
+      const controller = new AbortController();
+      const run = extractor.extract(
+        { text: "the system is gas", annotations: {} },
+        { signal: controller.signal },
+      );
+      await vi.waitFor(() => expect(model.promptCallCount).toBe(1));
+      controller.abort();
+
+      const error: unknown = await run.then(
+        () => undefined,
+        (cause: unknown) => cause,
+      );
+
+      expect(error).toBeInstanceOf(ChatError);
+      expect((error as ChatError).kind).toBe("aborted");
+      // usage.calls is derived from start events (pinned elsewhere in this
+      // file), so this is the "retries that never ran are not counted"
+      // assertion: only the one attempt that actually started, no phantom
+      // retries fired at an already-aborted signal.
+      expect(events.filter((e) => e.phase === "start")).toHaveLength(1);
     });
   });
 });

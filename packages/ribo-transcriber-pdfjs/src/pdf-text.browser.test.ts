@@ -141,7 +141,7 @@ test("pdf.js is not imported until the first transcribe() call, and is imported 
   let loadCount = 0;
   const countingLoader = async (): Promise<PdfjsModule> => {
     loadCount++;
-    return (await import("pdfjs-dist")) as unknown as PdfjsModule;
+    return await import("pdfjs-dist");
   };
   const t = new PdfjsTranscriber({ workerSrc: workerUrl, loadPdfjs: countingLoader });
 

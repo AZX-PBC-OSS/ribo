@@ -17,6 +17,84 @@ The table below compares Ribo against document parsers, the document-AI platform
 "documents → your schema, with citations and review," and the DIY orchestration a team reaches for
 instead of a raw `fetch` loop — including the rows where Ribo is the wrong answer.
 
+## What we measured
+
+Everything below this heading came out of Ribo's own `spanGroundedness`, pointed at a competitor
+and then at ourselves. The harnesses that ran it were one-off scripts, not committed;
+[Native Extraction: Measured](/deep-dives/native-extraction) is the full record.
+
+### The test
+
+One real Manual J report (Wrightsoft, 24pp). One 126-field schema written for that document, so
+neither side is being asked about fields the page cannot answer. Two ways to fill it:
+
+- **Native** — Mistral Document AI's one-call `document_annotation`: OCR and structured output in
+  a single request.
+- **Flatten-then-extract** — Mistral's OCR markdown, then Ribo's own extractor over that text.
+
+The OCR is held constant across both, so what is being compared is the extraction step and not two
+page parsers. Both sides get the same pinned span instruction. Five runs each. Every `sourceSpan`
+is checked for verbatim presence in the text that arm's model actually saw.
+
+### The result
+
+|                            | mean verbatim | worst run | best run |
+| -------------------------- | :-----------: | :-------: | :------: |
+| Mistral native, one call   |     82.3%     |   65.4%   |  95.0%   |
+| Ribo, flatten-then-extract |   **92.7%**   |   91.8%   |  92.5%   |
+
+The ten-point gap is the least interesting number here, and it is the one most likely to be stale
+by the time you read it — a model update could close it next month.
+
+**The spread is the finding.** Same document, same schema, same prompt: one run cites its sources
+correctly 95% of the time and another 65% of the time. Nothing about the request changed. The
+`temperature` parameter is rejected by that endpoint (`422 extra_forbidden`), so this is not a knob
+you can turn down. A single benchmark run would have reported whichever number it happened to
+draw, and been confident about it.
+
+That is what a grounding check buys that an accuracy benchmark does not. Field values agreed
+between the two arms 91% of the time. The disagreement was almost entirely in the **citations** —
+and citations are what a reviewer needs and what nobody else checks.
+
+### Our own number
+
+Ribo's ungrounded rate on the same corpus is **7.0%** — about 26 of 370 checkable fields per run.
+
+That is published for the same reason the rest is: a metric you only ever point at other people is
+marketing. Two honest caveats on it. It is not a 7% fabrication rate — `spanGroundedness` is
+stricter than "made it up," and the count includes values the model reformatted rather than
+invented. And the same measurement found cases where a span was **perfectly grounded and the answer
+was still wrong**: a real figure filed under the wrong field, a table's subtotal row extracted as
+if it were another row. Grounding catches invention. It does not catch misreading, and anyone
+telling you their citation check makes extraction correct is selling something.
+
+### Where Mistral wins, unambiguously
+
+It accepted a **467-field, 303 KB strict schema in a single call.** Ribo splits that schema into
+roughly 59 calls, because the managed route it targets caps how many nullable unions one call can
+carry. One request against fifty-nine is a real engineering advantage and it surprised us.
+
+Two things temper it. Accuracy fell as the schema grew — 97.8% verbatim at 13 fields, 82.3% at 126,
+75.1% at 467 — so the single call is doing less well the more you put in it. And the latency
+advantage inverts: at 13 fields the one call is faster (41.6s against 49.5s), but at 126 fields
+Ribo's parallel calls finish in 89s against 221s. One big serial request loses to several small
+concurrent ones well before the schema gets large.
+
+### What this does not show
+
+One document, one document type, one vendor pairing. Mistral reports no token counts through this
+endpoint, so cost is latency-only. Ribo's arm ran a Claude model at temperature 0 and Mistral's
+temperature is not settable, so part of the stability difference is access to a knob rather than a
+property of the models. And we adjudicated the disagreements ourselves, which is the weakest link
+in any comparison written by one of the parties.
+
+The harnesses behind these runs were one-off scripts wired to that corpus — real customer documents
+we will not publish — and are not committed here.
+[Native Extraction: Measured](/deep-dives/native-extraction) records the full method: the pinned
+span instruction both arms received, the scoring tiers, and everything above we could not control
+for. Rebuild it against your own documents; that is the only comparison that decides anything for
+you.
+
 ## Feature matrix
 
 **Legend:** ✅ does this · 🟡 partially, or with meaningful caveats · 🚫 does not do this, by design
@@ -34,7 +112,7 @@ the same standard.
 | Parses scanned, rotated or handwritten pages       |  🚫  |        ✅        |          ✅           |        🟡         |
 | Ingests audio dictation                            |  ✅  |        🟡        |          🚫           |        🟡         |
 | One extraction across mixed sources at once        |  ✅  |        🚫        |          🚫           |        🚫         |
-| Target schema past a few hundred fields, one job   |  ✅  |        🚫        |          🟡           |        🚫         |
+| Target schema past a few hundred fields, one job   |  ✅  |        🚫        |          ✅           |        🚫         |
 | Provenance checked against source, not self-report |  ✅  |        🟡        |          🟡           |        🚫         |
 | Human review as a contract, not a screen           |  ✅  |        🚫        |          🟡           |        🚫         |
 | Measured extraction accuracy published             |  🚫  |        🟡        |          ✅           |        🚫         |
@@ -125,10 +203,18 @@ see ["What is not measured"](#what-is-not-measured) below.
 post, titled ["Long Extraction Schemas Solved"](https://landing.ai/blog/agentic-extract-apis),
 advertises no limit on field count, nesting depth, or character count in a schema. Reducto's
 documentation is more circumspect about the same territory: it names hundreds-of-fields schemas and
-deep nesting as a real accuracy risk it discloses rather than a hard cap. Neither claim is
-independently verified here — which is why "target schema past a few hundred fields" reads 🟡, not
-✅, for this category: at least one vendor claims to clear it, on the vendor's own word, and another
-names the risk rather than hiding it.
+deep nesting as a real accuracy risk it discloses rather than a hard cap. Neither of those vendor
+claims is independently verified here. One member of the category, however, **was** measured:
+Mistral Document AI accepted a 467-field, 303 KB strict schema in a single call, where Ribo splits
+the same schema across roughly 59. That is why this row reads ✅ rather than 🟡 — it was 🟡 until we
+measured it, and the measurement went against us.
+
+Two qualifications, both ours and both in their favour only up to a point. Verbatim-citation
+accuracy fell as that schema grew — 97.8% at 13 fields, 82.3% at 126, 75.1% at 467 — so accepting a
+schema and doing well on it are different things. And a single serial call loses on wall-clock to
+several concurrent ones surprisingly early: at 126 fields it was 221s against 89s. The row records
+capability, which they have; the ["What we measured"](#what-we-measured) section records how it
+performs, which is a separate question.
 
 **They are a hosted service you can point volume at — usually.** No queue to run, no concurrency
 pool to size, no fallback ladder to write. That is a genuine cost of Ribo's shape, not just a virtue

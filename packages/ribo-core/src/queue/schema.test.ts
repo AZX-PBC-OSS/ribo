@@ -68,9 +68,9 @@ test("every indexed field is required and carries the bounds RxDB needs to encod
         expect(property).toHaveProperty("maxLength");
       } else if (property && "type" in property && property.type === "number") {
         expect(property).toMatchObject({
-          minimum: expect.any(Number),
-          maximum: expect.any(Number),
-          multipleOf: expect.any(Number),
+          minimum: expect.any(Number) as number,
+          maximum: expect.any(Number) as number,
+          multipleOf: expect.any(Number) as number,
         });
       }
     }
@@ -146,8 +146,8 @@ test("every status fits the indexed maxLength the RxDB schema declares", () => {
   for (const status of OUTBOX_STATUSES) expect(status.length).toBeLessThanOrEqual(bound);
 });
 
-test("the RxDB schema is at version 6", () => {
-  expect(outboxRxSchema.version).toBe(6);
+test("the RxDB schema is at version 7", () => {
+  expect(outboxRxSchema.version).toBe(7);
 });
 
 test("the RxDB recording property is exactly { type: 'object' } — no nested validation, so adding kind needs no version bump", () => {

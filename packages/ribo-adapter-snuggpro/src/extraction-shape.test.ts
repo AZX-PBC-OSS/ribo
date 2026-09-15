@@ -97,7 +97,10 @@ async function captureJsonSchema(): Promise<Record<string, unknown>> {
   const extractor = singleShotExtractor({ target, chat, model: "gpt-test" });
 
   try {
-    await extractor.extract("A dictated audit transcript, contents irrelevant here.");
+    await extractor.extract({
+      text: "A dictated audit transcript, contents irrelevant here.",
+      annotations: {},
+    });
   } catch {
     // Expected: the canned "{}" response fails the schema; the request was already captured.
   }
@@ -177,7 +180,7 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
     }
     if (node === null || typeof node !== "object") return;
     const obj = node as Record<string, unknown>;
-    if (obj.properties) properties += Object.keys(obj.properties as object).length;
+    if (obj.properties) properties += Object.keys(obj.properties).length;
     if (Array.isArray(obj.enum)) enumValues += obj.enum.length;
     for (const [key, child] of Object.entries(obj)) {
       walk(child, key === "properties" ? depth + 1 : depth);

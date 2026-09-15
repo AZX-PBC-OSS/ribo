@@ -36,7 +36,7 @@ export type SelectableCapability =
  */
 export interface CapabilitySource {
   readonly engine: string;
-  capability(): Promise<SelectableCapability>;
+  capability: () => Promise<SelectableCapability>;
 }
 
 /**
@@ -75,7 +75,7 @@ export interface CompositeExtractorEntry<F> {
 /** What {@link compositeExtractor} returns: an `Extractor` plus cache control. */
 export interface CompositeExtractor<F> extends Extractor<F> {
   /** Drop cached capabilities and re-probe on the next `extract()`. */
-  invalidate(): void;
+  invalidate: () => void;
 }
 
 /** One cached capability answer, keyed by engine id. */

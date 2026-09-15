@@ -16,11 +16,15 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { DEFAULT_MODEL_ID } from "@azx/ribo-transcriber-ondevice";
+
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const REPO = join(HERE, "..", "..");
 const RAW_DIR = join(HERE, "results", "real", "_raw");
 
-const modelId = process.argv[2] ?? "Xenova/whisper-base.en";
+// Default to the same model the on-device package ships, not an arbitrary
+// hardcoded id. Source of truth: packages/ribo-transcriber-ondevice/src/config.ts.
+const modelId = process.argv[2] ?? DEFAULT_MODEL_ID;
 
 const measures = [];
 let buf = "";

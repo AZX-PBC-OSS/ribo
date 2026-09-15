@@ -16,8 +16,10 @@ import { z } from "zod";
 
 import { ChatError } from "@azx/ribo-extractor-openai";
 import type { ChatMessage, ChatRequest, ChatUsage } from "@azx/ribo-extractor-openai";
+import type { ExtractOptions } from "@azx/ribo-core";
 import { isSpanGrounded, nextUnitId } from "@azx/ribo-core";
 import type {
+  AnnotatedTranscript,
   Enveloped,
   ExtractionObserver,
   Extractor,
@@ -27,9 +29,6 @@ import type {
   PhaseUnit,
 } from "@azx/ribo-core";
 
-// Typed against the seam, not against `OnDeviceChat` itself. This extractor only ever
-// calls `complete()` and reads `engine`, so demanding the concrete class would couple it
-// to an implementation it does not use and make it untestable with a plain fake chat.
 import type { CapableChatClient } from "@azx/ribo-extractor-openai";
 
 /** Default retry budget for a single call, matching the spike. */
@@ -67,7 +66,7 @@ export interface ThreePhaseExtractorOptions<
   readonly target: ExtractionTarget<V, P>;
   /** The on-device chat transport. */
   readonly chat: CapableChatClient;
-  /** Max retries per model call. Defaults to {@link DEFAULT_MAX_RETRIES}. */
+  /** Max retries per model call. Defaults to `DEFAULT_MAX_RETRIES`. */
   readonly maxRetries?: number;
 }
 
@@ -75,14 +74,14 @@ type UnitUsage = { readonly inputTokens: number; readonly outputTokens: number }
 
 interface PhaseUnitEmitter {
   readonly id: string;
-  start(attempt: number): void;
-  done(attempt: number, usage?: UnitUsage): void;
-  error(attempt: number, error: unknown): void;
+  start: (attempt: number) => void;
+  done: (attempt: number, usage?: UnitUsage) => void;
+  error: (attempt: number, error: unknown) => void;
 }
 
 interface PhaseEmitter {
-  newUnit(pass: 0 | 1 | 2, key: string, leaf?: string): PhaseUnitEmitter;
-  getCalls(): number;
+  newUnit: (pass: 0 | 1 | 2, key: string, leaf?: string) => PhaseUnitEmitter;
+  getCalls: () => number;
 }
 
 function createEmitter(onUnit: ((event: PhaseUnit) => void) | undefined): PhaseEmitter {
@@ -158,7 +157,10 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
   const model = chat.engine;
 
   return {
-    async extract(transcript: string): Promise<ExtractionResult<Enveloped<V, P>>> {
+    async extract(
+      transcript: AnnotatedTranscript,
+      options?: ExtractOptions,
+    ): Promise<ExtractionResult<Enveloped<V, P>>> {
       // A group's value is either the flat leaf-envelope map itself (an object-shaped
       // group) or that same map wrapped in a one-element array (an array-shaped, R1.6
       // instance-modeled group — see `Group.isArray`). Every group's leaves are always
@@ -180,8 +182,21 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
 
         let presence: Record<string, boolean>;
         try {
-          presence = await extractPresence(group, transcript, chat, model, maxRetries, emitter);
-        } catch {
+          presence = await extractPresence(
+            group,
+            transcript.text,
+            chat,
+            model,
+            maxRetries,
+            emitter,
+            options?.signal,
+          );
+        } catch (error) {
+          // A cancellation must not be mistaken for a failed group: nulling
+          // these leaves and moving on would resolve the run with all-null
+          // fields — indistinguishable from a document that genuinely said
+          // nothing. An extraction failure keeps the swallow-and-continue.
+          if (isCancellation(error, options?.signal)) throw error;
           for (const leaf of group.leaves) {
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
           }
@@ -203,13 +218,16 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
           spans = await extractSpans(
             group,
             activeLeaves,
-            transcript,
+            transcript.text,
             chat,
             model,
             maxRetries,
             emitter,
+            options?.signal,
           );
-        } catch {
+        } catch (error) {
+          // Same discrimination as the presence catch above.
+          if (isCancellation(error, options?.signal)) throw error;
           for (const leaf of group.leaves) {
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
           }
@@ -223,11 +241,20 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
             continue;
           }
-          if (!isSpanGrounded(span, transcript)) {
+          if (!isSpanGrounded(span, transcript.text)) {
             groupResult[leaf.key] = { value: null, confidence: 0, sourceSpan: null };
             continue;
           }
-          const value = await classifyLeaf(group.key, leaf, span, chat, model, maxRetries, emitter);
+          const value = await classifyLeaf(
+            group.key,
+            leaf,
+            span,
+            chat,
+            model,
+            maxRetries,
+            emitter,
+            options?.signal,
+          );
           groupResult[leaf.key] = {
             value: value ?? null,
             sourceSpan: span,
@@ -242,7 +269,7 @@ export function threePhaseExtractor<V extends Record<string, unknown>, P = NoPro
 
       const parsed = target.extractionSchema.parse(result);
       return {
-        fields: parsed as Enveloped<V, P>,
+        fields: parsed,
         usage: { calls: emitter.getCalls(), engine: chat.engine },
       };
     },
@@ -321,7 +348,7 @@ function chatRequest(
 ): ChatRequest {
   return {
     model,
-    messages: messages as ChatMessage[],
+    messages: messages,
     response_format: {
       type: "json_schema",
       json_schema: { name, schema, strict: true },
@@ -336,6 +363,7 @@ async function extractPresence(
   model: string,
   maxRetries: number,
   emitter: PhaseEmitter,
+  signal?: AbortSignal,
 ): Promise<Record<string, boolean>> {
   const schema = buildPhase0Schema(group);
   const request = chatRequest(
@@ -347,9 +375,18 @@ async function extractPresence(
   const unit = emitter.newUnit(0, group.key);
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (signal?.aborted) {
+      // Checked BEFORE `unit.start`, so an attempt cancelled by the abort is
+      // neither run nor counted — `usage.calls` must not grow for retries
+      // that never happened.
+      throw ChatError.aborted(
+        "threePhaseExtractor: the run was aborted — not starting the next attempt",
+        signal.reason,
+      );
+    }
     unit.start(attempt + 1);
     try {
-      const completion = await chat.complete(request);
+      const completion = await chat.complete(request, { signal });
       unit.done(attempt + 1, mapUsage(completion.usage));
       return parsePhase0Response(completion.content, group);
     } catch (error) {
@@ -389,7 +426,7 @@ function buildPhase0Messages(group: Group, transcript: string): ChatMessage[] {
 }
 
 function parsePhase0Response(content: string, group: Group): Record<string, boolean> {
-  const raw = JSON.parse(content);
+  const raw: unknown = JSON.parse(content);
   if (!isSchemaNode(raw)) {
     throw new Error("Phase 0 response is not a JSON object");
   }
@@ -413,6 +450,7 @@ async function extractSpans(
   model: string,
   maxRetries: number,
   emitter: PhaseEmitter,
+  signal?: AbortSignal,
 ): Promise<Record<string, string | null>> {
   const schema = buildPhase1Schema(activeLeaves);
   const request = chatRequest(
@@ -424,9 +462,16 @@ async function extractSpans(
   const unit = emitter.newUnit(1, group.key);
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (signal?.aborted) {
+      // Same pre-attempt check as phase 0 — see the comment there.
+      throw ChatError.aborted(
+        "threePhaseExtractor: the run was aborted — not starting the next attempt",
+        signal.reason,
+      );
+    }
     unit.start(attempt + 1);
     try {
-      const completion = await chat.complete(request);
+      const completion = await chat.complete(request, { signal });
       unit.done(attempt + 1, mapUsage(completion.usage));
       return parsePhase1Response(completion.content, activeLeaves);
     } catch (error) {
@@ -473,7 +518,7 @@ function parsePhase1Response(
   content: string,
   leaves: readonly Leaf[],
 ): Record<string, string | null> {
-  const raw = JSON.parse(content);
+  const raw: unknown = JSON.parse(content);
   if (!isSchemaNode(raw)) {
     throw new Error("Phase 1 response is not a JSON object");
   }
@@ -499,6 +544,7 @@ async function classifyLeaf(
   model: string,
   maxRetries: number,
   emitter: PhaseEmitter,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const bareRequest = chatRequest(
     model,
@@ -508,15 +554,22 @@ async function classifyLeaf(
   );
   const unit = emitter.newUnit(2, groupKey, leaf.key);
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (signal?.aborted) {
+      // Same pre-attempt check as phases 0 and 1 — see the comment there.
+      throw ChatError.aborted(
+        "threePhaseExtractor: the run was aborted — not starting the next attempt",
+        signal.reason,
+      );
+    }
     unit.start(attempt + 1);
     try {
-      const completion = await chat.complete(bareRequest);
+      const completion = await chat.complete(bareRequest, { signal });
       unit.done(attempt + 1, mapUsage(completion.usage));
       return validateLeafValue(leaf, parsePhase2Bare(completion.content));
     } catch (error) {
       unit.error(attempt + 1, error);
       if (isUnsupportedError(error)) {
-        return classifyWrapped(leaf, span, chat, model, maxRetries, unit, attempt + 2);
+        return classifyWrapped(leaf, span, chat, model, maxRetries, unit, attempt + 2, signal);
       }
     }
   }
@@ -531,6 +584,7 @@ async function classifyWrapped(
   maxRetries: number,
   unit: PhaseUnitEmitter,
   startAttempt: number,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const wrappedSchema = wrapValueSchema(leaf.valueSchema);
   const request = chatRequest(
@@ -541,9 +595,17 @@ async function classifyWrapped(
   );
   for (let i = 0; i <= maxRetries; i++) {
     const attempt = startAttempt + i;
+    if (signal?.aborted) {
+      // Same pre-attempt check as the other phases — see the comment in
+      // `extractPresence`.
+      throw ChatError.aborted(
+        "threePhaseExtractor: the run was aborted — not starting the next attempt",
+        signal.reason,
+      );
+    }
     unit.start(attempt);
     try {
-      const completion = await chat.complete(request);
+      const completion = await chat.complete(request, { signal });
       unit.done(attempt, mapUsage(completion.usage));
       return validateLeafValue(leaf, parsePhase2Wrapped(completion.content));
     } catch (error) {
@@ -606,7 +668,7 @@ function parsePhase2Bare(content: string): unknown {
 }
 
 function parsePhase2Wrapped(content: string): unknown {
-  const raw = JSON.parse(content);
+  const raw: unknown = JSON.parse(content);
   if (!isSchemaNode(raw) || !("value" in raw)) {
     throw new Error("Wrapped phase 2 response is not an object with a single 'value' key");
   }
@@ -639,4 +701,20 @@ function validateLeafValue(leaf: Leaf, value: unknown): unknown {
 
 function isUnsupportedError(error: unknown): boolean {
   return error instanceof ChatError && error.kind === "unsupported";
+}
+
+/**
+ * Whether an error escaping a phase call is a CANCELLATION rather than an
+ * extraction failure — the distinction the group-level catch must make before
+ * it nulls a group's leaves and moves on.
+ *
+ * Two checks, because they catch different things. The caller's own signal is
+ * authoritative: once it has fired, anything going wrong is the unwind, not a
+ * failure. A `ChatError` of kind `"aborted"` is the transport's contractual
+ * word for the same event (`ChatCallOptions.signal`: implementations must stop
+ * work and reject with `ChatError.aborted`), and it is honoured even when the
+ * caller's signal has not yet observed the abort.
+ */
+function isCancellation(error: unknown, signal: AbortSignal | undefined): boolean {
+  return signal?.aborted === true || (error instanceof ChatError && error.kind === "aborted");
 }

@@ -32,7 +32,7 @@ const valid = (): SnuggExtraction => structuredClone(fixture.fields);
 const unwrap = (node: unknown): unknown => {
   if (Array.isArray(node)) return node.map(unwrap);
   if (typeof node === "object" && node !== null && "value" in node) {
-    return (node as { value: unknown }).value;
+    return node.value;
   }
   if (typeof node === "object" && node !== null) {
     return Object.fromEntries(Object.entries(node).map(([key, child]) => [key, unwrap(child)]));
@@ -52,7 +52,7 @@ describe("snuggExtractionSchema — what the model is asked to produce", () => {
     // normalization's job. This is an EXTRACTION property: `confidence` is an envelope
     // field and the patch has no such key.
     const fields = valid();
-    fields.hvac![0]!.hvacSystemEquipmentType.confidence = 1.5;
+    fields.hvac[0]!.hvacSystemEquipmentType.confidence = 1.5;
     expect(() => snuggExtractionSchema.parse(fields)).not.toThrow();
   });
 
@@ -61,7 +61,7 @@ describe("snuggExtractionSchema — what the model is asked to produce", () => {
     // "Oil Boiler" is exactly the fused member the split-axis design forbids: fuel is
     // `hvacHeatingEnergySource`, never part of the equipment name. The enum is declared
     // on the PATCH; this asserts the derivation carries it through.
-    (fields.hvac![0]!.hvacSystemEquipmentType as { value: unknown }).value = "Oil Boiler";
+    (fields.hvac[0]!.hvacSystemEquipmentType as { value: unknown }).value = "Oil Boiler";
     expect(() => snuggExtractionSchema.parse(fields)).toThrow();
   });
 
@@ -71,7 +71,7 @@ describe("snuggExtractionSchema — what the model is asked to produce", () => {
     // tolerated it, every enum leaf would need a normalization pass this design
     // deliberately does not have.
     const fields = valid();
-    (fields.hvac![0]!.hvacDuctLeakage as { value: unknown }).value = "6% - well sealed";
+    (fields.hvac[0]!.hvacDuctLeakage as { value: unknown }).value = "6% - well sealed";
     expect(() => snuggExtractionSchema.parse(fields)).toThrow();
   });
 
@@ -130,7 +130,7 @@ describe("snuggExtractionSchema — what the model is asked to produce", () => {
   test("a leaf envelope must carry all three keys", () => {
     const fields = valid();
     // missing `confidence`
-    (fields.hvac![0]! as unknown as Record<string, unknown>).hvacHeatingEnergySource = {
+    (fields.hvac[0]! as unknown as Record<string, unknown>).hvacHeatingEnergySource = {
       value: "Fuel Oil",
       sourceSpan: "it's an oil boiler",
     };

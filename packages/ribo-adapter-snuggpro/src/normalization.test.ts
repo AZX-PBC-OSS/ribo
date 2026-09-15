@@ -105,8 +105,8 @@ describe("normalizeFields", () => {
   if (!fixture) throw new Error("expected a Snugg Pro few-shot example fixture");
 
   const base = (): SnuggExtraction => {
-    const fields = structuredClone(fixture.fields) as SnuggExtraction;
-    fields.hvac![0]!.hvacSystemEquipmentType.confidence = 1.4;
+    const fields = structuredClone(fixture.fields);
+    fields.hvac[0]!.hvacSystemEquipmentType.confidence = 1.4;
     fields.dhw[0]!.dhwAge.confidence = -0.5;
     fields.health.healthDraftPressure.confidence = 2;
     return fields;

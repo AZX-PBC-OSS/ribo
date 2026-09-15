@@ -2,6 +2,15 @@ import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+const typeAwareFiles = [
+  "packages/*/src/**/*.{ts,tsx}",
+  "playground/src/**/*.{ts,tsx}",
+  // The e2e specs have their own project (playground/tsconfig.e2e.json, include:
+  // ["e2e"]), so the project service finds them — they get the same type-aware
+  // gate as every other test file.
+  "playground/e2e/**/*.{ts,tsx}",
+];
+
 export default tseslint.config(
   {
     ignores: [
@@ -22,10 +31,61 @@ export default tseslint.config(
 
   js.configs.recommended,
 
-  // Syntactic rules only for now. Type-aware linting (recommendedTypeChecked +
-  // projectService) lands once packages have real source to point at — see the
-  // Phase 1 plan. Adding it here would only lint an empty repo.
+  // Syntactic TypeScript rules for every TS/TSX file (and the loose .mjs scripts
+  // that are not part of a package tsconfig). Type-aware rules are layered on
+  // top of this only for files inside package/playground source trees.
   ...tseslint.configs.recommended,
+
+  // Type-aware linting. projectService discovers each package's tsconfig.json
+  // automatically, so recommendedTypeChecked rules have real source to point at.
+  // Scoped to source files only: package-root config files are intentionally
+  // outside their tsconfig `include` and stay syntactic-only.
+  ...tseslint.configs.recommendedTypeChecked.map((cfg) => ({
+    // `files` must come AFTER the spread: the preset's middle entry
+    // (`typescript-eslint/eslint-recommended`) carries its own all-TS `files`,
+    // which would otherwise outscope this one — and drag the projectService
+    // onto every .ts file on disk, including spikes in no tsconfig, which then
+    // fail with "was not found by the project service".
+    ...cfg,
+    files: typeAwareFiles,
+    languageOptions: {
+      ...cfg.languageOptions,
+      parserOptions: {
+        ...(cfg.languageOptions?.parserOptions || {}),
+        projectService: {
+          allowDefaultProject: [
+            "*.ts",
+            "*.mjs",
+            "scripts/*.mjs",
+            "scripts/*/*.mjs",
+            "packages/*/tsdown.config.ts",
+            "packages/*/vitest.acceptance.config.ts",
+            "packages/*/vitest.manual.config.ts",
+            "packages/ribo-adapter-snuggpro/acceptance/*.manual.ts",
+            "docs/.vitepress/config.ts",
+          ],
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 100,
+        },
+      },
+    },
+    rules: {
+      ...cfg.rules,
+      // 191 hits, every one an implementation of a Promise-returning contract method —
+      // `async write(...) { return x; }` — where `async` is how the return type is satisfied and
+      // there is nothing to await. The alternative is `Promise.resolve` at every such site, which
+      // is worse. NOT because interfaces are exempt: interfaces have no bodies and never fire it.
+      "@typescript-eslint/require-await": "off",
+    },
+  })),
+
+  {
+    // Every package, not a subset: the rule exists so the contravariant declaration is the
+    // default nobody has to remember, and a rule covering three of ten packages is not a default.
+    files: ["packages/*/src/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/method-signature-style": ["error", "property"],
+    },
+  },
 
   {
     languageOptions: {

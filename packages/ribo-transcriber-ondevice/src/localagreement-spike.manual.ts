@@ -35,12 +35,12 @@ const SAMPLE_RATE = 16_000;
 
 interface AsrPipeline {
   readonly tokenizer: {
-    decode(ids: number[], options?: { skip_special_tokens?: boolean }): string;
+    decode: (ids: number[], options?: { skip_special_tokens?: boolean }) => string;
   };
   readonly model: {
-    generate(inputs: Record<string, unknown>): Promise<unknown>;
+    generate: (inputs: Record<string, unknown>) => Promise<unknown>;
   };
-  processor(audio: Float32Array): Promise<{ input_features?: unknown; input_values?: unknown }>;
+  processor: (audio: Float32Array) => Promise<{ input_features?: unknown; input_values?: unknown }>;
 }
 
 // ── Transcription helper (replicates worker.ts's transcribeChunk) ─────────────

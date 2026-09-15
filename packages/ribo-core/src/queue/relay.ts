@@ -1,4 +1,5 @@
-import type { ExtractionUsage } from "../extractor.js";
+import type { ExtractionUsage, ExtractOptions } from "../extractor.js";
+import type { AnnotatedTranscript } from "../annotated-transcript.js";
 import type { CaptureItem } from "../capture-item.js";
 import type { Transcriber } from "../transcriber.js";
 import { transcriptSchema } from "../transcript.js";
@@ -13,7 +14,9 @@ import type { Outbox } from "./outbox.js";
 import { isActiveStatus } from "./schema.js";
 import type { OutboxItem, OutboxPatch } from "./schema.js";
 import type { SessionItem, SessionPatch } from "./session-schema.js";
-import { joinSessionTranscript } from "./session-extract.js";
+import { listSessionTranscriptParts } from "./session-extract.js";
+import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
+import type { TranscriptCombiner } from "../transcript-combiner.js";
 import type { ConnectivityState, ConnectivityStatus, Unsubscribe } from "../connectivity.js";
 
 /** Structured fields produced by extraction. */
@@ -25,8 +28,8 @@ export type ExtractedFieldMap = Record<string, unknown>;
 
 export interface SessionExtractInput {
   session: SessionItem;
-  /** The joined transcript text of all transcribed recordings, in capture order. */
-  transcript: string;
+  /** The joined transcript of all transcribed recordings, in capture order. */
+  transcript: AnnotatedTranscript;
   /** The recording ids that produced `transcript`, sorted — the cache key. */
   recordingIds: readonly string[];
 }
@@ -58,8 +61,21 @@ export interface ExtractStepResult {
   readonly statedEmptyGroups?: Readonly<Record<string, string>>;
 }
 
-/** Joined transcripts → structured fields. Network-bound, so it is a queued step. */
-export type SessionExtractStep = (input: SessionExtractInput) => Promise<ExtractStepResult>;
+/**
+ * Joined transcripts → structured fields. Network-bound, so it is a queued step.
+ *
+ * The optional second parameter carries the same {@link ExtractOptions} bag
+ * `Extractor.extract` takes — deliberately the same type in the same position,
+ * because {@link toSessionExtractStep} collapses one contract onto the other and
+ * the forward has to be a pure hand-through, not a re-pack. The relay passes a
+ * signal it aborts when the step's timeout fires, so a timed-out extraction
+ * cancels its in-flight request instead of leaving it running behind the
+ * rejection.
+ */
+export type SessionExtractStep = (
+  input: SessionExtractInput,
+  options?: ExtractOptions,
+) => Promise<ExtractStepResult>;
 
 export interface SessionWriteInput {
   session: SessionItem;
@@ -110,7 +126,7 @@ export type SessionWriteStep = (input: SessionWriteInput) => Promise<SessionWrit
  * `Connectivity` model satisfies it structurally.
  */
 export interface ConnectivitySource {
-  subscribe(listener: (state: ConnectivityState) => void): Unsubscribe;
+  subscribe: (listener: (state: ConnectivityState) => void) => Unsubscribe;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,6 +159,15 @@ export interface RelayOptions extends BackoffOptions {
   sessionExtract: SessionExtractStep;
   /** Session-level write: reviewed fields → host tool. */
   sessionWrite: SessionWriteStep;
+  /**
+   * Combines per-capture transcripts into one. The relay supplies the array
+   * (already sorted by `seq`); the combiner decides how the texts join.
+   * Defaults to {@link createDefaultTranscriptCombiner} (no markers). Inject
+   * a custom combiner to replace the combination policy without forking the
+   * I/O — the combiner is pure, so it is testable with a plain array and no
+   * database.
+   */
+  combineTranscripts?: TranscriptCombiner;
   locks?: LockManager;
   now?: () => number;
   maxAttempts?: number;
@@ -157,10 +182,10 @@ export interface RelayOptions extends BackoffOptions {
 // ---------------------------------------------------------------------------
 
 export interface Relay {
-  syncNow(): Promise<void>;
-  start(connectivity?: ConnectivitySource): Promise<void>;
-  stop(): void;
-  settled(): Promise<void>;
+  syncNow: () => Promise<void>;
+  start: (connectivity?: ConnectivitySource) => Promise<void>;
+  stop: () => void;
+  settled: () => Promise<void>;
 }
 
 function messageOf(error: unknown): string {
@@ -170,22 +195,30 @@ function messageOf(error: unknown): string {
 
 export const DEFAULT_STEP_TIMEOUT_MS = 900_000;
 
-async function withTimeout<T>(work: Promise<T>, ms: number, step: string): Promise<T> {
+async function withTimeout<T>(
+  work: Promise<T>,
+  ms: number,
+  step: string,
+  onTimeout?: () => void,
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
       work,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () =>
-            reject(
-              new Error(
-                `relay: the ${step} step did not settle within ${ms} ms — failing the attempt so ` +
-                  `the queue keeps draining rather than stalling behind it`,
-              ),
+        timer = setTimeout(() => {
+          // Fire the hook before the rejection so anything it aborts is already
+          // unwinding when the caller sees the timeout — the abort is
+          // synchronous, so observers of the signal never see a window where
+          // the step "timed out" but nothing was cancelled.
+          onTimeout?.();
+          reject(
+            new Error(
+              `relay: the ${step} step did not settle within ${ms} ms — failing the attempt so ` +
+                `the queue keeps draining rather than stalling behind it`,
             ),
-          ms,
-        );
+          );
+        }, ms);
       }),
     ]);
   } finally {
@@ -457,12 +490,27 @@ class QueueRelay implements Relay {
   }
 
   async #sessionExtract(session: SessionItem): Promise<void> {
-    const { text, recordingIds } = await joinSessionTranscript(this.#options.outbox, session.id);
+    const { parts, recordingIds } = await listSessionTranscriptParts(
+      this.#options.outbox,
+      session.id,
+    );
+    const combine = this.#options.combineTranscripts ?? createDefaultTranscriptCombiner();
+    const { text } = combine(parts);
 
+    // The step's signal and the step timeout are one mechanism, not two: when
+    // the deadline fires the controller aborts, so the extractor's in-flight
+    // request is cancelled rather than left to run to completion behind the
+    // rejection. This is the wiring Task 9's changeset named as a motivation
+    // and deferred.
+    const stepAbort = new AbortController();
     const result = await withTimeout(
-      this.#options.sessionExtract({ session, transcript: text, recordingIds }),
+      this.#options.sessionExtract(
+        { session, transcript: { text, annotations: {} }, recordingIds },
+        { signal: stepAbort.signal },
+      ),
       this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
       "session-extract",
+      () => stepAbort.abort("relay: the session-extract step timed out"),
     );
 
     await this.#patchSession(session.id, {

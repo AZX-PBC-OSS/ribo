@@ -5,10 +5,11 @@ import { afterEach, expect, test } from "vitest";
 import type { DocumentCapture } from "../capture-item.js";
 import { FakeExtractor, toSessionExtractStep } from "../extractor.js";
 import { isSpanGrounded } from "../provenance.js";
+import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
 import type { Recording } from "../recording.js";
 import { removeOutboxDatabase } from "./database.js";
 import { openOutbox, type Outbox } from "./outbox.js";
-import { joinSessionTranscript } from "./session-extract.js";
+import { joinSessionTranscript, listSessionTranscriptParts } from "./session-extract.js";
 
 // The premise the whole document-transcription tranche rests on.
 //
@@ -149,11 +150,15 @@ test("page markers survive into the extractor's input", async () => {
   const step = toSessionExtractStep(extractor);
   const joined = await joinSessionTranscript(outbox, session.id);
 
-  await step({ session, transcript: joined.text, recordingIds: joined.recordingIds });
+  await step({
+    session,
+    transcript: { text: joined.text, annotations: {} },
+    recordingIds: joined.recordingIds,
+  });
 
   expect(extractor.calls).toHaveLength(1);
-  expect(extractor.calls[0]).toContain("===== PAGE 1 =====");
-  expect(extractor.calls[0]).toContain("===== PAGE 2 =====");
+  expect(extractor.calls[0]!.text).toContain("===== PAGE 1 =====");
+  expect(extractor.calls[0]!.text).toContain("===== PAGE 2 =====");
 });
 
 // ---------------------------------------------------------------------------
@@ -201,7 +206,11 @@ test("per-capture markers delimit each capture's text when markCaptures is true"
     { status: "transcribed" },
   );
 
-  const joined = await joinSessionTranscript(outbox, session.id, { markCaptures: true });
+  const joined = await joinSessionTranscript(
+    outbox,
+    session.id,
+    createDefaultTranscriptCombiner({ markCaptures: true }),
+  );
 
   // Each capture is preceded by a marker in the page-marker family.
   expect(joined.text).toContain("===== CAPTURE");
@@ -275,7 +284,11 @@ test("span grounding survives per-capture markers", async () => {
     { status: "transcribed" },
   );
 
-  const joined = await joinSessionTranscript(outbox, session.id, { markCaptures: true });
+  const joined = await joinSessionTranscript(
+    outbox,
+    session.id,
+    createDefaultTranscriptCombiner({ markCaptures: true }),
+  );
 
   // A verbatim quote from within the dictation's text is still grounded.
   expect(isSpanGrounded("the attic insulation is R-19", joined.text)).toBe(true);
@@ -316,12 +329,67 @@ test("per-capture markers survive into the extractor's input", async () => {
 
   const extractor = new FakeExtractor({ invoiceNumber: "58534" });
   const step = toSessionExtractStep(extractor);
-  const joined = await joinSessionTranscript(outbox, session.id, { markCaptures: true });
+  const joined = await joinSessionTranscript(
+    outbox,
+    session.id,
+    createDefaultTranscriptCombiner({ markCaptures: true }),
+  );
 
-  await step({ session, transcript: joined.text, recordingIds: joined.recordingIds });
+  await step({
+    session,
+    transcript: { text: joined.text, annotations: {} },
+    recordingIds: joined.recordingIds,
+  });
 
   expect(extractor.calls).toHaveLength(1);
-  expect(extractor.calls[0]).toContain("===== CAPTURE");
-  expect(extractor.calls[0]).toContain("kind:document");
-  expect(extractor.calls[0]).toContain("kind:audio");
+  expect(extractor.calls[0]!.text).toContain("===== CAPTURE");
+  expect(extractor.calls[0]!.text).toContain("kind:document");
+  expect(extractor.calls[0]!.text).toContain("kind:audio");
+});
+
+// ---------------------------------------------------------------------------
+// Collision rule: a transcriber annotation named `seq` coexists with `capture.seq`.
+//
+// The relay writes `capture.seq`, `capture.kind`, and `capture.id` from outbox
+// row metadata. A transcriber might reasonably use `seq` (or `kind` or `id`) as
+// its own annotation key. Namespacing under `capture.` is the rule that prevents
+// a collision: both keys live in the same bag, and the transcriber's value is
+// independent of the relay's.
+// ---------------------------------------------------------------------------
+
+test("a transcriber annotation named seq coexists with the relay's capture.seq", async () => {
+  const outbox = await freshOutbox();
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const item = await outbox.enqueue({
+    recording: dictation("rec-1"),
+    audio: bytes(),
+    sessionId: session.id,
+  });
+
+  // The transcriber uses `seq` — the exact generic name the plan flags as
+  // plausible. It also uses `id` and `kind` for good measure.
+  await outbox.writeTranscript(
+    item.id,
+    {
+      recordingId: "rec-1",
+      text: "the attic is R-19",
+      engine: "fake",
+      annotations: { seq: "page-1", id: "doc-abc", kind: "invoice" },
+    },
+    { status: "transcribed" },
+  );
+
+  const { parts } = await listSessionTranscriptParts(outbox, session.id);
+
+  expect(parts).toHaveLength(1);
+
+  // The transcriber's values are at the top level, untouched.
+  expect(parts[0]?.annotations["seq"]).toBe("page-1");
+  expect(parts[0]?.annotations["id"]).toBe("doc-abc");
+  expect(parts[0]?.annotations["kind"]).toBe("invoice");
+
+  // The relay's values are namespaced under `capture.` and coexist.
+  expect(parts[0]?.annotations["capture.seq"]).toBe(item.seq);
+  expect(parts[0]?.annotations["capture.kind"]).toBe("audio");
+  expect(parts[0]?.annotations["capture.id"]).toBe(item.id);
 });

@@ -1,5 +1,6 @@
 import { DEFAULT_CAPABILITY_TTL_MS } from "./first-capable.js";
-import type { Extractor, ExtractionResult } from "./extractor.js";
+import type { Extractor } from "./extractor.js";
+import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { describe, expect, test } from "vitest";
 
 import type { CapabilitySource, SelectableCapability } from "./composite-extractor.js";
@@ -16,8 +17,8 @@ import { compositeExtractor } from "./composite-extractor.js";
  */
 
 interface MutableClock {
-  now(): number;
-  advance(ms: number): void;
+  now: () => number;
+  advance: (ms: number) => void;
 }
 
 function makeClock(): MutableClock {
@@ -53,12 +54,12 @@ function fakeExtractor<F>(
 ): Extractor<F> & { calls: readonly string[] } {
   const calls: string[] = [];
   return {
-    extract: async (transcript: string) => {
-      calls.push(transcript);
+    extract: async (transcript: AnnotatedTranscript) => {
+      calls.push(transcript.text);
       return {
         fields,
         usage: { calls: options.calls ?? 1, engine: options.engine },
-      } as ExtractionResult<F>;
+      };
     },
     get calls() {
       return calls;
@@ -87,7 +88,7 @@ describe("compositeExtractor", () => {
       { source: onDeviceSource, extractor: onDeviceExtractor },
     ]);
 
-    const result = await extractor.extract("the transcript");
+    const result = await extractor.extract({ text: "the transcript", annotations: {} });
     expect(result.fields).toEqual(fields);
     expect(result.usage).toEqual({ calls: 7, engine: "managed" });
     expect(managedExtractor.calls).toEqual(["the transcript"]);
@@ -107,7 +108,7 @@ describe("compositeExtractor", () => {
       { source: onDeviceSource, extractor: onDeviceExtractor },
     ]);
 
-    const result = await extractor.extract("the transcript");
+    const result = await extractor.extract({ text: "the transcript", annotations: {} });
     expect(result.fields).toEqual(fields);
     expect(result.usage).toEqual({ calls: 1, engine: "on-device" });
     expect(managedExtractor.calls).toEqual([]);
@@ -121,7 +122,9 @@ describe("compositeExtractor", () => {
     const onlyExtractor = fakeExtractor({});
 
     const only = compositeExtractor([{ source: onlyChat, extractor: onlyExtractor }]);
-    await expect(only.extract("x")).rejects.toThrow("on-device: needs-download");
+    await expect(only.extract({ text: "x", annotations: {} })).rejects.toThrow(
+      "on-device: needs-download",
+    );
     expect(onlyExtractor.calls).toEqual([]);
     expect(onlyChat.probeCount).toBe(1);
 
@@ -134,7 +137,7 @@ describe("compositeExtractor", () => {
       { source: managedSource, extractor: managedExtractor },
       { source: onDeviceSource, extractor: onDeviceExtractor },
     ]);
-    await expect(paired.extract("x")).rejects.toThrow();
+    await expect(paired.extract({ text: "x", annotations: {} })).rejects.toThrow();
     expect(managedExtractor.calls).toEqual([]);
     expect(onDeviceExtractor.calls).toEqual([]);
     expect(onDeviceSource.probeCount).toBe(1);
@@ -145,7 +148,7 @@ describe("compositeExtractor", () => {
     const inner = fakeExtractor({ fields: true }, { calls: 7 });
 
     const extractor = compositeExtractor([{ source, extractor: inner }]);
-    const result = await extractor.extract("t");
+    const result = await extractor.extract({ text: "t", annotations: {} });
 
     expect(result.usage.calls).toBe(7);
     expect(source.probeCount).toBe(1);
@@ -161,11 +164,11 @@ describe("compositeExtractor", () => {
       now: clock.now,
     });
 
-    await extractor.extract("a");
+    await extractor.extract({ text: "a", annotations: {} });
     expect(source.probeCount).toBe(1);
 
     extractor.invalidate();
-    await extractor.extract("b");
+    await extractor.extract({ text: "b", annotations: {} });
     expect(source.probeCount).toBe(2);
   });
 
@@ -178,9 +181,9 @@ describe("compositeExtractor", () => {
       now: clock.now,
     });
 
-    await extractor.extract("a");
+    await extractor.extract({ text: "a", annotations: {} });
     clock.advance(DEFAULT_CAPABILITY_TTL_MS - 1);
-    await extractor.extract("b");
+    await extractor.extract({ text: "b", annotations: {} });
 
     expect(source.probeCount).toBe(1);
   });
@@ -190,7 +193,7 @@ describe("compositeExtractor", () => {
     const inner = fakeExtractor({});
 
     const extractor = compositeExtractor([{ source, extractor: inner }]);
-    await expect(extractor.extract("x")).rejects.toThrow(
+    await expect(extractor.extract({ text: "x", annotations: {} })).rejects.toThrow(
       "managed: unavailable (offline) — offline",
     );
   });

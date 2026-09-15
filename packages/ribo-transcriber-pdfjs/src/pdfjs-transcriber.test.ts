@@ -1,9 +1,10 @@
 import { isPermanentlyUnavailable } from "@azx/ribo-core";
+import type { DocumentCapture } from "@azx/ribo-core";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { PdfjsTranscriber } from "./index.js";
 import { PDFJS_ENGINE } from "./config.js";
-import type { PdfjsModule } from "./config.js";
+import type { PdfDocumentProxy, PdfjsModule } from "./config.js";
 
 /**
  * Capability tests for the pdf.js transcriber — the Task 5 must-fail tests from
@@ -100,5 +101,56 @@ describe("PdfjsTranscriber — capability", () => {
     const t = new PdfjsTranscriber({});
     expect(t.engine).toBe("pdfjs");
     expect(PDFJS_ENGINE).toBe("pdfjs");
+  });
+});
+
+describe("PdfjsTranscriber — entity decoding", () => {
+  test("HTML entities in the PDF text layer are decoded to literal characters", async () => {
+    // Transcript.text holds rendered text, not escaped markup. A PDF whose text
+    // layer contains &amp; (common in PDFs generated from HTML) must arrive in
+    // the outbox as & so a model quoting & does not fail the grounding check.
+    const doc: PdfDocumentProxy = {
+      numPages: 1,
+      getPage: () =>
+        Promise.resolve({
+          getTextContent: () =>
+            Promise.resolve({
+              items: [
+                {
+                  str: "Tom &amp; Jerry Plumbing",
+                  hasEOL: true,
+                  transform: [1, 0, 0, 1, 0, 700],
+                  width: 200,
+                  height: 10,
+                },
+              ],
+            }),
+        }),
+    } as unknown as PdfDocumentProxy;
+
+    const fakeModule: PdfjsModule = {
+      getDocument: () => ({ promise: Promise.resolve(doc) }),
+      GlobalWorkerOptions: { workerSrc: "" },
+    };
+
+    const t = new PdfjsTranscriber({
+      workerSrc: FAKE_WORKER_SRC,
+      noTextLayerThreshold: 0,
+      loadPdfjs: () => Promise.resolve(fakeModule),
+    });
+
+    const capture: DocumentCapture = {
+      id: "doc-1",
+      capturedAt: "2026-09-11T10:00:00.000Z",
+      kind: "document",
+      mimeType: "application/pdf",
+      pageCount: 1,
+      ctx: {},
+    };
+
+    const transcript = await t.transcribe(capture, new Blob([new Uint8Array(0)]));
+
+    expect(transcript.text).toContain("Tom & Jerry Plumbing");
+    expect(transcript.text).not.toContain("&amp;");
   });
 });

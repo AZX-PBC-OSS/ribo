@@ -46,6 +46,36 @@ The unit of citation wasn't only fighting the token budget; it was fighting the 
 one line of the source document. A cell span, on a wide table, asks the model to isolate a fragment
 of a line it's already citing nine other times — and it did that badly.
 
+## The accuracy gap did not reproduce
+
+The 37% figure was re-measured later as a 2×2 factorial — leaf/row granularity × current/pinned
+prompt wording, five runs per cell, Claude Haiku 4.5 through Ribo's own `singleShotExtractor` with
+Anthropic `tool_use` structured output, a different Wrightsoft Manual J, scored with
+`spanGroundedness`:
+
+| arm           | verbatim | per-run rates            |
+| ------------- | -------- | ------------------------ |
+| leaf, current | 99.5%    | 97.7, 100, 100, 100, 100 |
+| leaf, pinned  | 100%     | 100, 100, 100, 100       |
+| row, current  | 98.8%    | 100, 100, 100, 94.1, 100 |
+| row, pinned   | 100%     | 100, 100, 100, 100, 100  |
+
+Three negatives at once: the 37% fabrication rate did not reproduce, the run-to-run bimodality did
+not reproduce, and the row-vs-leaf gap did not appear — leaf was marginally _ahead_ of row. Every
+ungrounded span across all twenty runs sat on the house totals; the room table was perfect in both
+granularities.
+
+The re-run cannot show the original 37% was a prompt artifact — too much differs. Different
+document, different schema (87 spans against 46), different extraction mechanism (`tool_use`
+structured output against the original's `perGroupExtractor` through the managed gateway), possibly
+a different model build. It fails to find the 37% rather than refuting it: read that figure as a
+measurement under the original conditions, not as a property of cell-level citation.
+
+The granularity knob survives on its other two legs, which never depended on the fabrication rate:
+603 per-cell citations against 67 per-row for a 67-row table is a token-budget cost regardless of
+fidelity, and no reviewer clicks through 603 citations anyway. The derivation and partitioning below
+are unchanged.
+
 ## The fix: a group declares its own granularity
 
 `enveloped()` takes a `provenance` option, keyed per top-level group: `"leaf"` (the default, one

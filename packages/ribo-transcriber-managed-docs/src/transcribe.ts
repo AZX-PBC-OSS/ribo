@@ -3,7 +3,7 @@
  *
  * POST the document bytes to the managed document analysis endpoint through the
  * injected `fetch`, and map the response onto a {@link Transcript}. The response
- * is flattened into text by {@link ./response.ts}, using page markers and table
+ * is flattened into text by `response.ts`, using page markers and table
  * separators that match `@azx/ribo-transcriber-pdfjs`'s conventions.
  *
  * **The URL is the configured endpoint as-is.** The package does not prefix
@@ -58,7 +58,7 @@
  * fallback ladder: a document too large for the managed service may be within
  * pdf.js's limits, so the ladder should try the next rung rather than give up.
  */
-import { TranscriberUnavailableError, UnsupportedItemError } from "@azx/ribo-core";
+import { TranscriberUnavailableError, UnsupportedItemError, decodeEntities } from "@azx/ribo-core";
 import type { DocumentCapture, Transcript } from "@azx/ribo-core";
 
 import {
@@ -199,7 +199,7 @@ export async function transcribeViaManagedDocs(
 
   return {
     recordingId: item.id,
-    text,
+    text: decodeEntities(text),
     engine,
   };
 }

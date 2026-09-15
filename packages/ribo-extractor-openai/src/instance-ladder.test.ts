@@ -248,7 +248,7 @@ describe("instanceLadder", () => {
       tier3: { target, chat: tier3.chat, model: "demo-model", delay: noDelay },
     });
 
-    const result = await ladder.extract("the transcript");
+    const result = await ladder.extract({ text: "the transcript", annotations: {} });
 
     expect(result.fields.widgets).toHaveLength(2);
     expect(result.fields.widgets?.[0]?.color.value).toBe("red");
@@ -278,7 +278,7 @@ describe("instanceLadder", () => {
       tier3: { target, chat: tier3SingletonChat().chat, model: "demo-model", delay: noDelay },
     });
 
-    const result = await ladder.extract("the transcript");
+    const result = await ladder.extract({ text: "the transcript", annotations: {} });
 
     expect(result.usage.strategy).toBe("tier2");
     expect(result.usage.calls).toBeGreaterThan(0);
@@ -291,7 +291,7 @@ describe("instanceLadder", () => {
       chat: arrayChat.chat,
       model: "demo-model",
       delay: noDelay,
-    }).extract("the transcript");
+    }).extract({ text: "the transcript", annotations: {} });
 
     // Tier 2 must preserve the collection as an array, capable of carrying two instances.
     expect(Array.isArray(arrayResult.fields.widgets)).toBe(true);
@@ -315,7 +315,7 @@ describe("instanceLadder", () => {
       chat: singletonChat.chat,
       model: "demo-model",
       delay: noDelay,
-    }).extract("the transcript");
+    }).extract({ text: "the transcript", annotations: {} });
 
     // Tier 3 asks for a singleton and wraps it back to a one-element array,
     // so it cannot represent a second instance.
@@ -364,7 +364,7 @@ describe("instanceLadder", () => {
 
     let thrown: unknown;
     try {
-      await ladder.extract("the transcript");
+      await ladder.extract({ text: "the transcript", annotations: {} });
     } catch (error) {
       thrown = error;
     }
@@ -399,7 +399,7 @@ describe("instanceLadder", () => {
       tier3: { target, chat: tier3SingletonChat().chat, model: "demo-model", delay: noDelay },
     });
 
-    await ladder.extract("the transcript");
+    await ladder.extract({ text: "the transcript", annotations: {} });
 
     const tier1Events = events.filter((e) => e.strategy === "tier1");
     const tier2Events = events.filter((e) => e.strategy === "tier2");
@@ -435,7 +435,7 @@ describe("instanceLadder", () => {
       tier3: { target, chat: tier3SingletonChat().chat, model: "demo-model", delay: noDelay },
     });
 
-    await ladder.extract("the transcript");
+    await ladder.extract({ text: "the transcript", annotations: {} });
 
     expect(events.length).toBeGreaterThan(0);
     expect(events.every((e) => e.strategy !== undefined)).toBe(true);
@@ -465,7 +465,7 @@ describe("instanceLadder", () => {
       tier3: { target, chat: tier3SingletonChat().chat, model: "demo-model", delay: noDelay },
     });
 
-    await ladder.extract("the transcript");
+    await ladder.extract({ text: "the transcript", annotations: {} });
 
     // Both handlers saw tier 1's inventory events.
     const ladderTier1 = ladderEvents.filter((e) => e.strategy === "tier1");
@@ -500,7 +500,7 @@ describe("instanceLadder", () => {
       tier3: { target, chat: tier3SingletonChat().chat, model: "demo-model", delay: noDelay },
     });
 
-    const result = await ladder.extract("the transcript");
+    const result = await ladder.extract({ text: "the transcript", annotations: {} });
 
     // The tier-level onUnit still fires even without a ladder-level observer.
     expect(tierEvents.length).toBeGreaterThan(0);
@@ -509,5 +509,47 @@ describe("instanceLadder", () => {
     // The extraction result is unaffected.
     expect(result.fields.widgets).toHaveLength(2);
     expect(result.usage.strategy).toBe("tier2");
+  });
+});
+
+describe("instanceLadder provenance parameter", () => {
+  test("accepts tier options whose target declares a row group", () => {
+    const rowSchema = z
+      .object({
+        rooms: z
+          .array(
+            z
+              .object({
+                name: z.string().nullable().optional(),
+              })
+              .strict(),
+          )
+          .optional(),
+      })
+      .strict();
+    type RowValues = z.infer<typeof rowSchema>;
+    const rowTarget: ExtractionTarget<RowValues, { rooms: "row" }> = {
+      name: "row-demo",
+      extractionSchema: enveloped(rowSchema, { provenance: { rooms: "row" } }),
+      instructions: "Extract rooms as a row group.",
+    };
+    const chat: ChatClient = {
+      complete: async () => ({ content: "{}", finishReason: "stop" }),
+    };
+
+    const ladder = instanceLadder<RowValues, { rooms: "row" }>({
+      arbiter: terminalFallsThrough,
+      tier1: {
+        target: rowTarget,
+        chat,
+        model: "test",
+        inventory: async () => ({ rooms: [] }),
+        buildFillInstructions: () => "",
+      },
+      tier2: { target: rowTarget, chat, model: "test" },
+      tier3: { target: rowTarget, chat, model: "test", singleton: true },
+    });
+
+    expect(ladder).toBeDefined();
   });
 });

@@ -18,6 +18,7 @@
  * consumer that never transcribes a document. The worker URL is injected by
  * the consumer (AGENTS.md §5.2) — the library never constructs a `Worker`.
  */
+import { decodeEntities } from "@azx/ribo-core";
 import type {
   DocumentCapture,
   Transcript,
@@ -101,8 +102,7 @@ export class PdfjsTranscriber implements Transcriber<DocumentCapture> {
     this.#workerSrc = options.workerSrc;
     this.#noTextLayerThreshold = options.noTextLayerThreshold ?? DEFAULT_NO_TEXT_LAYER_THRESHOLD;
     this.#onPage = options.onPage;
-    this.#loadPdfjs =
-      options.loadPdfjs ?? (async () => (await import("pdfjs-dist")) as unknown as PdfjsModule);
+    this.#loadPdfjs = options.loadPdfjs ?? (async () => await import("pdfjs-dist"));
   }
 
   async capability(): Promise<TranscriberCapability> {
@@ -141,7 +141,7 @@ export class PdfjsTranscriber implements Transcriber<DocumentCapture> {
 
     return {
       recordingId: item.id,
-      text,
+      text: decodeEntities(text),
       engine: this.engine,
     };
   };

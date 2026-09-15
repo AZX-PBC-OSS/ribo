@@ -11,7 +11,7 @@
  *     misreported as "invalid JSON". Both are deterministic — re-sending an
  *     identical request with an identical `maxTokens` truncates at the same
  *     point, and a content filter fires on the same content — so they throw
- *     {@link TerminalQueueError}, which `isTransientFailure` classifies as
+ *     `TerminalQueueError`, which `isTransientFailure` classifies as
  *     non-retryable. Without this a plain `Error` would be treated as transient
  *     and burn every relay attempt.
  *
@@ -22,16 +22,22 @@
  *     blips: a refusal repeats on the same input, and `unsupported` is a
  *     configuration error no retry fixes.
  *
- * The prompt assembly ({@link buildMessages}) and the two parse helpers
- * ({@link parseJsonContent}, {@link parseWithSchema}) are shared because both
- * extractors cross the same trust boundary the same way — extracting them keeps
- * that boundary in one place rather than two.
+ * The prompt assembly ({@link buildMessages}) and the JSON parse
+ * ({@link parseJsonContent}) are shared because both extractors cross the same
+ * trust boundary the same way — extracting them keeps that boundary in one
+ * place rather than two. The zod parse (`parseWithSchema`) has moved the same
+ * way again, into core beside `SchemaParseError`, so `groupedExtractor`'s
+ * second parse is the same function as this first parse.
  */
 
-import type { z } from "zod";
-
-import { SchemaParseError, TerminalQueueError } from "@azx/ribo-core";
+import { TerminalQueueError } from "@azx/ribo-core";
 import type { ExtractionTarget, NoProvenance } from "@azx/ribo-core";
+
+// The trust-boundary parse lives in core beside `SchemaParseError` — it is the
+// one function every extractor (and `groupedExtractor`'s second parse) crosses,
+// so the two parses cannot drift. Re-exported to keep this module's public
+// surface and every internal import unchanged.
+export { parseWithSchema } from "@azx/ribo-core";
 
 import { ChatError } from "./chat-client.js";
 import type {
@@ -42,6 +48,7 @@ import type {
   ChatRequest,
   ChatUsage,
 } from "./chat-client.js";
+import { projectTarget } from "./project-target.js";
 
 /**
  * Running token totals for a multi-call extraction.
@@ -136,7 +143,8 @@ export function projectSingletonExample<F extends Record<string, unknown>>(
   const value = projected.fields[groupKey];
   if (Array.isArray(value)) {
     if (value.length === 0) return null;
-    return { transcript: projected.transcript, fields: { [groupKey]: value[0] } };
+    const first: unknown = value[0] as unknown;
+    return { transcript: projected.transcript, fields: { [groupKey]: first } };
   }
   return projected;
 }
@@ -187,12 +195,12 @@ export function narrowToLeaves(value: unknown, leafKeys: readonly string[]): unk
  * {@link buildMessages}.
  *
  * @param singleton - When true and the group is a collection, project each
- *   example to a single element (via {@link projectSingletonExample}) so the
+ *   example to a single element (via `projectSingletonExample`) so the
  *   assistant turn imitates the singleton response the model is asked for. The
  *   default (`false`) keeps the array shape.
  * @param leafKeys - When supplied, the projected example's group value (and, for
  *   a collection group, every instance in it) is further narrowed to exactly
- *   these keys via {@link narrowToLeaves} — the shape a partitioned piece
+ *   these keys via `narrowToLeaves` — the shape a partitioned piece
  *   (`ExtractionGroup.part`) actually asks the model for. Without this, a
  *   partitioned call's few-shot example would show the model an assistant turn
  *   carrying the WHOLE group's fields while its `response_format` accepts only a
@@ -209,26 +217,16 @@ export function buildGroupMessages<V extends Record<string, unknown>, P = NoProv
   leafKeys?: readonly string[],
 ): ChatMessage[] {
   const perGroup = groupInstructions !== undefined && groupKey !== "";
-  const instructions = perGroup ? groupInstructions!(groupKey) : target.instructions;
-  const messages: ChatMessage[] = [{ role: "system", content: instructions }];
-  for (const example of target.examples ?? []) {
-    if (perGroup) {
-      const projected = singleton
-        ? projectSingletonExample(example, groupKey)
-        : projectExample(example, groupKey);
-      if (projected === null) continue;
-      const fields = leafKeys
-        ? { [groupKey]: narrowToLeaves(projected.fields[groupKey], leafKeys) }
-        : projected.fields;
-      messages.push({ role: "user", content: projected.transcript });
-      messages.push({ role: "assistant", content: JSON.stringify(fields) });
-    } else {
-      messages.push({ role: "user", content: example.transcript });
-      messages.push({ role: "assistant", content: JSON.stringify(example.fields) });
-    }
+  if (!perGroup) {
+    return buildMessages(target, transcript);
   }
-  messages.push({ role: "user", content: transcript });
-  return messages;
+
+  const projected = projectTarget(target, groupKey, {
+    instructions: groupInstructions(groupKey),
+    leafKeys,
+    singleton,
+  });
+  return buildMessages(projected, transcript);
 }
 
 /**
@@ -280,7 +278,7 @@ export async function completeOrClassify(
  * JSON" rather than the real cause. The `"length"` message names `maxTokens`, the knob
  * that fixes it.
  *
- * Throws {@link TerminalQueueError}, NOT a plain `Error`: `isTransientFailure` treats any
+ * Throws `TerminalQueueError`, NOT a plain `Error`: `isTransientFailure` treats any
  * error without a numeric `status` as retryable, and both of these are deterministic.
  * Re-sending an identical request with an identical `maxTokens` truncates at the identical
  * point, and a content filter fires again on the same content — so a plain `Error` would
@@ -317,29 +315,4 @@ export function parseJsonContent(content: string, context: string): unknown {
   } catch (cause) {
     throw new Error(`${context} was not valid JSON`, { cause });
   }
-}
-
-/**
- * Parse `raw` against a zod schema, throwing a {@link SchemaParseError} on failure.
- *
- * A response that does not satisfy the schema is *sampled*: the same request can fail
- * zod once and pass on re-send, so the failure stays transient/retryable. The queue
- * keeps retrying rather than losing a recording someone drove to a house to make. At the
- * same time the error is now recognisable: a strategy ladder can see it and fall through
- * to a different shape instead of sampling the same broken one indefinitely. Both halves
- * matter — making it transient alone would keep the ladder from moving on; making it
- * terminal alone would strip retries from the very recordings that have no second chance.
- * The terminal cases (truncation, content filtering) are caught earlier by
- * {@link assertStopFinishReason}.
- *
- * @param context - a descriptive prefix for the error
- */
-export function parseWithSchema<T>(schema: z.ZodType<T>, raw: unknown, context: string): T {
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    throw new SchemaParseError(`${context} did not match the schema: ${parsed.error.message}`, {
-      cause: parsed.error,
-    });
-  }
-  return parsed.data;
 }

@@ -191,10 +191,7 @@ function validSession() {
 }
 
 describe("SESSION_MIGRATION_STRATEGIES[2] — v1 → v2 backfills instanceKeys", () => {
-  const migrate = SESSION_MIGRATION_STRATEGIES as unknown as {
-    1: (doc: SessionDocument) => SessionDocument;
-    2: (doc: SessionDocument) => SessionDocument;
-  };
+  const migrate = SESSION_MIGRATION_STRATEGIES;
 
   test("a v1 accepted outcome with collection-group fields gets instanceKeys", () => {
     const v1 = {

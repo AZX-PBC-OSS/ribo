@@ -65,6 +65,28 @@ import { z } from "zod";
 import { isExtractedSchema } from "@azx/ribo-core";
 
 /**
+ * Narrowed accessors for the zod internals this file walks.
+ *
+ * Zod 4's classic API types them loosely: a bare object's `.shape` indexes to `any`,
+ * and `.element` / `.unwrap()` are typed against zod's CORE api, whose wrappers are not
+ * the classic classes these runtime values actually are. Every schema this module sees
+ * is built through the classic `z` API (`z.array`, `z.strictObject`, …), and every use
+ * is guarded by an `instanceof z.Zod*` check — so each accessor narrows once, the same
+ * move `ribo-core`'s `fieldAt` makes, rather than any call site silencing the
+ * unsafe-* rules.
+ */
+
+/** `.unwrap()` past a nullable/optional wrapper: the classic schema it wraps. */
+const unwrapped = (schema: z.ZodNullable | z.ZodOptional): z.ZodType =>
+  schema.unwrap() as z.ZodType;
+
+/** `.element` of a classic array schema: the classic schema of each item. */
+const arrayElement = (schema: z.ZodArray): z.ZodType => schema.element as z.ZodType;
+
+/** `shape[key]` for a key that came from the shape's own keys: a `ZodType` by construction. */
+const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
+
+/**
  * One top-level group of an extraction schema, narrowed to exactly that group's key.
  *
  * `key` is the group's top-level property name (e.g. `"hvac"`), or `""` for the
@@ -135,14 +157,17 @@ export const MAX_NULLABLE_UNIONS_PER_CALL = 16;
  */
 function nullableUnions(schema: z.ZodType): number {
   if (schema instanceof z.ZodNullable || schema instanceof z.ZodOptional) {
-    return 1 + nullableUnions(schema.unwrap() as z.ZodType);
+    return 1 + nullableUnions(unwrapped(schema));
   }
   if (schema instanceof z.ZodArray) {
-    return nullableUnions(schema.element as z.ZodType);
+    return nullableUnions(arrayElement(schema));
   }
   if (schema instanceof z.ZodObject) {
-    const shape = schema.shape as Record<string, z.ZodType>;
-    return Object.keys(shape).reduce((total, key) => total + nullableUnions(shape[key]!), 0);
+    const shape = schema.shape;
+    return Object.keys(shape).reduce(
+      (total, key) => total + nullableUnions(fieldAt(shape, key)),
+      0,
+    );
   }
   return 0;
 }
@@ -225,7 +250,7 @@ function partitionGroup(
   maxUnions: number,
 ): ExtractionGroup[] {
   const propertyKeys = Object.keys(candidate.shape);
-  const weights = propertyKeys.map((k) => nullableUnions(candidate.shape[k]!));
+  const weights = propertyKeys.map((k) => nullableUnions(fieldAt(candidate.shape, k)));
   const total = weights.reduce((sum, weight) => sum + weight, 0);
 
   if (total <= maxUnions) {
@@ -243,7 +268,7 @@ function partitionGroup(
     const pieceKeys = propertyKeys.slice(start, start + sizes[part]!);
     start += sizes[part]!;
     const pieceShape: Record<string, z.ZodType> = {};
-    for (const leafKey of pieceKeys) pieceShape[leafKey] = candidate.shape[leafKey];
+    for (const leafKey of pieceKeys) pieceShape[leafKey] = fieldAt(candidate.shape, leafKey);
     const pieceCandidate = z.strictObject(pieceShape);
     const pieceValue = isArray ? z.array(pieceCandidate) : pieceCandidate;
     pieces.push({
@@ -265,10 +290,9 @@ function partitionGroup(
  * constrained to one top-level key.
  */
 const groupCandidate = (value: z.ZodType): z.ZodType =>
-  // `ZodArray.element` is typed against zod's core API, but this function only
-  // receives schemas built through the classic `z` API (`z.array`, `z.strictObject`,
-  // etc.), so its runtime element is the same classic wrapper we already use.
-  value instanceof z.ZodArray ? (value.element as z.ZodType) : value;
+  // `arrayElement` narrows the core-typed element to the classic wrapper — this
+  // function only receives schemas built through the classic `z` API.
+  value instanceof z.ZodArray ? arrayElement(value) : value;
 
 /**
  * Whether a `ZodObject` is a **group** (a nested object of leaves or sub-groups)
@@ -307,7 +331,7 @@ const isGroupObject = (obj: z.ZodObject): boolean =>
  * @param maxNullableUnionsPerGroup - When supplied, a group carrying more nullable
  *   unions than this is further partitioned into multiple entries sharing its
  *   `key` (see the file header's "Nullable-union partitioning" and
- *   {@link partitionGroup}). Omitted, the split keeps one-entry-per-group
+ *   `partitionGroup`). Omitted, the split keeps one-entry-per-group
  *   behaviour; both extractor callers pass a value (defaulting to
  *   {@link MAX_NULLABLE_UNIONS_PER_CALL}) so their per-call schemas stay under the
  *   provider limits regardless.
@@ -331,7 +355,7 @@ export function splitExtractionSchema(
   // at the top level — the shape a flat (non-grouped) enveloped schema has —
   // makes this false, and the whole schema is returned as one entry.
   const everyKeyIsGroup = keys.every((key) => {
-    const candidate = groupCandidate(shape[key]);
+    const candidate = groupCandidate(fieldAt(shape, key));
     return candidate instanceof z.ZodObject && isGroupObject(candidate);
   });
 
@@ -342,15 +366,15 @@ export function splitExtractionSchema(
   if (maxNullableUnionsPerGroup === undefined) {
     return keys.map((key) => ({
       key,
-      schema: z.strictObject({ [key]: shape[key] }),
+      schema: z.strictObject({ [key]: fieldAt(shape, key) }),
     }));
   }
 
   return keys.flatMap((key) =>
     partitionGroup(
       key,
-      shape[key],
-      groupCandidate(shape[key]) as z.ZodObject,
+      fieldAt(shape, key),
+      groupCandidate(fieldAt(shape, key)) as z.ZodObject,
       maxNullableUnionsPerGroup,
     ),
   );

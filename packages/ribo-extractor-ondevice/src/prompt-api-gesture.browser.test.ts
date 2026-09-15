@@ -19,13 +19,13 @@ import { userEvent } from "@vitest/browser/context";
  */
 
 interface MaybeSession {
-  prompt?(input: string, options?: { signal?: AbortSignal }): Promise<string>;
-  destroy?(): void;
+  prompt?: (input: string, options?: { signal?: AbortSignal }) => Promise<string>;
+  destroy?: () => void;
 }
 
 interface MaybeLanguageModel {
-  availability(): Promise<string>;
-  create(options?: { signal?: AbortSignal }): Promise<MaybeSession>;
+  availability: () => Promise<string>;
+  create: (options?: { signal?: AbortSignal }) => Promise<MaybeSession>;
 }
 
 function languageModel(): MaybeLanguageModel | undefined {

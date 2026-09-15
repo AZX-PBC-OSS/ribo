@@ -33,16 +33,16 @@ import { HistoryEntrySchema, RunRecordSchema } from "./run-record.js";
  */
 export interface RunStore {
   /** Overwrite `current` (temp + rename), then append one `history` line. */
-  saveRun(run: RunRecord): Promise<void>;
-  readCurrent(backendLabel: string): Promise<RunRecord | null>;
-  readHistory(backendLabel: string): Promise<HistoryEntry[]>;
-  listBackends(): Promise<string[]>;
+  saveRun: (run: RunRecord) => Promise<void>;
+  readCurrent: (backendLabel: string) => Promise<RunRecord | null>;
+  readHistory: (backendLabel: string) => Promise<HistoryEntry[]>;
+  listBackends: () => Promise<string[]>;
   /** Drop ONE bogus trend point, leaving `current` alone. */
-  deleteHistoryEntry(backendLabel: string, capturedAt: string): Promise<void>;
+  deleteHistoryEntry: (backendLabel: string, capturedAt: string) => Promise<void>;
   /** Trim the trend to the newest N. Maintenance, not correction. */
-  pruneHistory(backendLabel: string, opts: { keep: number }): Promise<void>;
+  pruneHistory: (backendLabel: string, opts: { keep: number }) => Promise<void>;
   /** Remove BOTH files — retire the backend entirely. */
-  deleteRun(backendLabel: string): Promise<void>;
+  deleteRun: (backendLabel: string) => Promise<void>;
 }
 
 const DEFAULT_DIR = join(fileURLToPath(new URL(".", import.meta.url)), "runs");
