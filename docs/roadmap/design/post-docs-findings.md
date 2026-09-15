@@ -273,7 +273,7 @@ measurement under specific conditions rather than as a property of cell-level ci
   path. A review called the fix one line; it is not. `Transcriber.transcribe` is
   `(item, bytes) => Promise<Transcript>` with no options parameter, so there is nothing to hand a
   signal to. Closing it means widening the `Transcriber` contract the way Task 9 widened
-  `Extractor`, across five transcriber implementations plus `FakeTranscriber` and anything a host
+  `Extractor`, across four transcriber implementations plus `FakeTranscriber` and anything a host
   has written. Worth doing — the same argument applies, and doing it before publishing is far
   cheaper than after — but it is a task, not a patch.
 

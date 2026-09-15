@@ -2,7 +2,7 @@
 
 > **For anyone implementing this, human or agent:** work task-by-task. Task 1 is the contract
 > change and everything else depends on it. Tasks 2–5 are independent of each other once it lands.
-> Task 6 depends on Task 1 only. If a task's premise turns out to be wrong against the actual
+> Task 6 follows Task 5 — both edit `relay.ts`. If a task's premise turns out to be wrong against the actual
 > code, stop and say so rather than improvising around it.
 
 **Goal:** Give `Transcriber.transcribe` an options parameter carrying run context, so a
@@ -36,7 +36,8 @@ widened and not just `Extractor`'s.
   `./check.sh` will not tell you. Changeset frontmatter is a quoted YAML map of package name to
   bump level.
 - **Nothing is published yet, and this is the last cheap moment.** `Transcriber` is implemented in
-  five packages plus `FakeTranscriber` plus anything a host has written. After the first release
+  four packages — `ribo-transcriber-ondevice`, `-managed`, `-managed-docs`, `-pdfjs` — plus
+  `FakeTranscriber` plus anything a host has written. After the first release
   this same change costs every consumer a migration. Breaking changes are acceptable; back-compat
   overloads are not wanted.
 - **`Extractor.extract`'s `ExtractOptions` is the precedent.** Match its shape, its parameter
@@ -62,8 +63,9 @@ widened and not just `Extractor`'s.
 
 **Files:** `packages/ribo-core/src/transcriber.ts` (the contract), `fake-transcriber.ts`,
 `first-capable.ts`, `fallback-transcriber.ts`, `hedged.ts`, `restrict-to-kind.ts`,
-`packages/ribo-core/src/index.ts`, and the five implementations' signatures in
-`ribo-transcriber-ondevice`, `-managed`, `-managed-docs`, `-pdfjs`.
+`packages/ribo-core/src/index.ts`, and the four implementations' signatures in
+`ribo-transcriber-ondevice/src/index.ts`, `-managed/src/index.ts`, `-managed-docs/src/index.ts`,
+`-pdfjs/src/index.ts`.
 
 **What to do:** Declare `TranscribeOptions` with an optional `signal`, and add it as an optional
 third parameter to `Transcriber.transcribe`. Export the type from the core barrel. Update every
@@ -90,17 +92,19 @@ and the loser's cancellation is a separate concern from the caller's. State what
 
 ## Task 2: Forward the signal in the two fetch-based transcribers
 
-**Files:** `packages/ribo-transcriber-managed/src/index.ts`,
-`packages/ribo-transcriber-managed-docs/src/index.ts`.
+**Files:** `packages/ribo-transcriber-managed/src/transcribe.ts` and
+`packages/ribo-transcriber-managed-docs/src/transcribe.ts` — the fetch lives there, not in the
+`index.ts` that holds `fetchImpl`. Both `index.ts` files thread the option through.
 
 **What to do:** Both hold an injected `fetchImpl` (defaulting to `fetch`). Pass the signal in the
 request init so an abort cancels the in-flight HTTP request. These are the two transports where
 cancellation is unambiguous.
 
-Consider whether an aborted fetch should surface as a distinct error the queue can recognise as
-"cancelled" rather than "failed" — a cancelled transcription must not burn the retry budget. Check
-how `isTransientFailure` and `TerminalQueueError` classify an `AbortError` today and say what you
-found.
+**An abort must not burn the retry budget, and today it would.** `AbortError` is classified as a
+transient failure (`packages/ribo-core/src/transcriber.test.ts:101-108` pins this), so a cancelled
+transcription currently looks to the queue exactly like a flaky network and gets retried. Decide
+how a deliberate cancellation is distinguished from a transport failure and implement it — this is
+the part of Task 2 with real consequences, not the signal forwarding.
 
 **Tests that must fail first:** A fake `fetchImpl` that records the `signal` it was handed;
 assert it is the caller's, by identity. Then a test that aborts mid-flight and asserts the fetch
@@ -114,9 +118,20 @@ was aborted — not merely that the promise rejected.
 which destroys a worker holding a primed model — the thing `prime()` exists to avoid paying for
 twice. So "forward the signal" is not obviously right here.
 
-**What to do:** Decide, and justify, between: terminating on abort and accepting the re-prime
-cost; checking the signal between chunks so a long multi-chunk transcription stops early while a
-single chunk runs to completion; or declining to honour the signal and documenting that. Any of
+**Two facts that narrow the choice, both verified:**
+
+- **The chunk loop runs inside the worker** (`worker.ts:577-584`), so "check between chunks" is
+  not a main-thread `if` — it needs new worker-protocol messages, which is a materially larger
+  change than it sounds.
+- **The worker channel is shared with live transcription.** Batch replies are matched by
+  `requestId` and live replies by `sessionId` precisely so they do not crosstalk on one channel
+  (`index.ts:414-418`). So `terminate()` on a batch abort would also kill an in-flight **live
+  session** — a user's dictation preview dying because a queued file was cancelled. Any answer
+  involving `terminate()` must say what happens to a live session, or rule it out on that basis.
+
+**What to do:** Decide, and justify, between: terminating on abort and accepting both the re-prime
+cost and the live-session consequence; checking the signal between chunks via the worker protocol;
+or declining to honour the signal and documenting that. Any of
 the three is defensible; leaving the parameter accepted and silently ignored is not.
 
 Whatever you choose, the behaviour must be stated in the transcriber's doc comment where a host
@@ -132,10 +147,12 @@ the doc comment says so.
 
 **Files:** `packages/ribo-transcriber-pdfjs/src/index.ts`.
 
-**What to do:** Establish whether `pdfjs-dist` offers a cancellation mechanism for the operations
-this transcriber performs, and either use it or document that it does not. The same rule as Task
-3 applies: accepted-and-ignored is the one unacceptable outcome. Page iteration may allow a
-between-pages check even if a single page's work cannot be interrupted.
+**What to do:** pdf.js **does** offer cancellation — `loadingTask.destroy()` — and the local shim
+in `packages/ribo-transcriber-pdfjs/src/config.ts:26` simply does not expose it. So this is not an
+investigation: extend the shim's type to surface `destroy`, and wire the signal to it. Page
+iteration may additionally allow a between-pages check for work already loaded.
+
+The same rule as Task 3 applies: accepted-and-ignored is the one unacceptable outcome.
 
 **Tests that must fail first:** As Task 3 — assert whatever behaviour you chose, and if the
 answer is a between-pages check, prove the later page never ran.
@@ -154,44 +171,55 @@ pattern, and it is three commits old.
 transcriber's recorded signal is observed aborted. Assert on what the transcriber saw, not that
 the relay moved on.
 
-## Task 6: Deliver the plugin storage handle through the same slot
+## Task 6: Deliver the plugin storage handle
 
-**Files:** `packages/ribo-core/src/transcriber.ts`, `packages/ribo-core/src/extractor.ts`,
-`packages/ribo-core/src/queue/relay.ts`, `packages/ribo-core/src/queue/outbox.ts`.
+**Files:** `packages/ribo-core/src/transcriber.ts`, `packages/ribo-core/src/queue/relay.ts`,
+`packages/ribo-core/src/queue/outbox.ts`, and whichever extractor construction sites Task 6's
+decision touches.
 
 **Problem:** `post-docs-findings.md` P2 records plugin-scoped storage as built and swept but
 **undeliverable**: the only accessor is `Outbox.pluginStorage(captureId, pluginId)`, so a plugin
-can reach its own storage only if the application hands it the whole `Outbox` — the option P2's
+reaches its own storage only if the application hands it the whole `Outbox` — the option P2's
 design explicitly rejected, because it makes `Outbox`'s API a plugin-facing contract by accident.
 
-**What to do:** Add the handle to both options bags — `TranscribeOptions` and `ExtractOptions` —
-and have the relay supply it, scoped to the capture being processed and to the plugin being
-invoked. The relay knows both: it holds the `Outbox` and it is the thing calling the plugin.
+**The decision this plan makes, rather than leaving to code.** An earlier draft said "add it to
+both options bags and let the relay supply it". That is wrong on the extract side and the reason
+is worth stating, because it shapes the answer:
 
-The decisions this task owns, all of which should be stated in the doc comments:
+- A **transcriber** is chosen at call time — `firstCapable` picks among candidates per item — so
+  the relay genuinely is the caller and can supply a handle scoped to that capture and that
+  plugin. `TranscribeOptions` is the right slot.
+- An **extractor** is not. The relay calls an opaque injected `sessionExtract` step
+  (`relay.ts:507-509`), and `Extractor<F>` carries **no identity at all** — `engine` appears on
+  the _result_, after the call (`extractor.ts:43-44`). The relay cannot name the plugin it is
+  invoking, so it cannot scope a handle for it without a new contract field.
 
-- **How the plugin is identified.** The handle is namespaced by plugin id, and the relay must
-  supply one. `Transcriber.engine` is a stable opaque id that already ends up persisted; whether
-  it is the right key for storage, or whether storage needs its own, is yours to decide.
-- **What the extractor side keys on**, given an extractor may run over a transcript joined from
-  several captures while storage is keyed by capture. This is the asymmetry that makes the task
-  interesting: a transcriber acts on one capture, an extractor on a session. Say what you did and
-  what a plugin can and cannot rely on because of it.
-- Whether the handle is always present or only when the host configured storage.
+So: **the transcriber side gets the handle through `TranscribeOptions`; the extractor side gets it
+at construction**, the way it already receives `chat`, `model` and `target`. A host building an
+extractor knows which plugin it is building, which is exactly the identity the contract lacks.
+This also avoids adding an id to `Extractor` purely to serve storage.
 
-**Tests that must fail first:** A transcriber writes a value through the handle it was given; a
-later extractor in the same session reads it back. Prove the durability the design exists for by
-closing and reopening the outbox between the two, not merely passing an object in memory — the
-two halves of a plugin may run in different tabs, minutes apart, which is why this is storage and
-not a field.
+**The residual, which this task must resolve and document:** a transcriber's handle is scoped to
+one capture; an extractor runs over a session joined from several. So an extractor that wants what
+its sibling transcriber stored needs to read across the session's captures, not one. Decide what
+the construction-time handle is scoped to — a session, a plugin across all captures, or something
+the host passes per run — and state plainly what a plugin author can and cannot rely on. Check how
+the per-capture sweep in `plugin-storage.test.ts` interacts with whatever you choose: storage
+swept when a capture is dropped must not leave a session-scoped reader holding a stale view.
 
-Also assert two plugins cannot read each other's keys through the handles the relay supplies.
+**Tests that must fail first:** A transcriber writes a value through the handle it was given, and
+an extractor in the same session reads it back — with the outbox **closed and reopened between
+them**, because the two halves of a plugin may run in different tabs, minutes apart, which is why
+this is storage and not a field. An in-memory pass would satisfy a weaker test and miss the point.
 
----
+Also assert two plugins cannot read each other's keys through the handles they are supplied, and
+that a capture's sweep removes what a transcriber wrote for it.
 
 ## Sequencing
 
 Task 1 first and alone; everything else depends on it. Tasks 2, 3, 4 and 5 are independent of one
-another. Task 6 depends on Task 1 only, and is the largest — it may reasonably be deferred to its
+another — verified disjoint in their files. **Task 6 follows Task 5**, not merely Task 1: both
+edit `relay.ts`, and Task 5's `onTimeout` wiring is in the same method Task 6 threads a handle
+through. Task 6 is the largest — it may reasonably be deferred to its
 own change if the first five take longer than expected, but the contract slot it needs is Task 1's
 deliverable either way.
