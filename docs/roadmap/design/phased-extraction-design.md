@@ -37,7 +37,7 @@ trust boundary. `extractorPhase` lifts any existing `Extractor` into a phase, wh
 **The acceptance bar is that extraction still works, not that requests are unchanged.** An earlier
 draft of this design leaned on byte-identical requests as its risk mitigation. That was the wrong
 gate twice over: it is not achievable (§4.7 — the natural ports change request names and message
-assembly), and it was never sufficient (doc 19 §6a records run-to-run variance on *identical* code,
+assembly), and it was never sufficient (doc 19 §6a records run-to-run variance on _identical_ code,
 "45/48 against 44/46 is noise"). The gate is doc 19 §6a's own pass criteria — **completions, zero
 degenerations, 100% span fidelity** — structural properties that a working strategy holds and a
 broken one does not, run once after every port lands (§10).
@@ -76,7 +76,7 @@ understood and that there is nowhere to put it.
 
 ### 2.2 The narrowing is the strategy, and it is not expressible
 
-What distinguishes these three strategies is *what the next pass is allowed to look at*:
+What distinguishes these three strategies is _what the next pass is allowed to look at_:
 
 - three-phase: phase 1 asks only about leaves phase 0 marked present; phase 2 classifies only leaves
   whose phase-1 span survived `isSpanGrounded`.
@@ -85,13 +85,13 @@ What distinguishes these three strategies is *what the next pass is allowed to l
   `sourceSpan` — abstained with evidence.
 
 Each is a filter over accumulated state, written as an inline `filter` or loop inside a file of
-several hundred lines. A host that wants "presence, then spans, then *my* classifier" cannot have
+several hundred lines. A host that wants "presence, then spans, then _my_ classifier" cannot have
 it; a host that wants a fourth pass cannot have it. The narrowing rule is the valuable part of each
 strategy and it is the part that is least reachable.
 
 ### 2.3 Granularity changes mid-strategy, and only the monolith can express it
 
-Phase 0 is one call per group. Phase 1 is one call per group. Phase 2 is one call per *leaf*.
+Phase 0 is one call per group. Phase 1 is one call per group. Phase 2 is one call per _leaf_.
 Inventory is one call for the whole document; the fill is one call per instance slot. No existing
 combinator changes its unit of work partway through a run — `groupedExtractor` is per group for its
 whole life — so any strategy that needs to must own its own loop, which is why all three do.
@@ -99,7 +99,7 @@ whole life — so any strategy that needs to must own its own loop, which is why
 ### 2.4 The cancellation bug class is present in the tree today
 
 `three-phase-extractor.ts` has an `isCancellation` helper and a comment recording the stake: a group
-whose presence call fails has its leaves nulled and the run continues, so a *cancellation* taking
+whose presence call fails has its leaves nulled and the run continues, so a _cancellation_ taking
 that path would resolve the run with all-null fields — indistinguishable from a document that
 genuinely said nothing. Phases 0 and 1 consult it. **Phase 2 does not.** `classifyLeaf` catches
 everything, retries, and returns `null` on exhaustion, so a transport abort arriving before the
@@ -204,7 +204,7 @@ around a `singleShotExtractor` is a thing a host can want today and cannot expre
 top-level version cannot express what the strategies need: a span phase that learned one leaf's
 `sourceSpan` would have to supply `value` and `confidence` for that leaf and every sibling. The deep
 partial was measured against the real `Enveloped<SnuggValues>` — leaf enum unions survive, collection
-groups stay arrays, `readonly` survives, a deep partial is *not* assignable to `Enveloped<V, P>` (so
+groups stay arrays, `readonly` survives, a deep partial is _not_ assignable to `Enveloped<V, P>` (so
 the closing trust-boundary parse is structurally required rather than optional), and it costs about
 3% more type instantiations on the real schema.
 
@@ -221,7 +221,7 @@ have run a roster pass it never ran.
 
 **`notes` is the cross-phase channel, and its keys are typed.** An earlier draft made it
 `Readonly<Record<string, unknown>>` and justified it by analogy to `AnnotatedTranscript`. The analogy
-argues the other way: `AnnotatedTranscript<P = …>` carries the bag shape as a *type parameter*, gives
+argues the other way: `AnnotatedTranscript<P = …>` carries the bag shape as a _type parameter_, gives
 the relay's own keys a named type (`CaptureAnnotations`), and reserves a `capture.` namespace with a
 documented precedence rule. An untyped bag has none of the three, and §3's own mixability
 requirement means phases authored in different packages will meet in one array, where two producers
@@ -256,7 +256,7 @@ worker function, so the pool never sees a rejection, and the failed item reaches
 outcome for the phase to interpret.
 
 **"Interpret" is not one rule, and the three-phase port proves it.** A presence or span failure nulls
-the group's leaves *including their spans*; a classify failure **keeps the span** and nulls only the
+the group's leaves _including their spans_; a classify failure **keeps the span** and nulls only the
 value (`three-phase-extractor.ts:258-265`). That difference is load-bearing downstream: gap-fill's
 candidates are leaves with a null value and a non-null span, so a merge that nulled phase-2 spans
 would starve the follow-up pass and strip the citation a reviewer reads. Two phases of one strategy,
@@ -266,7 +266,7 @@ the combinator applying a uniform policy.
 **Cancellation always propagates, whatever the policy.** The combinator owns the discrimination §2.4
 shows is currently strategy-private and already broken in one place. The canonical signal is
 `ctx.signal.aborted`, checked before an item is started and after an item fails. A transport that
-rejects with its own `aborted` error while the caller's signal has *not* fired is a transport bug —
+rejects with its own `aborted` error while the caller's signal has _not_ fired is a transport bug —
 every implementation in the tree observes the signal on the way out — and core cannot see
 `ChatError`, which lives in `ribo-extractor-openai`. So core exports a `CANCELLATION` symbol brand
 that a transport error of that kind carries, plus `isCancellation`, and claims exactly that and no
@@ -274,8 +274,8 @@ more. Wording matters here: the earlier draft promised core would honour "a tran
 aborted error," which core could not see.
 
 **`isTransientFailure` does not change, and an earlier draft of this section was wrong to say it
-should.** A cancellation stops the *in-run* retry loop immediately — retrying after the caller asked
-to stop is the bug. But the *step* stays retryable by the relay, which is a deliberate documented
+should.** A cancellation stops the _in-run_ retry loop immediately — retrying after the caller asked
+to stop is the bug. But the _step_ stays retryable by the relay, which is a deliberate documented
 decision: `extraction-common.ts:246` ("`aborted` is deliberately left retryable") and
 `docs/guide/extraction.md:46` record that the abort is caller-initiated on a deadline, so a later
 attempt with a fresh one may well succeed. Two layers, two answers; `retryExtractor` consults
@@ -283,7 +283,7 @@ attempt with a fresh one may well succeed. Two layers, two answers; `retryExtrac
 
 **On the constructor-not-flag rule.** The earlier draft defended `onItemFailure` against
 `race-extractor.ts`'s "concurrency is opt-in by name, not a boolean somebody can flip" and skipped
-the harder case. Two corrections. First, the rule is about a combinator's *cost, timing and exposure*
+the harder case. Two corrections. First, the rule is about a combinator's _cost, timing and exposure_
 profile being visible in its name — `extractor-arbitration-design.md:99` says outright that privacy
 is not what makes the property structural, so that is not the axis either. Second, the flag that
 actually engages the rule is **`concurrency`**, not `onItemFailure`: a per-phase concurrency bound
@@ -299,7 +299,7 @@ could not express any of them.
 
 ### 4.5 The deadline, and the contract widening it needs
 
-`deriveRetryBudget` sizes retries from a *known* call count — `batches = ceil(entries / concurrency)`
+`deriveRetryBudget` sizes retries from a _known_ call count — `batches = ceil(entries / concurrency)`
 against `stepTimeoutMs` and `PER_CALL_CEILING_MS`. Phased violates that premise by construction: the
 classify phase's item count depends on what the span phase produced.
 
@@ -307,19 +307,19 @@ The combinator records a deadline once and, at each phase boundary — the momen
 and that phase's item count is known — derives that phase's budget against its share of the
 **remaining** time.
 
-**`onRetryBudget` keeps its existing meaning: it fires when a budget was *reduced*, not on every
+**`onRetryBudget` keeps its existing meaning: it fires when a budget was _reduced_, not on every
 derivation.** `retry-budget.ts:43` defines it that way and both current call sites honour it, so a
-phased run emits one event per *reduced* phase — commonly zero, up to one per phase. Making it fire
+phased run emits one event per _reduced_ phase — commonly zero, up to one per phase. Making it fire
 unconditionally would turn a signal ("something had to be cut") into a metronome.
 
 **A deadline-caused zero is not a configuration error, and must not be treated as one.** Today
-`derived === 0` with `requested > 0` means the caller asked for retries that cannot fit *any* run of
+`derived === 0` with `requested > 0` means the caller asked for retries that cannot fit _any_ run of
 this shape, which is why `requireRetryBudget` throws `TerminalQueueError` and sends the session to
 `dead` — "no retry fixes a configuration error." Under a running deadline the same zero can be
 produced by elapsed wall-clock at a late phase boundary, which is transient and may not recur on the
 relay's next attempt. So the derivation distinguishes them: a budget that would be zero against the
-*full* step timeout is the configuration error and still throws; a budget that is zero only against
-the *remaining* time runs with no retries and reports it. Conflating the two would kill sessions on a
+_full_ step timeout is the configuration error and still throws; a budget that is zero only against
+the _remaining_ time runs with no retries and reports it. Conflating the two would kill sessions on a
 timing blip, and it is the kind of silent state-machine interaction this repo has been bitten by
 before.
 
@@ -354,7 +354,7 @@ tightening, and the acceptance gate is what says whether the tightening matters.
 ### 4.6 The unit stream changes
 
 `pass` widens to `number`, and a phase identifier joins it as **`phaseId: string`** — not `phase`,
-which is `UnitBase`'s lifecycle discriminator. Because `PhaseUnit` is an *intersection* with
+which is `UnitBase`'s lifecycle discriminator. Because `PhaseUnit` is an _intersection_ with
 `UnitBase`, declaring `phase: string` would narrow to `"start" | "done" | "error"` and emitting
 `phase: "presence"` would fail with an error naming neither cause; the collision is silent, which is
 why it is recorded here rather than left to be rediscovered. `phaseId` is also what a consumer
@@ -408,7 +408,7 @@ inventory function makes.
 
 **`threePhaseExtractor` becomes four phases, and the fourth is the interesting one.** Presence, span
 and classify are as described. The wrapped-schema fallback — today an error-driven request rewrite
-*inside* `classifyLeaf`'s retry loop, continuing the same unit id and attempt numbering — becomes a
+_inside_ `classifyLeaf`'s retry loop, continuing the same unit id and attempt numbering — becomes a
 separate `classifyWrapped` phase whose `plan` reads the leaves the classify phase recorded as
 unsupported. That is the narrowing pattern the combinator exists for, and it needs no per-item
 re-plan hook, no error-driven rescheduling, and no vocabulary growth.
@@ -507,7 +507,7 @@ Described rather than typed in full; the shapes that are load-bearing:
   options type; the bare-adjective precedents (`hedged`, `firstCapable`) are all transcriber-side.
 - `Phase<V, P>` — the phase type a `phases` list holds. Its item and contribution types are
   **existentially quantified rather than cast away**: the type exposes `with: <R>(use: <I, C>(def:
-  PhaseDef<V, P, I, C>) => R) => R`, with `id`, `requires`, `produces`, `concurrency` and
+PhaseDef<V, P, I, C>) => R) => R`, with `id`, `requires`, `produces`, `concurrency` and
   `onItemFailure` on the outside where the construction check and SP4's planner read them without
   entering. The combinator writes `phase.with(def => …)` and inside that callback `I` and `C` are
   bound and correlated, so handing phase 0's items to phase 1's `run` is a compile error. An erasing
@@ -607,7 +607,7 @@ Described rather than typed in full; the shapes that are load-bearing:
   where every other phase retries.
 - `ExtractOptions.deadline` is forwarded to every phase item and combined with `Math.min` against the
   combinator's own; a `phasedExtractor` nested inside another combinator derives its budgets from the
-  *outer* remaining time, not a fresh clock.
+  _outer_ remaining time, not a fresh clock.
 - The on-device preset's derived `RetryBudget` is the requested three for every phase on a fresh
   clock, with a device-sized `perCallCeilingMs` — and zero delay is observed between attempts, not
   `fullJitterDelay`.
