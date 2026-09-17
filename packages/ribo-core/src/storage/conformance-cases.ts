@@ -21,7 +21,7 @@ import type { EntryScopeKind, StorageBackend, StoredDocument } from "./port.js";
  * mixes it with bespoke thrown errors where the message carries more than an
  * equality check would), and the case bodies are closures over the subject.
  * Nothing is registered anywhere until a runner maps the list — `conformance.ts`
- * holds the adapter that does that in three lines, or map the cases yourself,
+ * holds the adapter that does that in a short loop, or map the cases yourself,
  * including running a single case from a debug script with no runner at all.
  *
  * This is *library* code that a test file calls: it declares nothing at module
@@ -134,6 +134,13 @@ async function byteLength(blob: Blob): Promise<number> {
   return (await blob.arrayBuffer()).byteLength;
 }
 
+/**
+ * Distinguishes every database this kit opens, across every build in the process.
+ *
+ * Module scope is the point — see `freshName`.
+ */
+let nextDatabaseOrdinal = 0;
+
 /** Wait for `predicate` to hold, polling the microtask/macrotask queue. Rejects on timeout. */
 async function until(predicate: () => boolean, label: string, timeoutMs = 2000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -159,8 +166,13 @@ export function defineStorageConformanceCases(
 
   // Every test gets its own database name. Backends are durable by definition, so
   // sharing one would let an earlier test's rows decide a later test's assertions.
-  let counter = 0;
-  const freshName = (): string => `conformance-${Date.now()}-${counter++}`;
+  //
+  // The counter is module-scoped rather than per-build, which matters precisely
+  // because this file advertises building the cases more than once in a process —
+  // two backends, or one case pulled out for a debug script. A per-build counter
+  // restarts at zero, so two builds in the same millisecond would hand two
+  // backends the same durable database and contaminate each other.
+  const freshName = (): string => `conformance-${Date.now()}-${nextDatabaseOrdinal++}`;
 
   const withBackend = async (body: (backend: StorageBackend) => Promise<void>): Promise<void> => {
     const backend = await createBackend(freshName());
