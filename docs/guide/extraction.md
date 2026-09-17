@@ -150,8 +150,9 @@ source-span fidelity to 100% grounded. Like the managed extractors, it reads its
 
 ## Phased composition: a multi-pass strategy is a list of phases
 
-`gapFillExtractor`, `scopedInstanceExtractor` and `threePhaseExtractor` above look like three
-bespoke orchestrators. They are not — each is a preset over one combinator, `phasedExtractor`
+Three strategies — `gapFillExtractor` and `scopedInstanceExtractor` in `@azx/ribo-extractor-openai`,
+`threePhaseExtractor` in `@azx/ribo-extractor-ondevice` — look like three bespoke orchestrators.
+They are not — each is a preset over one combinator, `phasedExtractor`
 (`@azx/ribo-core`), that runs a list of **phases** in order. You meet this machinery when you wire
 one of those presets together by hand, extend one with a pass of your own, or write a fourth
 multi-pass strategy — which is now a phase list rather than a hand-rolled loop.
