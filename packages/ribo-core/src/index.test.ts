@@ -84,6 +84,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "enveloped",
     "errorOutcome",
     "extractedSchema",
+    "extractorPhase",
     "fallbackExtractor",
     "fallbackTranscriber",
     "firstCapable",

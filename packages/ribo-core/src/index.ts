@@ -457,3 +457,8 @@ export type { Phase, PhaseContext, PhaseDef, PhaseMeta } from "./phase.js";
 // per-phase-boundary `produces` verification is a different check that runs during a run
 // and belongs with the engine (Wave 3b), not here.
 export { validatePhases } from "./validate-phases.js";
+// Any Extractor becomes a phase: the primitive that makes the later `phasedExtractor` the
+// outer shell for the whole family rather than a fourth sibling beside the existing
+// combinators. One item (the whole document), `signal`/`deadline` forwarded, usage on the
+// `PhaseOutput`, and a shallow top-level merge into the draft.
+export { extractorPhase } from "./extractor-phase.js";
