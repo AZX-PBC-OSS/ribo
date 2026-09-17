@@ -13,6 +13,8 @@
  * a fake and neither the adapter nor `ribo-core` depends on a provider SDK.
  */
 
+import { CANCELLATION } from "@azx/ribo-core";
+
 /** Chat roles used by single-shot extraction: the system prompt, few-shot turns, the transcript. */
 export type ChatRole = "system" | "user" | "assistant";
 
@@ -263,12 +265,31 @@ export type ChatErrorKind =
  * (`http` without a status, a status on `aborted`) are unconstructible at the call
  * site. `cause` is preserved (`Error`'s standard `cause`) — precisely what
  * flattening to a message string discards.
+ *
+ * The `aborted` factory additionally brands its error with ribo-core's
+ * `CANCELLATION` marker, so a combinator in core can recognise "the caller stopped
+ * this" without importing this package's error type. The brand is set in THAT
+ * factory only — never in the constructor and never on the prototype: branding the
+ * class would make every transport failure look like a cancellation and silently
+ * disable retries everywhere.
  */
 export class ChatError extends Error {
   override readonly name = "ChatError";
   readonly kind: ChatErrorKind;
   /** Present exactly when `kind === "http"` — the factories enforce this. */
   declare readonly status?: number;
+  /**
+   * The cancellation brand, set by the {@link ChatError.aborted} factory only.
+   *
+   * Declared with `declare` — emitting no field initialiser — and **not** `readonly`:
+   * a `readonly` declaration makes the factory's assignment fail with TS2540, and a
+   * plain field declaration would (the repo targets ES2023, so
+   * `useDefineForClassFields` is on) define an own `[CANCELLATION]: undefined` on
+   * every instance, including transport failures. A truthiness-based predicate then
+   * still rejects those, but the honest declaration is to emit nothing until the
+   * factory assigns.
+   */
+  declare [CANCELLATION]?: true;
 
   private constructor(kind: ChatErrorKind, message: string, cause?: unknown, status?: number) {
     super(message, cause !== undefined ? { cause } : undefined);
@@ -288,7 +309,9 @@ export class ChatError extends Error {
 
   /** The caller's `AbortSignal` fired. */
   static aborted(message: string, cause?: unknown): ChatError {
-    return new ChatError("aborted", message, cause);
+    const error = new ChatError("aborted", message, cause);
+    error[CANCELLATION] = true;
+    return error;
   }
 
   /** A response arrived but is not a usable completion (unparseable body, no choice, …). */
