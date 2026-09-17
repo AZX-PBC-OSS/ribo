@@ -17,7 +17,13 @@ import { emptyDraft } from "./phase-draft.js";
 import type { Phase, PhaseContext, PhaseDef } from "./phase.js";
 import type { PhaseItemOutcome as Outcome } from "./phase-outcome.js";
 import type { BackoffOptions } from "./queue/backoff.js";
-import type { RetryBudgetObserver } from "./retry-budget.js";
+import {
+  DEFAULT_BACKOFF_BASE_MS,
+  DEFAULT_BACKOFF_CAP_MS,
+  TerminalQueueError,
+} from "./queue/backoff.js";
+import { deriveRetryBudget, PER_CALL_CEILING_MS } from "./retry-budget.js";
+import type { RetryBudget, RetryBudgetObserver } from "./retry-budget.js";
 import { retryAsync } from "./retry-async.js";
 import { validatePhases } from "./validate-phases.js";
 
@@ -151,11 +157,16 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
     normalize = (fields) => fields,
     concurrency = 4,
     maxRetries = 2,
+    stepTimeoutMs = 900_000,
+    perCallCeilingMs = PER_CALL_CEILING_MS,
     delay = defaultDelay,
-    baseMs,
-    capMs,
+    baseMs = DEFAULT_BACKOFF_BASE_MS,
+    capMs = DEFAULT_BACKOFF_CAP_MS,
     random,
+    now = Date.now,
     onUnit,
+    onRetryBudget,
+    requireRetryBudget = false,
   } = options;
 
   // A mis-wired list must fail before any call is paid for.
@@ -169,6 +180,16 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
       const callerSignal = callerOptions?.signal;
       const acc: UsageAccumulator = { totalCalls: 0, totals: {} };
       let draft = emptyDraft<V, P>();
+
+      // The running deadline, recorded once: this run's own step timeout, narrowed —
+      // never widened — by any deadline the caller inherited from a composing
+      // combinator. A combinator can always finish sooner than its caller allows; it
+      // may never grant itself more time than it was given. The effective deadline is
+      // what every phase's run sees in its context.
+      const effectiveDeadline = Math.min(
+        now() + stepTimeoutMs,
+        callerOptions?.deadline ?? Infinity,
+      );
 
       for (let pass = 0; pass < phases.length; pass++) {
         const phase = phases[pass]!;
@@ -187,7 +208,7 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
           transcript,
           target,
           signal: effectiveSignal,
-          deadline: callerOptions?.deadline,
+          deadline: effectiveDeadline,
         };
 
         // Consumption of a Phase is Rank-2: I and C are bound but anonymous inside
@@ -198,9 +219,48 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
           // An empty plan is a no-op: no call, no event, no usage change.
           if (items.length === 0) return draft;
 
+          const limit = def.concurrency ?? concurrency;
+          // The retry budget is derived HERE, at the boundary where `plan` has just
+          // returned and this phase's item count is finally known — not at
+          // construction, where no count exists. The phase's share of the REMAINING
+          // time is what is left divided by the phases not yet run, this one
+          // included; a phase that finishes early leaves more for the rest.
+          const requested = def.maxRetries ?? maxRetries;
+          const batches = Math.ceil(items.length / limit);
+          const deriveBudget = (timeout: number): RetryBudget =>
+            deriveRetryBudget({
+              requested,
+              batches,
+              stepTimeoutMs: timeout,
+              perCallCeilingMs,
+              baseMs,
+              capMs,
+            });
+          const shareBudget = deriveBudget((effectiveDeadline - now()) / (phases.length - pass));
+          const fullBudget = deriveBudget(stepTimeoutMs);
+          // Two kinds of zero. A budget zero against the FULL step timeout means the
+          // caller asked for retries that cannot fit ANY run of this shape — the
+          // configuration error `requireRetryBudget` has always thrown for, and it
+          // still throws (TerminalQueueError, matching instance-fill.ts's
+          // extract-time precedent). A budget zero only against the REMAINING time
+          // came from elapsed wall-clock at a late boundary — transient, so it runs
+          // with no retries and reports. Conflating them kills sessions on a timing
+          // blip. The share is Math.min'd against the full timeout, so it can never
+          // derive HIGHER than the full derivation — the two cannot disagree in the
+          // other direction.
+          if (shareBudget.derived < requested) onRetryBudget?.(shareBudget);
+          if (requireRetryBudget && requested > 0 && fullBudget.derived === 0) {
+            throw new TerminalQueueError(
+              `phasedExtractor: phase "${def.id}"'s retry budget derived to 0 (requested ` +
+                `${requested}) against even the full step timeout (${stepTimeoutMs} ms) — ` +
+                `increase stepTimeoutMs, lower perCallCeilingMs (${perCallCeilingMs}), or ` +
+                `raise concurrency (${limit}) to fit at least one retry`,
+            );
+          }
+
           const outcomes = await mapWithPool(
             items,
-            def.concurrency ?? concurrency,
+            limit,
             async (item): Promise<Outcome<I, C>> => {
               // Mint one id per item, before any attempt — stable across the item's
               // retries once they exist, so a consumer correlates start/done/error.
@@ -221,8 +281,10 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
                 // reimplemented. Its signal is the phase's combined signal, so a
                 // caller cancellation AND a sibling failure both stop the loop
                 // (mapWithPool's doc: the retry loops do not retry an aborted call).
+                // The budget is this phase's own derived share — a declared per-phase
+                // value is what was REQUESTED; the derivation is what fits.
                 const output = await retryAsync(() => def.run(item, draft, ctx), {
-                  maxRetries: def.maxRetries ?? maxRetries,
+                  maxRetries: shareBudget.derived,
                   signal: effectiveSignal,
                   delay,
                   baseMs,

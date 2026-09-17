@@ -12,6 +12,8 @@ import type { DeepPartial } from "./phase-draft.js";
 import type { Phase } from "./phase.js";
 import { phaseBuilder } from "./phase.js";
 import { phasedExtractor } from "./phased-extractor.js";
+import type { RetryBudget } from "./retry-budget.js";
+import { TerminalQueueError } from "./queue/backoff.js";
 import { SchemaParseError } from "./schema-parse-error.js";
 
 // Hand-written phases over a tiny hand-written V — no adapter imports, no model. The
@@ -569,5 +571,237 @@ describe("phasedExtractor — retry, failure policies, cancellation", () => {
 
     await expect(extractor.extract(transcript, { signal: caller.signal })).rejects.toBe(boom);
     expect(runCalls).toBe(1);
+  });
+});
+
+describe("phasedExtractor — the running deadline and the per-phase retry budget", () => {
+  /** A controllable clock for the engine's `now` seam. */
+  function makeClock(start: number) {
+    let t = start;
+    return {
+      now: () => t,
+      advance: (ms: number) => {
+        t += ms;
+      },
+    };
+  }
+
+  /** Budget events captured from the run's RetryBudgetObserver. */
+  function collectBudgets() {
+    const events: RetryBudget[] = [];
+    return { events, onRetryBudget: (event: RetryBudget) => events.push(event) };
+  }
+
+  test("each phase's budget is derived from the time remaining at its own boundary, and the events show it", async () => {
+    // Backoff made negligible (baseMs 1, capMs 1) so the derivation arithmetic is
+    // exact: perGroup(r) = (r+1)*10_000 + r.
+    const clock = makeClock(1_000_000);
+    const { events, onRetryBudget } = collectBudgets();
+    const first = build({
+      id: "first",
+      plan: () => [1],
+      run: async () => {
+        // This phase consumes most of the deadline.
+        clock.advance(80_000);
+        return { value: 1 };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const second = build({
+      id: "second",
+      plan: () => [1],
+      run: async () => ({ value: 2 }),
+      merge: (draft) => draft,
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [first, second],
+      maxRetries: 5,
+      stepTimeoutMs: 100_000,
+      perCallCeilingMs: 10_000,
+      baseMs: 1,
+      capMs: 1,
+      now: clock.now,
+      onRetryBudget,
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.fields.note?.value).toBe("done");
+    // Phase 1: share = 100_000 / 2 = 50_000 → derived 3 (requested 5, reduced).
+    // Phase 2: remaining 20_000 over 1 phase left → share 20_000 → derived 0.
+    // The second boundary derived against the time its own predecessor left behind.
+    expect(events).toEqual([
+      { requested: 5, derived: 3, batches: 1, perCallCeilingMs: 10_000 },
+      { requested: 5, derived: 0, batches: 1, perCallCeilingMs: 10_000 },
+    ]);
+  });
+
+  test("onRetryBudget fires only for phases whose budget was reduced — not on every derivation", async () => {
+    const { events, onRetryBudget } = collectBudgets();
+    const first = build({
+      id: "first",
+      plan: () => [1],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const second = build({
+      id: "second",
+      plan: () => [1],
+      run: async () => ({ value: 2 }),
+      merge: (draft) => draft,
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [first, second],
+      maxRetries: 2,
+      perCallCeilingMs: 10_000,
+      now: makeClock(1_000_000).now,
+      onRetryBudget,
+    });
+
+    await extractor.extract(transcript);
+
+    // Both phases fit their shares comfortably — a signal, not a metronome.
+    expect(events).toEqual([]);
+  });
+
+  test("an inherited options.deadline earlier than now + stepTimeoutMs wins", async () => {
+    const clock = makeClock(1_000_000);
+    const { events, onRetryBudget } = collectBudgets();
+    const single = build({
+      id: "single",
+      plan: () => [1],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [single],
+      maxRetries: 5,
+      stepTimeoutMs: 100_000,
+      perCallCeilingMs: 10_000,
+      baseMs: 1,
+      capMs: 1,
+      now: clock.now,
+      onRetryBudget,
+    });
+
+    // The inherited deadline (t0 + 50_000) is earlier than now + stepTimeoutMs
+    // (t0 + 100_000) — the effective deadline is the min, so the share derives
+    // against 50_000, not 100_000.
+    const result = await extractor.extract(transcript, { deadline: 1_050_000 });
+
+    expect(result.fields.note?.value).toBe("done");
+    expect(events).toEqual([{ requested: 5, derived: 3, batches: 1, perCallCeilingMs: 10_000 }]);
+  });
+
+  test("each item's run receives the effective deadline in its context — now + stepTimeoutMs when nothing is inherited", async () => {
+    const clock = makeClock(1_000_000);
+    const deadlinesSeen: number[] = [];
+    const single = build({
+      id: "single",
+      plan: () => [1],
+      run: async (_item, _draft, ctx) => {
+        deadlinesSeen.push(ctx.deadline ?? -1);
+        return { value: 1 };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [single],
+      stepTimeoutMs: 100_000,
+      now: clock.now,
+    });
+
+    await extractor.extract(transcript);
+
+    expect(deadlinesSeen).toEqual([1_100_000]);
+  });
+
+  test("an inherited deadline earlier than now + stepTimeoutMs is what the run's context carries", async () => {
+    const clock = makeClock(1_000_000);
+    const deadlinesSeen: number[] = [];
+    const single = build({
+      id: "single",
+      plan: () => [1],
+      run: async (_item, _draft, ctx) => {
+        deadlinesSeen.push(ctx.deadline ?? -1);
+        return { value: 1 };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [single],
+      stepTimeoutMs: 100_000,
+      now: clock.now,
+    });
+
+    await extractor.extract(transcript, { deadline: 1_050_000 });
+
+    expect(deadlinesSeen).toEqual([1_050_000]);
+  });
+
+  test("a budget zero against the FULL step timeout throws TerminalQueueError when requireRetryBudget is set", async () => {
+    // Single-phase list, so the pin is about the rule, not about which phase tripped
+    // it. Even the full step timeout cannot fit one attempt at this ceiling — the
+    // caller asked for retries that cannot fit any run of this shape.
+    const single = build({
+      id: "single",
+      plan: () => [1],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [single],
+      maxRetries: 2,
+      stepTimeoutMs: 10_000,
+      perCallCeilingMs: 120_000,
+      requireRetryBudget: true,
+    });
+
+    await expect(extractor.extract(transcript)).rejects.toBeInstanceOf(TerminalQueueError);
+  });
+
+  test("a budget zero only against the REMAINING time does not throw — it runs with no retries and reports", async () => {
+    // The two-phase scenario: phase 2's share derives to zero from elapsed wall-clock,
+    // which is transient — requireRetryBudget must not kill the session for it.
+    const clock = makeClock(1_000_000);
+    const { events, onRetryBudget } = collectBudgets();
+    const first = build({
+      id: "first",
+      plan: () => [1],
+      run: async () => {
+        clock.advance(80_000);
+        return { value: 1 };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const second = build({
+      id: "second",
+      plan: () => [1],
+      run: async () => ({ value: 2 }),
+      merge: (draft) => draft,
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [first, second],
+      maxRetries: 5,
+      stepTimeoutMs: 100_000,
+      perCallCeilingMs: 10_000,
+      baseMs: 1,
+      capMs: 1,
+      now: clock.now,
+      requireRetryBudget: true,
+      onRetryBudget,
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.fields.note?.value).toBe("done");
+    expect(events.at(-1)?.derived).toBe(0);
   });
 });
