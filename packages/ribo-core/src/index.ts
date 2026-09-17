@@ -33,6 +33,107 @@ export type {
 } from "./composite-extractor.js";
 export type { Extracted } from "./provenance.js";
 
+// The codebase's one generic RUNTIME walk over enveloped data, as a
+// structure-preserving map over its leaf envelopes — moved out of
+// `gapFillExtractor`, where it was module-private, because a core combinator
+// that judges results has to walk them (sp2-judging-combinators-design.md
+// §4.6). The walker in `enveloped()` is schema-time and serves a different
+// purpose.
+export { isExtractedLeaf, mapExtractedLeaves } from "./extracted-leaves.js";
+export type { LeafPath } from "./extracted-leaves.js";
+
+// The construction-time `"leaf"`-granularity guard the judging combinators build
+// on (sp2-judging-combinators-design.md §4.5): refuse a target whose groups are
+// not derived at `"leaf"` provenance granularity, before any call is made — the
+// walk above passes `"row"` and `"none"` groups straight through, so a combinator
+// that can only serve per-leaf envelopes would otherwise compare nothing and
+// count nothing exactly where hallucination is worst. A bare assertion function;
+// no combinator-facing API sits on top of it.
+export { assertLeafGranularity } from "./assert-leaf-granularity.js";
+
+// The pure grounding census — a tally of how well an extraction result is cited:
+// three independent facts per leaf (committed, cited, groundedness — null when
+// nothing was cited, so an honest abstention stays distinguishable from a
+// fabrication), plus the stated-empty group spans, plus counts derived from the
+// leaves. Useful alone; `validateExtractor`'s policy decides from it
+// (sp2-judging-combinators-design.md §4.2).
+export { groundingCensus } from "./grounding-census.js";
+export type {
+  CensusEmptyGroup,
+  CensusLeaf,
+  GroundingCensus,
+  GroundingCensusCounts,
+} from "./grounding-census.js";
+
+// The first judging combinator: wrap any extractor, tally how well its result is
+// cited (the census above), and hand that tally to a caller-supplied policy —
+// returning the result untouched or throwing a TERMINAL rejection an arbitration
+// ladder falls through on (sp2-judging-combinators-design.md §4.2). The rejection
+// being terminal is load-bearing: `terminalFallsThrough` continues on a terminal
+// error and gives up on a transient one, so a transient classification would
+// produce the opposite behaviour plus a relay retry loop over the hallucinating
+// rung. Construction refuses a target whose groups are not leaf granularity.
+export {
+  rejectUngroundedCommitments,
+  ValidationRejectedError,
+  validateExtractor,
+} from "./validate-extractor.js";
+export type {
+  ValidateExtractorOptions,
+  ValidationPolicy,
+  ValidationVerdict,
+} from "./validate-extractor.js";
+
+// The spend-ceiling detector: wrap one extractor, read the returned result's
+// usage against the caller's ceilings, throw a TERMINAL error a ladder falls
+// through on (sp2-judging-combinators-design.md §4.3). A detector, not a
+// governor — it reports a spend it cannot prevent, and is honest around one
+// strategy rather than around a ladder. No options-bag observer: a wrapper that
+// delegates and judges reports nothing (ADR 0004).
+export { BudgetExceededError, budgetExtractor } from "./budget-extractor.js";
+export type { BudgetExtractorOptions } from "./budget-extractor.js";
+
+// The memoisation combinator: derive a key from the transcript text and the WHOLE
+// extraction target (instructions and examples are the prompt — a key omitting
+// them serves one target's result for another), serve repeat calls from an
+// injected store (in-memory Map by default; PluginStorage is the wrong lifetime)
+// (sp2-judging-combinators-design.md §4.4). Failures are never cached; neither a
+// read nor a write may fail the extraction; a hit rewrites usage to
+// `calls: 0` — this run made no model calls, and the stored count is exactly
+// what `budgetExtractor` reads and the session is told. No options-bag observer.
+export { cachedExtractor } from "./cached-extractor.js";
+export type { CachedExtractorOptions, ExtractionCache } from "./cached-extractor.js";
+
+// The consensus arbiter contract and the two shipped policies. A policy returns
+// an INDEX into the samples it was handed — not an envelope — so it cannot
+// fabricate a value, a confidence or a citation; it can only point at evidence
+// it was given (sp2-judging-combinators-design.md §4.1). The envelope-returning
+// encoding the design's first draft specified bought one guarantee out of
+// three: `Extracted<T>`'s `value` is `T | null` and its other two members never
+// mention `T`, so only the fabricated non-null literal was a compile error.
+// `unanimousValues` is the default because it fails safe under any reordering
+// of collection instances; `majorityValues` is unsound over reordered
+// collections and says so.
+export { majorityValues, unanimousValues } from "./consensus-arbiter.js";
+export type { ConsensusArbiter, ConsensusVerdict } from "./consensus-arbiter.js";
+
+// The substantial judging combinator: run a list of candidates over the same
+// transcript, compare the survivors leaf by leaf, and null the value of every
+// leaf they disagree about while keeping a citation — the shape gap-fill
+// re-asks about and review flags (sp2-judging-combinators-design.md §4.1).
+// Costs N times a single extraction, and says so first. Candidates settle
+// independently (not mapWithPool — no sibling is ever aborted); a caller
+// cancellation is consulted before the survivor count and rethrown unchanged;
+// below quorum the run throws ConsensusFailedError, which is TRANSIENT — the
+// deliberate opposite of ValidationRejectedError, because candidates failing
+// usually means the transport is down and the next rung shares it. The first
+// survivor is structurally authoritative: put the most trusted candidate
+// first. The `onContested` notification is the only channel for the contested
+// count, and escapes ADR 0004's no-observer rule because it is new vocabulary
+// no inner extractor emits.
+export { ConsensusFailedError, consensusExtractor } from "./consensus-extractor.js";
+export type { ConsensusExtractorOptions, OnContested } from "./consensus-extractor.js";
+
 // Deriving the extraction schema from a writable patch schema — every leaf
 // enveloped, nested objects recursed rather than swallowed whole, closed and
 // fully required throughout. `ToolAdapter.extractionSchema` is declared against

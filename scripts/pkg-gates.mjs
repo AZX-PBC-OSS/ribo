@@ -49,8 +49,19 @@ if (publishable.length !== EXPECTED_PUBLISHED_COUNT) {
  * cases the offender filter cannot be trusted to find real source leaks, so the
  * gate must refuse to pass rather than report a vacuous zero offenders.
  */
+/**
+ * Strip ANSI SGR escapes. pnpm colours the `Tarball Contents` / `Tarball Details`
+ * boundary lines, and whether it does so is not something this script controls —
+ * it varies with the pnpm version and with colour detection that a piped stdout
+ * does not reliably suppress. Matching the boundaries against coloured text made
+ * every package fail as "format not understood", which reads like a real leak and
+ * is not one.
+ */
+// eslint-disable-next-line no-control-regex -- matching ESC is the entire point here
+const stripAnsi = (line) => line.replace(/\[[0-9;]*m/g, "");
+
 function parseTarballContents(output) {
-  const lines = output.split("\n").map((line) => line.trim());
+  const lines = output.split("\n").map((line) => stripAnsi(line).trim());
   const start = lines.indexOf("Tarball Contents");
   if (start === -1) {
     return { ok: false, reason: 'no "Tarball Contents" boundary' };

@@ -105,6 +105,105 @@ different strategy might avoid, and falls through to the next candidate rather t
 same request shape. Both are true of the same error: nondeterministic enough to retry, specific
 enough to hand to a different strategy. That is why it is its own class, not a generic `Error`.
 
+## The judging layer: turning quality into an outcome an arbiter can see
+
+Everything above arbitrates on **how a strategy failed**. But a strategy can also succeed badly —
+return confident, well-formed, entirely fabricated fields — and nothing on this page can tell that
+apart from a good result. The arbiter sees a fulfilled promise either way.
+
+Four combinators close that gap. None of them produces a result; each wraps an `Extractor` and
+either judges what came back or bounds what it cost. Because they express a verdict as a **thrown
+error**, they plug into the vocabulary this whole page is built on: a rung that hallucinates can now
+fall through exactly like a rung that threw.
+
+```ts
+import {
+  consensusExtractor,
+  validateExtractor,
+  budgetExtractor,
+  cachedExtractor,
+  unanimousValues,
+  rejectUngroundedCommitments,
+} from "@azx/ribo-core";
+```
+
+### `validateExtractor`: an ungrounded result is a failure
+
+`validateExtractor(extractor, { target, policy })` runs the inner extractor, tallies how well each
+committed leaf is cited against the transcript, and hands that tally to a policy. The shipped
+default, `rejectUngroundedCommitments`, rejects a leaf that **committed to a value, cited a span,
+and the span is not in the transcript** — a fabricated quote. It deliberately does not reject a
+near-miss (a citation the model reformatted) or an honest abstention.
+
+A rejection throws `ValidationRejectedError`, which **extends `TerminalError`**. That is the
+load-bearing detail and it is the opposite of the intuition: `terminalFallsThrough` _continues_ on
+terminal and _gives up_ on transient, so terminal is what makes the ladder try the next rung.
+Classifying it transient would make the ladder give up, the relay call the step failure retryable,
+and the whole extraction re-run — hallucinating rung included — on backoff until `dead`. A
+hallucination detector that becomes a full-price retry loop.
+
+### `consensusExtractor`: agreement is a signal a model cannot assert about itself
+
+`consensusExtractor(candidates, { target, arbiter })` runs a list of candidates over the same
+transcript and compares the survivors leaf by leaf. Where they agree, the value passes through.
+Where they disagree, the leaf comes back `value: null, confidence: 0` **with a citation kept** — the
+same shape an abstention produces, so gap-fill already re-asks about it and review already flags it.
+No new state, no migration.
+
+This matters because [confidence carries no information](/guide/provenance): the on-device path
+writes `1` when a leaf got a value and `0` when it did not. Agreement between independent samples is
+something a model cannot fake by asserting it.
+
+```ts
+const extractor = consensusExtractor([managed, onDevice, managedAgain], {
+  target,
+  arbiter: unanimousValues,
+  onContested: (path) => console.warn("contested", path.join(".")),
+});
+```
+
+Four things to know before you reach for it:
+
+- **It costs N times a single extraction.** Three candidates triple the bill and the wall clock.
+  Choosing candidates is choosing a multiplier.
+- **A candidate that fails is a missing sample, not a failed run.** The run continues while
+  `minSamples` survived (default 2) and throws `ConsensusFailedError` below that. That error is
+  **transient** — the reverse of `validateExtractor`'s, deliberately: falling below quorum usually
+  means the transport is down, and the next rung shares it.
+- **The first candidate is structurally authoritative.** Put your most trusted one first.
+- **Instances are compared by position.** If two candidates find the same three rooftop units but
+  list them in different orders, they are compared unit-1-against-unit-3 and reported as
+  disagreeing. The output is still safe — disagreement nulls, it never fabricates — but the
+  contested count is not a reliable measure of structural agreement. `unanimousValues` is the
+  default because it fails safe here; `majorityValues` does not.
+
+### `budgetExtractor`: a detector, not a governor
+
+`budgetExtractor(extractor, { maxCalls, maxTotalTokens, … })` reads the returned result's usage
+against your ceilings and throws `BudgetExceededError` when one is breached. Be clear about what
+that is worth: **it cannot prevent the spend it reports.** A wrapper only learns the cost after the
+work is done. It is honest around one strategy, where the number it reads is the number that
+strategy spent; around a ladder it reports only the rung that happened to return.
+
+It earns its place because after the agentic layer the call count is chosen by a model rather than
+by a person, and an unbounded number nobody is measuring is how a bill becomes a surprise.
+
+### `cachedExtractor`: memoise on the whole prompt, or not at all
+
+`cachedExtractor(extractor, { target, cache, keyFor })` keys on the transcript text **and** the
+instructions, examples and schema. Anything less serves a result computed against a different
+prompt — data that parses cleanly and is wrong, which nothing downstream can detect. A failure is
+never cached, and a broken cache degrades to a miss rather than taking extraction down with it. A
+hit reports `calls: 0`, because a hit made no model calls and a budget reading otherwise would book
+a spend that never happened.
+
+### Two limits that are not bugs
+
+`consensusExtractor` and `validateExtractor` both work by walking per-leaf provenance envelopes, so
+they **refuse `"row"` and `"none"` provenance groups at construction** rather than silently judging
+nothing. And none of the four inspects a strategy's internals — they see what an `Extractor`
+returns, which is what makes them composable over every strategy on this page.
+
 ## Within one strategy: phases, retries, timeouts
 
 Arbitration chooses **between** strategies — that is everything above. A multi-pass strategy also
