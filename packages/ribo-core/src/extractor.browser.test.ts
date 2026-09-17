@@ -1,9 +1,9 @@
+import { createMemoryBackend, removeMemoryDatabase } from "./storage/memory-backend.js";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { FakeExtractor, toSessionExtractStep } from "./extractor.js";
 import { FakeTranscriber } from "./fake-transcriber.js";
 import { restrictToKind } from "./restrict-to-kind.js";
-import { removeOutboxDatabase } from "./queue/database.js";
 import { openOutbox, type Outbox } from "./queue/outbox.js";
 import { createRelay } from "./queue/relay.js";
 import type { Recording } from "./recording.js";
@@ -42,7 +42,7 @@ const open: Outbox[] = [];
 async function openTestOutbox(): Promise<Outbox> {
   const name = `ribo-extractor-test-${crypto.randomUUID()}`;
   names.push(name);
-  const outbox = await openOutbox({ name });
+  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
   open.push(outbox);
   return outbox;
 }
@@ -54,7 +54,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   for (const outbox of open.splice(0)) if (!outbox.closed) await outbox.close();
-  for (const name of names.splice(0)) await removeOutboxDatabase(name);
+  for (const name of names.splice(0)) removeMemoryDatabase(name);
 });
 
 test("a FakeExtractor substitutes into createRelay and its fields land on session.extracted", async () => {

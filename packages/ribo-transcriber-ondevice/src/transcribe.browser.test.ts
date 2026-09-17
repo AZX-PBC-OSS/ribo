@@ -3,7 +3,8 @@ import { afterEach, expect, test, vi } from "vitest";
 import {
   createRelay,
   openOutbox,
-  removeOutboxDatabase,
+  createMemoryBackend,
+  removeMemoryDatabase,
   restrictToKind,
   TerminalQueueError,
   type Outbox,
@@ -328,11 +329,11 @@ test("an error reply arriving while the caller's signal is aborted is classified
 const DB_NAME = "ribo-outbox-ondevice-test";
 
 afterEach(async () => {
-  await removeOutboxDatabase(DB_NAME).catch(() => undefined);
+  removeMemoryDatabase(DB_NAME);
 });
 
 test("the queue relay drives an OnDeviceTranscriber with no changes", async () => {
-  const outbox: Outbox = await openOutbox({ name: DB_NAME });
+  const outbox: Outbox = await openOutbox({ backend: createMemoryBackend(DB_NAME) });
   const session = await outbox.openSession({ ctx: recording.ctx, ref: "job-7" });
   // A real, decodable capture blob — the relay hands this straight to transcribe().
   const audio = wavBlob([constant(0.1, 16_000)], 16_000);

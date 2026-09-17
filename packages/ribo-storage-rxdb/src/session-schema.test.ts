@@ -8,10 +8,9 @@ import {
   SESSION_STATUSES,
   sessionDocumentSchema,
   sessionItemSchema,
-  SESSION_MIGRATION_STRATEGIES,
-  sessionRxSchema,
-} from "./session-schema.js";
-import type { SessionDocument, SessionPatch, SessionStatus } from "./session-schema.js";
+} from "@azx/ribo-core";
+import { SESSION_MIGRATION_STRATEGIES, sessionRxSchema } from "./schemas.js";
+import type { SessionDocument, SessionPatch, SessionStatus } from "@azx/ribo-core";
 
 // The session document is described twice, same as the recording: once in zod
 // (the trust boundary) and once in RxDB's JSON schema (which carries the

@@ -1,4 +1,5 @@
 import { openOutbox, type Outbox } from "@azx/ribo-core";
+import { openRxdbBackend } from "@azx/ribo-storage-rxdb";
 
 /**
  * @file One {@link Outbox} per page load, shared by every component and
@@ -39,7 +40,9 @@ let handle: Promise<Outbox> | undefined = hotData?.outbox;
  * top-level await.
  */
 export function getOutbox(): Promise<Outbox> {
-  handle ??= openOutbox();
+  // The production path: core owns the contracts, the backend package owns
+  // RxDB. One import, Dexie already wired.
+  handle ??= openRxdbBackend().then((backend) => openOutbox({ backend }));
   if (hotData) hotData.outbox = handle;
   return handle;
 }

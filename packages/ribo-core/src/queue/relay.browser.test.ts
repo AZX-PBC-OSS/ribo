@@ -1,3 +1,4 @@
+import { createMemoryBackend, removeMemoryDatabase } from "../storage/memory-backend.js";
 import { afterEach, beforeEach, expect, expectTypeOf, test, vi } from "vitest";
 
 import type { CaptureItem, DocumentCapture } from "../capture-item.js";
@@ -8,7 +9,6 @@ import type { Recording } from "../recording.js";
 import { FakeTranscriber } from "../fake-transcriber.js";
 import { firstCapable } from "../first-capable.js";
 import { restrictToKind } from "../restrict-to-kind.js";
-import { removeOutboxDatabase } from "./database.js";
 import { TerminalQueueError } from "./backoff.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 import { reviewOutcomeSchema } from "../review.js";
@@ -117,7 +117,7 @@ const open: Outbox[] = [];
 let clock: TestClock;
 
 async function openTestOutbox(name: string): Promise<Outbox> {
-  const outbox = await openOutbox({ name, now: clock.now });
+  const outbox = await openOutbox({ backend: createMemoryBackend(name), now: clock.now });
   open.push(outbox);
   return outbox;
 }
@@ -134,7 +134,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   for (const outbox of open.splice(0)) if (!outbox.closed) await outbox.close();
-  for (const name of names.splice(0)) await removeOutboxDatabase(name);
+  for (const name of names.splice(0)) removeMemoryDatabase(name);
 });
 
 interface Harness {

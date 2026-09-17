@@ -1,9 +1,7 @@
-import type { RxStorage } from "rxdb";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
+import { createMemoryBackend, removeMemoryDatabase } from "../storage/memory-backend.js";
 import { afterEach, expect, test } from "vitest";
 
 import type { Recording } from "../recording.js";
-import { removeOutboxDatabase } from "./database.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 
 // Plugin-scoped storage: isolation and sweep, proven with memory storage.
@@ -14,12 +12,13 @@ import { openOutbox, type Outbox } from "./outbox.js";
 // `plugin-storage.browser.test.ts` against real IndexedDB — memory storage
 // would fake that property, so it stays there.
 
-const opened: { outbox: Outbox; name: string; storage: RxStorage<unknown, unknown> }[] = [];
+const opened: { outbox: Outbox; name: string }[] = [];
 
 afterEach(async () => {
-  for (const { outbox, name, storage } of opened.splice(0)) {
+  for (const { outbox, name } of opened.splice(0)) {
     if (!outbox.closed) await outbox.close();
-    await removeOutboxDatabase(name, storage);
+    // A memory database outlives its handle, as an IndexedDB one does.
+    removeMemoryDatabase(name);
   }
 });
 
@@ -38,10 +37,9 @@ function audioBlob(): Blob {
 }
 
 async function freshOutbox(): Promise<{ outbox: Outbox; captureId: string }> {
-  const storage = getRxStorageMemory();
   const name = `ribo-outbox-plugin-storage-${crypto.randomUUID()}`;
-  const outbox = await openOutbox({ name, storage });
-  opened.push({ outbox, name, storage });
+  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
+  opened.push({ outbox, name });
   const session = await outbox.openSession({ ctx: { jobId: "job-1" }, ref: "job-1" });
   const item = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
   return { outbox, captureId: item.id };

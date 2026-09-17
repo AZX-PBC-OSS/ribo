@@ -236,7 +236,10 @@ class MemoryBackend implements StorageBackend {
     document: StoredDocument,
     blobs: readonly BlobInput[] | undefined,
   ): Promise<StoredDocument> {
-    let highest = 0;
+    // -1 so the first allocation is 0. The captures schema declares
+    // `minimum: 0` and every device already holds zero-based rows, so counting
+    // from one would both violate the schema and renumber history.
+    let highest = -1;
     for (const stored of this.#documents(collection).values()) {
       const value = stored[sequenceField];
       if (typeof value === "number" && value > highest) highest = value;
@@ -373,6 +376,30 @@ class MemoryBackend implements StorageBackend {
     // for the same reason RxDB reads attachment stubs — `audioBytes` sums these
     // across a whole queue.
     return [...blobs.entries()].map(([blobId, data]) => ({ id: blobId, length: data.size }));
+  }
+
+  async listBlobsMany(
+    collection: CollectionName,
+    ids: readonly string[],
+  ): Promise<Map<string, BlobDescriptor[]>> {
+    const root = this.#blobRoot(collection);
+    const result = new Map<string, BlobDescriptor[]>();
+    for (const id of ids) {
+      // Presence is decided by the DOCUMENT, not by the blob map: a document that
+      // exists and has no blobs maps to an empty list, and only a document that
+      // is not there is absent from the result. Deciding it from the blob map
+      // would conflate the two, and the caller uses exactly that distinction to
+      // tell "no audio yet" from "this capture is gone".
+      if (!this.#documents(collection).has(id)) continue;
+      const blobs = root.get(id);
+      result.set(
+        id,
+        blobs === undefined
+          ? []
+          : [...blobs.entries()].map(([blobId, data]) => ({ id: blobId, length: data.size })),
+      );
+    }
+    return result;
   }
 
   async removeBlob(collection: CollectionName, id: string, blobId: string): Promise<void> {

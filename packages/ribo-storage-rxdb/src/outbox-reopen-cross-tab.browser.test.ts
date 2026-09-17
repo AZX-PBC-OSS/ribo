@@ -5,15 +5,13 @@ import { wrappedValidateAjvStorage } from "rxdb/plugins/validate-ajv";
 import { afterEach, expect, test } from "vitest";
 
 import {
-  SESSION_COLLECTION_NAME,
-  SESSION_MIGRATION_STRATEGIES,
-  sessionRxSchema,
-} from "./session-schema.js";
-import {
+  OUTBOX_COLLECTION_NAME,
   PLUGIN_STORAGE_COLLECTION_NAME,
-  PLUGIN_STORAGE_MIGRATION_STRATEGIES,
-  pluginStorageRxSchema,
-} from "./plugin-storage-schema.js";
+  SESSION_COLLECTION_NAME,
+  openOutbox,
+  Outbox,
+} from "@azx/ribo-core";
+
 import {
   OUTBOX_MIGRATION_STRATEGIES,
   removeOutboxDatabase,
@@ -22,8 +20,15 @@ import {
   type PluginStorageCollection,
   type SessionCollection,
 } from "./database.js";
-import { openOutbox, Outbox } from "./outbox.js";
-import { OUTBOX_COLLECTION_NAME, outboxRxSchema } from "./schema.js";
+import { createRxdbBackend } from "./backend.js";
+import { openRxdbBackend } from "./open.js";
+import {
+  PLUGIN_STORAGE_MIGRATION_STRATEGIES,
+  SESSION_MIGRATION_STRATEGIES,
+  outboxRxSchema,
+  pluginStorageRxSchema,
+  sessionRxSchema,
+} from "./schemas.js";
 
 /**
  * @file The genuinely cross-tab case for `reopenSessionForReview`'s concurrency
@@ -133,20 +138,21 @@ async function openSecondConnection(name: string): Promise<Outbox> {
       migrationStrategies: PLUGIN_STORAGE_MIGRATION_STRATEGIES,
     },
   });
-  const outbox = new Outbox(database);
+  const outbox = new Outbox(createRxdbBackend(database, name));
   openOutboxes.push(outbox);
   return outbox;
 }
 
 test("two reopenSessionForReview calls from two independent Outbox connections settle as one winner and one refusal", async () => {
   const name = uniqueName();
-  // `storage` is the existing seam `OpenOutboxOptions` already exposes for a
-  // host that wants a different engine — used here for a validate wrapper
-  // instead, so the FIRST connection can go through the real `openOutbox` and
-  // still satisfy dev mode's DVM1 check.
+  // The backend's `storage` option is the seam for choosing an engine — used
+  // here for a validate wrapper instead, so the FIRST connection can go through
+  // the ordinary `openRxdbBackend` and still satisfy dev mode's DVM1 check.
   const first = await openOutbox({
-    name,
-    storage: wrappedValidateAjvStorage({ storage: getRxStorageDexie() }),
+    backend: await openRxdbBackend({
+      name,
+      storage: wrappedValidateAjvStorage({ storage: getRxStorageDexie() }),
+    }),
   });
   openOutboxes.push(first);
 

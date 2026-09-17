@@ -1,7 +1,7 @@
+import { createMemoryBackend } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { openOutbox, type Outbox, type SessionQuery } from "@azx/ribo-core";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 
 import { useSessions } from "./use-sessions.js";
 
@@ -22,8 +22,7 @@ import { useSessions } from "./use-sessions.js";
  * than about RxDB's filtering, which `session-outbox.test.ts` already covers.
  */
 
-const freshOutbox = () =>
-  openOutbox({ name: `t-${crypto.randomUUID()}`, storage: getRxStorageMemory() });
+const freshOutbox = () => openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
 
 test("a ref in the query reaches the outbox, and only matching sessions come back", async () => {
   const outbox = await freshOutbox();

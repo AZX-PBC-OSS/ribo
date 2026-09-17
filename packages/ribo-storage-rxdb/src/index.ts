@@ -18,3 +18,6 @@
  */
 
 export { createRxdbBackend, openRxdbBackend } from "./open.js";
+export type { OpenRxdbBackendOptions, RxdbStorageBackend } from "./open.js";
+export { backfillSessions, openOutboxDatabase, removeOutboxDatabase } from "./database.js";
+export type { OutboxDatabase } from "./database.js";

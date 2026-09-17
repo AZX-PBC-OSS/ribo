@@ -497,6 +497,30 @@ export function runStorageConformance(label: string, harness: ConformanceHarness
     // Obligation 5 — documents come back clean.
     // ---------------------------------------------------------------------
 
+    it("lists blobs for many documents in one call", async () => {
+      await withBackend(async (backend) => {
+        for (const [index, id] of ["one", "two", "three"].entries()) {
+          await backend.insert(
+            "captures",
+            makeCapture({ id, seq: index + 1, status: "queued", sessionId: "s1" }),
+            index === 2
+              ? undefined
+              : [{ id: "audio", data: new Blob([new Uint8Array(index + 1)]) }],
+          );
+        }
+
+        const listed = await backend.listBlobsMany("captures", ["one", "two", "three", "absent"]);
+
+        expect(listed.get("one")?.map((blob) => blob.length)).toEqual([1]);
+        expect(listed.get("two")?.map((blob) => blob.length)).toEqual([2]);
+        // A document with no blobs and a document that is not there must be
+        // distinguishable by the caller, so neither is invented.
+        expect(listed.get("three")?.length).toBe(0);
+        expect(listed.has("absent")).toBe(false);
+        expect(await backend.listBlobsMany("captures", [])).toEqual(new Map());
+      });
+    });
+
     it("returns documents with no backend metadata (obligation 5)", async () => {
       await withBackend(async (backend) => {
         const document = makeCapture({ id: "clean", seq: 1, status: "queued", sessionId: "s1" });
@@ -539,7 +563,8 @@ export function runStorageConformance(label: string, harness: ConformanceHarness
 
         const sequences = inserted.map((doc) => doc.seq as number).sort((a, b) => a - b);
         expect(new Set(sequences).size).toBe(count);
-        expect(sequences).toEqual(Array.from({ length: count }, (_unused, index) => index + 1));
+        // Counting from zero is part of the contract, not an accident.
+        expect(sequences).toEqual(Array.from({ length: count }, (_unused, index) => index));
       });
     });
 
@@ -568,9 +593,7 @@ export function runStorageConformance(label: string, harness: ConformanceHarness
         const sequences = inserted.map((doc) => doc.seq as number).sort((a, b) => a - b);
 
         expect(new Set(sequences).size).toBe(perHandle * 2);
-        expect(sequences).toEqual(
-          Array.from({ length: perHandle * 2 }, (_unused, index) => index + 1),
-        );
+        expect(sequences).toEqual(Array.from({ length: perHandle * 2 }, (_unused, index) => index));
       } finally {
         await one.close();
         await two.close();

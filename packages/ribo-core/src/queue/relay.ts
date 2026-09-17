@@ -379,7 +379,16 @@ class QueueRelay implements Relay {
           this.#options.locks ?? navigator.locks,
         );
         if (held === undefined) return;
-        if (!(await held.ready)) return;
+        const advanced = await held.ready;
+        // Wait for the lock itself, not just the work. `holdLock` resolves
+        // `ready` when the step finishes but keeps the lock until the request's
+        // own callback settles, so returning here would leave `syncNow` holding
+        // a lock it has finished with — and the caller's next `syncNow` would
+        // find it busy and silently do nothing. A drain loop that calls
+        // `syncNow` twice in a row is the normal shape, so that is a real stall
+        // rather than a theoretical one.
+        await held.released;
+        if (!advanced) return;
         continue;
       }
 
@@ -399,7 +408,16 @@ class QueueRelay implements Relay {
           this.#options.locks ?? navigator.locks,
         );
         if (held === undefined) return;
-        if (!(await held.ready)) return;
+        const advanced = await held.ready;
+        // Wait for the lock itself, not just the work. `holdLock` resolves
+        // `ready` when the step finishes but keeps the lock until the request's
+        // own callback settles, so returning here would leave `syncNow` holding
+        // a lock it has finished with — and the caller's next `syncNow` would
+        // find it busy and silently do nothing. A drain loop that calls
+        // `syncNow` twice in a row is the normal shape, so that is a real stall
+        // rather than a theoretical one.
+        await held.released;
+        if (!advanced) return;
         continue;
       }
 

@@ -1,4 +1,3 @@
-import type { RxJsonSchema } from "rxdb";
 import { z } from "zod";
 
 /** The RxDB collection name for plugin-scoped storage. Sits beside `outbox` and `sessions` in the same database. */
@@ -30,48 +29,6 @@ export const pluginStorageDocumentSchema = z.strictObject({
 
 /** Inferred from {@link pluginStorageDocumentSchema} — never hand-declared alongside it. */
 export type PluginStorageDocument = z.infer<typeof pluginStorageDocumentSchema>;
-
-/**
- * Schema-migration strategies for the plugin-storage collection.
- *
- * The collection starts at version 0, so no strategies are needed yet. When a
- * future change adds or removes a field, the version bumps and a strategy is
- * added here — the same pattern `OUTBOX_MIGRATION_STRATEGIES` and
- * `SESSION_MIGRATION_STRATEGIES` follow. Declared and exported rather than
- * inlined so a test can exercise it directly.
- */
-export const PLUGIN_STORAGE_MIGRATION_STRATEGIES: Record<string, (doc: unknown) => unknown> = {};
-
-/**
- * The RxDB JSON schema for the plugin-storage collection.
- *
- * Hand-written for the same reason the other two schemas are: RxDB needs
- * metadata zod has no concept of — `primaryKey`, `indexes`, and the `maxLength`
- * bounds it uses to build fixed-width index keys.
- *
- * Version 0: the collection is new, so there is nothing to migrate from. An
- * existing user opening the database with this code for the first time gets the
- * collection created transparently — `addCollections` handles that, and no
- * version bump on the sibling collections is required.
- */
-export const pluginStorageRxSchema: RxJsonSchema<PluginStorageDocument> = {
-  version: 0,
-  primaryKey: "id",
-  type: "object",
-  properties: {
-    id: { type: "string", maxLength: 512 },
-    captureId: { type: "string", maxLength: 64 },
-    pluginId: { type: "string", maxLength: 128 },
-    key: { type: "string", maxLength: 256 },
-    value: { type: "string" },
-  },
-  required: ["id", "captureId", "pluginId", "key", "value"],
-  // `captureId` so the sweep (which deletes every entry for a dropped or
-  // discarded capture) is an index lookup, not a scan. The compound
-  // `[captureId, pluginId]` serves `keys()` and per-plugin reads.
-  indexes: ["captureId", ["captureId", "pluginId"]],
-  attachments: {},
-};
 
 /**
  * Build the deterministic primary key for one plugin-storage entry.

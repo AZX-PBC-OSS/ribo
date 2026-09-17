@@ -1,34 +1,33 @@
-import type { RxStorage } from "rxdb";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
+import { createMemoryBackend, removeMemoryDatabase } from "../storage/memory-backend.js";
 import { afterEach, expect, test } from "vitest";
 
 import type { DocumentCapture } from "../capture-item.js";
 import type { Recording } from "../recording.js";
 import type { PersistedReviewOutcome } from "../review.js";
-import { removeOutboxDatabase } from "./database.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 
-// The storage-injection seam, proven with a non-Dexie engine.
+// The proof that `@azx/ribo-core` runs with no RxDB anywhere.
 //
-// This opens the outbox over RxDB's in-memory RxStorage and drives the ordinary
-// public API through it — enqueue, then read the item and its audio back. That a
-// storage engine which is not Dexie satisfies the same `Outbox` unchanged is the
-// whole point of the `storage` option on `OpenOutboxOptions`.
+// This drives the ordinary public API — open a session, enqueue, read the item
+// and its audio back — over the port's in-memory backend. Nothing in this file,
+// or in anything it imports, touches RxDB: the package's dependencies are
+// `rxjs` and `zod`, and a regression that dragged a storage engine back into
+// core would fail to resolve here rather than being noticed in review.
 //
-// It is a node `unit` test on purpose: memory storage needs no IndexedDB, which
-// is exactly the value of the seam — tests get a fast, browser-free engine while
-// production keeps Dexie. And it deliberately does NOT stand in for the
-// durability test in `outbox.browser.test.ts`: memory storage would fake the
-// very "survives being physically written to disk" property that test exists to
-// prove, so that one stays on real IndexedDB via Dexie.
+// It is a node `unit` test on purpose — no IndexedDB, no browser — which is
+// what makes the domain suite fast. It deliberately does NOT stand in for the
+// durability test in `outbox.browser.test.ts`, and the conformance kit is what
+// proves the memory backend and the RxDB one agree
+// (`@azx/ribo-core/testing`).
 
-const opened: { outbox: Outbox; name: string; storage: RxStorage<unknown, unknown> }[] = [];
+const opened: { outbox: Outbox; name: string }[] = [];
 
 afterEach(async () => {
-  for (const { outbox, name, storage } of opened.splice(0)) {
+  for (const { outbox, name } of opened.splice(0)) {
     if (!outbox.closed) await outbox.close();
-    // Removal must go through the same storage the database was opened with.
-    await removeOutboxDatabase(name, storage);
+    // A memory database outlives its handle, exactly as an IndexedDB one does, so
+    // a cold start is explicit rather than implied by closing.
+    removeMemoryDatabase(name);
   }
 });
 
@@ -47,12 +46,11 @@ function audioBlob(): Blob {
   return new Blob([audioBytes], { type: "audio/webm;codecs=opus" });
 }
 
-test("an injected non-Dexie (memory) RxStorage drives the same Outbox API", async () => {
-  const storage = getRxStorageMemory();
+test("the memory backend drives the whole Outbox API with no RxDB present", async () => {
   const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
 
-  const outbox = await openOutbox({ name, storage });
-  opened.push({ outbox, name, storage });
+  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
+  opened.push({ outbox, name });
 
   const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
   const enqueued = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
@@ -83,11 +81,10 @@ test("a nested review outcome with dotted paths round-trips storage with no migr
   // settle it — the RxDB collection carries its own JSON schema and its own `version`.
   // This drives the real thing: a nested outcome through `submitSessionReview`, out to
   // storage and back through `getSession`, on the sessions collection.
-  const storage = getRxStorageMemory();
   const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
 
-  const outbox = await openOutbox({ name, storage });
-  opened.push({ outbox, name, storage });
+  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
+  opened.push({ outbox, name });
 
   const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
   await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
@@ -117,10 +114,9 @@ test("a document round-trips real storage — kind and pageCount survive, bytes 
   // Per D2 the zod parse on read is the only interior check on `recording`, so
   // this is the test that catches the whole corruption class — the
   // `commitRecording` hazard included.
-  const storage = getRxStorageMemory();
   const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
-  const outbox = await openOutbox({ name, storage });
-  opened.push({ outbox, name, storage });
+  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
+  opened.push({ outbox, name });
 
   const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
 
@@ -169,10 +165,9 @@ test("commitRecording refuses a non-audio row — the spread the compiler does n
   // `Recording`, so a document cannot enter `recording` status that way), so
   // the test casts to construct it. The cast is not laziness — it is the only
   // way to reach the code path the guard protects.
-  const storage = getRxStorageMemory();
   const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
-  const outbox = await openOutbox({ name, storage });
-  opened.push({ outbox, name, storage });
+  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
+  opened.push({ outbox, name });
 
   const session = await outbox.openSession({ ctx: {}, ref: "test" });
 
@@ -184,11 +179,9 @@ test("commitRecording refuses a non-audio row — the spread the compiler does n
   });
 
   // Cast the row's recording to a document shape, simulating the unreachable
-  // state the guard exists for. This goes directly through RxDB's internal
-  // modifier, bypassing the public API.
-  const collection = outbox.database.collections.outbox;
-  const doc = await collection.findOne(item.id).exec();
-  await doc!.incrementalModify((data) => ({
+  // state the guard exists for. This goes straight through the backend,
+  // bypassing the public API that would refuse it.
+  await outbox.backend.modify("captures", item.id, (data) => ({
     ...data,
     recording: {
       id: "rec-commit-guard",
@@ -197,7 +190,7 @@ test("commitRecording refuses a non-audio row — the spread the compiler does n
       pageCount: 1,
       mimeType: "application/pdf",
       ctx: {},
-    } as never,
+    },
   }));
 
   // commitRecording must refuse — not silently corrupt the row.

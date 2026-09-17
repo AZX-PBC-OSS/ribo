@@ -1,5 +1,4 @@
-import type { RxStorage } from "rxdb";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
+import { createMemoryBackend, removeMemoryDatabase } from "./storage/memory-backend.js";
 import { afterEach, expect, test } from "vitest";
 import { z } from "zod";
 
@@ -7,7 +6,6 @@ import type { ToolAdapter, WriteMetadata } from "./adapter.js";
 import { enveloped } from "./enveloped.js";
 import { FakeTranscriber } from "./fake-transcriber.js";
 import { isTransientFailure, TerminalQueueError } from "./queue/backoff.js";
-import { removeOutboxDatabase } from "./queue/database.js";
 import { openOutbox, type Outbox } from "./queue/outbox.js";
 import { createRelay } from "./queue/relay.js";
 import { restrictToKind } from "./restrict-to-kind.js";
@@ -289,20 +287,20 @@ test("a failing write propagates unchanged — the relay's retry contract is not
 
 // --- The classification, as the relay actually applies it -------------------
 
-const opened: { outbox: Outbox; name: string; storage: RxStorage<unknown, unknown> }[] = [];
+const opened: { outbox: Outbox; name: string }[] = [];
 
 afterEach(async () => {
-  for (const { outbox, name, storage } of opened.splice(0)) {
+  for (const { outbox, name } of opened.splice(0)) {
     if (!outbox.closed) await outbox.close();
-    await removeOutboxDatabase(name, storage);
+    // A memory database outlives its handle, as an IndexedDB one does.
+    removeMemoryDatabase(name);
   }
 });
 
 const openMemoryOutbox = async (): Promise<Outbox> => {
-  const storage = getRxStorageMemory();
   const name = `ribo-write-step-${crypto.randomUUID()}`;
-  const outbox = await openOutbox({ name, storage });
-  opened.push({ outbox, name, storage });
+  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
+  opened.push({ outbox, name });
   return outbox;
 };
 

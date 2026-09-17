@@ -65,7 +65,15 @@ export async function recoverInterrupted(options: RecoveryOptions): Promise<stri
   });
   // Taken between the advisory check and here: the live session owns those rows.
   if (held === undefined) return [];
-  return await held.ready;
+  const recovered = await held.ready;
+  // Wait for the lock, not just the work. `holdLock` resolves `ready` when the
+  // recovery finishes but keeps `CAPTURE_LOCK` until the request's own callback
+  // settles, so returning here would leave the lock held after recovery claims to
+  // be done — and the next thing to ask for it (a recorder starting, or a second
+  // recovery pass) would be told the capture is busy by a caller that has
+  // finished.
+  await held.released;
+  return recovered;
 }
 
 /**

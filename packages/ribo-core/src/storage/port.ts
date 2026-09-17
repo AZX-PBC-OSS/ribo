@@ -154,6 +154,8 @@ export interface StorageBackend {
    * knowing which field it is, so it learns the concept without learning the
    * schema.
    *
+   * **The first value allocated into an empty collection is 0.**
+   *
    * This exists because read-highest-then-insert is a race that a backend can
    * close for free — with a lock in the browser, or an autoincrement column in a
    * SQL store — and that core cannot close at all.
@@ -196,6 +198,23 @@ export interface StorageBackend {
 
   /** Every blob on a document — ids and lengths, never bytes. */
   listBlobs: (collection: CollectionName, id: string) => Promise<BlobDescriptor[]>;
+
+  /**
+   * {@link listBlobs} for many documents at once, keyed by document id.
+   *
+   * Exists because a capture's `audioReady` and `audioBytes` are derived from
+   * its blobs, and they are derived for **every row in a query result** — so the
+   * per-document form would mean one round trip per row on every repaint of the
+   * queue. Ids absent from storage are simply absent from the result.
+   *
+   * A backend that can answer this from the documents it has just read should:
+   * the previous implementation got these facts from in-memory attachment stubs
+   * with no I/O at all, and that is the bar.
+   */
+  listBlobsMany: (
+    collection: CollectionName,
+    ids: readonly string[],
+  ) => Promise<Map<string, BlobDescriptor[]>>;
 
   /** Detach one blob. Silently succeeds if it is not there. */
   removeBlob: (collection: CollectionName, id: string, blobId: string) => Promise<void>;

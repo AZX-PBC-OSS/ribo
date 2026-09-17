@@ -1,4 +1,3 @@
-import type { RxJsonSchema } from "rxdb";
 import { z } from "zod";
 
 import { baseCaptureItemSchema } from "../capture-item.js";
@@ -253,49 +252,3 @@ export type OutboxPatch = Partial<
     "id" | "seq" | "enqueuedAt" | "recording" | "sessionId" | "capture" | "preview"
   >
 >;
-
-/**
- * The RxDB JSON schema.
- *
- * Hand-written rather than generated from the zod schema above, because RxDB
- * needs metadata zod has no concept of — `primaryKey`, `indexes`, `attachments`,
- * and the `maxLength`/`minimum`/`maximum`/`multipleOf` bounds it uses to build
- * fixed-width index keys. `schema.test.ts` pins the two descriptions of the same
- * document against each other so they cannot drift apart unnoticed.
- */
-export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
-  version: 7,
-  primaryKey: "id",
-  type: "object",
-  properties: {
-    id: { type: "string", maxLength: 64 },
-    seq: { type: "number", minimum: 0, maximum: 1_000_000_000, multipleOf: 1 },
-    status: { type: "string", maxLength: 16 },
-    sessionId: { type: "string", maxLength: 64 },
-    attempts: { type: "integer", minimum: 0 },
-    nextAttemptAt: { type: "string", maxLength: 32 },
-    enqueuedAt: { type: "string", maxLength: 32 },
-    lastError: { type: "string" },
-    recording: { type: "object" },
-    transcript: { type: "object" },
-    capture: { type: "object" },
-    preview: { type: "object" },
-    // Migration-only carrier: the v5 session-level fields, held on the recording
-    // by the v6 (expand) migration until `backfillSessions` lifts them onto a
-    // session document and clears it. Transient — no row keeps it past the open
-    // that migrated it. See `OUTBOX_MIGRATION_STRATEGIES`.
-    legacy: { type: "object" },
-  },
-  required: [
-    "id",
-    "seq",
-    "status",
-    "sessionId",
-    "attempts",
-    "nextAttemptAt",
-    "enqueuedAt",
-    "recording",
-  ],
-  indexes: ["seq"],
-  attachments: {},
-};

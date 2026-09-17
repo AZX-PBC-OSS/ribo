@@ -1,3 +1,4 @@
+import { createMemoryBackend } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { openOutbox, type Outbox } from "@azx/ribo-core";
@@ -132,10 +133,11 @@ const recording = () => ({
 
 async function openTestOutbox(): Promise<Outbox> {
   // Default storage (Dexie/IndexedDB) — real Chromium via the `browser`
-  // project provides it, and it is the same storage `outbox-handle.ts` uses in
-  // production, so this exercises the actual `Outbox.watch`/`submitReview`
-  // path rather than a stand-in.
-  return openOutbox({ name: `review-panel-${crypto.randomUUID()}` });
+  // project provides it. The backend is the memory one rather than production's
+  // RxDB: what this test exercises is the real `Outbox.watch`/`submitReview`
+  // path, and which backend is underneath it is the conformance kit's question,
+  // not this file's.
+  return openOutbox({ backend: createMemoryBackend(`review-panel-${crypto.randomUUID()}`) });
 }
 
 async function parkedItem(

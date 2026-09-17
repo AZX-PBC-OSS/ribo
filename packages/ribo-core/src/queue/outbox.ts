@@ -1,20 +1,13 @@
-import type { MangoQuery, RxAttachmentCreator, RxDocument, RxStorage } from "rxdb";
 import type { Observable } from "rxjs";
-import { map } from "rxjs";
+import { map, switchMap } from "rxjs";
 
 import { baseCaptureItemSchema } from "../capture-item.js";
 import type { CaptureItem } from "../capture-item.js";
 import type { Recording } from "../recording.js";
 import { baseRecordingSchema } from "../recording.js";
+import type { BlobDescriptor, Finders, StorageBackend, StoredDocument } from "../storage/port.js";
 import type { Transcript } from "../transcript.js";
 import { isChunkOf } from "./chunk-names.js";
-import {
-  openOutboxDatabase,
-  type OutboxCollection,
-  type OutboxDatabase,
-  type PluginStorageCollection,
-  type SessionCollection,
-} from "./database.js";
 import { commitRegion, handoffTranscript, writeTail } from "./preview.js";
 import {
   createCaptureStorageScope,
@@ -112,40 +105,18 @@ export interface SessionQuery {
   limit?: number;
 }
 
-/**
- * The document as handed to `insert`, with the audio attached **inline**.
- *
- * RxDB 17 accepts an `_attachments` array on an insert and folds it into the
- * same storage write as the document (`rx-collection.ts`: `bulkInsert`
- * normalizes inline attachments *before* the single `storageInstance.bulkWrite`
- * call). The field is not part of `OutboxDocument` — it is RxDB metadata, and
- * the document schema is a `strictObject` — so the insert payload gets its own
- * type rather than a cast at the call site.
- */
-type OutboxInsert = OutboxDocument & { _attachments: RxAttachmentCreator[] };
-
 export interface OpenOutboxOptions {
-  /** Storage database name. Defaults to `ribo-outbox`. */
-  name?: string;
   /**
-   * The RxDB storage engine to persist to. Defaults to `getRxStorageDexie()`
-   * (IndexedDB), so every existing caller is unchanged.
+   * Where durable state lives — the storage backend this outbox reads and writes
+   * through.
    *
-   * This is the one seam a host needs to choose where the outbox lives without
-   * touching the {@link Outbox} class or its durability logic: memory
-   * (`getRxStorageMemory` from `rxdb/plugins/storage-memory`) for fast,
-   * browser-free tests, Dexie for the browser field app, and a
-   * React-Native/SQLite `RxStorage` the day it leaves the browser. If you also
-   * call {@link removeOutboxDatabase}, pass it the *same* storage — RxDB removes
-   * through the engine's own layout.
-   *
-   * This is deliberately the *Level 1* seam: injecting an `RxStorage` under a
-   * still-concrete `Outbox`. Extracting a formal `Outbox` interface plus a
-   * storage conformance-test kit ("Level 2") is deferred until a genuinely
-   * non-RxDB backend is real — doing it now would be a contract with one
-   * implementation.
+   * Required, and deliberately so: there is no default, because every default
+   * would be wrong somewhere. `createMemoryBackend` for tests and development;
+   * `openRxdbBackend` from `@azx/ribo-storage-rxdb` for a browser host, which is
+   * the production path. This package no longer depends on RxDB, so it could not
+   * construct that one even if it wanted to.
    */
-  storage?: RxStorage<unknown, unknown>;
+  backend: StorageBackend;
   /** Injectable clock, in epoch milliseconds. Defaults to `Date.now`. */
   now?: () => number;
   /** Injectable id source. Defaults to `crypto.randomUUID`. */
@@ -154,55 +125,54 @@ export interface OpenOutboxOptions {
   createIdempotencyKey?: () => string;
 }
 
-/** Open (or create) the durable outbox. */
-export async function openOutbox(options: OpenOutboxOptions = {}): Promise<Outbox> {
-  const database = await openOutboxDatabase(options.name, options.storage);
-  return new Outbox(database, options);
+/** Open the durable outbox over a storage backend. */
+export async function openOutbox(options: OpenOutboxOptions): Promise<Outbox> {
+  return Promise.resolve(new Outbox(options.backend, options));
 }
 
 /**
- * The durable outbox: an RxDB collection plus the small set of operations the
+ * The durable outbox: a storage backend plus the small set of operations the
  * relay and the UI need.
  *
  * Deliberately *not* the state machine. This class knows how to store an item,
  * how to hand back the next one in order, and nothing about what
  * `transcribing` means — that lives in `relay.ts`. Keeping the split lets the
  * durability tests exercise storage with no steps configured at all.
+ *
+ * It is also deliberately not *storage*. Everything below is domain logic —
+ * status transitions, chunk merging, the plugin-storage sweep, review — written
+ * against the port in `../storage/port.ts`. Where the bytes actually land is a
+ * backend's business, and swapping one does not move a line of this file.
  */
 export class Outbox {
-  readonly #database: OutboxDatabase;
-  readonly #collection: OutboxCollection;
-  readonly #sessionsCollection: SessionCollection;
-  readonly #pluginStorageCollection: PluginStorageCollection;
+  readonly #backend: StorageBackend;
   readonly #now: () => number;
   readonly #createId: () => string;
   readonly #createIdempotencyKey: () => string;
+  #closed = false;
 
-  /**
-   * Serializes seq allocation. Reading the current maximum and inserting the
-   * successor is a read-modify-write, and two concurrent `enqueue` calls would
-   * otherwise both read the same maximum and both claim the same seq — silently
-   * breaking the ordering guarantee the relay is built on.
-   */
-  #enqueueChain: Promise<unknown> = Promise.resolve();
-
-  constructor(database: OutboxDatabase, options: OpenOutboxOptions = {}) {
-    this.#database = database;
-    this.#collection = database.collections.outbox;
-    this.#sessionsCollection = database.collections.sessions;
-    this.#pluginStorageCollection = database.collections.pluginStorage;
+  constructor(backend: StorageBackend, options: Omit<OpenOutboxOptions, "backend"> = {}) {
+    this.#backend = backend;
     this.#now = options.now ?? (() => Date.now());
     this.#createId = options.createId ?? (() => crypto.randomUUID());
     this.#createIdempotencyKey = options.createIdempotencyKey ?? (() => crypto.randomUUID());
   }
 
-  /** The underlying RxDB database, for hosts that want to add their own collections. */
-  get database(): OutboxDatabase {
-    return this.#database;
+  /**
+   * The storage backend this outbox was opened over.
+   *
+   * The replacement for the old `database` getter, and narrower on purpose: that
+   * one handed out an `RxDatabase` and so made RxDB part of this package's
+   * public surface. A host that wants its own RxDB collections gets the database
+   * from `@azx/ribo-storage-rxdb`, deliberately, rather than reaching through
+   * here and inheriting a dependency it never asked for.
+   */
+  get backend(): StorageBackend {
+    return this.#backend;
   }
 
   get closed(): boolean {
-    return this.#database.closed;
+    return this.#closed;
   }
 
   /**
@@ -224,9 +194,17 @@ export class Outbox {
    * arguments.
    */
   watch(query: OutboxQuery = {}): Observable<OutboxItem[]> {
-    return this.#collection
-      .find(mangoQuery(query))
-      .$.pipe(map((docs) => docs.map((doc) => this.#toItem(doc))));
+    return this.#backend.watch("captures", captureFinder(query)).pipe(
+      // One blob lookup for the whole emission, not one per row. `audioBytes` and
+      // `audioReady` are derived for every item in the result, so the per-document
+      // form would be a round trip per row on every repaint of the queue.
+      //
+      // `switchMap` rather than `concatMap`: if a second emission arrives while
+      // the first is still resolving its blobs, the first is stale and dropping it
+      // is correct — a subscriber wants the current queue, not every queue there
+      // has ever been.
+      switchMap(async (documents) => this.#toItems(documents)),
+    );
   }
 
   /**
@@ -245,36 +223,31 @@ export class Outbox {
    * version guaranteed on every single capture.
    */
   async enqueue({ recording, audio, sessionId }: EnqueueInput): Promise<OutboxItem> {
-    return this.#serialized(async () => {
-      const document = outboxDocumentSchema.parse({
-        id: this.#createId(),
-        seq: (await this.#highestSeq()) + 1,
-        status: "queued",
-        sessionId,
-        attempts: 0,
-        // Immediately eligible: a fresh recording has no backoff to serve.
-        nextAttemptAt: this.#nowIso(),
-        enqueuedAt: this.#nowIso(),
-        recording: baseCaptureItemSchema.parse(recording),
-      } satisfies OutboxDocument);
+    const document = outboxDocumentSchema.parse({
+      id: this.#createId(),
+      // Placeholder. `insertNext` assigns the real one atomically — see below.
+      seq: 0,
+      status: "queued",
+      sessionId,
+      attempts: 0,
+      // Immediately eligible: a fresh recording has no backoff to serve.
+      nextAttemptAt: this.#nowIso(),
+      enqueuedAt: this.#nowIso(),
+      recording: baseCaptureItemSchema.parse(recording),
+    } satisfies OutboxDocument);
 
-      const insert: OutboxInsert = {
-        ...document,
-        _attachments: [
-          {
-            id: AUDIO_ATTACHMENT_ID,
-            // A `Blob` from `MediaRecorder` always carries a type; a hand-built
-            // one might not, and RxDB requires a non-empty content type.
-            type: audio.type || "application/octet-stream",
-            data: audio,
-          },
-        ],
-      };
-      const doc = await this.#collection.insert(insert);
-      // Projected from the inserted document, so the returned item carries the
-      // same `audioReady` / `audioBytes` a subscriber sees for it.
-      return this.#toItem(doc);
-    });
+    // `insertNext` rather than read-highest-then-insert: allocating the sequence
+    // is the backend's job precisely because it is the one part it can make
+    // atomic across tabs and this class cannot. The promise chain that used to
+    // serialise this was per-instance, so two tabs recording at once could claim
+    // the same seq and silently break the ordering the relay is built on.
+    const inserted = await this.#backend.insertNext("captures", "seq", document, [
+      { id: AUDIO_ATTACHMENT_ID, data: audio },
+    ]);
+
+    // Projected from the inserted document, so the returned item carries the
+    // same `audioReady` / `audioBytes` a subscriber sees for it.
+    return this.#toItem(inserted);
   }
 
   /**
@@ -291,21 +264,19 @@ export class Outbox {
     sourceId: string;
     sessionId: string;
   }): Promise<OutboxItem> {
-    return this.#serialized(async () => {
-      const document = outboxDocumentSchema.parse({
-        id: this.#createId(),
-        seq: (await this.#highestSeq()) + 1,
-        status: "recording",
-        sessionId,
-        attempts: 0,
-        nextAttemptAt: this.#nowIso(),
-        enqueuedAt: this.#nowIso(),
-        recording: baseRecordingSchema.parse(recording),
-        capture: { sourceId },
-      } satisfies OutboxDocument);
-      const doc = await this.#collection.insert(document);
-      return this.#toItem(doc);
-    });
+    const document = outboxDocumentSchema.parse({
+      id: this.#createId(),
+      seq: 0, // Replaced atomically by `insertNext`, as in `enqueue`.
+      status: "recording",
+      sessionId,
+      attempts: 0,
+      nextAttemptAt: this.#nowIso(),
+      enqueuedAt: this.#nowIso(),
+      recording: baseRecordingSchema.parse(recording),
+      capture: { sourceId },
+    } satisfies OutboxDocument);
+    const inserted = await this.#backend.insertNext("captures", "seq", document);
+    return this.#toItem(inserted);
   }
 
   /**
@@ -313,13 +284,10 @@ export class Outbox {
    * the caller is responsible for naming and ordering.
    */
   async appendChunk(id: string, name: string, blob: Blob): Promise<void> {
-    const doc = await this.#collection.findOne(id).exec();
-    if (!doc) throw new Error(`outbox: no item ${id}`);
-    await doc.putAttachment({
-      id: name,
-      type: blob.type || "application/octet-stream",
-      data: blob,
-    });
+    // `putBlob` refuses an unknown document, so the explicit existence check is
+    // about the error message rather than the guard.
+    if (!(await this.#backend.get("captures", id))) throw new Error(`outbox: no item ${id}`);
+    await this.#backend.putBlob("captures", id, name, blob);
   }
 
   /**
@@ -327,19 +295,13 @@ export class Outbox {
    * concatenate them into one `Blob`. Used at commit and at recovery.
    */
   async mergeChunks(id: string): Promise<Blob> {
-    const doc = await this.#collection.findOne(id).exec();
-    if (!doc) throw new Error(`outbox: no item ${id}`);
-    const sourceId = doc.capture?.sourceId;
-    if (!sourceId) throw new Error(`outbox: item ${id} has no capture.sourceId`);
-    const chunks = doc
-      .allAttachments()
-      .filter((a) => isChunkOf(a.id, sourceId))
-      .sort((a, b) => a.id.localeCompare(b.id));
+    const { document, chunks } = await this.#chunksOf(id);
     const parts: Blob[] = [];
     for (const chunk of chunks) {
-      parts.push(await chunk.getData());
+      const data = await this.#backend.getBlob("captures", id, chunk.id);
+      if (data) parts.push(data);
     }
-    return new Blob(parts, { type: doc.recording.mimeType });
+    return new Blob(parts, { type: document.recording.mimeType });
   }
 
   /**
@@ -352,20 +314,14 @@ export class Outbox {
    * failure does it reach for this method.
    */
   async mergeChunksExcludingLast(id: string): Promise<Blob | null> {
-    const doc = await this.#collection.findOne(id).exec();
-    if (!doc) throw new Error(`outbox: no item ${id}`);
-    const sourceId = doc.capture?.sourceId;
-    if (!sourceId) throw new Error(`outbox: item ${id} has no capture.sourceId`);
-    const chunks = doc
-      .allAttachments()
-      .filter((a) => isChunkOf(a.id, sourceId))
-      .sort((a, b) => a.id.localeCompare(b.id));
+    const { document, chunks } = await this.#chunksOf(id);
     if (chunks.length <= 1) return null;
     const parts: Blob[] = [];
     for (let i = 0; i < chunks.length - 1; i++) {
-      parts.push(await chunks[i]!.getData());
+      const data = await this.#backend.getBlob("captures", id, chunks[i]!.id);
+      if (data) parts.push(data);
     }
-    return new Blob(parts, { type: doc.recording.mimeType });
+    return new Blob(parts, { type: document.recording.mimeType });
   }
 
   /**
@@ -375,16 +331,12 @@ export class Outbox {
    * audio; this method writes what it is given.
    */
   async commitRecording(id: string, audio: Blob, durationMs: number): Promise<OutboxItem> {
-    const doc = await this.#collection.findOne(id).exec();
-    if (!doc) throw new Error(`outbox: no item ${id}`);
+    const existing = await this.#backend.get("captures", id);
+    if (!existing) throw new Error(`outbox: no item ${id}`);
     // 1. Write the canonical audio.
-    await doc.putAttachment({
-      id: AUDIO_ATTACHMENT_ID,
-      type: audio.type || "application/octet-stream",
-      data: audio,
-    });
+    await this.#backend.putBlob("captures", id, AUDIO_ATTACHMENT_ID, audio);
     // 2. Transition recording → queued and set durationMs from the decoded audio.
-    await doc.incrementalModify((data) => {
+    await this.#modifyCapture(id, (data) => {
       if (data.status !== "recording")
         throw new Error(`outbox: ${id} is ${data.status}, not recording — commit refused`);
       // Runtime guard: commitRecording is the durable microphone path and only
@@ -406,29 +358,28 @@ export class Outbox {
         recording: { ...data.recording, durationMs },
       };
     });
-    // 3. Sweep the chunk attachments — the canonical audio is the only audio now.
-    const sourceId = doc.capture?.sourceId;
+    // 3. Sweep the chunk blobs — the canonical audio is the only audio now.
+    const sourceId = (existing as unknown as OutboxDocument).capture?.sourceId;
     if (sourceId) {
-      for (const attachment of doc.allAttachments()) {
-        if (isChunkOf(attachment.id, sourceId)) await attachment.remove();
+      for (const blob of await this.#backend.listBlobs("captures", id)) {
+        if (isChunkOf(blob.id, sourceId)) await this.#backend.removeBlob("captures", id, blob.id);
       }
     }
-    // Re-read for the projection — the attachment stubs changed.
-    const settled = await this.#collection.findOne(id).exec();
+    // Re-read for the projection — the blob set changed.
+    const settled = await this.#backend.get("captures", id);
     if (!settled) throw new Error(`outbox: item ${id} vanished during commit`);
     return this.#toItem(settled);
   }
 
   /** One item by id, or `undefined` if it is not there. */
   async get(id: string): Promise<OutboxItem | undefined> {
-    const doc = await this.#collection.findOne(id).exec();
-    return doc ? this.#toItem(doc) : undefined;
+    const document = await this.#backend.get("captures", id);
+    return document ? await this.#toItem(document) : undefined;
   }
 
   /** Every item, seq-ascending — or just the ones matching `query`. */
   async list(query: OutboxQuery = {}): Promise<OutboxItem[]> {
-    const docs = await this.#collection.find(mangoQuery(query)).exec();
-    return docs.map((doc) => this.#toItem(doc));
+    return this.#toItems(await this.#backend.find("captures", captureFinder(query)));
   }
 
   /**
@@ -453,10 +404,10 @@ export class Outbox {
    * those words should not linger either.
    */
   async patch(id: string, patch: OutboxPatch): Promise<OutboxItem> {
-    const doc = await this.#collection.findOne(id).exec();
-    if (!doc) throw new Error(`outbox: no item with id "${id}"`);
-    outboxItemSchema.parse({ ...this.#toItem(doc), ...patch });
-    const updated = await doc.incrementalPatch(patch);
+    const existing = await this.#backend.get("captures", id);
+    if (!existing) throw new Error(`outbox: no item with id "${id}"`);
+    outboxItemSchema.parse({ ...(await this.#toItem(existing)), ...patch });
+    const updated = await this.#modifyCapture(id, (data) => ({ ...data, ...patch }));
     if (patch.status === "discarded") {
       await this.#sweepPluginStorage([id]);
     }
@@ -490,15 +441,14 @@ export class Outbox {
    * revision that writes `transcript`.
    */
   async writePreviewTail(id: string, text: string): Promise<OutboxItem | undefined> {
-    const doc = await this.#collection.findOne(id).exec();
-    if (!doc) return undefined;
+    if (!(await this.#backend.get("captures", id))) return undefined;
     let wrote = false;
-    const updated = await doc.incrementalModify((data) => {
+    const updated = await this.#modifyCapture(id, (data) => {
       const [next, didWrite] = writeTail(data, text);
       wrote = didWrite;
       return next;
     });
-    return wrote ? this.#toItem(updated) : undefined;
+    return wrote ? await this.#toItem(updated) : undefined;
   }
 
   /**
@@ -516,15 +466,14 @@ export class Outbox {
    * revision.
    */
   async commitPreview(id: string, text: string): Promise<OutboxItem | undefined> {
-    const doc = await this.#collection.findOne(id).exec();
-    if (!doc) return undefined;
+    if (!(await this.#backend.get("captures", id))) return undefined;
     let committed = false;
-    const updated = await doc.incrementalModify((data) => {
+    const updated = await this.#modifyCapture(id, (data) => {
       const [next, didCommit] = commitRegion(data, text);
       committed = didCommit;
       return next;
     });
-    return committed ? this.#toItem(updated) : undefined;
+    return committed ? await this.#toItem(updated) : undefined;
   }
 
   /**
@@ -553,11 +502,15 @@ export class Outbox {
     transcript: Transcript,
     patch: Omit<OutboxPatch, "transcript">,
   ): Promise<OutboxItem> {
-    const doc = await this.#collection.findOne(id).exec();
-    if (!doc) throw new Error(`outbox: no item with id "${id}"`);
-    const updated = await doc.incrementalModify((data) => {
+    if (!(await this.#backend.get("captures", id))) {
+      throw new Error(`outbox: no item with id "${id}"`);
+    }
+    const updated = await this.#modifyCapture(id, (data) => {
       const merged = handoffTranscript(data, transcript, patch);
-      outboxDocumentSchema.parse(persistedFieldsOf(merged));
+      // The backend hands back clean documents, so what the modifier sees is
+      // exactly the persisted shape and the strict parse survives directly --
+      // `persistedFieldsOf` used to scrub RxDB's metadata off first, and is gone.
+      outboxDocumentSchema.parse(merged);
       return merged;
     });
     return this.#toItem(updated);
@@ -565,9 +518,7 @@ export class Outbox {
 
   /** The captured audio, or `undefined` once it has been dropped. */
   async getAudio(id: string): Promise<Blob | undefined> {
-    const doc = await this.#collection.findOne(id).exec();
-    const attachment = doc?.getAttachment(AUDIO_ATTACHMENT_ID);
-    return attachment ? await attachment.getData() : undefined;
+    return await this.#backend.getBlob("captures", id, AUDIO_ATTACHMENT_ID);
   }
 
   /**
@@ -585,14 +536,12 @@ export class Outbox {
    * because the deletion is permanent and unrecoverable.
    */
   async dropAudio(id: string): Promise<void> {
-    const doc = await this.#collection.findOne(id).exec();
-    await doc?.getAttachment(AUDIO_ATTACHMENT_ID)?.remove();
+    await this.#backend.removeBlob("captures", id, AUDIO_ATTACHMENT_ID);
   }
 
   /** Delete an item, its attachment and any plugin-storage entries for it. */
   async remove(id: string): Promise<void> {
-    const doc = await this.#collection.findOne(id).exec();
-    await doc?.remove();
+    await this.#backend.remove("captures", id);
     await this.#sweepPluginStorage([id]);
   }
 
@@ -607,17 +556,16 @@ export class Outbox {
    */
   async removeMany(ids: readonly string[]): Promise<number> {
     if (ids.length === 0) return 0;
-    const result = await this.#collection.bulkRemove([...ids]);
+    const removed = await this.#backend.removeMany("captures", ids);
     // Sweep after the removal so a failed bulkRemove does not orphan the
     // plugin-storage entries before the capture is gone — and so the sweep
     // runs even for ids that were already absent (their plugin-storage
     // entries may still be present if the capture was deleted by another
     // means).
     await this.#sweepPluginStorage(ids);
-    // `error` collects per-document write failures (a 404 for an id that was
-    // already gone, most commonly). Reporting the successes rather than the
-    // input length keeps the return value honest about what happened.
-    return result.success.length;
+    // The backend reports how many documents actually went, not how many ids were
+    // offered, which keeps the return value honest when some were already gone.
+    return removed;
   }
 
   /**
@@ -639,7 +587,8 @@ export class Outbox {
 
   /** Close the database. The instance is unusable afterwards. */
   async close(): Promise<void> {
-    await this.#database.close();
+    this.#closed = true;
+    await this.#backend.close();
   }
 
   // -----------------------------------------------------------------------
@@ -662,7 +611,7 @@ export class Outbox {
    * wrote.
    */
   pluginStorage(captureId: string, pluginId: string): PluginStorage {
-    return createPluginStorage(this.#pluginStorageCollection, captureId, pluginId);
+    return createPluginStorage(this.#backend, captureId, pluginId);
   }
 
   /**
@@ -675,7 +624,7 @@ export class Outbox {
    * See {@link CaptureStorageScope} for what the handle promises.
    */
   captureStorage(captureId: string): CaptureStorageScope {
-    return createCaptureStorageScope(this.#pluginStorageCollection, captureId);
+    return createCaptureStorageScope(this.#backend, captureId);
   }
 
   /**
@@ -689,7 +638,7 @@ export class Outbox {
    * scope is **not** bounded to a session.
    */
   pluginStorageScope(pluginId: string): PluginStorageScope {
-    return createPluginStorageScope(this.#pluginStorageCollection, pluginId);
+    return createPluginStorageScope(this.#backend, pluginId);
   }
 
   /**
@@ -703,11 +652,18 @@ export class Outbox {
    */
   async #sweepPluginStorage(captureIds: readonly string[]): Promise<void> {
     if (captureIds.length === 0) return;
-    const docs = await this.#pluginStorageCollection
-      .find({ selector: { captureId: { $in: [...captureIds] } } })
-      .exec();
-    if (docs.length === 0) return;
-    await this.#pluginStorageCollection.bulkRemove(docs.map((doc) => doc.id));
+    // One query for the whole batch, which is why the port's entry finder takes a
+    // set of scope ids rather than one: clearing a thirty-row queue would
+    // otherwise be thirty round trips on the "reset this device" path.
+    const entries = await this.#backend.find("entries", {
+      scopeKind: "capture",
+      scopeId: captureIds,
+    });
+    if (entries.length === 0) return;
+    await this.#backend.removeMany(
+      "entries",
+      entries.map((entry) => entry.id),
+    );
   }
 
   // -----------------------------------------------------------------------
@@ -739,7 +695,8 @@ export class Outbox {
           "the adapter parses it through `ToolAdapter.ctxSchema`.",
       );
     }
-    const doc = await this.#sessionsCollection.insert(
+    const inserted = await this.#backend.insert(
+      "sessions",
       sessionDocumentSchema.parse({
         id: options.id ?? this.#createId(),
         status: "open",
@@ -751,7 +708,7 @@ export class Outbox {
         idempotencyKey: options.idempotencyKey ?? this.#createIdempotencyKey(),
       } satisfies SessionDocument),
     );
-    return this.#toSession(doc);
+    return this.#toSession(inserted);
   }
 
   /**
@@ -765,9 +722,10 @@ export class Outbox {
    * machine backwards, and either is a bug the caller should hear about.
    */
   async closeSession(id: string): Promise<SessionItem> {
-    const doc = await this.#sessionsCollection.findOne(id).exec();
-    if (!doc) throw new Error(`outbox: no session with id "${id}"`);
-    const updated = await doc.incrementalModify((current) => {
+    if (!(await this.#backend.get("sessions", id))) {
+      throw new Error(`outbox: no session with id "${id}"`);
+    }
+    const updated = await this.#modifySession(id, (current) => {
       if (current.status !== "open") {
         throw new Error(
           `outbox: session ${id} is "${current.status}", not "open", so it cannot be closed.`,
@@ -778,7 +736,7 @@ export class Outbox {
         status: "extracting" as const,
         closedAt: this.#nowIso(),
       };
-      sessionDocumentSchema.parse(persistedSessionFieldsOf(merged));
+      sessionDocumentSchema.parse(merged);
       return merged;
     });
     return this.#toSession(updated);
@@ -786,14 +744,14 @@ export class Outbox {
 
   /** One session by id, or `undefined` if it is not there. */
   async getSession(id: string): Promise<SessionItem | undefined> {
-    const doc = await this.#sessionsCollection.findOne(id).exec();
-    return doc ? this.#toSession(doc) : undefined;
+    const document = await this.#backend.get("sessions", id);
+    return document ? this.#toSession(document) : undefined;
   }
 
   /** Every session, `openedAt`-ascending — or just the ones matching `query`. */
   async listSessions(query: SessionQuery = {}): Promise<SessionItem[]> {
-    const docs = await this.#sessionsCollection.find(sessionMangoQuery(query)).exec();
-    return docs.map((doc) => this.#toSession(doc));
+    const documents = await this.#backend.find("sessions", sessionFinder(query));
+    return documents.map((document) => this.#toSession(document));
   }
 
   /**
@@ -802,9 +760,9 @@ export class Outbox {
    * including writes from another tab.
    */
   watchSessions(query: SessionQuery = {}): Observable<SessionItem[]> {
-    return this.#sessionsCollection
-      .find(sessionMangoQuery(query))
-      .$.pipe(map((docs) => docs.map((doc) => this.#toSession(doc))));
+    return this.#backend
+      .watch("sessions", sessionFinder(query))
+      .pipe(map((documents) => documents.map((document) => this.#toSession(document))));
   }
 
   /**
@@ -826,10 +784,10 @@ export class Outbox {
    * rather than at the next reload.
    */
   async patchSession(id: string, patch: SessionPatch): Promise<SessionItem> {
-    const doc = await this.#sessionsCollection.findOne(id).exec();
-    if (!doc) throw new Error(`outbox: no session with id "${id}"`);
-    sessionItemSchema.parse({ ...this.#toSession(doc), ...patch });
-    const updated = await doc.incrementalPatch(patch);
+    const existing = await this.#backend.get("sessions", id);
+    if (!existing) throw new Error(`outbox: no session with id "${id}"`);
+    sessionItemSchema.parse({ ...this.#toSession(existing), ...patch });
+    const updated = await this.#modifySession(id, (current) => ({ ...current, ...patch }));
     return this.#toSession(updated);
   }
 
@@ -851,15 +809,16 @@ export class Outbox {
    */
   async submitSessionReview(id: string, outcome: PersistedReviewOutcome): Promise<SessionItem> {
     const parsed = reviewOutcomeSchema.parse(outcome);
-    const doc = await this.#sessionsCollection.findOne(id).exec();
-    if (!doc) throw new Error(`outbox: no session with id "${id}"`);
+    if (!(await this.#backend.get("sessions", id))) {
+      throw new Error(`outbox: no session with id "${id}"`);
+    }
 
     const patch: SessionPatch =
       parsed.status === "discarded"
         ? { reviewOutcome: parsed, status: "done" }
         : { reviewOutcome: parsed, status: "writing", attempts: 0 };
 
-    const updated = await doc.incrementalModify((current) => {
+    const updated = await this.#modifySession(id, (current) => {
       if (current.status !== "awaiting-review") {
         throw new Error(
           `outbox: session ${id} is "${current.status}", not "awaiting-review", so a review ` +
@@ -867,7 +826,7 @@ export class Outbox {
         );
       }
       const merged = { ...current, ...patch };
-      sessionDocumentSchema.parse(persistedSessionFieldsOf(merged));
+      sessionDocumentSchema.parse(merged);
       return merged;
     });
     return this.#toSession(updated);
@@ -932,8 +891,9 @@ export class Outbox {
    * also moves the set, and that extraction is stale in the other direction.
    */
   async reopenSessionForReview(id: string): Promise<SessionItem> {
-    const doc = await this.#sessionsCollection.findOne(id).exec();
-    if (!doc) throw new Error(`outbox: no session with id "${id}"`);
+    if (!(await this.#backend.get("sessions", id))) {
+      throw new Error(`outbox: no session with id "${id}"`);
+    }
 
     // Read before the modify: `incrementalModify` takes a synchronous mutator
     // and this is an outbox query. Recordings the extraction would never read
@@ -943,7 +903,7 @@ export class Outbox {
       .map((r) => r.id)
       .sort();
 
-    const updated = await doc.incrementalModify((current) => {
+    const updated = await this.#modifySession(id, (current) => {
       const cached = current.extractedFromRecordingIds ?? [];
       // An empty eligible set never counts as movement — see the note below.
       const setMoved =
@@ -1014,155 +974,146 @@ export class Outbox {
         attempts: 0,
       };
       delete merged.reviewOutcome;
-      sessionDocumentSchema.parse(persistedSessionFieldsOf(merged));
+      sessionDocumentSchema.parse(merged);
       return merged;
     });
     return this.#toSession(updated);
-  }
-
-  async #highestSeq(): Promise<number> {
-    const docs = await this.#collection.find({ sort: [{ seq: "desc" }], limit: 1 }).exec();
-    // -1 so the first item is seq 0.
-    return docs[0]?.seq ?? -1;
   }
 
   #nowIso(): string {
     return new Date(this.#now()).toISOString();
   }
 
-  #toItem(doc: RxDocument<OutboxDocument>): OutboxItem {
-    // `toJSON()` strips RxDB's meta fields (`_rev`, `_meta`, `_deleted`,
-    // `_attachments`), so what comes back is the document we described in zod
-    // and nothing else — which is why a `strictObject` parse survives here.
-    //
-    // Stripping `_attachments` is also exactly why the attachment facts have to
-    // be read off the document separately. `getAttachment` reads the in-memory
-    // stub on `doc._data`, so it does not fetch bytes — a property lookup, not I/O.
-    //
-    // `audioReady` reads the `AUDIO_ATTACHMENT_ID` attachment directly: with the
-    // canonical pointer deleted in revision 9, there is only one canonical audio
-    // attachment, and its id is the constant.
-    const canonical = doc.getAttachment(AUDIO_ATTACHMENT_ID);
-    const audioBytes =
-      canonical?.length ??
-      (doc.status === "recording" && doc.capture ? sumChunkBytes(doc, doc.capture.sourceId) : 0);
-    return outboxItemSchema.parse({
-      ...doc.toJSON(),
-      audioReady: canonical !== null,
-      audioBytes,
-    });
+  /**
+   * Read a capture, modify it, write it back — with the modifier run against the
+   * document as committed.
+   *
+   * The port re-runs the modifier on a write conflict, which is what lets the
+   * guards inside these modifiers (`commitRecording`'s status check,
+   * `writePreviewTail`'s refusal) be correct: a check made against a stale read
+   * can be wrong by the time the write lands.
+   */
+  async #modifyCapture(
+    id: string,
+    modify: (data: OutboxDocument) => OutboxDocument,
+  ): Promise<StoredDocument> {
+    return await this.#backend.modify("captures", id, (current) =>
+      modify(current as unknown as OutboxDocument),
+    );
   }
 
-  #toSession(doc: RxDocument<SessionDocument>): SessionItem {
-    // Same `toJSON()` rationale as `#toItem`: strips RxDB meta fields so the
-    // `strictObject` parse survives. No attachment facts to compute — the
-    // session has no attachments today.
-    return sessionItemSchema.parse(doc.toJSON());
+  /** {@link Outbox.#modifyCapture} for sessions. */
+  async #modifySession(
+    id: string,
+    modify: (data: SessionDocument) => SessionDocument,
+  ): Promise<StoredDocument> {
+    return await this.#backend.modify("sessions", id, (current) =>
+      modify(current as unknown as SessionDocument),
+    );
   }
 
-  async #serialized<T>(work: () => Promise<T>): Promise<T> {
-    const next = this.#enqueueChain.then(work, work);
-    this.#enqueueChain = next.catch(() => undefined);
-    return next;
+  /**
+   * A capture's chunk blobs, in name order, with the document that owns them.
+   *
+   * Shared by the two merge paths so they cannot disagree about which blobs count
+   * as chunks or what order they go in.
+   */
+  async #chunksOf(
+    id: string,
+  ): Promise<{ document: OutboxDocument; chunks: readonly BlobDescriptor[] }> {
+    const document = await this.#backend.get("captures", id);
+    if (!document) throw new Error(`outbox: no item ${id}`);
+    const typed = document as unknown as OutboxDocument;
+    const sourceId = typed.capture?.sourceId;
+    if (!sourceId) throw new Error(`outbox: item ${id} has no capture.sourceId`);
+    const chunks = (await this.#backend.listBlobs("captures", id))
+      .filter((blob) => isChunkOf(blob.id, sourceId))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    return { document: typed, chunks };
+  }
+
+  /**
+   * Project one stored capture into what a consumer sees.
+   *
+   * The derived fields cost a blob lookup now, where they used to be a property
+   * read off an in-memory RxDB stub. {@link Outbox.#toItems} is the form to reach
+   * for when projecting more than one — this is for the single-document paths.
+   */
+  async #toItem(document: StoredDocument): Promise<OutboxItem> {
+    const blobs = await this.#backend.listBlobs("captures", document.id);
+    return itemFrom(document, blobs);
+  }
+
+  /** {@link Outbox.#toItem} for a whole result set, with one blob lookup for all of it. */
+  async #toItems(documents: readonly StoredDocument[]): Promise<OutboxItem[]> {
+    const blobs = await this.#backend.listBlobsMany(
+      "captures",
+      documents.map((document) => document.id),
+    );
+    return documents.map((document) => itemFrom(document, blobs.get(document.id) ?? []));
+  }
+
+  #toSession(document: StoredDocument): SessionItem {
+    // The backend hands back exactly the persisted fields, so the `strictObject`
+    // parse survives with no scrubbing. Sessions carry no blobs, so unlike a
+    // capture there is nothing derived to look up and this stays synchronous.
+    return sessionItemSchema.parse(document);
   }
 }
 
 /**
- * The persisted fields of a document, with RxDB's own metadata left behind.
+ * Build a consumer's item from a stored document and its blob descriptors.
  *
- * `incrementalModify` does not hand its modifier a clean document: rxdb 17's
- * `modifierFromPublicToInternal` passes the internal one, which carries
- * `_attachments` (a real value), plus `_deleted`, `_meta` and `_rev`. Since
- * {@link outboxDocumentSchema} is a `strictObject`, parsing that object whole
- * fails with `unrecognized_keys` — so anything validating a document mid-modifier
- * has to project it first.
- *
- * Keyed off the schema's own `shape` rather than a hand-written list of metadata
- * names: a field added to the schema is then included automatically, and a
- * metadata field a future RxDB adds cannot leak in and defeat the strict parse.
- *
- * **It does weaken the parse in one direction, and that is the trade.**
- * `outboxDocumentSchema` is a trust boundary in *both* directions
- * (`schema.ts`: documents may have been written by an older build or another tab),
- * and a `strictObject` normally makes an unrecognized *persisted* key a hard
- * failure. Projecting first turns that into a silent omission: the stray key is
- * left out of the parse and still rides out on the returned document, so it
- * survives the write unexamined. `patch()` does not have this hole — it parses the
- * whole projection. The alternative was naming RxDB's four metadata keys here
- * instead, which fails the other way round: the day RxDB adds a fifth, every
- * `incrementalModify` caller in this file — `writeTranscript` included — starts
- * throwing `unrecognized_keys` on a healthy document. A
- * strange persisted field passing through is recoverable; a method that cannot
- * write at all is not.
+ * `audioReady` looks for the one canonical audio blob by its constant id;
+ * `audioBytes` falls back to the accumulated chunks while a recording is still
+ * in flight, which is what makes a partially-captured row report real progress.
  */
-function persistedFieldsOf(data: Record<string, unknown>): Record<string, unknown> {
-  const fields: Record<string, unknown> = {};
-  for (const key of Object.keys(outboxDocumentSchema.shape)) {
-    if (key in data) fields[key] = data[key];
-  }
-  return fields;
+function itemFrom(document: StoredDocument, blobs: readonly BlobDescriptor[]): OutboxItem {
+  const typed = document as unknown as OutboxDocument;
+  const canonical = blobs.find((blob) => blob.id === AUDIO_ATTACHMENT_ID);
+  const audioBytes =
+    canonical?.length ??
+    (typed.status === "recording" && typed.capture
+      ? sumChunkBytes(blobs, typed.capture.sourceId)
+      : 0);
+  return outboxItemSchema.parse({
+    ...document,
+    audioReady: canonical !== undefined,
+    audioBytes,
+  });
 }
 
 /**
- * {@link OutboxQuery} → RxDB's Mango query.
+ * {@link OutboxQuery} → the port's captures finder.
  *
  * One function so `list`, `watch` and `nextPending` cannot disagree about what a
- * query means — in particular about the `seq`-ascending sort, which is the
- * queue's ordering guarantee and is not optional in any of them.
+ * query means. It is now a near-identity — the port's finder takes the same three
+ * dimensions — where it used to build a Mango selector. Translating a query into
+ * whatever the storage engine wants is the backend's job, not this file's, which
+ * is the whole reason the finder set is closed.
  */
-function mangoQuery({ status, sessionId, limit }: OutboxQuery): MangoQuery<OutboxDocument> {
-  const statuses = status === undefined ? undefined : [status].flat();
-  const selector: Record<string, unknown> = {};
-  if (statuses) selector.status = { $in: statuses };
-  if (sessionId !== undefined) selector.sessionId = sessionId;
+function captureFinder({ status, sessionId, limit }: OutboxQuery): Finders["captures"] {
   return {
-    // A `selector` of `{}` is not the same as no selector to every RxDB query
-    // planner, so the key is omitted entirely rather than left empty.
-    ...(Object.keys(selector).length > 0 ? { selector } : {}),
-    sort: [{ seq: "asc" }],
+    ...(status === undefined ? {} : { status: [status].flat() }),
+    ...(sessionId === undefined ? {} : { sessionId }),
     ...(limit === undefined ? {} : { limit }),
   };
 }
 
-/** Total durable bytes of one capture's chunk attachments. Reads stub lengths, never bytes. */
-function sumChunkBytes(doc: RxDocument<OutboxDocument>, sourceId: string): number {
+/** {@link SessionQuery} → the port's sessions finder. Same rationale as {@link captureFinder}. */
+function sessionFinder({ status, ref, limit }: SessionQuery): Finders["sessions"] {
+  return {
+    ...(status === undefined ? {} : { status: [status].flat() }),
+    ...(ref === undefined ? {} : { ref }),
+    ...(limit === undefined ? {} : { limit }),
+  };
+}
+
+/** Total durable bytes of one capture's chunk blobs. Reads descriptor lengths, never bytes. */
+function sumChunkBytes(blobs: readonly BlobDescriptor[], sourceId: string): number {
   let total = 0;
-  for (const attachment of doc.allAttachments()) {
-    if (isChunkOf(attachment.id, sourceId)) total += attachment.length;
+  for (const blob of blobs) {
+    if (isChunkOf(blob.id, sourceId)) total += blob.length;
   }
   return total;
-}
-
-/**
- * The persisted fields of a session document, with RxDB's own metadata left
- * behind. Same rationale as {@link persistedFieldsOf}: `incrementalModify`
- * passes the internal document, which carries `_rev`, `_meta`, `_deleted` and
- * `_attachments`, and `sessionDocumentSchema` is a `strictObject` — so parsing
- * the whole thing fails with `unrecognized_keys`.
- */
-function persistedSessionFieldsOf(data: Record<string, unknown>): Record<string, unknown> {
-  const fields: Record<string, unknown> = {};
-  for (const key of Object.keys(sessionDocumentSchema.shape)) {
-    if (key in data) fields[key] = data[key];
-  }
-  return fields;
-}
-
-/**
- * {@link SessionQuery} → RxDB's Mango query.
- *
- * Same pattern as {@link mangoQuery}: one function so `listSessions`,
- * `watchSessions` and `nextPendingSession` cannot disagree about what a query
- * means — in particular about the `openedAt`-ascending sort.
- */
-function sessionMangoQuery({ status, ref, limit }: SessionQuery): MangoQuery<SessionDocument> {
-  const statuses = status === undefined ? undefined : [status].flat();
-  const selector: Record<string, unknown> = {};
-  if (statuses) selector.status = { $in: statuses };
-  if (ref !== undefined) selector.ref = ref;
-  return {
-    ...(Object.keys(selector).length > 0 ? { selector } : {}),
-    sort: [{ openedAt: "asc" }],
-    ...(limit === undefined ? {} : { limit }),
-  };
 }

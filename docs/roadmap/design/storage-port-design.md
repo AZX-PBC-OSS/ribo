@@ -126,7 +126,7 @@ Subscription is the only rxjs in the contract, and it is already core's public v
 **Writes** — insert; insert-with-next-sequence (§4.3); modify one by id through a conflict-safe
 read-modify-write; upsert; remove one; remove many, reporting how many actually went.
 
-**Blobs** — put, get, list (ids and lengths), remove — scoped to a document, which is how audio and
+**Blobs** — put, get, list (ids and lengths), list-for-many, remove — scoped to a document, which is how audio and
 chunks are already keyed.
 
 **Lifecycle** — open, close.
@@ -184,6 +184,24 @@ SQLite or native backend would get the same guarantee from an autoincrement colu
 
 This puts a browser-specific primitive behind the port, where a backend that does not need it is not
 forced to care — and it deletes core's serialisation chain rather than porting it. No schema change.
+
+### 4.3a What building it changed — batch blob reads
+
+The one operation this design did not anticipate. A capture's `audioReady` and `audioBytes` are
+derived from its blobs, and they are derived for **every row of every query result** — the previous
+implementation got them from in-memory attachment stubs with no I/O at all. Through a port that
+becomes real I/O, and the per-document form would mean one round trip per row on every repaint of
+the queue.
+
+So the port carries a batch form as well: blobs for many documents, keyed by document id. A backend
+that can answer it from documents it has just read should, and the RxDB one does — the stubs are a
+property walk, not a fetch.
+
+Two smaller facts the port now states rather than leaves implied, both discovered the same way:
+**the first sequence allocated into an empty collection is 0** (the captures schema declares
+`minimum: 0` and every device holds zero-based rows, so counting from one would violate the schema
+and renumber history), and **attaching a blob to a document that does not exist is refused** rather
+than quietly creating an orphan.
 
 ### 4.4 What the port excludes
 
@@ -340,6 +358,14 @@ complexity tax paid for hypothetical backends.
 async, no RxDB reactivity model — and remains the natural next step if one is ever wanted. Not now.
 
 **Fixing sessions' lack of a removal API** beyond what §6.2's sweep requires.
+
+**Two lock bugs this work uncovered but did not cause.** `Relay.syncNow` and `recoverInterrupted`
+both awaited the _work_ they held a Web Lock for and not the lock's _release_, so each returned
+while still holding a lock it had finished with — a second `syncNow` (the normal shape of a drain
+loop) found it busy and silently did nothing, and a recorder starting after recovery was told
+capture was busy by a caller that had already finished. They were latent in `main`; moving core onto
+the port shifted the timing enough to expose them, and they are fixed here because the suite could
+not go green otherwise. Neither is a consequence of the port.
 
 **The write-back egress gating**, unchanged and unrelated.
 

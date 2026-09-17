@@ -1,9 +1,12 @@
 import type { RxStorage } from "rxdb";
 
-import { DEFAULT_OUTBOX_DATABASE_NAME, openOutboxDatabase } from "@azx/ribo-core";
-import type { OutboxDatabase, StorageBackend } from "@azx/ribo-core";
+import {
+  DEFAULT_OUTBOX_DATABASE_NAME,
+  openOutboxDatabase,
+  type OutboxDatabase,
+} from "./database.js";
 
-import { createRxdbBackend as wrap } from "./backend.js";
+import { createRxdbBackend as wrap, type RxdbStorageBackend } from "./backend.js";
 
 /**
  * @file Opening the database, and the two ways to get a backend.
@@ -16,7 +19,7 @@ import { createRxdbBackend as wrap } from "./backend.js";
  * strategy is exactly the kind of drift that strands a device.
  */
 
-export { createRxdbBackend } from "./backend.js";
+export { createRxdbBackend, type RxdbStorageBackend } from "./backend.js";
 
 /** Options for {@link openRxdbBackend}. */
 export interface OpenRxdbBackendOptions {
@@ -51,7 +54,7 @@ export interface OpenRxdbBackendOptions {
  */
 export async function openRxdbBackend(
   options: OpenRxdbBackendOptions = {},
-): Promise<StorageBackend> {
+): Promise<RxdbStorageBackend> {
   const name = options.name ?? DEFAULT_OUTBOX_DATABASE_NAME;
   const database: OutboxDatabase = await openOutboxDatabase(name, options.storage, {
     ignoreDuplicate: options.ignoreDuplicate,

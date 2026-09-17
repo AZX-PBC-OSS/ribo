@@ -1,10 +1,5 @@
-import type { RxCollection } from "rxdb";
-
-import {
-  pluginStorageDocumentSchema,
-  pluginStorageEntryId,
-  type PluginStorageDocument,
-} from "./plugin-storage-schema.js";
+import type { StorageBackend, StoredDocument } from "../storage/port.js";
+import { pluginStorageDocumentSchema, pluginStorageEntryId } from "./plugin-storage-schema.js";
 
 /**
  * A namespaced, capture-scoped key-value handle a plugin writes through.
@@ -37,9 +32,6 @@ export interface PluginStorage {
   keys: () => Promise<string[]>;
 }
 
-/** The RxDB collection holding plugin-storage entries. */
-export type PluginStorageCollection = RxCollection<PluginStorageDocument>;
-
 /**
  * Create a {@link PluginStorage} handle scoped to one capture and one plugin.
  *
@@ -49,11 +41,11 @@ export type PluginStorageCollection = RxCollection<PluginStorageDocument>;
  * entries — durability comes from the storage, not from the handle.
  */
 export function createPluginStorage(
-  collection: PluginStorageCollection,
+  backend: StorageBackend,
   captureId: string,
   pluginId: string,
 ): PluginStorage {
-  return new PluginStorageHandle(collection, captureId, pluginId);
+  return new PluginStorageHandle(backend, captureId, pluginId);
 }
 
 /**
@@ -125,66 +117,90 @@ export interface PluginStorageScope {
 
 /** Create a {@link CaptureStorageScope} over one capture. Called by {@link Outbox.captureStorage}. */
 export function createCaptureStorageScope(
-  collection: PluginStorageCollection,
+  backend: StorageBackend,
   captureId: string,
 ): CaptureStorageScope {
   return {
-    forPlugin: (pluginId) => createPluginStorage(collection, captureId, pluginId),
+    forPlugin: (pluginId) => createPluginStorage(backend, captureId, pluginId),
   };
 }
 
 /** Create a {@link PluginStorageScope} over one plugin. Called by {@link Outbox.pluginStorageScope}. */
 export function createPluginStorageScope(
-  collection: PluginStorageCollection,
+  backend: StorageBackend,
   pluginId: string,
 ): PluginStorageScope {
   return {
-    capture: (captureId) => createPluginStorage(collection, captureId, pluginId),
+    capture: (captureId) => createPluginStorage(backend, captureId, pluginId),
     captures: async () => {
-      const docs = await collection.find({ selector: { pluginId } }).exec();
-      return [...new Set(docs.map((doc) => doc.captureId))].sort();
+      const entries = await backend.find("entries", { owner: pluginId });
+      return [...new Set(entries.map((entry) => entry.scopeId as string))].sort();
     },
   };
 }
 
 class PluginStorageHandle implements PluginStorage {
-  readonly #collection: PluginStorageCollection;
+  readonly #backend: StorageBackend;
   readonly #captureId: string;
   readonly #pluginId: string;
 
-  constructor(collection: PluginStorageCollection, captureId: string, pluginId: string) {
-    this.#collection = collection;
+  constructor(backend: StorageBackend, captureId: string, pluginId: string) {
+    this.#backend = backend;
     this.#captureId = captureId;
     this.#pluginId = pluginId;
   }
 
   async get<T = unknown>(key: string): Promise<T | undefined> {
-    const doc = await this.#collection.findOne(this.#entryId(key)).exec();
-    if (!doc) return undefined;
-    return JSON.parse(doc.value) as T;
+    const entry = await this.#backend.get("entries", this.#entryId(key));
+    if (!entry) return undefined;
+    return JSON.parse(entry.value as string) as T;
   }
 
   async set(key: string, value: unknown): Promise<void> {
-    const document = pluginStorageDocumentSchema.parse({
+    const serialised = JSON.stringify(value);
+
+    // Validate against the persisted contract before writing. The bounds are
+    // load-bearing rather than defensive: the backend builds fixed-width index
+    // keys from them, so an over-long key corrupts index ordering instead of
+    // failing loudly. Parsing here turns that into an error at the call that
+    // caused it.
+    //
+    // The parse is in the schema's own field names, which are not the port's:
+    // the port speaks scope/owner and the collection on disk still says
+    // capture/plugin. Core validates against what is actually stored, and the
+    // backend does the translation.
+    pluginStorageDocumentSchema.parse({
       id: this.#entryId(key),
       captureId: this.#captureId,
       pluginId: this.#pluginId,
       key,
-      value: JSON.stringify(value),
+      value: serialised,
     });
-    await this.#collection.incrementalUpsert(document);
+
+    await this.#backend.upsert("entries", {
+      id: this.#entryId(key),
+      scopeKind: "capture",
+      scopeId: this.#captureId,
+      owner: this.#pluginId,
+      key,
+      value: serialised,
+    } satisfies StoredDocument);
   }
 
   async delete(key: string): Promise<void> {
-    const doc = await this.#collection.findOne(this.#entryId(key)).exec();
-    await doc?.remove();
+    await this.#backend.remove("entries", this.#entryId(key));
   }
 
   async keys(): Promise<string[]> {
-    const docs = await this.#collection
-      .find({ selector: { captureId: this.#captureId, pluginId: this.#pluginId } })
-      .exec();
-    return docs.map((doc) => doc.key).sort();
+    // The finder already orders by key, so nothing is sorted here — and that is
+    // the point of pinning the ordering in the port rather than leaving each
+    // caller to re-sort and quietly disagree about collation.
+    const entries = await this.#backend.find("entries", {
+      scopeKind: "capture",
+      scopeId: this.#captureId,
+      owner: this.#pluginId,
+    });
+    return entries.map((entry) => entry.key as string);
   }
 
   #entryId(key: string): string {

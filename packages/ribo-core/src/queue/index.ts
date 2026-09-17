@@ -6,7 +6,13 @@
  * deliberately not edited from here so that the package's one list of public
  * names stays a single, reviewable file.
  *
- * The design this implements — outbox collection, per-item state machine,
+ * The RxDB schemas, migration strategies and database wiring this used to export
+ * now live in `@azx/ribo-storage-rxdb`: they describe how one backend lays data
+ * out, and a consumer of these contracts should not have to install RxDB to read
+ * them. What stays here is the domain — the zod document schemas, the state
+ * machines, and the operations over them.
+ *
+ * The design this implements — capture collection, per-item state machine,
  * foreground relay, idempotency, jittered backoff, serial ordering — is
  * `docs/implementation/09-offline-first.md`. Read that before changing anything
  * about retry or ordering semantics.
@@ -20,18 +26,6 @@ export {
   TerminalQueueError,
 } from "./backoff.js";
 export type { BackoffOptions } from "./backoff.js";
-
-export {
-  DEFAULT_OUTBOX_DATABASE_NAME,
-  openOutboxDatabase,
-  removeOutboxDatabase,
-} from "./database.js";
-export type {
-  OutboxCollection,
-  OutboxDatabase,
-  PluginStorageCollection,
-  SessionCollection,
-} from "./database.js";
 
 export { openOutbox, Outbox } from "./outbox.js";
 export type {
@@ -66,7 +60,6 @@ export {
   RECORDING_OUTBOX_STATUSES,
   outboxDocumentSchema,
   outboxItemSchema,
-  outboxRxSchema,
 } from "./schema.js";
 export type { OutboxDocument, OutboxItem, OutboxPatch, OutboxStatus } from "./schema.js";
 
@@ -77,7 +70,6 @@ export {
   SESSION_STATUSES,
   sessionDocumentSchema,
   sessionItemSchema,
-  sessionRxSchema,
 } from "./session-schema.js";
 export type {
   SessionDocument,
@@ -88,10 +80,8 @@ export type {
 
 export {
   PLUGIN_STORAGE_COLLECTION_NAME,
-  PLUGIN_STORAGE_MIGRATION_STRATEGIES,
   pluginStorageDocumentSchema,
   pluginStorageEntryId,
-  pluginStorageRxSchema,
 } from "./plugin-storage-schema.js";
 export type { PluginStorageDocument } from "./plugin-storage-schema.js";
 

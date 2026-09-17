@@ -1,10 +1,8 @@
-import type { RxStorage } from "rxdb";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
+import { createMemoryBackend, removeMemoryDatabase } from "../storage/memory-backend.js";
 import { afterEach, expect, test, vi } from "vitest";
 
 import type { Recording } from "../recording.js";
 import type { Transcript } from "../transcript.js";
-import { removeOutboxDatabase } from "./database.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 
 // The preview field, its committed+tail shape, and its handoff. Tests 3 and 4
@@ -13,12 +11,13 @@ import { openOutbox, type Outbox } from "./outbox.js";
 // run in the node `unit` project without IndexedDB — the same seam
 // `outbox-memory.test.ts` uses.
 
-const opened: { outbox: Outbox; name: string; storage: RxStorage<unknown, unknown> }[] = [];
+const opened: { outbox: Outbox; name: string }[] = [];
 
 afterEach(async () => {
-  for (const { outbox, name, storage } of opened.splice(0)) {
+  for (const { outbox, name } of opened.splice(0)) {
     if (!outbox.closed) await outbox.close();
-    await removeOutboxDatabase(name, storage);
+    // A memory database outlives its handle, as an IndexedDB one does.
+    removeMemoryDatabase(name);
   }
 });
 
@@ -38,10 +37,9 @@ const transcript: Transcript = {
 };
 
 function freshOutbox(): Promise<Outbox> {
-  const storage = getRxStorageMemory();
   const name = `ribo-outbox-preview-${crypto.randomUUID()}`;
-  return openOutbox({ name, storage }).then((outbox) => {
-    opened.push({ outbox, name, storage });
+  return openOutbox({ backend: createMemoryBackend(name) }).then((outbox) => {
+    opened.push({ outbox, name });
     return outbox;
   });
 }

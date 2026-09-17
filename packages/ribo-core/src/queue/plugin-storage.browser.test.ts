@@ -1,7 +1,7 @@
+import { createMemoryBackend, removeMemoryDatabase } from "../storage/memory-backend.js";
 import { afterEach, expect, test } from "vitest";
 
 import type { Recording } from "../recording.js";
-import { removeOutboxDatabase } from "./database.js";
 import { openOutbox } from "./outbox.js";
 
 // Browser-mode, not jsdom, for the same reason `outbox.browser.test.ts` is:
@@ -19,9 +19,7 @@ function uniqueName(): string {
 }
 
 afterEach(async () => {
-  for (const name of usedNames.splice(0)) {
-    await removeOutboxDatabase(name);
-  }
+  for (const name of usedNames.splice(0)) removeMemoryDatabase(name);
 });
 
 const recording: Recording = {
@@ -42,7 +40,7 @@ test("a value survives a fresh handle — durability, not memory", async () => {
   const name = uniqueName();
 
   // Write with the first handle.
-  const first = await openOutbox({ name });
+  const first = await openOutbox({ backend: createMemoryBackend(name) });
   const session = await first.openSession({ ctx: { jobId: "job-1" }, ref: "job-1" });
   const item = await first.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
 
@@ -53,7 +51,7 @@ test("a value survives a fresh handle — durability, not memory", async () => {
   await first.close();
 
   // Open a fresh handle over the same named database — no in-memory carry-over.
-  const second = await openOutbox({ name });
+  const second = await openOutbox({ backend: createMemoryBackend(name) });
   const fresh = second.pluginStorage(item.id, "plugin-A");
 
   expect(await fresh.get("document-id")).toEqual({ providerId: "doc-xyz", pages: 3 });
@@ -66,7 +64,7 @@ test("a value survives a fresh handle — durability, not memory", async () => {
 test("durability survives a sweep on a different capture — only the swept capture's entries are removed", async () => {
   const name = uniqueName();
 
-  const outbox = await openOutbox({ name });
+  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
   const session = await outbox.openSession({ ctx: { jobId: "job-1" }, ref: "job-1" });
   const item1 = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
   const item2 = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
@@ -77,7 +75,7 @@ test("durability survives a sweep on a different capture — only the swept capt
   await outbox.remove(item2.id);
   await outbox.close();
 
-  const reopened = await openOutbox({ name });
+  const reopened = await openOutbox({ backend: createMemoryBackend(name) });
   expect(await reopened.pluginStorage(item1.id, "plugin-A").get("k")).toBe("keep");
   expect(await reopened.pluginStorage(item2.id, "plugin-A").get("k")).toBeUndefined();
   await reopened.close();

@@ -1,7 +1,7 @@
+import { createMemoryBackend } from "../storage/memory-backend.js";
 import { expect, test } from "vitest";
 
 import { openOutbox, type Outbox } from "./outbox.js";
-import { removeOutboxDatabase } from "./database.js";
 import { chunkName } from "./chunk-names.js";
 import { CAPTURE_LOCK, holdLock } from "./capture-lock.js";
 import { recoverInterrupted } from "./recovery.js";
@@ -57,7 +57,9 @@ const failsUnlessLastDropped = {
 };
 
 test("recovery produces a complete new queued row and marks the original dead", async () => {
-  const outbox = await openOutbox({ name: `ribo-recovery-${crypto.randomUUID()}` });
+  const outbox = await openOutbox({
+    backend: createMemoryBackend(`ribo-recovery-${crypto.randomUUID()}`),
+  });
   try {
     const id = await plantInterrupted(outbox, "s1", 3);
     const recovered = await recoverInterrupted({
@@ -79,12 +81,13 @@ test("recovery produces a complete new queued row and marks the original dead", 
     expect(original!.lastError).toMatch(new RegExp(recovered[0]!));
   } finally {
     await outbox.close();
-    await removeOutboxDatabase(outbox.database.name);
   }
 });
 
 test("undecodable audio leaves the original dead with chunks intact", async () => {
-  const outbox = await openOutbox({ name: `ribo-recovery-${crypto.randomUUID()}` });
+  const outbox = await openOutbox({
+    backend: createMemoryBackend(`ribo-recovery-${crypto.randomUUID()}`),
+  });
   try {
     const id = await plantInterrupted(outbox, "s1", 2);
     await recoverInterrupted({ outbox, decode: alwaysFails, onRecovered: () => undefined });
@@ -99,12 +102,13 @@ test("undecodable audio leaves the original dead with chunks intact", async () =
     expect(merged.size).toBeGreaterThan(0);
   } finally {
     await outbox.close();
-    await removeOutboxDatabase(outbox.database.name);
   }
 });
 
 test("a truncated final chunk recovers by dropping it", async () => {
-  const outbox = await openOutbox({ name: `ribo-recovery-${crypto.randomUUID()}` });
+  const outbox = await openOutbox({
+    backend: createMemoryBackend(`ribo-recovery-${crypto.randomUUID()}`),
+  });
   try {
     const _id = await plantInterrupted(outbox, "s1", 3, true);
     const decoder = failsUnlessLastDropped;
@@ -119,12 +123,13 @@ test("a truncated final chunk recovers by dropping it", async () => {
     expect(newRow!.audioReady).toBe(true);
   } finally {
     await outbox.close();
-    await removeOutboxDatabase(outbox.database.name);
   }
 });
 
 test("recovery does nothing when the lock is held — a live session owns it", async () => {
-  const outbox = await openOutbox({ name: `ribo-recovery-${crypto.randomUUID()}` });
+  const outbox = await openOutbox({
+    backend: createMemoryBackend(`ribo-recovery-${crypto.randomUUID()}`),
+  });
   try {
     await plantInterrupted(outbox, "s1", 2);
     // Hold the capture lock — simulating a live recording in another tab.
@@ -139,12 +144,13 @@ test("recovery does nothing when the lock is held — a live session owns it", a
     release!.ready.catch(() => undefined); // don't let it reject unhandled
   } finally {
     await outbox.close();
-    await removeOutboxDatabase(outbox.database.name);
   }
 });
 
 test("recovery with no interrupted rows returns empty", async () => {
-  const outbox = await openOutbox({ name: `ribo-recovery-${crypto.randomUUID()}` });
+  const outbox = await openOutbox({
+    backend: createMemoryBackend(`ribo-recovery-${crypto.randomUUID()}`),
+  });
   try {
     const recovered = await recoverInterrupted({
       outbox,
@@ -154,6 +160,5 @@ test("recovery with no interrupted rows returns empty", async () => {
     expect(recovered).toEqual([]);
   } finally {
     await outbox.close();
-    await removeOutboxDatabase(outbox.database.name);
   }
 });

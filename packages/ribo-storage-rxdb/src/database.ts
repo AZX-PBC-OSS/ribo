@@ -5,19 +5,24 @@ import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 
 import {
-  SESSION_COLLECTION_NAME,
-  SESSION_MIGRATION_STRATEGIES,
-  sessionRxSchema,
-  type SessionDocument,
-} from "./session-schema.js";
-import { OUTBOX_COLLECTION_NAME, outboxRxSchema, type OutboxDocument } from "./schema.js";
-import {
+  OUTBOX_COLLECTION_NAME,
   PLUGIN_STORAGE_COLLECTION_NAME,
+  SESSION_COLLECTION_NAME,
+} from "@azx/ribo-core";
+import type {
+  OutboxDocument,
+  PersistedReviewOutcome,
+  PluginStorageDocument,
+  SessionDocument,
+} from "@azx/ribo-core";
+
+import {
   PLUGIN_STORAGE_MIGRATION_STRATEGIES,
+  SESSION_MIGRATION_STRATEGIES,
+  outboxRxSchema,
   pluginStorageRxSchema,
-  type PluginStorageDocument,
-} from "./plugin-storage-schema.js";
-import type { PersistedReviewOutcome } from "../review.js";
+  sessionRxSchema,
+} from "./schemas.js";
 
 /**
  * The RxDB collection holding the outbox documents.

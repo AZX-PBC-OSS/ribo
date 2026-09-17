@@ -1,3 +1,6 @@
+import { OUTBOX_MIGRATION_STRATEGIES, backfillSessions, removeOutboxDatabase } from "./database.js";
+import { openRxdbBackend } from "./open.js";
+import type { RxdbStorageBackend } from "./backend.js";
 import { addRxPlugin, createRxDatabase } from "rxdb";
 import type { RxCollection, RxDatabase, RxJsonSchema } from "rxdb";
 import { RxDBAttachmentsPlugin } from "rxdb/plugins/attachments";
@@ -6,22 +9,21 @@ import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 import { firstValueFrom } from "rxjs";
 import { afterEach, expect, test, vi } from "vitest";
 
-import type { Recording } from "../recording.js";
-import { summarizeWork } from "../work-safety.js";
-import { FINISHED_SESSION_STATUSES } from "./session-schema.js";
-import { openOutbox, type Outbox } from "./outbox.js";
-import { listSessionTranscriptParts } from "./session-extract.js";
-import { OUTBOX_MIGRATION_STRATEGIES, backfillSessions, removeOutboxDatabase } from "./database.js";
-import { chunkName } from "./chunk-names.js";
+import type { Recording } from "@azx/ribo-core";
+import { summarizeWork } from "@azx/ribo-core";
+import { FINISHED_SESSION_STATUSES } from "@azx/ribo-core";
+import { openOutbox, type Outbox } from "@azx/ribo-core";
+import { listSessionTranscriptParts } from "@azx/ribo-core";
+import { chunkName } from "@azx/ribo-core";
 import {
   ACTIVE_OUTBOX_STATUSES,
   AUDIO_ATTACHMENT_ID,
   FINISHED_OUTBOX_STATUSES,
   OUTBOX_COLLECTION_NAME,
-  outboxRxSchema,
   type OutboxDocument,
   type OutboxItem,
-} from "./schema.js";
+} from "@azx/ribo-core";
+import { outboxRxSchema } from "./schemas.js";
 
 // Browser-mode, not jsdom, and that is the entire point of this file.
 // `fake-indexeddb` (what jsdom tests would reach for) is an in-memory shim: a
@@ -44,8 +46,12 @@ function uniqueName(): string {
   return name;
 }
 
-async function open(name: string, options: Parameters<typeof openOutbox>[0] = { name }) {
-  const outbox = await openOutbox({ ...options, name });
+async function open(name: string, options: Partial<Parameters<typeof openOutbox>[0]> = {}) {
+  // The RxDB backend, emphatically not the memory one. This whole file exists to
+  // prove that state reaches real IndexedDB and survives a reopen, and that the
+  // migration ladder runs against what is physically on disk — a memory backend
+  // would fake exactly the property under test.
+  const outbox = await openOutbox({ ...options, backend: await openRxdbBackend({ name }) });
   openDatabases.push(outbox);
   return outbox;
 }
@@ -169,7 +175,7 @@ test("an item and its audio survive being closed and reopened, and are physicall
 
   // -- Part 2: a fresh instance reads it back through the public API. -------
   const second = await open(name);
-  expect(second.database).not.toBe(first.database);
+  expect(second.backend).not.toBe(first.backend);
 
   const reloaded = await second.get(enqueued.id);
   expect(reloaded).toEqual(enqueued);
@@ -729,7 +735,9 @@ test("the migration carrier is cleared once its session holds the data", async (
   const outbox = await open(name);
   // v6 is not deployed, so the carrier never needs to outlive the backfill that
   // consumes it — no second schema version is required to tidy it away.
-  const [doc] = await outbox.database.collections.outbox.find().exec();
+  const [doc] = await (outbox.backend as RxdbStorageBackend).database.collections.outbox
+    .find()
+    .exec();
   expect(doc!.toJSON()).not.toHaveProperty("legacy");
   await outbox.close();
 });
@@ -757,10 +765,12 @@ test("a backfill that already created the session does not insert it twice", asy
   });
 
   const outbox = await open(name);
-  const [doc] = await outbox.database.collections.outbox.find().exec();
+  const [doc] = await (outbox.backend as RxdbStorageBackend).database.collections.outbox
+    .find()
+    .exec();
   await doc!.incrementalPatch({ legacy: { extracted: { hvac: "furnace" } } });
 
-  await backfillSessions(outbox.database);
+  await backfillSessions((outbox.backend as RxdbStorageBackend).database);
 
   expect(await outbox.listSessions({})).toHaveLength(1);
   await outbox.close();

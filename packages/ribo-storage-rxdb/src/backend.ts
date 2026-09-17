@@ -6,9 +6,6 @@ import {
   OUTBOX_COLLECTION_NAME,
   PLUGIN_STORAGE_COLLECTION_NAME,
   SESSION_COLLECTION_NAME,
-  outboxRxSchema,
-  pluginStorageRxSchema,
-  sessionRxSchema,
 } from "@azx/ribo-core";
 import type {
   BlobDescriptor,
@@ -16,10 +13,12 @@ import type {
   CollectionName,
   Finders,
   Modifier,
-  OutboxDatabase,
   StorageBackend,
   StoredDocument,
 } from "@azx/ribo-core";
+
+import type { OutboxDatabase } from "./database.js";
+import { outboxRxSchema, pluginStorageRxSchema, sessionRxSchema } from "./schemas.js";
 
 /**
  * @file The RxDB implementation of the storage port.
@@ -204,18 +203,36 @@ function entryToPersisted(document: StoredDocument): Record<string, unknown> {
   };
 }
 
+/**
+ * A storage backend that is known to be this one, and so can hand back the RxDB
+ * database underneath it.
+ *
+ * This is the deliberate replacement for the old `Outbox.database` getter. That
+ * one lived on core and made RxDB part of core's public surface for everyone; the
+ * escape hatch now lives in the package that already owns RxDB, so a host reaches
+ * for it knowingly and nobody else inherits the dependency.
+ */
+export interface RxdbStorageBackend extends StorageBackend {
+  /** The database this backend reads and writes, for hosts adding their own collections. */
+  readonly database: OutboxDatabase;
+}
+
 /** Create a backend over an already-open RxDB database. */
-export function createRxdbBackend(database: OutboxDatabase, name: string): StorageBackend {
+export function createRxdbBackend(database: OutboxDatabase, name: string): RxdbStorageBackend {
   return new RxdbBackend(database, name);
 }
 
-class RxdbBackend implements StorageBackend {
+class RxdbBackend implements RxdbStorageBackend {
   readonly name: string;
   readonly #database: OutboxDatabase;
 
   constructor(database: OutboxDatabase, name: string) {
     this.#database = database;
     this.name = name;
+  }
+
+  get database(): OutboxDatabase {
+    return this.#database;
   }
 
   // -----------------------------------------------------------------------
@@ -278,9 +295,12 @@ class RxdbBackend implements StorageBackend {
       const highest = await this.#collection(collection)
         .findOne({ sort: [{ [sequenceField]: "desc" }] })
         .exec();
+      // -1 when the collection is empty, so the first allocation is 0 — the
+      // captures schema declares `minimum: 0` and existing devices are
+      // zero-based.
       const previous = highest
         ? ((highest.toJSON() as Record<string, unknown>)[sequenceField] as number)
-        : 0;
+        : -1;
       return this.insert(collection, { ...document, [sequenceField]: previous + 1 }, blobs);
     });
   }
@@ -371,6 +391,33 @@ class RxdbBackend implements StorageBackend {
       id: attachment.id,
       length: attachment.length,
     }));
+  }
+
+  async listBlobsMany(
+    collection: CollectionName,
+    ids: readonly string[],
+  ): Promise<Map<string, BlobDescriptor[]>> {
+    if (ids.length === 0) return new Map();
+
+    // One query for the whole set, then stubs off each document in memory —
+    // `allAttachments()` reads `_data`, so this is a property walk and never
+    // fetches bytes. That keeps the derived `audioBytes` cheap enough to compute
+    // for every row of every emission, which is what it is used for.
+    const documents = await this.#collection(collection)
+      .find({ selector: { id: { $in: [...ids] } } })
+      .exec();
+
+    const result = new Map<string, BlobDescriptor[]>();
+    for (const document of documents) {
+      result.set(
+        document.primary,
+        document.allAttachments().map((attachment) => ({
+          id: attachment.id,
+          length: attachment.length,
+        })),
+      );
+    }
+    return result;
   }
 
   async removeBlob(collection: CollectionName, id: string, blobId: string): Promise<void> {

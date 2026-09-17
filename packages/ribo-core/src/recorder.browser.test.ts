@@ -1,5 +1,5 @@
+import { createMemoryBackend } from "./storage/memory-backend.js";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 import { baseRecordingSchema } from "./recording.js";
 import {
   DEFAULT_MIME_TYPE_PREFERENCES,
@@ -603,10 +603,7 @@ describe("Recorder durable capture", () => {
     // It also pins the identity: `stop()` used to mint a SECOND id and `capturedAt` for
     // the returned capture, so callers were handed metadata describing a different
     // recording than the one on disk.
-    const outbox = await openOutbox({
-      name: `t-${crypto.randomUUID()}`,
-      storage: getRxStorageMemory(),
-    });
+    const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
     const recorder = new Recorder({
       captureSession: ({
         recording,
@@ -666,10 +663,7 @@ describe("Recorder durable capture", () => {
     );
     expect(held).toBeDefined();
 
-    const outbox = await openOutbox({
-      name: `t-${crypto.randomUUID()}`,
-      storage: getRxStorageMemory(),
-    });
+    const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
     const factory = ({
       recording,
       sourceId,
@@ -700,10 +694,7 @@ describe("Recorder durable capture", () => {
     // The factory creates the recording row (via openCaptureSession), then
     // recorder.start(timeslice) throws — the catch in start() must teardown,
     // which aborts the session (removing the row) and releases the lock.
-    const outbox = await openOutbox({
-      name: `t-${crypto.randomUUID()}`,
-      storage: getRxStorageMemory(),
-    });
+    const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
     const factory = ({
       recording,
       sourceId,

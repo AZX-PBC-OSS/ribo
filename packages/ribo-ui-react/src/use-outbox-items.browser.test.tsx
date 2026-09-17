@@ -1,8 +1,8 @@
+import { createMemoryBackend } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { StrictMode, useState } from "react";
 import { openOutbox, type Outbox } from "@azx/ribo-core";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 
 import { useOutboxItems } from "./use-outbox-items.js";
 
@@ -16,8 +16,7 @@ type WatchObservable = ReturnType<Outbox["watch"]>;
 type WatchObserver = Parameters<WatchObservable["subscribe"]>[0];
 type WatchSubscription = ReturnType<WatchObservable["subscribe"]>;
 
-const freshOutbox = () =>
-  openOutbox({ name: `t-${crypto.randomUUID()}`, storage: getRxStorageMemory() });
+const freshOutbox = () => openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
 
 const aRecording = () => ({
   recording: {

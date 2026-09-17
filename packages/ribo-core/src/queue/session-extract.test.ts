@@ -1,5 +1,4 @@
-import type { RxStorage } from "rxdb";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
+import { createMemoryBackend, removeMemoryDatabase } from "../storage/memory-backend.js";
 import { afterEach, expect, test } from "vitest";
 
 import type { DocumentCapture } from "../capture-item.js";
@@ -7,7 +6,6 @@ import { FakeExtractor, toSessionExtractStep } from "../extractor.js";
 import { isSpanGrounded } from "../provenance.js";
 import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
 import type { Recording } from "../recording.js";
-import { removeOutboxDatabase } from "./database.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 import { joinSessionTranscript, listSessionTranscriptParts } from "./session-extract.js";
 
@@ -27,20 +25,20 @@ import { joinSessionTranscript, listSessionTranscriptParts } from "./session-ext
 // the first two red, and dropping the page markers from the joined text turns
 // the third red.
 
-const opened: { outbox: Outbox; name: string; storage: RxStorage<unknown, unknown> }[] = [];
+const opened: { outbox: Outbox; name: string }[] = [];
 
 afterEach(async () => {
-  for (const { outbox, name, storage } of opened.splice(0)) {
+  for (const { outbox, name } of opened.splice(0)) {
     if (!outbox.closed) await outbox.close();
-    await removeOutboxDatabase(name, storage);
+    // A memory database outlives its handle, as an IndexedDB one does.
+    removeMemoryDatabase(name);
   }
 });
 
 async function freshOutbox(): Promise<Outbox> {
-  const storage = getRxStorageMemory();
   const name = `ribo-session-extract-${crypto.randomUUID()}`;
-  const outbox = await openOutbox({ name, storage });
-  opened.push({ outbox, name, storage });
+  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
+  opened.push({ outbox, name });
   return outbox;
 }
 

@@ -2,11 +2,10 @@ import { expect, test } from "vitest";
 
 import {
   PLUGIN_STORAGE_COLLECTION_NAME,
-  PLUGIN_STORAGE_MIGRATION_STRATEGIES,
   pluginStorageDocumentSchema,
   pluginStorageEntryId,
-  pluginStorageRxSchema,
-} from "./plugin-storage-schema.js";
+} from "@azx/ribo-core";
+import { PLUGIN_STORAGE_MIGRATION_STRATEGIES, pluginStorageRxSchema } from "./schemas.js";
 
 // Same drift guard `schema.test.ts` and `session-schema.test.ts` provide for
 // their collections: the zod schema (the trust boundary) and the RxDB JSON

@@ -1,7 +1,7 @@
+import { createMemoryBackend } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { createConnectivity, openOutbox, type Outbox } from "@azx/ribo-core";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 
 import { RiboProvider } from "./RiboProvider.js";
 import { useWorkSafety } from "./use-work-safety.js";
@@ -13,8 +13,7 @@ import { useWorkSafety } from "./use-work-safety.js";
  * this is spelled out rather than importing rxjs directly. */
 type WatchObservable = ReturnType<Outbox["watch"]>;
 
-const freshOutbox = () =>
-  openOutbox({ name: `t-${crypto.randomUUID()}`, storage: getRxStorageMemory() });
+const freshOutbox = () => openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
 
 /**
  * A connectivity model over injected seams — no real network, no real events.

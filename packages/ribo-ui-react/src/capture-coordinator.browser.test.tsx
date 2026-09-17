@@ -1,3 +1,4 @@
+import { createMemoryBackend } from "@azx/ribo-core";
 import { afterEach, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { BehaviorSubject } from "rxjs";
@@ -10,7 +11,6 @@ import {
   type Outbox,
   type WorkSafety,
 } from "@azx/ribo-core";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 
 import { createCaptureCoordinator } from "./capture-coordinator.js";
 import type { CaptureCoordinator } from "./capture-coordinator.js";
@@ -99,10 +99,7 @@ test("a session registered by useRecorder is visible to a SIBLING useWorkSafety"
   // subscribed useWorkSafety — the same observable mechanism, just a different
   // timing. The test verifies the coordinator plumbing, not the exact call site.
   const captureCoordinator = createCaptureCoordinator();
-  const outbox = await openOutbox({
-    name: `t-${crypto.randomUUID()}`,
-    storage: getRxStorageMemory(),
-  });
+  const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
   // Pre-populate with a queued item so work.pending > 0 — the safety then
   // depends on capture health, which is the thing under test.
   await outbox.enqueue({
@@ -146,10 +143,7 @@ test("a session registered by useRecorder is visible to a SIBLING useWorkSafety"
 
 test("the session disappears on a failed start", async () => {
   const captureCoordinator = createCaptureCoordinator();
-  const outbox = await openOutbox({
-    name: `t-${crypto.randomUUID()}`,
-    storage: getRxStorageMemory(),
-  });
+  const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
   // A recorder that fails on start — the microphone is denied.
   const failingRecorder = new Recorder({
     getUserMedia: () => Promise.reject(new DOMException("no", "NotAllowedError")),
@@ -169,10 +163,7 @@ test("the session disappears on a failed start", async () => {
 });
 
 test("no coordinator means no durable capture and today's behaviour", async () => {
-  const outbox = await openOutbox({
-    name: `t-${crypto.randomUUID()}`,
-    storage: getRxStorageMemory(),
-  });
+  const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
   const recorder = new Recorder();
   started.push(recorder);
 

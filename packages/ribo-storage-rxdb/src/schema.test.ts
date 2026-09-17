@@ -8,9 +8,9 @@ import {
   RECORDING_OUTBOX_STATUSES,
   outboxDocumentSchema,
   outboxItemSchema,
-  outboxRxSchema,
-} from "./schema.js";
-import type { OutboxPatch } from "./schema.js";
+} from "@azx/ribo-core";
+import { outboxRxSchema } from "./schemas.js";
+import type { OutboxPatch } from "@azx/ribo-core";
 
 // One document, described twice: once in zod (the read/write trust boundary) and
 // once in RxDB's JSON schema (which carries the primary key, indexes and

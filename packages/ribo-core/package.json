@@ -51,7 +51,6 @@
     "build": "tsdown"
   },
   "dependencies": {
-    "rxdb": "catalog:",
     "rxjs": "catalog:",
     "zod": "catalog:"
   },

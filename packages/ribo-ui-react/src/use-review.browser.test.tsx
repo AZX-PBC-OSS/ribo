@@ -1,3 +1,4 @@
+import { createMemoryBackend } from "@azx/ribo-core";
 import { describe, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import {
@@ -9,7 +10,6 @@ import {
   type RankedCandidate,
   type SessionItem,
 } from "@azx/ribo-core";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 import { z } from "zod";
 
 import { useReview, type UseReviewOptions, type UseReviewResult } from "./use-review.js";
@@ -60,10 +60,7 @@ const recording = () => ({
  * `awaiting-review` with the extraction output.
  */
 async function parkedItem() {
-  const outbox = await openOutbox({
-    name: `t-${crypto.randomUUID()}`,
-    storage: getRxStorageMemory(),
-  });
+  const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
   const session = await outbox.openSession({ ctx: {}, ref: "job-7" });
   const rec = await outbox.enqueue({
     recording: recording(),
@@ -721,10 +718,7 @@ describe("useReview — instance identity: link-or-create decision", () => {
   } as const;
 
   async function collectionParkedItem() {
-    const outbox = await openOutbox({
-      name: `t-${crypto.randomUUID()}`,
-      storage: getRxStorageMemory(),
-    });
+    const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
     const session = await outbox.openSession({ ctx: {}, ref: "job-7" });
     const rec = await outbox.enqueue({
       recording: recording(),

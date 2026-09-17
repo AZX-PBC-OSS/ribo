@@ -1,21 +1,20 @@
-import type { RxStorage } from "rxdb";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
+import { createMemoryBackend, removeMemoryDatabase } from "../storage/memory-backend.js";
 import { afterEach, expect, test } from "vitest";
 
 import type { PersistedReviewOutcome } from "../review.js";
-import { removeOutboxDatabase } from "./database.js";
 import { openOutbox, type Outbox } from "./outbox.js";
 
 // Session lifecycle operations, driven through the public Outbox API over
 // memory storage — same seam as outbox-memory.test.ts, same reason: memory
 // needs no IndexedDB, so these run as fast node `unit` tests.
 
-const opened: { outbox: Outbox; name: string; storage: RxStorage<unknown, unknown> }[] = [];
+const opened: { outbox: Outbox; name: string }[] = [];
 
 afterEach(async () => {
-  for (const { outbox, name, storage } of opened.splice(0)) {
+  for (const { outbox, name } of opened.splice(0)) {
     if (!outbox.closed) await outbox.close();
-    await removeOutboxDatabase(name, storage);
+    // A memory database outlives its handle, as an IndexedDB one does.
+    removeMemoryDatabase(name);
   }
 });
 
@@ -24,10 +23,9 @@ function uniqueName(): string {
 }
 
 async function open(): Promise<Outbox> {
-  const storage = getRxStorageMemory();
   const name = uniqueName();
-  const outbox = await openOutbox({ name, storage });
-  opened.push({ outbox, name, storage });
+  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
+  opened.push({ outbox, name });
   return outbox;
 }
 
@@ -86,14 +84,9 @@ test("getSession returns undefined for a missing id", async () => {
 
 test("listSessions returns sessions sorted by openedAt ascending", async () => {
   let t = 0;
-  const storage = getRxStorageMemory();
   const name = uniqueName();
-  const outbox = await openOutbox({
-    name,
-    storage,
-    now: () => t,
-  });
-  opened.push({ outbox, name, storage });
+  const outbox = await openOutbox({ backend: createMemoryBackend(name), now: () => t });
+  opened.push({ outbox, name });
 
   t = 1_000;
   const first = await outbox.openSession(SESSION_INPUT);
