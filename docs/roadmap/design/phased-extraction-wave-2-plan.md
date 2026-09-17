@@ -52,13 +52,17 @@
 
 - Modify: `packages/ribo-core/src/grouped-extractor.ts:423`
 - Modify: `packages/ribo-core/src/grouped-extractor.test.ts`
-- Modify: `packages/ribo-core/src/arbitration.test.ts`, `packages/ribo-extractor-openai/src/gap-fill.test.ts`, `packages/ribo-extractor-openai/src/schema-retry.test.ts`, `packages/ribo-extractor-openai/src/per-group.test.ts` (one added assertion each)
+- Modify: `packages/ribo-core/src/fallback-extractor.test.ts`, `packages/ribo-core/src/race-extractor.test.ts`, `packages/ribo-core/src/extractor.test.ts`, `packages/ribo-core/src/retry-extractor.test.ts`, `packages/ribo-extractor-openai/src/gap-fill.test.ts`, `packages/ribo-extractor-openai/src/schema-retry.test.ts`, `packages/ribo-extractor-openai/src/per-group.test.ts` (one added assertion each)
 
 **Interfaces:**
 
 - Consumes: `ExtractOptions.deadline` from Task 1.
 
-**The finding this task acts on.** A survey of every `.extract(` call site in `packages/*/src` found exactly one that rebuilds the options bag instead of forwarding it: `grouped-extractor.ts:423` passes `{ signal: effectiveSignal }`, dropping every other member. Six other sites (`extractor.ts:164`, `arbitration.ts:371`, `arbitration.ts:440`, `gap-fill.ts:506`, `per-group.ts:283`, `schema-retry.ts:184`) forward `options` whole and are already correct. The fix is one line; the tests exist so the next member added to the bag does not have to rediscover this.
+**The finding this task acts on.** A survey of every `.extract(` call site in `packages/*/src` found exactly one that rebuilds the options bag instead of forwarding it: `grouped-extractor.ts:423` passes `{ signal: effectiveSignal }`, dropping every other member. `packages/ribo-ui-react/src` and `playground/src` contain no `.extract(` call sites in source at all. **Seven** other sites forward `options` whole and are already correct: `extractor.ts:164` (`toSessionExtractStep`), `retry-extractor.ts:128`, `arbitration.ts:371`, `arbitration.ts:440`, `gap-fill.ts:506`, `per-group.ts:283`, `schema-retry.ts:184`. (`timeout-extractor.ts:132` also builds a new bag, but by spreading, so it forwards correctly today — and Task 3 rewrites it regardless.)
+
+The fix is one line; the pins exist so the next member added to the bag does not have to rediscover this.
+
+**Where each pin actually goes — the obvious homes are wrong for two of them.** `arbitration.test.ts` has no extractor harness at all; it tests arbiter verdict functions and outcome discrimination, with no candidates and no `extract` call, so the assertion is not writable there. The pins for `arbitration.ts:371` and `:440` belong in `fallback-extractor.test.ts` and `race-extractor.test.ts`, which drive those paths — `fallback-extractor.test.ts` already pins signal forwarding through this exact route and needs only the `deadline` twin. `toSessionExtractStep`'s home is `extractor.test.ts`, which likewise already pins signal forwarding.
 
 - [ ] **Step 1: Write the failing test for `groupedExtractor`**
 
@@ -101,11 +105,17 @@
 
 **Why it passes its own deadline down rather than forwarding what it received.** `timeoutExtractor` is the first combinator that holds a budget, so it is the first that must narrow. An inner extractor told the _caller's_ deadline would believe it has longer than this combinator will actually allow, and would size its own retries against a wall that will never be reached because the timer fires first.
 
+**Rejecting immediately on an already-past deadline is correct, and here is why it is safe.** The worry would be that an immediate rejection turns a slow-but-recoverable run into a dead session. It cannot, for three reasons. After Task 4 the only thing that sets a deadline is the relay, which mints a fresh one on every attempt — a stale deadline cannot reach the tree from the queue. `ExtractionTimeoutError` is deliberately unbranded, so `isTransientFailure` treats it as transient and the relay parks and retries with a new deadline rather than killing the session. And making one attempt anyway would run work past a wall the caller imposed, which defeats the narrowing contract Wave 3's phased combinator is built on.
+
 - [ ] **Step 1: Write the failing tests**
 
-  Assert: with no inherited deadline, behaviour is exactly as Wave 1 left it (run the existing suite unchanged — it must not need amending); with an inherited deadline **later** than `now + timeoutMs`, the inner extractor receives a deadline equal to this combinator's own, and the timer still governs; with an inherited deadline **earlier** than `now + timeoutMs`, the inner receives the inherited one and the combinator rejects at the inherited deadline rather than the later one; and with an inherited deadline **already in the past**, the combinator rejects immediately with `ExtractionTimeoutError` **without calling the inner extractor at all** (assert the stub recorded zero calls).
+  Assert: **with no inherited deadline, the inner extractor still receives one** — `now + timeoutMs`, this combinator's own. This is the case the obvious test list misses, and two observably different implementations ("always pass the effective deadline down" versus "only pass it down when one was inherited") both satisfy "behaviour is as Wave 1 left it", because Wave 1's suite never asserts the bag's contents. Design §4.5's rule is that every combinator holding a budget contributes it, so always-pass is correct and must be pinned; anything nested below (`retryExtractor(timeoutExtractor(inner))`) can see the difference.
 
-  Use the injected `scheduleTimer` and an injectable clock. If `timeout-extractor.ts` has no clock seam from Wave 1, add one (`now?: () => number`, defaulting to `Date.now`), matching how `compositeExtractor` and `hedged` inject theirs — do not use real time in tests.
+  Then: with an inherited deadline **later** than `now + timeoutMs`, the inner receives this combinator's own and the timer still governs; with an inherited deadline **earlier**, the inner receives the inherited one and the combinator rejects at the inherited deadline rather than the later one; and with an inherited deadline **already in the past**, the combinator rejects immediately with `ExtractionTimeoutError` **without calling the inner extractor at all** (assert the stub recorded zero calls).
+
+  **Pin what the error carries when the budget was narrowed.** `ExtractionTimeoutError`'s message names "the budget that elapsed", and with an inherited deadline there are two candidate numbers — this combinator's own `timeoutMs` and the shorter inherited remainder. Use the **effective** budget actually waited, since that is what elapsed; for the already-in-the-past case, where nothing elapsed, use the combinator's own `timeoutMs`. Either choice is defensible, but it must be one of them and it must be asserted.
+
+  Use the injected `scheduleTimer` and an injectable clock. `timeout-extractor.ts` has no clock seam from Wave 1 — add one (`now?: () => number`, defaulting to `Date.now`), matching `compositeExtractor` and `hedged`. The existing `makeCapturedTimer` double discards the delay it is handed, so extend it to record that value: the "timer scheduled for the remaining interval" assertions cannot be written without it.
 
 - [ ] **Step 2: Run to verify they fail**
 
@@ -133,9 +143,15 @@
 
 **Why this task matters more than it looks.** Without it the deadline is theoretical: combinators would honour each other, but nothing would ever set an initial value, so every `deadline` in the tree would be `undefined` and §4.5's whole mechanism would be inert in production while passing all its unit tests. The relay already owns `stepTimeoutMs` and already aborts a step signal on timeout; setting `deadline` alongside that signal is the one change that makes the member real.
 
+**The relay has two clocks, and this task must use the right one.** `relay.ts:319` gives the relay an injectable `#now` (`options.now ?? Date.now`), used for eligibility checks and backoff at `:369`, `:376` and `:389`. But `withTimeout` — the thing that actually aborts the step — schedules with a bare `setTimeout` (`relay.ts:209`), which is the real clock and cannot be injected. Minting the deadline from `#now` would therefore put the advisory deadline on a **different time base from the abort timer**: harmless when nobody injects a clock, wrong for any host or test that does, and it is precisely the "a step believes it has time after the relay has already aborted it" failure this wave exists to prevent.
+
+So: mint the deadline as `Date.now() + stepTimeoutMs`, adjacent to the options literal, and do **not** use `#now`. Threading the injectable clock into `withTimeout` would be a new seam, which this task does not need and the design does not ask for.
+
 - [ ] **Step 1: Write the failing test**
 
-  Drive the relay through an extraction step with an injected `sessionExtract` that records the options it was handed, and assert it received a `deadline` approximately `stepTimeoutMs` in the future (assert a range, not an exact value — the relay's own clock advances between the two reads). Assert it is consistent with the step timeout the relay was configured with, by configuring a distinctly small one and checking the deadline moved with it.
+  Drive the relay through an extraction step with a `sessionExtract` that records the options it was handed, and assert it received a `deadline` inside a small window of `Date.now() + stepTimeoutMs`. The window must be measured against **real** time, not the test clock: the relay's injected clock in the browser suite is a `TestClock` that advances only when `advance()` is called and never drifts on its own, so a test written against it would pass for a `#now`-based implementation — which is the bug. Asserting against real time is what discriminates them.
+
+  Configure a distinctly small `stepTimeoutMs` and check the deadline moves with it. Note the shared relay test harness does not expose a `stepTimeoutMs` override; the existing step-timeout tests bypass it and call `createRelay` directly. Follow that pattern rather than extending the harness.
 
 - [ ] **Step 2: Run to verify it fails**
 
@@ -143,7 +159,7 @@
 
 - [ ] **Step 3: Implement**
 
-  Set `deadline` from the same clock and the same `stepTimeoutMs` the existing `withTimeout` call uses, so the two cannot drift apart. If the relay has an injectable clock, use it; if it uses `Date.now()` directly, match that rather than introducing a seam this task does not need.
+  Set `deadline: Date.now() + stepTimeoutMs` in the options bag handed to the extract step, beside the signal it already passes, using the same `stepTimeoutMs` value `withTimeout` is given so the two cannot disagree.
 
 - [ ] **Step 4: Run to verify it passes, then the whole relay suite**
 
@@ -224,6 +240,27 @@
 - Making any combinator other than `timeoutExtractor` narrow the deadline. None of the others hold a budget yet. `groupedExtractor` derives a retry budget from `stepTimeoutMs` but does not hold a wall-clock deadline, and changing that is Wave 3's problem, where the phased combinator needs it.
 - Enforcing the deadline structurally. Nothing checks that a callee honours it; that is the same advisory contract `signal` has.
 
-## Notes for the reviewer
+## Reviewed
 
-Two things most worth adversarial attention. First, Task 4: whether the relay's deadline and its `withTimeout` can drift apart, and whether a deadline set from a different clock reading than the timeout would ever let a step believe it has time after the relay has already aborted it. Second, Task 3's "already in the past" case: whether rejecting without calling the inner extractor is right, or whether a caller who passed a stale deadline would rather have one attempt made.
+Reviewed by OpenCode (`glm-5p3-flash`, run ff18) before implementation. All findings applied.
+
+The substantive one was Task 4: the plan originally said to use the relay's injectable clock if it
+had one. It has one, and `withTimeout` does not use it — so following that instruction would have
+shipped the exact drift this wave exists to prevent, and the test as originally described could not
+have caught it, because the browser suite's `TestClock` never advances on its own. Task 4 now pins
+`Date.now()` parity and says why.
+
+The survey claim was also wrong on the count — seven whole-forwarders, not six. `retry-extractor.ts`
+landed in Wave 1 _after_ the survey was run and was missed. And two pins were aimed at
+`arbitration.test.ts`, which has no extractor harness and cannot host them; they are re-homed to the
+fallback and race suites.
+
+Task 3 gained two pins it was missing: what the inner extractor receives when nothing was inherited
+(always-pass, per design §4.5 — two different implementations satisfied the original wording), and
+which budget the error reports when the deadline narrowed it. The review also resolved the
+"already in the past" question the plan had left open, which is now stated in Task 3 rather than
+deferred.
+
+Task 5 and the task ordering were verified sound: `PhaseUnit` is constructed only by the on-device
+emitter, no test constructs one, every existing assertion is a `pass === n` comparison that survives
+the widening, and nothing in `ribo-ui-react` or `playground/src` consumes `onUnit`.
