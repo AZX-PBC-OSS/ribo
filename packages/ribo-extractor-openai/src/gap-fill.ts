@@ -298,8 +298,11 @@ export function mergeGapFilledLeaves<V extends Record<string, unknown>, P = NoPr
  * data that parsed against this schema — but a wrong assumption here would
  * otherwise surface as an opaque zod error far from its cause, so the guard
  * throws naming the path.
+ *
+ * Exported for the follow-up phase (`gap-fill-phase.ts`), which builds the same
+ * scoped response schema; not part of the package barrel.
  */
-const leafSchemaAtPath = (schema: z.ZodType, path: LeafPath): z.ZodType => {
+export const leafSchemaAtPath = (schema: z.ZodType, path: LeafPath): z.ZodType => {
   let current = schema;
   for (const segment of path) {
     const next =
@@ -361,8 +364,11 @@ Setting null is a fully valid answer and is the right one whenever the transcrip
  * own already-found quote) as a user turn, and the transcript LAST — the
  * injection boundary (everything after the instructions is the auditor's
  * transcript, never instructions) depends on that ordering.
+ *
+ * Exported for the follow-up phase (`gap-fill-phase.ts`), which sends exactly
+ * these messages; not part of the package barrel.
  */
-const buildGapFillMessages = <V extends Record<string, unknown>, P = NoProvenance>(
+export const buildGapFillMessages = <V extends Record<string, unknown>, P = NoProvenance>(
   target: ExtractionTarget<V, P>,
   transcript: string,
   candidates: readonly AbstainedLeaf[],
@@ -411,8 +417,11 @@ const buildGapFillMessages = <V extends Record<string, unknown>, P = NoProvenanc
  * or to an honest null, and can never make a leaf worse than the base run left it. That property
  * is what allows it to run automatically. `"abstained"` candidates are untouched — their base
  * value is null, so anything the follow-up commits to is the answer being sought.
+ *
+ * Exported for the follow-up phase (`gap-fill-phase.ts`), whose merge applies it;
+ * not part of the package barrel.
  */
-const acceptImprovements = (
+export const acceptImprovements = (
   followUp: Readonly<Record<string, Extracted<unknown>>>,
   candidates: readonly AbstainedLeaf[],
   transcript: string,
