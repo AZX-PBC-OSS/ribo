@@ -8,6 +8,7 @@ import {
   CAPTURES_COLLECTION_NAME,
   PLUGIN_STORAGE_COLLECTION_NAME,
   SESSION_COLLECTION_NAME,
+  captureV5ToV6Upgrade,
 } from "@azx/ribo-core";
 import type {
   CaptureDocument,
@@ -82,35 +83,6 @@ function legacyOf(doc: CaptureDocument): LegacySessionFields | undefined {
 }
 
 /**
- * Derive a deterministic session id from the recording's `ctx.assessmentId`.
- * Recordings with no `assessmentId` get a singleton session.
- *
- * Deterministic (not a random UUID) is load-bearing twice over: it is what
- * groups a job's recordings into one session, and it is what lets the backfill
- * re-run without creating a second session for work it already lifted.
- *
- * `ref` now carries the "what this session is for" meaning the id-as-
- * assessment-id trick was reaching for; the session keeps its own generated
- * id, and `ref` is the indexed query target. This function stays because its
- * output is still the session id that groups recordings together.
- */
-export function migratedSessionId(ctx: unknown): string {
-  if (typeof ctx === "object" && ctx !== null && "assessmentId" in ctx) {
-    const assessmentId = (ctx as Record<string, unknown>).assessmentId;
-    if (typeof assessmentId === "string" && assessmentId.length > 0) {
-      return `migrated-session-${assessmentId}`;
-    }
-  }
-  // Recordings with no assessmentId share one singleton session per storage.
-  return `migrated-session-singleton`;
-}
-
-/**
- * Derive a `ref` from the recording's `ctx.assessmentId`, with the same
- * singleton fallback {@link migratedSessionId} uses. This is the same recovery
- * the relay used to do on every write — done once at migration time instead.
- */
-/**
  * The write destination for a migrated session, or an empty object when the
  * recording carried none.
  *
@@ -127,6 +99,14 @@ function migratedCtx(ctx: unknown): Record<string, unknown> {
   return typeof ctx === "object" && ctx !== null ? (ctx as Record<string, unknown>) : {};
 }
 
+/**
+ * Derive a `ref` from the recording's `ctx.assessmentId`, with the same singleton
+ * fallback `captureV5ToV6Upgrade`'s session id uses. This is the same recovery the
+ * relay used to do on every write — done once at migration time instead.
+ *
+ * This comment was stranded above `migratedCtx` and is moved here, where it
+ * belongs; its `{@link}` pointed at a function that now lives in `@azx/ribo-core`.
+ */
 function migratedSessionRef(ctx: unknown): string {
   if (typeof ctx === "object" && ctx !== null && "assessmentId" in ctx) {
     const assessmentId = (ctx as Record<string, unknown>).assessmentId;
@@ -136,9 +116,6 @@ function migratedSessionRef(ctx: unknown): string {
   }
   return "migrated-session-singleton";
 }
-
-/** v5 recording statuses that the session, not the recording, now owns. */
-const V5_SESSION_OWNED_STATUSES = new Set(["extracting", "awaiting-review", "writing", "done"]);
 
 /**
  * Schema-migration strategies for the storage collection, keyed by the schema
@@ -240,46 +217,7 @@ export const CAPTURE_MIGRATION_STRATEGIES = {
   3: (doc: CaptureDocument) => doc,
   4: (doc: CaptureDocument) => doc,
   5: (doc: CaptureDocument) => doc,
-  6: (doc: Record<string, unknown>) => {
-    // v5 → v6, the EXPAND half of the split. Per-document, no side effects, and
-    // idempotent: running it twice on the same document yields the same result,
-    // which is what a checkpoint-resumed migration requires.
-    const next: Record<string, unknown> = { ...doc };
-
-    const legacy: LegacySessionFields = {};
-    if (doc.extracted !== undefined) legacy.extracted = doc.extracted as Record<string, unknown>;
-    if (doc.extractedBy !== undefined) legacy.extractedBy = doc.extractedBy as string;
-    if (doc.reviewOutcome !== undefined)
-      legacy.reviewOutcome = doc.reviewOutcome as PersistedReviewOutcome;
-    if (doc.writeResult !== undefined)
-      legacy.writeResult = doc.writeResult as Record<string, unknown>;
-    if (doc.writtenInstances !== undefined)
-      legacy.writtenInstances = doc.writtenInstances as Record<string, boolean[]>;
-    if (doc.idempotencyKey !== undefined) legacy.idempotencyKey = doc.idempotencyKey as string;
-
-    delete next.extracted;
-    delete next.extractedBy;
-    delete next.reviewOutcome;
-    delete next.writeResult;
-    delete next.writtenInstances;
-    delete next.idempotencyKey;
-    next.legacy = legacy;
-
-    // The recording state machine narrows to capture + transcription. A row
-    // parked in a status the session now owns has, by definition, been
-    // transcribed already.
-    if (V5_SESSION_OWNED_STATUSES.has(next.status as string)) next.status = "transcribed";
-
-    // The RECORDING'S CTX, not the recording. `migratedSessionId` reads
-    // `ctx.assessmentId`, and a recording has no `assessmentId` of its own —
-    // handing it the whole recording made the `"assessmentId" in ctx` test
-    // always false, so every row on a device fell through to the singleton and
-    // one session swallowed every job the auditor had ever captured. The
-    // parameter is `unknown`, so nothing failed; the storage simply grouped
-    // wrongly and silently.
-    next.sessionId = migratedSessionId((doc.recording as { ctx?: unknown } | undefined)?.ctx);
-    return next as CaptureDocument;
-  },
+  6: captureV5ToV6Upgrade,
   7: (doc: CaptureDocument) => doc,
 };
 

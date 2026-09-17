@@ -27,6 +27,8 @@ export {
 } from "./backoff.js";
 export type { BackoffOptions } from "./backoff.js";
 
+export { captureV5ToV6Upgrade } from "./upgrades/v5-to-v6.js";
+
 export { openStorage, Storage } from "./storage.js";
 export type { OpenStorageOptions } from "./storage.js";
 export { CaptureStore } from "./captures.js";

@@ -76,6 +76,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "captureDocumentSchema",
     "capturePayloadSchema",
     "captureSchema",
+    "captureV5ToV6Upgrade",
     "childPath",
     "chunkName",
     "chunkPrefix",
