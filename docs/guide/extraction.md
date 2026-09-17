@@ -148,6 +148,185 @@ model class that retrying the same call could never fix. Splitting the ask broug
 source-span fidelity to 100% grounded. Like the managed extractors, it reads its schema from
 `ExtractionTarget.extractionSchema` and knows nothing about any one host adapter.
 
+## Phased composition: a multi-pass strategy is a list of phases
+
+`gapFillExtractor`, `scopedInstanceExtractor` and `threePhaseExtractor` above look like three
+bespoke orchestrators. They are not — each is a preset over one combinator, `phasedExtractor`
+(`@azx/ribo-core`), that runs a list of **phases** in order. You meet this machinery when you wire
+one of those presets together by hand, extend one with a pass of your own, or write a fourth
+multi-pass strategy — which is now a phase list rather than a hand-rolled loop.
+
+### What a phase is
+
+A phase is a value with three functions, built with `phaseBuilder<V, P>()`:
+
+- **`plan(draft, ctx)`** returns this pass's work items, narrowed from the state the previous
+  phases accumulated. It is **synchronous and pure**, and that is a constraint with a purpose: a
+  phase that needs I/O to decide its work does that I/O in an earlier phase's `run` — inventory →
+  fill is exactly that shape — and keeping `plan` sync is what makes every narrowing rule testable
+  with a plain object and no model.
+- **`run(item, draft, ctx)`** does one unit of work — the only async member, and opaque to the
+  engine. It assembles its own messages and calls whatever transport it wants, including several
+  calls in one `run`.
+- **`merge(draft, outcomes)`** folds the batch back into the draft. It takes the whole batch rather
+  than one result at a time because some interpretations span a group's outcomes — and it owns
+  **every** write to the draft. `run` is handed the draft to read and must not write through it:
+  items within a phase run concurrently, so a mutating `run` races its siblings.
+
+### What the engine owns
+
+Everything that is not "what to ask": scheduling each phase's items through a bounded pool
+(default concurrency 4, a phase may declare its own), per-item retry, cancellation, a deadline
+carried to every item, the `onUnit` progress stream, usage accumulation summed from every phase
+output, and the closing parse of the merged fields against `target.extractionSchema` — the trust
+boundary. A phase author writes what to ask and nothing else.
+
+One precision, because a wrong mental model here sends you looking for a member that does not
+exist: **nothing slices the deadline.** Every phase's context receives the same effective deadline
+— the run's step timeout, narrowed by any deadline the caller passed in. What is divided per phase
+is the input to the retry-budget derivation — remaining time over remaining phases — which decides
+how many retries each phase gets, not how much time it gets.
+
+### The draft, and the three-state leaf
+
+Between phases, state lives on the `PhaseDraft`: `fields` fill progressively as a deep partial of
+the enveloped shape, `statedEmptyGroups` and `raw` ride along, and `notes` is the cross-phase
+channel for everything else — a roster, a per-group presence map.
+
+A leaf's `value` under the deep partial reads `T | null | undefined`, and the three states are
+load-bearing: `undefined` means **not yet asked**, `null` means **asked, and the answer was null**.
+That distinction is the anti-hallucination rule — "the model was never asked" and "the model
+answered nothing" are different claims about the transcript. Keep it apart when you write a merge:
+the first merge helper anyone reaches for collapses it with `?? null`, and that merge has silently
+destroyed the distinction. If phases share scratch data, its key is branded — `noteKey<T>(id)` —
+so two phases cannot silently clobber one key or read one at the wrong type, while the key stays a
+plain string at runtime.
+
+### `requires` / `produces`, checked at construction
+
+A phase declares which note keys it `requires` and which it `produces`, and a mis-wired list fails
+at construction — before the first call is paid for, with the missing key and the phase id named.
+Order matters: a key produced by a later phase does not satisfy an earlier phase's requirement.
+
+### The three strategies are now presets over it
+
+`gapFillExtractor` became a base `extractorPhase` followed by `gapFillPhase`;
+`scopedInstanceExtractor` became `inventoryPhase` then `fillPhase`; `threePhaseExtractor` became
+four phases — presence, span, classify and a wrapped-classify pass over whatever the transport
+could not answer bare. **Their option names held; two of the three changed their observer's unit
+type.** `GapFillOptions` and `ScopedFillOptions` used to be declared over the strategy-specific
+unit types and are now over `PhaseUnit`, so a handler written against the old type receives events
+its type did not name; `ThreePhaseExtractorOptions` was already over `PhaseUnit` and did not
+change. This is why those ports declared major versions — do not expect the events to be the ones
+they were.
+
+Three further gap-fill changes are host-visible: the no-candidates passthrough path now emits the
+base phase's `start`/`done` pair where it previously emitted nothing; the per-event `candidates`
+count is gone; and returned objects are no longer reference-equal to the base extractor's, because
+the closing parse rebuilds every object (values are unchanged — deep equality holds).
+
+### Which phases you can actually compose
+
+`gapFillPhase`, `inventoryPhase`, `fillPhase` and `rosterNoteKey` are exported from
+`@azx/ribo-extractor-openai`'s barrel. The on-device strategy's four phases are **not** exported —
+they live under an internal directory and the package's entry point exposes only the preset — and
+this repo forbids deep imports. Compose from what is actually available rather than assuming every
+preset's pieces are public. `extractorPhase(id, extractor)`, from `@azx/ribo-core`, lifts any
+existing `Extractor` into a one-item phase, in any package.
+
+### Failure policy: `onItemFailure`
+
+When one of a phase's items fails, the phase's `onItemFailure` decides what that means:
+`"abort"` fails the run and cancels the in-flight siblings; `"skip"` hands the failed outcome to
+`merge` to interpret. It is the one policy decision every phase author makes, and "interpret" is
+not one rule — the ported on-device strategy nulls a leaf's span when presence fails and keeps it
+when classify fails, two readings of "this item failed" inside one strategy. A cancellation
+overrides the policy either way: a caller cancelling (signalled, or thrown as a branded
+cancellation) rejects the whole run, in both policies, because a skip that swallowed a
+cancellation would resolve with all-null fields — indistinguishable from a document that said
+nothing.
+
+### `describeItem`
+
+The engine cannot see inside your items — `run` is opaque — so it cannot know what group a unit
+of work belongs to. `describeItem(item)` supplies the `key` (and optionally `leaf` and the
+scoped-fill coordinates) the `PhaseUnit` events carry; **without it, every progress event carries
+an empty key.** If you want a progress stream a reviewer can read, this is not optional.
+
+### `produces` is checked twice
+
+Construction is not the only check. The declared `produces` keys are verified again at each phase
+boundary at runtime, against what the phase's `merge` actually wrote — because a phase that
+declares a key and writes it only conditionally is a silent liar, and the condition that bites is
+exactly the realistic one (a roster-driven contribution written only when the roster found
+instances). Expect a mid-run throw naming the phase and the key, not a construction error.
+
+### A declared `maxRetries` is a request, not a promise
+
+The engine derives each phase's retry share from the time remaining at that phase's boundary — the
+same remaining-time-over-remaining-phases division as the deadline paragraph above — and may run
+the phase with fewer retries than it declared. This is why the on-device preset sets the numbers it
+does (a device-sized per-call ceiling, no retry delay): with the managed defaults, a dozen-leaf
+classify phase at `concurrency: 1` derives to zero retries, and that preset is inexplicable
+without the derivation.
+
+### A worked example
+
+A two-phase list with a real narrowing between them — a scan pass that asks which top-level groups
+the transcript discusses, then a fill pass that asks only about the discussed groups:
+
+```ts
+import { noteKey, phaseBuilder, phasedExtractor } from "@azx/ribo-core";
+
+// The cross-phase channel: group key -> did the scan find it discussed at all?
+const discussed = noteKey<Record<string, boolean>>("discussed");
+const define = phaseBuilder<V>(); // your adapter's writable patch type
+
+const scan = define({
+  id: "scan",
+  produces: [discussed], // written unconditionally — see "checked twice" above
+  describeItem: (group) => ({ key: group }),
+  plan: () => groupKeys, // one item per group; the first pass has nothing to narrow against
+  run: async (group, _draft, ctx) => ({
+    // Your prompt assembly and chat call, elided. `ctx.transcript.text` is the
+    // one canonical string; `ctx.signal` is the caller's cancellation.
+    value: await scanGroup(group, ctx.transcript.text, ctx.signal),
+    usage: { calls: 1 },
+  }),
+  merge: (draft, results) => {
+    const map = { ...draft.notes.get(discussed) };
+    for (const r of results) {
+      if (r.outcome === "result") map[r.item] = r.output.value;
+    }
+    return { ...draft, notes: draft.notes.set(discussed, map) };
+  },
+});
+
+const fill = define({
+  id: "fill",
+  requires: [discussed],
+  describeItem: (group) => ({ key: group }),
+  // THE NARROWING: only the groups the scan marked discussed get a call.
+  plan: (draft) => groupKeys.filter((key) => draft.notes.get(discussed)?.[key] === true),
+  run: async (group, _draft, ctx) => ({
+    value: await extractGroup(group, ctx.transcript.text, ctx.signal),
+    usage: { calls: 1 },
+  }),
+  merge: (draft, results) => {
+    const fields = { ...draft.fields };
+    for (const r of results) {
+      if (r.outcome === "result") fields[r.item] = r.output.value;
+    }
+    return { ...draft, fields };
+  },
+});
+
+const extractor = phasedExtractor({ target, phases: [scan, fill] });
+```
+
+Everything you do not see — the pool, the retries, the sibling abort, the deadline, the unit
+events, the usage sum, the closing parse — is the engine's.
+
 ## Extraction quality is not currently measured
 
 **There is no current number for how often an extracted value is correct.** The
