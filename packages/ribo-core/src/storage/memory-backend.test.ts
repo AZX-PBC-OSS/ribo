@@ -20,7 +20,14 @@ runStorageConformance("memory", {
   it,
   expect,
   createBackend: (databaseName) => Promise.resolve(createMemoryBackend(databaseName)),
-  makeCapture: ({ id, seq, status, sessionId }) => ({ id, seq, status, sessionId }),
+  makeCapture: ({ id, seq, status, sessionId, removable }) => ({
+    id,
+    seq,
+    status,
+    sessionId,
+    ...(removable === undefined ? {} : { removable }),
+  }),
+  removableCaptureField: "removable",
   makeSession: ({ id, status, openedAt, ref }) => ({ id, status, openedAt, ref }),
   makeEntry: ({ id, scopeKind, scopeId, owner, key, value }) => ({
     id,

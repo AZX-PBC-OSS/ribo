@@ -94,6 +94,13 @@ function attachmentOf(blob: BlobInput): RxAttachmentCreator & { id: string } {
  * that reports "busy" rather than waiting — right for "which tab is recording",
  * wrong for allocating a sequence). Outside a browser there is no cross-context
  * anything to coordinate, so an in-process chain is the honest equivalent.
+ *
+ * **The fallback is for non-browser runtimes, not for old browsers.** In a
+ * browser without `navigator.locks` it would silently restore the cross-tab race
+ * obligation 6 exists to forbid. That is tolerable only because the repo's
+ * browser floor already assumes Web Locks outright — `capture-lock.ts` calls
+ * `navigator.locks` with no fallback at all, so such a browser cannot record in
+ * the first place.
  */
 const processChains = new Map<string, Promise<unknown>>();
 
@@ -135,6 +142,17 @@ function mangoFor<C extends CollectionName>(
   // Until the scope generalisation lands, an entry's scope IS its capture: the
   // persisted schema has `captureId`/`pluginId` and no `scopeKind` column, so a
   // capture-scoped query is a `captureId` query and there is nothing else to be.
+  //
+  // Refusing any other kind loudly is the point. Accepting `session` here would
+  // turn it into a `captureId` query that returns the wrong rows with no error —
+  // a silent wrong answer, which is the worst thing a storage layer can do. When
+  // the scope generalisation lands this guard goes away with it.
+  if (query.scopeKind !== undefined && query.scopeKind !== "capture") {
+    throw new Error(
+      `ribo-storage-rxdb: entry scope "${query.scopeKind}" is not supported until the ` +
+        `plugin-storage collection carries a scope kind; only "capture" exists on disk today`,
+    );
+  }
   if (query.scopeId !== undefined) {
     selector.captureId =
       typeof query.scopeId === "string" ? query.scopeId : { $in: [...query.scopeId] };
@@ -280,10 +298,25 @@ class RxdbBackend implements StorageBackend {
     // `incrementalModify` re-runs the modifier on a write conflict, which is what
     // makes obligation 3 hold: two concurrent modifies of different fields both
     // land instead of the later clobbering the earlier.
-    const updated = await document.incrementalModify((current) => ({
-      ...current,
-      ...this.#persist(collection, modifier(this.#cleanData(collection, current))),
-    }));
+    const updated = await document.incrementalModify((current) => {
+      const next = this.#persist(collection, modifier(this.#cleanData(collection, current)));
+
+      // Carry RxDB's own bookkeeping across — `_attachments` above all, since
+      // dropping it would detach every blob on the document — but take every
+      // *schema* field from the modifier's return rather than merging it over
+      // `current`.
+      //
+      // The distinction is the whole point: a modifier "returns the next
+      // document", so a key it omits must be gone. Merging over `current` makes
+      // deletion impossible, and deletion is load-bearing — writing a transcript
+      // removes the provisional `preview` by omission, in the same revision, so
+      // that no subscriber ever sees final text beside stale provisional text.
+      const internals: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(current)) {
+        if (key.startsWith("_")) internals[key] = value;
+      }
+      return { ...internals, ...next };
+    });
     return this.#project(collection, updated);
   }
 

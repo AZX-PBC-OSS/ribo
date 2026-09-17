@@ -67,7 +67,17 @@ export interface ConformanceDocuments {
     seq: number;
     status: string;
     sessionId: string;
+    /** A value for {@link ConformanceDocuments.removableCaptureField}, when the test needs one. */
+    removable?: string;
   }) => StoredDocument;
+  /**
+   * The name of an OPTIONAL capture field that `makeCapture`'s `removable`
+   * populates, and that a modifier is allowed to delete.
+   *
+   * The kit cannot invent one: deleting a required field would be rejected by a
+   * validating backend for the wrong reason. Name a genuinely optional one.
+   */
+  removableCaptureField: string;
   makeSession: (fields: {
     id: string;
     status: string;
@@ -117,6 +127,7 @@ async function until(predicate: () => boolean, label: string, timeoutMs = 2000):
  */
 export function runStorageConformance(label: string, harness: ConformanceHarness): void {
   const { describe, it, expect, createBackend, makeCapture, makeSession, makeEntry } = harness;
+  const { removableCaptureField } = harness;
 
   // Every test gets its own database name. Backends are durable by definition, so
   // sharing one would let an earlier test's rows decide a later test's assertions.
@@ -380,6 +391,68 @@ export function runStorageConformance(label: string, harness: ConformanceHarness
         const after = await backend.get("captures", "contended");
         expect(after?.status).toBe("failed");
         expect(after?.attempts).toBe(7);
+      });
+    });
+
+    it("lets a modifier delete a field by omitting it (obligation 3)", async () => {
+      await withBackend(async (backend) => {
+        // A modifier "returns the next document", so omitting a key means the key
+        // is gone. A backend that merges the modifier's return OVER the current
+        // document instead silently resurrects it — and the concurrent-update
+        // test above cannot see the difference, because it only ever ADDS fields.
+        //
+        // This is not hypothetical: writing a transcript deletes the provisional
+        // `preview` by omission, in the same revision, precisely so a subscriber
+        // never sees final text beside stale provisional text. A backend that
+        // resurrects the key breaks that permanently.
+        await backend.insert(
+          "captures",
+          makeCapture({
+            id: "deletable",
+            seq: 1,
+            status: "queued",
+            sessionId: "s1",
+            removable: "provisional",
+          }),
+        );
+        expect((await backend.get("captures", "deletable"))?.[removableCaptureField]).toBe(
+          "provisional",
+        );
+
+        const returned = await backend.modify("captures", "deletable", (current) => {
+          const next = { ...current };
+          delete next[removableCaptureField];
+          return next;
+        });
+
+        expect(removableCaptureField in returned).toBe(false);
+        expect(removableCaptureField in ((await backend.get("captures", "deletable")) ?? {})).toBe(
+          false,
+        );
+      });
+    });
+
+    it("keeps a document's blobs across a modify (obligation 3)", async () => {
+      await withBackend(async (backend) => {
+        // The other side of the deletion rule. A backend that takes schema fields
+        // from the modifier's return has to be careful NOT to discard its own
+        // attachment bookkeeping at the same time — get that wrong and every
+        // status transition silently detaches the audio.
+        await backend.insert(
+          "captures",
+          makeCapture({ id: "keepsAudio", seq: 1, status: "queued", sessionId: "s1" }),
+          [{ id: "audio", data: new Blob([new Uint8Array(6)]) }],
+        );
+
+        await backend.modify("captures", "keepsAudio", (current) => ({
+          ...current,
+          status: "transcribed",
+        }));
+
+        expect((await backend.get("captures", "keepsAudio"))?.status).toBe("transcribed");
+        const audio = await backend.getBlob("captures", "keepsAudio", "audio");
+        if (audio === undefined) throw new Error("modify detached the document's blob");
+        expect(await byteLength(audio)).toBe(6);
       });
     });
 

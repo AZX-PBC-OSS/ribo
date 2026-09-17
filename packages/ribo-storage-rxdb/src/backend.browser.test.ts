@@ -52,16 +52,20 @@ runStorageConformance("rxdb", {
       ignoreDuplicate: true,
     }),
 
-  makeCapture: ({ id, seq, status, sessionId }) => ({
+  makeCapture: ({ id, seq, status, sessionId, removable }) => ({
     id,
     seq,
     status,
     sessionId,
+    ...(removable === undefined ? {} : { lastError: removable }),
     attempts: 0,
     nextAttemptAt: "2026-01-01T00:00:00.000Z",
     enqueuedAt: "2026-01-01T00:00:00.000Z",
     recording: { id, kind: "audio", durationMs: 1000, startedAt: "2026-01-01T00:00:00.000Z" },
   }),
+  // `lastError` is the schema's optional string -- the structural twin of
+  // `preview`, the field a real transcript write deletes by omission.
+  removableCaptureField: "lastError",
 
   makeSession: ({ id, status, openedAt, ref }) => ({
     id,
