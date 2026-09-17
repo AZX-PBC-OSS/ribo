@@ -290,6 +290,12 @@ export type {
   SequentialExtractorOptions,
 } from "./arbitration.js";
 
+// Cancellation: the brand a foreign transport's error may carry, so a combinator
+// in core can recognise "the caller stopped this" without importing the
+// transport's error type — the edge runs from producer packages to core only.
+export { CANCELLATION, CancellationError, isCancellation } from "./cancellation.js";
+export type { CancellationBranded } from "./cancellation.js";
+
 // Strategy fallback: try extraction strategies in order and let an arbiter
 // decide whether each outcome is acceptable, continuing past failures the host
 // classifies as recoverable. Lives in core because it composes the core
