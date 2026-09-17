@@ -121,9 +121,25 @@ equality would null nearly everything. The surviving span is taken from the firs
 matches the accepted one, so the citation belongs to an answer that was actually given.
 
 **The decision is a `ConsensusArbiter`** — a caller-supplied function receiving one leaf's samples and
-returning either the accepted value or a rejection. `unanimousValues` is the default and
-`majorityValues` ships beside it, so majority is an import rather than a flag. A rejected leaf becomes
-`value: null, confidence: 0` **with its span retained**.
+returning **an envelope of the same type it was shown**, on either arm. `unanimousValues` is the
+default and `majorityValues` ships beside it, so majority is an import rather than a flag.
+
+The type symmetry is the point, and an earlier draft got it wrong: it took envelopes and returned a
+bare value, leaving the combinator to pick the span by a "first sample whose value matches" rule. That
+split value selection from citation selection, so a policy author could choose an answer but not the
+quote supporting it — the shape that produces a leaf whose span belongs to a different answer than its
+value. `ExtractionArbiter` does not make that mistake: it is shown `ExtractionResult<F>` and returns
+`ExtractionResult<F>`. This follows it.
+
+**Both arms carry an envelope**, rather than the rejection being a bare marker, so a rejecting policy
+still chooses which span survives. A rejected leaf is conventionally `value: null, confidence: 0` with
+a span the policy picked — but the combinator does not impose that, because a policy that wants to
+keep a different citation on a contested leaf has a better claim to know than the combinator does.
+
+**Two arms rather than one**, even though `=> Extracted<unknown>` would be smaller: the combinator has
+to know a leaf was contested in order to count them, and the contested count is the headline signal
+this combinator exists to produce. It is not recoverable from the envelope, because a leaf the samples
+agreed was `null` and a leaf they fought over are byte-identical afterwards.
 
 That shape is not arbitrary: it is exactly a `gapFillExtractor` candidate — a null value with a
 non-null span — so consensus and gap-fill compose into "sample three times, then re-ask about
@@ -231,9 +247,12 @@ Described rather than typed in full; the shapes that are load-bearing:
 - `consensusExtractor<V, P>(candidates, options): Extractor<Enveloped<V, P>>` where `options` carries
   the `ConsensusArbiter`, `minSamples`, `concurrency`, and the observer — in `ribo-core`.
 - `ConsensusArbiter` — `(input: { path: string; samples: readonly Extracted<unknown>[] }) =>
-{ accept: unknown } | { reject: true }`. Deliberately a different shape from `ArbiterVerdict`
-  (which decides among whole results, with a `continue` arm for a sequential engine); this decides one
-  leaf's value with every sample already in hand, so there is nothing to continue.
+{ accept: Extracted<unknown> } | { reject: Extracted<unknown> }`. Type-symmetric: shown envelopes,
+  returns an envelope, exactly as `ExtractionArbiter` is shown and returns `ExtractionResult<F>`.
+  Two arms rather than `ArbiterVerdict`'s three — there is no `continue`, because every sample is
+  already in hand when this is called, and no `giveUp`, because one leaf's disagreement is a result
+  rather than a failure. Untagged, following `arbitration.ts`'s recorded reasoning that distinct
+  required key names narrow correctly under `in` and a tag would buy no safety.
 - `unanimousValues` and `majorityValues` — the shipped policies.
 - `validateExtractor<F>(extractor, policy, options): Extractor<F>`, `ValidationPolicy`,
   `ValidationRejectedError`, and `groundingCensus` — the pure function producing the per-leaf
@@ -272,6 +291,11 @@ Described rather than typed in full; the shapes that are load-bearing:
 - Three candidates agreeing on a leaf keep its value and one of their spans; three disagreeing null
   the value and keep a span; two agreeing and one dissenting null it under `unanimousValues` and keep
   it under `majorityValues`.
+- A policy that returns a **different sample's envelope** than the combinator would have chosen gets
+  that envelope, span included — the pin that value and citation are selected together rather than by
+  two different parties.
+- The contested-leaf count reflects rejections and not agreed-upon nulls: a run where every sample
+  said `null` for a leaf reports zero contested, and a run where they disagreed reports one.
 - A leaf where one sample committed and another abstained is a **disagreement**, not a
   commitment — the model contradicting itself is the case this exists to catch.
 - A candidate that rejects contributes no samples and does not fail the run while `minSamples`
