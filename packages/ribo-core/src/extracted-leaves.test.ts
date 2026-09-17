@@ -13,7 +13,11 @@ import type { Extracted } from "./provenance.js";
  * reference-equal to the base extractor's.
  */
 
-const leaf = (value: unknown, confidence: number, sourceSpan: string | null): Extracted<unknown> => ({
+const leaf = (
+  value: unknown,
+  confidence: number,
+  sourceSpan: string | null,
+): Extracted<unknown> => ({
   value,
   confidence,
   sourceSpan,
@@ -63,7 +67,11 @@ describe("mapExtractedLeaves", () => {
     expect(result).not.toBe(fields);
     expect(result.envelope).not.toBe(fields.envelope);
     expect(result.envelope.roof).not.toBe(fields.envelope.roof);
-    expect(result.envelope.roof).toEqual({ value: "metal", confidence: 0.9, sourceSpan: "asphalt shingles" });
+    expect(result.envelope.roof).toEqual({
+      value: "metal",
+      confidence: 0.9,
+      sourceSpan: "asphalt shingles",
+    });
 
     // …and identity-preserving everywhere else: the untouched sibling leaf, the
     // untouched collection group, and the untouched instance inside it.
