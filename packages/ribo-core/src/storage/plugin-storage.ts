@@ -1,5 +1,6 @@
 import type { StorageBackend, StoredDocument } from "./port.js";
 import { pluginStorageDocumentSchema, pluginStorageEntryId } from "./plugin-storage-schema.js";
+import type { EntryScopeKind } from "./port.js";
 
 /**
  * A namespaced, capture-scoped key-value handle a plugin writes through.
@@ -45,7 +46,17 @@ export function createPluginStorage(
   captureId: string,
   pluginId: string,
 ): PluginStorage {
-  return new PluginStorageHandle(backend, captureId, pluginId);
+  return new PluginStorageHandle(backend, "capture", captureId, pluginId);
+}
+
+/** A handle over one scope of either kind. The general form of {@link createPluginStorage}. */
+export function createScopedHandle(
+  backend: StorageBackend,
+  scopeKind: EntryScopeKind,
+  scopeId: string,
+  owner: string,
+): PluginStorage {
+  return new PluginStorageHandle(backend, scopeKind, scopeId, owner);
 }
 
 /**
@@ -106,13 +117,24 @@ export interface CaptureStorageScope {
  *   session: entries live exactly as long as their capture does.
  */
 export interface PluginStorageScope {
-  /** This plugin's namespace for one capture. */
+  /** This owner's namespace for one capture. Entries die when the capture does. */
   capture: (captureId: string) => PluginStorage;
   /**
-   * Every capture this plugin has at least one stored entry for, sorted. Live,
-   * so swept captures drop out.
+   * This owner's namespace for one session. Entries die when the session is
+   * removed.
+   *
+   * The lifecycle is still the **sweep**, not the calendar: a session-scoped
+   * entry lives exactly as long as its session does, the same way a
+   * capture-scoped one lives exactly as long as its capture.
+   */
+  session: (sessionId: string) => PluginStorage;
+  /**
+   * Every capture this owner has at least one stored entry for, sorted. Live, so
+   * swept captures drop out.
    */
   captures: () => Promise<string[]>;
+  /** Every session this owner has at least one stored entry for, sorted. Live. */
+  sessions: () => Promise<string[]>;
 }
 
 /** Create a {@link CaptureStorageScope} over one capture. Called by {@link storage.captureStore}. */
@@ -132,8 +154,13 @@ export function createPluginStorageScope(
 ): PluginStorageScope {
   return {
     capture: (captureId) => createPluginStorage(backend, captureId, pluginId),
+    session: (sessionId) => createScopedHandle(backend, "session", sessionId, pluginId),
     captures: async () => {
-      const entries = await backend.find("entries", { owner: pluginId });
+      const entries = await backend.find("entries", { scopeKind: "capture", owner: pluginId });
+      return [...new Set(entries.map((entry) => entry.scopeId as string))].sort();
+    },
+    sessions: async () => {
+      const entries = await backend.find("entries", { scopeKind: "session", owner: pluginId });
       return [...new Set(entries.map((entry) => entry.scopeId as string))].sort();
     },
   };
@@ -141,13 +168,20 @@ export function createPluginStorageScope(
 
 class PluginStorageHandle implements PluginStorage {
   readonly #backend: StorageBackend;
-  readonly #captureId: string;
-  readonly #pluginId: string;
+  readonly #scopeKind: EntryScopeKind;
+  readonly #scopeId: string;
+  readonly #owner: string;
 
-  constructor(backend: StorageBackend, captureId: string, pluginId: string) {
+  constructor(
+    backend: StorageBackend,
+    scopeKind: EntryScopeKind,
+    scopeId: string,
+    owner: string,
+  ) {
     this.#backend = backend;
-    this.#captureId = captureId;
-    this.#pluginId = pluginId;
+    this.#scopeKind = scopeKind;
+    this.#scopeId = scopeId;
+    this.#owner = owner;
   }
 
   async get<T = unknown>(key: string): Promise<T | undefined> {
@@ -165,26 +199,18 @@ class PluginStorageHandle implements PluginStorage {
     // failing loudly. Parsing here turns that into an error at the call that
     // caused it.
     //
-    // The parse is in the schema's own field names, which are not the port's:
-    // the port speaks scope/owner and the collection on disk still says
-    // capture/plugin. Core validates against what is actually stored, and the
-    // backend does the translation.
-    pluginStorageDocumentSchema.parse({
+    // Since v1 the schema's field names ARE the port's, so this parses the same
+    // document that is written rather than a translation of it.
+    const document = pluginStorageDocumentSchema.parse({
       id: this.#entryId(key),
-      captureId: this.#captureId,
-      pluginId: this.#pluginId,
+      scopeKind: this.#scopeKind,
+      scopeId: this.#scopeId,
+      owner: this.#owner,
       key,
       value: serialised,
     });
 
-    await this.#backend.upsert("entries", {
-      id: this.#entryId(key),
-      scopeKind: "capture",
-      scopeId: this.#captureId,
-      owner: this.#pluginId,
-      key,
-      value: serialised,
-    } satisfies StoredDocument);
+    await this.#backend.upsert("entries", document satisfies StoredDocument);
   }
 
   async delete(key: string): Promise<void> {
@@ -196,14 +222,14 @@ class PluginStorageHandle implements PluginStorage {
     // the point of pinning the ordering in the port rather than leaving each
     // caller to re-sort and quietly disagree about collation.
     const entries = await this.#backend.find("entries", {
-      scopeKind: "capture",
-      scopeId: this.#captureId,
-      owner: this.#pluginId,
+      scopeKind: this.#scopeKind,
+      scopeId: this.#scopeId,
+      owner: this.#owner,
     });
     return entries.map((entry) => entry.key as string);
   }
 
   #entryId(key: string): string {
-    return pluginStorageEntryId(this.#captureId, this.#pluginId, key);
+    return pluginStorageEntryId(this.#scopeId, this.#owner, key);
   }
 }

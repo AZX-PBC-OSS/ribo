@@ -177,35 +177,81 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
  * `SESSION_MIGRATION_STRATEGIES` follow. Declared and exported rather than
  * inlined so a test can exercise it directly.
  */
-export const PLUGIN_STORAGE_MIGRATION_STRATEGIES: Record<string, (doc: unknown) => unknown> = {};
+export const PLUGIN_STORAGE_MIGRATION_STRATEGIES: Record<string, (doc: unknown) => unknown> = {
+  /**
+   * v0 → v1: the scope becomes a kind and an id, and the owner stops being a
+   * plugin.
+   *
+   * Field-only. The primary key's composition is deliberately unchanged, because
+   * a primary-key rewrite fails by making rows unreachable rather than by
+   * erroring — see `plugin-storage-schema.ts` for the whole argument.
+   *
+   * **This strategy is required even though no user depends on a v0 entry.**
+   * RxDB validates a declared schema against the one the collection was CREATED
+   * with, so changing the shape at the same version fails `addCollections` with
+   * DB6 on any device that has merely opened the app since the collection
+   * landed — whether or not it ever wrote a row. And because all three
+   * collections are added in one call on one database, that failure is not
+   * scoped to this collection: the capture store becomes unreachable too, and an
+   * auditor's recordings are stranded with clearing the origin's IndexedDB as
+   * the only way out.
+   *
+   * "The collection holds no data" answers the data question and leaves the
+   * schema question unasked. This repo has shipped that mistake once already.
+   */
+  1: (doc: unknown) => {
+    const v0 = doc as {
+      id: string;
+      captureId: string;
+      pluginId: string;
+      key: string;
+      value: string;
+    };
+    return {
+      id: v0.id,
+      // Everything that exists at v0 is capture-scoped: there was nowhere to
+      // record any other kind, so there cannot be one.
+      scopeKind: "capture",
+      scopeId: v0.captureId,
+      owner: v0.pluginId,
+      key: v0.key,
+      value: v0.value,
+    };
+  },
+};
 
 /**
- * The RxDB JSON schema for the plugin-storage collection.
+ * The RxDB JSON schema for the key-value collection.
  *
  * Hand-written for the same reason the other two schemas are: RxDB needs
  * metadata zod has no concept of — `primaryKey`, `indexes`, and the `maxLength`
  * bounds it uses to build fixed-width index keys.
  *
- * Version 0: the collection is new, so there is nothing to migrate from. An
- * existing user opening the database with this code for the first time gets the
- * collection created transparently — `addCollections` handles that, and no
- * version bump on the sibling collections is required.
+ * Version 1 generalised the scope: `captureId`/`pluginId` became
+ * `scopeKind`/`scopeId`/`owner`, so an entry can belong to a session as well as
+ * a capture. See `PLUGIN_STORAGE_MIGRATION_STRATEGIES` above for why the bump
+ * was required even with nothing on disk depending on it.
  */
 export const pluginStorageRxSchema: RxJsonSchema<PluginStorageDocument> = {
-  version: 0,
+  version: 1,
   primaryKey: "id",
   type: "object",
   properties: {
     id: { type: "string", maxLength: 512 },
-    captureId: { type: "string", maxLength: 64 },
-    pluginId: { type: "string", maxLength: 128 },
+    scopeKind: { type: "string", maxLength: 8 },
+    scopeId: { type: "string", maxLength: 64 },
+    owner: { type: "string", maxLength: 128 },
     key: { type: "string", maxLength: 256 },
     value: { type: "string" },
   },
-  required: ["id", "captureId", "pluginId", "key", "value"],
-  // `captureId` so the sweep (which deletes every entry for a dropped or
-  // discarded capture) is an index lookup, not a scan. The compound
-  // `[captureId, pluginId]` serves `keys()` and per-plugin reads.
-  indexes: ["captureId", ["captureId", "pluginId"]],
+  required: ["id", "scopeKind", "scopeId", "owner", "key", "value"],
+  // `[scopeKind, scopeId]` so a sweep (which deletes every entry for a dropped
+  // capture, or for a removed session) is an index lookup rather than a scan.
+  // The compound with `owner` serves `keys()` and per-owner reads.
+  indexes: [
+    ["scopeKind", "scopeId"],
+    ["scopeKind", "scopeId", "owner"],
+    ["owner"],
+  ],
   attachments: {},
 };

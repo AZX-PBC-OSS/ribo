@@ -138,25 +138,15 @@ function mangoFor<C extends CollectionName>(
   }
 
   const query = finder as Finders["entries"];
-  // Until the scope generalisation lands, an entry's scope IS its capture: the
-  // persisted schema has `captureId`/`pluginId` and no `scopeKind` column, so a
-  // capture-scoped query is a `captureId` query and there is nothing else to be.
-  //
-  // Refusing any other kind loudly is the point. Accepting `session` here would
-  // turn it into a `captureId` query that returns the wrong rows with no error —
-  // a silent wrong answer, which is the worst thing a storage layer can do. When
-  // the scope generalisation lands this guard goes away with it.
-  if (query.scopeKind !== undefined && query.scopeKind !== "capture") {
-    throw new Error(
-      `ribo-storage-rxdb: entry scope "${query.scopeKind}" is not supported until the ` +
-        `plugin-storage collection carries a scope kind; only "capture" exists on disk today`,
-    );
-  }
+  // A straight mapping since v1: the collection persists the scope kind, so the
+  // port's vocabulary and the stored vocabulary are the same. The guard that
+  // used to refuse a session scope is gone with the translation it protected.
+  if (query.scopeKind !== undefined) selector.scopeKind = query.scopeKind;
   if (query.scopeId !== undefined) {
-    selector.captureId =
+    selector.scopeId =
       typeof query.scopeId === "string" ? query.scopeId : { $in: [...query.scopeId] };
   }
-  if (query.owner !== undefined) selector.pluginId = query.owner;
+  if (query.owner !== undefined) selector.owner = query.owner;
   return withSelector(selector, [{ key: "asc" }], query.limit);
 }
 
@@ -175,42 +165,13 @@ function withSelector(
 }
 
 /**
- * Project a persisted entry into the port's scope vocabulary.
- *
- * The port speaks `scopeKind`/`scopeId`/`owner`; version 0 of the collection
- * persists `captureId`/`pluginId`. Translating here rather than in core is the
- * point of the port — core should never have learned the older spelling.
- */
-function entryToPort(data: Record<string, unknown>): StoredDocument {
-  return {
-    id: data.id as string,
-    scopeKind: "capture",
-    scopeId: data.captureId,
-    owner: data.pluginId,
-    key: data.key,
-    value: data.value,
-  };
-}
-
-/** The inverse of {@link entryToPort}. */
-function entryToPersisted(document: StoredDocument): Record<string, unknown> {
-  return {
-    id: document.id,
-    captureId: document.scopeId,
-    pluginId: document.owner,
-    key: document.key,
-    value: document.value,
-  };
-}
-
-/**
  * A storage backend that is known to be this one, and so can hand back the RxDB
  * database underneath it.
  *
- * This is the deliberate replacement for the old `Storage.database` getter. That
- * one lived on core and made RxDB part of core's public surface for everyone; the
- * escape hatch now lives in the package that already owns RxDB, so a host reaches
- * for it knowingly and nobody else inherits the dependency.
+ * The deliberate replacement for the old `Outbox.database` getter. That one lived
+ * on core and made RxDB part of core's public surface for everyone; the escape
+ * hatch now lives in the package that already owns RxDB, so a host reaches for it
+ * knowingly and nobody else inherits the dependency.
  */
 export interface RxdbStorageBackend extends StorageBackend {
   /** The database this backend reads and writes, for hosts adding their own collections. */
@@ -452,12 +413,11 @@ class RxdbBackend implements RxdbStorageBackend {
   }
 
   #cleanData(collection: CollectionName, data: Record<string, unknown>): StoredDocument {
-    const cleaned = clean(collection, data);
-    return collection === "entries" ? entryToPort(cleaned) : cleaned;
+    return clean(collection, data);
   }
 
-  /** The port's shape → persisted shape. */
-  #persist(collection: CollectionName, document: StoredDocument): Record<string, unknown> {
-    return collection === "entries" ? entryToPersisted(document) : { ...document };
+  /** The port's shape → persisted shape. Identical since v1; kept as the seam's one name. */
+  #persist(_collection: CollectionName, document: StoredDocument): Record<string, unknown> {
+    return { ...document };
   }
 }
