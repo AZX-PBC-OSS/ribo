@@ -469,3 +469,11 @@ export { validatePhases } from "./validate-phases.js";
 // combinators. One item (the whole document), `signal`/`deadline` forwarded, usage on the
 // `PhaseOutput`, and a shallow top-level merge into the draft.
 export { extractorPhase } from "./extractor-phase.js";
+
+// The phased-extraction engine (wave 3b): run a list of phases in order, fanning each
+// phase's items out through a bounded pool, threading the draft through each `merge`,
+// then normalize once and parse once. Owns scheduling, retry, cancellation, the running
+// deadline and the `PhaseUnit` progress stream, so a multi-pass strategy is a list of
+// narrowing steps rather than a bespoke loop.
+export { phasedExtractor } from "./phased-extractor.js";
+export type { PhasedExtractorOptions } from "./phased-extractor.js";
