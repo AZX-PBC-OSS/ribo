@@ -1,4 +1,4 @@
-import { TerminalQueueError } from "./queue/backoff.js";
+import { TerminalError } from "./storage/backoff.js";
 import type { Recording } from "./recording.js";
 import type { Transcript } from "./transcript.js";
 import {
@@ -270,7 +270,7 @@ function describe({ engine, capability }: EngineCapability): string {
 /**
  * Nothing was ready. Which error that is, is the whole retry decision:
  *
- * - every engine **permanently** unavailable → `TerminalQueueError`. This device will never do
+ * - every engine **permanently** unavailable → `TerminalError`. This device will never do
  *   it, so burning eight backed-off attempts to prove that is waste, and the item should land in
  *   `dead` with a message saying why on the first try.
  * - anything else — a download that has not happened, an uplink that is down — →
@@ -281,7 +281,7 @@ function noneCapable(engine: string, skipped: readonly EngineCapability[]): Erro
   const summary = `no transcriber is ready — ${skipped.map(describe).join("; ")}`;
 
   if (skipped.every((report) => isPermanentlyUnavailable(report.capability))) {
-    return new TerminalQueueError(summary);
+    return new TerminalError(summary);
   }
 
   return new TranscriberUnavailableError({

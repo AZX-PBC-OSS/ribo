@@ -1,6 +1,6 @@
 import { decodeAudioDuration, recoverInterrupted } from "@azx/ribo-core";
 
-import { getOutbox } from "./outbox-handle.js";
+import { getOutbox } from "./storage-handle.js";
 
 /**
  * @file Startup recovery, run exactly once per page load.
@@ -22,7 +22,7 @@ import { getOutbox } from "./outbox-handle.js";
  * tries again next load. Nothing is corrupted by losing it; the audio just waits
  * one more page load.
  *
- * A promise-valued singleton for the same reason the outbox is: StrictMode
+ * A promise-valued singleton for the same reason the storage is: StrictMode
  * mounts every effect twice, and two concurrent recoveries would race for the
  * same lock, so the second would silently no-op and report "nothing recovered"
  * for rows the first was busy recovering.
@@ -44,7 +44,7 @@ let handle: Promise<readonly string[]> | undefined = hotData?.recovery;
  */
 export function getRecovery(): Promise<readonly string[]> {
   handle ??= getOutbox().then(
-    async (outbox) => await recoverInterrupted({ outbox, decode: decodeAudioDuration }),
+    async (storage) => await recoverInterrupted({ storage, decode: decodeAudioDuration }),
   );
   if (hotData) hotData.recovery = handle;
   return handle;

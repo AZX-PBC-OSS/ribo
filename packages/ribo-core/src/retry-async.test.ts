@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { CancellationError } from "./cancellation.js";
 import { retryAsync } from "./retry-async.js";
-import { TerminalQueueError } from "./queue/backoff.js";
+import { TerminalError } from "./storage/backoff.js";
 import { SchemaParseError } from "./schema-parse-error.js";
 
 /**
@@ -60,8 +60,8 @@ describe("retryAsync", () => {
     await expect(composed).rejects.toBe(third);
   });
 
-  test("a TerminalQueueError rethrows immediately after one call", async () => {
-    const terminal = new TerminalQueueError("deterministic failure");
+  test("a TerminalError rethrows immediately after one call", async () => {
+    const terminal = new TerminalError("deterministic failure");
     const { work, calls } = makeScriptedWork([terminal, "never"]);
     const composed = retryAsync(work, { delay: () => Promise.resolve() });
 

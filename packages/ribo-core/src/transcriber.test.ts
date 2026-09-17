@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { isTransientFailure, TerminalQueueError } from "./queue/backoff.js";
+import { isTransientFailure, TerminalError } from "./storage/backoff.js";
 import {
   isPermanentlyUnavailable,
   PERMANENT_TRANSCRIBER_UNAVAILABLE_REASONS,
@@ -90,20 +90,20 @@ test("the error carries the capability it implies, ready to be cached", () => {
 // The alignment that matters: the queue's existing classifier already reads this
 // correctly, and needed no change. A capability failure is retryable because the
 // NEXT drain may route to a different engine.
-test("a capability failure is transient to the queue — it is not a TerminalQueueError", () => {
+test("a capability failure is transient to the queue — it is not a TerminalError", () => {
   const error = new TranscriberUnavailableError({
     engine: "managed-azure",
     reason: "offline",
     detail: "fetch failed",
   });
 
-  expect(error).not.toBeInstanceOf(TerminalQueueError);
+  expect(error).not.toBeInstanceOf(TerminalError);
   expect(isTransientFailure(error)).toBe(true);
 });
 
 test("an attempt failure stays whatever the queue already thought it was", () => {
   // One clip OOMs. Nothing about the device changed, so nothing here changes.
   expect(isTransientFailure(new Error("out of memory decoding clip"))).toBe(true);
-  expect(isTransientFailure(new TerminalQueueError("audio attachment is missing"))).toBe(false);
+  expect(isTransientFailure(new TerminalError("audio attachment is missing"))).toBe(false);
   expect(isTransientFailure(Object.assign(new Error("bad request"), { status: 400 }))).toBe(false);
 });

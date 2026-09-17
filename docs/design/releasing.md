@@ -43,7 +43,7 @@ a package to `1.0.0` is a per-package decision, not a routine bump.
 ## The `ribo-core` peer-range policy
 
 Only `@azx/ribo-ui-react` takes `@azx/ribo-core` as a **peer** dependency — the shared-instance
-case, where a consumer holds core's runtime `Recorder`/`Outbox`/`Connectivity` objects and hands
+case, where a consumer holds core's runtime `Recorder`/`Storage`/`Connectivity` objects and hands
 them to the package, so both must see one copy of core. `@azx/ribo-transcriber-ondevice`,
 `@azx/ribo-extractor-openai` and `@azx/ribo-adapter-snuggpro` all depend on `@azx/ribo-core` as a
 plain `dependencies` entry instead, because none of them holds onto a shared core instance with

@@ -126,7 +126,7 @@ had not. Same convention as above: numbered, kept in place, `Decided <date>` whe
 
 ### 9. Should `getAudio`'s return type distinguish "gone" from "not yet"?
 
-`Outbox.getAudio()` returns `Blob | undefined`, and that `undefined` collapses three genuinely
+`Storage.getAudio()` returns `Blob | undefined`, and that `undefined` collapses three genuinely
 different situations:
 
 - the item **never had** audio;

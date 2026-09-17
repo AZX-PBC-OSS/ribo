@@ -1,9 +1,9 @@
 import type { ConnectivityStatus } from "./connectivity.js";
-import { ACTIVE_OUTBOX_STATUSES } from "./queue/schema.js";
-import { ACTIVE_SESSION_STATUSES } from "./queue/session-schema.js";
-import type { CaptureHealth } from "./queue/capture-session.js";
-import type { OutboxItem } from "./queue/schema.js";
-import type { SessionItem } from "./queue/session-schema.js";
+import { ACTIVE_CAPTURE_STATUSES } from "./storage/capture-schema.js";
+import { ACTIVE_SESSION_STATUSES } from "./storage/session-schema.js";
+import type { CaptureHealth } from "./storage/capture-session.js";
+import type { Capture } from "./storage/capture-schema.js";
+import type { SessionItem } from "./storage/session-schema.js";
 
 /**
  * @file `workSafety` — the one honest answer to "is my work safe?".
@@ -11,7 +11,7 @@ import type { SessionItem } from "./queue/session-schema.js";
  * This app exists to capture field work that must not be lost, so its most
  * important sentence is the one that tells an auditor whether the captures on
  * their device are actually safe. That answer is derived, not stored: it is a
- * pure classification of state that already exists — the outbox, the storage
+ * pure classification of state that already exists — the storage, the storage
  * persistence grant, connectivity — into a single verdict. It lives in core, next
  * to {@link resolveReview}, for the same reason: the playground (verbose) and a
  * future `ribo-ui-react` (one sentence) must classify *identically*, and the only way
@@ -67,7 +67,7 @@ import type { SessionItem } from "./queue/session-schema.js";
  *
  * ## On `audioReady`
  *
- * `OutboxItem.audioReady` is intentionally *not* an input to the level. On this
+ * `Capture.audioReady` is intentionally *not* an input to the level. On this
  * selector's axis — persistence and sync — it changes nothing: eviction and a
  * lost device take the audio attachment and the persisted transcript *together*,
  * and only leaving the device makes either safe. Whether the audio has been
@@ -80,9 +80,9 @@ import type { SessionItem } from "./queue/session-schema.js";
  */
 
 /**
- * A summary of the outbox reduced to the three facts safety depends on. The
+ * A summary of the storage reduced to the three facts safety depends on. The
  * input {@link workSafety} classifies, so the classifier never has to hold the
- * full {@link OutboxItem} shape and a caller can summarize once per render.
+ * full {@link Capture} shape and a caller can summarize once per render.
  */
 export interface WorkOnDevice {
   /** Unsynced work still on the device: active recordings, open/extracting/writing sessions. */
@@ -158,7 +158,7 @@ export type WorkSafety =
  * counted as `dead`. `discarded` recordings are counted nowhere.
  */
 export const summarizeWork = (
-  recordings: readonly Pick<OutboxItem, "status">[],
+  recordings: readonly Pick<Capture, "status">[],
   sessions: readonly Pick<SessionItem, "status">[] = [],
 ): WorkOnDevice => {
   let pending = 0;
@@ -183,7 +183,7 @@ export const summarizeWork = (
     if (status === "dead") dead += 1;
     else if (
       status === "recording" ||
-      (ACTIVE_OUTBOX_STATUSES as readonly string[]).includes(status)
+      (ACTIVE_CAPTURE_STATUSES as readonly string[]).includes(status)
     )
       pending += 1;
     // transcribed and discarded are counted through their session or not at all

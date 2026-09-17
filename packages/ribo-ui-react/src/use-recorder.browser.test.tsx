@@ -1,8 +1,8 @@
+import { createMemoryBackend } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 import { render, renderHook } from "vitest-browser-react";
 import { StrictMode } from "react";
-import { openOutbox, Recorder, RecorderError } from "@azx/ribo-core";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
+import { openStorage, Recorder, RecorderError } from "@azx/ribo-core";
 
 import type { AnyRecorder } from "./context.js";
 import type { UseRecorderResult } from "./use-recorder.js";
@@ -117,14 +117,11 @@ test("scaledLevel follows Math.sqrt of the raw level, pinned at real, non-zero p
 });
 
 test("records, and enqueues the capture on stop by default", async () => {
-  const outbox = await openOutbox({
-    name: `t-${crypto.randomUUID()}`,
-    storage: getRxStorageMemory(),
-  });
+  const storage = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
   const recorder = new Recorder();
   let api: ReturnType<typeof useRecorder> | undefined;
   function Probe() {
-    api = useRecorder({ recorder, outbox, sessionId: "test-session" });
+    api = useRecorder({ recorder, storage, sessionId: "test-session" });
     return <p>phase {api.phase}</p>;
   }
   const screen = await render(<Probe />);
@@ -135,8 +132,8 @@ test("records, and enqueues the capture on stop by default", async () => {
 
   // The durability promise: bytes reach disk without the host wiring it up.
   expect(item).toBeDefined();
-  expect(await outbox.get(item!.id)).toBeDefined();
-  await outbox.close();
+  expect(await storage.captures.get(item!.id)).toBeDefined();
+  await storage.close();
 });
 
 test("enqueue: false returns the capture and writes nothing", async () => {
@@ -212,13 +209,13 @@ test("a denied microphone surfaces as a RecorderError with a branchable code", a
   });
 });
 
-test("enqueue defaults on, so a missing outbox fails loudly rather than dropping audio", async () => {
+test("enqueue defaults on, so a missing storage fails loudly rather than dropping audio", async () => {
   const recorder = new Recorder();
   function Probe() {
     useRecorder({ recorder });
     return null;
   }
-  await expect(render(<Probe />)).rejects.toThrow(/outbox/i);
+  await expect(render(<Probe />)).rejects.toThrow(/storage/i);
 });
 
 test("toggle starts when idle and stops when recording", async () => {

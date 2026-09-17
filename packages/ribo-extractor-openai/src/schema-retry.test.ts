@@ -3,7 +3,7 @@ import {
   FakeExtractor,
   isTransientFailure,
   SchemaParseError,
-  TerminalQueueError,
+  TerminalError,
 } from "@azx/ribo-core";
 import type { Enveloped, ExtractionTarget } from "@azx/ribo-core";
 import { z } from "zod";
@@ -276,7 +276,7 @@ describe("schemaRetryExtractor — what is NOT retried", () => {
       wrapped(chat).extract({ text: transcript, annotations: {} }),
     );
 
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
     expect(requests).toHaveLength(1);
   });
 
@@ -290,7 +290,7 @@ describe("schemaRetryExtractor — what is NOT retried", () => {
       wrapped(chat, { maxRetries: 2 }).extract({ text: transcript, annotations: {} }),
     );
 
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
     expect((error as Error).message).toContain("maxTokens");
     expect(requests).toHaveLength(2);
   });

@@ -1,13 +1,13 @@
 # Captures & Sources
 
 Ribo's queue carries audio and PDFs today, and whatever a future transcriber package adds later —
-the whole pipeline is written against one union, `CaptureItem`, not against either branch by name.
+the whole pipeline is written against one union, `CapturePayload`, not against either branch by name.
 
 **A `Transcriber` turns any capture into citable text.** Audio was the first kind Ribo had a
 transcriber for. The interface predates documents, and the name stayed because renaming a public
 seam costs more than it buys.
 
-## `CaptureItem`: two branches, one union
+## `CapturePayload`: two branches, one union
 
 `Recording` (audio) and `DocumentCapture` (a PDF, today) share four fields — `id`, `capturedAt`,
 `mimeType`, and a host-supplied `ctx` — and each adds exactly one field of its own on top of a
@@ -36,7 +36,7 @@ const dictation = baseCaptureItemSchema.parse({
 });
 ```
 
-`CaptureItem` is a `z.discriminatedUnion` on `kind`, so `restrictToKind`, the relay, and every
+`CapturePayload` is a `z.discriminatedUnion` on `kind`, so `restrictToKind`, the relay, and every
 transcriber engine below can narrow on it directly — there is no `instanceof`, no duck-typing on
 "does this have `durationMs`."
 
@@ -103,7 +103,7 @@ reasons are `no-text-layer`, `encrypted`, `unsupported-format` — each plainly 
 item, not of the engine or the device.
 
 `UnsupportedItemError` is **terminal for the queue**, not **terminal for the item**. It subclasses
-`TerminalQueueError`, the base class `isTransientFailure` treats as non-retryable outright, so the
+`TerminalError`, the base class `isTransientFailure` treats as non-retryable outright, so the
 relay spends no retry budget on an engine+item pair that will never succeed. A composition layer sees
 the failure and routes to the next engine: a scanned invoice that `pdfjs` can't read a text layer
 from is exactly the case `@azx/ribo-transcriber-managed-docs`'s OCR exists for, and
@@ -129,7 +129,7 @@ per-transport, and each implementation states it in its own docs:
   loop stops between chunks — deliberately not `worker.terminate()`, which would throw away the
   loaded model along with the cancelled clip.
 
-Every one of the shipped engines classifies a caller-aborted transcription as a `TerminalQueueError`
+Every one of the shipped engines classifies a caller-aborted transcription as a `TerminalError`
 — the caller withdrew the work, and the queue must not spend its retry budget re-running it. That
 classification is load-bearing: an abort rejection has no HTTP status, and `isTransientFailure`
 reads any error without one as retryable — so without it, a cancelled capture would be re-sent until
@@ -147,9 +147,9 @@ has none to give, so it is optional, and an engine that needs storage must handl
 ## `restrictToKind`: lifting a narrow engine into a wider slot
 
 `Transcriber.transcribe` is a function-typed property, not a method, so an audio-only
-`Transcriber<Recording>` does **not** silently satisfy `Transcriber<CaptureItem>` — method syntax is
+`Transcriber<Recording>` does **not** silently satisfy `Transcriber<CapturePayload>` — method syntax is
 bivariant even under `strict`, and would let a recording-only engine slide into a slot that can also
-see a `DocumentCapture`. `RelayOptions.transcriber` wants `Transcriber<CaptureItem>` because the
+see a `DocumentCapture`. `RelayOptions.transcriber` wants `Transcriber<CapturePayload>` because the
 queue holds either kind: the compiler rejects an audio-only roster, and `restrictToKind` is the fix:
 
 ```ts
@@ -162,10 +162,10 @@ const audioEngine = firstCapable([
   new ManagedTranscriber(managedOptions),
 ]);
 // `audioEngine` is `Transcriber<Recording>` — it does not typecheck as
-// `RelayOptions.transcriber`, which is `Transcriber<CaptureItem>`.
+// `RelayOptions.transcriber`, which is `Transcriber<CapturePayload>`.
 
 const transcriber = restrictToKind("audio", audioEngine);
-// `transcriber` satisfies `Transcriber<CaptureItem>`: a document handed to it
+// `transcriber` satisfies `Transcriber<CapturePayload>`: a document handed to it
 // throws `UnsupportedItemError` immediately, and an audio item is delegated
 // straight through to `audioEngine`.
 ```
@@ -173,7 +173,7 @@ const transcriber = restrictToKind("audio", audioEngine);
 It changes no engine and asks nothing of the caller beyond naming the kind once. A composition root
 wiring both a document roster (`pdfjs` falling back to `managed-docs`) and an audio roster
 (`ondevice` falling back to `managed`) into one relay lifts each with `restrictToKind` and merges
-both into a single `fallbackTranscriber` — one `Transcriber<CaptureItem>` the relay drains against,
+both into a single `fallbackTranscriber` — one `Transcriber<CapturePayload>` the relay drains against,
 regardless of which kind of capture it's handed next.
 
 ## Next

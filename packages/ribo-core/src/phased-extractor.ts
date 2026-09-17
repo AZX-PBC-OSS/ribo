@@ -16,12 +16,12 @@ import type { DeepPartial } from "./phase-draft.js";
 import { emptyDraft } from "./phase-draft.js";
 import type { Phase, PhaseContext, PhaseDef } from "./phase.js";
 import type { PhaseItemOutcome as Outcome } from "./phase-outcome.js";
-import type { BackoffOptions } from "./queue/backoff.js";
+import type { BackoffOptions } from "./storage/backoff.js";
 import {
   DEFAULT_BACKOFF_BASE_MS,
   DEFAULT_BACKOFF_CAP_MS,
-  TerminalQueueError,
-} from "./queue/backoff.js";
+  TerminalError,
+} from "./storage/backoff.js";
 import { deriveRetryBudget, PER_CALL_CEILING_MS } from "./retry-budget.js";
 import type { RetryBudget, RetryBudgetObserver } from "./retry-budget.js";
 import { retryAsync } from "./retry-async.js";
@@ -261,7 +261,7 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
           // Two kinds of zero. A budget zero against the FULL step timeout means the
           // caller asked for retries that cannot fit ANY run of this shape — the
           // configuration error `requireRetryBudget` has always thrown for, and it
-          // still throws (TerminalQueueError, matching instance-fill.ts's
+          // still throws (TerminalError, matching instance-fill.ts's
           // extract-time precedent). A budget zero only against the REMAINING time
           // came from elapsed wall-clock at a late boundary — transient, so it runs
           // with no retries and reports. Conflating them kills sessions on a timing
@@ -270,7 +270,7 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
           // other direction.
           if (shareBudget.derived < requested) onRetryBudget?.(shareBudget);
           if (requireRetryBudget && requested > 0 && fullBudget.derived === 0) {
-            throw new TerminalQueueError(
+            throw new TerminalError(
               `phasedExtractor: phase "${phase.id}"'s retry budget derived to 0 (requested ` +
                 `${requested}) against even the full step timeout (${stepTimeoutMs} ms) — ` +
                 `increase stepTimeoutMs, lower perCallCeilingMs (${perCallCeilingMs}), or ` +

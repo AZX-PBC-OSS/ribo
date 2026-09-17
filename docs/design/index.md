@@ -92,19 +92,28 @@ for a different one (inlining the whole worker as base64, breaking the module's 
 depending on how a downstream bundler resolves relative asset paths). Injection is what libraries in
 the same position — duckdb-wasm, ffmpeg.wasm — already do.
 
-## The outbox storage seam stops at Level 1, deliberately
+## Durability sits behind a port, and core owns no engine
 
-The offline outbox is injectable at the storage layer: `openOutbox({ storage })` takes an optional
-RxDB `RxStorage` engine and defaults to the browser's IndexedDB-backed Dexie storage, so an existing
-caller is unaffected while a test suite or a future non-browser host can supply its own engine — an
-in-memory store for fast tests today, and something like React Native's SQLite storage if Ribo ever
-leaves the browser.
+`openStorage({ backend })` takes a storage backend and has no default, because every default would
+be wrong somewhere. `@azx/ribo-core` depends on `rxjs` and `zod`: it owns the contracts and every
+piece of domain logic and could not construct an RxDB backend if it wanted to. The production one is
+`openRxdbBackend()` from `@azx/ribo-storage-rxdb`; tests use `createMemoryBackend(name)`.
 
-What does **not** exist yet is a formal `Outbox` interface with multiple concrete implementations
-and a storage conformance-test kit. That is a deliberate stopping point, not an oversight: extracting
-an interface today would be a contract with exactly one real implementation behind it, which locks
-in RxDB's shape while pretending the seam is more general than it is. The richer seam is deferred
-until a genuinely non-RxDB backend exists to design it against.
+The port is roughly fourteen mechanical operations over three collections, with a **closed set of
+three finders** rather than a query language — the domain only ever asks three questions, so a
+backend implements three named finders and indexes them however it likes. Nothing resembling a query
+selector crosses the boundary.
+
+What makes an implementation real is not the types but six behavioural obligations no signature can
+express, published as an executable conformance kit at `@azx/ribo-core/testing`. Two backends pass
+it today.
+
+**This was deferred once**, on the reasoning that a contract with one implementation locks in that
+implementation's shape while pretending not to. That reasoning was sound and its premise has not
+changed — no second _production_ backend is planned. What changed is the motive: the port exists so
+core's contracts stop naming RxDB types, so a host can declare a store without reaching through to
+RxDB, and so the vocabulary describes what the subsystem is. The guard against the original
+objection is that there are two implementations from the first commit, both held to the same kit.
 
 ---
 

@@ -8,7 +8,7 @@ decides whether any of it can happen yet.
 ## `ToolAdapter` is the only tool-specific surface
 
 Everything this SDK does before write-back — the derived extraction schema, the review contract, the
-outbox and relay — has no idea what tool it's writing into. All of that tool-specific knowledge lives
+storage and relay — has no idea what tool it's writing into. All of that tool-specific knowledge lives
 in exactly one place, declared against the real signature:
 
 ```ts
@@ -41,7 +41,7 @@ that would fail at the host becomes a question asked while the auditor is still 
 
 **What must never leak out of one:** anything about the pipeline that got the values here. An
 adapter's `write` receives a plain `V` and a plain `C` — never a `Recording`, a `Transcript`, a
-`ReviewOutcome`, or an outbox document. It does not know whether the fields it's writing came from a
+`ReviewOutcome`, or storage document. It does not know whether the fields it's writing came from a
 microphone or a scanned PDF, whether the session had one capture or five, or what a human rejected
 along the way; all of that was already resolved before `write` is ever called. An adapter that
 reached backward into pipeline internals would couple tool-specific code to shapes that are free to
@@ -70,7 +70,7 @@ const relay = createRelay({
 
 Per session, it parses `ctx` with `adapter.ctxSchema`, parses the reviewed patch with `adapter.schema`,
 and only then calls `adapter.write(fields, ctx, { idempotencyKey })`. Either parse failing throws a
-`TerminalQueueError` — both failures are permanent: the inputs are already persisted, so a retry sees
+`TerminalError` — both failures are permanent: the inputs are already persisted, so a retry sees
 the exact same invalid data and fails identically. `write`'s own rejection is passed through
 untouched and left retryable, because a network failure is what a real adapter throws most often,
 and it's exactly what should be retried.

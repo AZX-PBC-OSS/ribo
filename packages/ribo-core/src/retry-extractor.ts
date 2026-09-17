@@ -1,6 +1,6 @@
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import type { ExtractOptions, Extractor, ExtractionResult } from "./extractor.js";
-import type { BackoffOptions } from "./queue/backoff.js";
+import type { BackoffOptions } from "./storage/backoff.js";
 import { retryAsync } from "./retry-async.js";
 
 /**

@@ -540,7 +540,7 @@ describe("perGroupExtractor — trust boundary", () => {
 describe("perGroupExtractor — failure classification", () => {
   test("a truncated response (finishReason 'length') is terminal, not retried", async () => {
     // Both groups return a truncated response. The first one to be processed
-    // triggers the TerminalQueueError; the extraction fails. The error must be
+    // triggers the TerminalError; the extraction fails. The error must be
     // terminal (not transient) so the queue does not burn eight retries on a
     // deterministic truncation.
     const { chat } = fakeGroupChat(
@@ -777,7 +777,7 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
 
   test("a terminal failure is not retried — one call, then the throw, and never delays", async () => {
     // hvac returns a truncated response (finishReason: "length"). This is a
-    // TerminalQueueError — it must not be retried. One call to hvac, then the
+    // TerminalError — it must not be retried. One call to hvac, then the
     // extraction throws. The delay function is never called: terminal failures
     // short-circuit before the backoff.
     const delays: number[] = [];
@@ -1655,7 +1655,7 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
     // bespoke chat with real timers is what forces the branch:
     //
     //   t=0   hvac fails transiently -> not yet aborted -> enters its 40ms backoff
-    //   t=20  attic returns finishReason "length" -> TerminalQueueError -> abort()
+    //   t=20  attic returns finishReason "length" -> TerminalError -> abort()
     //   t=40  hvac wakes, reaches the TOP of its next iteration, sees aborted
     //
     // That last step is the branch under test.

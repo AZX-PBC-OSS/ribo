@@ -13,7 +13,7 @@ import type { Phase } from "./phase.js";
 import { phaseBuilder } from "./phase.js";
 import { phasedExtractor } from "./phased-extractor.js";
 import type { RetryBudget } from "./retry-budget.js";
-import { TerminalQueueError } from "./queue/backoff.js";
+import { TerminalError } from "./storage/backoff.js";
 import { SchemaParseError } from "./schema-parse-error.js";
 
 // Hand-written phases over a tiny hand-written V — no adapter imports, no model. The
@@ -833,7 +833,7 @@ describe("phasedExtractor — the running deadline and the per-phase retry budge
     expect(deadlinesSeen).toEqual([1_050_000]);
   });
 
-  test("a budget zero against the FULL step timeout throws TerminalQueueError when requireRetryBudget is set", async () => {
+  test("a budget zero against the FULL step timeout throws TerminalError when requireRetryBudget is set", async () => {
     // Single-phase list, so the pin is about the rule, not about which phase tripped
     // it. Even the full step timeout cannot fit one attempt at this ceiling — the
     // caller asked for retries that cannot fit any run of this shape.
@@ -852,7 +852,7 @@ describe("phasedExtractor — the running deadline and the per-phase retry budge
       requireRetryBudget: true,
     });
 
-    await expect(extractor.extract(transcript)).rejects.toBeInstanceOf(TerminalQueueError);
+    await expect(extractor.extract(transcript)).rejects.toBeInstanceOf(TerminalError);
   });
 
   test("a budget zero only against the REMAINING time does not throw — it runs with no retries and reports", async () => {
@@ -1020,7 +1020,7 @@ describe("phasedExtractor — the unit stream and the produces check", () => {
 
   test("an aborted sibling emits no start event for an attempt that never began", async () => {
     const { events, onUnit } = collectEvents();
-    const terminal = new TerminalQueueError("deterministic failure");
+    const terminal = new TerminalError("deterministic failure");
     const boom = transient503();
     // Item "zero" fails transiently and sleeps in its backoff on this gate; item
     // "one" fails terminally on its first attempt, which aborts the pool. When the

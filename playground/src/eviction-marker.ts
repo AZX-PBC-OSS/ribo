@@ -75,7 +75,7 @@ const markerSchema = z.strictObject({
   firstSeenAt: z.string(),
   /** ISO 8601 — the last time the app observed the queue. */
   lastSeenAt: z.string(),
-  /** How many items were in the outbox at `lastSeenAt`. The whole point. */
+  /** How many items were in the storage at `lastSeenAt`. The whole point. */
   items: z.number().int().nonnegative(),
 });
 

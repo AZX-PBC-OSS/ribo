@@ -1,0 +1,188 @@
+import { addRxPlugin, createRxDatabase } from "rxdb";
+import { RxDBDevModePlugin } from "rxdb/plugins/dev-mode";
+import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
+import { wrappedValidateAjvStorage } from "rxdb/plugins/validate-ajv";
+import { afterEach, expect, test } from "vitest";
+
+import {
+  CAPTURES_COLLECTION_NAME,
+  PLUGIN_STORAGE_COLLECTION_NAME,
+  SESSION_COLLECTION_NAME,
+  openStorage,
+  Storage,
+} from "@azx/ribo-core";
+
+import {
+  CAPTURE_MIGRATION_STRATEGIES,
+  removeOutboxDatabase,
+  type OutboxCollection,
+  type OutboxDatabase,
+  type PluginStorageCollection,
+  type SessionCollection,
+} from "./database.js";
+import { createRxdbBackend } from "./backend.js";
+import { openRxdbBackend } from "./open.js";
+import {
+  PLUGIN_STORAGE_MIGRATION_STRATEGIES,
+  SESSION_MIGRATION_STRATEGIES,
+  captureRxSchema,
+  pluginStorageRxSchema,
+  sessionRxSchema,
+} from "./schemas.js";
+
+/**
+ * @file The genuinely cross-tab case for `reopenSessionForReview`'s concurrency
+ * guard — two independent `Storage` instances, each its own `RxDatabase`
+ * connection over the SAME IndexedDB database, rather than two calls issued
+ * through one.
+ *
+ * ## Why this could not simply be added to `storage.browser.test.ts`
+ *
+ * Opening a second `RxDatabase` with a name already open in the same JS
+ * process throws RxDB's DB8 ("already exists") by default — a check that has
+ * nothing to do with real browser tabs (two actual tabs are two separate JS
+ * heaps, each with its own module-level bookkeeping, and never see this at
+ * all) and everything to do with one process opening the same name twice.
+ * RxDB's own escape hatch, `ignoreDuplicate: true`, is how RxDB tests its own
+ * multi-instance behaviour, but it throws DB9 instead unless
+ * `RxDBDevModePlugin` has been registered first — and that registration is a
+ * PROCESS-GLOBAL side effect (`storage.sessions.submitReview`'s own doc comment
+ * records this as the reason its cross-tab case went untested). Vitest's
+ * browser project isolates each test FILE in its own page, so paying that
+ * cost here cannot change how any of `storage.browser.test.ts`'s ~60 other
+ * assertions run; that isolation is the entire reason this is its own file
+ * rather than a few more tests appended to that one.
+ *
+ * Dev mode has a second, unconditional requirement once registered: EVERY
+ * `createRxDatabase` call in this JS context — not only the `ignoreDuplicate`
+ * one — must use a storage wrapped by one of RxDB's `validate-*` plugins
+ * (`preCreateRxDatabase`'s dev-mode hook throws `DVM1` otherwise, discovered
+ * empirically: the plain `openStorage({ name })` this file's FIRST connection
+ * would otherwise use failed with it too). `wrappedValidateAjvStorage` is used
+ * below for both connections; it adds no dependency of this package's own —
+ * `ajv` is `rxdb`'s own direct dependency, resolved through `rxdb`'s package,
+ * not this one's.
+ *
+ * ## What this proves, and what it does not
+ *
+ * It proves `reopenSessionForReview`'s `incrementalModify` guard survives a
+ * genuine write race between two independent connections to the same
+ * underlying IndexedDB store — the case an in-memory mutex scoped to a single
+ * `Storage` object cannot be fooled into passing, unlike the single-instance
+ * test in `session-storage.test.ts`. It does not exercise
+ * `submitSessionReview`'s identical guard directly (see that method's own doc
+ * comment for why the two should be weighed the same way regardless), and it
+ * does not exercise RxDB's own multi-instance change-propagation
+ * (`eventReduce`, leader election) — this file's `ignoreDuplicate` seam is a
+ * way to get two connections in one process, not a claim that two tabs behave
+ * identically to it in every way.
+ */
+
+addRxPlugin(RxDBDevModePlugin);
+
+const openOutboxes: Storage[] = [];
+const usedNames: string[] = [];
+
+function uniqueName(): string {
+  const name = `ribo-storage-cross-tab-test-${crypto.randomUUID()}`;
+  usedNames.push(name);
+  return name;
+}
+
+afterEach(async () => {
+  for (const storage of openOutboxes.splice(0)) {
+    if (!storage.closed) await storage.close();
+  }
+  for (const name of usedNames.splice(0)) await removeOutboxDatabase(name);
+});
+
+/**
+ * A second, independent connection to an ALREADY-OPEN storage database —
+ * everything `openOutboxDatabase` (`database.ts`) does, plus the
+ * `ignoreDuplicate: true` production code has no reason to ever pass, since a
+ * real second tab is a separate process with no duplicate to ignore. Kept
+ * local to this file rather than added as an option on `openStorage` for
+ * exactly that reason: it is a test-only way to simulate "a second tab" within
+ * one JS heap, not a knob a host should be able to reach for.
+ */
+async function openSecondConnection(name: string): Promise<Storage> {
+  const database: OutboxDatabase = await createRxDatabase<{
+    outbox: OutboxCollection;
+    sessions: SessionCollection;
+    pluginStorage: PluginStorageCollection;
+  }>({
+    name,
+    storage: wrappedValidateAjvStorage({ storage: getRxStorageDexie() }),
+    multiInstance: true,
+    eventReduce: true,
+    ignoreDuplicate: true,
+    cleanupPolicy: {},
+  });
+  await database.addCollections({
+    [CAPTURES_COLLECTION_NAME]: {
+      schema: captureRxSchema,
+      migrationStrategies: CAPTURE_MIGRATION_STRATEGIES,
+    },
+    [SESSION_COLLECTION_NAME]: {
+      schema: sessionRxSchema,
+      // Mirrors `openOutboxDatabase`. Every version above 0 needs a strategy or
+      // `addCollections` fails with COL12, so this file has to move with the
+      // schema — the cost of hand-rolling the registration rather than going
+      // through `openStorage`. It does that deliberately: this test needs two
+      // independent connections to one database, which the public helper does
+      // not expose.
+      migrationStrategies: SESSION_MIGRATION_STRATEGIES,
+    },
+    [PLUGIN_STORAGE_COLLECTION_NAME]: {
+      schema: pluginStorageRxSchema,
+      migrationStrategies: PLUGIN_STORAGE_MIGRATION_STRATEGIES,
+    },
+  });
+  const storage = new Storage(createRxdbBackend(database, name));
+  openOutboxes.push(storage);
+  return storage;
+}
+
+test("two reopenSessionForReview calls from two independent Storage connections settle as one winner and one refusal", async () => {
+  const name = uniqueName();
+  // The backend's `storage` option is the seam for choosing an engine — used
+  // here for a validate wrapper instead, so the FIRST connection can go through
+  // the ordinary `openRxdbBackend` and still satisfy dev mode's DVM1 check.
+  const first = await openStorage({
+    backend: await openRxdbBackend({
+      name,
+      storage: wrappedValidateAjvStorage({ storage: getRxStorageDexie() }),
+    }),
+  });
+  openOutboxes.push(first);
+
+  const session = await first.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  await first.sessions.patch(session.id, {
+    status: "dead",
+    extracted: { atticRValue: 19 },
+    extractedFromRecordingIds: ["r1"],
+    reviewOutcome: { status: "accepted", fields: {} },
+    lastError: "write failed",
+  });
+
+  const second = await openSecondConnection(name);
+
+  const results = await Promise.allSettled([
+    first.sessions.reopenForReview(session.id),
+    second.sessions.reopenForReview(session.id),
+  ]);
+
+  // Exactly one connection's write landed. An implementation guarded only by an
+  // in-memory mutex scoped to one `Storage` object would do nothing to prevent
+  // BOTH of these from reading "dead" and BOTH from believing they won — this
+  // is the shape of bug this file exists to catch that the single-instance test
+  // cannot.
+  expect(results.map((result) => result.status)).toEqual(["fulfilled", "rejected"]);
+
+  // Read back through a THIRD lens — the first connection's own `getSession`,
+  // after the race has settled — so the assertion is not merely "one promise
+  // resolved", but "the session actually ended up parked, once, not twice".
+  const settled = await first.sessions.get(session.id);
+  expect(settled?.status).toBe("awaiting-review");
+  expect(settled?.reviewOutcome).toBeUndefined();
+});

@@ -12,7 +12,7 @@ import type { AnnotatedTranscript } from "./annotated-transcript.js";
 /**
  * Combines per-capture transcripts into one. **Pure**: takes an array (already
  * sorted by `seq`), returns a value, touches nothing else. A combiner that
- * takes the `Outbox`, or reads anything, has reproduced the defect this
+ * takes the `Storage`, or reads anything, has reproduced the defect this
  * contract exists to fix.
  *
  * The relay supplies the array; the combiner decides how the texts join. A
@@ -40,7 +40,7 @@ export interface DefaultTranscriptCombinerOptions {
    *
    *    The marker is built from `capture.seq`, `capture.kind`, and `capture.id`
    *    in each part's `annotations` bag — the relay populates these from the
-   *    outbox item under a reserved `capture.` prefix. The bag is open by design;
+   *    storage item under a reserved `capture.` prefix. The bag is open by design;
    *    the default combiner reads these keys and nothing else.
    *
    * Defaults to `false`: the joined text is unchanged for existing callers.
@@ -89,7 +89,7 @@ function captureMarker(part: AnnotatedTranscript, index: number): string {
       throw new TypeError(
         `createDefaultTranscriptCombiner: markCaptures needs a string or number \`${key}\` in ` +
           `parts[${index}].annotations, got ${typeof value}. The relay populates these from the ` +
-          `outbox item; a hand-built part must supply them.`,
+          `storage item; a hand-built part must supply them.`,
       );
     }
     // The marker reads `seq:N` not `capture.seq:N` — the namespace is internal.

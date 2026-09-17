@@ -9,7 +9,7 @@ import { FakeExtractor } from "./extractor.js";
 import type { ExtractionObserver, GroupUnit } from "./extraction-observer.js";
 import type { RetryBudget } from "./retry-budget.js";
 import { SchemaParseError } from "./schema-parse-error.js";
-import { TerminalQueueError } from "./queue/backoff.js";
+import { TerminalError } from "./storage/backoff.js";
 import { groupedExtractor } from "./grouped-extractor.js";
 import type { GroupMap } from "./grouped-extractor.js";
 
@@ -86,7 +86,7 @@ interface EntryCall {
 
 /** Behaviour knobs for a fake group entry. */
 interface EntryBehavior {
-  /** Fail every attempt with this error (a TerminalQueueError, say). */
+  /** Fail every attempt with this error (a TerminalError, say). */
   readonly failure?: Error;
   /** Fail the first `failTimes` attempts transiently, then succeed. */
   readonly failTimes?: number;
@@ -295,7 +295,7 @@ describe("groupedExtractor — sibling abort and the caller's signal", () => {
     // silently disable sibling abort.
     const caller = new AbortController();
     const failing = groupEntry("hvac", hvacLeaf("Boiler"), {
-      failure: new TerminalQueueError("truncated"),
+      failure: new TerminalError("truncated"),
     });
     const hanging = groupEntry("attic", atticLeaf("10-12"), { hangUntilAbort: true });
     const neverStarts = groupEntry("attic", atticLeaf("R-30"), { hangUntilAbort: true });
@@ -306,7 +306,7 @@ describe("groupedExtractor — sibling abort and the caller's signal", () => {
     });
 
     await expect(extractor.extract(transcript, { signal: caller.signal })).rejects.toBeInstanceOf(
-      TerminalQueueError,
+      TerminalError,
     );
 
     expect(hanging.observedAbort).toBe(true);
@@ -403,7 +403,7 @@ describe("groupedExtractor — retry", () => {
   test("a terminal failure is never retried and never delays", async () => {
     const delays: number[] = [];
     const failing = groupEntry("hvac", hvacLeaf("Boiler"), {
-      failure: new TerminalQueueError("truncated"),
+      failure: new TerminalError("truncated"),
     });
     const extractor = groupedExtractor({
       target,
@@ -413,7 +413,7 @@ describe("groupedExtractor — retry", () => {
       },
     });
 
-    await expect(extractor.extract(transcript)).rejects.toBeInstanceOf(TerminalQueueError);
+    await expect(extractor.extract(transcript)).rejects.toBeInstanceOf(TerminalError);
     expect(failing.calls).toHaveLength(1);
     expect(delays).toEqual([]);
   });
@@ -533,7 +533,7 @@ describe("groupedExtractor — GroupUnit events", () => {
     const events: GroupUnit[] = [];
     const onUnit: ExtractionObserver<GroupUnit>["onUnit"] = (event) => events.push(event);
     const failing = groupEntry("hvac", hvacLeaf("Boiler"), {
-      failure: new TerminalQueueError("truncated"),
+      failure: new TerminalError("truncated"),
     });
     const extractor = groupedExtractor({
       target,
@@ -542,7 +542,7 @@ describe("groupedExtractor — GroupUnit events", () => {
       delay: async () => {},
     });
 
-    await expect(extractor.extract(transcript)).rejects.toBeInstanceOf(TerminalQueueError);
+    await expect(extractor.extract(transcript)).rejects.toBeInstanceOf(TerminalError);
 
     const hvacEvents = events.filter((event) => event.key === "hvac");
     expect(hvacEvents.map((event) => event.phase)).toEqual(["start", "error"]);

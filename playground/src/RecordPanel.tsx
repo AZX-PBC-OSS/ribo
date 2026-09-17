@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useOutboxItems, useRecorder } from "@azx/ribo-ui-react";
+import { useCaptures, useRecorder } from "@azx/ribo-ui-react";
 
 import { formatElapsed } from "./format.js";
 import { button, errorBox, monospace, muted, panel, recordButton } from "./styles.js";
@@ -9,7 +9,7 @@ import { button, errorBox, monospace, muted, panel, recordButton } from "./style
  * is live: elapsed time and input level.
  *
  * `useRecorder()` resolves the shared `Recorder` (and, for enqueueing a stopped
- * capture, the shared `Outbox`) through `RiboProvider`, and pushes fresh state on
+ * capture, the shared `Storage`) through `RiboProvider`, and pushes fresh state on
  * every ~100 ms tick and on every phase change. Nothing here polls, and nothing
  * here owns a `Recorder` of its own — see `recorder-handle.ts` for why that
  * instance is a host-level singleton rather than component state.
@@ -21,12 +21,12 @@ const METER_HEIGHT = 14;
 export function RecordPanel() {
   const { phase, elapsedMs, level, scaledLevel, busy, error, toggle, pause, resume } =
     useRecorder();
-  // The recording row is already in the outbox (durable capture inserts it at
-  // `start()`), so `useOutboxItems` delivers its `preview` reactively — no new
+  // The recording row is already in the storage (durable capture inserts it at
+  // `start()`), so `useCaptures` delivers its `preview` reactively — no new
   // subscription mechanism is added (design §Delivery). `preview` is absent
   // before the first utterance closes and after the batch transcript lands.
-  const { items: recordingItems } = useOutboxItems({ status: "recording" });
-  // **The LAST row, not the first.** `useOutboxItems` sorts by `seq` ascending — that ordering is the
+  const { items: recordingItems } = useCaptures({ status: "recording" });
+  // **The LAST row, not the first.** `useCaptures` sorts by `seq` ascending — that ordering is the
   // queue's capture-order guarantee and is not optional — so `[0]` is the OLDEST `recording` row.
   // Durable capture leaves one behind for every interrupted capture until startup recovery sweeps
   // it, so on any device that has ever lost a recording, `[0]` is an orphan with no preview and the

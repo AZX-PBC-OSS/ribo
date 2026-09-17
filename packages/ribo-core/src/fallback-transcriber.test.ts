@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { FakeTranscriber } from "./fake-transcriber.js";
 import { fallbackTranscriber } from "./fallback-transcriber.js";
-import { isTransientFailure, TerminalQueueError } from "./queue/backoff.js";
+import { isTransientFailure, TerminalError } from "./storage/backoff.js";
 import type { Recording } from "./recording.js";
 import { type Transcriber } from "./transcriber.js";
 import { unsupportedFallsThrough, type TranscriptionArbiter } from "./transcription-arbitration.js";
@@ -23,7 +23,7 @@ const fake = (engine: string, opts?: ConstructorParameters<typeof FakeTranscribe
   new FakeTranscriber({ engine, ...opts });
 
 // Compile-time check that fallbackTranscriber returns a Transcriber for a
-// concrete item type, not just CaptureItem.
+// concrete item type, not just CapturePayload.
 const _typeCheck: Transcriber<Recording> = fallbackTranscriber<Recording>(
   [new FakeTranscriber()],
   unsupportedFallsThrough,
@@ -94,7 +94,7 @@ describe("fallbackTranscriber", () => {
     const error = await composite.transcribe(recording(), audio()).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(UnsupportedItemError);
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
     expect(isTransientFailure(error)).toBe(false);
   });
 

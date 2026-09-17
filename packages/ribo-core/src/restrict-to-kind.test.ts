@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import type { CaptureItem } from "./capture-item.js";
+import type { CapturePayload } from "./capture-item.js";
 import type { DocumentCapture } from "./capture-item.js";
 import { restrictToKind } from "./restrict-to-kind.js";
 import type { Recording } from "./recording.js";
@@ -72,20 +72,20 @@ test("restrictToKind delegates capability()", async () => {
 // assertion has inverted and the test fails. Vitest does not typecheck, so
 // these fire under `pnpm typecheck`, not `pnpm test`.
 
-test("a Transcriber<Recording> is NOT assignable to Transcriber<CaptureItem>", () => {
+test("a Transcriber<Recording> is NOT assignable to Transcriber<CapturePayload>", () => {
   const audioOnly: Transcriber<Recording> = new FakeTranscriber();
   // @ts-expect-error — with property-typed `transcribe`, the contravariant
   // parameter makes this assignment a type error. If `transcribe` were
   // declared as a method, this directive would go unused and the typecheck
   // would fail — which is how you know the test is testing the syntax choice.
-  const _wide: Transcriber<CaptureItem> = audioOnly;
+  const _wide: Transcriber<CapturePayload> = audioOnly;
   expect(_wide).toBe(audioOnly);
 });
 
-test("a Transcriber<CaptureItem> IS assignable to Transcriber<Recording>", () => {
+test("a Transcriber<CapturePayload> IS assignable to Transcriber<Recording>", () => {
   // The safe direction must keep working; a test that only pins the rejection
   // would also pass if the type were simply broken.
-  const wide: Transcriber<CaptureItem> = restrictToKind("audio", new FakeTranscriber());
+  const wide: Transcriber<CapturePayload> = restrictToKind("audio", new FakeTranscriber());
   const _narrow: Transcriber<Recording> = wide;
   expect(_narrow).toBe(wide);
 });
@@ -117,9 +117,9 @@ test("a class with an async transcribe method satisfies the property-typed inter
   expect(_t.engine).toBe("mine");
 });
 
-test("restrictToKind('audio', audioOnly) is assignable to Transcriber<CaptureItem>", () => {
+test("restrictToKind('audio', audioOnly) is assignable to Transcriber<CapturePayload>", () => {
   const audioOnly: Transcriber<Recording> = new FakeTranscriber();
-  const wide: Transcriber<CaptureItem> = restrictToKind("audio", audioOnly);
+  const wide: Transcriber<CapturePayload> = restrictToKind("audio", audioOnly);
   expect(wide.engine).toBe(audioOnly.engine);
 });
 

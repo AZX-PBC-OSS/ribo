@@ -4,7 +4,7 @@ import { useCallback, useMemo } from "react";
 
 import { useConnectivity } from "./use-connectivity.js";
 import { useOptionalRiboInstance } from "./use-ribo-instance.js";
-import { useOutboxItems } from "./use-outbox-items.js";
+import { useCaptures } from "./use-captures.js";
 import { useSessions } from "./use-sessions.js";
 import { useStoragePersistence } from "./use-storage-persistence.js";
 import { useSubscribed } from "./use-subscribed.js";
@@ -12,9 +12,9 @@ import { useSubscribed } from "./use-subscribed.js";
 export interface UseWorkSafetyResult {
   /**
    * The verdict — **`undefined` when it cannot be computed honestly**, which is
-   * either while `loading` or after an outbox read `error`.
+   * either while `loading` or after storage read `error`.
    *
-   * Not a `WorkSafety` with a benign default. `useOutboxItems` yields an empty
+   * Not a `WorkSafety` with a benign default. `useCaptures` yields an empty
    * array both before its first emission and after a watch failure, and an empty
    * array summarizes to `{ pending: 0 }`, which `workSafety` classifies as
    * `safe / nothing-captured`. So a defaulted verdict would announce that the
@@ -24,38 +24,34 @@ export interface UseWorkSafetyResult {
    */
   readonly safety: WorkSafety | undefined;
   readonly work: WorkOnDevice | undefined;
-  /** No outbox emission yet, so no verdict. */
+  /** No storage emission yet, so no verdict. */
   readonly loading: boolean;
-  /** The outbox read failed, so no verdict. Distinct from `loading`. */
+  /** The storage read failed, so no verdict. Distinct from `loading`. */
   readonly error: Error | undefined;
 }
 
 /**
  * The one honest answer to "is my work safe?", composed for React.
  *
- * Reads the outbox, the storage-persistence grant and connectivity, and runs
+ * Reads the storage, the storage-persistence grant and connectivity, and runs
  * core's `summarizeWork` → `workSafety`. Composed **here**, once, because the
  * whole reason that logic lives in core is so "every presenter classifies
  * identically" — a host assembling the three inputs itself is exactly the
  * divergence core centralised to prevent.
  *
- * While `loading`, the verdict is computed over an empty outbox, so it would read
+ * While `loading`, the verdict is computed over an empty storage, so it would read
  * `safe` / `nothing-captured`. That verdict is withheld rather than shown: a UI
  * that renders it unconditionally tells the auditor their work is safe before it
  * has looked.
  *
  * **No override argument, unlike every other hook in this package.** It composes
- * `useOutboxItems`, `useConnectivity` and `useStoragePersistence` internally rather
+ * `useCaptures`, `useConnectivity` and `useStoragePersistence` internally rather
  * than taking their instances as parameters, so there is nothing here for a caller
  * to override — which means this hook can only be used under a `RiboProvider`
  * (see its own doc comment), never bypassed the way a test can bypass the others.
  */
 export function useWorkSafety(): UseWorkSafetyResult {
-  const {
-    items: recordings,
-    loading: recordingsLoading,
-    error: recordingsError,
-  } = useOutboxItems();
+  const { items: recordings, loading: recordingsLoading, error: recordingsError } = useCaptures();
   const { items: sessions, loading: sessionsLoading, error: sessionsError } = useSessions();
   const { persistence } = useStoragePersistence();
   const connectivity = useConnectivity();
@@ -76,7 +72,7 @@ export function useWorkSafety(): UseWorkSafetyResult {
   );
 
   // Withheld rather than defaulted whenever the inputs are not trustworthy. See
-  // the note on `safety` above: an unreadable outbox looks exactly like an empty
+  // the note on `safety` above: an unreadable storage looks exactly like an empty
   // one, and "empty" classifies as safe.
   const loading = recordingsLoading || sessionsLoading;
   const error = recordingsError ?? sessionsError;

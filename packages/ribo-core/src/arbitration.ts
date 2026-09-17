@@ -1,6 +1,6 @@
 import type { ExtractOptions, Extractor, ExtractionResult } from "./extractor.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
-import { isTransientFailure } from "./queue/backoff.js";
+import { isTransientFailure } from "./storage/backoff.js";
 import { SchemaParseError } from "./schema-parse-error.js";
 
 /**

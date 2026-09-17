@@ -1,8 +1,8 @@
 import type {
   Capture,
   LiveTranscriber,
-  Outbox,
-  OutboxItem,
+  Storage,
+  RecorderCapture,
   RecorderPhase,
   RecorderState,
 } from "@azx/ribo-core";
@@ -18,12 +18,12 @@ import { useSubscribed } from "./use-subscribed.js";
 
 export interface UseRecorderOptions {
   readonly recorder?: AnyRecorder;
-  readonly outbox?: Outbox;
+  readonly storage?: Storage;
   /**
-   * Hand the capture to the outbox on stop. Defaults to **`true`**.
+   * Hand the capture to the storage on stop. Defaults to **`true`**.
    *
    * A recording that stops without reaching disk is lost, so the durable path is
-   * the default rather than an opt-in. With `enqueue: false` no outbox is needed
+   * the default rather than an opt-in. With `enqueue: false` no storage is needed
    * and `stop()` resolves `item: undefined`.
    */
   readonly enqueue?: boolean;
@@ -31,7 +31,7 @@ export interface UseRecorderOptions {
   readonly captureCoordinator?: CaptureCoordinator;
   /**
    * Override the live transcriber from {@link RiboProvider}. When supplied and
-   * ready, recording opens a live session whose segments appear on the outbox
+   * ready, recording opens a live session whose segments appear on the storage
    * row's `preview` field. The session lifecycle is driven by
    * `recorder.start()`/`stop()` through the host's capture-session wiring.
    */
@@ -39,7 +39,7 @@ export interface UseRecorderOptions {
   /**
    * The session this recording belongs to. Required when capture is durable
    * (`enqueue: true`, the default) or when the recorder was constructed with a
-   * `captureSession` factory — `openCaptureSession` and `outbox.enqueue` both
+   * `captureSession` factory — `openCaptureSession` and `storage.enqueue` both
    * demand it, because every recording is owned by a session in the
    * session-entity model.
    */
@@ -47,9 +47,9 @@ export interface UseRecorderOptions {
 }
 
 export interface StopResult {
-  readonly capture: Capture<Record<string, unknown>>;
+  readonly capture: RecorderCapture<Record<string, unknown>>;
   /** The queued row, or `undefined` when `enqueue` was `false`. */
-  readonly item: OutboxItem | undefined;
+  readonly item: Capture | undefined;
 }
 
 export interface UseRecorderResult {
@@ -89,7 +89,7 @@ export interface UseRecorderResult {
  *
  * Errors are captured into {@link UseRecorderResult.error} rather than thrown out
  * of an event handler, where React cannot route them anywhere useful. The one
- * exception is a misconfiguration — `enqueue` on with no outbox — which throws at
+ * exception is a misconfiguration — `enqueue` on with no storage — which throws at
  * render, because it is a wiring bug the developer must fix rather than a runtime
  * condition the UI should display.
  *
@@ -105,7 +105,7 @@ export interface UseRecorderResult {
  * because a host typically fires it from a click handler with no return value to
  * act on and just re-renders off `phase`/`error`. `stop()` does that **and**
  * re-throws, because its resolved value carries the `Capture` (and, on the durable
- * path, the `OutboxItem`) the caller actually needs next — to hand to a review
+ * path, the `Capture`) the caller actually needs next — to hand to a review
  * screen, say. Swallowing the failure there would let a caller read `item`/`capture`
  * off a promise that never produced them, silently proceeding as if the recording
  * had been saved. A caller must therefore `await stop()` inside a `try`, same as
@@ -120,13 +120,13 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
   // it. The *check* is conditional instead, and it throws at first render rather
   // than at the end of the first recording, by which point the audio is in memory
   // with nowhere to go.
-  const maybeOutbox = useOptionalRiboInstance("outbox", options.outbox);
+  const maybeOutbox = useOptionalRiboInstance("storage", options.storage);
   if (enqueue && maybeOutbox === undefined) {
     throw new Error(
-      "ribo: useRecorder({ enqueue: true }) needs an outbox, so a stopped recording reaches disk. Pass one to <RiboProvider value={{ outbox }}>, or set enqueue: false to handle the capture yourself.",
+      "ribo: useRecorder({ enqueue: true }) needs storage, so a stopped recording reaches disk. Pass one to <RiboProvider value={{ storage }}>, or set enqueue: false to handle the capture yourself.",
     );
   }
-  const outbox = enqueue ? maybeOutbox : undefined;
+  const storage = enqueue ? maybeOutbox : undefined;
   const captureCoordinator = useOptionalRiboInstance(
     "captureCoordinator",
     options.captureCoordinator,
@@ -176,17 +176,17 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
       // again produced a second row and a second relay run for one dictation, and it
       // masked a worse bug: the durable row was being deleted during teardown, so the
       // duplicate quietly stood in for it.
-      let item: OutboxItem | undefined;
+      let item: Capture | undefined;
       if (capture.itemId !== undefined) {
-        item = await outbox?.get(capture.itemId);
-      } else if (outbox !== undefined) {
+        item = await storage?.captures.get(capture.itemId);
+      } else if (storage !== undefined) {
         if (sessionId === undefined) {
           throw new RecorderError(
             "capture-failed",
             "useRecorder needs a sessionId to enqueue a stopped capture. Pass one to useRecorder({ sessionId }).",
           );
         }
-        item = await outbox.enqueue({
+        item = await storage.captures.enqueue({
           recording: capture.recording,
           audio: capture.audio,
           sessionId,
@@ -203,7 +203,7 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
       unregisterRef.current = undefined;
       setBusy(false);
     }
-  }, [outbox, recorder, sessionId]);
+  }, [storage, recorder, sessionId]);
 
   const pause = useCallback(() => {
     try {

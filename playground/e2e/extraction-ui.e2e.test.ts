@@ -15,7 +15,7 @@ import { snuggExamples, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
  * extract step (`FakeExtractor` here) after a `FakeTranscriber` — and asserts the
  * fields show with provenance in the review card, then drives that card (R2 Phase
  * A's human review gate: extraction parks the item at `awaiting-review`, and
- * `Outbox.submitReview` is the only way out) to `done`.
+ * `storage.sessions.submitReview` is the only way out) to `done`.
  *
  * ## Deliberately the fake path (plan DoD / Global Constraints)
  *
@@ -126,7 +126,7 @@ function allLeafPaths(): readonly string[] {
 
 // Restored for R2 Task 18. This used to poll straight for `done`; R2 Phase A put
 // a human review gate between `extracting` and `writing` (an item now parks at
-// `awaiting-review`, and `Outbox.submitReview` is the only thing that moves it
+// `awaiting-review`, and `storage.sessions.submitReview` is the only thing that moves it
 // on), so the poll for `done` alone became unreachable without a human. The fix
 // is NOT to weaken the assertion to accept `awaiting-review` — the whole point of
 // this test is that a recording drains ALL the way through — but to drive the
@@ -228,7 +228,7 @@ test("a recording drains through extraction and its fields show with provenance"
 
   await submit.click();
 
-  // `Outbox.submitReview` moved the item to `writing`, which drops it out of
+  // `storage.sessions.submitReview` moved the item to `writing`, which drops it out of
   // `ReviewPanel`'s `awaiting-review` filter — the card itself disappears.
   await card.waitFor({ state: "detached", timeout: 15_000 });
 

@@ -1,7 +1,7 @@
-import type { CaptureItem } from "./capture-item.js";
+import type { CapturePayload } from "./capture-item.js";
 import type { Recording } from "./recording.js";
 import type { Transcript } from "./transcript.js";
-import type { CaptureStorageScope } from "./queue/plugin-storage.js";
+import type { CaptureStorageScope } from "./storage/plugin-storage.js";
 
 /**
  * @file The transcription contract: what an engine can do, and what happened when it tried.
@@ -121,7 +121,7 @@ export interface TranscribeOptions {
   readonly signal?: AbortSignal;
   /**
    * The plugin-storage handle for **this capture**, supplied by the caller that has one — the
-   * relay, which drains captures through an outbox. A host driving a transcriber by hand has
+   * relay, which drains captures through storage. A host driving a transcriber by hand has
    * none to give, so the member is optional and an implementation that needs storage must
    * handle its absence rather than assume it.
    *
@@ -131,11 +131,11 @@ export interface TranscribeOptions {
    * separate namespaces and cannot read or clobber each other's keys. Entries are durable
    * (they survive a close-and-reopen and are visible from another tab) and core sweeps them
    * when the capture is dropped or discarded, so a plugin never cleans up after itself. An
-   * extractor from the same plugin reads them back through `Outbox.pluginStorageScope(pluginId)`
+   * extractor from the same plugin reads them back through `Storage.store(pluginId)`
    * — the construction-time handle, since the relay cannot name the plugin an opaque extract
    * step belongs to.
    *
-   * This is the only storage a plugin ever sees. The `Outbox` itself is never handed to one.
+   * This is the only storage a plugin ever sees. The `Storage` itself is never handed to one.
    */
   readonly storage?: CaptureStorageScope;
 }
@@ -152,12 +152,12 @@ export interface TranscribeOptions {
  * Generic over the capture kind: `Transcriber<Recording>` is an audio-only
  * engine (the default, so bare `Transcriber` keeps meaning exactly what it did
  * before documents existed), `Transcriber<DocumentCapture>` is a document
- * engine, and `Transcriber<CaptureItem>` is an engine that can accept either.
+ * engine, and `Transcriber<CapturePayload>` is an engine that can accept either.
  *
  * `transcribe` is declared as a **function-typed property, not a method**.
  * Method parameters are exempt from `strictFunctionTypes` and compared
  * bivariantly, so with method syntax an audio-only `Transcriber<Recording>`
- * would slide unchallenged into a `Transcriber<CaptureItem>` slot — which is
+ * would slide unchallenged into a `Transcriber<CapturePayload>` slot — which is
  * the bug this contract exists to prevent. A property declaration makes that
  * assignment a type error, which is what sends a host to `restrictToKind`.
  * A class written with an ordinary `async transcribe(…)` method still satisfies
@@ -168,7 +168,7 @@ export interface TranscribeOptions {
  * to prevent**:
  *
  * - **Attempt failure** — this clip OOMed, this inference threw, this request
- *   503'd. Throw anything (`Error`, a fetch rejection, a `TerminalQueueError`).
+ *   503'd. Throw anything (`Error`, a fetch rejection, a `TerminalError`).
  *   The queue owns it: `isTransientFailure`, jittered backoff and `maxAttempts`
  *   already do exactly the right thing, and a selection combinator must let it
  *   straight through. One bad clip must never demote a device to the cloud for
@@ -184,10 +184,10 @@ export interface TranscribeOptions {
  *   terminal for the queue (so it does not burn the retry budget) but not for
  *   the item (a composition layer routes to the next engine).
  */
-export interface Transcriber<S extends CaptureItem = Recording> {
+export interface Transcriber<S extends CapturePayload = Recording> {
   /**
    * Stable, opaque id for this engine. Goes into every `Transcript.engine` it produces, so it
-   * ends up persisted in the outbox — keep it short and stable across versions.
+   * ends up persisted in the storage — keep it short and stable across versions.
    */
   readonly engine: string;
 
@@ -232,7 +232,7 @@ export interface TranscriberUnavailableInit {
 /**
  * "This engine cannot run here" — a **capability** failure, discovered while attempting.
  *
- * Deliberately **not** a `TerminalQueueError`, and deliberately carrying no HTTP `status`. That
+ * Deliberately **not** a `TerminalError`, and deliberately carrying no HTTP `status`. That
  * makes `isTransientFailure` classify it as transient with no change to `queue/backoff.ts`,
  * which is the correct answer: the item should be retried, because the next attempt re-probes
  * and may route to a different engine entirely. The queue's vocabulary is reused rather than
@@ -243,7 +243,7 @@ export interface TranscriberUnavailableInit {
  * sit on opposite sides of that line on purpose.
  *
  * The exception is a roster on which *every* engine is permanently unavailable; only
- * `firstCapable` can know that, and it throws a `TerminalQueueError` instead.
+ * `firstCapable` can know that, and it throws a `TerminalError` instead.
  */
 export class TranscriberUnavailableError extends Error {
   override readonly name = "TranscriberUnavailableError";

@@ -5,7 +5,7 @@ import { RiboContext, type RiboInstances } from "./context.js";
 /** What a host has to do to supply each instance, quoted back to them in the error. */
 const HOW_TO_SUPPLY: Record<keyof RiboInstances, string> = {
   recorder: "new Recorder() from @azx/ribo-core",
-  outbox: "await openOutbox() from @azx/ribo-core",
+  storage: "await openStorage({ backend }) from @azx/ribo-core",
   connectivity: "createConnectivity({ … }) from @azx/ribo-core",
   captureCoordinator: "createCaptureCoordinator() from @azx/ribo-ui-react",
   liveTranscriber: "new OnDeviceLiveTranscriber(…) from @azx/ribo-transcriber-ondevice",
@@ -42,7 +42,7 @@ export function useRiboInstance<K extends keyof RiboInstances>(
  * Like {@link useRiboInstance} but yields `undefined` instead of throwing.
  *
  * For the caller whose need is conditional — `useRecorder({ enqueue: false })` has
- * no use for an outbox. A conditional `useRiboInstance` call would break the rules
+ * no use for storage. A conditional `useRiboInstance` call would break the rules
  * of hooks, so the resolution stays unconditional and the *requirement* becomes a
  * plain check at the call site.
  */

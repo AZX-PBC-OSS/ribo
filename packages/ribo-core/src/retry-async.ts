@@ -1,13 +1,13 @@
 import { CancellationError, isCancellation } from "./cancellation.js";
-import type { BackoffOptions } from "./queue/backoff.js";
-import { fullJitterDelay, isTransientFailure, TerminalQueueError } from "./queue/backoff.js";
+import type { BackoffOptions } from "./storage/backoff.js";
+import { fullJitterDelay, isTransientFailure, TerminalError } from "./storage/backoff.js";
 
 /**
  * @file `retryAsync` — the attempt loop this repo hand-rolls, extracted from
  * `retryExtractor` so the phased engine composes it rather than growing yet another
  * copy. It retries any async work — including items whose `run` is not an `Extractor`
  * — with the same classification rules every loop in the tree applies: rethrow a
- * `TerminalQueueError` untouched, rethrow a cancellation untouched, rethrow anything
+ * `TerminalError` untouched, rethrow a cancellation untouched, rethrow anything
  * `isTransientFailure` rejects, otherwise retry until `maxRetries` is exhausted.
  *
  * What it deliberately does NOT do: touch `isTransientFailure`, the relay, or any
@@ -60,7 +60,7 @@ const DEFAULT_MAX_RETRIES = 2;
  * `Error`), because the caller asked to stop after a real failure and deserves the
  * failure that actually happened; a fresh {@link CancellationError} only when there is
  * no previous error to rethrow, which is attempt 1. **After a failure:** a
- * `TerminalQueueError` is rethrown untouched; a cancellation (per `isCancellation`,
+ * `TerminalError` is rethrown untouched; a cancellation (per `isCancellation`,
  * consulted with the caller's signal) is rethrown untouched; a failure for which
  * `isTransientFailure` returns `false` is rethrown untouched; anything else is retried
  * until `maxRetries` is exhausted, after which the last error is rethrown. A
@@ -109,7 +109,7 @@ export async function retryAsync<T>(
       lastError = cause;
       // A deterministic failure — re-sending an identical request reproduces it.
       // Retrying would burn the budget for nothing.
-      if (cause instanceof TerminalQueueError) throw cause;
+      if (cause instanceof TerminalError) throw cause;
       // A cancellation is not a transient blip — stop immediately, untouched.
       if (isCancellation(cause, signal)) throw cause;
       // The unrecognised-error default is retryable (see isTransientFailure);

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
-import { enveloped, SchemaParseError, TerminalQueueError } from "@azx/ribo-core";
+import { enveloped, SchemaParseError, TerminalError } from "@azx/ribo-core";
 import type { Enveloped, ExtractionTarget, PhaseUnit, RetryBudget } from "@azx/ribo-core";
 
 import type { ChatClient, ChatCompletion, ChatRequest } from "./chat-client.js";
@@ -1106,12 +1106,12 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
     expect(budgets[0]!.batches).toBe(2);
   });
 
-  test("requireRetryBudget: true with a deriving-to-zero configuration rejects with TerminalQueueError; absent succeeds", async () => {
+  test("requireRetryBudget: true with a deriving-to-zero configuration rejects with TerminalError; absent succeeds", async () => {
     function makeChat(): { chat: ChatClient; requests: ChatRequest[] } {
       return obsChat();
     }
 
-    // With requireRetryBudget: true, extract() rejects with TerminalQueueError.
+    // With requireRetryBudget: true, extract() rejects with TerminalError.
     const strict = makeChat();
     await expect(
       scopedInstanceExtractor({
@@ -1125,7 +1125,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
         stepTimeoutMs: 362_999,
         requireRetryBudget: true,
       }).extract({ text: "transcript", annotations: {} }),
-    ).rejects.toBeInstanceOf(TerminalQueueError);
+    ).rejects.toBeInstanceOf(TerminalError);
     // No fill calls were made — the throw is before the pool.
     expect(strict.requests).toHaveLength(0);
 
@@ -1271,7 +1271,7 @@ describe("scopedInstanceExtractor — Wave 5 regression pins", () => {
 
   test("a fill failing with a 4xx status is attempted exactly once — the budget is not burned", async () => {
     // Category 7 — retry classification tightens: today's inline loop retried
-    // everything except TerminalQueueError and abort, so a 404 burned the whole
+    // everything except TerminalError and abort, so a 404 burned the whole
     // budget. The engine composes retryAsync, which stops on a 4xx with a
     // status.
     let widgetFillAttempts = 0;

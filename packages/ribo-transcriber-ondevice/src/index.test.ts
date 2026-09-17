@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 
-import { TerminalQueueError, isTransientFailure } from "@azx/ribo-core";
+import { TerminalError, isTransientFailure } from "@azx/ribo-core";
 import type { Recording, Transcriber } from "@azx/ribo-core";
 
 import {
@@ -86,7 +86,7 @@ test("is a ribo-core Transcriber substitutable for FakeTranscriber", () => {
 test("the engine id names the model that actually ran", () => {
   // The defect this replaced: the id was the constant "ondevice-whisper" while the default
   // model has been Moonshine since the live-transcription work, so every Moonshine transcript
-  // in the outbox was stamped as Whisper and could not be attributed to its configuration.
+  // in the storage was stamped as Whisper and could not be attributed to its configuration.
   const transcriber = new OnDeviceTranscriber({ wasmPaths: WASM_PATHS });
   expect(transcriber.engine).toContain("moonshine");
   expect(transcriber.engine).not.toContain("whisper");
@@ -325,7 +325,7 @@ test("an already-aborted signal rejects as terminal before the worker is even cr
 
   // Terminal, not retryable: the queue must not spend its retry budget on work
   // the caller withdrew.
-  expect(error).toBeInstanceOf(TerminalQueueError);
+  expect(error).toBeInstanceOf(TerminalError);
   expect(isTransientFailure(error)).toBe(false);
   // Nothing was engaged — no worker, so no decode, no postMessage.
   expect(workersCreated).toBe(0);

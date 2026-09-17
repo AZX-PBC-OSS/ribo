@@ -3,14 +3,14 @@
  *
  * The engine id and the options interface live here so `index.ts` can stay
  * focused on the class. The engine id is a published constant — it rides into every
- * `Transcript.engine` this package produces and into the outbox document, so a
+ * `Transcript.engine` this package produces and into the storage document, so a
  * rename is a migration, not a refactor (see `transcript.ts`).
  */
 
 /**
  * `Transcriber.engine` this implementation stamps onto every `Transcript` it
  * produces. Short and stable across versions — it is persisted data, readable
- * straight off `Outbox.list()` to see the on-device/managed engine mix. Matches
+ * straight off `storage.captures.list()` to see the on-device/managed engine mix. Matches
  * `docs/roadmap/design/managed-transcription-plan.md` Task 3 and `transcript.ts`.
  */
 export const MANAGED_AZURE_SPEECH_ENGINE = "managed-azure-speech";

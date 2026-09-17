@@ -8,7 +8,7 @@ A **session** holds all three and extracts across them once.
 
 ## Extraction lives on the session, not the recording
 
-[Captures & Sources](/guide/captures-and-sources) covers `CaptureItem` and the recording queue that
+[Captures & Sources](/guide/captures-and-sources) covers `CapturePayload` and the recording queue that
 transcribes it. That queue's own state machine is short and ends early:
 
 ```
@@ -26,12 +26,12 @@ open → extracting → awaiting-review → writing → done
 The split is structural, enforced in two places at once:
 
 - **The type system.** `Extractor` takes an annotated transcript — one canonical text plus an
-  annotations bag — and returns fields; it has no parameter that could carry a `CaptureItem`, so it
+  annotations bag — and returns fields; it has no parameter that could carry a `CapturePayload`, so it
   cannot know or care whether that text came from a microphone or a PDF. `isSpanGrounded` checks a
   `sourceSpan` against the transcript's text the same way regardless of source. The review contract
   addresses leaf paths against a values schema; it has never seen a `Recording` or a
   `DocumentCapture`, only the joined transcript that produced the fields it's reviewing.
-- **The persistence layer.** `OutboxDocument` (the recording) carries capture and transcription
+- **The persistence layer.** `CaptureDocument` (the recording) carries capture and transcription
   fields only. `SessionDocument` carries `extracted`, `extractedBy`, `reviewOutcome`, `writeResult`,
   and the write destination `ctx` — every field the pipeline touches from extraction onward moved
   here in schema v6, off the recording entirely.
@@ -55,7 +55,7 @@ words from every future extraction without deleting the recording itself:
 ```ts
 import { listSessionTranscriptParts } from "@azx/ribo-core";
 
-const { parts, recordingIds } = await listSessionTranscriptParts(outbox, session.id);
+const { parts, recordingIds } = await listSessionTranscriptParts(storage, session.id);
 ```
 
 Each part carries that capture's text and an annotations bag merging two sources: whatever the
@@ -76,7 +76,7 @@ import { createDefaultTranscriptCombiner } from "@azx/ribo-core";
 const combiner = createDefaultTranscriptCombiner();
 ```
 
-Purity is the contract's point: a combiner that takes the `Outbox`, or reads anything, reproduces
+Purity is the contract's point: a combiner that takes the `Storage`, or reads anything, reproduces
 the defect this seam exists to fix — the old fused implementation could not be tested
 without a database and could not be replaced at all. The relay supplies the array; the combiner
 decides how the texts join. A caller who wants a different policy writes their own combiner
@@ -106,7 +106,7 @@ line ahead of each capture's content:
 ```
 
 Each marker carries `seq` (capture order, for a reviewer's "the third one"), `kind` (`audio` or
-`document`, no row lookup needed), and `id` (the outbox item id a citation can resolve straight back
+`document`, no row lookup needed), and `id` (the capture id a citation can resolve straight back
 to), with its values read from the part's `capture.`-namespaced annotations. The marker sits before
 a capture's text, never inside it, so a `sourceSpan` the model quotes from within one capture still
 passes `isSpanGrounded` as a verbatim substring of the joined text.
@@ -129,19 +129,19 @@ combine step and a reload.
 ## The session lifecycle
 
 ```ts
-import { openOutbox } from "@azx/ribo-core";
+import { openStorage } from "@azx/ribo-core";
 
-const outbox = await openOutbox({/* … */});
+const storage = await openStorage({/* … */});
 
 // The auditor arrives on site. Open the session before anything is captured.
-const session = await outbox.openSession({ ctx: jobCtx, ref: "job-4471" });
+const session = await storage.sessions.open({ ctx: jobCtx, ref: "job-4471" });
 
 // Recordings and document captures enqueue into it as they're captured —
 // the invoice photographed, the Manual J scanned, the dictation recorded.
 // The relay transcribes each one; the session itself does not move.
 
 // The auditor is done walking the house.
-const closed = await outbox.closeSession(session.id);
+const closed = await storage.sessions.close(session.id);
 // closed.status === "extracting" — the relay picks it up on its next drain.
 ```
 
@@ -167,7 +167,7 @@ needs correcting later.
 Watch sessions live rather than poll them:
 
 ```ts
-outbox.watchSessions({ status: "awaiting-review" }).subscribe((sessions) => {
+storage.sessions.watch({ status: "awaiting-review" }).subscribe((sessions) => {
   // re-renders whenever a session enters or leaves review — including a write
   // from another tab.
 });

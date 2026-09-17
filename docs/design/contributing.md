@@ -50,7 +50,7 @@ answer.
 A handful of repo conventions are easy to trip over precisely because they look like they could be
 simplified. [Design Decisions](/design/) records the reasoning behind the ones that most often come
 up in review: the ESM-only build, the headless layering boundary enforced by ESLint, the
-`@azx/source` export condition, worker injection, and the outbox storage seam. `CONTRIBUTING.md` and
+`@azx/source` export condition, worker injection, and storage storage seam. `CONTRIBUTING.md` and
 `AGENTS.md` cover the rest — exact-pinned catalog versions, the export-surface tests on each
 package's public barrel, and the rule that adapters are the only place tool-specific knowledge
 lives.

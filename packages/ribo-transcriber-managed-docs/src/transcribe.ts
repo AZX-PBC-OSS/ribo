@@ -54,7 +54,7 @@
  *
  * - **The caller's signal aborted → cancellation, terminal.** The signal is
  *   forwarded into the fetch init, so an abort tears down the in-flight HTTP
- *   request. The rejection is rethrown as a `TerminalQueueError` — a cancelled
+ *   request. The rejection is rethrown as a `TerminalError` — a cancelled
  *   transcription is the caller withdrawing the work, and the queue must not
  *   spend its retry budget re-running it. Without this, an abort reads to
  *   `isTransientFailure` exactly like a flaky network (an error with no
@@ -62,14 +62,14 @@
  *   the worst possible reason. Mirrors `ribo-transcriber-managed`.
  *
  * Contrast the managed audio transcriber, which maps 413 to
- * `TerminalQueueError` (terminal, not routed to a next engine). Here 413 maps
+ * `TerminalError` (terminal, not routed to a next engine). Here 413 maps
  * to `UnsupportedItemError` instead, because this package composes in a
  * fallback ladder: a document too large for the managed service may be within
  * pdf.js's limits, so the ladder should try the next rung rather than give up.
  */
 import {
   TranscriberUnavailableError,
-  TerminalQueueError,
+  TerminalError,
   UnsupportedItemError,
   decodeEntities,
 } from "@azx/ribo-core";
@@ -96,7 +96,7 @@ export interface TranscribeViaManagedDocsOptions {
    * into the fetch request init — an abort tears down the in-flight HTTP
    * request — and checked before the request is sent, so an already-aborted
    * signal never reaches the network at all. A cancellation rejects with
-   * `TerminalQueueError`; see the failure-classification table above.
+   * `TerminalError`; see the failure-classification table above.
    */
   readonly signal?: AbortSignal;
 }
@@ -121,8 +121,8 @@ function isAbortRejection(cause: unknown, signal: AbortSignal | undefined): bool
  * cancellation is not a failure of the transport, the engine or the item, and
  * retrying it would restart work the caller explicitly withdrew.
  */
-function cancellationError(engine: string, endpoint: string, cause: unknown): TerminalQueueError {
-  return new TerminalQueueError(
+function cancellationError(engine: string, endpoint: string, cause: unknown): TerminalError {
+  return new TerminalError(
     `${engine}: the transcription request to ${endpoint} was cancelled by the caller's ` +
       `AbortSignal — a cancelled transcription is never retried.`,
     { cause },

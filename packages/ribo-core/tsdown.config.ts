@@ -14,5 +14,8 @@ export default defineConfig({
   // `experimental.resolveNewUrlToAsset` so the `new URL(...)` reference passes
   // through the build verbatim and the consumer's bundler emits the file as an
   // asset (AGENTS.md §5.2, doc 10 §4).
-  entry: { index: "src/index.ts", worklet: "src/worklet.ts" },
+  // `testing` is the storage port's conformance kit, published as `./testing` so a
+  // backend author can depend on it without a consumer pulling test scaffolding
+  // into a bundle. It imports no test runner — see `src/storage/conformance.ts`.
+  entry: { index: "src/index.ts", worklet: "src/worklet.ts", testing: "src/testing.ts" },
 });

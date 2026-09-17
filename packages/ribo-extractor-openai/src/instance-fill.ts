@@ -70,7 +70,7 @@ export type { FillScope, Roster, RosterCandidate } from "@azx/ribo-core";
  * item count is known. This keeps the zero-budget behaviour a real difference
  * from {@link perGroupExtractor}, which derives at construction and throws
  * there: a zero-derived budget with `requireRetryBudget` throws a
- * `TerminalQueueError` from `extract()`, not at construction — no retry
+ * `TerminalError` from `extract()`, not at construction — no retry
  * fixes a configuration error, and the queue should reach `dead` rather than
  * burn its attempt budget rediscovering that.
  */

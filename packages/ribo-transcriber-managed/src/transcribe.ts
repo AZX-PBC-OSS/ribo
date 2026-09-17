@@ -28,18 +28,18 @@
  *   routes elsewhere.
  * - **413 → terminal.** The payload is too large for the transport. Retrying
  *   an oversized body forever is worse than failing it. Throw
- *   `TerminalQueueError` — the queue's existing terminal vocabulary, not
+ *   `TerminalError` — the queue's existing terminal vocabulary, not
  *   a second retry classifier.
  * - **The caller's signal aborted → cancellation, terminal.** The signal is
  *   forwarded into the fetch init, so an abort tears down the in-flight HTTP
- *   request. The rejection is rethrown as a `TerminalQueueError` — a cancelled
+ *   request. The rejection is rethrown as a `TerminalError` — a cancelled
  *   transcription is the caller withdrawing the work, and the queue must not
  *   spend its retry budget re-running it. Without this, an abort reads to
  *   `isTransientFailure` exactly like a flaky network (an error with no
  *   `status` defaults to retryable) and the item is re-sent until `dead` for
  *   the worst possible reason.
  */
-import { TerminalQueueError, TranscriberUnavailableError } from "@azx/ribo-core";
+import { TerminalError, TranscriberUnavailableError } from "@azx/ribo-core";
 import type { Recording, Transcript } from "@azx/ribo-core";
 
 import { buildDefinition } from "./definition.js";
@@ -67,7 +67,7 @@ export interface TranscribeViaManagedAzureOptions {
    * into the fetch request init — an abort tears down the in-flight HTTP
    * request — and checked before the request is sent, so an already-aborted
    * signal never reaches the network at all. A cancellation rejects with
-   * `TerminalQueueError`; see the failure-classification table above.
+   * `TerminalError`; see the failure-classification table above.
    */
   readonly signal?: AbortSignal;
 }
@@ -92,8 +92,8 @@ function isAbortRejection(cause: unknown, signal: AbortSignal | undefined): bool
  * cancellation is not a failure of the transport, the engine or the item, and
  * retrying it would restart work the caller explicitly withdrew.
  */
-function cancellationError(engine: string, endpoint: string, cause: unknown): TerminalQueueError {
-  return new TerminalQueueError(
+function cancellationError(engine: string, endpoint: string, cause: unknown): TerminalError {
+  return new TerminalError(
     `${engine}: the transcription request to ${endpoint} was cancelled by the caller's ` +
       `AbortSignal — a cancelled transcription is never retried.`,
     { cause },
@@ -169,10 +169,10 @@ export async function transcribeViaManagedAzure(
 
   // 413 — the payload is too large for the transport. Terminal, not retryable:
   // retrying an oversized body forever is worse than failing it. Use the
-  // queue's existing `TerminalQueueError` rather than inventing a second
+  // queue's existing `TerminalError` rather than inventing a second
   // classifier.
   if (response.status === 413) {
-    throw new TerminalQueueError(
+    throw new TerminalError(
       `${engine}: the recording (${audio.size} bytes) was rejected as too large (413) ` +
         `by ${endpoint}. A retry would send the same oversized body.`,
     );

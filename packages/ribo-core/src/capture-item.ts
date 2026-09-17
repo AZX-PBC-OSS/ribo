@@ -3,13 +3,13 @@ import { z } from "zod";
 import { captureFields } from "./capture-fields.js";
 
 /**
- * @file The document capture branch and the `CaptureItem` union.
+ * @file The document capture branch and the `CapturePayload` union.
  *
  * Lands D1, D2 and D3 of the document-transcription plan:
  *
  * - **D1** — `Recording` is the audio branch; `DocumentCapture` is the document
- *   branch; `CaptureItem` is the union of the two, discriminated by `kind`.
- * - **D2** — no RxDB version bump. The outbox schema's `recording` field is
+ *   branch; `CapturePayload` is the union of the two, discriminated by `kind`.
+ * - **D2** — no RxDB version bump. The storage schema's `recording` field is
  *   `{ type: "object" }` with no nested `properties`, so RxDB neither validates
  *   nor indexes the interior. The zod schema is the only description of that
  *   interior, and it is parsed on read — which is where legacy tolerance lives.
@@ -54,7 +54,7 @@ export type DocumentCapture<C extends z.ZodType = z.ZodUnknown> = z.infer<
 // ---------------------------------------------------------------------------
 
 /**
- * The `CaptureItem` union, parameterised by the host's context schema.
+ * The `CapturePayload` union, parameterised by the host's context schema.
  *
  * A `z.preprocess` wrapper around a `z.discriminatedUnion` on `kind`. The
  * preprocess stamps `kind: "audio"` onto a row that has **no `kind` key at all**
@@ -69,7 +69,7 @@ export type DocumentCapture<C extends z.ZodType = z.ZodUnknown> = z.infer<
  * discrimination, the preprocess can go, and the test that pins the behaviour
  * will go red to say so.
  */
-export const captureItemSchema = <C extends z.ZodType>(ctx: C) => {
+export const capturePayloadSchema = <C extends z.ZodType>(ctx: C) => {
   const audio = z.strictObject({
     ...captureFields(ctx),
     kind: z.literal("audio").default("audio"),
@@ -89,10 +89,10 @@ export const captureItemSchema = <C extends z.ZodType>(ctx: C) => {
   }, discriminated);
 };
 
-/** A `CaptureItem` whose context is carried but not validated. */
-export const baseCaptureItemSchema = captureItemSchema(z.unknown());
+/** A `CapturePayload` whose context is carried but not validated. */
+export const basePayloadSchema = capturePayloadSchema(z.unknown());
 
-/** Inferred from {@link captureItemSchema} — never hand-declared alongside it. */
-export type CaptureItem<C extends z.ZodType = z.ZodUnknown> = z.infer<
-  ReturnType<typeof captureItemSchema<C>>
+/** Inferred from {@link capturePayloadSchema} — never hand-declared alongside it. */
+export type CapturePayload<C extends z.ZodType = z.ZodUnknown> = z.infer<
+  ReturnType<typeof capturePayloadSchema<C>>
 >;

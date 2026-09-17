@@ -4,7 +4,7 @@ import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { CancellationError } from "./cancellation.js";
 import type { ExtractOptions, Extractor, ExtractionResult } from "./extractor.js";
 import { retryExtractor } from "./retry-extractor.js";
-import { TerminalQueueError } from "./queue/backoff.js";
+import { TerminalError } from "./storage/backoff.js";
 import { SchemaParseError } from "./schema-parse-error.js";
 
 // The test runs in Vitest's node environment, but `ribo-core` is a browser library and
@@ -100,8 +100,8 @@ describe("retryExtractor", () => {
     await expect(composed.extract(transcript)).rejects.toBe(third);
   });
 
-  test("a TerminalQueueError rejects immediately after one call", async () => {
-    const terminal = new TerminalQueueError("deterministic failure");
+  test("a TerminalError rejects immediately after one call", async () => {
+    const terminal = new TerminalError("deterministic failure");
     const { extractor, calls } = makeScriptedExtractor([terminal, result({ value: 1 }, 1)]);
     const composed = retryExtractor(extractor, { delay: () => Promise.resolve() });
 

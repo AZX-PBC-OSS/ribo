@@ -1,5 +1,5 @@
+import { createMemoryBackend } from "./storage/memory-backend.js";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
 import { baseRecordingSchema } from "./recording.js";
 import {
   DEFAULT_MIME_TYPE_PREFERENCES,
@@ -16,9 +16,9 @@ import {
   holdLock,
   isLockFree,
   openCaptureSession,
-  openOutbox,
-} from "./queue/index.js";
-import type { CaptureSession } from "./queue/index.js";
+  openStorage,
+} from "./storage/index.js";
+import type { CaptureSession } from "./storage/index.js";
 import type { Recording } from "./recording.js";
 
 // Browser mode, not jsdom, and the filename says so: `*.browser.test.ts` is the
@@ -603,10 +603,7 @@ describe("Recorder durable capture", () => {
     // It also pins the identity: `stop()` used to mint a SECOND id and `capturedAt` for
     // the returned capture, so callers were handed metadata describing a different
     // recording than the one on disk.
-    const outbox = await openOutbox({
-      name: `t-${crypto.randomUUID()}`,
-      storage: getRxStorageMemory(),
-    });
+    const storage = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
     const recorder = new Recorder({
       captureSession: ({
         recording,
@@ -618,7 +615,7 @@ describe("Recorder durable capture", () => {
         mimeType: string;
       }): Promise<CaptureSession> =>
         openCaptureSession({
-          outbox,
+          storage,
           recording,
           sourceId,
           mimeType,
@@ -640,7 +637,7 @@ describe("Recorder durable capture", () => {
 
     // The row survives teardown.
     expect(capture.itemId).toBeDefined();
-    const item = await outbox.get(capture.itemId!);
+    const item = await storage.captures.get(capture.itemId!);
     expect(item).toBeDefined();
     expect(item!.status).toBe("queued");
     expect(item!.audioReady).toBe(true);
@@ -649,7 +646,7 @@ describe("Recorder durable capture", () => {
     expect(capture.recording.id).toBe(item!.recording.id);
     expect(capture.recording.capturedAt).toBe(item!.recording.capturedAt);
 
-    await outbox.close();
+    await storage.close();
   });
 
   test("start refuses when another tab holds the lock, WITHOUT prompting for the microphone", async () => {
@@ -666,10 +663,7 @@ describe("Recorder durable capture", () => {
     );
     expect(held).toBeDefined();
 
-    const outbox = await openOutbox({
-      name: `t-${crypto.randomUUID()}`,
-      storage: getRxStorageMemory(),
-    });
+    const storage = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
     const factory = ({
       recording,
       sourceId,
@@ -679,7 +673,7 @@ describe("Recorder durable capture", () => {
       sourceId: string;
       mimeType: string;
     }): Promise<CaptureSession> =>
-      openCaptureSession({ outbox, recording, sourceId, mimeType, sessionId: "test-session" });
+      openCaptureSession({ storage, recording, sourceId, mimeType, sessionId: "test-session" });
     const recorder = new Recorder({
       getUserMedia,
       captureSession: factory,
@@ -692,7 +686,7 @@ describe("Recorder durable capture", () => {
       // Release the lock even if the assertion fails, so later tests are not poisoned.
       releaseLock();
       await held!.released;
-      await outbox.close();
+      await storage.close();
     }
   });
 
@@ -700,10 +694,7 @@ describe("Recorder durable capture", () => {
     // The factory creates the recording row (via openCaptureSession), then
     // recorder.start(timeslice) throws — the catch in start() must teardown,
     // which aborts the session (removing the row) and releases the lock.
-    const outbox = await openOutbox({
-      name: `t-${crypto.randomUUID()}`,
-      storage: getRxStorageMemory(),
-    });
+    const storage = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
     const factory = ({
       recording,
       sourceId,
@@ -713,7 +704,7 @@ describe("Recorder durable capture", () => {
       sourceId: string;
       mimeType: string;
     }): Promise<CaptureSession> =>
-      openCaptureSession({ outbox, recording, sourceId, mimeType, sessionId: "test-session" });
+      openCaptureSession({ storage, recording, sourceId, mimeType, sessionId: "test-session" });
     const recorder = new Recorder({
       captureSession: factory,
       createRecorder: (stream: MediaStream, options: MediaRecorderOptions) => {
@@ -731,10 +722,10 @@ describe("Recorder durable capture", () => {
       expect(await isLockFree(CAPTURE_LOCK)).toBe(true);
     });
     await vi.waitFor(async () => {
-      const rows = await outbox.list({ status: ["recording"] });
+      const rows = await storage.captures.list({ status: ["recording"] });
       expect(rows).toHaveLength(0);
     });
-    await outbox.close();
+    await storage.close();
   });
 
   test("enqueue-free recording still takes the lock and still gets no durability", async () => {

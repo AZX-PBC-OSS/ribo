@@ -23,7 +23,7 @@ import { HistoryEntrySchema, RunRecordSchema } from "./run-record.js";
  *   - `history-<label>.jsonl` — one appended summary line per run (~400 B)
  *
  * `openRunStore({ dir })` takes an injectable directory, mirroring
- * `openOutbox({ storage })` (AGENTS §5.5): the default is the real committed
+ * `openStorage({ storage })` (AGENTS §5.5): the default is the real committed
  * `runs/` directory, and tests pass a temp dir so they never touch the tree.
  *
  * Everything read back is zod-parsed, never cast — these are persisted records

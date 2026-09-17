@@ -51,12 +51,12 @@ export type {
 export { baseRecordingSchema, recordingSchema } from "./recording.js";
 export type { Recording } from "./recording.js";
 export {
-  captureItemSchema,
-  baseCaptureItemSchema,
+  capturePayloadSchema,
+  basePayloadSchema,
   documentCaptureSchema,
   baseDocumentCaptureSchema,
 } from "./capture-item.js";
-export type { CaptureItem, DocumentCapture } from "./capture-item.js";
+export type { CapturePayload, DocumentCapture } from "./capture-item.js";
 export { transcriptSchema } from "./transcript.js";
 export type { Transcript } from "./transcript.js";
 export { decodeEntities } from "./decode-entities.js";
@@ -97,7 +97,7 @@ export { UNSUPPORTED_ITEM_REASONS, UnsupportedItemError } from "./unsupported-it
 export type { UnsupportedItemInit, UnsupportedItemReason } from "./unsupported-item.js";
 
 // restrictToKind: lift a narrow transcriber into a slot that can see any
-// CaptureItem, refusing other kinds with UnsupportedItemError. The compiler is
+// CapturePayload, refusing other kinds with UnsupportedItemError. The compiler is
 // what sends a host to it — see D7a.
 export { restrictToKind } from "./restrict-to-kind.js";
 
@@ -178,7 +178,7 @@ export {
   RecorderError,
 } from "./recorder.js";
 export type {
-  Capture,
+  RecorderCapture,
   EmptyContext,
   RecorderErrorCode,
   RecorderOptions,
@@ -214,11 +214,11 @@ export type {
 // `@azx/ribo-extractor-openai`.
 export { SchemaParseError } from "./schema-parse-error.js";
 
-// The durable outbox and its foreground relay. Forwarded wholesale through the
-// subsystem's own barrel (`queue/index.ts`) rather than reaching into
-// `queue/outbox.ts` & friends: the queue owns the list of names it publishes,
-// and this line says only that all of them are public.
-export * from "./queue/index.js";
+// Storage and its foreground relay. Forwarded wholesale through the subsystem's
+// own barrel (`storage/index.ts`) rather than reaching into `storage/captures.ts`
+// & friends: the subsystem owns the list of names it publishes, and this line
+// says only that all of them are public.
+export * from "./storage/index.js";
 
 // Write-back: the only tool-specific surface, with a typed host context, both
 // field shapes (the writable patch and the derived extraction schema) and the
@@ -243,7 +243,7 @@ export { toWriteStep } from "./write-step.js";
 
 // Per-instance write-back: a sibling of `toWriteStep` that writes each collection
 // instance separately with a derived idempotency key, and persists per-instance
-// progress in the outbox so a retry resumes after the instances already written.
+// progress in the storage so a retry resumes after the instances already written.
 export { deriveInstanceIdempotencyKey, toInstanceWriteStep } from "./instance-write-step.js";
 export type { ToInstanceWriteStepOptions } from "./instance-write-step.js";
 
@@ -348,7 +348,7 @@ export { mergeGroupPieces } from "./merge-group-pieces.js";
 export { parseWithSchema } from "./parse-with-schema.js";
 
 // Work safety: the one honest "is my work safe?" answer, derived purely from the
-// outbox, the storage persistence grant and connectivity — so every presenter
+// storage, the storage persistence grant and connectivity — so every presenter
 // classifies identically. Only synced work is truly safe; the rest is a gradient.
 export { summarizeWork, workSafety } from "./work-safety.js";
 export type { StoragePersistence, WorkOnDevice, WorkSafety } from "./work-safety.js";

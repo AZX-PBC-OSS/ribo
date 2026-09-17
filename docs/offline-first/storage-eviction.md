@@ -1,7 +1,7 @@
 # Storage & Eviction
 
-The durable outbox lives in IndexedDB (see
-[Offline & the Outbox](/guide/offline-and-the-outbox)) — free, broadly supported, and, like every
+Durable storage lives in IndexedDB (see
+[Offline & Storage](/guide/offline-and-storage)) — free, broadly supported, and, like every
 other origin's storage, reclaimable by the browser under disk pressure or an inactivity policy. iOS
 Safari's ITP is the sharpest version of this: roughly seven days without the app being opened sweeps
 every script-writable store the origin owns at once — IndexedDB, the Cache API, `localStorage`,
@@ -25,22 +25,22 @@ was explicitly refused, and one that _was_ granted and has since been revoked fr
 (the person cleared site data through browser settings). Only a `persist()` call's own return value
 can tell "never asked" apart from "asked and refused" — a plain re-read can't — so `denied` is set
 only by an actual refusal, and everything short of an outright `granted` collapses into `not
-persisted` for the one place that consumes it: [`workSafety`](/guide/offline-and-the-outbox),
+persisted` for the one place that consumes it: [`workSafety`](/guide/offline-and-storage),
 which drops on-device work to `at-risk` for anything other than a confirmed grant. The vocabulary
 exists so the app never claims protection the browser hasn't given: `unknown` — a request still in
 flight — is treated the same conservative way, never assumed safe.
 
 ## When eviction happens anyway
 
-A swept IndexedDB and a fresh install look identical from inside the origin: the outbox is empty
+A swept IndexedDB and a fresh install look identical from inside the origin: storage is empty
 either way, and nothing about that state says whether it used to hold recordings or never held any at
 all. Telling them apart needs a witness outside IndexedDB — something in a different store that a
 partial wipe is less likely to take with it. The playground's approach writes a small marker (a
-version tag, a first-seen timestamp, and the outbox's item count) to both `localStorage` and a cookie
-on every observed change to the queue, and compares that marker against the actual outbox contents
+version tag, a first-seen timestamp, and storage's item count) to both `localStorage` and a cookie
+on every observed change to the queue, and compares that marker against the actual storage contents
 once at boot, before anything else has a chance to overwrite it.
 
-When the marker says the queue held recordings and the outbox is empty, that's eviction, and the app
+When the marker says the queue held recordings and storage is empty, that's eviction, and the app
 raises a real notice for it. When there's no marker at all, that's read as a first run —
 indistinguishable from the one case this approach cannot catch: the full iOS ITP sweep takes the
 marker's cookie along with everything else, because WebKit caps JavaScript-set cookies at the same
@@ -48,14 +48,14 @@ handful of days it enforces the storage sweep on. This is the expected iOS outco
 bug, and closing it needs something outside script-writable storage: a server-set cookie, or a synced
 backend that remembers what a device had. Short of that, the marker still buys real coverage:
 quota-pressure eviction on Chromium and Firefox, a corrupted or manually cleared database, and an
-app-level bug that drops the collection are all cases where the outbox disappears and, without this,
+app-level bug that drops the collection are all cases where storage disappears and, without this,
 nobody would be told.
 
 ## What's deliberately not tested by opening and closing a database
 
 Proving any of this persists can't be done by closing an RxDB instance and reopening it — that
-passes even against in-memory storage, which is exactly the storage the outbox's
-[test seam](/guide/offline-and-the-outbox) uses for everything
+passes even against in-memory storage, which is exactly the storage storage's
+[test seam](/guide/offline-and-storage) uses for everything
 that isn't specifically testing durability. Persistence claims get tested against real IndexedDB in a
 real browser. It costs more, and it's the only way to answer "does this survive" rather than "does
-this outbox class work."
+this storage class work."
