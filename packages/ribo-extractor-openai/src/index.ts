@@ -66,6 +66,13 @@ export type { AbstainedLeaf, GapFillOptions, GapFillTarget } from "./gap-fill.js
 export { gapFillPhase } from "./gap-fill-phase.js";
 export type { GapFillPhaseOptions } from "./gap-fill-phase.js";
 
+// The scoped-instance inventory phase — the first phase of the
+// `scopedInstanceExtractor` port, exported (with the note key its roster
+// crosses the phase boundary under) so a host can assemble and extend the
+// phase list by hand.
+export { inventoryPhase, rosterNoteKey } from "./inventory-phase.js";
+export type { InventoryPhaseOptions } from "./inventory-phase.js";
+
 // The schema-retry combinator: wraps a base extractor with a bounded
 // self-correction loop that feeds a `SchemaParseError` back to the model as
 // conversation turns — the failed output as an assistant turn, the validation

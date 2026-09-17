@@ -147,7 +147,7 @@ const defaultDelay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 /** A prepared group, with its per-instance fill schema and error context. */
-interface PreparedGroup {
+export interface PreparedGroup {
   /** The top-level group key. Empty for the non-grouped fallback. */
   readonly key: string;
   /**
