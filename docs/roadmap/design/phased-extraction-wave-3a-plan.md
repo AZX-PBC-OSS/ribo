@@ -70,7 +70,9 @@
 
 **Interfaces:**
 
-- Produces: `DeepPartial<T>` — the homomorphic mapped type `{ [K in keyof T]?: DeepPartial<T[K]> }`. `PhaseDraft<V, P>` with `fields: DeepPartial<Enveloped<V, P>>`, `statedEmptyGroups: Readonly<Record<string, string>>`, `raw?: unknown`, and `notes: Notes`. `emptyDraft<V, P>(): PhaseDraft<V, P>`.
+- Produces: `DeepPartial<T>` — the homomorphic mapped type `{ [K in keyof T]?: DeepPartial<T[K]> }`. `PhaseDraft<V, P>` with **`readonly`** `fields: DeepPartial<Enveloped<V, P>>`, `statedEmptyGroups: Readonly<Record<string, string>>`, `raw?: unknown`, and `notes: Notes`. `emptyDraft<V, P>(): PhaseDraft<V, P>`.
+
+**Every member is `readonly`, and that is a design commitment rather than tidiness.** The design's must-fail list requires that a `run` receiving the draft cannot write through it — items within a phase run concurrently, so a mutating `run` races its siblings, and `merge` owning every write is what makes the phase contract coherent. Declaring the members mutable here would foreclose the type-level half of that check permanently, since this wave freezes the shape. Every writer rebuilds anyway: `emptyDraft` constructs, `extractorPhase`'s merge spreads. The group keys inside `DeepPartial` are already `readonly`, so this only extends the same discipline one level out.
 
 **Why homomorphic, and why not `Partial`.** A top-level `Partial<Enveloped<V, P>>` cannot express what the strategies need: a span phase that learned one leaf's `sourceSpan` would still have to supply `value` and `confidence` for that leaf and every sibling leaf of the group. Since the whole design splits presence, span and classify into phases that each know a **different member of the same envelope**, the top-level partial is a non-starter. The homomorphic form preserves `readonly`, preserves optionality, keeps a collection group's `z.array` shape as an array whose element becomes possibly-undefined, and leaves leaf enum unions intact.
 
@@ -80,7 +82,9 @@
 
 - [ ] **Step 1: Write the failing tests**
 
-  Type-level, against a small hand-written `V` that mirrors the real shape — one flat group of enveloped leaves and one array-shaped collection group (do **not** import the Snugg adapter; core must not depend on it). Assert: a draft can carry one leaf's `sourceSpan` with no sibling leaves present; a collection group stays an array; a `readonly` group key cannot be assigned directly; a fully-populated `DeepPartial<Enveloped<V>>` is **not** assignable to `Enveloped<V>` (pinned with `@ts-expect-error` — this is what makes Wave 3b's closing trust-boundary parse structurally required rather than optional); and a leaf's `value` includes `undefined` as well as `null`.
+  Type-level, against a small hand-written `V` that mirrors the real shape — one flat group of enveloped leaves and one array-shaped collection group, with at least one **enum** leaf (do **not** import the Snugg adapter; core must not depend on it). Assert: a draft can carry one leaf's `sourceSpan` with no sibling leaves present; a collection group stays an array; a `readonly` group key cannot be assigned directly, and neither can a `PhaseDraft` member itself; a fully-populated `DeepPartial<Enveloped<V>>` is **not** assignable to `Enveloped<V>` (pinned with `@ts-expect-error` — this is what makes Wave 3b's closing trust-boundary parse structurally required rather than optional); and a leaf's `value` includes `undefined` as well as `null`.
+
+  **Pin the enum leaf's union exactly**, with a type-equality assertion (a conditional-type `Eq` helper, not an assignability check): the deep partial of an enum leaf's `value` must be exactly `Member1 | Member2 | null | undefined`. Assignability alone would not catch this. The failure mode is silent and therefore the one most worth a test — a later "simplification" of `DeepPartial` to a non-homomorphic or conditional form mangles enum leaves into something write-compatible, so valid members still assign and nothing fails; the only symptom is leaf validation quietly disappearing.
 
   Value-level: `emptyDraft()` has empty `fields`, empty `statedEmptyGroups`, absent `raw`, and empty `notes.keys`.
 
@@ -118,7 +122,11 @@
 
 - [ ] **Step 1: Write the failing tests**
 
-  Type-level: on the `"result"` arm, `output` is present and reading `.error` is an error; on the `"error"` arm, `error` is present and reading `.output` is an error; narrowing on `outcome` works without a cast. Value-level: a small helper constructing each arm round-trips its members.
+  Type-level: on the `"error"` arm, `error` is present and reading `.output` **is** an error (that member genuinely does not exist); narrowing on `outcome` works without a cast.
+
+  **Do not pin the result arm's exclusivity with a read.** `error?: never` makes the member _exist_ on the success arm — reading it yields `undefined` and compiles clean, so a `@ts-expect-error` above the read is an unused directive and fails the build with TS2578, the same trap `extraction-observer.test.ts` already documents. Pin it by **write and by construction** instead: assigning to `.error` on a result arm errors, and a `PhaseItemOutcome` object literal carrying both `outcome: "result"` and an `error` errors. That is also what `arbitration.ts` does for its own `never` members, which this type is modelled on.
+
+  Value-level: a small helper constructing each arm round-trips its members.
 
 - [ ] **Step 2: Run to verify they fail** — Expected: FAIL, module does not exist.
 
@@ -140,7 +148,13 @@
 
 **Interfaces:**
 
-- Produces: `PhaseContext<V, P>` (the immutable inputs a phase reads: the transcript, the extraction target, and the caller's `signal` and `deadline`). `PhaseDef<V, P, I, C>` — the three functions plus the metadata. `PhaseMeta` — `id`, optional `requires`, `produces`, `concurrency`, `onItemFailure`, `maxRetries`. `Phase<V, P>` — `PhaseMeta` plus a single `with` member. `phaseBuilder<V, P>()` returning a function that takes a `PhaseDef<V, P, I, C>` and returns a `Phase<V, P>`.
+- Produces: `PhaseContext<V, P>` (the immutable inputs a phase reads: the transcript, the extraction target, and the caller's `signal` and `deadline`). `PhaseDef<V, P, I, C>` — the three functions, an optional `describeItem`, plus the metadata. `PhaseMeta` — `id`, optional `requires`, `produces`, `concurrency`, `onItemFailure`, `maxRetries`. `Phase<V, P>` — `PhaseMeta` plus a single `with` member. `phaseBuilder<V, P>()` returning a function that takes a `PhaseDef<V, P, I, C>` and returns a `Phase<V, P>`.
+
+**`describeItem` exists because `PhaseUnit` needs a key the combinator cannot otherwise obtain.** `PhaseUnit` carries a required `key: string` and an optional `leaf?: string`, and the design gives the **combinator** the unit stream. But a phase's `run` is opaque and `I` is existentially hidden, so the Wave 3b scheduler has no way to learn what group an item belongs to. Every other member of the event is derivable — `phaseId` and `pass` from position and metadata, `usage` from `PhaseOutput`, `attempt` from the retry loop — and `key`/`leaf` are not. So `PhaseDef` carries `describeItem?: (item: I) => { key: string; leaf?: string }`, callable inside `with` where `I` is bound.
+
+It is **optional**, defaulting to `key: ""`. That is not a placeholder: `groupedExtractor`'s `GroupMap` already uses the `""` arm to mean "one entry covering the whole schema", and a phase whose single item _is_ the whole document — `extractorPhase`, the inventory pass — has no meaningful group key. The default and the convention agree.
+
+This wave is where `PhaseDef` is frozen, which is why the member lands now rather than when Wave 3b discovers it missing.
 
 **The encoding, precisely.** `Phase<V, P>` exposes its metadata as ordinary properties and hides `I` and `C` behind one member: `with`, a function taking a **generic callback** (`<I, C>(def: PhaseDef<V, P, I, C>) => R`) and returning that callback's `R`. The combinator writes `phase.with(def => …)` and, inside that callback, `I` and `C` are bound and correlated — so `def.plan`'s items provably feed `def.run`, and handing another phase's items to this one's `run` is a compile error.
 
@@ -153,6 +167,10 @@
   Value-level, with two hand-written phases over a tiny `V`: build a phase whose items are `string` and contribution is `boolean`, and another whose items are `number`; call `.with()` on each and assert the definition's own functions come back and behave (call `plan` on an empty draft, feed one item to `run`, fold the outcome through `merge`).
 
   Type-level, and these are the point of the task: assert with `@ts-expect-error` that inside one phase's `with` callback, passing the **other** phase's item type to `run` is an error; that `PhaseMeta` is readable off a `Phase` without calling `with` (the construction check and a later planner need this); and that `phaseBuilder<V, P>()` infers `I` and `C` from the definition with no type arguments at the inner call.
+
+  Also pin `describeItem`: a phase that supplies one returns its key and leaf for a given item, and a phase that omits one is still a valid `Phase` (the combinator's `""` default is Wave 3b's concern, not this task's — only the optionality is pinned here).
+
+  **`noUncheckedIndexedAccess` is on**, so `plan`'s `readonly I[]` indexes as `I | undefined` and `def.run(items[0], …)` will not compile. Use `for…of`, or a non-null assertion — **not** a cast. This is called out because this plan's no-`as` constraint would otherwise send an implementer to a cast and then into the stop-and-report tripwire for a problem that is purely about index access.
 
   Assert the file contains no `as` cast, by construction rather than by grep — if the implementation needs one, the encoding is wrong and you should stop and report.
 
@@ -265,3 +283,32 @@
 ## Notes for the reviewer
 
 Two things most worth adversarial attention. First, Task 4: whether the existential encoding actually delivers the correlation it claims, or whether there is a way to smuggle one phase's items into another's `run` that still compiles — the value of the whole encoding rests on that. Second, Task 2: whether the homomorphic deep partial behaves on a `z.array`-shaped collection group and under the `"row"` provenance intersection, since those are the two shapes in the real schema most likely to break a mapped type.
+
+## Reviewed
+
+Reviewed by OpenCode (`glm-5p3-flash`, run f706) before implementation. All five findings applied.
+The review verified its claims by running an in-memory TypeScript program against the real
+`Enveloped` and zod rather than reasoning about what the compiler would do.
+
+The finding that changed the shape of the wave: `PhaseUnit` carries a required `key`, the combinator
+owns the unit stream, a phase's `run` is opaque and `I` is existentially hidden — so Wave 3b's
+scheduler would have had no way to learn an item's group key, and this wave is where `PhaseDef` is
+frozen. Hence `describeItem`, optional, defaulting to the `""` convention `groupedExtractor` already
+uses for "one entry covering the whole schema".
+
+Three test-specification errors: `error?: never` makes the member exist, so pinning the result arm's
+exclusivity with a **read** yields an unused `@ts-expect-error` and TS2578 — it must be pinned by
+write and by construction. The enum-union survival claim had no test at all, and its failure mode is
+silent because a mangled deep partial stays write-compatible. And `noUncheckedIndexedAccess` makes
+`items[0]` a `I | undefined`, which this plan's own no-`as` rule would have turned into a
+stop-and-report over a pure index-access problem.
+
+One shape commitment: `PhaseDraft`'s members are now `readonly`, because the design requires that a
+`run` cannot write through the draft it is handed, and declaring them mutable here would foreclose
+the type-level half of that check permanently.
+
+The review independently confirmed the encoding delivers its central claim — items cannot be
+smuggled between phases through a bare or generic callback, a captured `def`, or the callback's
+return type, and `any` is blocked by the lint config — and that the homomorphic deep partial behaves
+on all three real shapes, including `"row"`-provenance intersections. The branded key's variance
+reasoning was checked against `strict: true` implying `strictFunctionTypes`.
