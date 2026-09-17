@@ -29,6 +29,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "DEFAULT_PROBE_TIMEOUT_MS",
     "DEFAULT_STABILITY_WINDOW_MS",
     "DERIVED_CAPTURE_KEYS",
+    "ENTRY_SCOPE_KINDS",
     "FINISHED_CAPTURE_STATUSES",
     "FINISHED_SESSION_STATUSES",
     "FakeExtractor",

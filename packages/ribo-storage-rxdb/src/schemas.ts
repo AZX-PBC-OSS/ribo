@@ -248,10 +248,6 @@ export const pluginStorageRxSchema: RxJsonSchema<PluginStorageDocument> = {
   // `[scopeKind, scopeId]` so a sweep (which deletes every entry for a dropped
   // capture, or for a removed session) is an index lookup rather than a scan.
   // The compound with `owner` serves `keys()` and per-owner reads.
-  indexes: [
-    ["scopeKind", "scopeId"],
-    ["scopeKind", "scopeId", "owner"],
-    ["owner"],
-  ],
+  indexes: [["scopeKind", "scopeId"], ["scopeKind", "scopeId", "owner"], ["owner"]],
   attachments: {},
 };

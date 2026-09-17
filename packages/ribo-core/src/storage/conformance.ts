@@ -295,6 +295,40 @@ export function runStorageConformance(label: string, harness: ConformanceHarness
       });
     });
 
+    it("filters entries by scope kind, and omits the filter only when asked to", async () => {
+      await withBackend(async (backend) => {
+        // A capture-scoped and a session-scoped entry can share one scope id —
+        // the primary key is `owner ␀ scopeId ␀ key` and deliberately carries no
+        // kind — so the finder's kind filter is the only thing that keeps a
+        // capture-scoped read out of a session-scoped row. Different keys below,
+        // so the two rows coexist and each query has a row it must refuse.
+        for (const scopeKind of ["capture", "session"] as const) {
+          await backend.insert(
+            "entries",
+            makeEntry({
+              id: `owner:shared:from-${scopeKind}`,
+              scopeKind,
+              scopeId: "shared",
+              owner: "owner",
+              key: `from-${scopeKind}`,
+              value: "v",
+            }),
+          );
+        }
+
+        const captures = await backend.find("entries", { scopeKind: "capture", scopeId: "shared" });
+        expect(captures.map((doc) => doc.key)).toEqual(["from-capture"]);
+
+        const sessions = await backend.find("entries", { scopeKind: "session", scopeId: "shared" });
+        expect(sessions.map((doc) => doc.key)).toEqual(["from-session"]);
+
+        // An omitted kind is not "capture" — it is every kind. The kit's own
+        // owner-level queries above rely on that reading.
+        const unkinded = await backend.find("entries", { scopeId: "shared" });
+        expect(unkinded.map((doc) => doc.key)).toEqual(["from-capture", "from-session"]);
+      });
+    });
+
     // ---------------------------------------------------------------------
     // Obligation 1 — insert-with-blobs is ONE write.
     // ---------------------------------------------------------------------

@@ -49,16 +49,6 @@ export function createPluginStorage(
   return new PluginStorageHandle(backend, "capture", captureId, pluginId);
 }
 
-/** A handle over one scope of either kind. The general form of {@link createPluginStorage}. */
-export function createScopedHandle(
-  backend: StorageBackend,
-  scopeKind: EntryScopeKind,
-  scopeId: string,
-  owner: string,
-): PluginStorage {
-  return new PluginStorageHandle(backend, scopeKind, scopeId, owner);
-}
-
 /**
  * Storage scoped to **one capture**, with the plugin yet to name itself.
  *
@@ -69,8 +59,8 @@ export function createScopedHandle(
  * transcriber — its own `engine` id is the natural choice, and two transcribers
  * that name themselves differently cannot read or clobber each other's keys.
  *
- * Like every handle over plugin storage this is a view over the storage's own
- * RxDB database: durable, visible to other tabs, and bound to the storage
+ * Like every handle over plugin storage this is a view over the storage
+ * backend: durable, visible to other tabs, and bound to the storage
  * instance that minted it — a closed storage's handles are dead; reopen and
  * re-mint (a fresh handle over the same database reads what a prior one wrote).
  */
@@ -120,21 +110,10 @@ export interface PluginStorageScope {
   /** This owner's namespace for one capture. Entries die when the capture does. */
   capture: (captureId: string) => PluginStorage;
   /**
-   * This owner's namespace for one session. Entries die when the session is
-   * removed.
-   *
-   * The lifecycle is still the **sweep**, not the calendar: a session-scoped
-   * entry lives exactly as long as its session does, the same way a
-   * capture-scoped one lives exactly as long as its capture.
-   */
-  session: (sessionId: string) => PluginStorage;
-  /**
    * Every capture this owner has at least one stored entry for, sorted. Live, so
    * swept captures drop out.
    */
   captures: () => Promise<string[]>;
-  /** Every session this owner has at least one stored entry for, sorted. Live. */
-  sessions: () => Promise<string[]>;
 }
 
 /** Create a {@link CaptureStorageScope} over one capture. Called by {@link storage.captureStore}. */
@@ -154,30 +133,31 @@ export function createPluginStorageScope(
 ): PluginStorageScope {
   return {
     capture: (captureId) => createPluginStorage(backend, captureId, pluginId),
-    session: (sessionId) => createScopedHandle(backend, "session", sessionId, pluginId),
     captures: async () => {
       const entries = await backend.find("entries", { scopeKind: "capture", owner: pluginId });
-      return [...new Set(entries.map((entry) => entry.scopeId as string))].sort();
-    },
-    sessions: async () => {
-      const entries = await backend.find("entries", { scopeKind: "session", owner: pluginId });
       return [...new Set(entries.map((entry) => entry.scopeId as string))].sort();
     },
   };
 }
 
+/**
+ * The general handle: one (kind, scope id, owner) triple over the backend.
+ *
+ * The scope kind is a parameter even though only capture handles are minted
+ * today — the persisted schema carries the kind (plugin storage is at version 1
+ * for exactly that), so the handle that writes those documents mirrors it. A
+ * session-scoped accessor is deliberately not part of the public surface yet:
+ * `SessionStore` has no removal path, so there is nowhere for a session sweep
+ * to hook without either leaking entries or sweeping rows a later review round
+ * still reads. When one lands, it constructs this class with `"session"`.
+ */
 class PluginStorageHandle implements PluginStorage {
   readonly #backend: StorageBackend;
   readonly #scopeKind: EntryScopeKind;
   readonly #scopeId: string;
   readonly #owner: string;
 
-  constructor(
-    backend: StorageBackend,
-    scopeKind: EntryScopeKind,
-    scopeId: string,
-    owner: string,
-  ) {
+  constructor(backend: StorageBackend, scopeKind: EntryScopeKind, scopeId: string, owner: string) {
     this.#backend = backend;
     this.#scopeKind = scopeKind;
     this.#scopeId = scopeId;

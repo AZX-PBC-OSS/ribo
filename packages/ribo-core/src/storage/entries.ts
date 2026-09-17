@@ -4,7 +4,7 @@ import {
   createPluginStorageScope,
 } from "./plugin-storage.js";
 import type { CaptureStorageScope, PluginStorage, PluginStorageScope } from "./plugin-storage.js";
-import type { EntryScopeKind, StorageBackend } from "./port.js";
+import type { StorageBackend } from "./port.js";
 
 /**
  * @file The key-value store: namespaced, scope-bound storage a plugin or a host
@@ -20,15 +20,11 @@ import type { EntryScopeKind, StorageBackend } from "./port.js";
 export interface Store {
   /** This owner's namespace for one capture. Entries die when the capture does. */
   capture: (captureId: string) => PluginStorage;
-  /** This owner's namespace for one session. Entries die when the session is removed. */
-  session: (sessionId: string) => PluginStorage;
   /**
    * Every capture this owner has at least one entry for, sorted. Live, so a
    * capture whose entries have been swept drops out.
    */
   captures: () => Promise<string[]>;
-  /** Every session this owner has at least one entry for, sorted. Live. */
-  sessions: () => Promise<string[]>;
 }
 
 /**
@@ -74,34 +70,14 @@ export async function sweepCaptureEntries(
   backend: StorageBackend,
   captureIds: readonly string[],
 ): Promise<void> {
-  await sweepScope(backend, "capture", captureIds);
-}
-
-/**
- * Delete every entry belonging to any of these sessions.
- *
- * The session half, and newer than its sibling: nothing swept sessions before,
- * because nothing could scope an entry to one. Called from wherever a session
- * leaves storage, for the same reason as the capture sweep — an owner never
- * cleans up after itself, so forgetting to cannot leak.
- */
-export async function sweepSessionEntries(
-  backend: StorageBackend,
-  sessionIds: readonly string[],
-): Promise<void> {
-  await sweepScope(backend, "session", sessionIds);
-}
-
-async function sweepScope(
-  backend: StorageBackend,
-  scopeKind: EntryScopeKind,
-  scopeIds: readonly string[],
-): Promise<void> {
-  if (scopeIds.length === 0) return;
+  if (captureIds.length === 0) return;
   // One query for the whole batch, which is why the port's entry finder takes a
   // set of scope ids: clearing a thirty-row queue would otherwise be thirty round
   // trips on the "reset this device" path.
-  const entries = await backend.find("entries", { scopeKind, scopeId: scopeIds });
+  const entries = await backend.find("entries", {
+    scopeKind: "capture",
+    scopeId: captureIds,
+  });
   if (entries.length === 0) return;
   await backend.removeMany(
     "entries",
