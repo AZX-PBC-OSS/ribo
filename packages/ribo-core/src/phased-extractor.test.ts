@@ -5,7 +5,7 @@ import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { CancellationError } from "./cancellation.js";
 import { enveloped } from "./enveloped.js";
 import type { Enveloped, NoProvenance } from "./enveloped.js";
-import type { ExtractionTarget } from "./extractor.js";
+import type { ExtractionTarget, ExtractionUsage } from "./extractor.js";
 import type { PhaseUnit } from "./extraction-observer.js";
 import { noteKey } from "./phase-notes.js";
 import type { DeepPartial } from "./phase-draft.js";
@@ -1124,5 +1124,106 @@ describe("phasedExtractor — the unit stream and the produces check", () => {
     const result = await extractor.extract(transcript);
 
     expect(result.fields.note?.value).toBe("done");
+  });
+});
+
+describe("phasedExtractor — usage carries engine and strategy", () => {
+  /** A phase whose run reports the given usage, so the accumulator sees engine/strategy. */
+  function usagePhase(id: string, usage: ExtractionUsage): Phase<TestValues> {
+    return build({
+      id,
+      plan: () => [1],
+      run: async () => ({ value: 1, usage }),
+      merge: (draft) => ({ ...draft, fields: noteFields(`from ${id}`) }),
+    });
+  }
+
+  test("two phases reporting different engines yield the FIRST one", async () => {
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [usagePhase("a", { calls: 1, engine: "a" }), usagePhase("b", { calls: 1, engine: "b" })],
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.usage.engine).toBe("a");
+  });
+
+  test("a run where only the SECOND phase reports an engine yields that one", async () => {
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [usagePhase("silent", { calls: 1 }), usagePhase("loud", { calls: 1, engine: "b" })],
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.usage.engine).toBe("b");
+  });
+
+  test("a run where no phase reports an engine omits the member entirely, not as undefined", async () => {
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [usagePhase("a", { calls: 1 }), usagePhase("b", { calls: 1 })],
+    });
+
+    const result = await extractor.extract(transcript);
+
+    // `toEqual` cannot see the difference — an explicit undefined member compares
+    // equal to an absent one — so the `in` check is the assertion.
+    expect("engine" in result.usage).toBe(false);
+  });
+
+  test("two phases reporting different strategies yield the FIRST one", async () => {
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [
+        usagePhase("a", { calls: 1, strategy: "first" }),
+        usagePhase("b", { calls: 1, strategy: "second" }),
+      ],
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.usage.strategy).toBe("first");
+  });
+
+  test("a run where only the SECOND phase reports a strategy yields that one", async () => {
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [
+        usagePhase("silent", { calls: 1 }),
+        usagePhase("loud", { calls: 1, strategy: "second" }),
+      ],
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.usage.strategy).toBe("second");
+  });
+
+  test("a run where no phase reports a strategy omits the member entirely, not as undefined", async () => {
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [usagePhase("a", { calls: 1 }), usagePhase("b", { calls: 1 })],
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect("strategy" in result.usage).toBe(false);
+  });
+
+  test("engine and strategy accumulate independently — each from the first phase reporting it", async () => {
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [
+        usagePhase("engine-here", { calls: 1, engine: "a" }),
+        usagePhase("strategy-here", { calls: 1, strategy: "s" }),
+      ],
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.usage.engine).toBe("a");
+    expect(result.usage.strategy).toBe("s");
   });
 });

@@ -108,11 +108,24 @@ const defaultDelay = (ms: number): Promise<void> =>
 interface UsageAccumulator {
   totalCalls: number;
   totals: UsageTotals;
+  /**
+   * The run's `engine`/`strategy`, taken from the FIRST phase output that reports
+   * each — first writer wins, and the two accumulate independently. A run whose
+   * phases span two transports has no single engine; reporting the first is both
+   * defensible and what the gap-fill wrapper does today (its base phase runs
+   * first, and its combined usage spreads the base's usage). Members a phase does
+   * not report stay absent — an absent member means "no phase reported this",
+   * and the result must never carry an explicit `undefined` in its place.
+   */
+  engine?: string;
+  strategy?: string;
 }
 
 /** Add one item output's usage into the running totals, ignoring what it omits. */
 function addPhaseOutputUsage(acc: UsageAccumulator, usage: ExtractionUsage): void {
   acc.totalCalls += usage.calls;
+  if (acc.engine === undefined && usage.engine !== undefined) acc.engine = usage.engine;
+  if (acc.strategy === undefined && usage.strategy !== undefined) acc.strategy = usage.strategy;
   if (usage.promptTokens !== undefined) {
     acc.totals.promptTokens = (acc.totals.promptTokens ?? 0) + usage.promptTokens;
   }
@@ -415,7 +428,15 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
 
       return {
         fields: parsed,
-        usage: { calls: acc.totalCalls, ...acc.totals },
+        usage: {
+          calls: acc.totalCalls,
+          ...acc.totals,
+          // First writer wins — see UsageAccumulator. Spread in only when some
+          // phase reported one; an absent member means "not reported", never an
+          // explicit undefined.
+          ...(acc.engine !== undefined ? { engine: acc.engine } : {}),
+          ...(acc.strategy !== undefined ? { strategy: acc.strategy } : {}),
+        },
         // `raw` is optional on the result and its ABSENCE is what "no phase carried
         // one" reads as — spread in only when the draft has one, never as an
         // explicit undefined. Same discipline for `statedEmptyGroups`: `extractor.ts`
