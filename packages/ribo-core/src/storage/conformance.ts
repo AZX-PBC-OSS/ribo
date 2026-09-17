@@ -17,6 +17,25 @@ import type { EntryScopeKind, StorageBackend, StoredDocument } from "./port.js";
  * `expect` arrive as arguments, so a backend author on any runner can use it and
  * this package needs no test-framework peer dependency.
  *
+ * ## Why this is not named `conformance.test.ts`
+ *
+ * It reads like a test file and is deliberately not one. This is *library* code
+ * that a test file calls: it declares nothing at module scope, and
+ * `runStorageConformance` registers the cases only when invoked. Two things
+ * follow, both load-bearing:
+ *
+ * 1. **Vitest must not discover it.** The projects glob `*.test.{ts,tsx}`
+ *    (`vitest.config.ts`), so this name keeps it out. Renaming it to
+ *    `conformance.test.ts` would have Vitest load it, find no suite registered,
+ *    and fail the file — the tests live inside a function nobody called.
+ * 2. **It is published.** A third party writing a backend needs this, so it ships
+ *    under the `./testing` subpath (`src/testing.ts`) and is *not* re-exported
+ *    from the package barrel. `dist/index.js` contains none of it; a consumer
+ *    importing `@azx/ribo-core` pulls in no test scaffolding.
+ *
+ * The two real test files that call it are `storage/memory-backend.test.ts` and
+ * `@azx/ribo-storage-rxdb`'s `backend.browser.test.ts`.
+ *
  * ## What these tests can and cannot catch
  *
  * Each obligation's test was verified by breaking it, and the exercise found
