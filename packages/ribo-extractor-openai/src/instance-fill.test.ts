@@ -2,12 +2,7 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
 import { enveloped, SchemaParseError, TerminalQueueError } from "@azx/ribo-core";
-import type {
-  Enveloped,
-  ExtractionTarget,
-  PhaseUnit,
-  RetryBudget,
-} from "@azx/ribo-core";
+import type { Enveloped, ExtractionTarget, PhaseUnit, RetryBudget } from "@azx/ribo-core";
 
 import type { ChatClient, ChatCompletion, ChatRequest } from "./chat-client.js";
 import {
@@ -992,8 +987,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
     // but different part values — the assertion that §0.2 was necessary.
     // Category 1 — discriminator only: the piece coordinates survive on PhaseUnit.
     const systemsStarts = events.filter(
-      (e) =>
-        e.phaseId === "fill" && e.phase === "start" && e.key === "systems" && e.instance === 1,
+      (e) => e.phaseId === "fill" && e.phase === "start" && e.key === "systems" && e.instance === 1,
     );
     expect(systemsStarts).toHaveLength(2);
     expect(systemsStarts[0]!.part).not.toBe(systemsStarts[1]!.part);
@@ -1112,7 +1106,8 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
     expect(budgets[0]!.batches).toBe(2);
   });
 
-  test("requireRetryBudget: true with a deriving-to-zero configuration rejects with TerminalQueueError; absent succeeds", async () => {    function makeChat(): { chat: ChatClient; requests: ChatRequest[] } {
+  test("requireRetryBudget: true with a deriving-to-zero configuration rejects with TerminalQueueError; absent succeeds", async () => {
+    function makeChat(): { chat: ChatClient; requests: ChatRequest[] } {
       return obsChat();
     }
 

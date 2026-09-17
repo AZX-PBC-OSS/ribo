@@ -1,10 +1,5 @@
 import { emptyDraft, enveloped } from "@azx/ribo-core";
-import type {
-  ExtractionTarget,
-  PhaseContext,
-  PhaseDraft,
-  Roster,
-} from "@azx/ribo-core";
+import type { ExtractionTarget, PhaseContext, PhaseDraft, Roster } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
@@ -86,9 +81,7 @@ describe("inventoryPhase — plan", () => {
     });
     phase.with((def) => {
       expect(def.plan(draftWith(), ctx)).toHaveLength(1);
-      expect(
-        def.plan(draftWith({ statedEmptyGroups: { widgets: "none" } }), ctx),
-      ).toHaveLength(1);
+      expect(def.plan(draftWith({ statedEmptyGroups: { widgets: "none" } }), ctx)).toHaveLength(1);
     });
   });
 
@@ -145,7 +138,11 @@ describe("inventoryPhase — merge", () => {
     return phase.with(async (def) => {
       const outcomes = [];
       for (const item of def.plan(draft, ctx)) {
-        outcomes.push({ outcome: "result" as const, item, output: await def.run(item, draft, ctx) });
+        outcomes.push({
+          outcome: "result" as const,
+          item,
+          output: await def.run(item, draft, ctx),
+        });
       }
       return def.merge(draft, outcomes);
     });
@@ -214,9 +211,7 @@ describe("inventoryPhase — merge", () => {
     const roster: Roster = {
       widgets: [currentCandidate("a"), currentCandidate("b")],
     };
-    await expect(
-      mergedWith(roster, { instanceCap: 1 }),
-    ).rejects.toThrowError(
+    await expect(mergedWith(roster, { instanceCap: 1 })).rejects.toThrowError(
       'scopedInstanceExtractor: group "widgets" has 2 current instances, exceeding the cap of 1',
     );
   });

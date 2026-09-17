@@ -110,11 +110,7 @@ export type { InventoryOptions } from "./inventory.js";
 // excluded candidates. Exports the extractor, prompt assembly helpers, and the
 // generic roster/fill-scope types that the adapter's `buildFillInstructions` consumes.
 // `PreparedGroup` is the per-piece shape the two scoped-instance phases take.
-export {
-  buildFillMessages,
-  projectFillExample,
-  scopedInstanceExtractor,
-} from "./instance-fill.js";
+export { buildFillMessages, projectFillExample, scopedInstanceExtractor } from "./instance-fill.js";
 export type {
   FillScope,
   PreparedGroup,

@@ -408,9 +408,7 @@ describe("instanceLadder", () => {
     // SchemaParseError). Category 1 — tier 1 is the ported scopedInstanceExtractor,
     // whose events are now PhaseUnit: `unit: "phase"` with `phaseId: "inventory"`.
     expect(tier1Events.length).toBeGreaterThan(0);
-    expect(
-      tier1Events.every((e) => e.unit === "phase" && e.phaseId === "inventory"),
-    ).toBe(true);
+    expect(tier1Events.every((e) => e.unit === "phase" && e.phaseId === "inventory")).toBe(true);
 
     // Tier 2 emits group units (it succeeds).
     expect(tier2Events.length).toBeGreaterThan(0);

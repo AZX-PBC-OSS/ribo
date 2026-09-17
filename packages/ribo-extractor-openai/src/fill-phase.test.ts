@@ -338,7 +338,11 @@ describe("fillPhase — merge", () => {
     return phase.with(async (def) => {
       const outcomes = [];
       for (const item of def.plan(draft, ctx)) {
-        outcomes.push({ outcome: "result" as const, item, output: await def.run(item, draft, ctx) });
+        outcomes.push({
+          outcome: "result" as const,
+          item,
+          output: await def.run(item, draft, ctx),
+        });
       }
       return def.merge(draft, outcomes);
     });
@@ -362,9 +366,10 @@ describe("fillPhase — merge", () => {
 
     // `systems` is not a key of the shared DemoValues schema — the phase level
     // never parses against the full schema, so the cast just reads the record.
-    const systems = (
-      merged.fields as Record<string, unknown>
-    ).systems as { color: { value: string }; size: { value: string } }[];
+    const systems = (merged.fields as Record<string, unknown>).systems as {
+      color: { value: string };
+      size: { value: string };
+    }[];
     expect(systems).toHaveLength(2);
     for (let instance = 0; instance < 2; instance++) {
       expect(systems[instance]!.color.value).toBe(`${instance}-color`);
@@ -424,7 +429,11 @@ describe("fillPhase — merge", () => {
     await phase.with(async (def) => {
       const outcomes = [];
       for (const item of def.plan(draft, ctx)) {
-        outcomes.push({ outcome: "result" as const, item, output: await def.run(item, draft, ctx) });
+        outcomes.push({
+          outcome: "result" as const,
+          item,
+          output: await def.run(item, draft, ctx),
+        });
       }
       const merged = def.merge(draft, outcomes.reverse());
 
