@@ -149,10 +149,12 @@ export interface ValidateExtractorOptions<V extends Record<string, unknown>, P =
  * not survive an arbitration ladder, which returns a stamped shallow copy of
  * whichever result it accepted; that is the engine's business.)
  *
- * One {@link WholeUnit} is reported through `onUnit` per delegated run — start
- * before the inner call, `done` when the result passes, `error` when the inner
- * extractor throws or the policy rejects. The inner extractor's own units, if it
- * reports any, are its own observer's business; the two streams do not merge.
+ * **No observer.** An earlier draft reported a `WholeUnit` per delegated run;
+ * this combinator delegates exactly one run and does no work of its own, so its
+ * units would duplicate the inner extractor's own stream unit-for-unit and a
+ * host wiring both would double-count. A wrapper that delegates and judges stays
+ * silent; a combinator that runs candidates of its own reports them. The absence
+ * is pinned in the test file, not merely described here.
  */
 export function validateExtractor<F, V extends Record<string, unknown>, P = NoProvenance>(
   extractor: Extractor<F>,
