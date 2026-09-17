@@ -84,6 +84,15 @@ export type {
   ValidationVerdict,
 } from "./validate-extractor.js";
 
+// The spend-ceiling detector: wrap one extractor, read the returned result's
+// usage against the caller's ceilings, throw a TERMINAL error a ladder falls
+// through on (sp2-judging-combinators-design.md §4.3). A detector, not a
+// governor — it reports a spend it cannot prevent, and is honest around one
+// strategy rather than around a ladder. No options-bag observer: a wrapper that
+// delegates and judges reports nothing (the wave-2 rule).
+export { BudgetExceededError, budgetExtractor } from "./budget-extractor.js";
+export type { BudgetExtractorOptions } from "./budget-extractor.js";
+
 // Deriving the extraction schema from a writable patch schema — every leaf
 // enveloped, nested objects recursed rather than swallowed whole, closed and
 // fully required throughout. `ToolAdapter.extractionSchema` is declared against
