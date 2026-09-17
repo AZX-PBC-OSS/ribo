@@ -405,6 +405,30 @@ describe("timeoutExtractor — the inherited deadline", () => {
     expect((error as ExtractionTimeoutError).message).toContain("2000");
   });
 
+  test("an inherited deadline exactly equal to now is already expired — the boundary is inclusive", async () => {
+    // The implementation's guard is `<=`, so the instant the deadline names is
+    // already gone rather than the last usable moment. Pinned because the plan
+    // described this case as "already in the past", which reads strict, and a
+    // later refactor to `<` would look like a tidy-up while silently admitting a
+    // run with a zero-length budget.
+    const clock = makeClock();
+    const timer = makeCapturedTimer();
+    const stub = makeHeldStub();
+    const composed = timeoutExtractor(stub.extractor, {
+      timeoutMs: 5_000,
+      scheduleTimer: timer.scheduleTimer,
+      now: clock.now,
+    });
+
+    const error = await composed.extract(transcript, { deadline: BASE }).then(
+      () => null,
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ExtractionTimeoutError);
+    expect(stub.received).toHaveLength(0);
+  });
+
   test("with an inherited deadline already in the past, it rejects immediately with ExtractionTimeoutError without calling the inner extractor at all", async () => {
     const clock = makeClock();
     const timer = makeCapturedTimer();

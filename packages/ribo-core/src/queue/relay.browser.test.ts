@@ -1900,6 +1900,15 @@ test("the extract step's options carry a deadline minted from real time, sized b
 
   const deadline = receivedOptions[0]?.deadline;
   expect(deadline, "the extract step received an options bag with a deadline").toBeDefined();
+
+  // Anchored directly to the injected clock: a `#now`-based implementation would
+  // produce exactly this value, so this assertion discriminates the two time bases
+  // on its own, with no dependence on how far real time has drifted from the test
+  // clock's instant. The window assertions below are the same check stated
+  // positively, but they only bite while that drift exceeds `stepTimeoutMs` — true
+  // by years today, and not a property a test should rest on.
+  expect(deadline!).not.toBe(clock.now() + stepTimeoutMs);
+
   // The window is measured against REAL time — never the test clock, which a
   // `#now`-based implementation would satisfy.
   expect(deadline!).toBeGreaterThanOrEqual(before + stepTimeoutMs);

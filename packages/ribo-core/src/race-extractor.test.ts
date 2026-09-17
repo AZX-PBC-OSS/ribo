@@ -296,7 +296,7 @@ describe("raceExtractor", () => {
   });
 
   test("an empty candidate list throws at construction", () => {
-    expect(() => raceExtractor([], terminalFallsThrough)).toThrow(TypeError);
+    expect(() => raceExtractor([], acceptAnySuccess)).toThrow(TypeError);
   });
 
   test("the caller's deadline reaches the racing candidates through raceExtractor", async () => {
