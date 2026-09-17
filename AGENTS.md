@@ -22,7 +22,14 @@ double), the `Extractor<F>` seam (`toSessionExtractStep`, `FakeExtractor`), the 
 engine for composing strategies (`fallbackExtractor`, `raceExtractor`, the `ExtractionArbiter`
 contract and defaults `terminalFallsThrough` / `acceptAnySuccess`, a `SchemaParseError` that stays
 retryable while being recognisable to the arbiter, and an optional `usage.strategy` provenance
-field), `ToolAdapter<V extends Record<string, unknown>, C, P = NoProvenance>`, the review contract
+field), the phased-extraction layer beside it (`phasedExtractor` and the phase vocabulary — a
+multi-pass strategy is now a `plan`/`run`/`merge` phase list over a shared draft, with the engine
+owning scheduling, per-item retry, cancellation, the deadline, the unit stream and the closing
+parse, so write a fourth as a phase list rather than a bespoke loop; `gapFillExtractor`,
+`scopedInstanceExtractor` and `threePhaseExtractor` are presets over it, and the on-device
+strategy's four hand-rolled retry loops and `instance-fill.ts`'s are gone with their monoliths —
+but the tree is not loop-free: `groupedExtractor` still inlines its attempt loop, which the design
+keeps as a named smell), `ToolAdapter<V extends Record<string, unknown>, C, P = NoProvenance>`, the review contract
 (`buildReviewRequest`, `resolveReview`), and the
 offline-first outbox/relay's **two persisted state machines**, split where the code splits: a
 recording (`OUTBOX_STATUSES`: `recording → queued → transcribing → transcribed`, a resting `failed`
