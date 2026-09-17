@@ -8,6 +8,7 @@ import {
 import type {
   Enveloped,
   ExtractionTarget,
+  ExtractOptions,
   GroupUnit,
   RetryBudget,
   ToolAdapterExample,
@@ -1855,5 +1856,31 @@ describe("perGroupExtractor — retry budget (extraction observability)", () => 
         stepTimeoutMs: 100_000,
       }),
     ).not.toThrow();
+  });
+});
+
+// --- The caller's options reach the entries -----------------------------------
+
+describe("perGroupExtractor — the caller's options reach the entries", () => {
+  test("the caller's deadline reaches the group entry's forward", async () => {
+    // Regression pin for the forward at per-group.ts: the default entry runs
+    // singleShotExtractor on the caller's options bag WHOLE, so the deadline —
+    // the signal's sibling member with the same forwarding discipline — rides
+    // through to the chat call untouched. The chat records the bag it was
+    // handed; ChatCallOptions only declares `signal`, so the assertion reads
+    // the recorded object as the ExtractOptions it actually is.
+    const recorded: unknown[] = [];
+    const chat: ChatClient = {
+      complete: async (_request, options) => {
+        recorded.push(options);
+        return { content: JSON.stringify(flatResponse), finishReason: "stop" };
+      },
+    };
+    const extractor = perGroupExtractor({ target: flatTarget, chat, model: "m" });
+    const deadline = 1_234_567_890;
+
+    await extractor.extract({ text: "t", annotations: {} }, { deadline });
+
+    expect((recorded[0] as ExtractOptions | undefined)?.deadline).toBe(deadline);
   });
 });

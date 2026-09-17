@@ -196,12 +196,18 @@ describe("retryExtractor", () => {
     ]);
     const composed = retryExtractor(extractor, { maxRetries: 2, delay: () => Promise.resolve() });
     const controller = new AbortController();
-    const options: ExtractOptions = { signal: controller.signal };
+    // `deadline` rides along as a regression pin: the forward is verbatim
+    // (`toBe(options)` below already proves the whole bag is handed through),
+    // so a new member reaches the stub on every attempt unmodified.
+    const options: ExtractOptions = { signal: controller.signal, deadline: 1_234_567_890 };
 
     await composed.extract(transcript, options);
 
     expect(calls).toHaveLength(3);
-    for (const recorded of calls) expect(recorded).toBe(options);
+    for (const recorded of calls) {
+      expect(recorded).toBe(options);
+      expect(recorded?.deadline).toBe(1_234_567_890);
+    }
   });
 
   test("a first-attempt success returns the inner usage object by identity", async () => {

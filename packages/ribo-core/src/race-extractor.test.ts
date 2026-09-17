@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import type { Extractor, ExtractionResult } from "./extractor.js";
+import { FakeExtractor } from "./extractor.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 
 // The test runs in Vitest's node environment, but `ribo-core` is a browser library and
@@ -295,6 +296,23 @@ describe("raceExtractor", () => {
   });
 
   test("an empty candidate list throws at construction", () => {
-    expect(() => raceExtractor([], acceptAnySuccess)).toThrow(TypeError);
+    expect(() => raceExtractor([], terminalFallsThrough)).toThrow(TypeError);
+  });
+
+  test("the caller's deadline reaches the racing candidates through raceExtractor", async () => {
+    // Regression pin for the dispatch loop's forward at arbitration.ts: the
+    // engine starts every candidate with the caller's bag whole, so the
+    // deadline — the signal's sibling member with the same forwarding
+    // discipline — reaches each candidate untouched.
+    const primary = new FakeExtractor<{ value: number }>({ value: 1 });
+    const deadline = 1_234_567_890;
+    const extractor = raceExtractor(
+      [{ strategy: "only", extractor: primary }],
+      acceptAnySuccess,
+    );
+
+    await extractor.extract({ text: "t", annotations: {} }, { deadline });
+
+    expect(primary.callOptions[0]?.deadline).toBe(deadline);
   });
 });

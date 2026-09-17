@@ -1,5 +1,6 @@
 import {
   enveloped,
+  FakeExtractor,
   isTransientFailure,
   SchemaParseError,
   TerminalQueueError,
@@ -97,6 +98,26 @@ const catchRejection = (promise: Promise<unknown>): Promise<unknown> =>
     },
     (caught: unknown) => caught,
   );
+
+test("the caller's deadline reaches the base extractor", async () => {
+  // Regression pin for the forward at schema-retry.ts: the base runs on the
+  // caller's options bag WHOLE, so the deadline — the signal's sibling member
+  // with the same forwarding discipline — reaches it untouched. The base
+  // succeeds, so the retry chat is never called and a throwing client proves
+  // the pin exercised only the forward.
+  const base = new FakeExtractor<Extraction>(goodOutput);
+  const chat: ChatClient = {
+    complete: async () => {
+      throw new Error("scripted chat must not be called");
+    },
+  };
+  const composed = schemaRetryExtractor({ base, target, chat, model: "m" });
+  const deadline = 1_234_567_890;
+
+  await composed.extract({ text: transcript, annotations: {} }, { deadline });
+
+  expect(base.callOptions[0]?.deadline).toBe(deadline);
+});
 
 /** A retry-wrapped single-shot extractor over `script`. */
 const wrapped = (chat: ChatClient, options: { maxRetries?: number } = {}) =>

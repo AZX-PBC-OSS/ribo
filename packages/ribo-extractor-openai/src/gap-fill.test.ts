@@ -147,6 +147,20 @@ describe("gapFillExtractor — passthrough (no candidates)", () => {
     // The base extractor still ran, on the transcript.
     expect(base.calls.map((t) => t.text)).toEqual([transcript]);
   });
+
+  test("the caller's deadline reaches the base extractor", async () => {
+    // Regression pin for the forward at gap-fill.ts: the base runs on the
+    // caller's options bag WHOLE, so the deadline — the signal's sibling
+    // member with the same forwarding discipline — reaches it untouched.
+    const base = new FakeExtractor<GapExtraction>(committedFields);
+    const { chat } = fakeChat(JSON.stringify(followUpResponse));
+    const extractor = gapFillExtractor({ base, target: gapTarget, chat, model: "gpt-test" });
+    const deadline = 1_234_567_890;
+
+    await extractor.extract({ text: "t", annotations: {} }, { deadline });
+
+    expect(base.callOptions[0]?.deadline).toBe(deadline);
+  });
 });
 
 describe("gapFillExtractor — the follow-up call", () => {

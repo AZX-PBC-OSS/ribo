@@ -420,7 +420,10 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
             onUnit?.({ id, unit: "group", phase: "start", attempt: attempt + 1, key, part, parts });
 
             try {
-              const result = await entry.extractor.extract(transcript, { signal: effectiveSignal });
+              const result = await entry.extractor.extract(transcript, {
+                ...options,
+                signal: effectiveSignal,
+              });
 
               // Sum what the entry reports — its calls and token totals. A
               // failed attempt's calls are the entry's business; this run's
