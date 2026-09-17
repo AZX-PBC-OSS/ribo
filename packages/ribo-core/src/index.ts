@@ -439,3 +439,7 @@ export type { NoteKey, Notes } from "./phase-notes.js";
 // draft it is handed.
 export { emptyDraft } from "./phase-draft.js";
 export type { DeepPartial, PhaseDraft } from "./phase-draft.js";
+// What one item's work produced and how it settled — the per-item vocabulary a phase's
+// `run` and `merge` speak. Discriminated on `outcome`, matching `arbitration.ts`'s
+// `ExtractionOutcome` rather than inventing a second outcome vocabulary.
+export type { PhaseItemOutcome, PhaseOutput } from "./phase-outcome.js";
