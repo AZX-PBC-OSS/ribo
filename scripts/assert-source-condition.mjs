@@ -110,6 +110,11 @@ TARGETS.push({
   sourceSuffix: "/src/worklet.ts",
   distSuffix: "/dist/worklet.js",
 });
+TARGETS.push({
+  specifier: "@azx/ribo-core/testing",
+  sourceSuffix: "/src/testing.ts",
+  distSuffix: "/dist/testing.js",
+});
 
 // Every package is a dependency of `playground`, so its node_modules is the only
 // directory from which all resolve by name.

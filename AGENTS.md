@@ -279,7 +279,8 @@ namespaced so that only we can turn it on.
 Also note `"types"` must come **before** any JS condition in the block — publint enforces this,
 and getting it wrong silently breaks consumer type resolution.
 
-**Subpath exports.** Two subpaths exist beyond `.`: `@azx/ribo-transcriber-ondevice/worker` and `@azx/ribo-core/worklet`
+**Subpath exports.** Three subpaths exist beyond `.`: `@azx/ribo-transcriber-ondevice/worker`,
+`@azx/ribo-core/worklet` and `@azx/ribo-core/testing` (the storage port's conformance kit)
 (§5.2). All nine publishable packages build (`pnpm build:packages`), so `dist/index.js`, `dist/index.d.ts`
 and `dist/worker.js` all exist and **both** branches of each root `exports` plus the
 `./worker` subpath resolve — which is what `pnpm check:resolve` asserts on every `./check.sh`

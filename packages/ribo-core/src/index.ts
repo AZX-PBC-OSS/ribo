@@ -220,10 +220,12 @@ export { SchemaParseError } from "./schema-parse-error.js";
 // and this line says only that all of them are public.
 export * from "./queue/index.js";
 
-// The storage port — the contract a durable backend implements. Types only: the
-// implementations live in `./storage/memory-backend.ts` (tests and development)
-// and in `@azx/ribo-storage-rxdb` (production). The conformance kit that decides
-// whether an implementation is real ships separately as `@azx/ribo-core/testing`.
+// The storage port — the contract a durable backend implements — plus the memory
+// backend, which is a runtime export and therefore reaches every consumer of this
+// entry. That is deliberate: it is the development and test backend, and it is
+// small. The production backend is `@azx/ribo-storage-rxdb`; the conformance kit
+// that decides whether an implementation is real ships as `@azx/ribo-core/testing`
+// so test scaffolding stays out of a consumer's bundle.
 export * from "./storage/index.js";
 
 // Write-back: the only tool-specific surface, with a typed host context, both

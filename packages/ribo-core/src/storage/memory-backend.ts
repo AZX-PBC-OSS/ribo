@@ -94,6 +94,15 @@ function copy(document: StoredDocument): StoredDocument {
   return structuredClone(document);
 }
 
+/**
+ * Code-unit order, which is what JS's bare `.sort()` does and what the port pins.
+ * `localeCompare` folds case and would disagree on exactly the keys a plugin is
+ * most likely to write.
+ */
+function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function matchesStatus(document: StoredDocument, status: readonly string[] | undefined): boolean {
   if (status === undefined) return true;
   return status.includes(document.status as string);
@@ -161,18 +170,22 @@ class MemoryBackend implements StorageBackend {
           matchesStatus(document, query.status) &&
           (query.ref === undefined || document.ref === query.ref),
       );
-      matched.sort((a, b) => String(a.openedAt).localeCompare(String(b.openedAt)));
+      matched.sort((a, b) => byCodeUnit(String(a.openedAt), String(b.openedAt)));
       return this.#take(matched, query.limit);
     }
 
     const query = finder as Finders["entries"];
+    const scopeIds =
+      query.scopeId === undefined
+        ? undefined
+        : new Set(typeof query.scopeId === "string" ? [query.scopeId] : query.scopeId);
     const matched = all.filter(
       (document) =>
         (query.scopeKind === undefined || document.scopeKind === query.scopeKind) &&
-        (query.scopeId === undefined || document.scopeId === query.scopeId) &&
+        (scopeIds === undefined || scopeIds.has(document.scopeId as string)) &&
         (query.owner === undefined || document.owner === query.owner),
     );
-    matched.sort((a, b) => String(a.key).localeCompare(String(b.key)));
+    matched.sort((a, b) => byCodeUnit(String(a.key), String(b.key)));
     return this.#take(matched, query.limit);
   }
 
@@ -302,7 +315,7 @@ class MemoryBackend implements StorageBackend {
   async remove(collection: CollectionName, id: string): Promise<boolean> {
     this.#assertOpen();
     const existed = this.#documents(collection).delete(id);
-    this.#blobRoot(collection).delete(id);
+    this.#forget(collection, id);
     if (existed) this.#database.changes.next();
     return existed;
   }
@@ -312,10 +325,22 @@ class MemoryBackend implements StorageBackend {
     let removed = 0;
     for (const id of ids) {
       if (this.#documents(collection).delete(id)) removed += 1;
-      this.#blobRoot(collection).delete(id);
+      this.#forget(collection, id);
     }
     if (removed > 0) this.#database.changes.next();
     return removed;
+  }
+
+  /**
+   * Drop everything keyed by a document that has gone.
+   *
+   * `modifyChains` would otherwise grow for the life of the database: a long
+   * session that enqueues and clears repeatedly accumulates one settled promise
+   * per id it has ever touched, and nothing ever reads them again.
+   */
+  #forget(collection: CollectionName, id: string): void {
+    this.#blobRoot(collection).delete(id);
+    this.#database.modifyChains.delete(`${collection}:${id}`);
   }
 
   // -----------------------------------------------------------------------
@@ -324,6 +349,12 @@ class MemoryBackend implements StorageBackend {
 
   async putBlob(collection: CollectionName, id: string, blobId: string, data: Blob): Promise<void> {
     this.#assertOpen();
+    // Refusing an orphan is part of the contract, not a nicety: lazily creating a
+    // blob map for an unknown document writes bytes nothing will ever read and no
+    // sweep knows about. RxDB refuses this by construction; so does this.
+    if (!this.#documents(collection).has(id)) {
+      throw new Error(`memory backend: ${collection} has no document "${id}" to attach a blob to`);
+    }
     this.#blobsFor(collection, id).set(blobId, data);
     this.#database.changes.next();
   }

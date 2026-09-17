@@ -20,18 +20,23 @@ import type { EntryScopeKind, StorageBackend, StoredDocument } from "./port.js";
  * ## What these tests can and cannot catch
  *
  * Each obligation's test was verified by breaking it, and the exercise found
- * something worth writing down: **a violation is only observable across an await
- * boundary.** A backend that publishes a change and then writes the blob
- * *synchronously* satisfies obligation 1, because no subscriber can run in
- * between; the same code with an `await` before the blob write fails. The same
- * held for obligation 6 — a synchronous read-highest-then-insert cannot race in
- * a single-threaded runtime, and only yields wrong sequences once it yields.
+ * something worth writing down: **for a backend whose `watch` defers its
+ * emissions, a violation of obligations 1, 3 and 6 is only observable across an
+ * await boundary.** Publishing a change and then writing the blob
+ * *synchronously* satisfies obligation 1 under a deferred emission, because no
+ * subscriber can run in between; the same code with an `await` before the blob
+ * write fails.
  *
- * So these tests bite exactly where the hazard is real: a backend that touches
- * IndexedDB, a socket or a file. Do not read a green run against a trivially
- * synchronous backend as strong evidence — it is evidence that backend is
- * correct, not that the test would catch an asynchronous one. It would; that was
- * checked.
+ * The qualifier matters and is not decoration: a backend whose `watch` is a bare
+ * `Subject` notifies subscribers *synchronously*, and would exhibit — and fail —
+ * the same violation with no await anywhere. So these tests are stronger than
+ * "async backends only"; they are weaker only against the specific combination
+ * of deferred emission and synchronous writes, which is a backend that cannot
+ * have the bug in the first place.
+ *
+ * Do not read a green run against a trivially synchronous backend as strong
+ * evidence. It is evidence that backend is correct, not that the test would
+ * catch an asynchronous one. It would; that was checked by breaking each one.
  */
 
 /** The subset of a matcher API this kit uses. Structural, so any runner's `expect` satisfies it. */
@@ -248,6 +253,37 @@ export function runStorageConformance(label: string, harness: ConformanceHarness
       });
     });
 
+    it("finds entries across a set of scopes in one query", async () => {
+      await withBackend(async (backend) => {
+        for (const scopeId of ["cap1", "cap2", "cap3"]) {
+          await backend.insert(
+            "entries",
+            makeEntry({
+              id: `pdfjs:${scopeId}:pages`,
+              scopeKind: "capture",
+              scopeId,
+              owner: "pdfjs",
+              key: "pages",
+              value: "[]",
+            }),
+          );
+        }
+
+        // The sweep's query. Removing a batch of captures has to reach every
+        // entry belonging to any of them; one query per capture would turn
+        // "clear the queue" into one round trip per row.
+        const swept = await backend.find("entries", {
+          scopeKind: "capture",
+          scopeId: ["cap1", "cap3"],
+        });
+        expect(swept.map((doc) => doc.scopeId)).toEqual(["cap1", "cap3"]);
+
+        // A single string means the same thing as a one-element set.
+        const single = await backend.find("entries", { scopeId: "cap2" });
+        expect(single.map((doc) => doc.scopeId)).toEqual(["cap2"]);
+      });
+    });
+
     // ---------------------------------------------------------------------
     // Obligation 1 — insert-with-blobs is ONE write.
     // ---------------------------------------------------------------------
@@ -434,6 +470,75 @@ export function runStorageConformance(label: string, harness: ConformanceHarness
       });
     });
 
+    it("allocates distinct sequences across two handles on one database (obligation 6)", async () => {
+      // The test that actually matches the obligation. Running twelve concurrent
+      // allocations through ONE handle is satisfied by a per-handle serialisation
+      // chain — which is precisely the bug that exists in the code this port
+      // replaces: an in-process promise chain that two tabs never share. A kit
+      // that only tested one handle would certify that bug as conformant.
+      const name = freshName();
+      const one = await createBackend(name);
+      const two = await createBackend(name);
+
+      try {
+        const perHandle = 6;
+        const allocate = (backend: StorageBackend, tag: string): Promise<StoredDocument>[] =>
+          Array.from({ length: perHandle }, (_unused, index) =>
+            backend.insertNext(
+              "captures",
+              "seq",
+              makeCapture({ id: `${tag}-${index}`, seq: 0, status: "queued", sessionId: "s1" }),
+            ),
+          );
+
+        const inserted = await Promise.all([...allocate(one, "one"), ...allocate(two, "two")]);
+        const sequences = inserted.map((doc) => doc.seq as number).sort((a, b) => a - b);
+
+        expect(new Set(sequences).size).toBe(perHandle * 2);
+        expect(sequences).toEqual(
+          Array.from({ length: perHandle * 2 }, (_unused, index) => index + 1),
+        );
+      } finally {
+        await one.close();
+        await two.close();
+      }
+    });
+
+    it("attaches blobs atomically through insertNext too (obligation 1)", async () => {
+      // `enqueue` becomes insertNext-with-audio, so this is the real capture path.
+      // A backend with an atomic `insert` and a two-step `insertNext` passes the
+      // other atomicity test and loses audio on every recording.
+      await withBackend(async (backend) => {
+        let firstSighting: Promise<Blob | undefined> | undefined;
+        const subscription: Subscription = backend.watch("captures", {}).subscribe((documents) => {
+          if (firstSighting !== undefined) return;
+          const seen = documents.find((doc) => doc.id === "seqWithAudio");
+          if (seen) firstSighting = backend.getBlob("captures", "seqWithAudio", "audio");
+        });
+
+        try {
+          await backend.insertNext(
+            "captures",
+            "seq",
+            makeCapture({ id: "seqWithAudio", seq: 0, status: "queued", sessionId: "s1" }),
+            [{ id: "audio", data: new Blob([new Uint8Array([7, 7, 7])]) }],
+          );
+
+          await until(() => firstSighting !== undefined, "the allocated capture to be published");
+
+          const seen = await firstSighting;
+          if (seen === undefined) {
+            throw new Error(
+              "obligation 1 violated through insertNext: the capture was published before its audio",
+            );
+          }
+          expect(await byteLength(seen)).toBe(3);
+        } finally {
+          subscription.unsubscribe();
+        }
+      });
+    });
+
     it("continues the sequence from what is already stored", async () => {
       await withBackend(async (backend) => {
         await backend.insert(
@@ -505,6 +610,50 @@ export function runStorageConformance(label: string, harness: ConformanceHarness
       });
     });
 
+    it("scopes blobs to their document, not to the blob id", async () => {
+      await withBackend(async (backend) => {
+        // Every capture names its audio with the SAME attachment id, so a backend
+        // keying blobs by blob id alone serves one recording's audio for another
+        // — data corruption that reads as a mystery, not an error.
+        for (const [index, id] of ["first", "second"].entries()) {
+          await backend.insert(
+            "captures",
+            makeCapture({ id, seq: index + 1, status: "queued", sessionId: "s1" }),
+            [{ id: "audio", data: new Blob([new Uint8Array(index + 1)]) }],
+          );
+        }
+
+        expect(await byteLength((await backend.getBlob("captures", "first", "audio"))!)).toBe(1);
+        expect(await byteLength((await backend.getBlob("captures", "second", "audio"))!)).toBe(2);
+
+        // Removing one document's blob must leave the other's alone.
+        await backend.removeBlob("captures", "first", "audio");
+        expect(await backend.getBlob("captures", "first", "audio")).toBeUndefined();
+        expect(await byteLength((await backend.getBlob("captures", "second", "audio"))!)).toBe(2);
+      });
+    });
+
+    it("refuses to attach a blob to a document that is not there", async () => {
+      await withBackend(async (backend) => {
+        // Backends disagree on this by default: an attachment store keyed by
+        // document id will create an orphan, RxDB will not. Unspecified, that
+        // divergence surfaces as a bug that only reproduces on one backend.
+        let refused = false;
+        try {
+          await backend.putBlob(
+            "captures",
+            "no-such-capture",
+            "audio",
+            new Blob([new Uint8Array(1)]),
+          );
+        } catch {
+          refused = true;
+        }
+        expect(refused).toBe(true);
+        expect(await backend.getBlob("captures", "no-such-capture", "audio")).toBeUndefined();
+      });
+    });
+
     it("replaces and detaches blobs", async () => {
       await withBackend(async (backend) => {
         await backend.insert(
@@ -541,6 +690,55 @@ export function runStorageConformance(label: string, harness: ConformanceHarness
         } finally {
           subscription.unsubscribe();
         }
+      });
+    });
+
+    it("emits in the finder's order, not insertion order", async () => {
+      await withBackend(async (backend) => {
+        const seen: number[][] = [];
+        const subscription = backend
+          .watch("captures", {})
+          .subscribe((documents) => seen.push(documents.map((doc) => doc.seq as number)));
+
+        try {
+          // Descending insertion, so a backend that emits its natural order
+          // rather than the finder's produces [3], [3,2], [3,2,1].
+          for (const seq of [3, 2, 1]) {
+            await backend.insert(
+              "captures",
+              makeCapture({ id: `w${seq}`, seq, status: "queued", sessionId: "s1" }),
+            );
+          }
+
+          await until(() => seen.some((order) => order.length === 3), "all three captures");
+          expect(seen[seen.length - 1]).toEqual([1, 2, 3]);
+        } finally {
+          subscription.unsubscribe();
+        }
+      });
+    });
+
+    it("orders keys by code unit, so case is not folded", async () => {
+      await withBackend(async (backend) => {
+        // The two backends disagreed here before this was pinned: JS's default
+        // `.sort()` is code-unit order and `localeCompare` is not, and they
+        // differ exactly on case. `keys()` has always been code-unit.
+        for (const key of ["apple", "Banana", "cherry"]) {
+          await backend.insert(
+            "entries",
+            makeEntry({
+              id: `owner:cap:${key}`,
+              scopeKind: "capture",
+              scopeId: "cap",
+              owner: "owner",
+              key,
+              value: "v",
+            }),
+          );
+        }
+
+        const found = await backend.find("entries", { scopeKind: "capture", scopeId: "cap" });
+        expect(found.map((doc) => doc.key)).toEqual(["Banana", "apple", "cherry"]);
       });
     });
 

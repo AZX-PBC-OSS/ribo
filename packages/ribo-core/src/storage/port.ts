@@ -51,6 +51,16 @@ export interface BlobDescriptor {
  * from becoming a database: there is no selector language to specify, no sort
  * spec crossing the boundary, and no way for a caller to express a query a
  * backend cannot serve.
+ *
+ * **String ordering is code-unit order** — what a bare `.sort()` does — not
+ * locale collation. The two differ on case, and pinning it matters because the
+ * backend now owns a sort the domain logic used to do for itself.
+ *
+ * **There is deliberately no "highest sequence" finder.** Ascending-with-limit
+ * gives the lowest, and the only caller that ever wanted the highest was
+ * allocating the next one — which is {@link StorageBackend.insertNext}'s job
+ * precisely so no caller has to read-then-write. If you find yourself wanting to
+ * add one, you are probably reintroducing the race.
  */
 export interface Finders {
   /** Captures, ordered by sequence ascending. */
@@ -69,7 +79,17 @@ export interface Finders {
   /** Key-value entries, ordered by key ascending. */
   entries: {
     scopeKind?: EntryScopeKind;
-    scopeId?: string;
+    /**
+     * Match one scope, or any of several.
+     *
+     * The set form is not a convenience — it is what the **sweep** needs. When a
+     * batch of captures is removed, every entry belonging to any of them has to
+     * go, and doing that one scope at a time turns one query into one per
+     * capture on the "reset this device" path. A set here mirrors `status` on
+     * the other two finders, so it adds no new *kind* of filter and every
+     * backend can serve it (`IN`, `$in`, or a JS membership test).
+     */
+    scopeId?: string | readonly string[];
     owner?: string;
     limit?: number;
   };
@@ -160,7 +180,15 @@ export interface StorageBackend {
   /** Remove many. Ids that are absent are skipped; resolves how many actually went. */
   removeMany: (collection: CollectionName, ids: readonly string[]) => Promise<number>;
 
-  /** Attach a blob to an existing document, replacing any blob with the same id. */
+  /**
+   * Attach a blob to an existing document, replacing any blob with the same id.
+   *
+   * **Rejects if the document does not exist.** Stated because backends disagree
+   * by default — an attachment store keyed by document id will happily create an
+   * orphan, while RxDB refuses without a document to hang it on. Silently
+   * accepting is the worse default: the bytes are written, nothing ever reads
+   * them, and no sweep knows they are there.
+   */
   putBlob: (collection: CollectionName, id: string, blobId: string, data: Blob) => Promise<void>;
 
   /** One blob's bytes, or `undefined` if absent. */
