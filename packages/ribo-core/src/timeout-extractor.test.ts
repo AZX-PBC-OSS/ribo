@@ -64,8 +64,10 @@ function makeHeldStub() {
 function makeCapturedTimer() {
   let callback: (() => void) | undefined;
   let clearCalls = 0;
-  const scheduleTimer: ScheduleTimer = (fn, _delayMs) => {
+  const delays: number[] = [];
+  const scheduleTimer: ScheduleTimer = (fn, delayMs) => {
     callback = fn;
+    delays.push(delayMs);
     return () => {
       clearCalls += 1;
     };
@@ -75,6 +77,10 @@ function makeCapturedTimer() {
     fire: () => callback?.(),
     get clearCalls() {
       return clearCalls;
+    },
+    /** The delay every scheduling asked for, in call order. */
+    get delays() {
+      return delays;
     },
   };
 }
@@ -305,5 +311,121 @@ describe("timeoutExtractor", () => {
     expect(() =>
       timeoutExtractor(stub.extractor, { timeoutMs: -5, scheduleTimer: () => () => {} }),
     ).toThrow(/-5/);
+  });
+});
+
+describe("timeoutExtractor — the inherited deadline", () => {
+  const BASE = 1_000_000;
+
+  /** A frozen injectable clock: `now` reads it, `advance` moves it by hand. */
+  function makeClock() {
+    let now = BASE;
+    return {
+      now: (): number => now,
+      advance: (ms: number): void => {
+        now += ms;
+      },
+      get nowMs() {
+        return now;
+      },
+    };
+  }
+
+  test("with no inherited deadline, the inner extractor still receives one — this combinator's own (now + timeoutMs)", async () => {
+    // Design §4.5: every combinator holding a budget CONTRIBUTES it, so the
+    // effective deadline is always passed down — not only when one was
+    // inherited. Wave 1's suite never asserted the bag's contents, so two
+    // observably different implementations both satisfied it; this pins
+    // always-pass, which anything nested below can see
+    // (retryExtractor(timeoutExtractor(inner)) reads the deadline off the bag).
+    const clock = makeClock();
+    const timer = makeCapturedTimer();
+    const stub = makeHeldStub();
+    const composed = timeoutExtractor(stub.extractor, {
+      timeoutMs: 5_000,
+      scheduleTimer: timer.scheduleTimer,
+      now: clock.now,
+    });
+
+    const pending = composed.extract(transcript);
+    stub.held.resolve(result({ value: 9 }));
+    await pending;
+
+    expect(stub.received[0]?.deadline).toBe(BASE + 5_000);
+    // The timer governs the combinator's own budget, not a widened one.
+    expect(timer.delays).toEqual([5_000]);
+  });
+
+  test("with an inherited deadline later than its own, the inner receives this combinator's own and the timer still governs", async () => {
+    const clock = makeClock();
+    const timer = makeCapturedTimer();
+    const stub = makeHeldStub();
+    const composed = timeoutExtractor(stub.extractor, {
+      timeoutMs: 5_000,
+      scheduleTimer: timer.scheduleTimer,
+      now: clock.now,
+    });
+
+    const pending = composed.extract(transcript, { deadline: BASE + 60_000 });
+
+    expect(stub.received[0]?.deadline).toBe(BASE + 5_000);
+    expect(timer.delays).toEqual([5_000]);
+    timer.fire();
+    await expect(pending).rejects.toBeInstanceOf(ExtractionTimeoutError);
+  });
+
+  test("with an inherited deadline earlier than its own, the inner receives the inherited one, the timer is scheduled for the remaining interval, and the error names the effective budget", async () => {
+    const clock = makeClock();
+    const timer = makeCapturedTimer();
+    const stub = makeHeldStub();
+    const composed = timeoutExtractor(stub.extractor, {
+      timeoutMs: 5_000,
+      scheduleTimer: timer.scheduleTimer,
+      now: clock.now,
+    });
+    const inherited = BASE + 2_000;
+
+    const pending = composed.extract(transcript, { deadline: inherited });
+
+    // Narrowed, never widened: the inner is told the wall that will actually
+    // be hit, so it can size its own retries against it.
+    expect(stub.received[0]?.deadline).toBe(inherited);
+    expect(timer.delays).toEqual([2_000]);
+
+    timer.fire();
+    const error = await pending.then(
+      () => null,
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(ExtractionTimeoutError);
+    // The error names the budget that elapsed — the EFFECTIVE one actually
+    // waited (the inherited remainder, 2000), not this combinator's own
+    // timeoutMs (5000), which never elapsed.
+    expect((error as ExtractionTimeoutError).timeoutMs).toBe(2_000);
+    expect((error as ExtractionTimeoutError).message).toContain("2000");
+  });
+
+  test("with an inherited deadline already in the past, it rejects immediately with ExtractionTimeoutError without calling the inner extractor at all", async () => {
+    const clock = makeClock();
+    const timer = makeCapturedTimer();
+    const stub = makeHeldStub();
+    const composed = timeoutExtractor(stub.extractor, {
+      timeoutMs: 5_000,
+      scheduleTimer: timer.scheduleTimer,
+      now: clock.now,
+    });
+
+    const pending = composed.extract(transcript, { deadline: BASE - 1 });
+    const error = await pending.then(
+      () => null,
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ExtractionTimeoutError);
+    expect(stub.received).toHaveLength(0);
+    // No timer was ever scheduled — the rejection did not wait a tick.
+    expect(timer.delays).toEqual([]);
+    // Nothing elapsed, so the error names this combinator's own timeoutMs.
+    expect((error as ExtractionTimeoutError).timeoutMs).toBe(5_000);
   });
 });
