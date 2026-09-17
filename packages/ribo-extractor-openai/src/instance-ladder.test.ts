@@ -404,9 +404,13 @@ describe("instanceLadder", () => {
     const tier1Events = events.filter((e) => e.strategy === "tier1");
     const tier2Events = events.filter((e) => e.strategy === "tier2");
 
-    // Tier 1 emits inventory units (the inventory pass fails with SchemaParseError).
+    // Tier 1 emits inventory-phase units (the inventory pass fails with
+    // SchemaParseError). Category 1 — tier 1 is the ported scopedInstanceExtractor,
+    // whose events are now PhaseUnit: `unit: "phase"` with `phaseId: "inventory"`.
     expect(tier1Events.length).toBeGreaterThan(0);
-    expect(tier1Events.every((e) => e.unit === "inventory")).toBe(true);
+    expect(
+      tier1Events.every((e) => e.unit === "phase" && e.phaseId === "inventory"),
+    ).toBe(true);
 
     // Tier 2 emits group units (it succeeds).
     expect(tier2Events.length).toBeGreaterThan(0);
@@ -467,9 +471,10 @@ describe("instanceLadder", () => {
 
     await ladder.extract({ text: "the transcript", annotations: {} });
 
-    // Both handlers saw tier 1's inventory events.
+    // Both handlers saw tier 1's inventory events. Category 1 — tier 1's events
+    // are PhaseUnit now; the discriminator is `unit: "phase"`, `phaseId: "inventory"`.
     const ladderTier1 = ladderEvents.filter((e) => e.strategy === "tier1");
-    const tierTier1 = tierEvents.filter((e) => e.unit === "inventory");
+    const tierTier1 = tierEvents.filter((e) => e.unit === "phase" && e.phaseId === "inventory");
     expect(ladderTier1.length).toBeGreaterThan(0);
     expect(tierTier1.length).toBeGreaterThan(0);
 
@@ -503,8 +508,9 @@ describe("instanceLadder", () => {
     const result = await ladder.extract({ text: "the transcript", annotations: {} });
 
     // The tier-level onUnit still fires even without a ladder-level observer.
+    // Category 1 — tier 1's events are PhaseUnit now (`phaseId: "inventory"`).
     expect(tierEvents.length).toBeGreaterThan(0);
-    expect(tierEvents.every((e) => e.unit === "inventory")).toBe(true);
+    expect(tierEvents.every((e) => e.unit === "phase" && e.phaseId === "inventory")).toBe(true);
 
     // The extraction result is unaffected.
     expect(result.fields.widgets).toHaveLength(2);

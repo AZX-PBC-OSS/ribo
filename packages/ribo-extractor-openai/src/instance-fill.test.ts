@@ -5,8 +5,7 @@ import { enveloped, SchemaParseError, TerminalQueueError } from "@azx/ribo-core"
 import type {
   Enveloped,
   ExtractionTarget,
-  InventoryUnit,
-  InstanceUnit,
+  PhaseUnit,
   RetryBudget,
 } from "@azx/ribo-core";
 
@@ -823,10 +822,12 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
 
 /** Collect `onUnit` events for assertion. */
 function collectUnits(): {
-  events: (InventoryUnit | InstanceUnit)[];
-  onUnit: (event: InventoryUnit | InstanceUnit) => void;
+  // Category 2 — the observer's unit type widened: the ported preset emits
+  // `PhaseUnit` events through the engine, not `InventoryUnit`/`InstanceUnit`.
+  events: PhaseUnit[];
+  onUnit: (event: PhaseUnit) => void;
 } {
-  const events: (InventoryUnit | InstanceUnit)[] = [];
+  const events: PhaseUnit[] = [];
   return { events, onUnit: (e) => void events.push(e) };
 }
 
@@ -875,38 +876,44 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       onUnit,
     }).extract({ text: "transcript", annotations: {} });
 
-    // One inventory start/done pair, then two instance start/done pairs.
+    // One inventory start/done pair, then two fill start/done pairs — six events
+    // under either stream.
     expect(events).toHaveLength(6);
 
-    // Inventory events come first — the pass runs before any fill call.
-    expect(events[0]!.unit).toBe("inventory");
+    // Category 1 — events changed from InventoryUnit/InstanceUnit to PhaseUnit:
+    // the discriminator is now `unit: "phase"` with the phase's identity in
+    // `phaseId`. The inventory phase is pass 0 and runs before any fill call.
+    expect(events[0]!.unit).toBe("phase");
+    expect(events[0]!.phaseId).toBe("inventory");
+    expect(events[0]!.pass).toBe(0);
     expect(events[0]!.phase).toBe("start");
     expect(events[0]!.attempt).toBe(1);
-    expect(events[1]!.unit).toBe("inventory");
+    expect(events[1]!.unit).toBe("phase");
+    expect(events[1]!.phaseId).toBe("inventory");
     expect(events[1]!.phase).toBe("done");
     expect(events[1]!.attempt).toBe(1);
     // Inventory carries no usage — inventory is a caller-supplied function,
     // not a completion, so its cost never reaches this extractor.
     expect((events[1] as { usage?: unknown }).usage).toBeUndefined();
 
-    // Two instance units: instance 1 and 2, both instances: 2.
-    const instanceStarts = events.filter(
-      (e): e is InstanceUnit => e.unit === "instance" && e.phase === "start",
-    );
-    expect(instanceStarts).toHaveLength(2);
-    expect(instanceStarts[0]!.instance).toBe(1);
-    expect(instanceStarts[0]!.instances).toBe(2);
-    expect(instanceStarts[1]!.instance).toBe(2);
-    expect(instanceStarts[1]!.instances).toBe(2);
+    // Two fill units: instance 1 and 2, both instances: 2 — the piece
+    // coordinates survive on PhaseUnit (Task 1), so only the discriminator
+    // needed amending here.
+    const fillStarts = events.filter((e) => e.phaseId === "fill" && e.phase === "start");
+    expect(fillStarts).toHaveLength(2);
+    expect(fillStarts[0]!.key).toBe("widgets");
+    expect(fillStarts[0]!.instance).toBe(1);
+    expect(fillStarts[0]!.instances).toBe(2);
+    expect(fillStarts[1]!.key).toBe("widgets");
+    expect(fillStarts[1]!.instance).toBe(2);
+    expect(fillStarts[1]!.instances).toBe(2);
 
-    // Same id across start/done for each instance; different ids between instances.
-    const instanceDones = events.filter(
-      (e): e is InstanceUnit => e.unit === "instance" && e.phase === "done",
-    );
-    expect(instanceDones).toHaveLength(2);
-    expect(instanceStarts[0]!.id).toBe(instanceDones[0]!.id);
-    expect(instanceStarts[1]!.id).toBe(instanceDones[1]!.id);
-    expect(instanceStarts[0]!.id).not.toBe(instanceStarts[1]!.id);
+    // Same id across start/done for each fill; different ids between them.
+    const fillDones = events.filter((e) => e.phaseId === "fill" && e.phase === "done");
+    expect(fillDones).toHaveLength(2);
+    expect(fillStarts[0]!.id).toBe(fillDones[0]!.id);
+    expect(fillStarts[1]!.id).toBe(fillDones[1]!.id);
+    expect(fillStarts[0]!.id).not.toBe(fillStarts[1]!.id);
   });
 
   test("a group whose roster says stated: none makes no fill call and emits no instance unit for it", async () => {
@@ -925,9 +932,10 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       onUnit,
     }).extract({ text: "transcript", annotations: {} });
 
-    // Inventory start/done, but no instance units — the stated-empty path is silent.
-    expect(events.filter((e) => e.unit === "inventory")).toHaveLength(2);
-    expect(events.filter((e) => e.unit === "instance")).toHaveLength(0);
+    // Inventory start/done, but no fill units — the stated-empty path is silent.
+    // Category 1 — the discriminator: `unit: "phase"`, phaseId names the phase.
+    expect(events.filter((e) => e.phaseId === "inventory")).toHaveLength(2);
+    expect(events.filter((e) => e.phaseId === "fill")).toHaveLength(0);
     expect(requests).toHaveLength(0);
     expect(result.fields.widgets).toEqual([]);
   });
@@ -949,11 +957,17 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       }).extract({ text: "transcript", annotations: {} }),
     ).rejects.toThrow("inventory failed");
 
-    // Inventory start then error; no instance units.
+    // Category 5 — the failing-inventory event stream: one start and one error
+    // for the inventory phase's single item (the phase pins maxRetries: 0), and
+    // the fill phase never runs. The count stays two; what changed is the
+    // discriminator (category 1) — today's `unit: "inventory"` becomes
+    // `unit: "phase"` with `phaseId: "inventory"`.
     expect(events).toHaveLength(2);
-    expect(events[0]!.unit).toBe("inventory");
+    expect(events[0]!.unit).toBe("phase");
+    expect(events[0]!.phaseId).toBe("inventory");
     expect(events[0]!.phase).toBe("start");
-    expect(events[1]!.unit).toBe("inventory");
+    expect(events[1]!.unit).toBe("phase");
+    expect(events[1]!.phaseId).toBe("inventory");
     expect(events[1]!.phase).toBe("error");
     expect((events[1] as { error?: unknown }).error).toBeInstanceOf(Error);
     expect(((events[1] as { error?: Error }).error as Error).message).toBe("inventory failed");
@@ -976,9 +990,10 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
     // The systems group (10 leaves) partitions into 2 pieces at the default cap.
     // For instance 1, there should be two start events with the same (key, instance)
     // but different part values — the assertion that §0.2 was necessary.
+    // Category 1 — discriminator only: the piece coordinates survive on PhaseUnit.
     const systemsStarts = events.filter(
-      (e): e is InstanceUnit =>
-        e.unit === "instance" && e.phase === "start" && e.key === "systems" && e.instance === 1,
+      (e) =>
+        e.phaseId === "fill" && e.phase === "start" && e.key === "systems" && e.instance === 1,
     );
     expect(systemsStarts).toHaveLength(2);
     expect(systemsStarts[0]!.part).not.toBe(systemsStarts[1]!.part);
@@ -1011,9 +1026,10 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       onUnit,
     }).extract({ text: "transcript", annotations: {} });
 
-    // The house singleton emits one instance unit with instance: 1, instances: 1.
+    // The house singleton emits one fill unit with instance: 1, instances: 1.
+    // Category 1 — discriminator only.
     const houseStarts = events.filter(
-      (e): e is InstanceUnit => e.unit === "instance" && e.phase === "start" && e.key === "house",
+      (e) => e.phaseId === "fill" && e.phase === "start" && e.key === "house",
     );
     expect(houseStarts).toHaveLength(1);
     expect(houseStarts[0]!.instance).toBe(1);
@@ -1087,12 +1103,16 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
     expect(budgets).toHaveLength(1);
     expect(budgets[0]!.requested).toBe(2);
     expect(budgets[0]!.derived).toBe(0);
-    // batches = ceil((1 + jobs) / concurrency) = ceil(3/1) = 3
-    expect(budgets[0]!.batches).toBe(3);
+    // Category 3 — onRetryBudget now fires per reduced phase, and the fill
+    // phase's batches are derived from the fill jobs alone:
+    // batches = ceil(jobs / concurrency) = ceil(2/1) = 2. Today's estimate
+    // padded the inventory call into the job count (ceil((1 + 2)/1) = 3).
+    // The inventory phase cannot fire the observer at all — it pins
+    // maxRetries: 0, and a budget of 0 cannot be reduced.
+    expect(budgets[0]!.batches).toBe(2);
   });
 
-  test("requireRetryBudget: true with a deriving-to-zero configuration rejects with TerminalQueueError; absent succeeds", async () => {
-    function makeChat(): { chat: ChatClient; requests: ChatRequest[] } {
+  test("requireRetryBudget: true with a deriving-to-zero configuration rejects with TerminalQueueError; absent succeeds", async () => {    function makeChat(): { chat: ChatClient; requests: ChatRequest[] } {
       return obsChat();
     }
 
@@ -1129,5 +1149,160 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
 
     expect(result.fields.widgets).toHaveLength(2);
     expect(lenient.requests).toHaveLength(2);
+  });
+});
+
+// --- Wave 5 regression pins — assertions nothing covered before the port -----
+
+describe("scopedInstanceExtractor — Wave 5 regression pins", () => {
+  test("result.raw is defined and carries the assembled shape, including the seeded []s", async () => {
+    // The suite's only pre-port raw assertion compared two results to each
+    // other — which passes when both raws are ABSENT, so the port could have
+    // dropped the member silently. A presence assertion is the pin; today raw
+    // is always present and holds the assembled pre-normalize record, seeded
+    // groups included.
+    const roster = makeRoster({
+      widgets: { stated: "none", span: "there are no widgets" },
+      gadgets: [],
+    });
+    const { chat } = fakeChat((request) => {
+      const name = request.response_format.json_schema.name;
+      if (name === "demo-house-fill") {
+        return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
+      }
+      throw new Error(`Unexpected request: ${name}`);
+    });
+
+    const result = await scopedInstanceExtractor({
+      target,
+      chat,
+      model: "demo-model",
+      inventory: async () => roster,
+      buildFillInstructions,
+    }).extract({ text: "the full transcript", annotations: {} });
+
+    expect(result.raw).toBeDefined();
+    expect(result.raw).toEqual({
+      widgets: [], // seeded [] by the inventory phase's merge — in raw too
+      gadgets: [],
+      house: { name: { value: "main", sourceSpan: "main", confidence: 1 } },
+    });
+  });
+
+  test("statedEmptyGroups is absent rather than {} when no group stated one", async () => {
+    // extractor.ts documents absence as "this extractor ran no roster pass",
+    // so an empty record must be omitted, never emitted as {}.
+    const roster = makeRoster({
+      widgets: [currentCandidate("the red widget")],
+    });
+    const { chat } = fakeChat((request) => {
+      const name = request.response_format.json_schema.name;
+      if (name === "demo-house-fill") {
+        return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
+      }
+      return { content: JSON.stringify(widgetResponse("red", null)), finishReason: "stop" };
+    });
+
+    const result = await scopedInstanceExtractor({
+      target,
+      chat,
+      model: "demo-model",
+      inventory: async () => roster,
+      buildFillInstructions,
+    }).extract({ text: "the full transcript", annotations: {} });
+
+    expect("statedEmptyGroups" in result).toBe(false);
+  });
+
+  test("a transiently failing inventory is attempted exactly once — the pass is one-shot", async () => {
+    let inventoryCalls = 0;
+    const { chat } = obsChat();
+
+    await expect(
+      scopedInstanceExtractor({
+        target: obsTarget,
+        chat,
+        model: "m",
+        inventory: async () => {
+          inventoryCalls += 1;
+          throw new Error("inventory blip"); // transient — would be retried elsewhere
+        },
+        buildFillInstructions,
+      }).extract({ text: "transcript", annotations: {} }),
+    ).rejects.toThrow("inventory blip");
+
+    expect(inventoryCalls).toBe(1);
+  });
+
+  test("a fill failing once transiently then succeeding reports usage.calls of the SUCCESSFUL items, not attempts", async () => {
+    // Category 6 — usage.calls semantic change: today every attempt incremented
+    // the tally before the call (inventory + 2 + 1 = 4); the engine sums usage
+    // from resolved outcomes only, so the retrying fill reports its single
+    // success (inventory + 1 + 1 = 3). Host-visible; pinned here and named in
+    // the changeset.
+    let widgetFillAttempts = 0;
+    const { chat, requests } = fakeChat((request) => {
+      const name = request.response_format.json_schema.name;
+      if (name === "demo-obs-widgets-fill-0") {
+        widgetFillAttempts += 1;
+        if (widgetFillAttempts === 1) {
+          throw Object.assign(new Error("service unavailable"), { status: 503 });
+        }
+        return { content: JSON.stringify(widgetResponse("red", null)), finishReason: "stop" };
+      }
+      if (name === "demo-obs-widgets-fill-1") {
+        return { content: JSON.stringify(widgetResponse("blue", 5)), finishReason: "stop" };
+      }
+      if (name === "demo-house-fill") {
+        return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
+      }
+      throw new Error(`Unexpected request: ${name}`);
+    });
+
+    const result = await scopedInstanceExtractor({
+      target: obsTarget,
+      chat,
+      model: "m",
+      inventory: async () => twoCandidateRoster,
+      buildFillInstructions,
+      delay: () => Promise.resolve(),
+    }).extract({ text: "transcript", annotations: {} });
+
+    expect(widgetFillAttempts).toBe(2); // the retry really happened
+    expect(requests).toHaveLength(3); // inventory makes no chat call
+    expect(result.fields.widgets).toHaveLength(2);
+    expect(result.usage.calls).toBe(3); // 1 inventory + 2 successful fills — NOT 4
+  });
+
+  test("a fill failing with a 4xx status is attempted exactly once — the budget is not burned", async () => {
+    // Category 7 — retry classification tightens: today's inline loop retried
+    // everything except TerminalQueueError and abort, so a 404 burned the whole
+    // budget. The engine composes retryAsync, which stops on a 4xx with a
+    // status.
+    let widgetFillAttempts = 0;
+    const { chat } = fakeChat((request) => {
+      const name = request.response_format.json_schema.name;
+      if (name === "demo-obs-widgets-fill-0") {
+        widgetFillAttempts += 1;
+        throw Object.assign(new Error("not found"), { status: 404 });
+      }
+      if (name === "demo-obs-widgets-fill-1") {
+        return { content: JSON.stringify(widgetResponse("blue", 5)), finishReason: "stop" };
+      }
+      throw new Error(`Unexpected request: ${name}`);
+    });
+
+    await expect(
+      scopedInstanceExtractor({
+        target: obsTarget,
+        chat,
+        model: "m",
+        inventory: async () => twoCandidateRoster,
+        buildFillInstructions,
+        delay: () => Promise.resolve(),
+      }).extract({ text: "transcript", annotations: {} }),
+    ).rejects.toThrow("not found");
+
+    expect(widgetFillAttempts).toBe(1);
   });
 });
