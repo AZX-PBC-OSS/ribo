@@ -93,6 +93,17 @@ export type {
 export { BudgetExceededError, budgetExtractor } from "./budget-extractor.js";
 export type { BudgetExtractorOptions } from "./budget-extractor.js";
 
+// The memoisation combinator: derive a key from the transcript text and the WHOLE
+// extraction target (instructions and examples are the prompt — a key omitting
+// them serves one target's result for another), serve repeat calls from an
+// injected store (in-memory Map by default; PluginStorage is the wrong lifetime)
+// (sp2-judging-combinators-design.md §4.4). Failures are never cached; neither a
+// read nor a write may fail the extraction; a hit rewrites usage to
+// `calls: 0` — this run made no model calls, and the stored count is exactly
+// what `budgetExtractor` reads and the session is told. No options-bag observer.
+export { cachedExtractor } from "./cached-extractor.js";
+export type { CachedExtractorOptions, ExtractionCache } from "./cached-extractor.js";
+
 // Deriving the extraction schema from a writable patch schema — every leaf
 // enveloped, nested objects recursed rather than swallowed whole, closed and
 // fully required throughout. `ToolAdapter.extractionSchema` is declared against

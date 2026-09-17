@@ -67,6 +67,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "budgetExtractor",
     "buildFieldPath",
     "buildReviewRequest",
+    "cachedExtractor",
     "captureDocumentSchema",
     "capturePayloadSchema",
     "captureSchema",
