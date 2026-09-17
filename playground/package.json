@@ -19,6 +19,7 @@
     "@azx/ribo-transcriber-managed-docs": "workspace:*",
     "@azx/ribo-transcriber-ondevice": "workspace:*",
     "@azx/ribo-transcriber-pdfjs": "workspace:*",
+    "@azx/ribo-storage-rxdb": "workspace:*",
     "@azx/ribo-ui-react": "workspace:*",
     "@codemirror/lang-json": "catalog:",
     "@uiw/react-codemirror": "catalog:",

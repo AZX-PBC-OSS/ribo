@@ -341,6 +341,7 @@ function defaultStorage(): RxStorage<unknown, unknown> {
 export async function openOutboxDatabase(
   name: string = DEFAULT_OUTBOX_DATABASE_NAME,
   storage: RxStorage<unknown, unknown> = defaultStorage(),
+  options: { ignoreDuplicate?: boolean } = {},
 ): Promise<OutboxDatabase> {
   registerPlugins();
   const database = await createRxDatabase<{
@@ -355,6 +356,14 @@ export async function openOutboxDatabase(
     // multi-instance mode is what gives us leader election later.
     multiInstance: true,
     eventReduce: true,
+    // RxDB refuses a second `RxDatabase` on the same name in one JS context
+    // (DB8), because its unit of "context" is the tab. That is right for
+    // production and wrong for the one test that has to prove two contexts see
+    // each other's writes and cannot both claim a sequence. With
+    // `multiInstance` on, two instances in one tab genuinely talk over
+    // BroadcastChannel and share `navigator.locks`, so this simulates two tabs
+    // rather than side-stepping the check. Never set it outside a test.
+    ...(options.ignoreDuplicate === true ? { ignoreDuplicate: true } : {}),
     // Audio attachments are the bulk of what this database holds, and a document
     // revision is dead the moment its successor is written. Without a cleanup
     // policy the old revisions accumulate against the iOS quota.
