@@ -50,9 +50,16 @@ function migratedSessionId(ctx: unknown): string {
 }
 
 export const captureV5ToV6Upgrade = (doc: Record<string, unknown>): Record<string, unknown> => {
-  // v5 → v6, the EXPAND half of the split. Per-document, no side effects, and
-  // idempotent: running it twice on the same document yields the same result,
-  // which is what a checkpoint-resumed migration requires.
+  // v5 → v6, the EXPAND half of the split. Per-document and free of side effects.
+  //
+  // NOT idempotent — this comment used to claim it was, and that was wrong.
+  // Applied to its own output the six fields are already gone, so `legacy` is
+  // rebuilt empty and overwrites the populated carrier, destroying the extraction
+  // and review mid-move with nothing thrown. RxDB never does this, because it
+  // tracks a version per document and a migrated row is not handed back to the
+  // same strategy. A backend that batches and checkpoints owes the same
+  // guarantee: apply this at most once per document. `captures.test.ts` pins the
+  // behaviour so the claim cannot drift back.
   const next: Record<string, unknown> = { ...doc };
 
   const legacy: LegacySessionFields = {};
