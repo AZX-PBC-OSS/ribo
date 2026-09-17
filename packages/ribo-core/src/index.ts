@@ -51,6 +51,20 @@ export type { LeafPath } from "./extracted-leaves.js";
 // no combinator-facing API sits on top of it.
 export { assertLeafGranularity } from "./assert-leaf-granularity.js";
 
+// The pure grounding census — a tally of how well an extraction result is cited:
+// three independent facts per leaf (committed, cited, groundedness — null when
+// nothing was cited, so an honest abstention stays distinguishable from a
+// fabrication), plus the stated-empty group spans, plus counts derived from the
+// leaves. Useful alone; `validateExtractor`'s policy decides from it
+// (sp2-judging-combinators-design.md §4.2).
+export { groundingCensus } from "./grounding-census.js";
+export type {
+  CensusEmptyGroup,
+  CensusLeaf,
+  GroundingCensus,
+  GroundingCensusCounts,
+} from "./grounding-census.js";
+
 // Deriving the extraction schema from a writable patch schema — every leaf
 // enveloped, nested objects recursed rather than swallowed whole, closed and
 // fully required throughout. `ToolAdapter.extractionSchema` is declared against

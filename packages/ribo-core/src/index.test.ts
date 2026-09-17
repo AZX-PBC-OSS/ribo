@@ -94,6 +94,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "fallbackTranscriber",
     "firstCapable",
     "fullJitterDelay",
+    "groundingCensus",
     "groupedExtractor",
     "hedgeDelay",
     "hedged",
