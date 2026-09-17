@@ -118,12 +118,19 @@ naming the count: agreement between one sample and nothing is not agreement.
 quote different sentences and mean the same value, so requiring span equality would null nearly
 everything.
 
-**A path present in fewer samples than survived is contested, not unanimous.** This is the rule that
-closes the collection-group hole: two samples can disagree about _how many instances exist_, so
-`hvac.2.fuel` may appear in one sample and not another. Treating a single-sample path as unanimous
-would accept a hallucinated instance — with citations — from exactly the disagreement consensus
-exists to catch. Sample counts are therefore per **path**, not per candidate, and a path seen by
-fewer than all survivors is contested before the arbiter is consulted.
+**A path present in fewer samples than survived is contested, not unanimous.** Two samples can
+disagree about _how many instances exist_, so `hvac.2.fuel` may appear in one sample and not
+another. Treating a single-sample path as unanimous would accept a hallucinated instance — with
+citations — from exactly the disagreement consensus exists to catch. Sample counts are therefore per
+**path**, not per candidate, and a path seen by fewer than all survivors is contested before the
+arbiter is consulted.
+
+**This narrows the collection-group hole; it does not close it.** An earlier draft claimed it did.
+The comparison walks the first survivor, so the rule only ever sees paths that survivor produced: an
+instance invented by a _later_ candidate is dropped without being compared, and is caught only when
+that candidate happens to be first. The output is safe in both directions — nothing fabricated
+reaches a reviewer either way — but the contested count is ordering-dependent, and §8 records what a
+host must not conclude from it.
 
 **The decision is a `ConsensusArbiter`**, and it returns an **index into the samples it was
 handed**:
