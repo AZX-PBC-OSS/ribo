@@ -451,3 +451,9 @@ export type { PhaseItemOutcome, PhaseOutput } from "./phase-outcome.js";
 // per phase.
 export { phaseBuilder } from "./phase.js";
 export type { Phase, PhaseContext, PhaseDef, PhaseMeta } from "./phase.js";
+// The construction-time phase-list validator: reject a mis-wired list — empty, duplicate
+// id, a `requires` no earlier phase `produces`, a bad concurrency or retry count — before
+// the first call is paid for, naming the offending phase and key or value. The
+// per-phase-boundary `produces` verification is a different check that runs during a run
+// and belongs with the engine (Wave 3b), not here.
+export { validatePhases } from "./validate-phases.js";

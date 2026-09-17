@@ -144,6 +144,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "toWriteStep",
     "transcriptSchema",
     "unsupportedFallsThrough",
+    "validatePhases",
     "workSafety",
   ]);
 });
