@@ -60,10 +60,21 @@ Section references below (§5, §13.2, and so on) are to that document.
   collection, so each ladder module sits one directory away from its schema under the same name.
   There is already a `storage/plugin-storage.ts` — the key-value facade. This is its ladder, in the
   `upgrades/` directory; the parallel naming is deliberate.
-- `v5-to-v6.ts` — the domain helpers the capture ladder's heaviest rung needs, moved from the RxDB
-  package: `migratedSessionId`, `migratedCtx`, `migratedSessionRef`, `legacyOf`,
-  `V5_SESSION_OWNED_STATUSES`, `sessionDocumentFromMigratedGroup`.
-- `backfill.ts` — `backfillSessions`, rewritten against `StorageBackend`.
+- `v5-to-v6.ts` — the capture ladder's heaviest rung, `captureV5ToV6Upgrade`, plus the two helpers
+  only it uses (`migratedSessionId`, `V5_SESSION_OWNED_STATUSES`) and the `LegacySessionFields`
+  type. **Only the upgrade function is exported from the package root.**
+- `backfill.ts` — `backfillSessions` rewritten against `StorageBackend`, plus the four helpers only
+  it uses: `legacyOf`, `migratedCtx`, `migratedSessionRef`, `sessionDocumentFromMigratedGroup`.
+  **Only `backfillSessions` is exported from the package root.**
+
+**One public name per task, and the barrel test is what enforces it.**
+`packages/ribo-core/src/index.test.ts` pins the package's entire public runtime surface as a sorted
+literal, so every added export is a deliberate, reviewed edit. An earlier draft of this plan had
+Task 1 root-export all six helpers; the barrel test rejected it, correctly — four of those six are
+implementation details of one rung or one backfill, and publishing them would commit us to them
+forever, then require un-publishing them two tasks later. The helpers are split by consumer instead:
+the rung's two go with the rung in Task 1, the backfill's four go with the backfill in Task 5, and
+each task grows the public surface by exactly one well-chosen name.
 
 **A deliberate departure from spec §5**, which says a ladder lives "beside the zod schema each
 describes". The v5→v6 rung and its helpers are roughly 150 lines and `capture-schema.ts` is already
@@ -89,48 +100,58 @@ preserved.
 
 ---
 
-## Task 1: Move the v5→v6 domain helpers into core
+## Task 1: Move the v5→v6 upgrade into core
 
-The heaviest rung cannot live in core until the functions it calls do. This task moves them and
-changes nothing else, so that a reviewer can confirm "pure relocation" without also judging a new
-abstraction.
+The heaviest rung moves, and the two helpers only it uses move with it. **The helpers stay
+module-private in core**; exactly one new runtime name reaches the package root.
 
 **Files:**
 
 - Create: `packages/ribo-core/src/storage/upgrades/v5-to-v6.ts`
 - Create: `packages/ribo-core/src/storage/upgrades/v5-to-v6.test.ts`
-- Modify: `packages/ribo-storage-rxdb/src/database.ts` — delete the moved definitions, import them
-  from `@azx/ribo-core` instead
+- Modify: `packages/ribo-storage-rxdb/src/database.ts` — delete the moved definitions; strategy 6
+  becomes a reference to core's function
 - Modify: `packages/ribo-core/src/storage/index.ts`
+- Modify: `packages/ribo-core/src/index.test.ts` — add the one new name to the pinned surface
 
-**Interfaces produced:** `migratedSessionId(ctx: unknown): string`;
-`migratedCtx(ctx: unknown): Record<string, unknown>`; `migratedSessionRef(ctx: unknown): string`;
-`legacyOf(doc: CaptureDocument): LegacySessionFields | undefined`;
-`V5_SESSION_OWNED_STATUSES: ReadonlySet<string>`;
-`sessionDocumentFromMigratedGroup(sessionId: string, group: readonly CaptureDocument[]): SessionDocument`.
-Export the `LegacySessionFields` type alongside them.
+**Interfaces produced:**
+`captureV5ToV6Upgrade(document: Record<string, unknown>): Record<string, unknown>` — the only
+export. Module-private inside `v5-to-v6.ts`: `migratedSessionId(ctx: unknown): string`,
+`V5_SESSION_OWNED_STATUSES: ReadonlySet<string>`, and the `LegacySessionFields` type.
 
-- [ ] **Step 1: Write the failing test.** In `v5-to-v6.test.ts`, assert `migratedSessionId` returns
-      the assessment id when handed an object with `assessmentId`, and a stable singleton id when
-      handed one without — then assert `sessionDocumentFromMigratedGroup` gives a group whose rows
-      carry no `extracted` and are still live the status `open`. That last case is the one whose
-      comment in `database.ts` explains it was chosen because `done` is terminal and would strand
-      mid-capture work; it is the behaviour most worth pinning before the code moves.
+**Do not move `legacyOf`, `migratedCtx`, `migratedSessionRef` or
+`sessionDocumentFromMigratedGroup`.** Those four serve the backfill, not the rung, and they move in
+Task 5. Splitting the helpers by consumer is what keeps each task's public-surface growth to one
+name.
+
+- [ ] **Step 1: Write the failing test.** In `v5-to-v6.test.ts`, assert three things about
+      `captureV5ToV6Upgrade`. It lifts the six session-owned fields (`extracted`, `extractedBy`,
+      `reviewOutcome`, `writeResult`, `writtenInstances`, `idempotencyKey`) off the document and
+      into a `legacy` bag, leaving none of them at the top level. It narrows a status the session now
+      owns — feed it `awaiting-review` and expect `transcribed`. And it derives `sessionId` from
+      **`recording.ctx.assessmentId`**, not from `recording` — build a document whose `recording` has
+      an `assessmentId` nested under `ctx` and assert the id comes back. That third case is the
+      regression test for the bug the function's own comment describes.
 - [ ] **Step 2: Run it and watch it fail** with a module-resolution error, because the file does not
       exist yet. Run only this file's suite, not the whole tree.
-- [ ] **Step 3: Move the six definitions verbatim** from `database.ts` into `v5-to-v6.ts`. Take the
-      doc comments with them — particularly the one on `migratedSessionId` recording that passing
+- [ ] **Step 3: Write `v5-to-v6.ts`.** Move `CAPTURE_MIGRATION_STRATEGIES[6]`'s body verbatim as
+      `captureV5ToV6Upgrade`, and move `migratedSessionId` and `V5_SESSION_OWNED_STATUSES` with it as
+      module-private definitions. Take the doc comments — particularly the one recording that passing
       the recording rather than its `ctx` made the `"assessmentId" in ctx` test always false and let
       one session swallow every job. That comment is the most expensive sentence in the file.
-- [ ] **Step 4: Re-point `database.ts`** at the core imports and delete the local copies. Nothing
-      else in that file changes.
-- [ ] **Step 5: Export from `storage/index.ts`**, and confirm the package root re-exports it.
-- [ ] **Step 6: Run the new test and the RxDB browser suites.** The new test passes; every existing
-      test still passes unchanged — that is the whole claim of this task.
-- [ ] **Step 7: Run `./check.sh`** and paste the summary line.
-- [ ] **Step 8: Commit.** Say in the message that the RxDB package's own header claims "nothing here
-      knows … which recordings belong to a session", and that this is the first task making that
-      true.
+- [ ] **Step 4: Re-point `database.ts`.** Strategy 6 becomes a reference to the imported
+      `captureV5ToV6Upgrade`; delete the three local definitions. Strategies 1 through 5 and 7 are
+      untouched, and so is everything else in the file — `legacyOf` and the backfill stay exactly
+      where they are.
+- [ ] **Step 5: Export from `storage/index.ts`**, then add `captureV5ToV6Upgrade` to the sorted list
+      in `packages/ribo-core/src/index.test.ts`. That test pins the package's whole public runtime
+      surface on purpose; adding the name is the deliberate act it exists to require. **One name
+      only** — if you find yourself adding several, re-read Step 3.
+- [ ] **Step 6: Run the node test project.** The new test passes and every existing test still
+      passes — that is the whole claim of this task.
+- [ ] **Step 7: Report.** State what moved, confirm strategy 6 is now a reference, and paste the gate
+      output. The RxDB browser suites are run separately, after integration; they need real Chromium
+      and are outside this task's gate.
 
 ---
 
@@ -171,8 +192,9 @@ whole mechanism.
       `rewrite: "none"`; their reasons come from the doc comment at `database.ts:144-232` and are
       listed in spec §10 — `reviewOutcome`/the review gate, `capture` (noting revision 9 removed
       `canonicalAttachmentId` and `step`), `preview`/live transcription, `extractedBy`/on-device
-      provenance, and R1.6 instance modeling. Rung 5→6 carries the real `upgrade`, moved from
-      `CAPTURE_MIGRATION_STRATEGIES[6]`. Rung 6→7 is `rewrite: "none"` and its reason must say what
+      provenance, and R1.6 instance modeling. Rung 5→6 carries `captureV5ToV6Upgrade` as its
+      `upgrade` — Task 1 already moved that function into core, so this rung references it rather
+      than redefining it. Rung 6→7 is `rewrite: "none"` and its reason must say what
       `database.ts:189` says: the bump is not needed to read `transcript.annotations` and buys a
       clean failure on **downgrade**, because `transcriptSchema` is a `strictObject`. Do not write
       that this rung is about `recording.kind` — that change deliberately did not bump, and
@@ -274,11 +296,17 @@ readable string, deliberately not a hash, so a failing assertion's diff names th
 
 - Create: `packages/ribo-core/src/storage/upgrades/backfill.ts`, `backfill.test.ts`
 - Modify: `packages/ribo-storage-rxdb/src/database.ts`, `src/index.ts`
+- Modify: `packages/ribo-core/src/index.test.ts` — add `backfillSessions` to the pinned surface
 - Create: `.changeset/` entry — this removes a published export
 
-**Interfaces consumed:** Task 1's helpers; `StorageBackend` from `storage/port.ts`.
+**Interfaces consumed:** `StorageBackend` from `storage/port.ts`.
 
-**Interfaces produced:** `backfillSessions(backend: StorageBackend): Promise<void>`.
+**Interfaces produced:** `backfillSessions(backend: StorageBackend): Promise<void>` — the only new
+export. This task also moves the four helpers Task 1 deliberately left behind, because they serve
+the backfill rather than the rung: `legacyOf`, `migratedCtx`, `migratedSessionRef` and
+`sessionDocumentFromMigratedGroup`. **All four stay module-private in `backfill.ts`**; only
+`backfillSessions` reaches the package root, and it goes into the pinned list in
+`packages/ribo-core/src/index.test.ts`.
 
 Spec §6 is the argument for this task and is worth reading in full. The short version: the ladder
 carries only the per-document half of v5→v6, and a backend that applied rungs alone would leave
