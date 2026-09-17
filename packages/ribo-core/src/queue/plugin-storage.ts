@@ -14,9 +14,9 @@ import { pluginStorageDocumentSchema, pluginStorageEntryId } from "./plugin-stor
  * shape — a document id, an array of page annotations, a nested object —
  * survives without core learning what it is.
  *
- * **Durable, not in-memory.** Entries live in the same RxDB database as the
- * outbox and sessions, so they survive a close-and-reopen and are visible to
- * a different tab. That is the whole reason this exists: the two halves of a
+ * **Durable, not in-memory.** Entries live in the same storage backend as the
+ * captures and sessions, so they survive a close-and-reopen and are visible to
+ * a different tab — the port requires both of any backend. That is the whole reason this exists: the two halves of a
  * plugin (a transcriber and an extractor from the same package) may run in
  * different tabs, minutes apart, and anything held in a module variable or a
  * class field is invisible to the second half.
@@ -83,8 +83,8 @@ export interface CaptureStorageScope {
  *
  * **What a plugin author can rely on:**
  *
- * - **Durability.** Entries live in the same RxDB database as the outbox and
- *   survive a close-and-reopen — the two halves of a plugin may run in
+ * - **Durability.** Entries live in the same storage backend as the captures
+ *   and survive a close-and-reopen — the two halves of a plugin may run in
  *   different tabs, minutes apart.
  * - **Isolation.** The scope bakes in one pluginId; no other plugin's entries
  *   are reachable through it, and each per-capture handle is scoped to

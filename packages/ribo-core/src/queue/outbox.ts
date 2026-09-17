@@ -193,6 +193,21 @@ export class Outbox {
    * already a property in every consumer that has one, and a getter cannot take
    * arguments.
    */
+  /**
+   * **What a subscriber may and may not infer from the emissions.**
+   *
+   * Every emission is a complete snapshot of the query's result, and snapshots
+   * arrive in order. What is *not* promised is that every intermediate state
+   * gets its own emission: the projection reads blobs after the documents, and
+   * a snapshot that is already stale by the time its blobs resolve is dropped in
+   * favour of the newer one. Subscribers converge, and a UI repainting the queue
+   * wants exactly this.
+   *
+   * So do not infer a *transition* from two consecutive emissions — a capture can
+   * go `queued → transcribing → transcribed` and be published twice, not three
+   * times. The two persisted state machines are how a host observes stage
+   * changes; this stream is how it renders the current one.
+   */
   watch(query: OutboxQuery = {}): Observable<OutboxItem[]> {
     return this.#backend.watch("captures", captureFinder(query)).pipe(
       // One blob lookup for the whole emission, not one per row. `audioBytes` and
@@ -212,15 +227,15 @@ export class Outbox {
    *
    * The idempotency key is minted here and **only** here.
    *
-   * **The document and its audio land in one storage write.** The attachment is
-   * passed inline to `insert` rather than written afterwards with
-   * `putAttachment`, and RxDB folds the two into a single
-   * `storageInstance.bulkWrite`; the Dexie storage in turn runs that write as
-   * one IndexedDB `readwrite` transaction spanning the `docs` and `attachments`
-   * stores, and only emits to its change stream once that transaction has
-   * committed. So there is no state in which `items$` has published this item
-   * and `getAudio` would answer `undefined` — which is what the two-step
-   * version guaranteed on every single capture.
+   * **The document and its audio land in one storage write.** The audio is passed
+   * to `insertNext` alongside the document rather than attached afterwards, and
+   * the port's first obligation is that no subscriber can observe a capture whose
+   * blob is not yet readable. So there is no state in which `items$` has published
+   * this item and `getAudio` would answer `undefined` — which is what a two-step
+   * version would produce on every single capture.
+   *
+   * How a backend honours that is its own business; the conformance kit is what
+   * holds it to it.
    */
   async enqueue({ recording, audio, sessionId }: EnqueueInput): Promise<OutboxItem> {
     const document = outboxDocumentSchema.parse({
@@ -423,17 +438,18 @@ export class Outbox {
    * traffic, not an error anyone can act on: the recording may have been
    * committed and transcribed while the reply was in flight.
    *
-   * **Silent to the caller, not in storage.** RxDB 17.4.0 has no no-op detection in the
-   * incremental-write path: the modifier returns the document unchanged, but the write still goes
-   * through, committing a content-identical revision and emitting a change event to every `watch()`
-   * subscriber. At the real rate — a handful of in-flight replies as a recording closes — that costs
-   * nothing, which is why it is left alone. It would matter if anything ever called this in a loop.
+   * **Silent to the caller, not in storage.** The port does not promise no-op
+   * detection: a modifier that returns the document unchanged still commits a
+   * write and still publishes to every `watch()` subscriber. At the real rate — a
+   * handful of in-flight replies as a recording closes — that costs nothing, which
+   * is why it is left alone. It would matter if anything ever called this in a loop.
    *
-   * The refusal checks live **inside** the `incrementalModify` modifier, not
-   * against a copy read beforehand. RxDB re-runs the modifier against the
-   * *current* revision on write conflict, so a check made against a stale read
-   * can be wrong by the time the write lands — the recording may have been
-   * committed between the read and the retry.
+   * The refusal checks live **inside** the modifier, not against a copy read
+   * beforehand. The port's third obligation is that a modify sees the document as
+   * committed, so a check made against a stale read can be wrong by the time the
+   * write lands — the recording may have been committed between the read and the
+   * retry. A backend may deliver that by re-running the modifier on conflict or by
+   * serialising per document; both satisfy it, and the kit pins either.
    *
    * See {@link commitPreview} for the other half of the preview: a commit moves
    * the region's text onto `committed` and clears the tail. See
@@ -605,7 +621,7 @@ export class Outbox {
    * `status: "discarded"`), so a plugin never needs to clean up after itself —
    * and forgetting to do so can never leak.
    *
-   * The storage is durable (same RxDB database as the outbox), so the two
+   * The storage is durable (the same backend the captures live in), so the two
    * halves of a plugin that run in different tabs, minutes apart, see the same
    * entries. A fresh handle over the same database reads what a prior handle
    * wrote.

@@ -376,12 +376,23 @@ we move to pnpm 11 (`dedupePeerDependents`, `strictPeerDependencies`, `minimumRe
 `pnpm add`). Read it before touching `pnpm-workspace.yaml` for a version bump; it is easy to
 scroll past.
 
-### 5.5 The outbox storage is injectable — and that is the whole seam (Level 1)
+### 5.5 Durability sits behind a port, and `@azx/ribo-core` owns no engine
 
-`openOutbox({ storage })` takes an optional `RxStorage<unknown, unknown>` and threads it through
-`openOutboxDatabase` → `createRxDatabase`. **It defaults to `getRxStorageDexie()`**, so every
-existing caller is byte-for-byte unchanged; the default is a lazily-evaluated factory, so a caller
-that injects its own engine never even constructs a Dexie storage. `removeOutboxDatabase` takes the
+`openOutbox({ backend })` takes a `StorageBackend` — the contract in
+`packages/ribo-core/src/storage/port.ts` — and **has no default**, because every default would be
+wrong somewhere. `createMemoryBackend` for tests and development; `openRxdbBackend` from
+`@azx/ribo-storage-rxdb` for a browser host, which is the production path. Core's dependencies are
+`rxjs` and `zod`: it could not construct the RxDB one if it wanted to.
+
+The port is ~14 mechanical operations over three logical collections, with a **closed set of three
+finders** rather than a query language. What makes an implementation real is not the types but the
+six behavioural obligations in `docs/roadmap/design/storage-port-design.md` §4.2, made executable as
+the conformance kit published at `@azx/ribo-core/testing`. Two backends pass it: the in-memory one
+in core, and the RxDB one. Read that design before widening the port.
+
+The engine within a backend is still swappable where that makes sense —
+`openRxdbBackend({ storage })` takes an `RxStorage` and defaults to Dexie, but that seam now sits
+_inside_ a backend rather than through core's public API. `removeOutboxDatabase` takes the
 same optional storage and must be handed the **same** engine the database was opened with — RxDB's
 `removeRxDatabase` deletes through the storage's own on-disk layout, so a memory-opened database
 cannot be removed via Dexie and vice versa.
@@ -394,11 +405,13 @@ React-Native/SQLite `RxStorage` the day the app leaves the browser — **without
 no IndexedDB). The Dexie durability test in `outbox.browser.test.ts` stays on real IndexedDB on
 purpose — memory storage would fake the very persistence it proves.
 
-**This is Level 1 by design, and stops here deliberately.** `Outbox` stays a concrete class over
-RxDB. Extracting a formal `Outbox` interface plus a storage conformance-test kit ("Level 2") and a
-`ribo-storage-*` plasmid (§6.1) is deferred until a genuinely non-RxDB backend is real — writing the
-interface now would be a contract with exactly one implementation, which locks in RxDB's shape while
-pretending not to.
+**This was deferred once, on the reasoning that a contract with one implementation locks in that
+implementation's shape while pretending not to.** That reasoning was sound, and the premise it
+rested on has not changed: no second _production_ backend is planned. What changed is the motive —
+the port exists so core's contracts stop naming RxDB types, so hosts can declare a store without
+reaching through to RxDB, and so the vocabulary describes what the subsystem is. The guard against
+the original objection is that there are two implementations from the first commit, both held to the
+same kit.
 
 ## 6. How to add a package
 
@@ -413,19 +426,20 @@ runs. If you ever find code branching on a package name, that is the bug.
 
 Reserved categories:
 
-| Package              | Category                       | Examples / status                                        |
-| -------------------- | ------------------------------ | -------------------------------------------------------- |
-| `ribo-core`          | Contracts + headless engine    | the one everything depends inward on                     |
-| `ribo-ui-*`          | UI component sets              | `ribo-ui-react` (headless recorder/review/outbox hooks)… |
-| `ribo-transcriber-*` | Transcriber plasmids           | `ribo-transcriber-ondevice`, `ribo-transcriber-azure`…   |
-| `ribo-extractor-*`   | Extractor plasmids             | `ribo-extractor-openai` (single-shot managed LLM)…       |
-| `ribo-adapter-*`     | Per-tool `ToolAdapter`s        | `ribo-adapter-snuggpro`…                                 |
-| `ribo-storage-*`     | Storage plasmids (`RxStorage`) | `ribo-storage-rxdb-dexie`… — **reserved, not created**   |
+| Package              | Category                    | Examples / status                                        |
+| -------------------- | --------------------------- | -------------------------------------------------------- |
+| `ribo-core`          | Contracts + headless engine | the one everything depends inward on                     |
+| `ribo-ui-*`          | UI component sets           | `ribo-ui-react` (headless recorder/review/outbox hooks)… |
+| `ribo-transcriber-*` | Transcriber plasmids        | `ribo-transcriber-ondevice`, `ribo-transcriber-azure`…   |
+| `ribo-extractor-*`   | Extractor plasmids          | `ribo-extractor-openai` (single-shot managed LLM)…       |
+| `ribo-adapter-*`     | Per-tool `ToolAdapter`s     | `ribo-adapter-snuggpro`…                                 |
+| `ribo-storage-*`     | Storage backends (the port) | `ribo-storage-rxdb` (RxDB + Dexie, the production one)   |
 
-`ribo-storage-*` is reserved but empty. Storage is injected today as a raw `RxStorage` through
-`openOutbox({ storage })` (§5.5), which needs no package; a dedicated storage plasmid waits on the
-Level-2 `Outbox` interface (also §5.5), to be introduced only when a genuinely non-RxDB backend is
-real.
+`ribo-storage-*` holds implementations of the storage port (§5.5). `@azx/ribo-storage-rxdb` is the
+production one and owns everything RxDB: the three `RxJsonSchema`s, the migration strategies, the
+session backfill and the Dexie wiring. A consumer that brings its own persistence never installs it.
+The in-memory backend ships inside core instead, because it is small and it is what proves core
+needs no engine.
 
 ### 6.2 The package skeleton
 
