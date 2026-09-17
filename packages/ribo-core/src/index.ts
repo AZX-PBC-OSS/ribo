@@ -433,3 +433,9 @@ export type {
 // keys stay plain strings at runtime for `requires`/`produces` and a model-emitted plan.
 export { emptyNotes, noteKey } from "./phase-notes.js";
 export type { NoteKey, Notes } from "./phase-notes.js";
+// The draft a phased run's phases progressively fill, and its homomorphic deep partial —
+// the shape that lets a phase write one leaf's `sourceSpan` without claiming its siblings.
+// `readonly` throughout: `merge` owns every write, and a `run` cannot write through the
+// draft it is handed.
+export { emptyDraft } from "./phase-draft.js";
+export type { DeepPartial, PhaseDraft } from "./phase-draft.js";
