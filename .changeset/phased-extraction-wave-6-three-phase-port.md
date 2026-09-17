@@ -3,7 +3,7 @@
 "@azx/ribo-core": major
 ---
 
-**`threePhaseExtractor` is now a `phasedExtractor` preset of four phases** — `presencePhase` (one call per group asking which leaves are discussed, whose merge seeds every group with a full null envelope), `spanPhase` (one verbatim-quote call per group with present leaves, grounded unconditionally), `classifyPhase` (one call per grounded leaf against its bare value schema) and `classifyWrappedPhase` (one call per leaf the transport reported `unsupported` for, against a wrapped schema) — rather than a hand-rolled orchestrator. The phases are exported from `@azx/ribo-extractor-ondevice`'s new `phases/` modules; a host can assemble the same list by hand.
+**`threePhaseExtractor` is now a `phasedExtractor` preset of four phases** — `presencePhase` (one call per group asking which leaves are discussed, whose merge seeds every group with a full null envelope), `spanPhase` (one verbatim-quote call per group with present leaves, grounded unconditionally), `classifyPhase` (one call per grounded leaf against its bare value schema) and `classifyWrappedPhase` (one call per leaf the transport reported `unsupported` for, against a wrapped schema) — rather than a hand-rolled orchestrator. The four phases are internal to `@azx/ribo-extractor-ondevice` — the package still exports only the preset. Composing a phase list by hand is available in `@azx/ribo-extractor-openai`, whose `gapFillPhase`, `inventoryPhase` and `fillPhase` are exported.
 
 `@azx/ribo-core`'s share is the retirement: **`GapFillUnit`, `InventoryUnit` and `InstanceUnit` leave the `ExtractionUnit` union.** The three strategies they described all emit `PhaseUnit` now, and nothing constructs them. `WholeUnit`, `GroupUnit` and `PhaseUnit` remain.
 
