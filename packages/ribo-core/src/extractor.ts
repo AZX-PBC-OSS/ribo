@@ -102,6 +102,27 @@ export interface ExtractionResult<F> {
  */
 export interface ExtractOptions {
   readonly signal?: AbortSignal;
+  /**
+   * Absolute epoch milliseconds after which the caller considers the extraction
+   * failed — **not** a duration. A duration cannot survive composition: each
+   * layer would have to know how long the layers above it had already spent,
+   * and a combinator nested inside another would size its work against the
+   * whole budget rather than the time actually remaining. Compare with
+   * `Date.now()` — never against a captured start time of your own.
+   *
+   * Forwarding discipline, identical to {@link ExtractOptions.signal}'s, its
+   * sibling member: a **delegating** combinator forwards the options bag whole
+   * (spread the original and override only what it replaces — never
+   * destructure-and-rebuild, which drops members like this one); a combinator
+   * that holds **its own budget** narrows, never widens — its effective
+   * deadline is `Math.min` of its own and any it inherited, and it passes that
+   * effective deadline down. A combinator can always finish sooner than its
+   * caller allows; it may never grant itself more time than it was given.
+   *
+   * Advisory: honouring it is the callee's job, and nothing enforces it
+   * structurally — the same contract `signal` has.
+   */
+  readonly deadline?: number;
 }
 
 export interface Extractor<F> {
