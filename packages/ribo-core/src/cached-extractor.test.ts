@@ -331,6 +331,27 @@ describe("cachedExtractor — failures and faults", () => {
     expect(inner.calls).toHaveLength(1);
   });
 
+  test("a keyFor that throws propagates — unlike a cache fault, nothing has been paid for yet", async () => {
+    // The never-fail rule covers the CACHE, not the host's own key function.
+    // A throwing cache is an infrastructure fault around work already done or
+    // about to be done anyway, so swallowing it costs nothing. A throwing
+    // `keyFor` is a bug in the caller's code, before any call is made — and
+    // degrading to a miss there would hide it behind a silently uncached
+    // extractor that still returns correct results, which is the worst way to
+    // learn about it. Pinned because the behaviour is otherwise incidental.
+    const inner = new FakeExtractor(FIELDS);
+    const boom = new Error("keyFor is broken");
+    const extractor = cachedExtractor(inner, {
+      target: baseTarget(),
+      keyFor: () => {
+        throw boom;
+      },
+    });
+
+    await expect(extractor.extract(transcript)).rejects.toBe(boom);
+    expect(inner.calls).toHaveLength(0);
+  });
+
   test("a cache whose set throws still returns the result", async () => {
     // The result is already in hand and paid for — failing on the write would
     // discard it. A cache that can take down extraction is worse than no cache.
