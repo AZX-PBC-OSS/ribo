@@ -1,14 +1,14 @@
-import type { LiveSegment, LiveSession, LiveTranscriber, Outbox, Recording } from "@azx/ribo-core";
+import type { LiveSegment, LiveSession, LiveTranscriber, Storage, Recording } from "@azx/ribo-core";
 import { OnDeviceLiveTranscriber } from "@azx/ribo-transcriber-ondevice";
 
-import { getOutbox } from "./outbox-handle.js";
+import { getOutbox } from "./storage-handle.js";
 
 /**
  * @file Host-owned {@link LiveTranscriber} singleton and live-session lifecycle.
  *
  * Mirrors `whisper-store.ts`'s pattern: a module singleton, constructed on first
  * use, shared by every component. The live transcriber is held beside the
- * recorder/outbox/coordinator handles and wired through `RiboProvider` so the
+ * recorder/storage/coordinator handles and wired through `RiboProvider` so the
  * hook layer can report live availability.
  *
  * ## Why the playground manages the session, not the hook
@@ -119,7 +119,7 @@ let errorSubscription: { unsubscribe: () => void } | undefined;
 let liveGeneration = 0;
 
 /**
- * Open a live session and connect its segments to the outbox row.
+ * Open a live session and connect its segments to the storage row.
  *
  * Called by the `captureSession` factory after `beginRecording` inserts the
  * row — `itemId` is the row the preview is committed to. Best-effort:
@@ -131,7 +131,7 @@ let liveGeneration = 0;
 export async function openLiveSession(
   recording: Recording,
   itemId: string,
-  outbox: Outbox,
+  storage: Storage,
 ): Promise<void> {
   const myGeneration = ++liveGeneration;
   const liveTranscriber = getLiveTranscriber();
@@ -169,10 +169,10 @@ export async function openLiveSession(
         // text — the same reasoning as the seam's discriminated value (live.ts).
         switch (segment.kind) {
           case "tail":
-            void outbox.writePreviewTail(itemId, segment.text).catch(() => undefined);
+            void storage.captures.writePreviewTail(itemId, segment.text).catch(() => undefined);
             break;
           case "commit":
-            void outbox.commitPreview(itemId, segment.text).catch(() => undefined);
+            void storage.captures.commitPreview(itemId, segment.text).catch(() => undefined);
             break;
         }
       },
@@ -254,14 +254,14 @@ export function feedFrame(frame: Float32Array): void {
 /**
  * Open a live session for a capture session's recording.
  *
- * Wraps {@link openLiveSession} with the outbox resolved from the shared
+ * Wraps {@link openLiveSession} with the storage resolved from the shared
  * handle, so the `captureSession` factory in `recorder-handle.ts` can call it
  * without awaiting `getOutbox()` separately.
  */
 export async function openLiveForCapture(recording: Recording, itemId: string): Promise<void> {
   try {
-    const outbox = await getOutbox();
-    await openLiveSession(recording, itemId, outbox);
+    const storage = await getOutbox();
+    await openLiveSession(recording, itemId, storage);
   } catch {
     // Live must never degrade recording.
   }

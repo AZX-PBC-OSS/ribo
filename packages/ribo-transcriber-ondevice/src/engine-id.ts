@@ -10,7 +10,7 @@
  *    duplicates would share one entry and demote each other — and threw a `TypeError` before
  *    any of them ran.
  * 2. **`Transcript.engine` was a lie.** The default model has been Moonshine since the
- *    live-transcription work, so every Moonshine transcript in the outbox was stamped
+ *    live-transcription work, so every Moonshine transcript in the storage was stamped
  *    `ondevice-whisper`. There was no join key from a persisted transcript back to the
  *    configuration that produced it, which makes field telemetry unattributable — and
  *    telemetry is the only way any of these operating points ever gets compared.

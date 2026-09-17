@@ -1,9 +1,4 @@
-import {
-  enveloped,
-  isTransientFailure,
-  SchemaParseError,
-  TerminalQueueError,
-} from "@azx/ribo-core";
+import { enveloped, isTransientFailure, SchemaParseError, TerminalError } from "@azx/ribo-core";
 import type { Enveloped, ExtractionTarget } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
@@ -255,7 +250,7 @@ describe("schemaRetryExtractor — what is NOT retried", () => {
       wrapped(chat).extract({ text: transcript, annotations: {} }),
     );
 
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
     expect(requests).toHaveLength(1);
   });
 
@@ -269,7 +264,7 @@ describe("schemaRetryExtractor — what is NOT retried", () => {
       wrapped(chat, { maxRetries: 2 }).extract({ text: transcript, annotations: {} }),
     );
 
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
     expect((error as Error).message).toContain("maxTokens");
     expect(requests).toHaveLength(2);
   });

@@ -31,7 +31,7 @@ import {
  * @file The ONE extract step both relays share — constructed once, here.
  *
  * `QueuePanel` (the auto-sync relay over the stub transcriber) and
- * `TranscribePanel` (the on-device relay) drain the SAME outbox, so they must run
+ * `TranscribePanel` (the on-device relay) drain the SAME storage, so they must run
  * the SAME extraction. Two extractor calls would be two prompt assemblies, two
  * configs to drift apart, and — with a real key — two ways to bill. So the step
  * is built in this module and both panels import {@link extractStep}; neither
@@ -389,7 +389,7 @@ export function wireExtractorConnectivity(
 
 // --- The module singleton ----------------------------------------------------
 // Both panels import `extractStep` — ONE shared step, so the two relays drain the
-// same outbox with the same extraction. See the file header for why this is a
+// same storage with the same extraction. See the file header for why this is a
 // singleton and not two calls.
 
 const built = buildExtractorStep({ apiKey, baseUrl, model });

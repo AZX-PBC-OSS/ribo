@@ -8,7 +8,7 @@ transcription and extraction are separate relay steps. Annotations on the transc
 combination: a `TranscriptCombiner` returns one transcript with its own bag, and per-part
 annotations are an input to combination, not a channel through it (see [Sessions](/guide/sessions)).
 
-So the outbox carries a third thing beside the capture and its transcript: a durable, namespaced
+So storage carries a third thing beside the capture and its transcript: a durable, namespaced
 key-value store, plus the two handles plugins use to read and write it.
 
 ## What a handle promises
@@ -22,7 +22,7 @@ survives without core learning what it is.
 Three properties hold for every handle, and they are the reason to reach for this instead of
 anything else:
 
-- **Durable, not in-memory.** Entries live in the same RxDB database as the outbox and sessions, so
+- **Durable, not in-memory.** Entries live in the same storage backend as captures and sessions, so
   they survive a close-and-reopen and are visible to a different tab.
 - **Live reads.** Every call queries storage; nothing is cached in the handle. A capture whose
   entries core has swept drops out of `captures()` and reads `undefined` — a reader never holds a
@@ -31,7 +31,7 @@ anything else:
   or discarded. A plugin never cleans up after itself, and the lifecycle is the **sweep**, not the
   session: entries live exactly as long as their capture does.
 
-One boundary to know up front: **the `Outbox` itself is never handed to a plugin.** These handles
+One boundary to know up front: **the `Storage` itself is never handed to a plugin.** These handles
 are the only storage a plugin ever sees.
 
 ## Writing: the transcriber side
@@ -63,13 +63,13 @@ pick, so the plugin names itself: `forPlugin(pluginId)` mints the actual handle,
 is to pass the transcriber's own `engine` id. Two engines picked for the same capture land in
 separate namespaces and cannot read or clobber each other's keys.
 
-The member is optional because a host driving a transcriber by hand has no outbox to mint one from.
+The member is optional because a host driving a transcriber by hand has no storage to mint one from.
 An engine that needs storage must handle its absence rather than assume it.
 
 ## Reading: the extractor side
 
 An extractor receives a plugin-scoped `PluginStorageScope` at **construction**, from
-`Outbox.pluginStorageScope(pluginId)`. The timing is forced by the contract's shape: the `Extractor`
+`storage.store(pluginId)`. The timing is forced by the contract's shape: the `Extractor`
 seam has no engine id on it — `engine` appears on the result, after the call — so the relay cannot
 scope a handle for the plugin it invokes. The host building the extractor knows which plugin it is
 building, so the pluginId is baked in there, and the capture dimension is addressed per call:
@@ -77,7 +77,7 @@ building, so the pluginId is baked in there, and the capture dimension is addres
 ```ts
 import type { Extractor } from "@azx/ribo-core";
 
-const scope = outbox.pluginStorageScope("my-docs");
+const scope = storage.store("my-docs");
 
 const myExtractor: Extractor<MyFields> = {
   extract: async (transcript) => {
@@ -113,5 +113,5 @@ and nothing stale to read.
 
 [Captures & Sources](/guide/captures-and-sources) covers the transcriber contract `storage` arrives
 on, and [Extraction](/guide/extraction) covers the extractor seam that reads it back.
-[Offline & the Outbox](/guide/offline-and-the-outbox) covers the outbox database these entries live
+[Offline & Storage](/guide/offline-and-storage) covers the storage backend these entries live
 in.

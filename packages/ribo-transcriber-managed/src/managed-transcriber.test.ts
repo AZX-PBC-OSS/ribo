@@ -55,7 +55,7 @@ describe("ManagedTranscriber — capability", () => {
 
   test("the engine id is exactly managed-azure-speech", () => {
     // The literal is asserted because it is persisted data — it rides into every
-    // Transcript.engine this package produces and into the outbox document. A
+    // Transcript.engine this package produces and into the storage document. A
     // rename is a migration, not a refactor.
     const t = new ManagedTranscriber({});
     expect(t.engine).toBe("managed-azure-speech");

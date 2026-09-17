@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { TerminalQueueError, isTransientFailure } from "./queue/backoff.js";
+import { TerminalError, isTransientFailure } from "./storage/backoff.js";
 import { TranscriberUnavailableError } from "./transcriber.js";
 import { UnsupportedItemError } from "./unsupported-item.js";
 import type { Transcript } from "./transcript.js";
@@ -110,8 +110,8 @@ describe("unsupportedFallsThrough", () => {
     expectGiveUp(unsupportedFallsThrough(makeInput([{ candidate: "a", error: boom }])), boom);
   });
 
-  test("rule 4: a TerminalQueueError that is not UnsupportedItemError gives up", () => {
-    const terminal = new TerminalQueueError("truncated");
+  test("rule 4: a TerminalError that is not UnsupportedItemError gives up", () => {
+    const terminal = new TerminalError("truncated");
     expect(isTransientFailure(terminal)).toBe(false);
 
     expectGiveUp(

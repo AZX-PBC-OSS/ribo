@@ -57,7 +57,7 @@ test("the on-device panel offers an explicit model download and reports needs-do
   const page: Page = await (await browser.newContext()).newPage();
   await page.goto(baseUrl);
 
-  // The panel itself renders (the outbox opened and the ready branch mounted).
+  // The panel itself renders (the storage opened and the ready branch mounted).
   await page
     .getByRole("heading", { name: "On-device transcription" })
     .waitFor({ state: "visible" });

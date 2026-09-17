@@ -86,5 +86,5 @@ adapter straight in rather than building a `target` literal by hand.
 
 ## Next
 
-Swap `FakeTranscriber` for a real engine, wire both into the durable outbox, and get a result to
-a review screen — [Offline & the Outbox](/guide/offline-and-the-outbox).
+Swap `FakeTranscriber` for a real engine, wire both into durable storage, and get a result to
+a review screen — [Offline & Storage](/guide/offline-and-storage).

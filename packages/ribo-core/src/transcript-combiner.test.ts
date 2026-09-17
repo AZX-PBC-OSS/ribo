@@ -5,12 +5,12 @@ import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { createDefaultTranscriptCombiner } from "./transcript-combiner.js";
 
 // The combination policy is pure — a plain array in, a value out, no database.
-// These tests prove that without touching an outbox. If a test here needs an
-// outbox to pass, the split is in the wrong place.
+// These tests prove that without touching storage. If a test here needs an
+// storage to pass, the split is in the wrong place.
 //
 // The default combiner must reproduce the output of the previous
 // `joinSessionTranscript` byte-for-byte. Each test constructs the same
-// `AnnotatedTranscript[]` the relay would build from outbox items (text from
+// `AnnotatedTranscript[]` the relay would build from storage items (text from
 // the transcript, `seq`/`kind`/`id` from the item) and asserts the combined
 // text matches what the old fused function would have produced.
 

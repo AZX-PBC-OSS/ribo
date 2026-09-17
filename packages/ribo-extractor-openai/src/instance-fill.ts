@@ -25,7 +25,7 @@ import {
   mergeGroupPieces,
   nextUnitId,
   PER_CALL_CEILING_MS,
-  TerminalQueueError,
+  TerminalError,
 } from "@azx/ribo-core";
 import type {
   AnnotatedTranscript,
@@ -70,7 +70,7 @@ export type { FillScope, Roster, RosterCandidate } from "@azx/ribo-core";
  * because the job count is not known until then. This is a real difference from
  * {@link perGroupExtractor}, which derives at construction and throws there:
  * a zero-derived budget with `requireRetryBudget` throws a
- * `TerminalQueueError` from `extract()`, not at construction — no retry
+ * `TerminalError` from `extract()`, not at construction — no retry
  * fixes a configuration error, and the queue should reach `dead` rather than
  * burn its attempt budget rediscovering that.
  */
@@ -546,7 +546,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
       // and none fits the step timeout, throw terminal so the queue reaches
       // `dead` rather than burning its attempt budget rediscovering that.
       if (requireRetryBudget && budget.derived === 0 && budget.requested > 0) {
-        throw new TerminalQueueError(
+        throw new TerminalError(
           `scopedInstanceExtractor: retry budget derived to zero (requested ${budget.requested}, stepTimeoutMs ${stepTimeoutMs}, perCallCeilingMs ${perCallCeilingMs}, concurrency ${concurrency}) — no retry fits the step timeout`,
         );
       }
@@ -651,7 +651,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
                 error: cause,
               });
 
-              if (cause instanceof TerminalQueueError) throw cause;
+              if (cause instanceof TerminalError) throw cause;
               if (abort.signal.aborted) throw cause;
               if (attempt < effectiveMaxRetries) {
                 await delay(fullJitterDelay(attempt, backoffOpts));

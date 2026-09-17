@@ -5,7 +5,7 @@ import { createConnectivity, type Connectivity } from "@azx/ribo-core";
  *
  * ## Why a singleton, carried across HMR
  *
- * Same discipline as `recorder-handle.ts` and `outbox-handle.ts` — StrictMode's
+ * Same discipline as `recorder-handle.ts` and `storage-handle.ts` — StrictMode's
  * double mount and Vite's module replacement both otherwise produce a second
  * model, which would bind a *second* set of `online`/`offline`/`visibilitychange`
  * listeners and start a *second* probe cycle. `import.meta.hot.data` carries the

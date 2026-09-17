@@ -1,7 +1,7 @@
+import { createMemoryBackend } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
-import { openOutbox, type Outbox, type SessionQuery } from "@azx/ribo-core";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
+import { openStorage, type Storage, type SessionQuery } from "@azx/ribo-core";
 
 import { useSessions } from "./use-sessions.js";
 
@@ -12,54 +12,53 @@ import { useSessions } from "./use-sessions.js";
  * @file `useSessions` — the query a caller passes must be the query that runs.
  *
  * This file exists because it did not. `SessionQuery` gained `ref` when the
- * session started owning what it is for, `Outbox.watchSessions` honours it, and
+ * session started owning what it is for, `storage.sessions.watch` honours it, and
  * the hook silently dropped it: its memo key enumerated `status` and `limit` by
  * hand and then rebuilt the query by parsing that key back, so a field nobody
  * remembered to list was discarded on the way through. Every consumer got every
  * session on the device and filtered client-side.
  *
  * So the assertions here are deliberately about the *hook's* plumbing rather
- * than about RxDB's filtering, which `session-outbox.test.ts` already covers.
+ * than about RxDB's filtering, which `session-storage.test.ts` already covers.
  */
 
-const freshOutbox = () =>
-  openOutbox({ name: `t-${crypto.randomUUID()}`, storage: getRxStorageMemory() });
+const freshOutbox = () => openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
 
-test("a ref in the query reaches the outbox, and only matching sessions come back", async () => {
-  const outbox = await freshOutbox();
-  await outbox.openSession({ ctx: { jobId: "a" }, ref: "job-a" });
-  await outbox.openSession({ ctx: { jobId: "b" }, ref: "job-b" });
-  await outbox.openSession({ ctx: { jobId: "a2" }, ref: "job-a" });
+test("a ref in the query reaches the storage, and only matching sessions come back", async () => {
+  const storage = await freshOutbox();
+  await storage.sessions.open({ ctx: { jobId: "a" }, ref: "job-a" });
+  await storage.sessions.open({ ctx: { jobId: "b" }, ref: "job-b" });
+  await storage.sessions.open({ ctx: { jobId: "a2" }, ref: "job-a" });
 
   const seen: string[][] = [];
   function Probe() {
-    const { items, loading } = useSessions({ ref: "job-a" }, outbox);
+    const { items, loading } = useSessions({ ref: "job-a" }, storage);
     if (!loading) seen.push(items.map((s) => s.ref));
     return null;
   }
   await render(<Probe />);
 
   await vi.waitFor(() => expect(seen.at(-1)).toEqual(["job-a", "job-a"]));
-  await outbox.close();
+  await storage.close();
 });
 
 test("ref composes with status rather than replacing it", async () => {
-  const outbox = await freshOutbox();
-  const wanted = await outbox.openSession({ ctx: {}, ref: "job-a" });
-  await outbox.openSession({ ctx: {}, ref: "job-b" });
-  const otherStatus = await outbox.openSession({ ctx: {}, ref: "job-a" });
-  await outbox.closeSession(otherStatus.id); // → extracting
+  const storage = await freshOutbox();
+  const wanted = await storage.sessions.open({ ctx: {}, ref: "job-a" });
+  await storage.sessions.open({ ctx: {}, ref: "job-b" });
+  const otherStatus = await storage.sessions.open({ ctx: {}, ref: "job-a" });
+  await storage.sessions.close(otherStatus.id); // → extracting
 
   const seen: string[][] = [];
   function Probe() {
-    const { items, loading } = useSessions({ ref: "job-a", status: "open" }, outbox);
+    const { items, loading } = useSessions({ ref: "job-a", status: "open" }, storage);
     if (!loading) seen.push(items.map((s) => s.id));
     return null;
   }
   await render(<Probe />);
 
   await vi.waitFor(() => expect(seen.at(-1)).toEqual([wanted.id]));
-  await outbox.close();
+  await storage.close();
 });
 
 test("every field of the query survives the memo key", async () => {
@@ -69,17 +68,22 @@ test("every field of the query survives the memo key", async () => {
   // hand-written allow-list. Asserting on the round trip rather than on a
   // particular field means a future addition to `SessionQuery` is covered by
   // this test on the day it is declared, not on the day someone remembers.
-  const outbox = await freshOutbox();
+  const storage = await freshOutbox();
   const query: SessionQuery = { ref: "job-a", status: "open", limit: 5 };
 
   const seen: SessionQuery[] = [];
   const spy = {
-    ...outbox,
-    watchSessions: (q: SessionQuery = {}) => {
-      seen.push(q);
-      return outbox.watchSessions(q);
+    ...storage,
+    // The hook reads through the session store, so the spy has to sit there —
+    // overriding a method on the container would never be called.
+    sessions: {
+      ...storage.sessions,
+      watch: (q: SessionQuery = {}) => {
+        seen.push(q);
+        return storage.sessions.watch(q);
+      },
     },
-  } as unknown as Outbox;
+  } as unknown as Storage;
 
   function Probe() {
     useSessions(query, spy);
@@ -89,7 +93,7 @@ test("every field of the query survives the memo key", async () => {
 
   await vi.waitFor(() => expect(seen.length).toBeGreaterThan(0));
   expect(seen[0]).toEqual(query);
-  await outbox.close();
+  await storage.close();
 });
 
 test("the same query written in a different key order does not resubscribe", async () => {
@@ -97,15 +101,20 @@ test("the same query written in a different key order does not resubscribe", asy
   // query conditionally can emit the same fields in a different order between
   // renders; without the sort those serialise differently, the memo misses, and
   // the subscription is torn down and rebuilt for a query that did not change.
-  const outbox = await freshOutbox();
+  const storage = await freshOutbox();
   let subscribes = 0;
   const spy = {
-    ...outbox,
-    watchSessions: (q: SessionQuery = {}) => {
-      subscribes += 1;
-      return outbox.watchSessions(q);
+    ...storage,
+    // The hook reads through the session store, so the spy has to sit there —
+    // overriding a method on the container would never be called.
+    sessions: {
+      ...storage.sessions,
+      watch: (q: SessionQuery = {}) => {
+        subscribes += 1;
+        return storage.sessions.watch(q);
+      },
     },
-  } as unknown as Outbox;
+  } as unknown as Storage;
 
   function Probe({ swapped }: { swapped: boolean }) {
     useSessions(swapped ? { status: "open", ref: "job-a" } : { ref: "job-a", status: "open" }, spy);
@@ -115,21 +124,26 @@ test("the same query written in a different key order does not resubscribe", asy
   await vi.waitFor(() => expect(subscribes).toBe(1));
   await screen.rerender(<Probe swapped={true} />);
   expect(subscribes).toBe(1);
-  await outbox.close();
+  await storage.close();
 });
 
 test("a query passed as a fresh object each render does not resubscribe", async () => {
   // The reason the memo key exists at all. If this regresses, the fix above has
   // traded a dropped field for a subscription torn down on every render.
-  const outbox = await freshOutbox();
+  const storage = await freshOutbox();
   let subscribes = 0;
   const spy = {
-    ...outbox,
-    watchSessions: (q: SessionQuery = {}) => {
-      subscribes += 1;
-      return outbox.watchSessions(q);
+    ...storage,
+    // The hook reads through the session store, so the spy has to sit there —
+    // overriding a method on the container would never be called.
+    sessions: {
+      ...storage.sessions,
+      watch: (q: SessionQuery = {}) => {
+        subscribes += 1;
+        return storage.sessions.watch(q);
+      },
     },
-  } as unknown as Outbox;
+  } as unknown as Storage;
 
   function Probe({ tick }: { tick: number }) {
     // A NEW object literal every render, which is the shape a real caller writes.
@@ -141,5 +155,5 @@ test("a query passed as a fresh object each render does not resubscribe", async 
   await screen.rerender(<Probe tick={1} />);
   await screen.rerender(<Probe tick={2} />);
   expect(subscribes).toBe(1);
-  await outbox.close();
+  await storage.close();
 });

@@ -1,4 +1,4 @@
-import { TerminalQueueError, UnsupportedItemError } from "@azx/ribo-core";
+import { TerminalError, UnsupportedItemError } from "@azx/ribo-core";
 
 import { layoutPageText, type PageLayoutOptions } from "./page-layout.js";
 
@@ -110,8 +110,8 @@ function mapPdfException(e: unknown, engine: string): never {
  * retrying it would restart work the caller explicitly withdrew. The same
  * classification the fetch transports and the on-device transcriber use.
  */
-function cancellationError(engine: string, when: string, cause?: unknown): TerminalQueueError {
-  return new TerminalQueueError(
+function cancellationError(engine: string, when: string, cause?: unknown): TerminalError {
+  return new TerminalError(
     `${engine}: document transcription was cancelled ${when} — the caller's AbortSignal ` +
       `fired. A cancelled transcription is never retried.`,
     { cause },
@@ -205,7 +205,7 @@ export interface OpenDocumentOptions {
    * The caller's cancellation signal, from `TranscribeOptions.signal`. Honoured
    * at two points: the document open (an abort destroys the pdf.js loading
    * task) and the top of every page in the sweep (work already loaded stops at
-   * the next page boundary). A cancellation rejects with `TerminalQueueError`;
+   * the next page boundary). A cancellation rejects with `TerminalError`;
    * see {@link cancellationError}.
    */
   readonly signal?: AbortSignal;

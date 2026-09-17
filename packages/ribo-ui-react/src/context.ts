@@ -1,4 +1,4 @@
-import type { Connectivity, LiveTranscriber, Outbox, Recorder } from "@azx/ribo-core";
+import type { Connectivity, LiveTranscriber, Storage, Recorder } from "@azx/ribo-core";
 import { createContext } from "react";
 
 import type { CaptureCoordinator } from "./capture-coordinator.js";
@@ -12,15 +12,15 @@ import type { CaptureCoordinator } from "./capture-coordinator.js";
  * database over the same IndexedDB name and a second `Recorder` holding a second
  * microphone stream; Vite HMR replaces a module without reloading the page. The
  * fix is a module singleton with `import.meta.hot.data` carry-over
- * (`playground/src/outbox-handle.ts`), which is a **host** discipline. A provider
- * that called `openOutbox()` itself would pull an async open into the render tree
+ * (`playground/src/storage-handle.ts`), which is a **host** discipline. A provider
+ * that called `openStorage()` itself would pull an async open into the render tree
  * and ship that hazard inside the SDK, where a consumer cannot fix it.
  */
 
 /**
  * A `Recorder` whose host context type (`C`) the provider cannot know.
  *
- * `Recorder<C>` uses `C` only in output position (`stop(): Promise<Capture<C>>`),
+ * `Recorder<C>` uses `C` only in output position (`stop(): Promise<RecorderCapture<C>>`),
  * so a narrower recorder is assignable here covariantly. The cost is that
  * `stop()` resolved through context loses the host's `ctx` type; a host that needs
  * it passes its recorder to the hook explicitly. See the plan's open questions.
@@ -35,13 +35,13 @@ export type AnyRecorder = Recorder<Record<string, unknown>>;
  */
 export interface RiboInstances {
   readonly recorder?: AnyRecorder;
-  readonly outbox?: Outbox;
+  readonly storage?: Storage;
   readonly connectivity?: Connectivity;
   readonly captureCoordinator?: CaptureCoordinator;
   /**
    * Optional live transcription engine. When supplied and ready, recording
    * opens a {@link LiveSession} whose `segments$` carries tail/commit
-   * distinctions to the outbox row — tails via `writePreviewTail`
+   * distinctions to the storage row — tails via `writePreviewTail`
    * (provisional, replaced wholesale), commits via `commitPreview`
    * (permanent, appended). The host owns the instance — the provider never
    * constructs one — and the session lifecycle is driven by

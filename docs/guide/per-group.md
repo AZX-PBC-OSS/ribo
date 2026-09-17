@@ -110,7 +110,7 @@ It owns the work that is genuinely cross-group, so no override has to re-impleme
   group's pieces among them.
 - **Retry.** The unit of retry is the group entry's `extract()` — so a wrapper inside a retried
   group is retried with it — with jittered backoff up to a budget derived from the entry count.
-  `TerminalQueueError` is never retried.
+  `TerminalError` is never retried.
 - **Sibling abort.** One group's terminal failure aborts the run: in-flight siblings are cancelled
   and no further entry starts. The caller's own `signal` is combined with that controller, not
   replaced by it.

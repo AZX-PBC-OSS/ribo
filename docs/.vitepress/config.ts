@@ -75,7 +75,7 @@ export default defineConfig({
             { text: "Provenance", link: "/guide/provenance" },
             { text: "Review", link: "/guide/review" },
             { text: "Write-back", link: "/guide/write-back" },
-            { text: "Offline & the Outbox", link: "/guide/offline-and-the-outbox" },
+            { text: "Offline & Storage", link: "/guide/offline-and-storage" },
             { text: "Arbitration & Fallback", link: "/guide/arbitration" },
             { text: "Plugin Storage", link: "/guide/plugin-storage" },
             { text: "React Hooks", link: "/guide/react" },

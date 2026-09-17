@@ -1,4 +1,4 @@
-import { isTransientFailure } from "./queue/backoff.js";
+import { isTransientFailure } from "./storage/backoff.js";
 import type { Transcript } from "./transcript.js";
 import { TranscriberUnavailableError } from "./transcriber.js";
 import { UnsupportedItemError } from "./unsupported-item.js";
@@ -15,7 +15,7 @@ import { UnsupportedItemError } from "./unsupported-item.js";
  * none of that applies here. A `Transcript` carries its own `engine` (required,
  * set by the implementation that ran), so there is nothing to stamp, and the
  * transcriber side's error vocabulary is `UnsupportedItemError` and
- * `TranscriberUnavailableError`, not `TerminalQueueError` and `SchemaParseError`.
+ * `TranscriberUnavailableError`, not `TerminalError` and `SchemaParseError`.
  * What is shared is a _pattern_ — outcomes in settlement order, an `exhausted`
  * flag, an accept/continue/give-up verdict, exhaustion checked first — not a
  * type. See the document-transcription plan Task 4's Intent for the full
@@ -189,7 +189,7 @@ export function unsupportedFallsThrough(
  *
  * No result stamping: `Transcript.engine` is already required and set by the
  * implementation that ran, so "which engine produced this?" is answerable off
- * `Outbox.list()` for free. A second copy of that truth is a defect.
+ * `storage.captures.list()` for free. A second copy of that truth is a defect.
  */
 export function applyTranscriptionVerdict(
   verdict: TranscriptionArbiterVerdict,

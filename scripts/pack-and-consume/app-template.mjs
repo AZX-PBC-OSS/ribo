@@ -32,6 +32,7 @@ export function scratchPackageJson(tarballPaths) {
       "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
       "@azx/ribo-transcriber-managed-docs": fileSpec("@azx/ribo-transcriber-managed-docs"),
       "@azx/ribo-transcriber-pdfjs": fileSpec("@azx/ribo-transcriber-pdfjs"),
+      "@azx/ribo-storage-rxdb": fileSpec("@azx/ribo-storage-rxdb"),
       "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       // Exact versions, matching the workspace catalog (pnpm-workspace.yaml) — this app is NOT a
       // workspace member, so it cannot write `catalog:`; these are hand-pinned to the same values.
@@ -60,6 +61,7 @@ export function scratchPackageJson(tarballPaths) {
         "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
         "@azx/ribo-transcriber-managed-docs": fileSpec("@azx/ribo-transcriber-managed-docs"),
         "@azx/ribo-transcriber-pdfjs": fileSpec("@azx/ribo-transcriber-pdfjs"),
+        "@azx/ribo-storage-rxdb": fileSpec("@azx/ribo-storage-rxdb"),
         "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       },
     },
@@ -155,6 +157,7 @@ import { OnDeviceTranscriber } from "@azx/ribo-transcriber-ondevice";
 import { ManagedTranscriber } from "@azx/ribo-transcriber-managed";
 import { ManagedDocsTranscriber, MANAGED_DOCS_ENGINE } from "@azx/ribo-transcriber-managed-docs";
 import { PdfjsTranscriber, PDFJS_ENGINE } from "@azx/ribo-transcriber-pdfjs";
+import { openRxdbBackend, createRxdbBackend } from "@azx/ribo-storage-rxdb";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import React from "react";
 import { createRoot } from "react-dom/client";
@@ -294,6 +297,13 @@ async function run() {
     return;
   }
   transcriber.dispose();
+  // ribo-storage-rxdb: the tarball resolves, bundles and imports, and both entry
+  // points survive the boundary. Deliberately NOT opening a database here --
+  // proving the backend behaves is the conformance kit's job, in a browser test
+  // that can await it; this tier's question is whether the package is consumable.
+  checks.storageRxdbExports =
+    typeof openRxdbBackend === "function" && typeof createRxdbBackend === "function";
+
   checks.workerPrimedWithoutThrowing = true;
   checks.workerReportedProgress = progressStages.length > 0;
 

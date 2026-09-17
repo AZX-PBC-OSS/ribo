@@ -3,10 +3,10 @@ import {
   createRelay,
   FakeTranscriber,
   restrictToKind,
-  type Outbox,
-  type OutboxItem,
+  type Storage,
+  type Capture,
 } from "@azx/ribo-core";
-import { useConnectivity, useOutboxItems } from "@azx/ribo-ui-react";
+import { useConnectivity, useCaptures } from "@azx/ribo-ui-react";
 
 import { getEvictionState, subscribeToEviction } from "./eviction-store.js";
 import { extractStep } from "./extractor-store.js";
@@ -18,7 +18,7 @@ import { button, errorBox, monospace, muted, panel, statusBadge, survivedBadge }
 /**
  * @file The queue, live.
  *
- * `useOutboxItems()` wraps `outbox.items$` — the RxDB collection query as an
+ * `useCaptures()` wraps `storage.captures.items$` — the RxDB collection query as an
  * observable — as React state: it pushes a fresh array on every write, including
  * writes from another tab. Subscribing to it — rather than re-running `list()` on
  * a timer — is what makes a row appear the instant capture *begins* (durable
@@ -26,13 +26,13 @@ import { button, errorBox, monospace, muted, panel, statusBadge, survivedBadge }
  * while dictation is still going, and is the only version of this panel that
  * would still be correct with two tabs open.
  *
- * `outbox` stays a plain prop here (unlike `RecordPanel`/`ConnectivityPanel`):
- * this panel still needs the raw instance for `outbox.clear()` and to build the
+ * `storage` stays a plain prop here (unlike `RecordPanel`/`ConnectivityPanel`):
+ * this panel still needs the raw instance for `storage.captures.clear()` and to build the
  * stub relay `runStubRelay` drains through — neither of those is a hook's job.
  */
 
-export function QueuePanel({ outbox }: { outbox: Outbox }) {
-  const { items, loading, error: watchError } = useOutboxItems({}, outbox);
+export function QueuePanel({ storage }: { storage: Storage }) {
+  const { items, loading, error: watchError } = useCaptures({}, storage);
   const [error, setError] = useState<string | undefined>(undefined);
   const [syncing, setSyncing] = useState(false);
   const [autoSync, setAutoSync] = useState(false);
@@ -49,7 +49,7 @@ export function QueuePanel({ outbox }: { outbox: Outbox }) {
     drainingRef.current = true;
     setError(undefined);
     setSyncing(true);
-    void runStubRelay(outbox)
+    void runStubRelay(storage)
       .catch((cause: unknown) => {
         setError(messageOf(cause));
       })
@@ -57,7 +57,7 @@ export function QueuePanel({ outbox }: { outbox: Outbox }) {
         drainingRef.current = false;
         setSyncing(false);
       });
-  }, [outbox]);
+  }, [storage]);
 
   const syncNow = drain;
 
@@ -86,16 +86,16 @@ export function QueuePanel({ outbox }: { outbox: Outbox }) {
     setError(undefined);
     // One storage write, one re-render. This used to be `list()` plus a
     // `remove()` per item, which repainted the panel once per row.
-    void outbox.clear().catch((cause: unknown) => {
+    void storage.captures.clear().catch((cause: unknown) => {
       setError(messageOf(cause));
     });
-  }, [outbox]);
+  }, [storage]);
 
   return (
     <section style={panel}>
-      <h2>2 · Outbox</h2>
+      <h2>2 · Storage</h2>
       <p style={muted}>
-        Durable, in IndexedDB (<code style={monospace}>ribo-outbox</code>). Items stay at{" "}
+        Durable, in IndexedDB (<code style={monospace}>ribo-storage</code>). Items stay at{" "}
         <code style={monospace}>queued</code>: Phase 2 ends at capture and persistence, so nothing
         drains this queue unless you ask it to.
       </p>
@@ -137,13 +137,13 @@ export function QueuePanel({ outbox }: { outbox: Outbox }) {
       {watchError !== undefined && <p style={errorBox}>{watchError.message}</p>}
 
       {loading ? (
-        <p style={muted}>reading the outbox…</p>
+        <p style={muted}>reading the storage…</p>
       ) : items.length === 0 ? (
         <EmptyQueue />
       ) : (
         <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {items.map((item) => (
-            <QueueRow key={item.id} outbox={outbox} item={item} />
+            <QueueRow key={item.id} storage={storage} item={item} />
           ))}
         </ol>
       )}
@@ -171,7 +171,7 @@ function EmptyQueue() {
   );
 }
 
-function QueueRow({ outbox, item }: { outbox: Outbox; item: OutboxItem }) {
+function QueueRow({ storage, item }: { storage: Storage; item: Capture }) {
   // Enqueued before this page load, so it can only have come back out of
   // IndexedDB. This is the reload check, stated by the UI rather than by the
   // person reading it.
@@ -214,7 +214,7 @@ function QueueRow({ outbox, item }: { outbox: Outbox; item: OutboxItem }) {
 
       <div style={{ margin: "0.5rem 0" }}>
         <ItemAudio
-          outbox={outbox}
+          storage={storage}
           id={item.id}
           status={item.status}
           audioReady={item.audioReady}
@@ -249,16 +249,16 @@ function QueueRow({ outbox, item }: { outbox: Outbox; item: OutboxItem }) {
  * rather than reaching `done` on its own — `ReviewPanel` is the only way past
  * that gate — so this button drains as far as a human review, not further.
  */
-async function runStubRelay(outbox: Outbox): Promise<void> {
+async function runStubRelay(storage: Storage): Promise<void> {
   // Close any open sessions so the relay can extract them. In the real app,
   // the host closes a session when the auditor is done walking the house;
   // the playground's stub relay closes them all on sync for simplicity.
-  const sessions = await outbox.listSessions({ status: "open" });
+  const sessions = await storage.sessions.list({ status: "open" });
   for (const session of sessions) {
-    await outbox.closeSession(session.id).catch(() => undefined);
+    await storage.sessions.close(session.id).catch(() => undefined);
   }
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: extractStep,
     sessionWrite: () => Promise.resolve({ fields: { writtenBy: "playground stub" } }),

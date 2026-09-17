@@ -14,15 +14,15 @@ hooks over `ribo-core`'s engine. **No components beyond `RiboProvider`, no marku
 
 ## What ships
 
-| Export                  | Responsibility                                                                                                                                                                           |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RiboProvider`          | Makes host-constructed `Recorder`/`Outbox`/`Connectivity` instances available to the hooks via context. The only component in the package — a context provider, not a rendering surface. |
-| `useRecorder`           | Capture as React state: `phase`, `elapsedMs`, `level`/`scaledLevel`, `start`/`stop`/`pause`/`resume`/`toggle`, and (on `stop`) the enqueued `OutboxItem`.                                |
-| `useOutboxItems`        | The outbox queue as live React state, filterable by an `OutboxQuery` (e.g. `{ status: "awaiting-review" }`).                                                                             |
-| `useReview`             | Field-by-field review of one parked item — see below.                                                                                                                                    |
-| `useConnectivity`       | The `offline` / `probing` / `online` connectivity state.                                                                                                                                 |
-| `useWorkSafety`         | The one honest "is my work safe?" verdict, composed from `useOutboxItems`, `useConnectivity` and `useStoragePersistence`.                                                                |
-| `useStoragePersistence` | The storage-persistence grant and quota estimate — the one hook with no core counterpart; it wraps `navigator.storage` directly.                                                         |
+| Export                  | Responsibility                                                                                                                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RiboProvider`          | Makes host-constructed `Recorder`/`Storage`/`Connectivity` instances available to the hooks via context. The only component in the package — a context provider, not a rendering surface. |
+| `useRecorder`           | Capture as React state: `phase`, `elapsedMs`, `level`/`scaledLevel`, `start`/`stop`/`pause`/`resume`/`toggle`, and (on `stop`) the enqueued `Capture`.                                    |
+| `useCaptures`           | The outbox queue as live React state, filterable by an `CaptureQuery` (e.g. `{ status: "awaiting-review" }`).                                                                             |
+| `useReview`             | Field-by-field review of one parked item — see below.                                                                                                                                     |
+| `useConnectivity`       | The `offline` / `probing` / `online` connectivity state.                                                                                                                                  |
+| `useWorkSafety`         | The one honest "is my work safe?" verdict, composed from `useCaptures`, `useConnectivity` and `useStoragePersistence`.                                                                    |
+| `useStoragePersistence` | The storage-persistence grant and quota estimate — the one hook with no core counterpart; it wraps `navigator.storage` directly.                                                          |
 
 Every hook but `useStoragePersistence` reads its instance out of `RiboProvider`'s context by
 default, and every hook accepts an explicit instance argument that bypasses the provider (what the
@@ -44,7 +44,7 @@ a queue state, not a callback"). `ReviewPresenter` has since been deleted from `
 What exists instead: `awaiting-review` is a real status in the outbox's state machine, deliberately
 absent from `ACTIVE_OUTBOX_STATUSES` so the relay drains past a parked item rather than blocking on
 it. A UI finds parked items with an ordinary query (`outbox.watch({ status: "awaiting-review" })`,
-or this package's `useOutboxItems`), and **`Outbox.submitReview` is the only way out of
+or this package's `useCaptures`), and **`storage.sessions.submitReview` is the only way out of
 `awaiting-review`**, to `writing`.
 
 `useReview(item, { valuesSchema })` is this package's hook onto that gate. `valuesSchema` is the
@@ -56,7 +56,7 @@ top-level review would give an auditor one verdict for all 14 instead of one per
 header has the full argument). That is the reuse payoff this doc always described; it is now
 delivered by `buildReviewRequest` / `resolveReview` in `ribo-core`, not by a component iterating
 `schema.shape`. A host accepts, edits or rejects each leaf by path and calls `submit()`, which
-resolves a complete decision set through `resolveReview` before handing it to `Outbox.submitReview`.
+resolves a complete decision set through `resolveReview` before handing it to `storage.sessions.submitReview`.
 
 There is no `ReviewCard` in this package. A host renders its own UI off `useReview`'s `fields`; the
 current stand-in is the playground's `ReviewCard` (`playground/src/ReviewPanel.tsx`), which is

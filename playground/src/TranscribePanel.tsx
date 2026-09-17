@@ -3,8 +3,8 @@ import {
   createRelay,
   firstCapable,
   restrictToKind,
-  type Outbox,
-  type OutboxItem,
+  type Storage,
+  type Capture,
 } from "@azx/ribo-core";
 
 import { extractStep } from "./extractor-store.js";
@@ -41,7 +41,7 @@ import {
  * transcribe, see text — is demonstrable from here.
  */
 
-export function TranscribePanel({ outbox }: { outbox: Outbox }) {
+export function TranscribePanel({ storage }: { storage: Storage }) {
   const whisper = useSyncExternalStore(subscribeToWhisper, getWhisperState);
 
   // The capability probe is a side effect of the panel being on screen, kept in
@@ -60,7 +60,7 @@ export function TranscribePanel({ outbox }: { outbox: Outbox }) {
       </p>
 
       <ModelControl whisper={whisper} />
-      <TranscribeControl outbox={outbox} onDeviceReady={whisper.phase === "ready"} />
+      <TranscribeControl storage={storage} onDeviceReady={whisper.phase === "ready"} />
 
       <p style={{ ...muted, marginTop: "1rem" }}>
         <strong>Offline demo.</strong> Make the model available offline{" "}
@@ -184,8 +184,14 @@ function DownloadProgress({ whisper }: { whisper: WhisperState }) {
   );
 }
 
-function TranscribeControl({ outbox, onDeviceReady }: { outbox: Outbox; onDeviceReady: boolean }) {
-  const [items, setItems] = useState<OutboxItem[] | undefined>(undefined);
+function TranscribeControl({
+  storage,
+  onDeviceReady,
+}: {
+  storage: Storage;
+  onDeviceReady: boolean;
+}) {
+  const [items, setItems] = useState<Capture[] | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const [managedReady, setManagedReady] = useState(false);
@@ -216,7 +222,7 @@ function TranscribeControl({ outbox, onDeviceReady }: { outbox: Outbox; onDevice
   const runningRef = useRef(false);
 
   useEffect(() => {
-    const subscription = outbox.items$.subscribe({
+    const subscription = storage.captures.items$.subscribe({
       next: setItems,
       error: (cause: unknown) => {
         setError(messageOf(cause));
@@ -225,7 +231,7 @@ function TranscribeControl({ outbox, onDeviceReady }: { outbox: Outbox; onDevice
     return () => {
       subscription.unsubscribe();
     };
-  }, [outbox]);
+  }, [storage]);
 
   const drainable = items?.some((i) => i.status === "queued" || i.status === "failed") ?? false;
 
@@ -234,7 +240,7 @@ function TranscribeControl({ outbox, onDeviceReady }: { outbox: Outbox; onDevice
     runningRef.current = true;
     setError(undefined);
     setBusy(true);
-    void runOnDeviceRelay(outbox)
+    void runOnDeviceRelay(storage)
       .catch((cause: unknown) => {
         setError(messageOf(cause));
       })
@@ -242,7 +248,7 @@ function TranscribeControl({ outbox, onDeviceReady }: { outbox: Outbox; onDevice
         runningRef.current = false;
         setBusy(false);
       });
-  }, [outbox]);
+  }, [storage]);
 
   return (
     <div style={{ marginTop: "1rem" }}>
@@ -334,14 +340,14 @@ function RoutingLog() {
  * connectivity model reports `offline` (which is the whole offline demo).
  *
  * `extract` is the same {@link extractStep} `QueuePanel` uses (`extractor-store.ts`)
- * — one shared extractor over the one outbox. By default that is a `FakeExtractor`,
+ * — one shared extractor over the one storage. By default that is a `FakeExtractor`,
  * so the offline demo still needs no network for extraction; with a key it is a
  * real model, which is network-bound and rests in `extracting` until online.
  * Write-back stays a stub (Phase 4 Task 6, gated on A1).
  */
-async function runOnDeviceRelay(outbox: Outbox): Promise<void> {
+async function runOnDeviceRelay(storage: Storage): Promise<void> {
   const relay = createRelay({
-    outbox,
+    storage,
     // `onFallback` was designed to make exactly one thing visible — "every recording is
     // silently going to cloud STT while everyone believes the fleet is offline-capable" — and
     // was wired to nothing, here or anywhere else in the app. An unread event is not telemetry.

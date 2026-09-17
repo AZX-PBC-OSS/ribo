@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 
 import { FakeExtractor, toSessionExtractStep } from "./extractor.js";
 import type { Extractor, ExtractionResult } from "./extractor.js";
-import type { SessionItem } from "./queue/session-schema.js";
+import type { SessionItem } from "./storage/session-schema.js";
 import type { Transcript } from "./transcript.js";
 
 interface AtticFields {

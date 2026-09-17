@@ -1,6 +1,6 @@
 import { baseRecordingSchema, type Recording } from "./recording.js";
-import { CAPTURE_LOCK, holdLock } from "./queue/capture-lock.js";
-import type { CaptureSession } from "./queue/capture-session.js";
+import { CAPTURE_LOCK, holdLock } from "./storage/capture-lock.js";
+import type { CaptureSession } from "./storage/capture-session.js";
 
 /**
  * @file Microphone capture: `MediaRecorder` in, a {@link Recording} plus its audio `Blob` out.
@@ -167,11 +167,11 @@ export interface RecorderState {
 export type Unsubscribe = () => void;
 
 /** The metadata record plus the bytes it describes. */
-export interface Capture<C = EmptyContext> {
+export interface RecorderCapture<C = EmptyContext> {
   readonly recording: Omit<Recording, "ctx"> & { ctx: C };
   readonly audio: Blob;
   /**
-   * The outbox item this capture is ALREADY committed to, when durable capture ran.
+   * The storage item this capture is ALREADY committed to, when durable capture ran.
    *
    * Present means the audio is on disk and the row is `queued` — a caller must NOT
    * enqueue it again. Absent means the legacy in-memory path produced this, and the
@@ -432,7 +432,7 @@ export class Recorder<C = EmptyContext> {
   /**
    * Opens the microphone and starts recording.
    *
-   * @returns The outbox item id when recording durably, or `undefined` in non-durable mode.
+   * @returns The storage item id when recording durably, or `undefined` in non-durable mode.
    * @throws {RecorderError} `already-recording`, `capture-busy`, `permission-denied`,
    * `no-input-device`, `unsupported-mime-type` or `capture-failed`. On every failure the stream is
    * released, the lock is freed, and the recorder is left idle, so a retry starts from a clean state.
@@ -601,7 +601,7 @@ export class Recorder<C = EmptyContext> {
    * browser raised an error mid-capture (the recorder is `failed` by then, and `stop()` rethrows
    * the same failure that the observable state already carries).
    */
-  async stop(): Promise<Capture<C>> {
+  async stop(): Promise<RecorderCapture<C>> {
     const session = this.#session;
     if (
       session === undefined ||
@@ -636,7 +636,10 @@ export class Recorder<C = EmptyContext> {
         // recording than the one on disk: `sourceId` derives from the first id, callers
         // saw the second, and nothing tied them together.
         return {
-          recording: { ...result.item.recording, ctx: this.#ctx } as Capture<C>["recording"],
+          recording: {
+            ...result.item.recording,
+            ctx: this.#ctx,
+          } as RecorderCapture<C>["recording"],
           audio: result.audio,
           itemId: result.item.id,
         };

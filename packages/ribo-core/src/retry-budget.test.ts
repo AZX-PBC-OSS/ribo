@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { DEFAULT_BACKOFF_BASE_MS, DEFAULT_BACKOFF_CAP_MS } from "./queue/backoff.js";
+import { DEFAULT_BACKOFF_BASE_MS, DEFAULT_BACKOFF_CAP_MS } from "./storage/backoff.js";
 import { deriveRetryBudget, PER_CALL_CEILING_MS } from "./retry-budget.js";
 
 // Pure arithmetic — no storage, no browser API. Belongs in the `unit` project.

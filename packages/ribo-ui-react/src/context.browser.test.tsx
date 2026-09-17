@@ -52,7 +52,7 @@ test("a missing instance throws a message naming what to supply", async () => {
 
 test("an instance absent from a provider that has others still throws", async () => {
   function NeedsOutbox() {
-    useRiboInstance("outbox");
+    useRiboInstance("storage");
     return null;
   }
   await expect(
@@ -61,5 +61,5 @@ test("an instance absent from a provider that has others still throws", async ()
         <NeedsOutbox />
       </RiboProvider>,
     ),
-  ).rejects.toThrow(/outbox/i);
+  ).rejects.toThrow(/storage/i);
 });

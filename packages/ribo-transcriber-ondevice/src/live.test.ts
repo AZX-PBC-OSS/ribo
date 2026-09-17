@@ -365,7 +365,7 @@ describe("Test D — a mid-session worker error reaches the host", () => {
 // The worker posts `liveSegment` messages tagged `kind: "tail"` (provisional text
 // for the current growing region) or `kind: "commit"` (permanent text for a
 // committed region). The seam must carry that tag through so a host can route
-// tails to `Outbox.writePreviewTail` and commits to `Outbox.commitPreview` —
+// tails to `Storage.writePreviewTail` and commits to `Storage.commitPreview` —
 // the distinction Task 4 exists to expose.
 //
 // How this fails: if `OnDeviceLiveSession` drops `kind` (forwards only `text`,

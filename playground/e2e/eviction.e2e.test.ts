@@ -30,7 +30,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
  * does not reject, so an in-page wipe silently does nothing until the page
  * unloads. Worse, the reload needed to unblock it *is* the reload under test,
  * so the detector would run against a database that had not been wiped yet.
- * `Storage.clearDataForOrigin` forces the delete, and naming the two storage
+ * `storage.captures.clearDataForOrigin` forces the delete, and naming the two storage
  * types explicitly (rather than `"all"`) keeps the blast radius equal to a real
  * eviction's.
  *

@@ -48,7 +48,7 @@ button that unlocks once capture stops.
 
 Refusing a reload leaves a tab running old JavaScript against data a newer version wrote — the same
 risk two tabs left open across an ordinary deploy would already create, service worker or not. What
-catches a real problem here is the outbox's own document schema, which parses documents in both
+catches a real problem here is storage's own document schema, which parses documents in both
 directions: reading a row back out of IndexedDB is a schema check, not a cast, exactly the same way
 writing one in is. A newer version's added field looks like an unrecognized key to older code and the
 read fails loudly; a narrowed or removed field fails the same way. One case no schema can catch: the

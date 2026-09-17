@@ -1,0 +1,12 @@
+---
+"@azx/ribo-core": minor
+"@azx/ribo-storage-rxdb": minor
+---
+
+**The key-value store's persisted entry is generalised from capture-scoped to scope-kind-and-id, at schema version 1.** A `pluginStorage` document was `{id, captureId, pluginId, key, value}`; it is now `{id, scopeKind, scopeId, owner, key, value}`. `owner` is `pluginId` under a truer name — a store's owner is not necessarily a plugin — and the scope becomes a kind plus an id, so an entry can belong to a session as well as a capture. A required kind plus a required id both index cleanly, where two optional ids would carry an unenforced "exactly one is set" invariant; a third scope kind later costs no further version bump.
+
+**No session accessor ships yet.** `SessionStore` has no removal path, and `reopenForReview` deliberately reopens sessions that are `done` or `dead` — so there is nowhere for a session sweep to hook that neither leaks entries nor sweeps rows a later review round still reads, and a session-removal API is that store's own decision, not a side effect of adding a key-value scope. The kind is on disk regardless: the migration is paid for once, and adding the accessor later needs no second migration.
+
+**The upgrade runs a real migration on any device that has merely opened the app** since plugin storage landed — whether or not it ever wrote an entry — because RxDB validates a declared schema against the one the collection was created with, and a same-version shape change fails `addCollections` with DB6. All three collections are added in one call on one database, so that failure takes the capture store down with it. The strategy is field-only: every existing entry becomes `scopeKind: "capture"`, `captureId` moves to `scopeId`, and `pluginId` is renamed `owner`. **The primary key's composition is unchanged** — `owner ␀ scopeId ␀ key`, exactly what version 0 wrote — so no row's primary key is rewritten, because a primary-key rewrite fails by making rows unreachable rather than by erroring. The cost, which the design accepts, is that the key is kind-blind: a session-scoped entry whose owner, scope id and key all equal a capture entry's replaces it rather than coexisting, so the scopes lean on session and capture ids being drawn from disjoint spaces. The database and collection names are unchanged, as are the handles, the enumeration and the sweep.
+
+The conformance kit now also pins that the entries finder filters by scope kind, so a backend cannot ignore the column the migration adds.

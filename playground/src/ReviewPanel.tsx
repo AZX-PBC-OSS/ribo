@@ -44,7 +44,7 @@ import {
  *
  * ## Where the data comes from now
  *
- * `useOutboxItems({ status: "awaiting-review" })` replaces the old "every item
+ * `useCaptures({ status: "awaiting-review" })` replaces the old "every item
  * with an `extracted`" filter: `queue/relay.ts` now parks an extracted item at
  * `awaiting-review` and stops seeing it, so this panel is the only thing that can
  * move it on. `useReview(item, { valuesSchema: snuggValuesSchema })` per item then
@@ -218,7 +218,7 @@ export function ReviewPanel() {
       {error !== undefined && <p style={errorBox}>{error.message}</p>}
 
       {loading ? (
-        <p style={muted}>reading the outbox…</p>
+        <p style={muted}>reading the storage…</p>
       ) : parked.length === 0 ? (
         <p data-testid="review-empty" style={muted}>
           Nothing waiting for review — record something, then drain the queue so an item reaches the{" "}

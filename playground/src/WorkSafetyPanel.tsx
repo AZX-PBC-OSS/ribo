@@ -9,7 +9,7 @@ import { errorBox, monospace, muted, noticeBox, panel } from "./styles.js";
  *
  * The plumbing (seq / attempts / per-row status) stays in `QueuePanel`. This
  * panel answers the actual question in words, off `useWorkSafety()` — the same
- * composition of the outbox, the storage-persistence grant and connectivity that
+ * composition of the storage, the storage-persistence grant and connectivity that
  * a real host UI would use, so the verbose panels above and this one can never
  * disagree.
  *
@@ -31,7 +31,7 @@ export function WorkSafetyPanel() {
       {error !== undefined ? (
         <p style={errorBox}>{error.message}</p>
       ) : loading || safety === undefined ? (
-        <p style={muted}>reading the outbox…</p>
+        <p style={muted}>reading the storage…</p>
       ) : (
         <Verdict verdict={safety} />
       )}
@@ -44,7 +44,7 @@ export function WorkSafetyPanel() {
       )}
 
       <p style={{ ...muted, margin: "0.75rem 0 0" }}>
-        One sentence, derived live from the outbox, the storage persistence grant, and connectivity
+        One sentence, derived live from the storage, the storage persistence grant, and connectivity
         — by the same <code style={monospace}>workSafety</code> selector a real UI would use, so the
         verbose panels above and this one can never disagree.
       </p>

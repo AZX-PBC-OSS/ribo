@@ -11,7 +11,7 @@
  *     misreported as "invalid JSON". Both are deterministic — re-sending an
  *     identical request with an identical `maxTokens` truncates at the same
  *     point, and a content filter fires on the same content — so they throw
- *     `TerminalQueueError`, which `isTransientFailure` classifies as
+ *     `TerminalError`, which `isTransientFailure` classifies as
  *     non-retryable. Without this a plain `Error` would be treated as transient
  *     and burn every relay attempt.
  *
@@ -30,7 +30,7 @@
  * second parse is the same function as this first parse.
  */
 
-import { TerminalQueueError } from "@azx/ribo-core";
+import { TerminalError } from "@azx/ribo-core";
 import type { ExtractionTarget, NoProvenance } from "@azx/ribo-core";
 
 // The trust-boundary parse lives in core beside `SchemaParseError` — it is the
@@ -261,7 +261,7 @@ export async function completeOrClassify(
     return await chat.complete(request, options);
   } catch (cause) {
     if (cause instanceof ChatError && (cause.kind === "refusal" || cause.kind === "unsupported")) {
-      throw new TerminalQueueError(
+      throw new TerminalError(
         `${context}: the transport failed terminally (${cause.kind}): ${cause.message}`,
         { cause },
       );
@@ -278,7 +278,7 @@ export async function completeOrClassify(
  * JSON" rather than the real cause. The `"length"` message names `maxTokens`, the knob
  * that fixes it.
  *
- * Throws `TerminalQueueError`, NOT a plain `Error`: `isTransientFailure` treats any
+ * Throws `TerminalError`, NOT a plain `Error`: `isTransientFailure` treats any
  * error without a numeric `status` as retryable, and both of these are deterministic.
  * Re-sending an identical request with an identical `maxTokens` truncates at the identical
  * point, and a content filter fires again on the same content — so a plain `Error` would
@@ -294,7 +294,7 @@ export function assertStopFinishReason(completion: ChatCompletion, context: stri
       completion.finishReason === "length"
         ? " — the response was truncated; increase maxTokens and re-run"
         : " — the response was content-filtered; the model declined to complete it";
-    throw new TerminalQueueError(
+    throw new TerminalError(
       `${context} ended with finishReason "${completion.finishReason}"${hint}.`,
     );
   }

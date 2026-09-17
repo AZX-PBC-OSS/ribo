@@ -4,7 +4,7 @@ import { FakeTranscriber } from "./fake-transcriber.js";
 import { hedgeDelay, hedged } from "./hedged.js";
 import type { TranscriberHedgeEvent } from "./hedged.js";
 import type { ScheduleTimer } from "./connectivity.js";
-import { isTransientFailure, TerminalQueueError } from "./queue/backoff.js";
+import { isTransientFailure, TerminalError } from "./storage/backoff.js";
 import type { Recording } from "./recording.js";
 import {
   TranscriberUnavailableError,
@@ -470,7 +470,7 @@ test("nothing is ready: terminal when both are permanently unavailable", async (
 
   const error = await composite.transcribe(recording(), audio()).catch((e: unknown) => e);
 
-  expect(error).toBeInstanceOf(TerminalQueueError);
+  expect(error).toBeInstanceOf(TerminalError);
   expect(isTransientFailure(error)).toBe(false);
 });
 
@@ -490,7 +490,7 @@ test("nothing is ready but something could be: transient, so the queue retries",
   const error = await composite.transcribe(recording(), audio()).catch((e: unknown) => e);
 
   expect(error).toBeInstanceOf(TranscriberUnavailableError);
-  expect(error).not.toBeInstanceOf(TerminalQueueError);
+  expect(error).not.toBeInstanceOf(TerminalError);
   expect(isTransientFailure(error)).toBe(true);
 });
 

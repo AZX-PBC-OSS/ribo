@@ -41,13 +41,13 @@ import { isCapturing } from "./recorder-handle.js";
  * ordinary two-tab situation, and it is *already* possible today without any
  * service worker — a tab left open across a deploy is the same thing.
  *
- * What catches it is `outboxDocumentSchema`, which
+ * What catches it is `captureDocumentSchema`, which
  * `docs/implementation/09-offline-first.md` and the schema's own doc comment
  * call a trust boundary **in both directions**: documents are parsed on the way
  * out of IndexedDB as well as on the way in. It is a `z.strictObject`, so:
  *
  * - **New field written by N+1, read by N** → the strict parse *rejects* the
- *   unknown key. The user sees the outbox fail to open, or that row fail to
+ *   unknown key. The user sees the storage fail to open, or that row fail to
  *   read — an error, not silent corruption. Loud, and recoverable by reloading.
  * - **Field removed or narrowed by N+1** → the parse rejects the same way.
  * - **Same shape, different meaning** → the parse cannot see it. No schema can.

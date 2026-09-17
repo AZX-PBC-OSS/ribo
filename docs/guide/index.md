@@ -13,7 +13,7 @@ Six stages. Most are an interface you can replace; the two that are not are mark
 
 | Stage          | What happens                                                                | The seam                             |
 | -------------- | --------------------------------------------------------------------------- | ------------------------------------ |
-| **Capture**    | A recording, a PDF, or a document arrives as a `CaptureItem`                | —                                    |
+| **Capture**    | A recording, a PDF, or a document arrives as a `CapturePayload`             | —                                    |
 | **Transcribe** | The capture becomes citable text                                            | `Transcriber`                        |
 | **Session**    | One or more captures are combined into a single transcript                  | `TranscriptCombiner`                 |
 | **Extract**    | The transcript becomes fields, against a target schema too big for one call | `Extractor`                          |

@@ -18,7 +18,7 @@ pnpm add @azx/ribo-ui-react @azx/ribo-extractor-openai
 
 **Peer dependencies.** `@azx/ribo-ui-react` declares `react` and `react-dom` as peers
 (`^18.3 || ^19`) — install a matching React yourself. It also declares `@azx/ribo-core` as a peer
-rather than a plain dependency, because its provider hands your app's own `Recorder` and `Outbox`
+rather than a plain dependency, because its provider hands your app's own `Recorder` and `Storage`
 instances across the package boundary: your app and `ribo-ui-react` must share one copy of core,
 or those objects stop being `instanceof` what the library expects.
 

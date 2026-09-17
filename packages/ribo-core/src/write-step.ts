@@ -1,6 +1,6 @@
 import type { ToolAdapter } from "./adapter.js";
-import { TerminalQueueError } from "./queue/backoff.js";
-import type { SessionWriteResult, SessionWriteStep, SessionWriteInput } from "./queue/relay.js";
+import { TerminalError } from "./storage/backoff.js";
+import type { SessionWriteResult, SessionWriteStep, SessionWriteInput } from "./storage/relay.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 
 /**
@@ -26,7 +26,7 @@ import { describeLocated, zodIssues } from "./zod-issues.js";
  * Not `resolveReview`. That function validates every accepted and edited value against
  * its leaf's own schema before it returns, so an outcome it produced is a valid `V` by
  * construction. What the parse guards is every OTHER route a patch can take to
- * `SessionWriteInput.reviewed`: a host calling `Outbox.patchSession(id, { reviewOutcome })`
+ * `SessionWriteInput.reviewed`: a host calling `Storage.sessions.patch(id, { reviewOutcome })`
  * directly, an outcome written by an older build and read back after a schema change,
  * a future UI that persists its own outcome. All of those are `unknown` by the time
  * they reach here, and the adapter's schema is the last thing between them and a
@@ -44,7 +44,7 @@ import { describeLocated, zodIssues } from "./zod-issues.js";
  * A reviewed patch that fails `adapter.schema`, or a `ctx` that fails
  * `adapter.ctxSchema`, will fail identically on every retry: the inputs are already
  * persisted and nothing about a second attempt changes them. So both throw a
- * `TerminalQueueError`, which `isTransientFailure` classifies as non-retryable and
+ * `TerminalError`, which `isTransientFailure` classifies as non-retryable and
  * the relay records as `dead` on the first failure.
  */
 
@@ -74,21 +74,21 @@ export function toWriteStep<V extends Record<string, unknown>, C>(
   }: SessionWriteInput): Promise<SessionWriteResult> => {
     const parsedCtx = adapter.ctxSchema.safeParse(ctx);
     if (!parsedCtx.success) {
-      throw new TerminalQueueError(
+      throw new TerminalError(
         `session ${session.id}: its ctx is not a valid write context for the ` +
           `"${adapter.name}" adapter — ${describeLocated(zodIssues(parsedCtx.error))}. The context is set ` +
           "at session open and cannot be repaired by retrying; check what the host passed to " +
-          "`Outbox.openSession`.",
+          "`storage.sessions.open`.",
       );
     }
 
     const fields = adapter.schema.safeParse(reviewed);
     if (!fields.success) {
-      throw new TerminalQueueError(
+      throw new TerminalError(
         `session ${session.id}: the reviewed values are not a valid patch for the ` +
           `"${adapter.name}" adapter — ${describeLocated(zodIssues(fields.error))}. Nothing was written. ` +
           "The review outcome is already persisted, so a retry would fail identically; " +
-          "to try again, re-park with Outbox.reopenSessionForReview(id) and review it afresh.",
+          "to try again, re-park with Storage.sessions.reopenForReview(id) and review it afresh.",
       );
     }
 

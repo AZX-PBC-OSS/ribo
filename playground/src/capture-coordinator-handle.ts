@@ -8,7 +8,7 @@ import { createCaptureCoordinator, type CaptureCoordinator } from "@azx/ribo-ui-
  * the host's instance object through unchanged and constructs nothing, so a
  * session created inside one hook is invisible to a sibling. The coordinator is
  * the host-owned object both ends resolve through, which is why it is
- * constructed here beside the recorder and the outbox rather than by the
+ * constructed here beside the recorder and the storage rather than by the
  * provider.
  *
  * A module singleton for the same two reasons as its siblings: StrictMode's

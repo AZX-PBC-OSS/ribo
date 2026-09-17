@@ -127,7 +127,7 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
   readonly concurrency?: number;
   /**
    * Max retries per group after a transient failure (so the total attempts per
-   * group is `maxRetries + 1`). Terminal failures (`TerminalQueueError` —
+   * group is `maxRetries + 1`). Terminal failures (`TerminalError` —
    * truncation, content filtering, refusal, unsupported) are never retried and
    * never delay. Defaults to 2, capped by the derived budget — see
    * `deriveRetryBudget`.
