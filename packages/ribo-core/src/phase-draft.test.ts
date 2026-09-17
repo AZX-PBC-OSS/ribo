@@ -89,13 +89,10 @@ test("a fully-populated DeepPartial<Enveloped<V>> is not assignable to Enveloped
 // "simplification" of DeepPartial to a non-homomorphic or conditional form mangles enum
 // leaves into something every valid member still assigns to, nothing fails, and leaf
 // validation quietly disappears.
-type Eq<A, B> =
-  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+type Eq<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 
 test("an enum leaf's value survives the deep partial exactly", () => {
-  type PartialCondition = NonNullable<
-    NonNullable<PartialEnv["exterior"]>["condition"]
-  >;
+  type PartialCondition = NonNullable<NonNullable<PartialEnv["exterior"]>["condition"]>;
   // Exactly the three-state leaf: the enum members, `null` ("asked, answered null") and
   // `undefined` ("not yet asked"). The distinction is load-bearing — provenance.ts's
   // anti-hallucination rule depends on it, and a merge helper that collapses it with

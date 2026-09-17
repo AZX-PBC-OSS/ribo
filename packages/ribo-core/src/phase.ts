@@ -71,8 +71,12 @@ export interface PhaseMeta {
 export interface PhaseContext<V extends Record<string, unknown>, P = NoProvenance> {
   /** The one canonical text an extraction reads from, plus its annotations. */
   readonly transcript: AnnotatedTranscript;
-  /** The field knowledge this run extracts against — see `ExtractionTarget`. */
-  readonly target: ExtractionTarget<V>;
+  /**
+   * The field knowledge this run extracts against — see `ExtractionTarget`. Carries the
+   * phase's own `P` so the target's `examples` are the `Enveloped<V, P>` shape the same
+   * strategy's provenance granularity implies, not an all-`"leaf"` one.
+   */
+  readonly target: ExtractionTarget<V, P>;
   /** The caller's cancellation. Advisory to honour, like `ExtractOptions.signal`. */
   readonly signal?: AbortSignal;
   /** Absolute epoch ms after which the caller considers the work failed, like `ExtractOptions.deadline`. */
@@ -90,8 +94,12 @@ export interface PhaseContext<V extends Record<string, unknown>, P = NoProvenanc
  * the combinator. `merge` takes the whole batch (not one result at a time) because some
  * phases' interpretations span a group's outcomes, and it owns every write to the draft.
  */
-export interface PhaseDef<V extends Record<string, unknown>, P = NoProvenance, I = unknown, C = unknown>
-  extends PhaseMeta {
+export interface PhaseDef<
+  V extends Record<string, unknown>,
+  P = NoProvenance,
+  I = unknown,
+  C = unknown,
+> extends PhaseMeta {
   /** The work items for this phase, from the state the previous merges accumulated. */
   readonly plan: (draft: PhaseDraft<V, P>, ctx: PhaseContext<V, P>) => readonly I[];
   /** One unit of work — the only async member. */

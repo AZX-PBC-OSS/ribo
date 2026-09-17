@@ -44,11 +44,13 @@ export type NoteKey<T> = string & { readonly [NoteBrand]?: (value: T) => T };
 /**
  * Brand a plain string id as a {@link NoteKey} for values of type `T`.
  *
- * This is the single cast the branded-key encoding contains: the key is a plain string at
- * runtime and the brand is a compile-time phantom, so there is nothing to construct.
+ * The key is a plain string at runtime and the brand is a compile-time phantom, so there
+ * is nothing to construct — and because the brand property is optional under a
+ * module-private symbol, a plain `string` is directly assignable to the branded
+ * intersection: no cast, even though semantically this is "a cast and nothing else".
  */
 export function noteKey<T>(id: string): NoteKey<T> {
-  return id as NoteKey<T>;
+  return id;
 }
 
 /**

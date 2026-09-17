@@ -1,6 +1,5 @@
 import type { Enveloped, NoProvenance } from "./enveloped.js";
 import type { Extractor } from "./extractor.js";
-import type { PhaseDraft } from "./phase-draft.js";
 import type { Phase, PhaseDef } from "./phase.js";
 import { phaseBuilder } from "./phase.js";
 
@@ -45,11 +44,16 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
   id: string,
   extractor: Extractor<Enveloped<V, P>>,
 ): Phase<V, P> {
-  const def: PhaseDef<V, P, null, {
-    fields: Enveloped<V, P>;
-    raw?: unknown;
-    statedEmptyGroups?: Readonly<Record<string, string>>;
-  }> = {
+  const def: PhaseDef<
+    V,
+    P,
+    null,
+    {
+      fields: Enveloped<V, P>;
+      raw?: unknown;
+      statedEmptyGroups?: Readonly<Record<string, string>>;
+    }
+  > = {
     id,
     plan: () => [WHOLE_DOCUMENT],
     run: async (_item, _draft, ctx) => {
