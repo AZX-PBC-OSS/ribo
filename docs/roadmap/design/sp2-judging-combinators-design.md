@@ -1,13 +1,12 @@
 # SP2 — Judging and bounding: four combinators that do not produce a result
 
 **Date:** 2026-09-17
-**Status:** Draft — for review. No implementation plan written yet.
+**Status:** Draft — revised after review. No implementation plan written yet.
 **Question answered:** "What are the generally useful meta-extractors?" — SP2 of four, the combinators
 that judge or bound a result rather than produce one.
-**Depends on:** `phased-extraction-design.md` (SP1: the phase vocabulary, `phasedExtractor`,
-`retryAsync`), `extractor-arbitration-design.md` (the arbiter shape and the injected-policy
-discipline), `provenance.ts` (`spanGroundedness`, and the recorded finding that confidence does not
-discriminate).
+**Depends on:** `phased-extraction-design.md` (SP1), `extractor-arbitration-design.md` (the arbiter
+contract and the injected-policy discipline), `provenance.ts` and `enveloped.ts` (grounding, and the
+provenance granularities these combinators can and cannot serve).
 **Scope:** SP2 of four. SP3 (parity and scale) and SP4 (the agentic layer) are separate.
 
 ---
@@ -16,27 +15,28 @@ discriminate).
 
 **Every combinator this repo has produces a result. None of them judges one.** `fallbackExtractor`
 and `raceExtractor` choose _between_ results on whether a strategy threw; `groupedExtractor` and
-`phasedExtractor` assemble one. Nothing looks at a returned result and says "this is not good
-enough" — even though the library already computes the evidence to say it.
+`phasedExtractor` assemble one. Two strategies do make grounding decisions internally — gap-fill's
+ungrounded target and the on-device span phase's merge — but both are private to the strategy that
+owns them and invisible to an arbiter, so a ladder still cannot fall through on quality.
 
 **Recommendation: four small combinators over the existing `Extractor` seam.**
 
 - **`consensusExtractor`** runs a list of candidates, compares them leaf by leaf, and nulls the
-  leaves they disagree about while keeping the span. It is the only substantial one.
-- **`validateExtractor`** turns `spanGroundedness` into an accept-or-reject decision an arbiter can
-  act on, so a hallucinating strategy falls through to the next rung instead of being written back.
-- **`budgetExtractor`** bounds what a run may spend.
+  leaves they disagree about while keeping a citation. It is the only substantial one.
+- **`validateExtractor`** turns grounding evidence into a rejection an arbiter acts on.
+- **`budgetExtractor`** detects a run that spent more than a ceiling.
 - **`cachedExtractor`** memoises a result by transcript and target.
 
-Three of the four are wrappers of a few dozen lines. The design work is in `consensus`, in one
-decision inside `budget` (§4.3), and in the cache key (§4.4).
+**The policy is injected in all four.** This repo has made that choice twice — `ExtractionArbiter`
+and `TranscriptCombiner` are caller-supplied functions where the engine owns iteration and the policy
+owns the decision. Named defaults ship the way `terminalFallsThrough` and `acceptAnySuccess` do, so
+choosing a policy is an import rather than a flag.
 
-**The policy is injected in all four, not configured.** This repo has made that choice twice —
-`ExtractionArbiter` and `TranscriptCombiner` are both caller-supplied functions where the engine owns
-iteration and the policy owns the decision. A quorum integer is the special case of a function, so
-the function ships and the integer does not. Named defaults are exported the way
-`terminalFallsThrough` and `acceptAnySuccess` already are, so choosing a policy is an import rather
-than a flag.
+**Two scope limits are load-bearing and are stated here rather than discovered later.**
+`consensus` and `validate` both work by walking per-leaf provenance envelopes, so they can only serve
+groups derived at `"leaf"` granularity and **refuse `"row"` and `"none"` groups at construction**
+(§4.5). And `budget` is a **detector, not a governor** — a wrapper cannot prevent a spend it only
+learns about afterwards, and it is honest around one strategy but not around a ladder (§4.3).
 
 Do not build a scoring framework, a confidence calibrator, or a cross-run statistics store. §5
 records why.
@@ -45,315 +45,343 @@ records why.
 
 ### 2.1 Confidence is a constant, and the library says so
 
-`provenance.ts:49` records it outright: "Uniform-high confidence is not calibration, it is a
-constant." A review rule of the form "flag anything under 0.8" flags nothing, because the model
-reports high confidence for fabricated values as readily as for grounded ones. The on-device
-strategy's own classify step writes `confidence: 1` when a leaf got a value and `0` when it did not,
-with a comment saying it is a placeholder and that the repo already knows confidence does not
-discriminate hallucinations.
+`provenance.ts:49` records it: "Uniform-high confidence is not calibration, it is a constant." A
+review rule of the form "flag anything under 0.8" flags nothing. The on-device classify step writes
+`confidence: 1` when a leaf got a value and `0` when it did not, with a comment saying it is a
+placeholder and that the repo already knows confidence does not discriminate hallucinations.
 
-So the library has a per-leaf trust signal that carries no information, and a reviewer's attention is
-finite. **Agreement between independent samples is a signal the library does not currently compute**,
-and unlike confidence it is not something the model can assert about itself.
+So the library has a per-leaf trust signal carrying no information, and a reviewer's attention is
+finite. **Agreement between independent samples is a signal the library does not compute**, and
+unlike confidence it is not something a model can assert about itself.
 
-### 2.2 The grounding evidence exists and reaches no decision
+### 2.2 Grounding reaches decisions, but only strategy-private ones
 
-`spanGroundedness` returns `"grounded" | "near-miss" | "ungrounded"` and is used at review time to
-render a leaf's citation state. Nothing consults it _before_ review. A strategy that returns a full
-set of confidently-stated, entirely ungrounded fields is indistinguishable, to every combinator in
-the tree, from one that returns well-cited ones — so an arbitration ladder cannot fall through on
-quality, only on failure. `gapFillExtractor`'s `"ungrounded"` target re-asks such leaves, but that is
-a repair pass, not a gate: it still returns the result either way.
+Two places already consult grounding before review: `gapFillExtractor`'s `findUngroundedLeaves`
+selects re-ask candidates from it, and the on-device span phase's merge **gates on
+`isSpanGrounded`**, dropping a leaf whose quote is not verbatim. So the claim is not that grounding
+reaches no decision — it is narrower, and still holds:
 
-### 2.3 A strategy's cost is unbounded and unbindable
+**No composable judging layer exists.** Both decisions are internal to the strategy that makes them
+and invisible from outside it. A `fallbackExtractor` cannot fall through because a rung returned
+confident, well-formed, entirely ungrounded fields; nothing it can see distinguishes that from a good
+result. The span phase is in fact the precedent `validate` generalises — the same decision, lifted to
+where an arbiter can act on it.
 
-`phasedExtractor` derives a retry budget from a step timeout, which bounds _wall clock_. Nothing
-bounds _calls_. A per-group strategy over a twenty-group schema with retries can issue sixty calls,
-and the only thing that stops it is the relay's timeout. This matters more after SP4, where the
-number of calls is chosen by a model rather than by a person.
+### 2.3 Nothing bounds a run's call count
+
+`phasedExtractor` bounds wall clock through the step timeout, and a phase's item count and
+`maxRetries` bound its own calls. What does not exist is a **ceiling** — a number a caller sets that
+the run is measured against. A twenty-group strategy with retries can issue sixty calls and nothing
+says whether that was expected. This matters more after SP4, where the call count is chosen by a
+model rather than a person.
 
 ### 2.4 Re-running an identical extraction costs full price
 
 Development iteration, accuracy sweeps, and a relay retry after a non-extraction failure all re-issue
-the same requests against the same transcript. There is no memoisation anywhere in the extraction
-path.
+the same requests against the same transcript. There is no memoisation in the extraction path.
 
 ## 3. What these cannot mean
 
 **`consensus` cannot mean "average the answers".** There is no metric on an enum leaf, and averaging
-a fabrication with a fact produces a fabrication with a confident-looking provenance. It compares and
-abstains; it never synthesises a value no sample returned.
+a fabrication with a fact produces a fabrication with confident-looking provenance. It compares and
+abstains, and §4.1's signature makes "never synthesises a value no sample returned" a property of the
+type rather than a promise in prose.
 
 **`validate` cannot mean "score the result".** A score invites a threshold, a threshold invites
-tuning, and tuning invites a calibration story this repo has no measurement to support. It returns a
-decision, and the decision is the caller's function.
+tuning, and tuning invites a calibration story this repo has no measurement to support.
 
-**None of them may inspect a strategy's internals.** They wrap an `Extractor` and see what an
-`Extractor` returns. A combinator that needed to know a strategy was phased, or per-group, would be
-coupling a judging layer to a producing one — and the whole point of the seam is that they do not
-know about each other.
+**None may inspect a strategy's internals.** They wrap an `Extractor` and see what one returns.
 
-**`cached` cannot be transparent about staleness.** A cache that returns a result computed against a
-different schema is worse than no cache, because the failure is silent and arrives as field data. §4.4
-makes the schema part of the key rather than trusting a caller to invalidate.
+**`cached` cannot be casual about the key.** A cache serving a result computed against different
+instructions, examples or schema returns data that parses and is wrong, and nothing downstream can
+tell.
 
 ## 4. Design
 
 ### 4.1 `consensusExtractor`
 
 **Candidates are a list**, so "the same extractor sampled three times" is `[x, x, x]` and "three
-engines" is `[a, b, c]`. One shape covers both, and the second is the more interesting one: sampling
-the same model three times finds its instability, while three engines find a systematic error that
-any one of them would report with full confidence.
+engines" is `[a, b, c]`. The second is the more interesting: sampling one model finds its
+instability, while three engines find a systematic error any one of them would report confidently.
 
-**All candidates run.** Unlike `raceExtractor`, there is no first-accept — a consensus of one is not a
-consensus. They run concurrently through the existing `mapWithPool`, bounded, with the caller's signal
-and deadline forwarded.
+**Every candidate runs to settlement, and a failure is a missing sample rather than a failed run.**
+This is explicitly **not** `mapWithPool`: that helper rejects on the first failure and aborts every
+sibling, which is the opposite of what consensus needs. Candidates settle independently under a
+concurrency bound, each receiving the caller's `signal` and `deadline` through its own
+`ExtractOptions` — `mapWithPool` has no channel for forwarding a caller's signal, and would abort the
+survivors on the first rejection.
 
-**A failed candidate contributes no samples**, and the run continues as long as at least
-`minSamples` (default 2) survived. Below that the run fails: reporting agreement between one sample
-and nothing is a lie, and it is exactly the case where a caller would most want to know.
+The run continues while at least `minSamples` candidates survived (default 2), and fails below that,
+naming the count: agreement between one sample and nothing is not agreement.
 
-**Comparison is per leaf, over values only.** The runtime walk over `Enveloped<V, P>` that
-`gapFillExtractor` already owns is reused rather than rewritten. Spans are deliberately **not**
-compared: two samples can quote different sentences and mean the same value, and requiring span
-equality would null nearly everything. The surviving span is taken from the first sample whose value
-matches the accepted one, so the citation belongs to an answer that was actually given.
+**Comparison is per leaf, over values only.** Spans are deliberately not compared — two samples can
+quote different sentences and mean the same value, so requiring span equality would null nearly
+everything.
 
-**The decision is a `ConsensusArbiter`** — a caller-supplied function receiving one leaf's samples and
-returning **an envelope of the same type it was shown**, on either arm. `unanimousValues` is the
-default and `majorityValues` ships beside it, so majority is an import rather than a flag.
+**A path present in fewer samples than survived is contested, not unanimous.** This is the rule that
+closes the collection-group hole: two samples can disagree about _how many instances exist_, so
+`hvac.2.fuel` may appear in one sample and not another. Treating a single-sample path as unanimous
+would accept a hallucinated instance — with citations — from exactly the disagreement consensus
+exists to catch. Sample counts are therefore per **path**, not per candidate, and a path seen by
+fewer than all survivors is contested before the arbiter is consulted.
 
-The type symmetry is the point, and an earlier draft got it wrong: it took envelopes and returned a
-bare value, leaving the combinator to pick the span by a "first sample whose value matches" rule. That
-split value selection from citation selection, so a policy author could choose an answer but not the
-quote supporting it — the shape that produces a leaf whose span belongs to a different answer than its
-value. `ExtractionArbiter` does not make that mistake: it is shown `ExtractionResult<F>` and returns
-`ExtractionResult<F>`. This follows it.
+**The decision is a `ConsensusArbiter`**, generic in the leaf's value type:
 
-**The arbiter is generic in the leaf's value type, not `unknown`, and that is what enforces §3's
-promise.** Written `<T>(input: { samples: readonly Extracted<T>[] }) => …`, `T` is opaque inside any
-conforming policy, so a fabricated literal does not typecheck — `{ accept: { value: "Gas", … } }` is
-rejected because `"Gas"` is not assignable to an unresolved `T`. The only envelopes assignable are
-the ones the policy was handed. "It compares and abstains; it never synthesises a value no sample
-returned" stops being a sentence in this document and becomes the signature.
+- Written `<T>(input: { path: readonly (string | number)[]; samples: readonly Extracted<T>[] }) => …`,
+  `T` is opaque inside any conforming policy, so `{ accept: { value: "Gas", … } }` does not
+  typecheck — `"Gas"` is not assignable to an unresolved `T`. The only envelopes assignable are the
+  ones the policy was handed. §3's "never synthesises a value no sample returned" becomes the
+  signature. An `Extracted<unknown>` version would not do this, since everything is assignable to
+  `unknown`.
+- `T` is routinely a union — a leaf is `"Oil" | "Gas" | null` — and a parametric policy compares
+  inhabitants without knowing which union it holds.
+- **The path is structured, never a formatted string.** `gap-fill.ts` records the rule: nothing parses
+  a formatted path back apart. A `string` path would push every consumer toward exactly that parse.
+- **The second arm is `contested`, not `reject`**, because a parametric policy cannot build the
+  nulled envelope either — `null` is no more assignable to an opaque `T` than a literal is. So it
+  names **the sample whose citation survives**, and the combinator writes `value: null,
+confidence: 0` over it. The policy picks the span; the combinator does only what the policy
+  provably cannot.
+- **Two arms rather than one**, even though `=> Extracted<T>` is smaller: the combinator must know a
+  leaf was contested to count them, and the contested count is the headline signal this produces. It
+  is unrecoverable afterwards, because a leaf the samples agreed was `null` and one they fought over
+  are byte-identical.
 
-An `Extracted<unknown>` version does not do this: everything is assignable to `unknown`, so a policy
-could invent a value and the compiler would agree. That was the first draft's real defect; the
-value-versus-envelope asymmetry was the visible half of it.
+`unanimousValues` is the default; `majorityValues` ships beside it. **`majorityValues` is defined
+only over paths every survivor produced** — with unequal instance counts there is no meaningful
+majority over an index only some samples reached, and the per-path rule above has already contested
+those.
 
-`T` is routinely a union — a leaf is `"Oil" | "Gas" | null` or `number | null` — and each sample
-picks one inhabitant of the leaf's declared type. A parametric policy compares them without needing
-to know which union it is looking at, which is the whole point.
+**This reasoning is about the compiler and has not been run.** The plan must pin it first: a policy
+returning a fabricated literal, and one returning `{ value: null }`, must both fail to compile, with
+`@ts-expect-error`. If either compiles the signature does not deliver what this section claims, and
+the claim comes out rather than the type.
 
-**The second arm is `contested`, not `reject`, because a parametric policy cannot build the nulled
-envelope.** `null` is no more assignable to an opaque `T` than `"Gas"` is. So the rejection arm does
-not mean "here is the envelope I made"; it means **"the samples disagreed — keep this one's
-citation"**, and the combinator writes `value: null, confidence: 0` over it. The policy still chooses
-which span survives; the combinator's only job is the one thing the policy provably cannot do.
-
-**Two arms rather than one**, even though `=> Extracted<T>` would be smaller: the combinator has to
-know a leaf was contested in order to count them, and the contested count is the headline signal this
-combinator exists to produce. It is not recoverable from the envelope, because a leaf the samples
-agreed was `null` and a leaf they fought over are byte-identical afterwards.
-
-**This reasoning is about the compiler and has not been run.** The implementation plan must pin it
-before anything is built: a policy attempting to return a fabricated literal, and one attempting to
-return `{ value: null }`, must both fail to compile, asserted with `@ts-expect-error`. If either
-compiles, the signature does not deliver what this section claims and the claim comes out rather than
-the type.
-
-That shape is not arbitrary: it is exactly a `gapFillExtractor` candidate — a null value with a
-non-null span — so consensus and gap-fill compose into "sample three times, then re-ask about
-whatever they disagreed on", and review already renders a null leaf as needing a human.
-
-**Usage sums across every candidate**, because they all ran. The cost is N times a single extraction
-and the doc comment says so in the first paragraph; a combinator that tripled a bill without
-announcing it would be a trap.
+**Usage sums `calls` and tokens across every candidate**, because they all ran, and the cost is N
+times a single extraction — the doc comment says so first, since a combinator that triples a bill
+without announcing it is a trap. `engine` and `strategy` are **omitted**: they identify one producer
+and a consensus has several, so reporting the first would name a transport that produced only part of
+the result.
 
 ### 4.2 `validateExtractor`
 
-Wraps an `Extractor`. After it returns, walks the leaves, computes each one's `spanGroundedness`, and
-hands the census to a caller-supplied policy. The policy returns ok, or a rejection carrying a reason.
+Wraps an `Extractor`, walks the leaves, computes each one's `spanGroundedness`, hands the census to a
+caller-supplied policy, and either returns the result untouched or throws.
 
-**A rejection is an error, not a flag**, because the arbiter contract already acts on errors: a
-`fallbackExtractor` rung that rejects falls through to the next strategy with no new mechanism. A flag
-would need a channel through `ExtractionResult` that every consumer would then have to check, and
-most would not.
+**The rejection is terminal, and an earlier draft had this exactly backwards.** It said transient, on
+the reasoning that a resample might do better. But `terminalFallsThrough` — the conservative default
+arbiter — **continues on a terminal error and gives up on a transient one**, because a transient
+failure means the transport is down and the next strategy shares it. Classifying a validation
+rejection transient therefore produces the opposite of the advertised behaviour: the ladder gives up,
+the relay classifies the step failure transient, and re-runs the **whole extract step including the
+hallucinating rung**, on backoff, until `dead`. A hallucination detector that becomes a full-price
+retry loop.
 
-The error is a new `ValidationRejectedError` carrying the census, and it is **transient** by
-`isTransientFailure`'s default — a resample may well do better, and the arbiter decides whether to
-fall through.
+Terminal is also the honest reading. "This strategy produced ungrounded output" is a property of the
+strategy, not a blip — retrying _it_ is what transient means, and that is not this. So
+`ValidationRejectedError` extends `TerminalError`, the shipped default arbiter falls through with no
+new arbiter needed, and a ladder that exhausts reaches `dead` rather than looping, which is correct
+for output no strategy could ground.
 
 **The default policy rejects when any leaf holds a non-null value whose span is `"ungrounded"`**, and
-tolerates `"near-miss"`. That is the strict reading of the repo's own anti-hallucination rule: a
-committed value citing text that is not in the transcript is the failure mode the provenance envelope
-exists to catch. It is strict enough that some hosts will want to relax it, which is why it is a
-function.
+tolerates `"near-miss"` — the strict reading of the repo's own anti-hallucination rule. It is strict
+enough that some hosts will want to relax it, which is why it is a function.
 
-### 4.3 `budgetExtractor` — and the decision this design has to make
+### 4.3 `budgetExtractor` — a detector, and where it is honest
 
-A wrapper can only see what an `Extractor` _returns_. So a post-hoc budget can report that a run cost
-too much; it cannot stop it. **The money is already spent by the time the wrapper sees the usage.**
+A wrapper sees only what an `Extractor` returns, so it reports an overspend it cannot prevent. Real
+prevention needs a meter on `ExtractOptions` that every implementation honours — another advisory
+contract nothing enforces, whose value is highest exactly where it is least verifiable. Build the
+detector; name the governor; say in the doc comment which one this is.
 
-Two honest options, and this design picks the first:
+**And say where the detector is honest, because it is not everywhere.** An error outcome carries no
+usage, and an arbitration engine returns only the accepted candidate's result. So a `budgetExtractor`
+wrapped **around a ladder** sees only the winning rung's usage — every rejected candidate's calls are
+invisible, and the ceiling under-counts precisely when strategies are being skipped for cost. That is
+the composition an earlier draft recommended, and it was wrong. The detector belongs **around a
+single strategy**, where the usage it reads is the usage that was spent.
 
-**(a) A post-hoc detector.** `budgetExtractor` checks the returned usage against a ceiling and rejects
-when it is exceeded. Useless for preventing the current spend, useful for the _next_ one: an arbiter
-falls through to a cheaper strategy, and a host learns that a strategy's cost profile changed.
-Zero contract change, a few dozen lines.
-
-**(b) A real governor.** A meter on `ExtractOptions`, alongside `signal` and `deadline`, that
-cooperating extractors decrement and consult before each call — so the ceiling actually stops work.
-This is the shape that genuinely bounds cost, and `deadline` is the precedent for adding it.
-
-**Recommendation: build (a) now and name (b) as the thing to build when there is a caller for it.**
-(b) is a contract widening every implementation must honour, and its value is highest precisely where
-it is hardest to verify — a third-party extractor that ignores the meter looks identical to one that
-respects it. The design's own §8 for SP1 warned about advisory contracts nothing enforces; a meter is
-another one. (a) is not a fake version of (b): detection and prevention are different jobs, and the
-detector composes with an arbiter to do something useful today.
-
-Say this plainly in the doc comment, so nobody ships (a) believing they have (b).
+**`maxCalls` is the member that works everywhere.** Token ceilings measure managed extractors only:
+`calls` is `ExtractionUsage`'s one required member, the on-device phases report no tokens, and
+several paths report `{ calls: 1 }` and nothing else. A token ceiling on an on-device strategy is
+vacuous, and the doc comment says so rather than letting a host discover it.
 
 ### 4.4 `cachedExtractor`
 
-Memoises by a key over **the transcript text and the target's identity**, where identity means the
-target's `name` _and_ a hash of its `extractionSchema`. The schema must be in the key: a cache that
-serves a result computed against a different field set returns data that parses and is wrong, and
-nothing downstream can tell. Trusting a caller to invalidate is the same bet, made worse by being
-implicit.
+The key covers **the transcript text and the whole target**: `name`, `instructions`, `examples` and
+the schema. Instructions and examples are the prompt — two targets identical in name and schema but
+differing in examples produce different output, and a key omitting them serves one's result for the
+other. That is the same silent-wrong-data failure the key exists to prevent, introduced by the key.
+
+**The schema is hashed via `z.toJSONSchema`**, the serialization this repo already uses to send a
+schema to a model, with a stable stringification and a `crypto.subtle` digest — core is browser-side,
+so the Node `crypto` used in the acceptance harness is not available. The plan specifies the exact
+recipe; "a hash of its extractionSchema" is a placeholder, not a spec.
 
 **Failures are never cached.** A transient failure cached for the session turns one bad minute into a
 permanent one.
 
-**The store is injected**, with an in-memory `Map` default. Worth recording: `PluginStorage` looks
-like the obvious backing and is the wrong lifetime — its scope is documented as "entries die when the
-capture does", so it cannot serve the re-run-the-same-transcript case a cache exists for. A host that
-wants persistence supplies its own.
+**The store is injected**, in-memory `Map` by default. `PluginStorage` looks like the obvious backing
+and is the wrong lifetime — its scope is documented as "entries die when the capture does", so it
+cannot serve the re-run-the-same-transcript case a cache exists for.
 
-### 4.5 Placement
+### 4.5 Both judging combinators refuse row and none granularity, at construction
 
-All four go in **`ribo-core`**, beside the combinators they sit with. None needs message assembly, a
-chat client, or a provider concept: they wrap an `Extractor` and read `ExtractionResult`.
-`consensusExtractor` needs the runtime leaf walk currently private to `gapFillExtractor` in
-`ribo-extractor-openai` — that walk moves to core, where a core combinator can reach it, and the
-openai package imports it rather than keeping a copy.
+`consensus` and `validate` work by walking per-leaf provenance envelopes. A `"row"` group has no such
+envelopes — it is plain nullable values plus one row-level span — and a `"none"` group has none
+either. A walk that identifies a leaf by its `value` and `confidence` members passes both straight
+through, so a naive implementation would **compare nothing and count nothing** in exactly those
+groups, while returning a result that looks judged.
+
+That is the worst available outcome, because row provenance exists _because_ per-cell citations were
+measured 37% fabricated. Being silently blind there inverts the sub-project's purpose.
+
+So both **throw at construction** when the target declares a `"row"` or `"none"` group, naming the
+group and saying why — the same refusal `threePhaseExtractor` already makes for the same reason, with
+the same shape of message. A host with such a target learns before any call is made.
+
+Extending the walk to carry the schema, so row spans are judged too, is the right end state and is
+deliberately not this sub-project: review's own walk already reads row spans, so the mechanism exists
+to copy when there is a consumer asking for it.
+
+### 4.6 Placement
+
+All four go in **`ribo-core`**. None needs message assembly or a provider concept. `consensus` needs
+the runtime leaf walk currently **module-private** inside `gapFillExtractor` — so this is a move into
+core plus a new export, not a re-export of something already public.
 
 ## 5. Considered and rejected
 
-**A scoring framework.** A number per result, thresholds, weights. There is no measurement in this
-repo that would justify any particular weighting, and a score invites exactly the false precision
-`provenance.ts:49` already warns about for confidence.
+**A scoring framework.** No measurement here justifies any weighting, and a score invites the false
+precision `provenance.ts:49` already warns about for confidence.
 
-**Calibrating confidence.** Tempting, since the field exists and is useless. It needs labelled data
-this project does not have, and the honest alternative — agreement between samples — needs none.
+**Calibrating confidence.** Needs labelled data this project does not have; agreement between samples
+needs none.
 
-**A cross-run statistics store.** "This strategy has been rejected 40% of the time this week" is a
-different product with a persistence story, and the two persisted state machines in this repo are
-already the thing `AGENTS.md` §1 warns about growing a third of.
+**A cross-run statistics store.** A different product with a persistence story, and `AGENTS.md` §1
+warns about growing a third state machine.
 
-**A quorum integer on `consensus`.** The function subsumes it, and the repo's own precedent is an
-injected policy. Shipping both would be two ways to say one thing.
+**A quorum integer on `consensus`.** The function subsumes it.
 
-**`consensus` routing disagreements to review as a new contested state.** Strictly more useful than
-nulling — a human picking between "Gas" and "Propane" beats being told nothing was found. It is also a
-new envelope member, a new `ReviewField` state, a session-schema migration and playground UI: a
-cross-package sub-project rather than a combinator. Nulling-with-span reaches review through the
-existing null-leaf path and composes with gap-fill for free. Revisit if reviewers ask for it.
+**`consensus` routing disagreements to review as a contested state.** Strictly more useful — a human
+picking between "Gas" and "Propane" beats being told nothing was found. Also a new envelope member, a
+new `ReviewField` state, a session-schema migration and playground UI: a cross-package sub-project.
+Nulling-with-citation reaches review through the existing null-leaf path and composes with gap-fill
+for free. Revisit if reviewers ask for it.
+
+**`validate` rejecting transiently.** §4.2. It produces the opposite of the intended behaviour under
+the shipped default arbiter, and a retry loop at the relay.
 
 ## 6. Interfaces
 
-Described rather than typed in full; the shapes that are load-bearing:
-
-- `consensusExtractor<V, P>(candidates, options): Extractor<Enveloped<V, P>>` where `options` carries
-  the `ConsensusArbiter`, `minSamples`, `concurrency`, and the observer — in `ribo-core`.
-- `ConsensusArbiter` — `<T>(input: { path: string; samples: readonly Extracted<T>[] }) =>
-{ accept: Extracted<T> } | { contested: Extracted<T> }`. **Rank-2**: generic in the leaf's value
-  type, so a conforming policy cannot fabricate a value (§4.1). Type-symmetric, as
-  `ExtractionArbiter` is — shown `ExtractionResult<F>`, returns `ExtractionResult<F>`.
-  Two arms rather than `ArbiterVerdict`'s three: no `continue`, because every sample is already in
-  hand, and no `giveUp`, because one leaf's disagreement is a result rather than a failure.
-  Untagged, following `arbitration.ts`'s recorded reasoning that distinct required key names narrow
-  correctly under `in` and a tag would buy no safety.
-
-  Note the call site instantiates at `unknown`, because the leaf walk is runtime and has no static
-  type for a leaf. The guarantee is therefore at every policy's **definition** site rather than at
-  the combinator's call site — which is where it is worth having, since the policies are the code a
-  host writes.
-
-- `unanimousValues` and `majorityValues` — the shipped policies.
+- `consensusExtractor<V, P>(candidates, options): Extractor<Enveloped<V, P>>` — options carry the
+  `ConsensusArbiter`, `minSamples`, `concurrency` and the observer.
+- `ConsensusArbiter` — `<T>(input: { path: readonly (string | number)[]; samples: readonly
+Extracted<T>[] }) => { accept: Extracted<T> } | { contested: Extracted<T> }`. Rank-2, so a policy
+  cannot fabricate (§4.1). Two arms, untagged, following `arbitration.ts`'s recorded reasoning that
+  distinct required key names narrow under `in`. The call site instantiates at `unknown` because the
+  walk is runtime; the guarantee is at each policy's **definition** site, which is the code a host
+  writes.
+- `unanimousValues`, `majorityValues` — the shipped policies.
 - `validateExtractor<F>(extractor, policy, options): Extractor<F>`, `ValidationPolicy`,
-  `ValidationRejectedError`, and `groundingCensus` — the pure function producing the per-leaf
-  groundedness tally, exported because it is useful on its own.
-- `budgetExtractor<F>(extractor, options): Extractor<F>` with `maxCalls` and the token ceilings, and
+  `ValidationRejectedError extends TerminalError`, and `groundingCensus` — the pure per-leaf tally,
+  exported because it is useful alone.
+- `budgetExtractor<F>(extractor, options): Extractor<F>` with `maxCalls` and token ceilings, and
   `BudgetExceededError`.
-- `cachedExtractor<F>(extractor, options): Extractor<F>` with an injected `ExtractionCache` (get/set
-  over a string key) and an in-memory default.
+- `cachedExtractor<F>(extractor, options): Extractor<F>` with an injected `ExtractionCache` and an
+  in-memory default.
 
 ## 7. Costs
 
-- **Code and bundle.** Four small modules in core plus one walk moved into it. No new dependency.
-- **Breaking.** None. All four are additive, and the moved leaf walk keeps its export from the openai
-  package as a re-export so no consumer breaks.
-- **Runtime.** `consensus` multiplies calls by the candidate count. That is the point, and it is the
-  one thing in SP2 a host can misuse expensively.
+- **Code and bundle.** Four small modules plus one walk moved into core. No new dependency.
+- **Breaking.** None; all additive. The moved walk was private, so nothing depended on it.
+- **Runtime.** `consensus` multiplies calls by the candidate count — the one thing in SP2 a host can
+  misuse expensively.
 - **Documentation.** `docs/guide/arbitration.md` gains the judging layer beside the choosing one.
 
 ## 8. What would make this the wrong call
 
-- **Agreement turns out not to discriminate either.** The premise is that independent samples
-  disagree where a model is fabricating and agree where it is reading. Untested here. The cheapest
-  refutation is running `consensus` with three samples over the existing corpus and seeing whether
-  the nulled leaves correlate with the known-wrong ones — if they do not, `consensus` is an expensive
-  way to lower fill rate and should be dropped rather than tuned.
-- **Nobody composes a judging combinator.** These are only useful inside an arbitration ladder or
-  before a write. If every host runs one strategy and writes the result, `validate` has no consumer.
-- **The default validation policy is too strict to ship with.** If a real corpus rejects most runs on
-  a single ungrounded leaf, the default is wrong even if the mechanism is right — and the fix is a
+- **Agreement does not discriminate either.** The premise is that samples disagree where a model
+  fabricates and agree where it reads. Untested. The cheapest refutation is running `consensus` with
+  three samples over the existing corpus and checking whether the contested leaves correlate with the
+  known-wrong ones. If they do not, `consensus` is an expensive way to lower fill rate and should be
+  dropped rather than tuned.
+- **Nobody composes a judging combinator.** These are useful inside a ladder or before a write. If
+  every host runs one strategy and writes it, `validate` has no consumer.
+- **The default validation policy is too strict to ship.** If a real corpus rejects most runs on a
+  single ungrounded leaf, the default is wrong even if the mechanism is right — and the fix is a
   different default, not a threshold nobody can justify.
-- **`budget` (a) gets mistaken for (b).** If anyone ships a cost guarantee on top of the post-hoc
-  detector, the doc comment failed and the meter should be built.
+- **The row/none refusal is the wrong trade.** If the targets people actually run are mostly row
+  granularity, SP2 refuses the majority of real work and the walk extension was the thing to build.
 
 ## 9. Must-fail tests
 
-- Three candidates agreeing on a leaf keep its value and one of their spans; three disagreeing null
-  the value and keep a span; two agreeing and one dissenting null it under `unanimousValues` and keep
-  it under `majorityValues`.
-- A policy that returns a **different sample's envelope** than the combinator would have chosen gets
-  that envelope, span included — the pin that value and citation are selected together rather than by
-  two different parties.
-- A policy returning a fabricated literal does not compile, and neither does one returning
-  `{ value: null }` — both pinned with `@ts-expect-error`. These are the assertions that make §3's
-  "never synthesises a value no sample returned" a property rather than a promise; if either
-  compiles, the signature is wrong.
-- The contested-leaf count reflects rejections and not agreed-upon nulls: a run where every sample
-  said `null` for a leaf reports zero contested, and a run where they disagreed reports one.
-- A leaf where one sample committed and another abstained is a **disagreement**, not a
-  commitment — the model contradicting itself is the case this exists to catch.
+- Three candidates agreeing keep the value and a citation; three disagreeing null the value and keep
+  one; two agreeing with one dissenting null under `unanimousValues` and keep under `majorityValues`.
+- A leaf one sample committed and another abstained on is a **disagreement**.
+- **A path present in fewer samples than survived is contested** — a sample producing a fourth `hvac`
+  instance the others do not see has it nulled, not accepted.
+- A policy returning a fabricated literal does not compile; nor does one returning `{ value: null }`.
+  Both `@ts-expect-error`. If either compiles, §4.1's claim is wrong.
+- A policy returning a **different sample's envelope** gets that envelope, span included.
+- The contested count reflects rejections, not agreed-upon nulls.
 - A candidate that rejects contributes no samples and does not fail the run while `minSamples`
-  survive; dropping below `minSamples` fails it, naming the count.
-- `consensus` sums usage across every candidate, and forwards the caller's signal and deadline to all
-  of them.
-- `validate`'s default policy rejects a result holding a committed value with an `"ungrounded"` span,
-  tolerates `"near-miss"`, and passes a fully grounded one; the rejection is classified transient, and
-  a `fallbackExtractor` with a rejecting first rung reaches its second.
-- `budget` rejects a result whose usage exceeds the ceiling and passes one that does not — and its
-  doc comment says it cannot prevent the spend, pinned by a test asserting the inner extractor ran.
-- `cached` serves a second identical call from the store without invoking the inner extractor;
-  a changed transcript misses; **a changed `extractionSchema` with an identical transcript misses**;
-  a rejection is not cached, so the next call retries.
+  survive; below it the run fails, naming the count. A candidate's rejection does **not** abort its
+  siblings.
+- `consensus` omits `engine` and `strategy` from its usage, and sums `calls`.
+- Constructing `consensus` or `validate` against a target with a `"row"` group throws, naming it.
+- `validate`'s rejection is **terminal**, and a `fallbackExtractor` with `terminalFallsThrough` and a
+  rejecting first rung **reaches its second** — the pin that §4.2's correction is real.
+- `budget` rejects a result exceeding the ceiling; its doc comment says it cannot prevent the spend,
+  pinned by asserting the inner extractor ran.
+- `cached` misses on a changed transcript, a changed schema, **changed instructions**, and **changed
+  examples**; serves an identical call without invoking the inner; never caches a rejection.
 
 ## 10. Sequencing
 
-1. Move the runtime leaf walk from `gapFillExtractor` into core, re-exported, with its tests.
-2. `validateExtractor` + `groundingCensus` — the smallest, and it proves the reject-as-error shape.
+1. Move the leaf walk into core with its tests, and add the `"leaf"`-granularity guard both judging
+   combinators use.
+2. `validateExtractor` + `groundingCensus` — smallest, and it proves the terminal-rejection shape
+   end to end through a real `fallbackExtractor`.
 3. `budgetExtractor` and `cachedExtractor` — independent, either order.
-4. `consensusExtractor` last: it needs the moved walk, and it is the one whose behaviour is worth
-   having the other three's patterns settled before writing.
+4. `consensusExtractor` last: it needs the moved walk, and its behaviour is worth writing after the
+   other three's patterns have settled.
 5. Guide updates and a `minor` changeset.
 
-Then **SP3** — `hedgedExtractor`, `raceTranscriber`, and the long-input trio. Then **SP4**, the
-agentic layer, whose action space these four widen: a planner that can compose "sample three times
-and abstain on disagreement, reject if ungrounded, under a call ceiling" is choosing between
+Then **SP3**, then **SP4**, whose action space these widen: a planner able to compose "sample three
+times and abstain on disagreement, reject if ungrounded, under a call ceiling" is choosing between
 strategies that differ in more than which model they call.
+
+## Reviewed
+
+Reviewed by OpenCode (`glm-5p3-flash`, run 6819) before any plan was written. All findings applied;
+three changed the design rather than its wording.
+
+**`validate`'s error classification was backwards.** The draft said transient so an arbiter could
+fall through. `terminalFallsThrough` does the opposite — it continues on terminal and gives up on
+transient, because the next strategy shares the transport. The review traced the consequence: the
+ladder gives up, the relay classifies the step transient, and re-runs the whole extract step
+including the hallucinating rung until `dead`. §4.2 now makes the rejection terminal, which is both
+the working behaviour and the honest reading.
+
+**Both judging combinators would have been blind to `"row"` and `"none"` groups.** The reused walk
+identifies a leaf by its `value` and `confidence` members; a row group has neither, so `consensus`
+would compare nothing and `validate` count nothing there — precisely the wide tables where per-cell
+citations were measured 37% fabricated. They now refuse those targets at construction, following
+`threePhaseExtractor`'s precedent.
+
+**`consensus` had a hole that admitted the fabrication it exists to catch.** Sample counts were
+per candidate, so a path only one sample produced was trivially unanimous — meaning a hallucinated
+extra instance would be accepted, with citations. Counts are now per path.
+
+Four mechanism errors: `mapWithPool` cannot implement the stated failure semantics (it rejects on
+first failure, aborts siblings, and has no channel for a caller's signal); `budget` reads only the
+winning rung's usage, so the ladder composition the draft recommended is exactly where it
+under-counts; the cache key omitted `instructions` and `examples`, which _are_ the prompt; and the
+schema hash was a placeholder rather than a recipe.
+
+Two evidence claims were overstated and are now narrowed: grounding does reach pre-review decisions
+(gap-fill's finder, the span phase's merge gate) — the real claim is that no _composable_ judging
+layer exists, and the span-phase gate is a precedent supporting `validate` rather than a
+counterexample. And the leaf walk is module-private, so moving it is a move, not the re-export the
+draft claimed.
