@@ -114,6 +114,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "outboxRxSchema",
     "parseFieldPath",
     "parseWithSchema",
+    "phaseBuilder",
     "pluginStorageDocumentSchema",
     "pluginStorageEntryId",
     "pluginStorageRxSchema",

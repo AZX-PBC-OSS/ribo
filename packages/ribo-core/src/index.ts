@@ -443,3 +443,11 @@ export type { DeepPartial, PhaseDraft } from "./phase-draft.js";
 // `run` and `merge` speak. Discriminated on `outcome`, matching `arbitration.ts`'s
 // `ExtractionOutcome` rather than inventing a second outcome vocabulary.
 export type { PhaseItemOutcome, PhaseOutput } from "./phase-outcome.js";
+// The phase type itself: plan/run/merge with the item and contribution types hidden
+// EXISTENTIALLY behind one `with` member — never erased with a cast — so the engine that
+// lands in a later wave cannot hand one phase's items to another phase's `run` without a
+// compile error. The metadata stays on the outside for the construction check and a
+// planner. `phaseBuilder<V, P>()` is curried: V/P fixed once per strategy, I/C inferred
+// per phase.
+export { phaseBuilder } from "./phase.js";
+export type { Phase, PhaseContext, PhaseDef, PhaseMeta } from "./phase.js";
