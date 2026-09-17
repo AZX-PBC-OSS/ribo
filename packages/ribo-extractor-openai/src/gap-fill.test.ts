@@ -1,4 +1,4 @@
-import { enveloped, FakeExtractor, isTransientFailure, SchemaParseError } from "@azx/ribo-core";
+import { enveloped, extractorPhase, FakeExtractor, isTransientFailure, phasedExtractor, SchemaParseError } from "@azx/ribo-core";
 import type { Enveloped, ExtractionTarget, Extractor, PhaseUnit } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
@@ -11,6 +11,7 @@ import {
   gapFillExtractor,
   mergeGapFilledLeaves,
 } from "./gap-fill.js";
+import { gapFillPhase } from "./gap-fill-phase.js";
 import { singleShotExtractor } from "./single-shot.js";
 
 /**
@@ -871,5 +872,39 @@ describe("gapFillOptions provenance parameter", () => {
     } as unknown as Enveloped<OtherValues>);
     // @ts-expect-error base extractor's Enveloped<OtherValues> is not assignable to the target's Enveloped<{rooms:string},{rooms:"row"}>
     gapFillExtractor({ base, target, chat: {} as ChatClient, model: "test" });
+  });
+});
+
+describe("gapFillExtractor — the composition claim", () => {
+  test("a hand-assembled phase list — extractorPhase base, then gapFillPhase — matches the preset", async () => {
+    // The design's argument for `extractorPhase` is that any `Extractor` becomes
+    // a phase, so a host can put an existing combinator and a custom phase in one
+    // list. This port is the first evidence, and this test pins the claim: the
+    // preset's exact body, assembled by hand, producing the same fields. The base
+    // phase is pinned to `maxRetries: 0` at the run level, as the preset does —
+    // `extractorPhase` declares no retries of its own.
+    const transcript = { text: "t", annotations: {} };
+    const base = () =>
+      new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } });
+    const followUp = () => fakeChat(JSON.stringify(followUpResponse)).chat;
+
+    const handAssembled = await phasedExtractor<GapValues>({
+      target: gapTarget,
+      maxRetries: 0,
+      phases: [
+        extractorPhase("base", base()),
+        gapFillPhase({ target: gapTarget, chat: followUp(), model: "m" }),
+      ],
+    }).extract(transcript);
+
+    const preset = await gapFillExtractor({
+      base: base(),
+      target: gapTarget,
+      chat: followUp(),
+      model: "m",
+    }).extract(transcript);
+
+    expect(handAssembled.fields).toEqual(preset.fields);
+    expect(handAssembled.usage).toEqual(preset.usage);
   });
 });
