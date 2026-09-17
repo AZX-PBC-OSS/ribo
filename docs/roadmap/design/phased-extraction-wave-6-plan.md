@@ -34,13 +34,19 @@
 
 **`run`** builds and makes today's presence call and returns the boolean map for that group, reporting `{ calls: 1, engine: chat.engine }` on `PhaseOutput.usage`. The `engine` stamp matters: today's result carries `usage.engine` and a review card uses it to say which engine produced a draft, and the engine accumulator takes it from the first phase output that reports one.
 
-**`merge`** stores each group's boolean map in `notes`, and for a **failed** item nulls that group's leaves — `value: null`, `confidence: 0`, `sourceSpan: null`, matching today's group-level catch.
+**`merge` seeds every group with a full null envelope, and this is the task's load-bearing detail.** It stores each group's boolean map in `notes` **and** writes every group's complete leaf set as `value: null, confidence: 0, sourceSpan: null` — for successful items as well as failed ones. Later phases overwrite individual leaves; the seed is the floor.
+
+Without it, a group whose presence map is **all false** has no item in any later phase, and the engine skips `merge` entirely on an empty plan — so no merge would ever write that group. Today every path commits a group result, including that all-false early-out. Ported without the seed, the group's key is simply **missing** from the fields; because the group schemas are `.optional()`, the closing parse then **succeeds silently** with the group absent, and the failure surfaces much later as a `TypeError` when something reads a leaf off it. Presence is the only phase whose `plan` is never empty (the schema walk refuses a zero-group target at construction), so it is the only phase that can own the floor.
+
+**Every merge that writes a group entry applies the array wrap.** A collection group's value is the leaf-envelope map wrapped in a one-element array; a flat group's is the map itself. Today's code does this at its single commit point. With four merges writing group entries, it belongs in one shared helper that all of them use — otherwise three of the four will get it right and the fourth will produce a shape only the closing parse rejects, after every call has been paid for.
 
 **The construction-time refusal moves here.** A group derived at `"row"` or `"none"` provenance granularity has no per-leaf envelope, and this strategy asks for one verbatim span per leaf, so it cannot extract that group. Today `extractGroups` throws at construction with a message naming the group and the leaf and explaining the alternative. Keep that message and keep it at construction — before any call is made.
 
 - [ ] **Step 1: Write the failing tests**
 
   `plan` returns one item per group regardless of the draft; `run` makes one call and stamps `engine`; `merge` stores the map under the note key; a failed item nulls that group's leaves including their spans; the row/none refusal throws at construction with the group and leaf named.
+
+  **And the two seed pins:** after `merge`, a group whose presence map is **all false** still has a complete null-filled entry in `fields` — the case no later phase can reach; and a collection group's entry is a **one-element array** while a flat group's is the bare map.
 
 - [ ] **Step 2: Run to verify they fail** — Expected: FAIL, the module does not exist.
 
@@ -92,6 +98,10 @@
 
 **`classifyWrappedPhase.plan`** reads the unsupported leaves and returns one item each — no items, no call, no event, which is the empty-plan case. Its `run` makes today's wrapped-schema call with today's suffixed request name. Its `merge` is classify's.
 
+**The catch must be narrow.** `run` rethrows everything that is not `unsupported` — a refusal and a malformed response are retried today and must stay retried, and a branded cancellation must propagate or the engine's cancellation rule is defeated at the one place it matters most. A broad catch here silently re-creates the bug this port is supposed to fix.
+
+**The marker reports `{ calls: 1 }`.** The call was made and today's code counts it; a marker carrying no usage would undercount every unsupported leaf.
+
 **Both phases are one item per leaf**, so `describeItem` returns `{ key: group.key, leaf: leaf.key }`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -134,9 +144,12 @@
 
 1. **Event ordering is phase-major, not group-major.** Any assertion on the sequence across groups changes. `pass` and `phaseId` survive; `pass: 3` is now reachable.
 2. **The wrapped fallback is a separate phase.** The test pinning one unit id with continuing attempt numbers across both request shapes is the assertion this port exists to change: the wrapped call is now its own item with its own id at `pass: 3`. Rewrite it to assert the two-phase sequence.
-3. **The observer's unit type widened.**
-4. **Reference identity is lost** — the closing parse rebuilds every object.
-5. **`usage.calls` counts successful items, not attempts** — the same change the previous port named.
+3. **`usage.calls` counts successful items, not attempts** — the same change the previous port named.
+4. **The rejection type on caller-abort paths changes.** Today an already-aborted signal rejects with `ChatError` kind `"aborted"`, and a test asserts exactly that. Ported, `retryAsync`'s pre-attempt check throws core's `CancellationError` before the transport is reached — and it is timing-dependent: an abort arriving between attempts _after_ a real failure rethrows **that failure** instead. Amend the aborted-run assertions to go through `isCancellation` rather than naming a concrete class.
+5. **The unsupported attempt's event changes from `error` to `done`.** Today the bare attempt that reports `unsupported` emits an error event; ported, `run` returns a marker rather than throwing, so the engine — which emits `error` only for a thrown attempt — emits `done`. The unsupported fact stops being visible in the event stream and travels only in `notes`.
+6. **The closing parse's error type changes.** Today a bad merged shape throws a raw `ZodError`; the engine throws a `SchemaParseError` carrying a context prefix.
+
+Two categories the previous ports needed do **not** apply here, and no failure should be filed under them: the observer's unit type is already `ExtractionObserver<PhaseUnit>`, and this suite holds no reference-identity assertions.
 
 **A failure fitting none of these is a real regression — stop and report.**
 
@@ -146,7 +159,9 @@
 
 - [ ] **Step 3: Add the assertions nothing currently covers**
 
-  A cancellation mid-run rejects rather than resolving with nulled leaves — **the live bug this port fixes**, since today's classify path has no cancellation check. Pin it for a caller-aborted signal and for a transport `aborted` error. Also: the derived retry budget for the preset is the requested 3 on a fresh clock with the device-sized ceiling (the regression Task 4's `perCallCeilingMs` prevents), and no backoff delay is taken between attempts (the regression its `delay` prevents).
+  A cancellation **mid-call** rejects rather than resolving with nulled leaves — **the live bug this port fixes**, since today's classify path has no cancellation check. It must be mid-call: the fake observes the abort while the request is in flight. A between-attempts abort rejects through `retryAsync` whether or not `run` forwards `ctx.signal` at all, so a between-attempts test passes against an implementation that drops the signal entirely — which is the regression worth catching. Pin it for a caller-aborted signal and for a transport `aborted` error.
+
+  Also: no backoff delay is taken between attempts (the regression Task 4's `delay` prevents), and the derived retry budget is the requested 3 with the device-sized ceiling. **Note in that test that it holds at the fixture's scale.** The per-phase share is the remaining time divided by the phases left, so at a dozen-plus grounded leaves the share cuts the budget even with the 15 s ceiling. That is the deadline-slicing weakness the design already names, with `onRetryBudget` as its evidence channel — so add a many-leaf case asserting the event fires and names the classify phase, which makes starvation observable rather than silent.
 
 - [ ] **Step 4: Run the package suite** — Expected: PASS.
 
@@ -158,7 +173,7 @@
 
 **Files:**
 
-- Modify: `packages/ribo-core/src/extraction-observer.ts`, `index.ts`, `extraction-observer.test.ts`, and the two doc comments in `grouped-extractor.ts` and `phased-extractor.test.ts` that name them
+- Modify: `packages/ribo-core/src/extraction-observer.ts`, `index.ts`, `extraction-observer.test.ts`, and **three** prose references that name the retiring types: `grouped-extractor.ts`, `phased-extractor.test.ts` and `gap-fill.ts`. The mentions inside `instance-fill.test.ts` are historical commentary about how the strategy used to report and are left as history — say so rather than editing them.
 
 **Why now.** `GapFillUnit`, `InventoryUnit` and `InstanceUnit` described three strategies that now emit `PhaseUnit`. Nothing constructs them: a survey found references only in the barrel, the observability type test, and two prose comments. Leaving them would be three exported types describing events the library no longer produces.
 
@@ -174,7 +189,7 @@
 
 - [ ] **Step 1: Add a changeset**
 
-  `@azx/ribo-extractor-ondevice` **major**, `@azx/ribo-core` **major** (three exported types removed). Name: the three retired unit types; phase-major event ordering; the wrapped fallback becoming its own phase with its own unit id; lost reference identity; `usage.calls` semantics. And the fix worth naming as a fix — a cancellation during classification now rejects instead of resolving with silently nulled leaves.
+  `@azx/ribo-extractor-ondevice` **major**, `@azx/ribo-core` **major** (three exported types removed). Name: the three retired unit types; phase-major event ordering; the wrapped fallback becoming its own phase with its own unit id; `usage.calls` semantics; the rejection type on caller-abort paths; the unsupported attempt's event moving from `error` to `done`; and the closing parse throwing a `SchemaParseError` rather than a raw `ZodError`. And the fix worth naming as a fix — a cancellation during classification now rejects instead of resolving with silently nulled leaves.
 
 - [ ] **Step 2: Run the full gate** — `./check.sh`, `pnpm docs:build`, `pnpm changeset status --since=origin/main`.
 
@@ -191,3 +206,39 @@
 ## Notes for the reviewer
 
 Three things most worth adversarial attention. First, Task 3's unsupported-as-contribution: whether returning a marker rather than throwing genuinely avoids the retry budget, and whether anything else in the transport's error vocabulary should take the same route. Second, whether phase-major ordering breaks any assumption the on-device model session actually has — the design concedes this argument is reasoned, not measured, and it is the one thing here that a passing suite cannot confirm. Third, whether the skip policy plus the engine's cancellation rule really does fix the classify-path bug, or whether there is still a route by which a cancelled run resolves with nulled leaves.
+
+## Reviewed
+
+Reviewed by OpenCode (`glm-5p3-flash`, run 185e) before implementation. All findings applied.
+
+It verified the four claims this plan rests on rather than taking them: a thrown `unsupported`
+genuinely would burn the retry budget (`ChatError` carries a status only for the `http` kind, so
+`isTransientFailure` returns true for it), and no other kind should take the marker route; the
+failure-policy asymmetry is the right way round; the cancellation bug is live, reachable through a
+transport abort with the caller's signal un-fired, and the engine's rule does close it; and the
+managed-ceiling arithmetic is right — twelve batches at 120 s exceeds the full step timeout, so the
+budget exhausts to zero.
+
+The finding that would have stalled the port: **nobody null-fills a group whose presence map is all
+false.** Today every path commits a group result, including that early-out. Ported, such a group has
+no item in any later phase and the engine skips `merge` on an empty plan, so no merge covers it — and
+because the group schemas are `.optional()`, the closing parse succeeds silently with the key
+missing, surfacing later as a `TypeError` on a leaf read. Presence's `merge` now seeds every group's
+full null envelope as the floor. The array wrap was also unmentioned, and with four merges writing
+group entries it needs to be one shared helper.
+
+Two amendment categories were missing and both would have tripped the stop-and-report rule on a spec
+gap rather than a regression: the rejection type on caller-abort paths is no longer always
+`ChatError.aborted` (and is timing-dependent), and the unsupported attempt's event moves from
+`error` to `done`, which makes that fact event-invisible.
+
+Three smaller corrections: the marker must report `{ calls: 1 }` or the unsupported path undercounts;
+`run`'s catch must be narrow, because a broad one re-creates the cancellation bug at the exact site
+this port fixes it; and the cancellation test must abort **mid-call**, since a between-attempts abort
+rejects through `retryAsync` whether or not `run` forwards the signal at all.
+
+It also caught that my budget pin is fixture-scale — at a dozen grounded leaves the per-phase share
+cuts the budget even with the device ceiling — which is the deadline-slicing weakness the design
+already names, so the plan now asks for the `onRetryBudget` assertion that makes starvation
+observable. Two of my five amendment categories were vacuous for this suite and are now called out
+as such rather than left for an implementer to file nothing under.
