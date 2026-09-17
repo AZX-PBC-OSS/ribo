@@ -1,5 +1,5 @@
 import { enveloped, FakeExtractor, isTransientFailure, SchemaParseError } from "@azx/ribo-core";
-import type { Enveloped, ExtractionTarget, Extractor, GapFillUnit } from "@azx/ribo-core";
+import type { Enveloped, ExtractionTarget, Extractor, PhaseUnit } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
@@ -376,7 +376,7 @@ describe("gapFillExtractor — progress units", () => {
     const { chat } = fakeChat(JSON.stringify(followUpResponse), {
       usage: { promptTokens: 30, completionTokens: 12 },
     });
-    const events: GapFillUnit[] = [];
+    const events: PhaseUnit[] = [];
     await gapFillExtractor({
       base,
       target: gapTarget,
@@ -391,12 +391,9 @@ describe("gapFillExtractor — progress units", () => {
     const done = events[1]!;
     expect(start.unit).toBe("gapfill");
     expect(start.phase).toBe("start");
-    // How many abstained-with-evidence leaves the follow-up is asking about.
-    expect(start.candidates).toBe(2);
     // No retry loop here, so 1 is the honest report on every event.
     expect(start.attempt).toBe(1);
     expect(done.phase).toBe("done");
-    expect(done.candidates).toBe(2);
     expect(done.id).toBe(start.id);
     // The event's usage is the follow-up completion's own, not the combined total.
     expect(done.usage).toEqual({ inputTokens: 30, outputTokens: 12 });
@@ -408,7 +405,7 @@ describe("gapFillExtractor — progress units", () => {
     // break the pinned "no second call, no wrapper object, no usage change".
     const base = new FakeExtractor<GapExtraction>(committedFields, { usage: { calls: 1 } });
     const { chat, requests } = fakeChat(JSON.stringify(followUpResponse));
-    const events: GapFillUnit[] = [];
+    const events: PhaseUnit[] = [];
     const result = await gapFillExtractor({
       base,
       target: gapTarget,
@@ -457,7 +454,7 @@ describe("gapFillExtractor — progress units", () => {
     const followUpUsage = { promptTokens: 30, completionTokens: 12 };
 
     const observed = fakeChat(JSON.stringify(followUpResponse), { usage: followUpUsage });
-    const events: GapFillUnit[] = [];
+    const events: PhaseUnit[] = [];
     const withObserver = await gapFillExtractor({
       base: new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } }),
       target: gapTarget,

@@ -19,66 +19,60 @@
  * low-noise look at the model's own uncertain calls, not an
  * always-fill-the-blanks pass.
  *
- * With no candidates the base result passes through untouched: no second call,
- * no wrapper object, no usage change — and no progress event, since no work
- * happens to announce. Otherwise the result is fresh, only the candidate leaves
- * move, and usage reports the base run plus one call.
+ * With no candidates the base result passes through: no second call, no usage
+ * change — the follow-up phase's `plan` finds nothing and the engine skips it.
+ * (Its base phase still reports its one unit to `onUnit` — see
+ * {@link GapFillOptions.onUnit}.) Otherwise the result is fresh, only the
+ * candidate leaves move, and usage reports the base run plus one call.
  *
  * The finish-reason gate, terminal-transport classification and parse helpers
- * are the shared ones from `extraction-common.ts`. The leaf
- * walk and merge below share the codebase's one generic RUNTIME walker over
- * `Enveloped<V>` data — the walker in `enveloped()` is schema-time and serves
- * a different purpose.
+ * are the shared ones from `extraction-common.ts`, used by the follow-up phase
+ * in `gap-fill-phase.ts`. The leaf walk and merge below share the codebase's
+ * one generic RUNTIME walker over `Enveloped<V>` data — the walker in
+ * `enveloped()` is schema-time and serves a different purpose.
  */
 
 import { z } from "zod";
 
-import { nextUnitId, spanGroundedness } from "@azx/ribo-core";
+import { extractorPhase, phasedExtractor, spanGroundedness } from "@azx/ribo-core";
 import type {
-  AnnotatedTranscript,
   Enveloped,
   Extracted,
   ExtractionObserver,
   Extractor,
-  ExtractionResult,
   ExtractionTarget,
-  ExtractionUsage,
-  GapFillUnit,
   NoProvenance,
+  PhaseUnit,
 } from "@azx/ribo-core";
 
-import type { ChatClient, ChatMessage, ChatUsage } from "./chat-client.js";
-import type { UsageTotals } from "./extraction-common.js";
-import {
-  addUsage,
-  assertStopFinishReason,
-  completeOrClassify,
-  parseJsonContent,
-  parseWithSchema,
-} from "./extraction-common.js";
-import type { ExtractOptions } from "@azx/ribo-core";
+import type { ChatClient, ChatMessage } from "./chat-client.js";
+import { gapFillPhase } from "./gap-fill-phase.js";
 
 /**
  * Options for {@link gapFillExtractor}.
  *
- * Inherits `onUnit` from {@link ExtractionObserver}, narrowed to {@link GapFillUnit}
- * (design `extraction-observability-design.md` §0.1 — the follow-up call is a unit
- * of work and is none of the other five). Only the follow-up path emits: `start`,
- * then `done` or `error`, with `attempt` always 1 — there is no retry loop. The
- * passthrough path emits nothing, matching its "no second call" contract.
+ * Inherits `onUnit` from {@link ExtractionObserver}, widened to {@link PhaseUnit}:
+ * the extractor is a `phasedExtractor` preset, so the engine owns the unit stream
+ * and every event is a phase event — one for the base phase's single item and, on
+ * the follow-up path, one for the follow-up call (`phaseId` distinguishes them;
+ * `attempt` is always 1, there is no retry loop on either phase). The passthrough
+ * path — no candidates — emits the base phase's `start`/`done` pair and nothing
+ * else. This is a widening from the pre-port `GapFillUnit` events: a handler
+ * written against the old type will now receive events its type did not name.
  */
 export interface GapFillOptions<
   V extends Record<string, unknown>,
   P = NoProvenance,
-> extends ExtractionObserver<GapFillUnit> {
+> extends ExtractionObserver<PhaseUnit> {
   /**
    * The wrapped extractor. Its result is the base the follow-up merges into.
    *
    * Handed over ALREADY BUILT — a composite in the sense of design
-   * `extraction-observability-design.md` §0.3, not of its Ask 2: there is no
-   * observer threading to do here, because the base's own units flow through
-   * whatever `onUnit` the caller gave the base when constructing it. `onUnit` on
-   * THIS options object observes the follow-up call only.
+   * `extraction-observability-design.md` §0.3, not of its Ask 2: the base's own
+   * units flow through whatever `onUnit` the caller gave the base when
+   * constructing it, and `onUnit` on THIS options object observes the engine's
+   * phase events, which cover the base phase's single item as well as the
+   * follow-up call.
    */
   readonly base: Extractor<Enveloped<V, P>>;
   /**
@@ -445,52 +439,32 @@ export const acceptImprovements = (
 };
 
 /**
- * The base run's usage plus one more call, with token totals summed via
- * {@link addUsage}. A total appears only when the base run or the follow-up
- * actually reported it: absent and `0` must never collapse (see `UsageTotals`).
- * `engine`/`strategy` and any other base fields survive the spread.
- */
-const combinedUsage = (
-  baseUsage: ExtractionUsage,
-  followUpUsage: ChatUsage | undefined,
-): ExtractionUsage => {
-  const totals: UsageTotals = {};
-  addUsage(totals, followUpUsage);
-  const sum = (base: number | undefined, added: number | undefined): number | undefined =>
-    added === undefined ? base : (base ?? 0) + added;
-  return {
-    ...baseUsage,
-    calls: baseUsage.calls + 1,
-    promptTokens: sum(baseUsage.promptTokens, totals.promptTokens),
-    completionTokens: sum(baseUsage.completionTokens, totals.completionTokens),
-    cachedPromptTokens: sum(baseUsage.cachedPromptTokens, totals.cachedPromptTokens),
-    cacheCreationPromptTokens: sum(
-      baseUsage.cacheCreationPromptTokens,
-      totals.cacheCreationPromptTokens,
-    ),
-  };
-};
-
-/**
  * Wrap a base {@link Extractor} with one bounded follow-up pass over
  * abstained-with-evidence leaves — see the file header for the failure this
  * addresses.
  *
- * On each `extract`:
- *   1. Run `base.extract(transcript)`.
- *   2. Collect the abstained-with-evidence leaves ({@link findAbstainedLeaves}).
- *      With none, return the base result unchanged — same object, same usage.
- *   3. Otherwise make exactly ONE follow-up call — reported through `onUnit` as
- *      one `gapfill` unit carrying the candidate count: the transcript plus each
- *      candidate's own quote, pinned to a strict schema carrying exactly the
- *      candidate leaves keyed by path, each entry being that leaf's own
- *      envelope schema out of `target.extractionSchema` — so the response is
- *      validated against the same value constraints as the original call. The
- *      response crosses the same gates as any extraction here:
- *      {@link assertStopFinishReason}, then `parseWithSchema`.
- *   4. Merge ({@link mergeGapFilledLeaves}): only candidate leaves change, into
- *      a fresh result object; `normalize` runs once over the merged whole, and
- *      usage sums the base run plus this call.
+ * The body is a `phasedExtractor` preset of two phases — this is the port that
+ * proved {@link extractorPhase}, the lift that makes any `Extractor` a phase
+ * (design `phased-extraction-design.md` §4.7):
+ *
+ *   1. **The base phase** ({@link extractorPhase}) runs `base.extract` —
+ *      pinned to `maxRetries: 0`, because today's wrapper calls the base
+ *      exactly once and the engine's default of 2 would retry a transiently
+ *      failing base with real backoff, stacking on whatever retry policy the
+ *      base already has and emitting per-attempt error events.
+ *   2. **The follow-up phase** ({@link gapFillPhase}) collects the candidates
+ *      from the base's fields ({@link findAbstainedLeaves}, and
+ *      {@link findUngroundedLeaves} when `targets` enables it), makes the ONE
+ *      follow-up call scoped to exactly those leaves' schemas, and merges the
+ *      improvements back — applying `normalize` there, so it runs once on the
+ *      follow-up path and never on the passthrough path (the engine skips a
+ *      phase whose `plan` found no work, which is where today's "no second
+ *      call, no usage change" passthrough lives).
+ *
+ * The pure helpers below — the candidate finders, the leaf-path formatter, the
+ * merge, the message assembly with its two directives, and the improvement
+ * filter — are what the phase is built from; they are kept here, unchanged,
+ * because their doc comments are the reasoning this strategy exists to keep.
  */
 export function gapFillExtractor<V extends Record<string, unknown>, P = NoProvenance>({
   base,
@@ -502,120 +476,17 @@ export function gapFillExtractor<V extends Record<string, unknown>, P = NoProven
   onUnit,
   targets = ["abstained"],
 }: GapFillOptions<V, P>): Extractor<Enveloped<V, P>> {
-  const wanted = new Set<GapFillTarget>(targets);
-  const context = `gapFillExtractor: model response for "${target.name}"`;
-  // `-`, not `:` — the schema-name charset constraint documented in per-group.
-  const name = `${target.name}-gap-fill`;
-
-  return {
-    async extract(
-      transcript: AnnotatedTranscript,
-      options?: ExtractOptions,
-    ): Promise<ExtractionResult<Enveloped<V, P>>> {
-      const baseResult = await base.extract(transcript, options);
-      const candidates = [
-        ...(wanted.has("abstained") ? findAbstainedLeaves(baseResult.fields) : []),
-        ...(wanted.has("ungrounded")
-          ? findUngroundedLeaves(baseResult.fields, transcript.text)
-          : []),
-      ];
-
-      // The passthrough emits NOTHING: no call is made, so there is no unit to
-      // report. A phantom event here would announce work that never happened.
-      if (candidates.length === 0) return baseResult;
-
-      const id = nextUnitId();
-      onUnit?.({ id, unit: "gapfill", phase: "start", attempt: 1, candidates: candidates.length });
-      try {
-        // Scope the follow-up to exactly the candidate leaves, keyed by formatted
-        // path: each entry carries that leaf's own envelope schema out of the
-        // extraction schema, so the response is validated against the same value
-        // constraints (enum members, string vs number) as the original call.
-        const shape: Record<string, z.ZodType> = {};
-        for (const candidate of candidates) {
-          shape[formatLeafPath(candidate.path)] = leafSchemaAtPath(
-            target.extractionSchema,
-            candidate.path,
-          );
-        }
-        const responseSchema = z.strictObject(shape);
-        const jsonSchema = z.toJSONSchema(responseSchema, { target: "draft-2020-12" }) as Record<
-          string,
-          unknown
-        >;
-
-        const completion = await completeOrClassify(
-          chat,
-          {
-            model,
-            messages: buildGapFillMessages(target, transcript.text, candidates),
-            response_format: {
-              type: "json_schema",
-              json_schema: { name, schema: jsonSchema, strict: true },
-            },
-            maxTokens,
-          },
-          context,
-          options,
-        );
-
-        assertStopFinishReason(completion, context);
-
-        const raw = parseJsonContent(completion.content, context);
-        // Every value was just parsed against a leaf envelope schema, so the
-        // record's `unknown` values ARE envelopes; the index signature cannot see it.
-        const parsed = parseWithSchema(responseSchema, raw, context) as Record<
-          string,
-          Extracted<unknown>
-        >;
-
-        const merged = mergeGapFilledLeaves(
-          baseResult.fields,
-          acceptImprovements(parsed, candidates, transcript.text),
-        );
-
-        const result: ExtractionResult<Enveloped<V, P>> = {
-          fields: normalize(merged),
-          // Mirrors per-group: `raw` is the assembled whole the final normalize ran
-          // over, so both calls' contributions stay visible in one place.
-          raw: merged,
-          usage: combinedUsage(baseResult.usage, completion.usage),
-          ...(baseResult.statedEmptyGroups !== undefined
-            ? { statedEmptyGroups: baseResult.statedEmptyGroups }
-            : {}),
-        };
-        // `done` fires only once the whole path has succeeded, so the unit settles
-        // exactly once: `done` if and only if extract() resolves, `error` if and
-        // only if it rejects — never both, never neither.
-        onUnit?.({
-          id,
-          unit: "gapfill",
-          phase: "done",
-          attempt: 1,
-          candidates: candidates.length,
-          // The follow-up completion's own usage — the combined base-plus-follow-up
-          // total belongs to the result's `usage`, not to this unit's event.
-          ...(completion.usage !== undefined
-            ? {
-                usage: {
-                  inputTokens: completion.usage.promptTokens,
-                  outputTokens: completion.usage.completionTokens,
-                },
-              }
-            : {}),
-        });
-        return result;
-      } catch (error) {
-        onUnit?.({
-          id,
-          unit: "gapfill",
-          phase: "error",
-          attempt: 1,
-          candidates: candidates.length,
-          error,
-        });
-        throw error;
-      }
-    },
-  };
+  return phasedExtractor({
+    target,
+    // Neither phase retries: the base is called exactly once, and the follow-up
+    // phase pins its own zero (see gap-fill-phase.ts). This run-level zero is
+    // what pins the BASE phase — `extractorPhase` declares no `maxRetries` of
+    // its own, so without it the base would inherit the engine's default of 2.
+    maxRetries: 0,
+    phases: [
+      extractorPhase("base", base),
+      gapFillPhase({ target, chat, model, maxTokens, targets, normalize }),
+    ],
+    onUnit,
+  });
 }

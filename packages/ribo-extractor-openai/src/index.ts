@@ -46,8 +46,11 @@ export { instanceLadder } from "./instance-ladder.js";
 export type { InstanceLadderOptions } from "./instance-ladder.js";
 
 // The gap-fill combinator: wraps a base extractor with one bounded follow-up
-// call over leaves that abstained despite quoting evidence. The leaf-walk and
-// merge helpers are exported for testing, as `buildGroupMessages` is.
+// call over leaves that abstained despite quoting evidence. It is a
+// `phasedExtractor` preset — an `extractorPhase` base followed by the
+// follow-up phase — so a host can assemble the same phase list by hand and
+// extend it with phases of its own. The leaf-walk and merge helpers are
+// exported for testing, as `buildGroupMessages` is.
 export {
   findAbstainedLeaves,
   findUngroundedLeaves,
@@ -56,6 +59,12 @@ export {
   mergeGapFilledLeaves,
 } from "./gap-fill.js";
 export type { AbstainedLeaf, GapFillOptions, GapFillTarget } from "./gap-fill.js";
+
+// The gap-fill follow-up phase itself — the second phase of the
+// `gapFillExtractor` preset, exported so a host can assemble and extend the
+// phase list by hand (design `phased-extraction-design.md` §4.7).
+export { gapFillPhase } from "./gap-fill-phase.js";
+export type { GapFillPhaseOptions } from "./gap-fill-phase.js";
 
 // The schema-retry combinator: wraps a base extractor with a bounded
 // self-correction loop that feeds a `SchemaParseError` back to the model as
