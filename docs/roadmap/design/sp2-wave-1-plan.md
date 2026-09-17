@@ -12,7 +12,14 @@
 
 ## Global Constraints
 
-- **The walk is moved, not rewritten.** Its identity-preservation — a subtree keeps its reference when nothing under it changed — is what lets `gapFillExtractor`'s merge leave untouched leaves reference-equal to the base, and that is pinned by existing tests. A rewrite that returns fresh objects everywhere passes a naive test and breaks the property.
+- **The walk is moved, not rewritten.** Its identity-preservation — a subtree keeps its reference when nothing under it changed — is what lets `gapFillExtractor`'s merge leave untouched leaves reference-equal to the base. A rewrite that returns fresh objects everywhere passes a naive test and breaks the property.
+
+  The gate is real, and it is narrower than it looks: the `toBe` assertions live in gap-fill's
+  **pure-helper** tests, not its extractor-level ones, which assert `toEqual` because the engine's
+  closing parse rebuilds every object anyway. So it is those helper tests the move must keep green,
+  and Task 1's own new tests pin the same property on the walk directly. Either alone would be thin;
+  together they are sufficient.
+
 - **`gap-fill.ts`'s existing suite passes unmodified.** That is the gate on the move. If an assertion needs changing, stop and report: it means the move changed behaviour.
 - **No combinator is built here.** No `consensus`, no `validate`, no `budget`, no `cached`. This wave is their shared foundation and nothing else.
 - `ribo-core` must not import from any `ribo-extractor-*` package.
@@ -76,17 +83,72 @@
 
 So a host with such a target learns at construction, before any call is made — the same refusal `threePhaseExtractor` already makes for the same reason.
 
-**How to detect it.** Core already exports `isExtractedSchema`, which answers "is this zod type the three-key envelope" — reuse it rather than re-deriving what an envelope looks like. For each top-level group of the extraction schema: unwrap a `z.ZodArray` (a collection group is an array of row objects) and any optional/nullable wrapper, then check every property of the resulting object. A group is `"leaf"` granularity when **every** property is an `isExtractedSchema`; it is not when any property is a plain value.
+**How to detect it — and it must be a recursive predicate, not an unwrap-then-check.** Core already
+exports `isExtractedSchema`, which answers "is this zod type the three-key envelope" — reuse it rather
+than re-deriving what an envelope looks like. The predicate is:
 
-**Distinguish the two failures in the message, because the fix differs.** A group carrying a row-level `sourceSpan` key alongside plain leaves was derived at `"row"`; one with plain leaves and no such key was derived at `"none"`. `ROW_SOURCE_SPAN_KEY` is exported from `enveloped.ts` — use it rather than the literal. The message names the combinator, the group, which granularity it appears to be, and that the combinator needs per-leaf envelopes. Follow the tone of `three-phase-extractor.ts`'s refusal, which is the closest precedent.
+- `isExtractedSchema` → **leaf**, short-circuit. This case must come first.
+- a `z.ZodArray` → recurse into its element.
+- an optional/nullable wrapper → recurse into its inner type.
+- a `z.ZodObject` → recurse into every property; leaf only if all of them are.
+- anything else (a bare nullable primitive) → **not** leaf granularity.
 
-**One thing to get right rather than assume:** a group whose properties are themselves nested groups (not leaves) is not automatically a failure. Check what `enveloped()` actually produces for a nested group before deciding — if nesting is possible at `"leaf"` granularity, the check must recurse rather than reject. Read `enveloped.ts` and say in the commit message which it is.
+**A one-level "unwrap the array, then check the object's properties" version is wrong**, and wrong in
+a way the reference adapter would never reveal. `enveloped()` derives `z.array(z.string())` to an
+array of **envelopes**, not an array of objects — so after unwrapping the array the check is holding
+an envelope, whose own properties (`value`, `confidence`, `sourceSpan`) are not envelopes, so a
+legitimate `"leaf"` group is rejected. Worse, since that envelope carries a `sourceSpan` key, the
+discrimination below would misreport it as `"row"`. The same failure hits an array nested inside a
+group and a top-level bare leaf. None of these shapes occur in the Snugg Pro adapter, so a
+one-level implementation passes the reference composition and fails for every other host — which is
+precisely who a core export exists to serve.
+
+**Nesting at `"leaf"` granularity does exist**, which settles the question an earlier draft deferred:
+`enveloped()` recurses a nested `z.ZodObject` at the group's granularity, and its own rationale is
+that a matrix of named tests must stay independently-reviewable envelopes. So the check recurses; it
+does not reject a group whose properties are themselves groups.
+
+**Distinguish the two failures in the message, because the fix differs.** A row unit carrying a
+row-level `sourceSpan` key alongside plain leaves was derived at `"row"`; one with plain leaves and
+no such key was derived at `"none"`. `ROW_SOURCE_SPAN_KEY` is exported from `enveloped.ts` — use it
+rather than the literal.
+
+**Run the discrimination on the row unit only** — the top-level group object, or the unwrapped
+element of a collection group — never on a nested object the recursion reached. A nested object
+inside a `"row"` group gets plain leaves and **no** `sourceSpan` key of its own, so a recursive
+implementation that discriminates wherever it happens to fail would report that subtree as `"none"`
+when the group is `"row"`. Granularity is a property of the group; the recursion only answers
+whether a leaf envelope was found.
+
+The message names the combinator, the group, which granularity it appears to be, and that the
+combinator needs per-leaf envelopes. Follow the tone of the on-device presence phase's refusal, the
+closest precedent.
 
 - [ ] **Step 1: Write the failing tests**
 
-  Build schemas with `enveloped()` rather than by hand, so the fixtures are what the library really produces: an all-`"leaf"` schema passes; a schema with one `"row"` group throws, naming the combinator and that group; a `"none"` group throws, naming it; a schema mixing a `"leaf"` group and a `"row"` group throws naming **only** the offending one; a collection group (array of envelopes) at `"leaf"` granularity passes, which is the case an array-unwrap bug would break.
+  Build every fixture with `enveloped()` rather than by hand, so they are what the library really
+  produces rather than what someone believes it produces.
 
-  Assert on the message content, not just that it throws: a guard whose message does not identify the group is half a guard, and the host reading it has to find the group themselves.
+  The passing cases, each of which a one-level implementation gets wrong — **name both array shapes
+  separately, because they diverge exactly on the bug above**:
+
+  - an all-`"leaf"` schema of flat groups;
+  - a collection group derived from an array of **objects** (the `hvac` shape) — passes even a
+    one-level implementation, so it is not sufficient on its own;
+  - a group derived from an array of **primitives** (`z.array(z.string())`), which `enveloped()`
+    turns into an array of envelopes — this is the fixture that fails a one-level implementation;
+  - a group containing a **nested object** of envelopes, which pins that the check recurses rather
+    than rejecting;
+  - a **top-level bare leaf** (`{ notes: z.string().optional() }`).
+
+  The failing cases: a `"row"` group throws naming the combinator and that group; a `"none"` group
+  throws naming it; a schema mixing a `"leaf"` group with a `"row"` group throws naming **only** the
+  offending one; and a `"row"` group containing a nested object is reported as `"row"`, **not** as
+  `"none"` — the pin that discrimination runs on the row unit rather than wherever the recursion
+  stopped.
+
+  Assert on the message content, not just that it throws: a guard whose message does not identify the
+  group is half a guard, and the host reading it has to find the group themselves.
 
 - [ ] **Step 2: Run to verify they fail** — Expected: FAIL, the module does not exist.
 
@@ -123,3 +185,34 @@ So a host with such a target learns at construction, before any call is made —
 ## Notes for the reviewer
 
 Two things most worth adversarial attention. First, whether the move genuinely preserves the walk's identity semantics — the gap-fill suite is the gate, so the question is whether that suite actually pins the property or merely happens to pass. Second, the guard's schema walk: whether unwrapping arrays and optional/nullable wrappers is sufficient for what `enveloped()` really produces, and whether a nested group at `"leaf"` granularity exists and would be wrongly rejected.
+
+## Reviewed
+
+Reviewed by OpenCode (`glm-5p3-flash`, run 9b82) before implementation. All findings applied.
+
+The guard's algorithm was wrong. "Unwrap the array, then check the object's properties" rejects
+legitimate `"leaf"` schemas — `enveloped()` derives `z.array(z.string())` to an array of _envelopes_,
+so the unwrap lands on an envelope whose own properties are not envelopes, and the group is judged
+non-leaf and then misreported as `"row"` because the envelope carries a `sourceSpan` key. An array
+nested in a group and a top-level bare leaf fail the same way. It is now a recursive predicate.
+
+The reason that would have shipped is worth recording: **none of those shapes occur in the Snugg Pro
+adapter**, so a one-level implementation passes the reference composition and fails for every other
+host — which is exactly who a core export serves. The gap-fill suite proves the array-of-envelopes
+shape is real.
+
+The question this plan deferred has a definite answer: nesting at `"leaf"` granularity exists, so the
+check recurses rather than rejects — and none of the originally-listed fixtures would have caught a
+non-recursive implementation. The fixture list now names both array shapes separately, because they
+diverge exactly on the bug, plus the nested-object and bare-leaf cases.
+
+One hazard the recursion creates that the first draft could not have: a nested object inside a
+`"row"` group has plain leaves and no `sourceSpan` key of its own, so a guard that discriminates
+wherever the recursion failed would call that subtree `"none"` when the group is `"row"`.
+Discrimination now runs on the row unit only, with a test pinning it.
+
+The identity gate was verified genuine, with a precision the plan now carries: gap-fill's `toBe`
+assertions are in its **pure-helper** tests, not its extractor-level ones, which use `toEqual`
+because the engine's closing parse rebuilds everything. The gate rests on the helper tests, and
+together with Task 1's own new tests the coverage is sufficient. The move itself is clean — the three
+declarations have no callers outside `gap-fill.ts`.
