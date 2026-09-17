@@ -1,8 +1,5 @@
-import {
-  CAPTURE_MIGRATION_STRATEGIES,
-  backfillSessions,
-  removeOutboxDatabase,
-} from "./database.js";
+import { backfillSessions } from "@azx/ribo-core";
+import { CAPTURE_MIGRATION_STRATEGIES, removeOutboxDatabase } from "./database.js";
 import { openRxdbBackend } from "./open.js";
 import type { RxdbStorageBackend } from "./backend.js";
 import { addRxPlugin, createRxDatabase } from "rxdb";
@@ -782,7 +779,8 @@ test("a backfill that already created the session does not insert it twice", asy
     .exec();
   await doc!.incrementalPatch({ legacy: { extracted: { hvac: "furnace" } } });
 
-  await backfillSessions((storage.backend as RxdbStorageBackend).database);
+  // Core's backfill, over the port — the same call `openOutboxDatabase` makes.
+  await backfillSessions(storage.backend);
 
   expect(await storage.sessions.list({})).toHaveLength(1);
   await storage.close();

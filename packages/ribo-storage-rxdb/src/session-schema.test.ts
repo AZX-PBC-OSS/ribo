@@ -203,7 +203,7 @@ describe("SESSION_MIGRATION_STRATEGIES[2] — v1 → v2 backfills instanceKeys",
         },
       },
     } as SessionDocument;
-    const migrated = migrate[2](v1);
+    const migrated = migrate[2]!(v1);
     expect(
       (migrated.reviewOutcome as { instanceKeys?: Record<string, string[]> } | undefined)
         ?.instanceKeys,
@@ -212,7 +212,7 @@ describe("SESSION_MIGRATION_STRATEGIES[2] — v1 → v2 backfills instanceKeys",
 
   test("a v1 document with no reviewOutcome migrates unchanged", () => {
     const v1 = validSession() as SessionDocument;
-    const migrated = migrate[2](v1);
+    const migrated = migrate[2]!(v1);
     expect(migrated).toEqual(v1);
     expect(migrated.receipts).toBeUndefined();
     expect(migrated.reviewOutcome).toBeUndefined();
@@ -223,7 +223,7 @@ describe("SESSION_MIGRATION_STRATEGIES[2] — v1 → v2 backfills instanceKeys",
       ...validSession(),
       reviewOutcome: { status: "discarded" as const },
     } as SessionDocument;
-    const migrated = migrate[2](v1);
+    const migrated = migrate[2]!(v1);
     expect(migrated).toEqual(v1);
   });
 
@@ -238,7 +238,7 @@ describe("SESSION_MIGRATION_STRATEGIES[2] — v1 → v2 backfills instanceKeys",
       },
       receipts: { singleton: "uuid-1" },
     } as SessionDocument;
-    const migrated = migrate[2](v2);
+    const migrated = migrate[2]!(v2);
     expect(migrated).toEqual(v2);
   });
 });
@@ -253,7 +253,7 @@ describe("statedEmptyGroups — additive optional field on v2, cleared on re-ext
         fields: { hvac: [{ hvacSystemEquipmentType: "Boiler" }] },
       },
     } as SessionDocument;
-    const migrated = SESSION_MIGRATION_STRATEGIES[2](v1);
+    const migrated = SESSION_MIGRATION_STRATEGIES[2]!(v1);
     expect(migrated.statedEmptyGroups).toBeUndefined();
   });
 

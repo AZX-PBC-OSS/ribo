@@ -72,6 +72,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "askPhase",
     "assertLeafGranularity",
     "assertStopFinishReason",
+    "backfillSessions",
     "baseDocumentCaptureSchema",
     "basePayloadSchema",
     "baseRecordingSchema",

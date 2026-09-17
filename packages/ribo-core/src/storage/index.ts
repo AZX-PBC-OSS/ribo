@@ -33,6 +33,8 @@ export type { BackoffOptions } from "./backoff.js";
 // when. See `docs/roadmap/design/storage-migrations-design.md`.
 export type { ShapeUpgrade } from "./upgrades/rung.js";
 export { captureV5ToV6Upgrade } from "./upgrades/v5-to-v6.js";
+export { backfillSessions } from "./upgrades/backfill.js";
+export type { LegacySessionFields } from "./upgrades/backfill.js";
 export { CAPTURE_DOCUMENT_UPGRADES, CAPTURE_DOCUMENT_VERSION } from "./upgrades/captures.js";
 export { SESSION_DOCUMENT_UPGRADES, SESSION_DOCUMENT_VERSION } from "./upgrades/sessions.js";
 export {
