@@ -1,3 +1,4 @@
+import { isCancellation } from "./cancellation.js";
 import { nextUnitId } from "./extraction-observer.js";
 import type { ExtractionObserver, PhaseUnit } from "./extraction-observer.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
@@ -17,6 +18,7 @@ import type { Phase, PhaseContext, PhaseDef } from "./phase.js";
 import type { PhaseItemOutcome as Outcome } from "./phase-outcome.js";
 import type { BackoffOptions } from "./queue/backoff.js";
 import type { RetryBudgetObserver } from "./retry-budget.js";
+import { retryAsync } from "./retry-async.js";
 import { validatePhases } from "./validate-phases.js";
 
 /**
@@ -89,6 +91,13 @@ interface UsageTotals {
   cacheCreationPromptTokens?: number;
 }
 
+/**
+ * The default {@link PhasedExtractorOptions.delay} — a real `setTimeout` sleep. Tests
+ * inject a fake that records the value and resolves immediately.
+ */
+const defaultDelay = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 /** Running usage state for one extraction: the required `calls` count and the tokens. */
 interface UsageAccumulator {
   totalCalls: number;
@@ -136,7 +145,18 @@ function addPhaseOutputUsage(acc: UsageAccumulator, usage: ExtractionUsage): voi
 export function phasedExtractor<V extends Record<string, unknown>, P = NoProvenance>(
   options: PhasedExtractorOptions<V, P>,
 ): Extractor<Enveloped<V, P>> {
-  const { target, phases, normalize = (fields) => fields, concurrency = 4, onUnit } = options;
+  const {
+    target,
+    phases,
+    normalize = (fields) => fields,
+    concurrency = 4,
+    maxRetries = 2,
+    delay = defaultDelay,
+    baseMs,
+    capMs,
+    random,
+    onUnit,
+  } = options;
 
   // A mis-wired list must fail before any call is paid for.
   validatePhases(phases);
@@ -196,7 +216,19 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
                 key: "",
               });
               try {
-                const output = await def.run(item, draft, ctx);
+                // The item's retry loop is `retryAsync` — the policy extracted from
+                // `retryExtractor` in the retry task, composed here rather than
+                // reimplemented. Its signal is the phase's combined signal, so a
+                // caller cancellation AND a sibling failure both stop the loop
+                // (mapWithPool's doc: the retry loops do not retry an aborted call).
+                const output = await retryAsync(() => def.run(item, draft, ctx), {
+                  maxRetries: def.maxRetries ?? maxRetries,
+                  signal: effectiveSignal,
+                  delay,
+                  baseMs,
+                  capMs,
+                  random,
+                });
                 onUnit?.({
                   id,
                   unit: "phase",
@@ -218,6 +250,21 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
                   key: "",
                   error: cause,
                 });
+                // Cancellation is the exception to every failure policy: a caller
+                // cancellation — signalled, or thrown as a branded error by the run
+                // itself — rejects the whole run, whatever this phase declared. A
+                // skip-policy phase converting one into a skipped item would resolve
+                // with all-null fields, indistinguishable from a document that said
+                // nothing.
+                if (isCancellation(cause, callerSignal)) throw cause;
+                // Skip policy: catch INSIDE the worker so the pool never sees a
+                // rejection — the failed item reaches merge on the error arm for the
+                // phase to interpret. Abort policy (the default, the safer one): let
+                // the rejection escape; mapWithPool aborts the siblings and fails
+                // the run, `map-with-pool.ts` untouched.
+                if (def.onItemFailure === "skip") {
+                  return { outcome: "error", item, error: cause };
+                }
                 throw cause;
               }
             },

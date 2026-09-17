@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
+import { CancellationError } from "./cancellation.js";
 import { enveloped } from "./enveloped.js";
 import type { Enveloped, NoProvenance } from "./enveloped.js";
 import type { ExtractionTarget } from "./extractor.js";
@@ -316,5 +317,257 @@ describe("phasedExtractor — the spine", () => {
     ]);
     // The id minted is a fresh opaque one from the shared counter.
     expect(firstEvents[0]!.id).toMatch(/^unit-/);
+  });
+});
+
+describe("phasedExtractor — retry, failure policies, cancellation", () => {
+  /** The canonical transient failure: a 503 the way a transport reports one. */
+  function transient503(): Error {
+    return Object.assign(new Error("service unavailable"), { status: 503 });
+  }
+
+  test("a transient item failure is retried and the run succeeds", async () => {
+    const runCalls: number[] = [];
+    let attempts = 0;
+    const flaky = build({
+      id: "flaky",
+      plan: () => [1],
+      run: async (item) => {
+        runCalls.push(item);
+        attempts += 1;
+        if (attempts === 1) throw transient503();
+        return { value: item };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [flaky],
+      delay: () => Promise.resolve(),
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.fields.note?.value).toBe("done");
+    expect(runCalls).toHaveLength(2);
+  });
+
+  test("an item failing past its budget under abort fails the run and aborts in-flight siblings", async () => {
+    const caller = new AbortController();
+    const boom = transient503();
+    const started: number[] = [];
+    const siblingObserved: boolean[] = [];
+    let signalSiblingDone: () => void = () => {};
+    const siblingDone = new Promise<void>((resolve) => {
+      signalSiblingDone = resolve;
+    });
+    const failing = build({
+      id: "failing",
+      concurrency: 2,
+      maxRetries: 1,
+      plan: () => [0, 1, 2, 3, 4, 5],
+      run: async (item, _draft, ctx) => {
+        started.push(item);
+        if (item === 0) throw boom;
+        // A sibling in flight: give the failure time to land, then observe.
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        siblingObserved.push(ctx.signal?.aborted ?? false);
+        signalSiblingDone();
+        return { value: item };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [failing],
+      delay: () => Promise.resolve(),
+    });
+
+    // extract() rejects the instant the sibling fails (mapWithPool is Promise.all),
+    // while the in-flight sibling's run is still settling — wait for it before
+    // asserting what it observed.
+    await expect(extractor.extract(transcript, { signal: caller.signal })).rejects.toBe(boom);
+    await siblingDone;
+    // The sibling in flight saw the pool's abort on its combined signal — and the
+    // caller's own controller was never touched by the phase's failure.
+    expect(siblingObserved).toEqual([true]);
+    expect(caller.signal.aborted).toBe(false);
+    // With concurrency 2 only the first two items were ever pulled (item 0 across its
+    // two attempts, item 1 once); the abort stopped the pool before any further
+    // item started.
+    expect([...new Set(started)]).toEqual([0, 1]);
+    expect(started).toHaveLength(3);
+  });
+
+  test("the same failure under skip reaches merge on the error arm and the run completes", async () => {
+    const boom = transient503();
+    const seen: { outcome: string; error?: unknown }[] = [];
+    const runCalls: string[] = [];
+    const skippable = build({
+      id: "skippable",
+      onItemFailure: "skip",
+      maxRetries: 1,
+      concurrency: 1,
+      plan: () => ["bad", "good"],
+      run: async (item) => {
+        runCalls.push(item);
+        if (item === "bad") throw boom;
+        return { value: 1 };
+      },
+      merge: (draft, results) => {
+        for (const r of results) {
+          seen.push(
+            r.outcome === "error" ? { outcome: "error", error: r.error } : { outcome: "result" },
+          );
+        }
+        return { ...draft, fields: noteFields("done") };
+      },
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [skippable],
+      delay: () => Promise.resolve(),
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.fields.note?.value).toBe("done");
+    // The failed item was retried first (maxRetries: 1 → two attempts), then reached
+    // merge on the error arm carrying its error; the sibling completed normally.
+    // Outcomes arrive in item order — mapWithPool preserves it.
+    expect(runCalls).toEqual(["bad", "bad", "good"]);
+    expect(seen).toEqual([{ outcome: "error", error: boom }, { outcome: "result" }]);
+  });
+
+  test("a phase declaring maxRetries: 0 makes exactly one attempt", async () => {
+    const boom = transient503();
+    let runCalls = 0;
+    const oneshot = build({
+      id: "oneshot",
+      maxRetries: 0,
+      plan: () => [1],
+      run: async () => {
+        runCalls += 1;
+        throw boom;
+      },
+      merge: (draft) => draft,
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [oneshot],
+      delay: () => Promise.resolve(),
+    });
+
+    await expect(extractor.extract(transcript)).rejects.toBe(boom);
+    expect(runCalls).toBe(1);
+  });
+
+  test("a caller abort mid-phase rejects the run under skip policy, not a skipped item", async () => {
+    const caller = new AbortController();
+    const started: string[] = [];
+    const skippable = build({
+      id: "skippable",
+      onItemFailure: "skip",
+      concurrency: 1,
+      plan: () => ["first", "second"],
+      run: async (item) => {
+        started.push(item);
+        if (item === "first") {
+          // The caller stops mid-phase; this item's own work still succeeds.
+          caller.abort();
+          return { value: 1 };
+        }
+        return { value: 2 };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({ target, phases: [skippable] });
+
+    await expect(extractor.extract(transcript, { signal: caller.signal })).rejects.toBeInstanceOf(
+      CancellationError,
+    );
+    expect(started).toEqual(["first"]);
+  });
+
+  test("a caller abort mid-phase rejects the run under abort policy", async () => {
+    const caller = new AbortController();
+    const aborting = build({
+      id: "aborting",
+      concurrency: 1,
+      plan: () => ["first", "second"],
+      run: async (item) => {
+        if (item === "first") {
+          caller.abort();
+          return { value: 1 };
+        }
+        return { value: 2 };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({ target, phases: [aborting] });
+
+    await expect(extractor.extract(transcript, { signal: caller.signal })).rejects.toBeInstanceOf(
+      CancellationError,
+    );
+  });
+
+  test("a CancellationError thrown by run rejects the run under skip policy", async () => {
+    const cancellation = new CancellationError("the transport was stopped");
+    const skippable = build({
+      id: "skippable",
+      onItemFailure: "skip",
+      plan: () => [1],
+      run: async () => {
+        throw cancellation;
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({ target, phases: [skippable] });
+
+    await expect(extractor.extract(transcript)).rejects.toBe(cancellation);
+  });
+
+  test("a CancellationError thrown by run rejects the run under abort policy", async () => {
+    const cancellation = new CancellationError("the transport was stopped");
+    const aborting = build({
+      id: "aborting",
+      plan: () => [1],
+      run: async () => {
+        throw cancellation;
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({ target, phases: [aborting] });
+
+    await expect(extractor.extract(transcript)).rejects.toBe(cancellation);
+  });
+
+  test("the pre-attempt abort check does not count an attempt that never started", async () => {
+    // A transient failure, then the caller aborts during the backoff: the loop reaches
+    // its pre-attempt check, which must not count (or start) the prevented attempt —
+    // the run rejects with the error that actually happened, and run was called once.
+    const boom = transient503();
+    const caller = new AbortController();
+    let runCalls = 0;
+    const flaky = build({
+      id: "flaky",
+      plan: () => [1],
+      run: async () => {
+        runCalls += 1;
+        throw boom;
+      },
+      merge: (draft) => draft,
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [flaky],
+      maxRetries: 1,
+      delay: async () => {
+        caller.abort();
+      },
+    });
+
+    await expect(extractor.extract(transcript, { signal: caller.signal })).rejects.toBe(boom);
+    expect(runCalls).toBe(1);
   });
 });

@@ -202,7 +202,8 @@ describe("retryAsync", () => {
   test("an already-aborted signal with a previous non-Error rejection still throws CancellationError", async () => {
     // The verbatim policy rethrows the previous attempt's error only when it is an
     // `Error` — a non-Error sentinel rejection must not be rethrown by the abort check;
-    // a fresh CancellationError carries the news instead.
+    // a fresh CancellationError carries the news instead. The sentinel rejects without
+    // a `throw` statement — it is deliberately not an error object.
     const sentinel = "not an error";
     let index = 0;
     const calls: number[] = [];
@@ -210,11 +211,14 @@ describe("retryAsync", () => {
     const delay = async () => {
       controller.abort();
     };
-    const work = async (attempt: number): Promise<string> => {
+    const work = (attempt: number): Promise<string> => {
       calls.push(attempt);
       index += 1;
-      if (index === 1) throw sentinel;
-      return "never";
+      // The non-Error sentinel rejection is the subject: the pre-attempt abort check's
+      // `instanceof Error` guard is exactly what is under test, so demanding an Error
+      // rejection reason here would delete the case being pinned.
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+      return index === 1 ? Promise.reject(sentinel) : Promise.resolve("never");
     };
 
     await expect(
