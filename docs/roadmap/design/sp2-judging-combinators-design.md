@@ -125,37 +125,48 @@ would accept a hallucinated instance — with citations — from exactly the dis
 exists to catch. Sample counts are therefore per **path**, not per candidate, and a path seen by
 fewer than all survivors is contested before the arbiter is consulted.
 
-**The decision is a `ConsensusArbiter`**, generic in the leaf's value type:
+**The decision is a `ConsensusArbiter`**, and it returns an **index into the samples it was
+handed**:
 
-- Written `<T>(input: { path: readonly (string | number)[]; samples: readonly Extracted<T>[] }) => …`,
-  `T` is opaque inside any conforming policy, so `{ accept: { value: "Gas", … } }` does not
-  typecheck — `"Gas"` is not assignable to an unresolved `T`. The only envelopes assignable are the
-  ones the policy was handed. §3's "never synthesises a value no sample returned" becomes the
-  signature. An `Extracted<unknown>` version would not do this, since everything is assignable to
-  `unknown`.
-- `T` is routinely a union — a leaf is `"Oil" | "Gas" | null` — and a parametric policy compares
-  inhabitants without knowing which union it holds.
+- Written `(input: { path: readonly (string | number)[]; samples: readonly Extracted<unknown>[] })
+  => { accept: number } | { contested: number }`. An index closes every fabrication hole at once
+  and needs no rank-2 generic: the policy never constructs an `Extracted` at all, so whatever
+  comes back is provably one of the envelopes it was handed. §3's "never synthesises a value no
+  sample returned" becomes the signature. It is also far easier to author against, and `samples`
+  can be plain `Extracted<unknown>[]` because a policy that only compares and points has no need
+  to name the value's type.
+- **An earlier envelope-returning encoding bought one guarantee out of three.** It was generic in
+  the leaf's value type — `<T>(… samples: readonly Extracted<T>[]) => { accept: Extracted<T> } …`
+  — on the claim that `T`'s opacity made fabrication a compile error. That holds for exactly one
+  member. `Extracted<T>` is `{ value: T | null; confidence: number; sourceSpan: string | null }`
+  (`provenance.ts`, via `inner.nullable()`), so `null` is in the union for every `T`, and
+  `sourceSpan` and `confidence` never mention `T` at all: a cast-free conforming policy returning
+  `{ value: null, confidence: 1, sourceSpan: null }` compiles clean, and so does
+  `{ ...samples[0], sourceSpan: "a sentence nobody said" }` — a policy could keep a real value
+  and invent the citation, the worst of the three on a combinator whose entire output contract is
+  "keeps a citation". Only the fabricated non-null literal was refused. The index-returning
+  signature refuses all three, which is why it replaced the encoding.
 - **The path is structured, never a formatted string.** `gap-fill.ts` records the rule: nothing parses
   a formatted path back apart. A `string` path would push every consumer toward exactly that parse.
-- **The second arm is `contested`, not `reject`**, because a parametric policy cannot build the
-  nulled envelope either — `null` is no more assignable to an opaque `T` than a literal is. So it
-  names **the sample whose citation survives**, and the combinator writes `value: null,
-confidence: 0` over it. The policy picks the span; the combinator does only what the policy
-  provably cannot.
-- **Two arms rather than one**, even though `=> Extracted<T>` is smaller: the combinator must know a
-  leaf was contested to count them, and the contested count is the headline signal this produces. It
-  is unrecoverable afterwards, because a leaf the samples agreed was `null` and one they fought over
-  are byte-identical.
+- **The second arm is `contested`, not `reject`**: the combinator must know a leaf was contested to
+  count them, and the contested count is the headline signal this produces. It is unrecoverable
+  afterwards, because a leaf the samples agreed was `null` and one they fought over are
+  byte-identical. On `contested`, the named index supplies the **citation**; the combinator writes
+  `value: null, confidence: 0` over it. The policy picks the span; the combinator does only what
+  the index cannot say.
+- **The range is checked by the combinator, not the compiler.** An index outside `samples` is a
+  policy bug; the combinator throws on it rather than clamping, because silently accepting sample 0
+  when the policy said 7 hides the bug forever.
 
 `unanimousValues` is the default; `majorityValues` ships beside it. **`majorityValues` is defined
 only over paths every survivor produced** — with unequal instance counts there is no meaningful
 majority over an index only some samples reached, and the per-path rule above has already contested
 those.
 
-**This reasoning is about the compiler and has not been run.** The plan must pin it first: a policy
-returning a fabricated literal, and one returning `{ value: null }`, must both fail to compile, with
-`@ts-expect-error`. If either compiles the signature does not deliver what this section claims, and
-the claim comes out rather than the type.
+**The type-level pins the earlier encoding promised are gone with it.** An index-returning policy
+is never handed the materials to build an envelope, so there is no fabricated-literal return to
+`@ts-expect-error` against; the pin that replaces those is runtime — every index a policy returns
+must resolve by identity to an envelope drawn from `samples`.
 
 **Usage sums `calls` and tokens across every candidate**, because they all ran, and the cost is N
 times a single extraction — the doc comment says so first, since a combinator that triples a bill
@@ -275,13 +286,19 @@ the shipped default arbiter, and a retry loop at the relay.
 ## 6. Interfaces
 
 - `consensusExtractor<V, P>(candidates, options): Extractor<Enveloped<V, P>>` — options carry the
-  `ConsensusArbiter`, `minSamples`, `concurrency` and the observer.
-- `ConsensusArbiter` — `<T>(input: { path: readonly (string | number)[]; samples: readonly
-Extracted<T>[] }) => { accept: Extracted<T> } | { contested: Extracted<T> }`. Rank-2, so a policy
-  cannot fabricate (§4.1). Two arms, untagged, following `arbitration.ts`'s recorded reasoning that
-  distinct required key names narrow under `in`. The call site instantiates at `unknown` because the
-  walk is runtime; the guarantee is at each policy's **definition** site, which is the code a host
-  writes.
+  `ConsensusArbiter`, `minSamples`, `concurrency` and `onContested`. `onContested` is not an
+  `ExtractionObserver`, and that is deliberate: the wave-2 rule holds that a wrapper which
+  delegates and judges stays silent, because an observer stream over delegated runs duplicates the
+  inner extractors' own units unit-for-unit and double-counts. `onContested` escapes that rule
+  because it is new vocabulary **no inner extractor emits** — it reports consensus's own verdicts,
+  the leaves the samples fought over — so there is nothing in an inner stream for it to be counted
+  twice against.
+- `ConsensusArbiter` — `(input: { path: readonly (string | number)[]; samples: readonly
+  Extracted<unknown>[] }) => { accept: number } | { contested: number }` — an INDEX into `samples`
+  (§4.1), so a policy cannot fabricate: whatever it names is an envelope it was handed. Two arms,
+  untagged, following `arbitration.ts`'s recorded reasoning that distinct required key names narrow
+  under `in`. The call site resolves the index at runtime; the guarantee is that the named sample
+  exists, which the combinator checks rather than the compiler.
 - `unanimousValues`, `majorityValues` — the shipped policies.
 - `validateExtractor<F>(extractor, policy, options): Extractor<F>`, `ValidationPolicy`,
   `ValidationRejectedError extends TerminalError`, and `groundingCensus` — the pure per-leaf tally,
@@ -313,6 +330,24 @@ Extracted<T>[] }) => { accept: Extracted<T> } | { contested: Extracted<T> }`. Ra
   different default, not a threshold nobody can justify.
 - **The row/none refusal is the wrong trade.** If the targets people actually run are mostly row
   granularity, SP2 refuses the majority of real work and the walk extension was the thing to build.
+- **Index alignment over collections is assumed, never enforced.** Comparing collection instances
+  by index presumes every candidate enumerates instances in the same order, and nothing checks
+  that. Two samples that both found the same three rooftop units but listed them in a different
+  order are compared unit-1-against-unit-3 and reported as three disagreements — data every sample
+  agreed on, nulled. That is the safe direction (disagreement nulls, nothing fabricated reaches
+  review), but it is a real limitation, and a caller meeting it will think the combinator is
+  broken rather than misordered.
+- **`majorityValues` has the unsafe version of the same problem.** With samples `[A,B,C]`, `[A,C]`
+  and `[A,B,C]`, the path `hvac.1.fuel` exists in all three, so it is compared — B, C, B — and the
+  majority accepts **B**, a value for an entity the second sample does not have, carrying a
+  citation from a sample that was quoting a different unit. The whole-collection contest on length
+  disagreement (the implementation contests every leaf under an array whose length any survivor
+  disagrees about) closes this particular case — the lengths differ — but an equal-length
+  reordering defeats it, and no rule here fixes that. `unanimousValues` fails safe under any
+  reordering and is the default for this reason; a host pointing `majorityValues` at unordered
+  collections has accepted that hole. The real fix is content-addressed instance matching — a
+  design question (what identifies an instance?) rather than an implementation one — and is
+  deliberately out of scope.
 
 ## 9. Must-fail tests
 
@@ -321,8 +356,9 @@ Extracted<T>[] }) => { accept: Extracted<T> } | { contested: Extracted<T> }`. Ra
 - A leaf one sample committed and another abstained on is a **disagreement**.
 - **A path present in fewer samples than survived is contested** — a sample producing a fourth `hvac`
   instance the others do not see has it nulled, not accepted.
-- A policy returning a fabricated literal does not compile; nor does one returning `{ value: null }`.
-  Both `@ts-expect-error`. If either compiles, §4.1's claim is wrong.
+- Every index a policy returns resolves by IDENTITY to an envelope drawn from the `samples` it was
+  handed — the pin that replaced the earlier encoding's two `@ts-expect-error` type-level pins,
+  which the index-returning signature made first false and redundant (§4.1).
 - A policy returning a **different sample's envelope** gets that envelope, span included.
 - The contested count reflects rejections, not agreed-upon nulls.
 - A candidate that rejects contributes no samples and does not fail the run while `minSamples`
