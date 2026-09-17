@@ -306,10 +306,7 @@ describe("raceExtractor", () => {
     // discipline — reaches each candidate untouched.
     const primary = new FakeExtractor<{ value: number }>({ value: 1 });
     const deadline = 1_234_567_890;
-    const extractor = raceExtractor(
-      [{ strategy: "only", extractor: primary }],
-      acceptAnySuccess,
-    );
+    const extractor = raceExtractor([{ strategy: "only", extractor: primary }], acceptAnySuccess);
 
     await extractor.extract({ text: "t", annotations: {} }, { deadline });
 

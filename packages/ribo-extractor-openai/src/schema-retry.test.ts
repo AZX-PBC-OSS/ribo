@@ -60,7 +60,7 @@ const badOutput = {
 };
 
 /** Passes the schema: the same spans, `stories` committed as a number. */
-const goodOutput = {
+const goodOutput: Extraction = {
   envelope: {
     roof: { value: "asphalt_shingle", confidence: 0.9, sourceSpan: "asphalt shingle" },
     stories: { value: 2, confidence: 0.95, sourceSpan: "two stories" },
