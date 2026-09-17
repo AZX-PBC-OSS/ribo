@@ -309,6 +309,12 @@ export type { FallbackCandidate } from "./fallback-extractor.js";
 export { raceExtractor } from "./race-extractor.js";
 export type { RaceCandidate } from "./race-extractor.js";
 
+// Strategy retry: wrap one extractor with the attempt loop — transient failures
+// retried with full-jitter backoff, terminal errors and cancellations rethrown
+// untouched. Follows the same positional combinator shape as its siblings above.
+export { retryExtractor } from "./retry-extractor.js";
+export type { RetryExtractorOptions } from "./retry-extractor.js";
+
 // The grouped run: take a per-key map of group extractors and own the
 // cross-group work — coverage at construction, a bounded pool, the derived
 // retry budget, sibling abort, the merge, the second trust-boundary parse,
