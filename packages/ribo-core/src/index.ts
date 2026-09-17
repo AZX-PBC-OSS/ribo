@@ -220,6 +220,12 @@ export { SchemaParseError } from "./schema-parse-error.js";
 // and this line says only that all of them are public.
 export * from "./queue/index.js";
 
+// The storage port — the contract a durable backend implements. Types only: the
+// implementations live in `./storage/memory-backend.ts` (tests and development)
+// and in `@azx/ribo-storage-rxdb` (production). The conformance kit that decides
+// whether an implementation is real ships separately as `@azx/ribo-core/testing`.
+export * from "./storage/index.js";
+
 // Write-back: the only tool-specific surface, with a typed host context, both
 // field shapes (the writable patch and the derived extraction schema) and the
 // per-attempt write metadata that carries the idempotency key.

@@ -30,7 +30,7 @@ references below (§4.2, §6.3, and so on) are to that document.
   done — typecheck, lint, format:check, build:packages, resolve, build:app, pkg:gates, snugg:drift,
   skips:tracked, score:mutations, test. Paste its summary line; never assert success without it.
 - **CI runs three gates `./check.sh` does not:** `pnpm docs:build`, `pnpm changeset status
-  --since=origin/main`, and `pnpm test:pack-and-consume`. This plan adds a publishable package, so
+--since=origin/main`, and `pnpm test:pack-and-consume`. This plan adds a publishable package, so
   all three are part of the bar for every stage from Stage 2 onward. A malformed changeset breaks
   CI and `./check.sh` will not tell you.
 - **Persisted identifiers do not change, ever, in this plan.** The database stays named
@@ -102,7 +102,7 @@ The kit asserts the three finders' filter, ordering and limit semantics, and the
 §4.2. Four of those six are the ones prose cannot pin and the kit must be sharpest about:
 
 - **Blob atomicity.** Subscribe to the captures finder, insert a document with a blob, and assert
-  the *first* emission already has readable blob bytes. A kit that inserts and then reads passes
+  the _first_ emission already has readable blob bytes. A kit that inserts and then reads passes
   against a broken backend; the subscription is the whole point.
 - **Cross-context reactivity.** Two backend handles over one database, each observing the other's
   writes.
@@ -211,7 +211,7 @@ it exists to catch.
 that database the way `openOutboxDatabase` does today — same name, same collections, same
 `addCollections` call, same migration strategies, same `backfillSessions` afterwards. Keep the
 injectable `RxStorage` parameter: it is still the right seam for swapping Dexie for RxDB's memory
-storage, and it is now *inside* a backend rather than leaking through core's public API.
+storage, and it is now _inside_ a backend rather than leaking through core's public API.
 
 Translate the three closed finders into Mango queries here. This is where `mangoQuery` and
 `sessionMangoQuery` belong; core will delete its copies in Task 5.
@@ -219,7 +219,7 @@ Translate the three closed finders into Mango queries here. This is where `mango
 Two obligations need specific implementations rather than falling out of RxDB:
 
 - **Documents handed back are clean** (§4.2, obligation 5). RxDB's `incrementalModify` passes the
-  *internal* document, carrying `_rev`, `_meta`, `_deleted` and `_attachments`, and core's document
+  _internal_ document, carrying `_rev`, `_meta`, `_deleted` and `_attachments`, and core's document
   schemas are `strictObject` — so scrubbing is now the backend's job. Core's `persistedFieldsOf`
   and `persistedSessionFieldsOf` are the existing implementations of exactly this; port that logic
   here, generically over the collection's field set, and delete core's copies in Task 5.
@@ -334,7 +334,7 @@ both pass.
 
 # Stage 4 — The rename
 
-Mechanical, large and compiler-verifiable. Nothing here changes behaviour; if a test's *expectation*
+Mechanical, large and compiler-verifiable. Nothing here changes behaviour; if a test's _expectation_
 changes in this stage, something has gone wrong.
 
 ## Task 7: Split `Outbox` into store facades
@@ -394,7 +394,7 @@ and the recorder, recovery, live and capture-coordinator handles); and
 
 **What to do:** Rename `useOutboxItems` to `useCaptures` and follow the type renames through the
 hook layer and the playground. The other hooks are unaffected — but note that
-`useStoragePersistence` concerns the *browser's* storage-persistence permission and not this
+`useStoragePersistence` concerns the _browser's_ storage-persistence permission and not this
 storage; it keeps its name and gets a clarifying docs note in Task 10, not a rename.
 
 Add the batteries-included entry to the RxDB package: a pre-wired `openStorage` with the Dexie
@@ -468,7 +468,7 @@ Update the indexes to the new field names, and apply the bump in the cross-tab t
 
 **Tests that must fail first:** a test that opens the collection at the old version with an old-shape
 entry and asserts it is readable at the new version with the new field names. Then confirm the
-DB6 hazard is real rather than theoretical: declare the new shape *without* the version bump, watch
+DB6 hazard is real rather than theoretical: declare the new shape _without_ the version bump, watch
 `addCollections` fail, restore the bump, and report the observed error — that is the guard this
 whole task exists for.
 
@@ -496,7 +496,7 @@ The ordered-not-atomic caveat applies to the session sweep exactly as it does to
 sweep after the removal, so a failed removal cannot orphan entries before the owner is gone.
 
 **Tests that must fail first:** for each scope, write an entry, remove its owner, and assert the
-entry is gone — and assert the *other* scope's entries survive, so a sweep that is too broad fails
+entry is gone — and assert the _other_ scope's entries survive, so a sweep that is too broad fails
 as loudly as one that is too narrow. Break each sweep in turn, watch exactly its test fail, restore,
 and report the output.
 

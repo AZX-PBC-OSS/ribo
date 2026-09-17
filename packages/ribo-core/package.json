@@ -21,6 +21,11 @@
       "types": "./dist/worklet.d.ts",
       "default": "./dist/worklet.js"
     },
+    "./testing": {
+      "@azx/source": "./src/testing.ts",
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -33,6 +38,10 @@
       "./worklet": {
         "types": "./dist/worklet.d.ts",
         "default": "./dist/worklet.js"
+      },
+      "./testing": {
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
       },
       "./package.json": "./package.json"
     }

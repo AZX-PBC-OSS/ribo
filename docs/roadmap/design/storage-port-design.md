@@ -35,7 +35,7 @@ that a backend implements, and RxDB as the first implementation of that port.
 
 `packages/ribo-core/src/queue/outbox.ts:143-149` declined this explicitly:
 
-> This is deliberately the *Level 1* seam: injecting an `RxStorage` under a still-concrete
+> This is deliberately the _Level 1_ seam: injecting an `RxStorage` under a still-concrete
 > `Outbox`. Extracting a formal `Outbox` interface plus a storage conformance-test kit ("Level 2")
 > is deferred until a genuinely non-RxDB backend is real — doing it now would be a contract with
 > one implementation.
@@ -193,7 +193,7 @@ the RxDB backend and unrelated to `CAPTURE_LOCK`.)
 
 **Migrations.** Backend-private, per §3.
 
-**Cross-collection transactions.** The plugin-storage sweep runs *after* a removal and is documented
+**Cross-collection transactions.** The plugin-storage sweep runs _after_ a removal and is documented
 as ordered, not atomic. Promising more would be inventing a guarantee the system does not provide.
 
 ## 5. The public surface
@@ -216,7 +216,7 @@ The rename follows rules rather than a table, and the barrel is regenerated from
    `capture-session.ts`, `recovery.ts`, `session-extract.ts`, the backoff helpers and the entire
    session vocabulary keep their names and change only import paths.
 6. **Hooks follow.** `useOutboxItems` → `useCaptures`. The other hooks are unaffected —
-   though `useStoragePersistence` concerns the *browser's* storage-persistence permission, not this
+   though `useStoragePersistence` concerns the _browser's_ storage-persistence permission, not this
    storage, and gets a docs note rather than a rename.
 7. **`TerminalQueueError` → `TerminalError`**, staying in `backoff.ts`. It is a failure
    classification meaning "never retry", not a storage type, and the old name implied a relationship
@@ -275,7 +275,7 @@ A missed sweep is a silent leak, so both paths are stated:
 place**, and reasoning that it does is a mistake this repo has already shipped once (#38, fixed in
 #40).
 
-RxDB validates a declared schema against the one the collection was *created* with. A device that
+RxDB validates a declared schema against the one the collection was _created_ with. A device that
 has merely opened the app since plugin storage landed has the collection at version 0 with the old
 shape, whether or not it ever wrote an entry. Changing the shape at the same version fails
 `addCollections` with **DB6** — and because `outbox`, `sessions` and `pluginStorage` are added in a
@@ -306,21 +306,21 @@ bump must be applied there as well as in the backend. A declared version with no
 
 ## 7. Decisions
 
-| #   | Decision                                                                    | Rationale                                                                                                                                       |
-| --- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | A port with domain logic kept in core, not domain-shaped backend interfaces  | The state machine is what must be identical across backends; keeping it in core writes it once. The RxDB usage is mechanical, so the port is small. |
-| 2   | Two packages: contracts in core, RxDB in `@azx/ribo-storage-rxdb`            | Consumers stop installing RxDB to use ribo's contracts.                                                                                          |
-| 3   | Pre-wired entry in the storage package, not a `core/rxdb` subpath            | Avoids a package cycle; identical ergonomics.                                                                                                    |
-| 4   | Closed finder set, not a query language                                     | Three questions are all the code asks. A selector language would be RxDB's shape leaking under another name.                                     |
-| 5   | Insert-with-next-sequence is atomic in the port                             | Closes a live cross-tab race, deletes core's serialisation chain, and keeps a browser lock behind the port.                                      |
-| 6   | Clean rename, no deprecated aliases                                         | Pre-1.0, restricted access, and every consumer is in this repo or the field app. A doubled export surface and a removal schedule buy nothing.    |
-| 7   | Persisted identifiers unchanged                                             | Type renames are free; on-disk renames are a migration on the collection where migrations hurt.                                                  |
-| 8   | Rename the payload to `CapturePayload`, freeing `Capture` for the row       | Two nouns one word apart, one containing the other, is a permanent tax. The blast radius is one package plus docs.                               |
-| 9   | Key-value stores get capture and session scopes only                        | Answers the gap the current docs name, without an unswept namespace that leaks by construction under quota pressure.                             |
-| 9a  | `pluginStorage` bumps v0 → v1 with a strategy despite holding no data       | "No data" is not "no collection". A same-version shape change is a DB6 that takes the capture store down with it (§6.3).                          |
-| 9b  | `scopeKind` is an indexed field, not part of the primary key                | Keeps the key composition stable, so no row's primary key is rewritten during migration (§11.1).                                                  |
-| 10  | Memory backend ships from the first commit                                  | Proves by construction that core runs without RxDB; two implementations from day one.                                                            |
-| 11  | The conformance kit is published                                            | A third-party backend author is exactly who needs it.                                                                                            |
+| #   | Decision                                                                    | Rationale                                                                                                                                           |
+| --- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | A port with domain logic kept in core, not domain-shaped backend interfaces | The state machine is what must be identical across backends; keeping it in core writes it once. The RxDB usage is mechanical, so the port is small. |
+| 2   | Two packages: contracts in core, RxDB in `@azx/ribo-storage-rxdb`           | Consumers stop installing RxDB to use ribo's contracts.                                                                                             |
+| 3   | Pre-wired entry in the storage package, not a `core/rxdb` subpath           | Avoids a package cycle; identical ergonomics.                                                                                                       |
+| 4   | Closed finder set, not a query language                                     | Three questions are all the code asks. A selector language would be RxDB's shape leaking under another name.                                        |
+| 5   | Insert-with-next-sequence is atomic in the port                             | Closes a live cross-tab race, deletes core's serialisation chain, and keeps a browser lock behind the port.                                         |
+| 6   | Clean rename, no deprecated aliases                                         | Pre-1.0, restricted access, and every consumer is in this repo or the field app. A doubled export surface and a removal schedule buy nothing.       |
+| 7   | Persisted identifiers unchanged                                             | Type renames are free; on-disk renames are a migration on the collection where migrations hurt.                                                     |
+| 8   | Rename the payload to `CapturePayload`, freeing `Capture` for the row       | Two nouns one word apart, one containing the other, is a permanent tax. The blast radius is one package plus docs.                                  |
+| 9   | Key-value stores get capture and session scopes only                        | Answers the gap the current docs name, without an unswept namespace that leaks by construction under quota pressure.                                |
+| 9a  | `pluginStorage` bumps v0 → v1 with a strategy despite holding no data       | "No data" is not "no collection". A same-version shape change is a DB6 that takes the capture store down with it (§6.3).                            |
+| 9b  | `scopeKind` is an indexed field, not part of the primary key                | Keeps the key composition stable, so no row's primary key is rewritten during migration (§11.1).                                                    |
+| 10  | Memory backend ships from the first commit                                  | Proves by construction that core runs without RxDB; two implementations from day one.                                                               |
+| 11  | The conformance kit is published                                            | A third-party backend author is exactly who needs it.                                                                                               |
 
 ## 8. Out of scope
 
