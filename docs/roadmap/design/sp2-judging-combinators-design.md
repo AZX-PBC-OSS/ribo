@@ -131,15 +131,37 @@ quote supporting it — the shape that produces a leaf whose span belongs to a d
 value. `ExtractionArbiter` does not make that mistake: it is shown `ExtractionResult<F>` and returns
 `ExtractionResult<F>`. This follows it.
 
-**Both arms carry an envelope**, rather than the rejection being a bare marker, so a rejecting policy
-still chooses which span survives. A rejected leaf is conventionally `value: null, confidence: 0` with
-a span the policy picked — but the combinator does not impose that, because a policy that wants to
-keep a different citation on a contested leaf has a better claim to know than the combinator does.
+**The arbiter is generic in the leaf's value type, not `unknown`, and that is what enforces §3's
+promise.** Written `<T>(input: { samples: readonly Extracted<T>[] }) => …`, `T` is opaque inside any
+conforming policy, so a fabricated literal does not typecheck — `{ accept: { value: "Gas", … } }` is
+rejected because `"Gas"` is not assignable to an unresolved `T`. The only envelopes assignable are
+the ones the policy was handed. "It compares and abstains; it never synthesises a value no sample
+returned" stops being a sentence in this document and becomes the signature.
 
-**Two arms rather than one**, even though `=> Extracted<unknown>` would be smaller: the combinator has
-to know a leaf was contested in order to count them, and the contested count is the headline signal
-this combinator exists to produce. It is not recoverable from the envelope, because a leaf the samples
+An `Extracted<unknown>` version does not do this: everything is assignable to `unknown`, so a policy
+could invent a value and the compiler would agree. That was the first draft's real defect; the
+value-versus-envelope asymmetry was the visible half of it.
+
+`T` is routinely a union — a leaf is `"Oil" | "Gas" | null` or `number | null` — and each sample
+picks one inhabitant of the leaf's declared type. A parametric policy compares them without needing
+to know which union it is looking at, which is the whole point.
+
+**The second arm is `contested`, not `reject`, because a parametric policy cannot build the nulled
+envelope.** `null` is no more assignable to an opaque `T` than `"Gas"` is. So the rejection arm does
+not mean "here is the envelope I made"; it means **"the samples disagreed — keep this one's
+citation"**, and the combinator writes `value: null, confidence: 0` over it. The policy still chooses
+which span survives; the combinator's only job is the one thing the policy provably cannot do.
+
+**Two arms rather than one**, even though `=> Extracted<T>` would be smaller: the combinator has to
+know a leaf was contested in order to count them, and the contested count is the headline signal this
+combinator exists to produce. It is not recoverable from the envelope, because a leaf the samples
 agreed was `null` and a leaf they fought over are byte-identical afterwards.
+
+**This reasoning is about the compiler and has not been run.** The implementation plan must pin it
+before anything is built: a policy attempting to return a fabricated literal, and one attempting to
+return `{ value: null }`, must both fail to compile, asserted with `@ts-expect-error`. If either
+compiles, the signature does not deliver what this section claims and the claim comes out rather than
+the type.
 
 That shape is not arbitrary: it is exactly a `gapFillExtractor` candidate — a null value with a
 non-null span — so consensus and gap-fill compose into "sample three times, then re-ask about
@@ -246,13 +268,20 @@ Described rather than typed in full; the shapes that are load-bearing:
 
 - `consensusExtractor<V, P>(candidates, options): Extractor<Enveloped<V, P>>` where `options` carries
   the `ConsensusArbiter`, `minSamples`, `concurrency`, and the observer — in `ribo-core`.
-- `ConsensusArbiter` — `(input: { path: string; samples: readonly Extracted<unknown>[] }) =>
-{ accept: Extracted<unknown> } | { reject: Extracted<unknown> }`. Type-symmetric: shown envelopes,
-  returns an envelope, exactly as `ExtractionArbiter` is shown and returns `ExtractionResult<F>`.
-  Two arms rather than `ArbiterVerdict`'s three — there is no `continue`, because every sample is
-  already in hand when this is called, and no `giveUp`, because one leaf's disagreement is a result
-  rather than a failure. Untagged, following `arbitration.ts`'s recorded reasoning that distinct
-  required key names narrow correctly under `in` and a tag would buy no safety.
+- `ConsensusArbiter` — `<T>(input: { path: string; samples: readonly Extracted<T>[] }) =>
+{ accept: Extracted<T> } | { contested: Extracted<T> }`. **Rank-2**: generic in the leaf's value
+  type, so a conforming policy cannot fabricate a value (§4.1). Type-symmetric, as
+  `ExtractionArbiter` is — shown `ExtractionResult<F>`, returns `ExtractionResult<F>`.
+  Two arms rather than `ArbiterVerdict`'s three: no `continue`, because every sample is already in
+  hand, and no `giveUp`, because one leaf's disagreement is a result rather than a failure.
+  Untagged, following `arbitration.ts`'s recorded reasoning that distinct required key names narrow
+  correctly under `in` and a tag would buy no safety.
+
+  Note the call site instantiates at `unknown`, because the leaf walk is runtime and has no static
+  type for a leaf. The guarantee is therefore at every policy's **definition** site rather than at
+  the combinator's call site — which is where it is worth having, since the policies are the code a
+  host writes.
+
 - `unanimousValues` and `majorityValues` — the shipped policies.
 - `validateExtractor<F>(extractor, policy, options): Extractor<F>`, `ValidationPolicy`,
   `ValidationRejectedError`, and `groundingCensus` — the pure function producing the per-leaf
@@ -294,6 +323,10 @@ Described rather than typed in full; the shapes that are load-bearing:
 - A policy that returns a **different sample's envelope** than the combinator would have chosen gets
   that envelope, span included — the pin that value and citation are selected together rather than by
   two different parties.
+- A policy returning a fabricated literal does not compile, and neither does one returning
+  `{ value: null }` — both pinned with `@ts-expect-error`. These are the assertions that make §3's
+  "never synthesises a value no sample returned" a property rather than a promise; if either
+  compiles, the signature is wrong.
 - The contested-leaf count reflects rejections and not agreed-upon nulls: a run where every sample
   said `null` for a leaf reports zero contested, and a run where they disagreed reports one.
 - A leaf where one sample committed and another abstained is a **disagreement**, not a
