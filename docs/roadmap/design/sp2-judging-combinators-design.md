@@ -350,6 +350,16 @@ Extracted<unknown>[] }) => { accept: number } | { contested: number }` — an IN
   collections has accepted that hole. The real fix is content-addressed instance matching — a
   design question (what identifies an instance?) rather than an implementation one — and is
   deliberately out of scope.
+- **The contested count under-reports structural disagreement, in one direction only.** A
+  candidate that invents an extra instance is caught when it is placed _first_ (the other
+  survivors fall short, and the whole collection is contested) and is **silently dropped** when it
+  is placed anywhere else — the walk is over the first survivor, so the invented instance is never
+  visited, never compared, and never notified through `onContested`. The output is right either
+  way, which is what matters most, but the _signal_ is ordering-dependent: a host must not read
+  "zero contested" as "the candidates agreed on how many there are." This is the strongest
+  argument for content-addressed matching, and the cheapest thing that would prove this section
+  wrong is running three candidates over a multi-instance corpus and counting how often their
+  instance counts differ at all.
 
 ## 9. Must-fail tests
 

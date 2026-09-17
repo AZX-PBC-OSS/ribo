@@ -173,11 +173,19 @@ followed by a reconstruction. For each leaf path, read that path from every othe
 
 Three rules, in order:
 
-1. **Collection length disagreement contests wholesale.** If any survivor's array length differs
-   from the first survivor's at any array on the path, every leaf under that array is contested
-   without consulting the arbiter. This is what stops index-wise comparison from pairing unit 1
-   against unit 3 when a sample dropped an interior instance — the misalignment case that would
-   otherwise let `majorityValues` accept a value for an entity that sample does not have.
+1. **A survivor that falls SHORT contests the collection wholesale.** If any survivor's array is
+   _shorter_ than the first survivor's at any array on the path, every leaf under that array is
+   contested without consulting the arbiter. This is what stops index-wise comparison from pairing
+   unit 1 against unit 3 when a sample dropped an interior instance — the misalignment case that
+   would otherwise let `majorityValues` accept a value for an entity that sample does not have.
+
+   **Shorter, not merely different** — an earlier draft of this plan said "differs", which
+   contradicted this plan's own instance-count pin and would have nulled data every survivor
+   agreed on. A _longer_ survivor is not misalignment: the shared indices still pair
+   like-for-like, and its extra instances never enter the walk, because the walk is over the first
+   survivor. A shorter one is misalignment, because we cannot tell a truncation from a dropped
+   interior instance without content matching, so the conservative reading is the only safe one.
+
 2. **A path missing from any survivor is contested**, arbiter not consulted.
 3. Otherwise the arbiter decides, with the samples in survivor order.
 
@@ -186,9 +194,16 @@ decision, not an oversight.** A fourth instance that only candidate 2 invented n
 output. The alternative — enumerating the union of paths — would materialise a hallucinated
 instance into the result as a nulled row, which is worse: it puts a phantom in front of a
 reviewer. The cost is that the first candidate is structurally authoritative, so **a caller
-should put their most trusted candidate first**; say so in the options doc. Rule 1 means the
-disagreement is still _reported_ whenever it changes a count, so the drop is silent only when it
-changes nothing a reviewer would act on.
+should put their most trusted candidate first**; say so in the options doc.
+
+**The drop is genuinely silent, and that is the honest cost.** An earlier draft of this plan
+claimed rule 1 still reports the disagreement "whenever it changes a count"; that is false in the
+direction that matters. A later candidate inventing an extra instance produces no contest and no
+`onContested` — the walk never visits the instance, so nothing observes it. Only the reverse
+ordering (the inventor placed first) is reported, and then by rule 1. So the contested count
+under-reports structural disagreement by design, and a host must not read "zero contested" as
+"the candidates agreed on how many there are." This is the strongest argument for the
+content-addressed instance matching listed as out of scope.
 
 **`onContested` is a notification, not a progress unit.** It fires once per contested leaf with
 the path and the samples. It is deliberately not an `ExtractionObserver`: it has no unit
