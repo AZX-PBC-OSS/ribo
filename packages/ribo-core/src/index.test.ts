@@ -128,6 +128,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "resolveReview",
     "restrictToKind",
     "resultOutcome",
+    "retryAsync",
     "retryExtractor",
     "reviewOutcomeSchema",
     "sessionDocumentSchema",

@@ -315,6 +315,13 @@ export type { RaceCandidate } from "./race-extractor.js";
 export { retryExtractor } from "./retry-extractor.js";
 export type { RetryExtractorOptions } from "./retry-extractor.js";
 
+// The attempt loop itself, extracted from `retryExtractor` so the phased engine can
+// retry items whose `run` is not an `Extractor` without growing a sixth copy of the
+// policy. Same rules, same order of checks; `onAttempt` is what makes a retry
+// observable to the unit stream.
+export { retryAsync } from "./retry-async.js";
+export type { RetryAsyncOptions } from "./retry-async.js";
+
 // Strategy timeout: bound one extractor to a deadline with a signal the inner
 // extractor can honour, racing the work against a timer so a hung inner cannot
 // hang the run. Its error is deliberately not cancellation-branded — a deadline
