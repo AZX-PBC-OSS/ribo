@@ -418,17 +418,14 @@ export { deriveRetryBudget, PER_CALL_CEILING_MS } from "./retry-budget.js";
 export type { RetryBudget, RetryBudgetObserver } from "./retry-budget.js";
 
 // Extraction observability — one optional progress hook every strategy reports
-// through, plus the six unit variants it carries and the id/strategy helpers.
+// through, plus the unit variants it carries and the id/strategy helpers.
 // Declared once here and inherited by every extractor's options, so a reviewer
 // watching a ten-minute extraction sees each unit of work start and settle.
 export { nextUnitId, stampStrategy } from "./extraction-observer.js";
 export type {
   ExtractionObserver,
   ExtractionUnit,
-  GapFillUnit,
   GroupUnit,
-  InstanceUnit,
-  InventoryUnit,
   PhaseUnit,
   WholeUnit,
 } from "./extraction-observer.js";

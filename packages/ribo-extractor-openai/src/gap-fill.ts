@@ -57,8 +57,9 @@ import { gapFillPhase } from "./gap-fill-phase.js";
  * the follow-up path, one for the follow-up call (`phaseId` distinguishes them;
  * `attempt` is always 1, there is no retry loop on either phase). The passthrough
  * path — no candidates — emits the base phase's `start`/`done` pair and nothing
- * else. This is a widening from the pre-port `GapFillUnit` events: a handler
- * written against the old type will now receive events its type did not name.
+ * else. This is a widening from the pre-port events (which carried their own unit
+ * type, retired in Wave 6): a handler written against the old type will now
+ * receive events its type did not name.
  */
 export interface GapFillOptions<
   V extends Record<string, unknown>,

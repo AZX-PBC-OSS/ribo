@@ -1129,7 +1129,8 @@ describe("phasedExtractor — the unit stream and the produces check", () => {
       expect(event.part).toBe(2);
       expect(event.parts).toBe(4);
     }
-    // The two items' instance coordinates differ — 1-based, matching InstanceUnit.
+    // The two items' instance coordinates differ — 1-based, the scoped-instance
+    // fill convention `PhaseUnit`'s optional coordinates carry.
     const starts = fillEvents.filter((e) => e.phase === "start");
     expect(starts.map((e) => e.instance)).toEqual([1, 2]);
   });

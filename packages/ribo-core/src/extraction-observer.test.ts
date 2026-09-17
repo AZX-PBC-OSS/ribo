@@ -4,10 +4,7 @@ import { nextUnitId, stampStrategy } from "./extraction-observer.js";
 import type {
   ExtractionObserver,
   ExtractionUnit,
-  GapFillUnit,
   GroupUnit,
-  InstanceUnit,
-  InventoryUnit,
   PhaseUnit,
   WholeUnit,
 } from "./extraction-observer.js";
@@ -67,9 +64,12 @@ test("a broad handler is assignable to every narrowed observer", () => {
   const broad: (e: ExtractionUnit) => void = () => {};
   expectTypeOf(broad).toMatchTypeOf<ExtractionObserver<GroupUnit>["onUnit"]>();
   expectTypeOf(broad).toMatchTypeOf<ExtractionObserver<WholeUnit>["onUnit"]>();
-  expectTypeOf(broad).toMatchTypeOf<ExtractionObserver<InventoryUnit | InstanceUnit>["onUnit"]>();
+  // Wave 6 retired the inventory/instance/gapfill unit types; the assignability
+  // property is re-expressed over the surviving units — single-unit observers
+  // and unions of them alike.
+  expectTypeOf(broad).toMatchTypeOf<ExtractionObserver<PhaseUnit | GroupUnit>["onUnit"]>();
+  expectTypeOf(broad).toMatchTypeOf<ExtractionObserver<WholeUnit | PhaseUnit>["onUnit"]>();
   expectTypeOf(broad).toMatchTypeOf<ExtractionObserver<PhaseUnit>["onUnit"]>();
-  expectTypeOf(broad).toMatchTypeOf<ExtractionObserver<GapFillUnit>["onUnit"]>();
   expectTypeOf(broad).toMatchTypeOf<ExtractionObserver["onUnit"]>();
 });
 
@@ -129,22 +129,9 @@ test("an exhaustive switch over ExtractionUnit narrows each arm and reaches neve
         void event.part;
         void event.parts;
         break;
-      case "inventory":
-        void event.id;
-        break;
-      case "instance":
-        void event.key;
-        void event.instance;
-        void event.instances;
-        void event.part;
-        void event.parts;
-        break;
       case "phase":
         void event.pass;
         void event.key;
-        break;
-      case "gapfill":
-        void event.candidates;
         break;
       default: {
         // After an exhaustive switch over a discriminated union, event is never.

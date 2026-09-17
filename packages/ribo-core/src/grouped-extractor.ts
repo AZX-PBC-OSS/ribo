@@ -192,7 +192,7 @@ interface GroupEntry {
  *      backoff, up to the derived budget. Emit a `GroupUnit` (`key`, `part`,
  *      `parts`, `attempt`) around each entry's `extract()` — the honest unit of
  *      the entry's work. An entry's own inner units (a `WholeUnit` from a
- *      single-shot call, a `GapFillUnit` from a wrapper) flow through whatever
+ *      single-shot call, a `PhaseUnit` from a wrapper) flow through whatever
  *      `onUnit` its own builder gave it.
  *   3. Merge the settled results by top-level key — one entry per key assigns
  *      directly; a partitioned group's pieces recombine with
