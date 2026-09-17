@@ -214,22 +214,25 @@ describe("retryExtractor", () => {
     expect(returned.usage).toBe(accepted.usage);
   });
 
-  test("a success on the third attempt reports usage.calls as the sum across the attempts that returned one", async () => {
-    // Attempts one and two reject, so they report no usage and contribute nothing;
-    // attempt three returns one and is the accepted attempt. Its other usage members
-    // are preserved.
-    const { extractor, calls } = makeScriptedExtractor([
-      new Error("flaky once"),
-      new Error("flaky twice"),
-      result({ value: 1 }, 3, { engine: "test-engine" }),
-    ]);
+  test("a retried success returns the accepted attempt's result by identity, and undercounts usage.calls", async () => {
+    // This pins a KNOWN LIMITATION, not a feature. A rejected attempt carries no
+    // `ExtractionUsage`, so the wrapper has nothing to add and cannot report the calls
+    // the failed attempts burned. Two calls were made here; the result says one.
+    //
+    // The identity assertion is what makes this test bind: an implementation that
+    // rebuilt the result to "sum" across attempts would fail `toBe`, and such an
+    // implementation is exactly what this file used to contain — summing that always
+    // equalled the single resolving attempt's own count, so no value-based assertion
+    // could ever have caught it.
+    const accepted = result({ value: 1 }, 1, { engine: "test-engine" });
+    const { extractor, calls } = makeScriptedExtractor([new Error("flaky once"), accepted]);
     const composed = retryExtractor(extractor, { maxRetries: 2, delay: () => Promise.resolve() });
 
     const returned = await composed.extract(transcript);
 
-    expect(calls).toHaveLength(3);
-    expect(returned).not.toBeNull();
-    expect(returned.usage.calls).toBe(3);
+    expect(calls).toHaveLength(2);
+    expect(returned).toBe(accepted);
+    expect(returned.usage.calls).toBe(1);
     expect(returned.usage.engine).toBe("test-engine");
   });
 

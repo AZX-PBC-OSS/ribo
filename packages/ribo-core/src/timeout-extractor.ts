@@ -114,8 +114,17 @@ export function timeoutExtractor<F>(
           // already unwinding when the caller sees the timeout — the abort is
           // synchronous, so observers of the signal never see a window where the
           // extraction "timed out" but nothing was cancelled.
-          deadline.abort();
-          reject(new ExtractionTimeoutError(timeoutMs));
+          //
+          // The abort carries the SAME error instance the caller will receive. Two
+          // reasons. An inner extractor reading `signal.reason` learns it was a
+          // deadline rather than a user's cancel, which is the difference between
+          // "try again later" and "stop". And it makes the ordering above testable:
+          // promise settlement order is not observable from outside, but a reason
+          // that is reference-equal to the thrown error proves the error existed
+          // before the abort — an abort-then-construct implementation cannot fake it.
+          const expired = new ExtractionTimeoutError(timeoutMs);
+          deadline.abort(expired);
+          reject(expired);
         }, timeoutMs);
       });
 

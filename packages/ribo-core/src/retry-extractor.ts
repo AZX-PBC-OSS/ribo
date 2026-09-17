@@ -91,7 +91,6 @@ export function retryExtractor<F>(
       callerOptions?: ExtractOptions,
     ): Promise<ExtractionResult<F>> {
       const callerSignal = callerOptions?.signal;
-      let reportedCalls = 0;
       let lastError: unknown;
 
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -108,14 +107,25 @@ export function retryExtractor<F>(
         try {
           // The caller's options are forwarded whole — not unwrapped, not rebuilt.
           // A bag that dropped members here would strand them silently.
-          const result = await extractor.extract(transcript, callerOptions);
-
-          if (attempt === 0) return result;
-
-          // Retried success: sum usage.calls across every attempt that reported one.
-          // A failed attempt that rejects reports no usage and contributes nothing.
-          reportedCalls += result.usage.calls;
-          return { ...result, usage: { ...result.usage, calls: reportedCalls } };
+          //
+          // The accepted attempt's result is returned by identity, retried or not.
+          //
+          // This UNDERCOUNTS `usage.calls` after a retry, and the undercount cannot be
+          // fixed here. `ExtractionUsage` only ever arrives on a RESOLVED result, so a
+          // rejected attempt reports nothing — there is no usage to add. An earlier
+          // version of this file summed across attempts, which looked right and was
+          // dead code: exactly one attempt ever returns a result, so the sum always
+          // equalled that one attempt's own count.
+          //
+          // It differs from `groupedExtractor`, which genuinely sums (`grouped-extractor.ts`),
+          // because that sums across ENTRIES that each resolve — a different axis.
+          //
+          // So a `singleShotExtractor` that burns one call, fails, and succeeds on the
+          // retry reports `calls: 1` where two were made, against `ExtractionUsage.calls`'
+          // documented "including retries". Closing it needs failed attempts to carry
+          // usage, i.e. an error that transports it — a real change to the seam, not
+          // something a wrapper can paper over. Recorded rather than silently wrong.
+          return await extractor.extract(transcript, callerOptions);
         } catch (cause) {
           lastError = cause;
           // A deterministic failure — re-sending an identical request reproduces it.

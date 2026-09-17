@@ -156,7 +156,18 @@ describe("timeoutExtractor", () => {
     expect((error as ExtractionTimeoutError).message).toContain("1234");
   });
 
-  test("when the timer fires, the signal the stub received is already aborted at the moment of rejection", async () => {
+  test("when the timer fires, the inner signal is aborted WITH the very error the caller receives", async () => {
+    // The previous version of this test asserted only `signal.aborted === true` after
+    // awaiting the rejection, and named itself "already aborted at the moment of
+    // rejection" — which it did not pin. By the time the await resumes, the flag is
+    // true whether the implementation aborted before rejecting or after, because
+    // promise settlement order is not observable from outside.
+    //
+    // Reference-equality between the abort reason and the thrown error is observable,
+    // and it is strictly stronger: the error must have been constructed before the
+    // abort, so an abort-then-construct implementation cannot pass. It also pins the
+    // behaviour an inner extractor actually needs — reading `signal.reason` to learn
+    // it was a deadline rather than a user's cancel.
     const timer = makeCapturedTimer();
     const stub = makeHeldStub();
     const composed = timeoutExtractor(stub.extractor, {
@@ -166,11 +177,12 @@ describe("timeoutExtractor", () => {
 
     const pending = composed.extract(transcript);
     timer.fire();
-    await expect(pending).rejects.toBeInstanceOf(ExtractionTimeoutError);
+    const thrown = await pending.catch((error: unknown) => error);
 
+    expect(thrown).toBeInstanceOf(ExtractionTimeoutError);
     const received = stub.received[0]!;
-    expect(received.signal).toBeDefined();
     expect(received.signal?.aborted).toBe(true);
+    expect(received.signal?.reason).toBe(thrown);
   });
 
   test("a stub that rejects with its own cancellation-branded error after the timer fired still surfaces as ExtractionTimeoutError", async () => {

@@ -57,6 +57,22 @@ describe("isCancellation", () => {
     expect(error.message).toBe("the caller stopped this");
   });
 
+  test("a brand inherited from a prototype does NOT count — own property only", () => {
+    // This is the assertion that binds `hasOwnProperty` rather than `in`. Every other
+    // test in this file passes under an `in`-based predicate, because they all set the
+    // brand as an own property; only an inherited brand tells the two apart.
+    //
+    // It matters beyond tidiness: a class that declared the brand on its prototype
+    // would mark every instance a cancellation, and the retry loops consult this
+    // predicate to decide whether to stop. `in` would turn one prototype declaration
+    // into silently disabled retries across the whole extraction path.
+    const branded = { [CANCELLATION]: true };
+    const inheritor = Object.create(branded) as object;
+
+    expect(CANCELLATION in inheritor).toBe(true);
+    expect(isCancellation(inheritor)).toBe(false);
+  });
+
   test("a Proxy whose get trap throws returns false, not the trap's error", () => {
     const hostile = new Proxy(new Error("hostile"), {
       get() {
