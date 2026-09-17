@@ -33,6 +33,15 @@ export type {
 } from "./composite-extractor.js";
 export type { Extracted } from "./provenance.js";
 
+// The codebase's one generic RUNTIME walk over enveloped data, as a
+// structure-preserving map over its leaf envelopes — moved out of
+// `gapFillExtractor`, where it was module-private, because a core combinator
+// that judges results has to walk them (sp2-judging-combinators-design.md
+// §4.6). The walker in `enveloped()` is schema-time and serves a different
+// purpose.
+export { isExtractedLeaf, mapExtractedLeaves } from "./extracted-leaves.js";
+export type { LeafPath } from "./extracted-leaves.js";
+
 // Deriving the extraction schema from a writable patch schema — every leaf
 // enveloped, nested objects recursed rather than swallowed whole, closed and
 // fully required throughout. `ToolAdapter.extractionSchema` is declared against

@@ -28,19 +28,26 @@
  * The finish-reason gate, terminal-transport classification and parse helpers
  * are the shared ones from `extraction-common.ts`, used by the follow-up phase
  * in `gap-fill-phase.ts`. The leaf walk and merge below share the codebase's
- * one generic RUNTIME walker over `Enveloped<V>` data — the walker in
+ * one generic RUNTIME walker over `Enveloped<V>` data, moved into `@azx/ribo-core`
+ * (`extracted-leaves.ts`) so the judging combinators can reach it — the walker in
  * `enveloped()` is schema-time and serves a different purpose.
  */
 
 import { z } from "zod";
 
-import { extractorPhase, phasedExtractor, spanGroundedness } from "@azx/ribo-core";
+import {
+  extractorPhase,
+  mapExtractedLeaves,
+  phasedExtractor,
+  spanGroundedness,
+} from "@azx/ribo-core";
 import type {
   Enveloped,
   Extracted,
   ExtractionObserver,
   Extractor,
   ExtractionTarget,
+  LeafPath,
   NoProvenance,
   PhaseUnit,
 } from "@azx/ribo-core";
@@ -150,57 +157,6 @@ export interface AbstainedLeaf {
 export type GapFillTarget = "abstained" | "ungrounded";
 
 /**
- * Distinguish a leaf envelope from a nested enveloped group. The envelope's own
- * key names ARE fixed (provenance.ts's `{ value, confidence, sourceSpan }`), so
- * testing them hard-codes nothing adapter-specific; the load-bearing check is
- * `confidence` being a number — a group's members are themselves envelopes or
- * groups, never bare numbers.
- */
-const isExtractedLeaf = (node: unknown): node is Extracted<unknown> => {
-  if (node === null || typeof node !== "object" || Array.isArray(node)) return false;
-  const record = node as Record<string, unknown>;
-  return "value" in record && "sourceSpan" in record && typeof record.confidence === "number";
-};
-
-/** A path through `Enveloped<V>` data: object keys and array indices. */
-type LeafPath = readonly (string | number)[];
-
-/**
- * The one generic runtime walk over enveloped data, as a structure-preserving
- * map over leaves: `fn` sees every leaf with its path, and a subtree keeps its
- * identity when nothing under it changed. The finder uses it as a pure visitor
- * (returning every leaf unchanged rebuilds nothing); the merge relies on the
- * identity preservation so untouched leaves stay reference-equal to the base.
- */
-const mapLeaves = (
-  node: unknown,
-  path: LeafPath,
-  fn: (leaf: Extracted<unknown>, path: LeafPath) => Extracted<unknown>,
-): unknown => {
-  if (isExtractedLeaf(node)) return fn(node, path);
-  if (Array.isArray(node)) {
-    let changed = false;
-    const mapped = node.map((element, index) => {
-      const next = mapLeaves(element, [...path, index], fn);
-      if (next !== element) changed = true;
-      return next;
-    });
-    return changed ? mapped : node;
-  }
-  // Enveloped data has no primitives outside leaves, but the walker is generic;
-  // pass anything else through rather than Object.entries-ing a string.
-  if (node === null || typeof node !== "object") return node;
-  let changed = false;
-  const mapped: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(node)) {
-    const next = mapLeaves(child, [...path, key], fn);
-    if (next !== child) changed = true;
-    mapped[key] = next;
-  }
-  return changed ? mapped : node;
-};
-
-/**
  * Collect every leaf with `value === null` and a non-null `sourceSpan` — the
  * leaves where the model found its evidence and still did not commit. A null
  * with a null span is a plain, honest abstention and is NOT collected: there is
@@ -210,7 +166,7 @@ export function findAbstainedLeaves<V extends Record<string, unknown>, P = NoPro
   fields: Enveloped<V, P>,
 ): readonly AbstainedLeaf[] {
   const found: AbstainedLeaf[] = [];
-  mapLeaves(fields, [], (leaf, path) => {
+  mapExtractedLeaves(fields, [], (leaf, path) => {
     if (leaf.value === null && leaf.sourceSpan !== null) {
       found.push({ path, sourceSpan: leaf.sourceSpan, kind: "abstained" });
     }
@@ -247,7 +203,7 @@ export function findUngroundedLeaves<V extends Record<string, unknown>, P = NoPr
   transcript: string,
 ): readonly AbstainedLeaf[] {
   const found: AbstainedLeaf[] = [];
-  mapLeaves(fields, [], (leaf, path) => {
+  mapExtractedLeaves(fields, [], (leaf, path) => {
     if (
       leaf.value !== null &&
       leaf.sourceSpan !== null &&
@@ -281,7 +237,7 @@ export function mergeGapFilledLeaves<V extends Record<string, unknown>, P = NoPr
   // The cast is safe by the walk's contract: replacing leaf envelopes with
   // same-shaped leaf envelopes preserves the Enveloped<V, P> structure, and the
   // follow-up entries were parsed against the leaves' own schemas.
-  return mapLeaves(fields, [], (leaf, path) => followUp[formatLeafPath(path)] ?? leaf) as Enveloped<
+  return mapExtractedLeaves(fields, [], (leaf, path) => followUp[formatLeafPath(path)] ?? leaf) as Enveloped<
     V,
     P
   >;
