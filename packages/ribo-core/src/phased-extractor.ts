@@ -232,13 +232,20 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
           // An empty plan is a no-op: no call, no event, no usage change.
           if (items.length === 0) return draft;
 
-          const limit = def.concurrency ?? concurrency;
+          // Metadata is read off the OUTER `phase`, never the inner `def`, even though
+          // `phaseBuilder` copies it from one to the other at construction. The two can
+          // diverge: `{ ...phase, concurrency: 1 }` rebuilds the outer record while
+          // `with` still closes over the original `def`. Reading `def` there would make
+          // the override a silent no-op — and worse, `validatePhases` reads the OUTER
+          // record, so the validator would be checking a value the engine never used.
+          // The declared metadata is the contract; this is where it is honoured.
+          const limit = phase.concurrency ?? concurrency;
           // The retry budget is derived HERE, at the boundary where `plan` has just
           // returned and this phase's item count is finally known — not at
           // construction, where no count exists. The phase's share of the REMAINING
           // time is what is left divided by the phases not yet run, this one
           // included; a phase that finishes early leaves more for the rest.
-          const requested = def.maxRetries ?? maxRetries;
+          const requested = phase.maxRetries ?? maxRetries;
           const batches = Math.ceil(items.length / limit);
           const deriveBudget = (timeout: number): RetryBudget =>
             deriveRetryBudget({
@@ -264,7 +271,7 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
           if (shareBudget.derived < requested) onRetryBudget?.(shareBudget);
           if (requireRetryBudget && requested > 0 && fullBudget.derived === 0) {
             throw new TerminalQueueError(
-              `phasedExtractor: phase "${def.id}"'s retry budget derived to 0 (requested ` +
+              `phasedExtractor: phase "${phase.id}"'s retry budget derived to 0 (requested ` +
                 `${requested}) against even the full step timeout (${stepTimeoutMs} ms) — ` +
                 `increase stepTimeoutMs, lower perCallCeilingMs (${perCallCeilingMs}), or ` +
                 `raise concurrency (${limit}) to fit at least one retry`,
@@ -319,7 +326,7 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
                         phase: "error",
                         attempt,
                         pass,
-                        phaseId: def.id,
+                        phaseId: phase.id,
                         ...unitKey,
                         error: cause,
                       });
@@ -343,7 +350,7 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
                         phase: "start",
                         attempt,
                         pass,
-                        phaseId: def.id,
+                        phaseId: phase.id,
                         ...unitKey,
                       });
                     },
@@ -355,7 +362,7 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
                   phase: "done",
                   attempt: beganAttempt,
                   pass,
-                  phaseId: def.id,
+                  phaseId: phase.id,
                   ...unitKey,
                   // Usage from the item's own PhaseOutput, omitted rather than
                   // zeroed when it reported none — absent means "not reported",
@@ -384,7 +391,7 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
                 // phase to interpret. Abort policy (the default, the safer one): let
                 // the rejection escape; mapWithPool aborts the siblings and fails
                 // the run, `map-with-pool.ts` untouched.
-                if (def.onItemFailure === "skip") {
+                if (phase.onItemFailure === "skip") {
                   return { outcome: "error", item, error: cause };
                 }
                 throw cause;
@@ -405,10 +412,10 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
           // silent liar, and a roster-driven contribution is exactly that shape —
           // this is what makes `requires`/`produces` an actual guarantee rather
           // than a declaration.
-          for (const key of def.produces ?? []) {
+          for (const key of phase.produces ?? []) {
             if (!merged.notes.keys.includes(key)) {
               throw new Error(
-                `phasedExtractor: phase "${def.id}" declared it produces note key ` +
+                `phasedExtractor: phase "${phase.id}" declared it produces note key ` +
                   `"${key}", but its merge did not write it — a phase that declares a ` +
                   `key and writes it only conditionally is a silent liar`,
               );

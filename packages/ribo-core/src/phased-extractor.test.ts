@@ -574,6 +574,95 @@ describe("phasedExtractor — retry, failure policies, cancellation", () => {
   });
 });
 
+describe("phasedExtractor — declared metadata is read off the phase, not the closed-over def", () => {
+  // `phaseBuilder` copies a def's metadata onto the outer `Phase` record at construction,
+  // so the two normally agree. They diverge the moment anyone spreads:
+  // `{ ...phase, maxRetries: 0 }` rebuilds the outer record while `with` still closes over
+  // the ORIGINAL def. An engine reading `def.maxRetries` would make that override a silent
+  // no-op — and `validatePhases` reads the OUTER record, so the validator would have been
+  // checking a value the engine never used. That is a validation bypass rather than merely
+  // a dead option, which is why each overridable member is pinned here rather than assumed.
+
+  function flaky(): Error {
+    return Object.assign(new Error("transient"), { status: 503 });
+  }
+
+  test("a spread override of maxRetries is honoured, not the def's original", async () => {
+    let runCalls = 0;
+    const boom = flaky();
+    const retrying = build({
+      id: "retrying",
+      maxRetries: 5,
+      plan: () => [1],
+      run: async () => {
+        runCalls += 1;
+        throw boom;
+      },
+      merge: (draft) => draft,
+    });
+    const pinnedToOnce: Phase<TestValues> = { ...retrying, maxRetries: 0 };
+
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [pinnedToOnce],
+      delay: () => Promise.resolve(),
+    });
+
+    await expect(extractor.extract(transcript)).rejects.toBe(boom);
+    expect(runCalls).toBe(1);
+  });
+
+  test("a spread override of concurrency is honoured", async () => {
+    let live = 0;
+    let peak = 0;
+    const wide = build({
+      id: "wide",
+      concurrency: 4,
+      plan: () => [1, 2, 3, 4],
+      run: async () => {
+        live += 1;
+        peak = Math.max(peak, live);
+        await Promise.resolve();
+        live -= 1;
+        return { value: 1 };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const serialised: Phase<TestValues> = { ...wide, concurrency: 1 };
+
+    const extractor = phasedExtractor<TestValues>({ target, phases: [serialised] });
+    await extractor.extract(transcript);
+
+    expect(peak).toBe(1);
+  });
+
+  test("a spread override of onItemFailure is honoured", async () => {
+    // The def says abort; the spread says skip. Reading the def would reject the run
+    // instead of letting the failure reach merge and the run complete.
+    const seen: string[] = [];
+    const aborting = build({
+      id: "aborting",
+      onItemFailure: "abort",
+      plan: () => [1],
+      run: () => Promise.reject(new Error("item failed")),
+      merge: (draft, outcomes) => {
+        for (const outcome of outcomes) seen.push(outcome.outcome);
+        return { ...draft, fields: noteFields("done") };
+      },
+    });
+    const skipping: Phase<TestValues> = { ...aborting, onItemFailure: "skip" };
+
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [skipping],
+      delay: () => Promise.resolve(),
+    });
+
+    await extractor.extract(transcript);
+    expect(seen).toEqual(["error"]);
+  });
+});
+
 describe("phasedExtractor — the running deadline and the per-phase retry budget", () => {
   /** A controllable clock for the engine's `now` seam. */
   function makeClock(start: number) {
