@@ -555,4 +555,75 @@ describe("consensusExtractor — construction", () => {
       }),
     ).toThrow(/minSamples/);
   });
+
+  test("a concurrency below one throws at construction", async () => {
+    // A zero chunk size never advances the settling loop: the run would hang
+    // forever rather than fail, which is the worst of the two outcomes and the
+    // only reason this check is worth its line.
+    expect(() =>
+      consensusExtractor([candidate(agreedFields), candidate(agreedFields)], {
+        target,
+        concurrency: 0,
+      }),
+    ).toThrow(/concurrency/);
+  });
+
+  test("minSamples at or below zero is floored at one rather than refused", async () => {
+    // Deliberately NOT a construction error, unlike the two above: a quorum of
+    // one degrades coherently to "the single survivor passes through".
+    const extractor = consensusExtractor(
+      [candidate(agreedFields), rejectingCandidate(new Error("down"))],
+      { target, minSamples: 0 },
+    );
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.fields.heating.systemType.value).toBe("gas");
+    expect(result.usage.calls).toBe(1);
+  });
+
+  test("a floored quorum still rejects when EVERY candidate fails", async () => {
+    // The discriminating pin for the flooring, and the reason the test above
+    // is not enough on its own: with one survivor, quorum 0 and quorum 1 both
+    // pass, so that test cannot tell flooring from its absence. With NO
+    // survivors they diverge — an unfloored quorum of zero satisfies
+    // `survivors.length < quorum`, falls through to the walk, and dereferences
+    // a first survivor that is not there. A crash where an error belongs.
+    const extractor = consensusExtractor(
+      [rejectingCandidate(new Error("down")), rejectingCandidate(new Error("also down"))],
+      { target, minSamples: 0 },
+    );
+
+    await expect(extractor.extract(transcript)).rejects.toBeInstanceOf(ConsensusFailedError);
+  });
+});
+
+describe("consensusExtractor — a policy that names a sample it was not handed", () => {
+  test("an out-of-range index throws, naming the index and the path, rather than clamping", async () => {
+    // The runtime half of the guarantee that replaced a compile-time one. The
+    // arbiter returns an INDEX precisely so a policy cannot fabricate a value,
+    // a confidence or a citation — it can only point at evidence it was given.
+    // That reduces fabrication to one failure mode: pointing outside the hand.
+    // Clamping to sample 0 would restore a fabrication the type system was
+    // reorganised to forbid, and would hide the policy bug forever.
+    const outOfRange = consensusExtractor([candidate(agreedFields), candidate(agreedFields)], {
+      target,
+      arbiter: () => ({ accept: 7 }),
+    });
+
+    await expect(outOfRange.extract(transcript)).rejects.toThrow(/7/);
+  });
+
+  test("an out-of-range index on the CONTESTED arm throws too", async () => {
+    // The contested arm resolves an index the same way — it names the sample
+    // whose citation survives — so it has the same hole and needs the same
+    // check. An implementation that validated only the accept arm passes the
+    // test above and still lets a bad policy through here.
+    const outOfRange = consensusExtractor([candidate(agreedFields), candidate(agreedFields)], {
+      target,
+      arbiter: () => ({ contested: 7 }),
+    });
+
+    await expect(outOfRange.extract(transcript)).rejects.toThrow(/7/);
+  });
 });
