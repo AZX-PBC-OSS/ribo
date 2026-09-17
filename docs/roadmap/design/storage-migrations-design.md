@@ -47,12 +47,22 @@ not to lose.
 kit — the executable form of the contract, published to third parties at `@azx/ribo-core/testing` —
 has zero migration coverage. Everything above is a courtesy the first backend happened to extend.
 
-**Nothing anywhere ties a shape change to a version bump.** This is worth stating precisely, because
-the loose version of it flatters this proposal. `schema.test.ts` enforces two things: that zod and
-`RxJsonSchema` describe the same field set, and that the version constant is the literal someone last
-wrote. Neither relates the shape to the version. Change both descriptions together and leave the
-version alone, and every test in the repository is green. That is exactly the hole #38 went through,
-and what caught it was review, not a test.
+**Nothing _in core_ ties a shape change to a version bump.** This needs stating precisely, because
+the loose version flatters the proposal and an earlier draft of this document asserted it without
+checking.
+
+The loose version was: change both descriptions of a document, leave the version alone, and every
+test stays green. **That is false.** Adding a probe field to both the zod and `RxJsonSchema`
+descriptions makes a test fail for all three documents, because `schema.test.ts`,
+`session-schema.test.ts` and `plugin-storage-schema.test.ts` each pin their optional-field list as a
+literal. Measured, not reasoned.
+
+What is true is narrower and still decisive: **all three of those guards live in
+`@azx/ribo-storage-rxdb`**, and they are one backend's private discipline. Core has none, so a second
+backend implementing the port inherits the document schemas, the conformance kit and the six
+obligations — and none of the care that keeps those schemas openable. Nor can any of those guards say
+_which version_ a shape belongs to; they pin two descriptions against each other, not a description
+against a number.
 
 **It is written down nowhere anyone would look.** `grep -i migrat AGENTS.md` returns one line, a
 clause about what the rxdb package owns. There is no guide page. The reasoning exists in the storage
@@ -206,6 +216,12 @@ fails the moment the field is added, and the failure message contains `extractio
 A table rather than a single pinned literal, because the history is the point: it is the only record
 of what each version's shape actually was, and a future rung author reading it can see what they are
 transforming from.
+
+**Guard B is not the only thing that would catch #38, and saying so would be false** — see §3. The
+RxDB package's three schema tests catch a field appearing or disappearing too, verified by probe.
+Guard B's claim is narrower: it is the version of that check which lives in **core**, so a second
+backend inherits it, and it is the only one that relates a shape to a _version number_ rather than to
+another description of the same shape.
 
 Guard B does not mechanically force a bump; it forces a deliberate edit at exactly the right moment,
 next to a comment saying what changing it strands. That is weaker than mechanical enforcement, and it
