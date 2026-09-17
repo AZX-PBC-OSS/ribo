@@ -88,8 +88,8 @@ describe("groundingCensus — the three facts per leaf", () => {
 
   test("an abstained leaf with a null span has groundedness null — NOT ungrounded", () => {
     const census = censusFor(fields);
-    const abstained = census.leaves.find((entry) =>
-      entry.path.length === 2 && entry.path[0] === "solar",
+    const abstained = census.leaves.find(
+      (entry) => entry.path.length === 2 && entry.path[0] === "solar",
     );
     expect(abstained).toEqual({
       path: ["solar", "present"],
@@ -105,8 +105,8 @@ describe("groundingCensus — the three facts per leaf", () => {
 
   test("a committed leaf with a null span carries a null groundedness too", () => {
     const census = censusFor(fields);
-    const uncited = census.leaves.find((entry) =>
-      entry.path.length === 2 && entry.path[0] === "waterHeater",
+    const uncited = census.leaves.find(
+      (entry) => entry.path.length === 2 && entry.path[0] === "waterHeater",
     );
     expect(uncited).toEqual({
       path: ["waterHeater", "capacity"],

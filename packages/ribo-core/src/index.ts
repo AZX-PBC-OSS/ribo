@@ -65,6 +65,25 @@ export type {
   GroundingCensusCounts,
 } from "./grounding-census.js";
 
+// The first judging combinator: wrap any extractor, tally how well its result is
+// cited (the census above), and hand that tally to a caller-supplied policy —
+// returning the result untouched or throwing a TERMINAL rejection an arbitration
+// ladder falls through on (sp2-judging-combinators-design.md §4.2). The rejection
+// being terminal is load-bearing: `terminalFallsThrough` continues on a terminal
+// error and gives up on a transient one, so a transient classification would
+// produce the opposite behaviour plus a relay retry loop over the hallucinating
+// rung. Construction refuses a target whose groups are not leaf granularity.
+export {
+  rejectUngroundedCommitments,
+  ValidationRejectedError,
+  validateExtractor,
+} from "./validate-extractor.js";
+export type {
+  ValidateExtractorOptions,
+  ValidationPolicy,
+  ValidationVerdict,
+} from "./validate-extractor.js";
+
 // Deriving the extraction schema from a writable patch schema — every leaf
 // enveloped, nested objects recursed rather than swallowed whole, closed and
 // fully required throughout. `ToolAdapter.extractionSchema` is declared against

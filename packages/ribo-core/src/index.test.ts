@@ -57,6 +57,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "TranscriberUnavailableError",
     "UNSUPPORTED_ITEM_REASONS",
     "UnsupportedItemError",
+    "ValidationRejectedError",
     "acceptAnySuccess",
     "assertLeafGranularity",
     "baseDocumentCaptureSchema",
@@ -126,6 +127,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "raceExtractor",
     "recordingSchema",
     "recoverInterrupted",
+    "rejectUngroundedCommitments",
     "relayItemLock",
     "relaySessionLock",
     "removeMemoryDatabase",
@@ -149,6 +151,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "toWriteStep",
     "transcriptSchema",
     "unsupportedFallsThrough",
+    "validateExtractor",
     "validatePhases",
     "workSafety",
   ]);
