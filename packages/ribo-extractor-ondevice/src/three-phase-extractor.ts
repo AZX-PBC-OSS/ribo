@@ -80,13 +80,13 @@ interface PhaseUnitEmitter {
 }
 
 interface PhaseEmitter {
-  newUnit: (pass: 0 | 1 | 2, key: string, leaf?: string) => PhaseUnitEmitter;
+  newUnit: (pass: 0 | 1 | 2, phaseId: string, key: string, leaf?: string) => PhaseUnitEmitter;
   getCalls: () => number;
 }
 
 function createEmitter(onUnit: ((event: PhaseUnit) => void) | undefined): PhaseEmitter {
   let calls = 0;
-  function newUnit(pass: 0 | 1 | 2, key: string, leaf?: string): PhaseUnitEmitter {
+  function newUnit(pass: 0 | 1 | 2, phaseId: string, key: string, leaf?: string): PhaseUnitEmitter {
     const id = nextUnitId();
     return {
       id,
@@ -98,6 +98,7 @@ function createEmitter(onUnit: ((event: PhaseUnit) => void) | undefined): PhaseE
           phase: "start",
           attempt,
           pass,
+          phaseId,
           key,
           ...(leaf !== undefined ? { leaf } : {}),
         });
@@ -109,6 +110,7 @@ function createEmitter(onUnit: ((event: PhaseUnit) => void) | undefined): PhaseE
           phase: "done",
           attempt,
           pass,
+          phaseId,
           key,
           ...(leaf !== undefined ? { leaf } : {}),
           ...(usage !== undefined ? { usage } : {}),
@@ -121,6 +123,7 @@ function createEmitter(onUnit: ((event: PhaseUnit) => void) | undefined): PhaseE
           phase: "error",
           attempt,
           pass,
+          phaseId,
           key,
           ...(leaf !== undefined ? { leaf } : {}),
           error,
@@ -372,7 +375,7 @@ async function extractPresence(
     schema,
     `${group.key}-presence`,
   );
-  const unit = emitter.newUnit(0, group.key);
+  const unit = emitter.newUnit(0, "presence", group.key);
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (signal?.aborted) {
@@ -459,7 +462,7 @@ async function extractSpans(
     schema,
     `${group.key}-spans`,
   );
-  const unit = emitter.newUnit(1, group.key);
+  const unit = emitter.newUnit(1, "span", group.key);
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (signal?.aborted) {
@@ -552,7 +555,7 @@ async function classifyLeaf(
     leaf.valueSchema,
     `classify-${leaf.path.replace(/\./g, "-")}`,
   );
-  const unit = emitter.newUnit(2, groupKey, leaf.key);
+  const unit = emitter.newUnit(2, "classify", groupKey, leaf.key);
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (signal?.aborted) {
       // Same pre-attempt check as phases 0 and 1 — see the comment there.

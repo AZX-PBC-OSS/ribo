@@ -52,7 +52,25 @@ export type InstanceUnit = UnitBase & {
 /** `threePhaseExtractor`: one call in the presence -> quote -> classify sequence. */
 export type PhaseUnit = UnitBase & {
   readonly unit: "phase";
-  readonly pass: 0 | 1 | 2;
+  /**
+   * Position in the phase list, 0-based. Previously the strategy's own pass
+   * index — for the ported three-phase the two coincide, but position is the
+   * only meaning a general combinator can offer (a four-phase list would not).
+   */
+  readonly pass: number;
+  /**
+   * The phase's identity — `"presence"`, `"span"`, `"classify"` — what a
+   * consumer rendering progress actually wants, as opposed to the numeric
+   * `pass`.
+   *
+   * Deliberately **not** named `phase`: `UnitBase.phase` is the lifecycle
+   * discriminator (`"start" | "done" | "error"`) and `PhaseUnit` is an
+   * intersection with it, so a `phase: string` member here would not widen
+   * anything — it would narrow to that lifecycle union, and emitting a
+   * phase identity through it would fail with an error naming neither the
+   * cause nor the collision. The name keeps the two axes apart.
+   */
+  readonly phaseId: string;
   readonly key: string;
   /** Phase 2 only — one leaf per call. */
   readonly leaf?: string;

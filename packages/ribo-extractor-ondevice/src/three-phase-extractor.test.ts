@@ -464,6 +464,95 @@ describe("threePhaseExtractor", () => {
       expect(sitePass2.map((e) => e.leaf).sort()).toEqual(["access", "yearBuilt"]);
     });
 
+    test("each pass's events carry its phase identity — presence, span, classify", async () => {
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      const transcript =
+        "the system is gas efficiency is 82 percent notes need replacement built in 1950 easy access";
+      model.sequence = [
+        [json({ fuel: true, efficiency: true, notes: true })],
+        [
+          json({
+            fuel: "the system is gas",
+            efficiency: "efficiency is 82 percent",
+            notes: "notes need replacement",
+          }),
+        ],
+        [json("Gas")],
+        [json(82)],
+        [json("notes need replacement")],
+        [json({ yearBuilt: true, access: true })],
+        [json({ yearBuilt: "built in 1950", access: "easy access" })],
+        [json(1950)],
+        [json("Easy")],
+      ];
+
+      const events: PhaseUnit[] = [];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({
+        target,
+        chat,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+      await extractor.extract({ text: transcript, annotations: {} });
+
+      // Non-vacuous by construction: both groups run all three passes, so every
+      // pass bucket is populated before the identity is asserted on it.
+      const pass0 = events.filter((e) => e.pass === 0);
+      const pass1 = events.filter((e) => e.pass === 1);
+      const pass2 = events.filter((e) => e.pass === 2);
+      expect(pass0.length).toBeGreaterThan(0);
+      expect(pass1.length).toBeGreaterThan(0);
+      expect(pass2.length).toBeGreaterThan(0);
+      for (const e of pass0) expect(e.phaseId).toBe("presence");
+      for (const e of pass1) expect(e.phaseId).toBe("span");
+      for (const e of pass2) expect(e.phaseId).toBe("classify");
+    });
+
+    test("the wrapped-schema fallback shares the classify unit's identity", async () => {
+      const singleLeafPatch = z.strictObject({
+        hvac: z
+          .strictObject({
+            fuel: z.enum(["Oil", "Gas"]).nullable().optional(),
+          })
+          .optional(),
+      });
+      const singleLeafSchema = enveloped(singleLeafPatch);
+      type SingleLeafValues = z.infer<typeof singleLeafPatch>;
+      const singleLeafTarget: ExtractionTarget<SingleLeafValues> = {
+        name: "unsupported-phaseid-test",
+        extractionSchema: singleLeafSchema,
+        instructions: "Extract hvac fields.",
+        examples: [],
+      };
+
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      model.sequence = [
+        [json({ fuel: true })],
+        [json({ fuel: "the system is gas" })],
+        new DOMException("not supported", "NotSupportedError"),
+        [json({ value: "Gas" })],
+      ];
+
+      const events: PhaseUnit[] = [];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({
+        target: singleLeafTarget,
+        chat,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+      await extractor.extract({ text: "the system is gas", annotations: {} });
+
+      // The wrapped retry re-emits under the classify unit — the same phase,
+      // so its events carry the same identity. Wave 6 is what splits it out.
+      const phase2 = events.filter((e) => e.pass === 2);
+      expect(phase2.length).toBeGreaterThan(0);
+      for (const e of phase2) expect(e.phaseId).toBe("classify");
+    });
+
     test("a pass-0 unit carries no leaf", async () => {
       const model = new FakeLanguageModel();
       model.availabilityValue = "available";
