@@ -315,6 +315,13 @@ export type { RaceCandidate } from "./race-extractor.js";
 export { retryExtractor } from "./retry-extractor.js";
 export type { RetryExtractorOptions } from "./retry-extractor.js";
 
+// Strategy timeout: bound one extractor to a deadline with a signal the inner
+// extractor can honour, racing the work against a timer so a hung inner cannot
+// hang the run. Its error is deliberately not cancellation-branded — a deadline
+// elapsing and a caller cancelling are different events.
+export { ExtractionTimeoutError, timeoutExtractor } from "./timeout-extractor.js";
+export type { TimeoutExtractorOptions } from "./timeout-extractor.js";
+
 // The grouped run: take a per-key map of group extractors and own the
 // cross-group work — coverage at construction, a bounded pool, the derived
 // retry budget, sibling abort, the merge, the second trust-boundary parse,
