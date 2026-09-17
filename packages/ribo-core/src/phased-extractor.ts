@@ -293,9 +293,16 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
               // key "" matches groupedExtractor's GroupMap convention for a
               // whole-schema entry.
               const described = def.describeItem?.(item) ?? { key: "" };
+              // Every member after `key` is spread in only when the phase reported it —
+              // an event carries `leaf`/`instance`/`instances`/`part`/`parts` as absent,
+              // never as an explicit undefined (the usage members' omit rule).
               const unitKey = {
                 key: described.key,
                 ...(described.leaf !== undefined ? { leaf: described.leaf } : {}),
+                ...(described.instance !== undefined ? { instance: described.instance } : {}),
+                ...(described.instances !== undefined ? { instances: described.instances } : {}),
+                ...(described.part !== undefined ? { part: described.part } : {}),
+                ...(described.parts !== undefined ? { parts: described.parts } : {}),
               };
               // The attempt that most recently BEGAN — 0 until onAttempt first
               // fires, so the done event names the attempt that actually settled,

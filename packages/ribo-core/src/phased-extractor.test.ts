@@ -1102,6 +1102,66 @@ describe("phasedExtractor — the unit stream and the produces check", () => {
     ]);
   });
 
+  test("a phase whose describeItem returns the piece coordinates emits them on every event", async () => {
+    const { events, onUnit } = collectEvents();
+    const fill = build({
+      id: "fill",
+      plan: () => [0, 1],
+      run: async (item) => ({ value: item }),
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+      describeItem: (item) => ({
+        key: "hvac",
+        instance: (item as number) + 1,
+        instances: 3,
+        part: 2,
+        parts: 4,
+      }),
+    });
+    const extractor = phasedExtractor<TestValues>({ target, phases: [fill], onUnit });
+
+    await extractor.extract(transcript);
+
+    const fillEvents = events.filter((e) => e.phaseId === "fill");
+    expect(fillEvents).toHaveLength(4);
+    for (const event of fillEvents) {
+      expect(event.key).toBe("hvac");
+      expect(event.instances).toBe(3);
+      expect(event.part).toBe(2);
+      expect(event.parts).toBe(4);
+    }
+    // The two items' instance coordinates differ — 1-based, matching InstanceUnit.
+    const starts = fillEvents.filter((e) => e.phase === "start");
+    expect(starts.map((e) => e.instance)).toEqual([1, 2]);
+  });
+
+  test("a phase that omits the coordinates — or declares no describeItem — emits events with them absent, not undefined", async () => {
+    const { events, onUnit } = collectEvents();
+    const described = build({
+      id: "described",
+      plan: () => [1],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+      // Coordinates omitted — same omit-rather-than-claim rule as the usage members.
+      describeItem: () => ({ key: "g" }),
+    });
+    const bare = build({
+      id: "bare",
+      plan: () => [1],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => draft,
+    });
+    const extractor = phasedExtractor<TestValues>({ target, phases: [described, bare], onUnit });
+
+    await extractor.extract(transcript);
+
+    for (const event of events) {
+      expect("instance" in event).toBe(false);
+      expect("instances" in event).toBe(false);
+      expect("part" in event).toBe(false);
+      expect("parts" in event).toBe(false);
+    }
+  });
+
   test("usage reaches done from the item's PhaseOutput, and is omitted when the output reported none", async () => {
     const { events, onUnit } = collectEvents();
     const withTokens = build({

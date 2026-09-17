@@ -74,6 +74,18 @@ export type PhaseUnit = UnitBase & {
   readonly key: string;
   /** Phase 2 only — one leaf per call. */
   readonly leaf?: string;
+  /**
+   * Scoped-instance fill coordinates, carried by the ported inventory/fill
+   * phases so a consumer can render "HVAC system 2 of 3, part 1 of 2" — the
+   * same four `InstanceUnit` carried. All optional and omitted (not zeroed)
+   * when a phase's `describeItem` does not report them, matching the usage
+   * members' omit-rather-than-claim rule; every phase before Wave 5 emits
+   * events without them.
+   */
+  readonly instance?: number;
+  readonly instances?: number;
+  readonly part?: number;
+  readonly parts?: number;
 };
 
 /** `gapFillExtractor`: one focused follow-up over abstained-with-evidence leaves. */

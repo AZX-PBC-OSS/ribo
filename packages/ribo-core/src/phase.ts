@@ -128,8 +128,21 @@ export interface PhaseDef<
    * whose single item IS the whole document — `extractorPhase`, the inventory pass — has
    * no meaningful group key. The default and the convention agree. Supplying none is
    * valid; applying the default is the combinator's job (Wave 3b), not the builder's.
+   *
+   * **The piece coordinates** (`instance`/`instances`/`part`/`parts`) are the same
+   * optional quartet `PhaseUnit` carries — a scoped-instance fill item reports them so a
+   * consumer can render "HVAC system 2 of 3, part 1 of 2". A phase that omits them emits
+   * events with the members absent, never `undefined` (the combinator spreads a member
+   * in only when it is defined).
    */
-  readonly describeItem?: (item: I) => { key: string; leaf?: string };
+  readonly describeItem?: (item: I) => {
+    key: string;
+    leaf?: string;
+    instance?: number;
+    instances?: number;
+    part?: number;
+    parts?: number;
+  };
 }
 
 /**
