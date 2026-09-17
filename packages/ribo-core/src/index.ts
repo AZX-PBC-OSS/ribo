@@ -42,6 +42,15 @@ export type { Extracted } from "./provenance.js";
 export { isExtractedLeaf, mapExtractedLeaves } from "./extracted-leaves.js";
 export type { LeafPath } from "./extracted-leaves.js";
 
+// The construction-time `"leaf"`-granularity guard the judging combinators build
+// on (sp2-judging-combinators-design.md §4.5): refuse a target whose groups are
+// not derived at `"leaf"` provenance granularity, before any call is made — the
+// walk above passes `"row"` and `"none"` groups straight through, so a combinator
+// that can only serve per-leaf envelopes would otherwise compare nothing and
+// count nothing exactly where hallucination is worst. A bare assertion function;
+// no combinator-facing API sits on top of it.
+export { assertLeafGranularity } from "./assert-leaf-granularity.js";
+
 // Deriving the extraction schema from a writable patch schema — every leaf
 // enveloped, nested objects recursed rather than swallowed whole, closed and
 // fully required throughout. `ToolAdapter.extractionSchema` is declared against

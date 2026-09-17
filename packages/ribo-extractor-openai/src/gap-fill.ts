@@ -237,10 +237,11 @@ export function mergeGapFilledLeaves<V extends Record<string, unknown>, P = NoPr
   // The cast is safe by the walk's contract: replacing leaf envelopes with
   // same-shaped leaf envelopes preserves the Enveloped<V, P> structure, and the
   // follow-up entries were parsed against the leaves' own schemas.
-  return mapExtractedLeaves(fields, [], (leaf, path) => followUp[formatLeafPath(path)] ?? leaf) as Enveloped<
-    V,
-    P
-  >;
+  return mapExtractedLeaves(
+    fields,
+    [],
+    (leaf, path) => followUp[formatLeafPath(path)] ?? leaf,
+  ) as Enveloped<V, P>;
 }
 
 /**

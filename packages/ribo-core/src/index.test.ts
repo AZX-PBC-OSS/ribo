@@ -58,6 +58,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "UNSUPPORTED_ITEM_REASONS",
     "UnsupportedItemError",
     "acceptAnySuccess",
+    "assertLeafGranularity",
     "baseDocumentCaptureSchema",
     "basePayloadSchema",
     "baseRecordingSchema",
