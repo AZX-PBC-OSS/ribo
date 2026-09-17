@@ -60,15 +60,19 @@ const DEFAULT_MAX_RETRIES = 2;
  * which the last error is rethrown. A `SchemaParseError` is retried, because
  * `isTransientFailure` already returns `true` for it.
  *
- * **Usage across attempts.** `ExtractionUsage.calls` is documented as "Model calls made,
- * including retries", and the loop this generalizes (`grouped-extractor.ts`) sums
- * `usage.calls` across attempts. On a **retried** success this returns a new result whose
- * `usage.calls` is the sum over every attempt that reported one, preserving all other
- * usage members from the accepted attempt. On a **first-attempt** success it returns the
- * inner result object unchanged, by identity — there is nothing to sum, and rebuilding
- * would break the passthrough guarantee downstream consumers rely on. A failed attempt
- * that rejects reports no usage and contributes nothing; only attempts that returned a
- * result can.
+ * **Usage across attempts — this wrapper UNDERCOUNTS, and cannot do otherwise.** The
+ * accepted attempt's result is returned by identity, retried or not. `ExtractionUsage`
+ * only ever arrives on a RESOLVED result, so a rejected attempt reports nothing and
+ * there is nothing to add: a `singleShotExtractor` that burns one call, fails, and
+ * succeeds on the retry reports `calls: 1` where two were made, against
+ * `ExtractionUsage.calls`' documented "including retries".
+ *
+ * An earlier version summed across attempts, which looked right and was dead code —
+ * exactly one attempt ever returns a result, so the sum always equalled that attempt's
+ * own count. It differs from `grouped-extractor.ts`, which genuinely sums across
+ * ENTRIES that each resolve; that is a different axis. Closing the gap needs failed
+ * attempts to carry usage, i.e. an error that transports it, which is a change to the
+ * seam rather than something a wrapper can paper over.
  */
 export function retryExtractor<F>(
   extractor: Extractor<F>,
