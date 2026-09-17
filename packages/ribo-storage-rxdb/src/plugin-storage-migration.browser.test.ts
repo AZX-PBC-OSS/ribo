@@ -135,6 +135,12 @@ test("a migrated entry is still reachable through the plugin's own handle", asyn
     const { openStorage } = await import("@azx/ribo-core");
     const storage = await openStorage({ backend });
     expect(await storage.store("pdfjs").capture("cap-1").get("pages")).toEqual([1, 2, 3]);
+
+    // `keys()` reads by scope and owner rather than by primary key, so it
+    // exercises fields `get` never looks at. A strategy that dropped `key` would
+    // still satisfy the read above — the row would be findable by its id and
+    // missing from its own listing.
+    expect(await storage.store("pdfjs").capture("cap-1").keys()).toEqual(["pages"]);
   } finally {
     await backend.close();
   }
