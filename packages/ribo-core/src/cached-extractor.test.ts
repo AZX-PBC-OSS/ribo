@@ -57,7 +57,9 @@ const baseTarget = (
   name: "test-target",
   extractionSchema: enveloped(testValuesSchema),
   instructions: "extract the heating fields",
-  examples: [{ transcript: "gas furnace example", fields: { heating: { systemType: leaf("gas", "gas") } } }],
+  examples: [
+    { transcript: "gas furnace example", fields: { heating: { systemType: leaf("gas", "gas") } } },
+  ],
   ...overrides,
 });
 
@@ -143,7 +145,10 @@ describe("cachedExtractor — the key covers the whole prompt", () => {
     await cachedExtractor(innerB, {
       target: baseTarget({
         examples: [
-          { transcript: "an oil furnace example", fields: { heating: { systemType: leaf("oil", "oil") } } },
+          {
+            transcript: "an oil furnace example",
+            fields: { heating: { systemType: leaf("oil", "oil") } },
+          },
         ],
       }),
       cache,
@@ -161,8 +166,14 @@ describe("cachedExtractor — the key covers the whole prompt", () => {
     // examples are structurally DIFFERENT (a gas rung and an oil rung) — two
     // structurally identical examples could not distinguish an order, and their
     // key-order-insensitive twins are pinned separately below.
-    const gasExample = { transcript: "gas example", fields: { heating: { systemType: leaf("gas", "gas") } } };
-    const oilExample = { transcript: "oil example", fields: { heating: { systemType: leaf("oil", "oil") } } };
+    const gasExample = {
+      transcript: "gas example",
+      fields: { heating: { systemType: leaf("gas", "gas") } },
+    };
+    const oilExample = {
+      transcript: "oil example",
+      fields: { heating: { systemType: leaf("oil", "oil") } },
+    };
     const cache = memoryCache();
     const innerA = new FakeExtractor(FIELDS);
     const innerB = new FakeExtractor(FIELDS);
@@ -203,9 +214,10 @@ describe("cachedExtractor — the key covers the whole prompt", () => {
     const innerA = new FakeExtractor(FIELDS);
     const innerB = new FakeExtractor(FIELDS);
     await cachedExtractor(innerA, { target: baseTarget(), cache }).extract(transcript);
-    await cachedExtractor(innerB, { target: baseTarget({ name: "another-target" }), cache }).extract(
-      transcript,
-    );
+    await cachedExtractor(innerB, {
+      target: baseTarget({ name: "another-target" }),
+      cache,
+    }).extract(transcript);
 
     expect(innerB.calls).toHaveLength(1);
   });

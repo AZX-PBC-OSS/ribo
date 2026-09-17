@@ -28,7 +28,10 @@ type Fields = { answer: string };
 
 const FIELDS: Fields = { answer: "42" };
 
-const transcript: AnnotatedTranscript = { text: "The heating system is a gas furnace.", annotations: {} };
+const transcript: AnnotatedTranscript = {
+  text: "The heating system is a gas furnace.",
+  annotations: {},
+};
 
 /** Usage for a strategy that reported everything — the cache members included. */
 const fullUsage: ExtractionUsage = {
@@ -77,10 +80,9 @@ describe("budgetExtractor — ceilings", () => {
   });
 
   test("a result exceeding maxCalls throws, naming the member, the ceiling and the observed value", async () => {
-    const extractor = budgetExtractor(
-      extractorReturning({ fields: FIELDS, usage: { calls: 3 } }),
-      { maxCalls: 1 },
-    );
+    const extractor = budgetExtractor(extractorReturning({ fields: FIELDS, usage: { calls: 3 } }), {
+      maxCalls: 1,
+    });
 
     const error = await rejectionOf(extractor.extract(transcript));
 
@@ -123,10 +125,9 @@ describe("budgetExtractor — ceilings", () => {
     // prompt tokens came from; summing all four double-counts the prompt. The
     // observed value is pinned so a "sum everything" implementation fails here
     // with 1100 rather than passing with a wrong number.
-    const extractor = budgetExtractor(
-      extractorReturning({ fields: FIELDS, usage: fullUsage }),
-      { maxTotalTokens: 700 },
-    );
+    const extractor = budgetExtractor(extractorReturning({ fields: FIELDS, usage: fullUsage }), {
+      maxTotalTokens: 700,
+    });
 
     const error = await rejectionOf(extractor.extract(transcript));
 
@@ -154,10 +155,11 @@ describe("budgetExtractor — ceilings", () => {
     // report no tokens, and several paths report `{ calls: 1 }` and nothing
     // else. Throwing on an absent member would break those real runs; the doc
     // comment tells the host instead.
-    const extractor = budgetExtractor(
-      extractorReturning({ fields: FIELDS, usage: { calls: 1 } }),
-      { maxPromptTokens: 10, maxCompletionTokens: 10, maxTotalTokens: 10 },
-    );
+    const extractor = budgetExtractor(extractorReturning({ fields: FIELDS, usage: { calls: 1 } }), {
+      maxPromptTokens: 10,
+      maxCompletionTokens: 10,
+      maxTotalTokens: 10,
+    });
 
     await expect(extractor.extract(transcript)).resolves.toHaveProperty("fields", FIELDS);
   });
@@ -165,10 +167,9 @@ describe("budgetExtractor — ceilings", () => {
   test("maxCalls: 0 throws for a result reporting one call — a ceiling of zero is a ceiling", async () => {
     // Zero is falsy; presence is `!== undefined`, never truthiness. A `||`
     // default here would silently permit every call.
-    const extractor = budgetExtractor(
-      extractorReturning({ fields: FIELDS, usage: { calls: 1 } }),
-      { maxCalls: 0 },
-    );
+    const extractor = budgetExtractor(extractorReturning({ fields: FIELDS, usage: { calls: 1 } }), {
+      maxCalls: 0,
+    });
 
     const error = await rejectionOf(extractor.extract(transcript));
 

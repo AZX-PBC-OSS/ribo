@@ -51,9 +51,9 @@ import type {
 /** The store {@link cachedExtractor} memoises through. Injected, not constructed. */
 export interface ExtractionCache {
   /** The stored result under `key`, or `undefined` on a miss. */
-  get(key: string): Promise<ExtractionResult<unknown> | undefined>;
+  get: (key: string) => Promise<ExtractionResult<unknown> | undefined>;
   /** Store `result` under `key`. A throw is swallowed by the combinator, not surfaced. */
-  set(key: string, result: ExtractionResult<unknown>): Promise<void>;
+  set: (key: string, result: ExtractionResult<unknown>) => Promise<void>;
 }
 
 /** What a caller supplies to {@link cachedExtractor}. */
@@ -213,7 +213,7 @@ export function cachedExtractor<F, V extends Record<string, unknown>, P = NoProv
       const result = await extractor.extract(transcript, callerOptions);
 
       try {
-        await cache.set(key, result as ExtractionResult<unknown>);
+        await cache.set(key, result);
       } catch {
         // Swallowed: the result is already in hand and paid for. Failing here
         // would discard it — the same principle the read rule states.
