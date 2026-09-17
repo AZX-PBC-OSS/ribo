@@ -117,6 +117,23 @@ export type { CachedExtractorOptions, ExtractionCache } from "./cached-extractor
 export { majorityValues, unanimousValues } from "./consensus-arbiter.js";
 export type { ConsensusArbiter, ConsensusVerdict } from "./consensus-arbiter.js";
 
+// The substantial judging combinator: run a list of candidates over the same
+// transcript, compare the survivors leaf by leaf, and null the value of every
+// leaf they disagree about while keeping a citation — the shape gap-fill
+// re-asks about and review flags (sp2-judging-combinators-design.md §4.1).
+// Costs N times a single extraction, and says so first. Candidates settle
+// independently (not mapWithPool — no sibling is ever aborted); a caller
+// cancellation is consulted before the survivor count and rethrown unchanged;
+// below quorum the run throws ConsensusFailedError, which is TRANSIENT — the
+// deliberate opposite of ValidationRejectedError, because candidates failing
+// usually means the transport is down and the next rung shares it. The first
+// survivor is structurally authoritative: put the most trusted candidate
+// first. The `onContested` notification is the only channel for the contested
+// count, and escapes the wave-2 no-observer rule because it is new vocabulary
+// no inner extractor emits.
+export { ConsensusFailedError, consensusExtractor } from "./consensus-extractor.js";
+export type { ConsensusExtractorOptions, OnContested } from "./consensus-extractor.js";
+
 // Deriving the extraction schema from a writable patch schema — every leaf
 // enveloped, nested objects recursed rather than swallowed whole, closed and
 // fully required throughout. `ToolAdapter.extractionSchema` is declared against
