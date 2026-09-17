@@ -269,17 +269,40 @@ A missed sweep is a silent leak, so both paths are stated:
 - **Session scope** sweeps on session removal. This is new: nothing sweeps sessions today. It needs
   its own tests, and the ordered-not-atomic caveat of §4.4 applies to it identically.
 
-### 6.3 No migration
+### 6.3 The migration, which is required even though there is no data
 
-`pluginStorage` is at version 0 with empty migration strategies and has not shipped to a real
-device. The new shape is defined outright as the collection's first shipped version; no strategy is
-written.
+`pluginStorage` holds no entries anyone depends on. **That does not make this a schema edit in
+place**, and reasoning that it does is a mistake this repo has already shipped once (#38, fixed in
+#40).
 
-Had there been field data, the safe route would have been to leave the primary key composition
-alone and make `scopeKind` an ordinary indexed field, because changing a primary key's *value*
-during an RxDB migration is not clearly supported and would fail by making entries unreachable
-rather than by erroring. That question is moot here, and is recorded so a future scope addition
-does not rediscover it.
+RxDB validates a declared schema against the one the collection was *created* with. A device that
+has merely opened the app since plugin storage landed has the collection at version 0 with the old
+shape, whether or not it ever wrote an entry. Changing the shape at the same version fails
+`addCollections` with **DB6** — and because `outbox`, `sessions` and `pluginStorage` are added in a
+single call on a single database, that failure is not scoped to plugin storage. The whole open
+rejects, the capture store is unreachable, and an auditor's recordings and audio attachments are
+stranded on the device with clearing the origin's IndexedDB as the only way out.
+
+The field app vendors ribo from a checkout rather than a published release, so unreleased
+changesets are not evidence that no device holds the collection.
+
+**So: version 0 → 1 with a real strategy, and the primary key composition does not change.** `id`
+stays `owner ␀ scopeId ␀ key`, and `scopeKind` becomes an ordinary indexed field rather than part of
+the key. The strategy is field-only — set `scopeKind` to `capture`, move `captureId` into `scopeId`,
+rename `pluginId` to `owner` — which is the kind RxDB unambiguously supports.
+
+Not encoding `scopeKind` into the key is slightly less self-describing, and it leans on capture and
+session ids being drawn from disjoint spaces in practice (both are `crypto.randomUUID`, plus the
+deterministic `migrated-session-*` ids). That is a real if remote weakness, and it is the right
+trade against rewriting every row's primary key — a change whose failure mode is entries becoming
+silently unreachable rather than erroring (see §11.1).
+
+The cost of a strategy that turns out to have been unnecessary is a few lines. The cost of omitting
+a necessary one is a bricked capture store.
+
+**Mechanics:** `outbox-reopen-cross-tab.browser.test.ts` hand-rolls its own `addCollections`, so the
+bump must be applied there as well as in the backend. A declared version with no strategy fails
+**COL12** rather than DB6.
 
 ## 7. Decisions
 
@@ -294,6 +317,8 @@ does not rediscover it.
 | 7   | Persisted identifiers unchanged                                             | Type renames are free; on-disk renames are a migration on the collection where migrations hurt.                                                  |
 | 8   | Rename the payload to `CapturePayload`, freeing `Capture` for the row       | Two nouns one word apart, one containing the other, is a permanent tax. The blast radius is one package plus docs.                               |
 | 9   | Key-value stores get capture and session scopes only                        | Answers the gap the current docs name, without an unswept namespace that leaks by construction under quota pressure.                             |
+| 9a  | `pluginStorage` bumps v0 → v1 with a strategy despite holding no data       | "No data" is not "no collection". A same-version shape change is a DB6 that takes the capture store down with it (§6.3).                          |
+| 9b  | `scopeKind` is an indexed field, not part of the primary key                | Keeps the key composition stable, so no row's primary key is rewritten during migration (§11.1).                                                  |
 | 10  | Memory backend ships from the first commit                                  | Proves by construction that core runs without RxDB; two implementations from day one.                                                            |
 | 11  | The conformance kit is published                                            | A third-party backend author is exactly who needs it.                                                                                            |
 
@@ -378,10 +403,12 @@ One changeset marks the break, with the rename map in the guide as a migration n
 
 ## 11. Open questions
 
-1. **Does RxDB support changing a primary key's value during a migration?** Moot for §6.3, which
-   writes no strategy, but it should be settled before any future scope change touches the
-   key composition. Dependencies were not installed in the worktree where this was drafted, so it
-   was not verified against the source.
+1. **Does RxDB support changing a primary key's value during a migration?** §6.3 is designed to
+   avoid needing the answer — the key composition stays fixed and `scopeKind` is an ordinary field.
+   The question stays open because the failure mode if it is unsupported is entries becoming
+   silently unreachable rather than an error, and any future change that touches key composition
+   must settle it first. Dependencies were not installed in the worktree where this was drafted, so
+   it was not verified against the source.
 2. **Does the Web Lock in §4.3 cost measurably on enqueue?** Every capture takes it. A lock
    acquisition should be microseconds against an IndexedDB write, but this is the capture hot path
    and it deserves a measurement rather than an assumption.
