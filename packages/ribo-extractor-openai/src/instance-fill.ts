@@ -12,6 +12,18 @@
  * `buildFillInstructions` callback that renders the scope block in the host tool's
  * natural language. For Snugg Pro that callback lives in the adapter's
  * `instructions.ts`.
+ *
+ * **The preset.** Since Wave 5 this is a {@link phasedExtractor} preset of two
+ * phases — the inventory phase (`inventory-phase.ts`) runs the roster pass once
+ * and interprets all of it in its merge (stated-empty spans, empty-collection
+ * seeding, the instance cap), and the fill phase (`fill-phase.ts`) derives one
+ * job per `(group, piece, instance)` from the settled roster, makes each job's
+ * one chat call, and recombines the outcomes with `mergeGroupPieces`. The
+ * scheduling, retry, sibling abort, deadline, unit stream, usage accumulation and
+ * closing trust-boundary parse are the engine's. What stays here is the group
+ * preparation, every message and scope builder, and {@link normalize}'s
+ * application — which deliberately wraps the engine rather than being handed to
+ * it (see the note on `normalize` below).
  */
 
 import { z } from "zod";
@@ -19,13 +31,8 @@ import { z } from "zod";
 import {
   DEFAULT_BACKOFF_BASE_MS,
   DEFAULT_BACKOFF_CAP_MS,
-  deriveRetryBudget,
-  fullJitterDelay,
-  mapWithPool,
-  mergeGroupPieces,
-  nextUnitId,
   PER_CALL_CEILING_MS,
-  TerminalError,
+  phasedExtractor,
 } from "@azx/ribo-core";
 import type {
   AnnotatedTranscript,
@@ -35,27 +42,19 @@ import type {
   Extractor,
   ExtractionResult,
   ExtractionTarget,
+  ExtractOptions,
   FillScope,
-  InventoryUnit,
-  InstanceUnit,
   NoProvenance,
+  PhaseUnit,
   RetryBudgetObserver,
   Roster,
   RosterCandidate,
 } from "@azx/ribo-core";
 
-import type { ChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
-import type { UsageTotals } from "./extraction-common.js";
-import {
-  addUsage,
-  assertStopFinishReason,
-  buildMessages,
-  completeOrClassify,
-  narrowToLeaves,
-  parseJsonContent,
-  parseWithSchema,
-} from "./extraction-common.js";
-import type { ExtractOptions } from "@azx/ribo-core";
+import type { ChatClient, ChatMessage } from "./chat-client.js";
+import { narrowToLeaves } from "./extraction-common.js";
+import { fillPhase } from "./fill-phase.js";
+import { inventoryPhase } from "./inventory-phase.js";
 import { partitionedLeafKeys } from "./per-group.js";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 
@@ -66,16 +65,17 @@ export type { FillScope, Roster, RosterCandidate } from "@azx/ribo-core";
 /**
  * Options for {@link scopedInstanceExtractor}.
  *
- * The retry budget is derived per `extract()` call, after the roster is back,
- * because the job count is not known until then. This is a real difference from
- * {@link perGroupExtractor}, which derives at construction and throws there:
- * a zero-derived budget with `requireRetryBudget` throws a
+ * The retry budget is derived per phase boundary inside `extract()` — the
+ * engine derives each phase's share from the time remaining when that phase's
+ * item count is known. This keeps the zero-budget behaviour a real difference
+ * from {@link perGroupExtractor}, which derives at construction and throws
+ * there: a zero-derived budget with `requireRetryBudget` throws a
  * `TerminalError` from `extract()`, not at construction — no retry
  * fixes a configuration error, and the queue should reach `dead` rather than
  * burn its attempt budget rediscovering that.
  */
 export interface ScopedFillOptions<V extends Record<string, unknown>, P = NoProvenance>
-  extends BackoffOptions, ExtractionObserver<InventoryUnit | InstanceUnit>, RetryBudgetObserver {
+  extends BackoffOptions, ExtractionObserver<PhaseUnit>, RetryBudgetObserver {
   /** The field knowledge: name, extraction schema, instructions, and examples. */
   readonly target: ExtractionTarget<V, P>;
   /** The injected chat transport. A fake in tests; a real client in production. */
@@ -91,10 +91,11 @@ export interface ScopedFillOptions<V extends Record<string, unknown>, P = NoProv
   readonly normalize?: (fields: Enveloped<V, P>) => Enveloped<V, P>;
   /**
    * Max concurrent fill calls. Defaults to 4. The inventory call is always serial
-   * before any fill can fan out.
+   * before any fill can fan out — the phases run in order.
    */
   readonly concurrency?: number;
-  /** Max retries per fill call after a transient failure. Defaults to 2. */
+  /** Max retries per fill call after a transient failure. Defaults to 2. The
+   * inventory phase pins its own zero — the roster pass is one-shot. */
   readonly maxRetries?: number;
   /** Wall-clock ceiling for the whole extraction. Defaults to 15 minutes. */
   readonly stepTimeoutMs?: number;
@@ -147,7 +148,7 @@ const defaultDelay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 /** A prepared group, with its per-instance fill schema and error context. */
-interface PreparedGroup {
+export interface PreparedGroup {
   /** The top-level group key. Empty for the non-grouped fallback. */
   readonly key: string;
   /**
@@ -172,7 +173,7 @@ interface PreparedGroup {
    * This entry's 0-based position among the pieces sharing `key`, present only
    * when the group's leaves were partitioned across multiple calls. Pieces of
    * one key are filled independently and recombined per instance at assembly —
-   * see the merge step in {@link scopedInstanceExtractor}.
+   * see the fill phase's merge in {@link fillPhase}.
    */
   readonly part?: number;
   /** The total number of pieces sharing `key`, present exactly when `part` is. */
@@ -184,22 +185,6 @@ interface PreparedGroup {
    * accepts, rather than showing an assistant turn wider than the call allows.
    */
   readonly leafKeys?: readonly string[];
-}
-
-/**
- * One per-instance fill call: messages, schema, and naming.
- *
- * For singleton groups the job still has one instance, but the scope is a
- * placeholder because there is exactly one record to fill.
- */
-interface FillJob {
-  readonly group: PreparedGroup;
-  readonly instanceIndex: number;
-  /** The number of current candidates in this job's group — 1 for singletons. */
-  readonly instances: number;
-  readonly messages: ChatMessage[];
-  readonly requestName: string;
-  readonly context: string;
 }
 
 /**
@@ -272,7 +257,7 @@ export function buildFillMessages<V extends Record<string, unknown>, P = NoProve
 }
 
 /** Build the {@link FillScope} for a collection group's current candidate. */
-function buildFillScope(
+export function buildFillScope(
   groupKey: string,
   rosterGroup: readonly RosterCandidate[],
   candidate: RosterCandidate,
@@ -289,7 +274,7 @@ function buildFillScope(
 }
 
 /** A placeholder scope for singleton groups that have no roster candidates. */
-function singletonFillScope(groupKey: string): FillScope {
+export function singletonFillScope(groupKey: string): FillScope {
   return {
     groupKey,
     positive: {
@@ -308,27 +293,31 @@ function singletonFillScope(groupKey: string): FillScope {
 /**
  * Build a scoped per-instance {@link Extractor} for a target.
  *
- * On each `extract`:
- *   1. Run `inventory(transcript)` to get a roster of candidates per group.
- *      One call, regardless of how any group's leaves are partitioned below.
- *   2. For each top-level group from {@link splitExtractionSchema} — called
+ * A {@link phasedExtractor} preset of two phases. On each `extract`:
+ *   1. **The inventory phase** runs `inventory(transcript)` — one call,
+ *      regardless of how any group's leaves are partitioned — and its merge
+ *      interprets the whole roster: a `stated: "none"` entry records its span
+ *      in `statedEmptyGroups` and seeds the group `[]`; a group missing from
+ *      the roster or carrying no `current` candidates is seeded `[]`; a group
+ *      exceeding `instanceCap` throws before any fill call is made — the cap
+ *      exists to fail loudly rather than silently truncate a collection, and
+ *      partitioning changes leaf count per call, never instance count.
+ *   2. **The fill phase** derives one job per `(group, piece, instance)`:
+ *      for each top-level group from {@link splitExtractionSchema} — called
  *      with the leaf cap, so a group whose per-instance leaf count exceeds it
- *      arrives as one entry per piece, each carrying only its piece's leaves:
- *      - Collection groups (`z.array(...)`): one fill call per `current`
- *        candidate PER PIECE. A group with no `current` candidates yields an
- *        empty array and makes no calls. The instance cap is enforced before
- *        any call is made — partitioning changes leaf count per call, never
- *        instance count.
- *      - Singleton groups: one fill call per piece, otherwise unchanged.
- *   3. Run fill calls concurrently with a bounded pool. For each response:
- *      - Pre-parse `finishReason` check.
- *      - Parse against the single-instance wrapper schema for that group piece.
- *   4. Merge per-instance responses into their group's array in roster order.
- *      Pieces sharing one `(group, instance)` slot are recombined with
- *      {@link mergeGroupPieces} — the same recombination the per-group
- *      extractor applies at group level — rather than the last piece
- *      overwriting the others' leaves.
- *   5. Second trust-boundary parse against the full `extractionSchema`, then normalize.
+ *      arrives as one entry per piece, each carrying only its piece's leaves —
+ *      collection groups get one fill call per `current` candidate PER PIECE,
+ *      singletons (and the `""` fallback) one call per piece. Each job parses
+ *      its response against the single-instance wrapper schema for that group
+ *      piece.
+ *   3. The fill phase's merge recombines the outcomes: pieces sharing one
+ *      `(group, instance)` slot with {@link mergeGroupPieces} — the same
+ *      recombination the per-group extractor applies at group level — and
+ *      collection arrays indexed by the job's instance index, never by arrival
+ *      order. It also writes `raw` — the assembled pre-normalize record.
+ *   4. The engine runs the second trust-boundary parse against the full
+ *      `extractionSchema`; `normalize` then applies to the parsed fields —
+ *      AFTER the parse, exactly as today (see below).
  */
 export function scopedInstanceExtractor<V extends Record<string, unknown>, P = NoProvenance>(
   options: ScopedFillOptions<V, P>,
@@ -355,12 +344,6 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
     onRetryBudget,
     requireRetryBudget,
   } = options;
-
-  const backoffOpts: BackoffOptions = {
-    baseMs: baseMs ?? DEFAULT_BACKOFF_BASE_MS,
-    capMs: capMs ?? DEFAULT_BACKOFF_CAP_MS,
-    random,
-  };
 
   // The union cap defaults to the same ceiling the per-group extractor applies,
   // for the same reason: an over-cap per-instance schema is rejected
@@ -419,283 +402,45 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
     };
   });
 
+  const engine = phasedExtractor<V, P>({
+    target,
+    phases: [
+      inventoryPhase<V, P>({ inventory, prepared, instanceCap }),
+      fillPhase<V, P>({ target, chat, model, maxTokens, prepared, buildFillInstructions }),
+    ],
+    concurrency,
+    maxRetries,
+    stepTimeoutMs,
+    perCallCeilingMs,
+    delay,
+    // BackoffOptions members pass straight through: the signature is unchanged,
+    // so TypeScript would not catch dropping them, and no test supplies them —
+    // a silent loss of injectable jitter, which is what makes retry tests
+    // deterministic. The defaults match the engine's own.
+    baseMs: baseMs ?? DEFAULT_BACKOFF_BASE_MS,
+    capMs: capMs ?? DEFAULT_BACKOFF_CAP_MS,
+    random,
+    requireRetryBudget,
+    onRetryBudget,
+    onUnit,
+  });
+
   return {
     async extract(
       transcript: AnnotatedTranscript,
-      options?: ExtractOptions,
+      extractOptions?: ExtractOptions,
     ): Promise<ExtractionResult<Enveloped<V, P>>> {
-      const inventoryId = nextUnitId();
-      onUnit?.({ id: inventoryId, unit: "inventory", phase: "start", attempt: 1 });
-      let roster: Roster;
-      try {
-        roster = await inventory(transcript.text);
-      } catch (cause) {
-        onUnit?.({ id: inventoryId, unit: "inventory", phase: "error", attempt: 1, error: cause });
-        throw cause;
-      }
-      // No usage on the inventory done event: `inventory` is a caller-supplied
-      // function returning a Roster, not a completion, so its cost never reaches
-      // this extractor. That is the same gap already documented where the
-      // inventory call is counted in `usage.calls` but not in the token totals.
-      onUnit?.({ id: inventoryId, unit: "inventory", phase: "done", attempt: 1 });
-      let totalCalls = 1; // the inventory call
-
-      const abort = new AbortController();
-      const jobs: FillJob[] = [];
-      const collectionArrays: Record<string, unknown[]> = {};
-      const groupResult: Record<string, unknown> = {};
-      const statedEmptyGroups: Record<string, string> = {};
-
-      for (const group of prepared) {
-        const rosterGroup = roster[group.key] ?? [];
-
-        if (!group.isCollection || group.key === "") {
-          // Singleton or non-grouped fallback: one fill call per piece, no
-          // scope semantics.
-          const scope = singletonFillScope(group.key || "fields");
-          const messages =
-            group.key === ""
-              ? buildMessages(target, transcript.text)
-              : buildFillMessages(
-                  target,
-                  group.key,
-                  0,
-                  scope,
-                  transcript.text,
-                  buildFillInstructions,
-                  group.leafKeys,
-                );
-          jobs.push({
-            group,
-            instanceIndex: 0,
-            instances: 1,
-            messages,
-            requestName: group.name,
-            context: group.context,
-          });
-          continue;
-        }
-
-        if (!Array.isArray(rosterGroup)) {
-          const statedNone = rosterGroup as { stated: "none"; span: string };
-          statedEmptyGroups[group.key] = statedNone.span;
-          groupResult[group.key] = [];
-          continue;
-        }
-
-        const candidates = rosterGroup as readonly RosterCandidate[];
-        const current = candidates.filter((c) => c.eligibility === "current");
-
-        if (current.length === 0) {
-          groupResult[group.key] = [];
-          continue;
-        }
-
-        if (current.length > instanceCap) {
-          throw new Error(
-            `scopedInstanceExtractor: group "${group.key}" has ${current.length} current instances, exceeding the cap of ${instanceCap}`,
-          );
-        }
-
-        // `??=`, not `=`: a partitioned group visits this loop once per piece,
-        // and re-allocating would wipe the slots an earlier piece's jobs fill.
-        collectionArrays[group.key] ??= new Array(current.length);
-
-        for (let i = 0; i < current.length; i++) {
-          const candidate = current[i]!;
-          const scope = buildFillScope(group.key, rosterGroup, candidate, i);
-          const messages = buildFillMessages(
-            target,
-            group.key,
-            i,
-            scope,
-            transcript.text,
-            buildFillInstructions,
-            group.leafKeys,
-          );
-          jobs.push({
-            group,
-            instanceIndex: i,
-            instances: current.length,
-            messages,
-            requestName: `${group.name}-${i}`,
-            context: `${group.context} instance ${i}`,
-          });
-        }
-      }
-
-      // The inventory call plus all fill calls must fit in the step timeout. The
-      // inventory is not part of the pool, but treating it as one call in the batch
-      // calculation is a conservative overestimate and safe.
-      const totalCallsEstimate = 1 + jobs.length;
-      const batches = Math.ceil(totalCallsEstimate / concurrency);
-      const budget = deriveRetryBudget({
-        requested: maxRetries,
-        batches,
-        stepTimeoutMs,
-        perCallCeilingMs,
-        baseMs: backoffOpts.baseMs ?? DEFAULT_BACKOFF_BASE_MS,
-        capMs: backoffOpts.capMs ?? DEFAULT_BACKOFF_CAP_MS,
-      });
-      const effectiveMaxRetries = budget.derived;
-
-      if (budget.derived < budget.requested) {
-        onRetryBudget?.(budget);
-      }
-      // No retry fixes a configuration error: when the caller required a budget
-      // and none fits the step timeout, throw terminal so the queue reaches
-      // `dead` rather than burning its attempt budget rediscovering that.
-      if (requireRetryBudget && budget.derived === 0 && budget.requested > 0) {
-        throw new TerminalError(
-          `scopedInstanceExtractor: retry budget derived to zero (requested ${budget.requested}, stepTimeoutMs ${stepTimeoutMs}, perCallCeilingMs ${perCallCeilingMs}, concurrency ${concurrency}) — no retry fits the step timeout`,
-        );
-      }
-
-      const totals: UsageTotals = {};
-      const fillResponses = await mapWithPool(
-        jobs,
-        concurrency,
-        async (job) => {
-          const id = nextUnitId();
-          const part = (job.group.part ?? 0) + 1;
-          const parts = job.group.parts ?? 1;
-          let lastError: unknown;
-          for (let attempt = 0; attempt <= effectiveMaxRetries; attempt++) {
-            if (abort.signal.aborted) {
-              if (lastError instanceof Error) {
-                throw lastError;
-              }
-              throw new Error("scopedInstanceExtractor: aborted by a sibling failure");
-            }
-
-            onUnit?.({
-              id,
-              unit: "instance",
-              phase: "start",
-              attempt: attempt + 1,
-              key: job.group.key,
-              instance: job.instanceIndex + 1,
-              instances: job.instances,
-              part,
-              parts,
-            });
-
-            totalCalls++;
-            const request: ChatRequest = {
-              model,
-              messages: job.messages,
-              response_format: {
-                type: "json_schema",
-                json_schema: {
-                  name: job.requestName,
-                  schema: job.group.jsonSchema,
-                  strict: true,
-                },
-              },
-              maxTokens,
-            };
-
-            try {
-              const completion = await completeOrClassify(chat, request, job.context, {
-                // `any`, not `??` — the caller's signal and the sibling-failure controller
-                // are independent reasons to stop. Substituting one disabled the other.
-                signal: options?.signal
-                  ? AbortSignal.any([options.signal, abort.signal])
-                  : abort.signal,
-              });
-              // Counted before the gates below, so a truncated response still
-              // reports what it cost. NOTE the inventory call's tokens are NOT
-              // here: `inventory` is a caller-supplied function returning a
-              // Roster, not a completion, so its usage never reaches this
-              // extractor. `usage.calls` counts it; the token totals understate
-              // by one call until that seam carries usage too.
-              addUsage(totals, completion.usage);
-              assertStopFinishReason(completion, job.context);
-              const raw = parseJsonContent(completion.content, job.context);
-              const parsed = parseWithSchema(job.group.schema, raw, job.context);
-
-              onUnit?.({
-                id,
-                unit: "instance",
-                phase: "done",
-                attempt: attempt + 1,
-                key: job.group.key,
-                instance: job.instanceIndex + 1,
-                instances: job.instances,
-                part,
-                parts,
-                ...(completion.usage
-                  ? {
-                      usage: {
-                        inputTokens: completion.usage.promptTokens,
-                        outputTokens: completion.usage.completionTokens,
-                      },
-                    }
-                  : {}),
-              });
-
-              return parsed;
-            } catch (cause) {
-              lastError = cause;
-
-              onUnit?.({
-                id,
-                unit: "instance",
-                phase: "error",
-                attempt: attempt + 1,
-                key: job.group.key,
-                instance: job.instanceIndex + 1,
-                instances: job.instances,
-                part,
-                parts,
-                error: cause,
-              });
-
-              if (cause instanceof TerminalError) throw cause;
-              if (abort.signal.aborted) throw cause;
-              if (attempt < effectiveMaxRetries) {
-                await delay(fullJitterDelay(attempt, backoffOpts));
-              }
-            }
-          }
-          throw lastError;
-        },
-        abort,
-      );
-
-      for (let i = 0; i < jobs.length; i++) {
-        const job = jobs[i]!;
-        const response = fillResponses[i]!;
-        const value = (response as Record<string, unknown>)[job.group.key];
-        if (job.group.isCollection) {
-          // A slot already holding a value means an earlier piece of the SAME
-          // partitioned group already contributed its leaf subset for this
-          // instance — recombine via mergeGroupPieces (the per-group extractor's
-          // own recombination) rather than letting the last piece overwrite the
-          // rest. Jobs for one key are issued in piece order and `mapWithPool`
-          // preserves it, so the merge sees the pieces in the order issued.
-          const arr = collectionArrays[job.group.key]!;
-          const existing = arr[job.instanceIndex];
-          arr[job.instanceIndex] =
-            existing === undefined ? value : mergeGroupPieces(existing, value);
-        } else {
-          const key = job.group.key;
-          groupResult[key] = key in groupResult ? mergeGroupPieces(groupResult[key], value) : value;
-        }
-      }
-      for (const [key, arr] of Object.entries(collectionArrays)) {
-        groupResult[key] = arr;
-      }
-
-      const mergeContext = `scopedInstanceExtractor: merged response for "${target.name}"`;
-      const parsed = parseWithSchema(target.extractionSchema, groupResult, mergeContext);
-
-      return {
-        fields: normalize(parsed),
-        raw: groupResult,
-        usage: { calls: totalCalls, ...totals },
-        ...(Object.keys(statedEmptyGroups).length > 0 ? { statedEmptyGroups } : {}),
-      };
+      const result = await engine.extract(transcript, extractOptions);
+      // `normalize` wraps the engine rather than being handed to it, and both
+      // halves of that matter. Today it runs AFTER the closing parse and takes
+      // a full `Enveloped<V, P>`; the engine's run-level option runs BEFORE the
+      // parse and takes the draft's deep partial. Handing it over would change
+      // two things at once: a normalize whose output does not satisfy the
+      // schema would newly throw, and the preset would need a cast to bridge
+      // the types. Awaiting the engine and applying it to `result.fields`
+      // preserves today's order exactly — and needs no cast, because the
+      // parsed fields are already `Enveloped<V, P>`.
+      return { ...result, fields: normalize(result.fields) };
     },
   };
 }

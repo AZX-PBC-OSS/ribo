@@ -541,12 +541,23 @@ class QueueRelay implements Relay {
     // rejection. This is the wiring Task 9's changeset named as a motivation
     // and deferred.
     const stepAbort = new AbortController();
+    // One value for both halves of the step budget: the abort timer below and
+    // the advisory deadline beside it. They must not be able to disagree.
+    const stepTimeoutMs = this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+    // Minted from `Date.now()`, deliberately NOT `#now`. The relay's injectable
+    // clock serves eligibility checks and backoff, but the thing that actually
+    // aborts this step — `withTimeout`'s bare `setTimeout` — runs on the real
+    // clock and cannot be injected. A deadline minted from `#now` would sit on a
+    // different time base from the abort timer: harmless when nobody injects a
+    // clock, wrong for any host or test that does — a step would believe it has
+    // time after the relay has already aborted it, the exact failure this
+    // member exists to prevent.
     const result = await withTimeout(
       this.#options.sessionExtract(
         { session, transcript: { text, annotations: {} }, recordingIds },
-        { signal: stepAbort.signal },
+        { signal: stepAbort.signal, deadline: Date.now() + stepTimeoutMs },
       ),
-      this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
+      stepTimeoutMs,
       "session-extract",
       () => stepAbort.abort("relay: the session-extract step timed out"),
     );

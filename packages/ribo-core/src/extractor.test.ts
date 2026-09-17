@@ -211,15 +211,20 @@ test("toSessionExtractStep forwards the options bag to the extractor's second pa
   // shape `fallback-extractor.test.ts` uses for the arbitration engines.
   const extractor = new FakeExtractor<AtticFields>({ atticInsulation: "R-19" });
   const controller = new AbortController();
+  const deadline = Date.now() + 60_000;
   const step = toSessionExtractStep(extractor);
 
   await step(
     { session, transcript: { text: transcript.text, annotations: {} }, recordingIds: ["rec-1"] },
-    { signal: controller.signal },
+    { signal: controller.signal, deadline },
   );
 
   expect(extractor.callOptions).toHaveLength(1);
   expect(extractor.callOptions[0]?.signal).toBe(controller.signal);
+  // Regression pin: the forward is a pure hand-through, so a NEW member of the
+  // bag reaches the extractor too — the deadline must not be dropped the way
+  // groupedExtractor once dropped it.
+  expect(extractor.callOptions[0]?.deadline).toBe(deadline);
 });
 
 test("toSessionExtractStep rejects an extractor whose fields are a primitive", () => {

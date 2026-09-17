@@ -238,8 +238,15 @@ test("the abort signal reaches candidates through fallbackExtractor", async () =
     acceptAnySuccess,
   );
 
-  await extractor.extract({ text: "t", annotations: {} }, { signal: controller.signal });
+  await extractor.extract(
+    { text: "t", annotations: {} },
+    { signal: controller.signal, deadline: 1_234_567_890 },
+  );
 
   expect(candidate.callOptions).toHaveLength(1);
   expect(candidate.callOptions[0]?.signal).toBe(controller.signal);
+  // Regression pin: the deadline is the signal's sibling member with the same
+  // forwarding discipline — the engine at arbitration.ts forwards the bag
+  // whole, so it reaches the candidate untouched.
+  expect(candidate.callOptions[0]?.deadline).toBe(1_234_567_890);
 });

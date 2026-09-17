@@ -1,5 +1,8 @@
 import { describe, expect, expectTypeOf, test } from "vitest";
 
+import { isCancellation } from "@azx/ribo-core";
+
+import { ChatError } from "./chat-client.js";
 import type {
   ChatCapability,
   ChatClient,
@@ -73,5 +76,18 @@ describe("ChatCapability discriminants", () => {
     if (cap.status === "unavailable") {
       expectTypeOf(cap).toExtend<{ status: "unavailable"; reason: string; detail: string }>();
     }
+  });
+});
+
+describe("ChatError cancellation branding", () => {
+  test("the aborted factory's error satisfies ribo-core's isCancellation", () => {
+    expect(isCancellation(ChatError.aborted("the caller stopped this"))).toBe(true);
+  });
+
+  test("a ChatError of any other kind is not a cancellation", () => {
+    // Branding the class rather than the factory would make every transport failure
+    // look like a cancellation and silently disable retries everywhere.
+    expect(isCancellation(ChatError.transport("no response at all"))).toBe(false);
+    expect(isCancellation(ChatError.unsupported("cannot honour maxTokens"))).toBe(false);
   });
 });

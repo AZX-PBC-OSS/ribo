@@ -36,36 +36,45 @@ export type GroupUnit = UnitBase & {
   readonly parts: number;
 };
 
-/** `scopedInstanceExtractor`: the house-wide roster pass. */
-export type InventoryUnit = UnitBase & { readonly unit: "inventory" };
-
-/** `scopedInstanceExtractor`: one instance's fill. */
-export type InstanceUnit = UnitBase & {
-  readonly unit: "instance";
-  readonly key: string;
-  readonly instance: number;
-  readonly instances: number;
-  readonly part: number;
-  readonly parts: number;
-};
-
 /** `threePhaseExtractor`: one call in the presence -> quote -> classify sequence. */
 export type PhaseUnit = UnitBase & {
   readonly unit: "phase";
-  readonly pass: 0 | 1 | 2;
+  /**
+   * Position in the phase list, 0-based. Previously the strategy's own pass
+   * index — for the ported three-phase the two coincide, but position is the
+   * only meaning a general combinator can offer (a four-phase list would not).
+   */
+  readonly pass: number;
+  /**
+   * The phase's identity — `"presence"`, `"span"`, `"classify"` — what a
+   * consumer rendering progress actually wants, as opposed to the numeric
+   * `pass`.
+   *
+   * Deliberately **not** named `phase`: `UnitBase.phase` is the lifecycle
+   * discriminator (`"start" | "done" | "error"`) and `PhaseUnit` is an
+   * intersection with it, so a `phase: string` member here would not widen
+   * anything — it would narrow to that lifecycle union, and emitting a
+   * phase identity through it would fail with an error naming neither the
+   * cause nor the collision. The name keeps the two axes apart.
+   */
+  readonly phaseId: string;
   readonly key: string;
   /** Phase 2 only — one leaf per call. */
   readonly leaf?: string;
+  /**
+   * Scoped-instance fill coordinates, carried by the ported inventory/fill
+   * phases so a consumer can render "HVAC system 2 of 3, part 1 of 2". All
+   * optional and omitted (not zeroed) when a phase's `describeItem` does not
+   * report them, matching the usage members' omit-rather-than-claim rule;
+   * every phase before Wave 5 emits events without them.
+   */
+  readonly instance?: number;
+  readonly instances?: number;
+  readonly part?: number;
+  readonly parts?: number;
 };
 
-/** `gapFillExtractor`: one focused follow-up over abstained-with-evidence leaves. */
-export type GapFillUnit = UnitBase & {
-  readonly unit: "gapfill";
-  readonly candidates: number;
-};
-
-export type ExtractionUnit =
-  WholeUnit | GroupUnit | InventoryUnit | InstanceUnit | PhaseUnit | GapFillUnit;
+export type ExtractionUnit = WholeUnit | GroupUnit | PhaseUnit;
 
 /**
  * Observation points shared by every extraction strategy.

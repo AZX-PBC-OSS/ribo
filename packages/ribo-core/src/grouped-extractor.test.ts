@@ -5,6 +5,7 @@ import { enveloped } from "./enveloped.js";
 import type { Enveloped } from "./enveloped.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import type { ExtractionTarget, ExtractionUsage, ExtractOptions, Extractor } from "./extractor.js";
+import { FakeExtractor } from "./extractor.js";
 import type { ExtractionObserver, GroupUnit } from "./extraction-observer.js";
 import type { RetryBudget } from "./retry-budget.js";
 import { SchemaParseError } from "./schema-parse-error.js";
@@ -340,6 +341,34 @@ describe("groupedExtractor — sibling abort and the caller's signal", () => {
     );
     expect(hvac.calls).toHaveLength(0);
     expect(attic.calls).toHaveLength(0);
+  });
+});
+
+// --- The caller's options reach each entry ------------------------------------
+
+describe("groupedExtractor — the caller's options reach each entry", () => {
+  test("each entry receives the caller's deadline and the combinator's combined signal", async () => {
+    // FakeExtractor records the whole options bag it was handed, so a dropped
+    // forward is visible: this pins the deadline past the one site that rebuilt
+    // the bag instead of forwarding it.
+    const caller = new AbortController();
+    const deadline = Date.now() + 60_000;
+    const hvac = new FakeExtractor<Pick<Fields, "hvac">>({ hvac: hvacLeaf("Boiler") });
+    const attic = new FakeExtractor<Pick<Fields, "attic">>({ attic: atticLeaf("10-12") });
+    const extractor = groupedExtractor({ target, groups: { hvac, attic } });
+
+    await extractor.extract(transcript, { signal: caller.signal, deadline });
+
+    expect(hvac.callOptions[0]?.deadline).toBe(deadline);
+    expect(attic.callOptions[0]?.deadline).toBe(deadline);
+    // The signal the entry sees is the combinator's combined signal, NOT the
+    // caller's raw one — so the fix cannot be "forward the caller's bag
+    // verbatim", which would silently disable sibling abort (the trap the
+    // sibling-abort section documents).
+    expect(hvac.callOptions[0]?.signal).toBeDefined();
+    expect(hvac.callOptions[0]?.signal).not.toBe(caller.signal);
+    expect(attic.callOptions[0]?.signal).toBeDefined();
+    expect(attic.callOptions[0]?.signal).not.toBe(caller.signal);
   });
 });
 

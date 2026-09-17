@@ -46,8 +46,11 @@ export { instanceLadder } from "./instance-ladder.js";
 export type { InstanceLadderOptions } from "./instance-ladder.js";
 
 // The gap-fill combinator: wraps a base extractor with one bounded follow-up
-// call over leaves that abstained despite quoting evidence. The leaf-walk and
-// merge helpers are exported for testing, as `buildGroupMessages` is.
+// call over leaves that abstained despite quoting evidence. It is a
+// `phasedExtractor` preset — an `extractorPhase` base followed by the
+// follow-up phase — so a host can assemble the same phase list by hand and
+// extend it with phases of its own. The leaf-walk and merge helpers are
+// exported for testing, as `buildGroupMessages` is.
 export {
   findAbstainedLeaves,
   findUngroundedLeaves,
@@ -56,6 +59,25 @@ export {
   mergeGapFilledLeaves,
 } from "./gap-fill.js";
 export type { AbstainedLeaf, GapFillOptions, GapFillTarget } from "./gap-fill.js";
+
+// The gap-fill follow-up phase itself — the second phase of the
+// `gapFillExtractor` preset, exported so a host can assemble and extend the
+// phase list by hand (design `phased-extraction-design.md` §4.7).
+export { gapFillPhase } from "./gap-fill-phase.js";
+export type { GapFillPhaseOptions } from "./gap-fill-phase.js";
+
+// The scoped-instance inventory phase — the first phase of the
+// `scopedInstanceExtractor` port, exported (with the note key its roster
+// crosses the phase boundary under) so a host can assemble and extend the
+// phase list by hand.
+export { inventoryPhase, rosterNoteKey } from "./inventory-phase.js";
+export type { InventoryPhaseOptions } from "./inventory-phase.js";
+
+// The scoped-instance fill phase — the second phase of the port: one job per
+// `(group, piece, instance)`, recombined with `mergeGroupPieces`. Exported for
+// the same hand-assembly a host may want.
+export { fillPhase } from "./fill-phase.js";
+export type { FillPhaseOptions } from "./fill-phase.js";
 
 // The schema-retry combinator: wraps a base extractor with a bounded
 // self-correction loop that feeds a `SchemaParseError` back to the model as
@@ -87,8 +109,15 @@ export type { InventoryOptions } from "./inventory.js";
 // one fill call per current instance, with a scope block that names siblings and
 // excluded candidates. Exports the extractor, prompt assembly helpers, and the
 // generic roster/fill-scope types that the adapter's `buildFillInstructions` consumes.
+// `PreparedGroup` is the per-piece shape the two scoped-instance phases take.
 export { buildFillMessages, projectFillExample, scopedInstanceExtractor } from "./instance-fill.js";
-export type { FillScope, Roster, RosterCandidate, ScopedFillOptions } from "./instance-fill.js";
+export type {
+  FillScope,
+  PreparedGroup,
+  Roster,
+  RosterCandidate,
+  ScopedFillOptions,
+} from "./instance-fill.js";
 
 // The OpenAI-compatible chat transport and its options.
 export { openAiChat } from "./openai-chat.js";

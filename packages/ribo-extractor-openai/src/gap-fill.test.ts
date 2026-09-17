@@ -1,5 +1,12 @@
-import { enveloped, FakeExtractor, isTransientFailure, SchemaParseError } from "@azx/ribo-core";
-import type { Enveloped, ExtractionTarget, Extractor, GapFillUnit } from "@azx/ribo-core";
+import {
+  enveloped,
+  extractorPhase,
+  FakeExtractor,
+  isTransientFailure,
+  phasedExtractor,
+  SchemaParseError,
+} from "@azx/ribo-core";
+import type { Enveloped, ExtractionTarget, Extractor, PhaseUnit } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
@@ -11,6 +18,7 @@ import {
   gapFillExtractor,
   mergeGapFilledLeaves,
 } from "./gap-fill.js";
+import { gapFillPhase } from "./gap-fill-phase.js";
 import { singleShotExtractor } from "./single-shot.js";
 
 /**
@@ -124,7 +132,28 @@ const catchRejection = (promise: Promise<unknown>): Promise<unknown> =>
 
 describe("gapFillExtractor — passthrough (no candidates)", () => {
   test("returns the base result untouched and makes no follow-up call", async () => {
-    const base = new FakeExtractor<GapExtraction>(committedFields, {
+    // Category 3 — reference identity is lost, on both paths: the engine's
+    // closing parse rebuilds every object, so the passthrough result is
+    // deep-equal to the base's fields, not the same object.
+    //
+    // The base's roof confidence is out of range on purpose: `confidence` is a
+    // bare `z.number()` (clamping is normalization's job, not the schema's), so
+    // 1.7 parses. This keeps the test's original guard alive — it used to prove
+    // normalize does not run on the passthrough path BY IDENTITY, and amending
+    // its `toBe` to `toEqual` would have hollowed that, because the normalize it
+    // passed was spread-identity and value-preserving. The normalize is now an
+    // observable clamp; asserting below that the clamp did NOT apply is what
+    // still guards "never runs on the passthrough path".
+    const clamp = (n: number): number => Math.max(0, Math.min(1, n));
+    // `committedFields` with one out-of-range confidence — still schema-valid.
+    const passthroughBase: GapExtraction = {
+      ...committedFields,
+      envelope: {
+        ...committedFields.envelope,
+        roof: { ...committedFields.envelope.roof, confidence: 1.7 },
+      },
+    };
+    const base = new FakeExtractor<GapExtraction>(passthroughBase, {
       usage: { calls: 1, promptTokens: 100, completionTokens: 50 },
     });
     const { chat, requests } = fakeChat(JSON.stringify(followUpResponse));
@@ -133,19 +162,39 @@ describe("gapFillExtractor — passthrough (no candidates)", () => {
       target: gapTarget,
       chat,
       model: "gpt-test",
-      // Passed to prove it is NOT run on the passthrough path — the result keeps
-      // the base's own field object, not a normalize-rebuilt one.
-      normalize: (fields) => ({ ...fields }),
+      normalize: (fields) => ({
+        ...fields,
+        envelope: {
+          ...fields.envelope,
+          roof: { ...fields.envelope.roof, confidence: clamp(fields.envelope.roof.confidence) },
+        },
+      }),
     });
 
     const transcript = "The roof is asphalt shingles; the walls are brick.";
     const result = await extractor.extract({ text: transcript, annotations: {} });
 
-    expect(result.fields).toBe(committedFields);
+    expect(result.fields).toEqual(passthroughBase);
+    // The clamp did NOT apply — normalize never runs on the passthrough path.
+    expect(result.fields.envelope.roof.confidence).toBe(1.7);
     expect(result.usage).toEqual({ calls: 1, promptTokens: 100, completionTokens: 50 });
     expect(requests).toHaveLength(0);
     // The base extractor still ran, on the transcript.
     expect(base.calls.map((t) => t.text)).toEqual([transcript]);
+  });
+
+  test("the caller's deadline reaches the base extractor", async () => {
+    // Regression pin for the forward at gap-fill.ts: the base runs on the
+    // caller's options bag WHOLE, so the deadline — the signal's sibling
+    // member with the same forwarding discipline — reaches it untouched.
+    const base = new FakeExtractor<GapExtraction>(committedFields);
+    const { chat } = fakeChat(JSON.stringify(followUpResponse));
+    const extractor = gapFillExtractor({ base, target: gapTarget, chat, model: "gpt-test" });
+    const deadline = 1_234_567_890;
+
+    await extractor.extract({ text: "t", annotations: {} }, { deadline });
+
+    expect(base.callOptions[0]?.deadline).toBe(deadline);
   });
 });
 
@@ -204,7 +253,7 @@ describe("gapFillExtractor — the follow-up call", () => {
 });
 
 describe("gapFillExtractor — the merge", () => {
-  test("a committed value lands on exactly that leaf; every other leaf keeps the base's identity", async () => {
+  test("a committed value lands on exactly that leaf; every other leaf keeps the base's values", async () => {
     const base = new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } });
     const { chat } = fakeChat(JSON.stringify(followUpResponse));
     const result = await gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract({
@@ -216,9 +265,13 @@ describe("gapFillExtractor — the merge", () => {
     expect(result.fields.envelope.roof).toEqual(followUpResponse["envelope.roof"]);
     expect(result.fields.hvac[1]!.systemType).toEqual(followUpResponse["hvac[1].systemType"]);
 
-    // Nothing else moved — reference-equal to the base result's own objects.
-    expect(result.fields.envelope.wall).toBe(abstainingFields.envelope.wall);
-    expect(result.fields.hvac[0]).toBe(abstainingFields.hvac[0]);
+    // Category 3 — the engine's closing parse rebuilds every object, so untouched
+    // leaves are deep-equal to the base's, not reference-equal. The
+    // identity-preservation property itself still holds inside
+    // `mergeGapFilledLeaves` and is still pinned by the pure-helper tests, which
+    // call it directly — that is where the guarantee lives now.
+    expect(result.fields.envelope.wall).toEqual(abstainingFields.envelope.wall);
+    expect(result.fields.hvac[0]).toEqual(abstainingFields.hvac[0]);
 
     // The base result was not mutated.
     expect(abstainingFields.envelope.roof.value).toBeNull();
@@ -356,13 +409,67 @@ describe("gapFillExtractor — the follow-up crosses the same trust boundary", (
   });
 });
 
+describe("gapFillExtractor — regression pins from the port", () => {
+  test("raw is the merged fields after a follow-up — not the base's raw, and not absent", async () => {
+    // Regression pin for the follow-up phase's merge: today's follow-up path sets
+    // `raw` to the merged fields — the base's answers with the follow-up's
+    // accepted ones spliced in — whether or not the base carried a raw of its
+    // own. Under the port the result's `raw` comes from the draft, which only the
+    // follow-up phase's merge writes; nothing else in the suite asserted this, so
+    // a port that dropped the write would have shipped silently.
+    const base = new FakeExtractor<GapExtraction>(abstainingFields, {
+      raw: "the base's own raw model output",
+      usage: { calls: 1 },
+    });
+    const { chat } = fakeChat(JSON.stringify(followUpResponse));
+    const result = await gapFillExtractor({ base, target: gapTarget, chat, model: "m" }).extract({
+      text: "t",
+      annotations: {},
+    });
+
+    expect(result.raw).toEqual({
+      envelope: {
+        roof: followUpResponse["envelope.roof"],
+        wall: abstainingFields.envelope.wall,
+      },
+      hvac: [abstainingFields.hvac[0], { systemType: followUpResponse["hvac[1].systemType"] }],
+    });
+  });
+
+  test("a transiently-failing base extractor is attempted exactly once", async () => {
+    // Regression pin for the base phase's `maxRetries: 0`: today's wrapper calls
+    // `base.extract` exactly once, and the ported preset pins the base phase at
+    // zero retries to keep it that way — the engine's default of 2 would retry a
+    // transiently-failing base with real backoff. `FakeExtractor` never fails,
+    // so nothing else in the suite would catch the base silently gaining retries.
+    let baseCalls = 0;
+    const transient = Object.assign(new Error("service unavailable"), { status: 503 });
+    const failingBase: Extractor<GapExtraction> = {
+      extract: () => {
+        baseCalls += 1;
+        return Promise.reject(transient);
+      },
+    };
+    const { chat } = fakeChat(JSON.stringify(followUpResponse));
+
+    await expect(
+      gapFillExtractor({ base: failingBase, target: gapTarget, chat, model: "m" }).extract({
+        text: "t",
+        annotations: {},
+      }),
+    ).rejects.toBe(transient);
+
+    expect(baseCalls).toBe(1);
+  });
+});
+
 describe("gapFillExtractor — progress units", () => {
-  test("two abstained-with-evidence leaves emit one unit with candidates: 2", async () => {
+  test("the base phase's pair comes first, then the follow-up's — keyed by phaseId and pass", async () => {
     const base = new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } });
     const { chat } = fakeChat(JSON.stringify(followUpResponse), {
       usage: { promptTokens: 30, completionTokens: 12 },
     });
-    const events: GapFillUnit[] = [];
+    const events: PhaseUnit[] = [];
     await gapFillExtractor({
       base,
       target: gapTarget,
@@ -371,30 +478,33 @@ describe("gapFillExtractor — progress units", () => {
       onUnit: (event) => events.push(event),
     }).extract({ text: "t", annotations: {} });
 
-    // One unit — a start and its done — for the ONE follow-up call.
-    expect(events).toHaveLength(2);
-    const start = events[0]!;
-    const done = events[1]!;
-    expect(start.unit).toBe("gapfill");
-    expect(start.phase).toBe("start");
-    // How many abstained-with-evidence leaves the follow-up is asking about.
-    expect(start.candidates).toBe(2);
-    // No retry loop here, so 1 is the honest report on every event.
-    expect(start.attempt).toBe(1);
-    expect(done.phase).toBe("done");
-    expect(done.candidates).toBe(2);
-    expect(done.id).toBe(start.id);
+    // Category 1 — events changed from `GapFillUnit` to `PhaseUnit`: the wrapper
+    // is an engine preset, so the unit is identified by `phaseId` and `pass`, and
+    // the candidate count is no longer on the event (restoring it would be a
+    // `PhaseUnit` change and is not this port). Category 2 — the base phase
+    // always plans one item, so its `start`/`done` pair precedes the follow-up's.
+    expect(events.map((e) => [e.phaseId, e.pass, e.phase, e.attempt])).toEqual([
+      ["base", 0, "start", 1],
+      ["base", 0, "done", 1],
+      ["gapfill", 1, "start", 1],
+      ["gapfill", 1, "done", 1],
+    ]);
+    // No retry loop on either phase, so 1 is the honest report on every event.
+    // Each phase's pair shares one id; the ids are the engine's own mint.
+    expect(events[1]!.id).toBe(events[0]!.id);
+    expect(events[3]!.id).toBe(events[2]!.id);
     // The event's usage is the follow-up completion's own, not the combined total.
-    expect(done.usage).toEqual({ inputTokens: 30, outputTokens: 12 });
+    expect(events[3]!.usage).toEqual({ inputTokens: 30, outputTokens: 12 });
   });
 
-  test("zero candidates emit nothing at all and make no chat call", async () => {
-    // The passthrough path is the trap: no call is made, so there is no unit to
-    // report. A phantom event here would announce work that never happened and
-    // break the pinned "no second call, no wrapper object, no usage change".
+  test("the passthrough emits only the base phase's pair and makes no chat call", async () => {
+    // Category 2 — the passthrough now emits: the base phase always plans one
+    // item, so every run — passthrough included — emits a base `start`/`done`
+    // pair. The follow-up phase still plans nothing: no second call, and no
+    // event announcing work that never happened.
     const base = new FakeExtractor<GapExtraction>(committedFields, { usage: { calls: 1 } });
     const { chat, requests } = fakeChat(JSON.stringify(followUpResponse));
-    const events: GapFillUnit[] = [];
+    const events: PhaseUnit[] = [];
     const result = await gapFillExtractor({
       base,
       target: gapTarget,
@@ -403,16 +513,22 @@ describe("gapFillExtractor — progress units", () => {
       onUnit: (event) => events.push(event),
     }).extract({ text: "t", annotations: {} });
 
-    expect(events).toEqual([]);
+    expect(events.map((e) => [e.phaseId, e.pass, e.phase])).toEqual([
+      ["base", 0, "start"],
+      ["base", 0, "done"],
+    ]);
     expect(requests).toHaveLength(0);
-    // And the passthrough itself is unchanged — the base result, same object.
-    expect(result.fields).toBe(committedFields);
+    // Category 3 — deep equality: the closing parse rebuilds the result.
+    expect(result.fields).toEqual(committedFields);
   });
 
-  test("a base built with its own onUnit delivers its units first, then the follow-up's", async () => {
+  test("a base built with its own onUnit delivers its units inside the base phase's pair", async () => {
     // §0.3: the base is handed over ALREADY BUILT, so there is no threading for
     // gap-fill to do — the base's units flow through the observer its own caller
-    // gave it, and gap-fill's onUnit observes only the follow-up call.
+    // gave it. Category 2 — the wrapper's observer now ALSO sees the engine's
+    // phase events for the base phase's single item: the engine announces the
+    // attempt before `run` makes the call, so the base's own units nest inside
+    // the base phase's start/done, and the follow-up phase follows.
     const baseChat = fakeChat(JSON.stringify(abstainingFields));
     const followUpChat = fakeChat(JSON.stringify(followUpResponse));
     const seen: string[] = [];
@@ -428,13 +544,15 @@ describe("gapFillExtractor — progress units", () => {
       target: gapTarget,
       chat: followUpChat.chat,
       model: "m",
-      onUnit: (event) => seen.push(`gapfill:${event.unit}:${event.phase}`),
+      onUnit: (event) => seen.push(`gapfill:${event.phaseId}:${event.phase}`),
     }).extract({ text: "t", annotations: {} });
 
     expect(seen).toEqual([
-      "base:whole:start",
+      "gapfill:base:start", // the engine announces the base phase's attempt first
+      "base:whole:start", // the base's own units, made inside that attempt
       "base:whole:done",
-      "gapfill:gapfill:start",
+      "gapfill:base:done",
+      "gapfill:gapfill:start", // then the follow-up phase
       "gapfill:gapfill:done",
     ]);
   });
@@ -443,7 +561,7 @@ describe("gapFillExtractor — progress units", () => {
     const followUpUsage = { promptTokens: 30, completionTokens: 12 };
 
     const observed = fakeChat(JSON.stringify(followUpResponse), { usage: followUpUsage });
-    const events: GapFillUnit[] = [];
+    const events: PhaseUnit[] = [];
     const withObserver = await gapFillExtractor({
       base: new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } }),
       target: gapTarget,
@@ -461,8 +579,14 @@ describe("gapFillExtractor — progress units", () => {
     }).extract({ text: "t", annotations: {} });
 
     // The observed run really did observe — otherwise the comparison below proves
-    // nothing. This is the half that fails before the hook exists.
-    expect(events.map((event) => event.phase)).toEqual(["start", "done"]);
+    // nothing. Category 2 — both phases' pairs appear now: the base phase's and
+    // the follow-up's.
+    expect(events.map((event) => [event.phaseId, event.phase])).toEqual([
+      ["base", "start"],
+      ["base", "done"],
+      ["gapfill", "start"],
+      ["gapfill", "done"],
+    ]);
     // The observation point changed nothing: same result, same bytes on the wire.
     expect(withoutObserver).toEqual(withObserver);
     expect(silent.requests).toEqual(observed.requests);
@@ -564,7 +688,9 @@ describe("gapFillExtractor — the ungrounded target", () => {
     const result = await extractor.extract({ text: groundedTranscript, annotations: {} });
 
     expect(requests).toHaveLength(0);
-    expect(result.fields).toBe(fabricatedFields);
+    // Category 3 — the closing parse rebuilds the result, so the passthrough is
+    // deep-equal to the base's fields, not the same object.
+    expect(result.fields).toEqual(fabricatedFields);
   });
 
   test("re-asks the ungrounded leaf and accepts a citation that grounds", async () => {
@@ -750,5 +876,38 @@ describe("gapFillOptions provenance parameter", () => {
     } as unknown as Enveloped<OtherValues>);
     // @ts-expect-error base extractor's Enveloped<OtherValues> is not assignable to the target's Enveloped<{rooms:string},{rooms:"row"}>
     gapFillExtractor({ base, target, chat: {} as ChatClient, model: "test" });
+  });
+});
+
+describe("gapFillExtractor — the composition claim", () => {
+  test("a hand-assembled phase list — extractorPhase base, then gapFillPhase — matches the preset", async () => {
+    // The design's argument for `extractorPhase` is that any `Extractor` becomes
+    // a phase, so a host can put an existing combinator and a custom phase in one
+    // list. This port is the first evidence, and this test pins the claim: the
+    // preset's exact body, assembled by hand, producing the same fields. The base
+    // phase is pinned to `maxRetries: 0` at the run level, as the preset does —
+    // `extractorPhase` declares no retries of its own.
+    const transcript = { text: "t", annotations: {} };
+    const base = () => new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } });
+    const followUp = () => fakeChat(JSON.stringify(followUpResponse)).chat;
+
+    const handAssembled = await phasedExtractor<GapValues>({
+      target: gapTarget,
+      maxRetries: 0,
+      phases: [
+        extractorPhase("base", base()),
+        gapFillPhase({ target: gapTarget, chat: followUp(), model: "m" }),
+      ],
+    }).extract(transcript);
+
+    const preset = await gapFillExtractor({
+      base: base(),
+      target: gapTarget,
+      chat: followUp(),
+      model: "m",
+    }).extract(transcript);
+
+    expect(handAssembled.fields).toEqual(preset.fields);
+    expect(handAssembled.usage).toEqual(preset.usage);
   });
 });

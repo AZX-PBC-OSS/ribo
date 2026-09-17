@@ -290,6 +290,12 @@ export type {
   SequentialExtractorOptions,
 } from "./arbitration.js";
 
+// Cancellation: the brand a foreign transport's error may carry, so a combinator
+// in core can recognise "the caller stopped this" without importing the
+// transport's error type — the edge runs from producer packages to core only.
+export { CANCELLATION, CancellationError, isCancellation } from "./cancellation.js";
+export type { CancellationBranded } from "./cancellation.js";
+
 // Strategy fallback: try extraction strategies in order and let an arbiter
 // decide whether each outcome is acceptable, continuing past failures the host
 // classifies as recoverable. Lives in core because it composes the core
@@ -302,6 +308,26 @@ export type { FallbackCandidate } from "./fallback-extractor.js";
 // `fallbackExtractor` so concurrency is opt-in by name, not a scheduling flag.
 export { raceExtractor } from "./race-extractor.js";
 export type { RaceCandidate } from "./race-extractor.js";
+
+// Strategy retry: wrap one extractor with the attempt loop — transient failures
+// retried with full-jitter backoff, terminal errors and cancellations rethrown
+// untouched. Follows the same positional combinator shape as its siblings above.
+export { retryExtractor } from "./retry-extractor.js";
+export type { RetryExtractorOptions } from "./retry-extractor.js";
+
+// The attempt loop itself, extracted from `retryExtractor` so the phased engine can
+// retry items whose `run` is not an `Extractor` without growing a sixth copy of the
+// policy. Same rules, same order of checks; `onAttempt` is what makes a retry
+// observable to the unit stream.
+export { retryAsync } from "./retry-async.js";
+export type { RetryAsyncOptions } from "./retry-async.js";
+
+// Strategy timeout: bound one extractor to a deadline with a signal the inner
+// extractor can honour, racing the work against a timer so a hung inner cannot
+// hang the run. Its error is deliberately not cancellation-branded — a deadline
+// elapsing and a caller cancelling are different events.
+export { ExtractionTimeoutError, timeoutExtractor } from "./timeout-extractor.js";
+export type { TimeoutExtractorOptions } from "./timeout-extractor.js";
 
 // The grouped run: take a per-key map of group extractors and own the
 // cross-group work — coverage at construction, a bounded pool, the derived
@@ -392,17 +418,59 @@ export { deriveRetryBudget, PER_CALL_CEILING_MS } from "./retry-budget.js";
 export type { RetryBudget, RetryBudgetObserver } from "./retry-budget.js";
 
 // Extraction observability — one optional progress hook every strategy reports
-// through, plus the six unit variants it carries and the id/strategy helpers.
+// through, plus the unit variants it carries and the id/strategy helpers.
 // Declared once here and inherited by every extractor's options, so a reviewer
 // watching a ten-minute extraction sees each unit of work start and settle.
 export { nextUnitId, stampStrategy } from "./extraction-observer.js";
 export type {
   ExtractionObserver,
   ExtractionUnit,
-  GapFillUnit,
   GroupUnit,
-  InstanceUnit,
-  InventoryUnit,
   PhaseUnit,
   WholeUnit,
 } from "./extraction-observer.js";
+
+// Phased extraction, wave 3a — the phase vocabulary, with no engine yet. A phase becomes a
+// value a caller can construct, inspect and validate; nothing runs one (the engine is a
+// later wave). Branded note keys and the immutable bag they address: the cross-phase
+// channel whose keys are typed so two phases cannot silently clobber or misread, while the
+// keys stay plain strings at runtime for `requires`/`produces` and a model-emitted plan.
+export { emptyNotes, noteKey } from "./phase-notes.js";
+export type { NoteKey, Notes } from "./phase-notes.js";
+// The draft a phased run's phases progressively fill, and its homomorphic deep partial —
+// the shape that lets a phase write one leaf's `sourceSpan` without claiming its siblings.
+// `readonly` throughout: `merge` owns every write, and a `run` cannot write through the
+// draft it is handed.
+export { emptyDraft } from "./phase-draft.js";
+export type { DeepPartial, PhaseDraft } from "./phase-draft.js";
+// What one item's work produced and how it settled — the per-item vocabulary a phase's
+// `run` and `merge` speak. Discriminated on `outcome`, matching `arbitration.ts`'s
+// `ExtractionOutcome` rather than inventing a second outcome vocabulary.
+export type { PhaseItemOutcome, PhaseOutput } from "./phase-outcome.js";
+// The phase type itself: plan/run/merge with the item and contribution types hidden
+// EXISTENTIALLY behind one `with` member — never erased with a cast — so the engine that
+// lands in a later wave cannot hand one phase's items to another phase's `run` without a
+// compile error. The metadata stays on the outside for the construction check and a
+// planner. `phaseBuilder<V, P>()` is curried: V/P fixed once per strategy, I/C inferred
+// per phase.
+export { phaseBuilder } from "./phase.js";
+export type { Phase, PhaseContext, PhaseDef, PhaseMeta } from "./phase.js";
+// The construction-time phase-list validator: reject a mis-wired list — empty, duplicate
+// id, a `requires` no earlier phase `produces`, a bad concurrency or retry count — before
+// the first call is paid for, naming the offending phase and key or value. The
+// per-phase-boundary `produces` verification is a different check that runs during a run
+// and belongs with the engine (Wave 3b), not here.
+export { validatePhases } from "./validate-phases.js";
+// Any Extractor becomes a phase: the primitive that makes the later `phasedExtractor` the
+// outer shell for the whole family rather than a fourth sibling beside the existing
+// combinators. One item (the whole document), `signal`/`deadline` forwarded, usage on the
+// `PhaseOutput`, and a shallow top-level merge into the draft.
+export { extractorPhase } from "./extractor-phase.js";
+
+// The phased-extraction engine (wave 3b): run a list of phases in order, fanning each
+// phase's items out through a bounded pool, threading the draft through each `merge`,
+// then normalize once and parse once. Owns scheduling, retry, cancellation, the running
+// deadline and the `PhaseUnit` progress stream, so a multi-pass strategy is a list of
+// narrowing steps rather than a bespoke loop.
+export { phasedExtractor } from "./phased-extractor.js";
+export type { PhasedExtractorOptions } from "./phased-extractor.js";

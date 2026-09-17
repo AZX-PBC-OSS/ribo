@@ -1,10 +1,20 @@
 import { z } from "zod";
 import { describe, expect, test, vi } from "vitest";
 import { ChatError } from "@azx/ribo-extractor-openai";
-import { enveloped, type ExtractionTarget, type PhaseUnit } from "@azx/ribo-core";
+import {
+  enveloped,
+  isCancellation,
+  phasedExtractor,
+  type ExtractionTarget,
+  type PhaseUnit,
+} from "@azx/ribo-core";
+import type { RetryBudget } from "@azx/ribo-core";
 
-import { OnDeviceChat } from "./ondevice-chat.js";
+import { OnDeviceChat, DEFAULT_DEVICE_PROMPT_DEADLINE_MS } from "./ondevice-chat.js";
 import { threePhaseExtractor } from "./index.js";
+import { classifyPhase, classifyWrappedPhase } from "./phases/classify-phase.js";
+import { extractGroups, presencePhase } from "./phases/presence-phase.js";
+import { spanPhase } from "./phases/span-phase.js";
 import { FakeLanguageModel } from "./test-support/fake-language-model.js";
 
 /**
@@ -37,6 +47,11 @@ const target: ExtractionTarget<Values> = {
   examples: [],
 };
 
+// The walked groups, for the engine-wiring tests that compose the phases by
+// hand (the ones that need an onRetryBudget observer, which the preset's
+// signature deliberately does not carry).
+const groups = extractGroups(z.toJSONSchema(extractionSchema, { target: "draft-2020-12" }));
+
 function makeExtractor(model: FakeLanguageModel) {
   const chat = new OnDeviceChat({ languageModel: model });
   return threePhaseExtractor({ target, chat, maxRetries: 3 });
@@ -50,15 +65,18 @@ describe("threePhaseExtractor", () => {
   test("a phase-0 false leaf produces a null envelope and avoids phase 1 and 2", async () => {
     const model = new FakeLanguageModel();
     model.availabilityValue = "available";
+    // Category 1 — the run is phase-major, not group-major: every group's
+    // presence call happens before any span call, so the scripted sequence
+    // orders by phase.
     model.sequence = [
-      // hvac phase 0: only fuel is discussed.
+      // hvac presence: only fuel is discussed.
       [json({ fuel: true, efficiency: false, notes: false })],
-      // hvac phase 1: only the true leaves are asked for verbatim quotes.
-      [json({ fuel: "the system is gas" })],
-      // hvac phase 2: classify the fuel quote.
-      [json("Gas")],
-      // site phase 0: nothing discussed.
+      // site presence: nothing discussed.
       [json({ yearBuilt: false, access: false })],
+      // hvac span: only the true leaves are asked for verbatim quotes.
+      [json({ fuel: "the system is gas" })],
+      // hvac classify: classify the fuel quote.
+      [json("Gas")],
     ];
 
     const result = await makeExtractor(model).extract({
@@ -78,8 +96,8 @@ describe("threePhaseExtractor", () => {
     expect(result.fields.site.yearBuilt.value).toBeNull();
     expect(result.fields.site.access.value).toBeNull();
 
-    // 1 phase-0 + 1 phase-1 + 1 phase-2 + 1 phase-0 = 4. If the false leaves had
-    // also been run through phases 1 and 2, the count would be higher.
+    // 2 presence + 1 span + 1 classify = 4. If the false leaves had also been
+    // run through the later phases, the count would be higher.
     expect(result.usage.calls).toBe(4);
     expect(result.usage.engine).toBe("ondevice-chat");
   });
@@ -192,11 +210,12 @@ describe("threePhaseExtractor", () => {
   test("every leaf in the schema appears in the output, even when never discussed", async () => {
     const model = new FakeLanguageModel();
     model.availabilityValue = "available";
+    // Category 1 — phase-major ordering: both presence calls first.
     model.sequence = [
       [json({ fuel: true, efficiency: false, notes: false })],
+      [json({ yearBuilt: false, access: false })],
       [json({ fuel: "the boiler is oil-fired" })],
       [json("Oil")],
-      [json({ yearBuilt: false, access: false })],
     ];
 
     const result = await makeExtractor(model).extract({
@@ -221,11 +240,12 @@ describe("threePhaseExtractor", () => {
   test("usage.calls reflects the real call count and usage.engine is the on-device id", async () => {
     const model = new FakeLanguageModel();
     model.availabilityValue = "available";
+    // Category 1 — phase-major ordering: both presence calls first.
     model.sequence = [
       [json({ fuel: true, efficiency: false, notes: false })],
+      [json({ yearBuilt: false, access: false })],
       [json({ fuel: "the system is gas" })],
       [json("Gas")],
-      [json({ yearBuilt: false, access: false })],
     ];
 
     const result = await makeExtractor(model).extract({
@@ -270,15 +290,16 @@ describe("threePhaseExtractor", () => {
     test("a leaf discussed inside an array-shaped group is extracted, not dropped", async () => {
       const model = new FakeLanguageModel();
       model.availabilityValue = "available";
+      // Category 1 — phase-major ordering: both presence calls first.
       model.sequence = [
-        // hvac phase 0: fuel is discussed.
+        // hvac presence: fuel is discussed.
         [json({ fuel: true })],
-        // hvac phase 1: verbatim quote.
-        [json({ fuel: "the system is gas" })],
-        // hvac phase 2: classify.
-        [json("Gas")],
-        // site phase 0: nothing discussed.
+        // site presence: nothing discussed.
         [json({ yearBuilt: false })],
+        // hvac span: verbatim quote.
+        [json({ fuel: "the system is gas" })],
+        // hvac classify.
+        [json("Gas")],
       ];
 
       const chat = new OnDeviceChat({ languageModel: model });
@@ -357,8 +378,10 @@ describe("threePhaseExtractor", () => {
     expect(result.fields.hvac.fuel.value).toBe("Oil");
     expect(result.fields.hvac.fuel.sourceSpan).toBe("the boiler is oil-fired");
     expect(result.fields.hvac.fuel.confidence).toBe(1);
-    // phase-0 + phase-1 attempt 1 + phase-1 retry + phase-2 = 4.
-    expect(result.usage.calls).toBe(4);
+    // Category 3 — usage.calls counts successful ITEMS, not attempts: the
+    // span item that failed once and succeeded on retry contributes one call,
+    // not two. presence + span + classify = 3.
+    expect(result.usage.calls).toBe(3);
   });
 
   describe("a group that declared coarser provenance is refused at construction", () => {
@@ -417,8 +440,11 @@ describe("threePhaseExtractor", () => {
       model.availabilityValue = "available";
       const transcript =
         "the system is gas efficiency is 82 percent notes need replacement built in 1950 easy access";
+      // Category 1 — phase-major ordering: every group's presence call, then
+      // every group's span call, then every classify.
       model.sequence = [
         [json({ fuel: true, efficiency: true, notes: true })],
+        [json({ yearBuilt: true, access: true })],
         [
           json({
             fuel: "the system is gas",
@@ -426,11 +452,10 @@ describe("threePhaseExtractor", () => {
             notes: "notes need replacement",
           }),
         ],
+        [json({ yearBuilt: "built in 1950", access: "easy access" })],
         [json("Gas")],
         [json(82)],
         [json("notes need replacement")],
-        [json({ yearBuilt: true, access: true })],
-        [json({ yearBuilt: "built in 1950", access: "easy access" })],
         [json(1950)],
         [json("Easy")],
       ];
@@ -462,6 +487,108 @@ describe("threePhaseExtractor", () => {
       const sitePass2 = starts.filter((e) => e.key === "site" && e.pass === 2);
       expect(sitePass2).toHaveLength(2);
       expect(sitePass2.map((e) => e.leaf).sort()).toEqual(["access", "yearBuilt"]);
+    });
+
+    test("each pass's events carry its phase identity — presence, span, classify", async () => {
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      const transcript =
+        "the system is gas efficiency is 82 percent notes need replacement built in 1950 easy access";
+      // Category 1 — phase-major ordering: every group's presence call, then
+      // every group's span call, then every classify.
+      model.sequence = [
+        [json({ fuel: true, efficiency: true, notes: true })],
+        [json({ yearBuilt: true, access: true })],
+        [
+          json({
+            fuel: "the system is gas",
+            efficiency: "efficiency is 82 percent",
+            notes: "notes need replacement",
+          }),
+        ],
+        [json({ yearBuilt: "built in 1950", access: "easy access" })],
+        [json("Gas")],
+        [json(82)],
+        [json("notes need replacement")],
+        [json(1950)],
+        [json("Easy")],
+      ];
+
+      const events: PhaseUnit[] = [];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({
+        target,
+        chat,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+      await extractor.extract({ text: transcript, annotations: {} });
+
+      // Non-vacuous by construction: both groups run all three passes, so every
+      // pass bucket is populated before the identity is asserted on it.
+      const pass0 = events.filter((e) => e.pass === 0);
+      const pass1 = events.filter((e) => e.pass === 1);
+      const pass2 = events.filter((e) => e.pass === 2);
+      expect(pass0.length).toBeGreaterThan(0);
+      expect(pass1.length).toBeGreaterThan(0);
+      expect(pass2.length).toBeGreaterThan(0);
+      for (const e of pass0) expect(e.phaseId).toBe("presence");
+      for (const e of pass1) expect(e.phaseId).toBe("span");
+      for (const e of pass2) expect(e.phaseId).toBe("classify");
+    });
+
+    test("the wrapped fallback is its own phase — its own id, its own pass, distinct identity", async () => {
+      // Category 2 — the wrapped fallback is a separate phase now, not an
+      // error-driven rewrite inside the classify retry loop. The pre-port pin
+      // (one unit id shared by both request shapes) is the assertion this port
+      // exists to change.
+      const singleLeafPatch = z.strictObject({
+        hvac: z
+          .strictObject({
+            fuel: z.enum(["Oil", "Gas"]).nullable().optional(),
+          })
+          .optional(),
+      });
+      const singleLeafSchema = enveloped(singleLeafPatch);
+      type SingleLeafValues = z.infer<typeof singleLeafPatch>;
+      const singleLeafTarget: ExtractionTarget<SingleLeafValues> = {
+        name: "unsupported-phaseid-test",
+        extractionSchema: singleLeafSchema,
+        instructions: "Extract hvac fields.",
+        examples: [],
+      };
+
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      model.sequence = [
+        [json({ fuel: true })],
+        [json({ fuel: "the system is gas" })],
+        new DOMException("not supported", "NotSupportedError"),
+        [json({ value: "Gas" })],
+      ];
+
+      const events: PhaseUnit[] = [];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({
+        target: singleLeafTarget,
+        chat,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+      await extractor.extract({ text: "the system is gas", annotations: {} });
+
+      const phase2 = events.filter((e) => e.pass === 2);
+      const phase3 = events.filter((e) => e.pass === 3);
+      expect(phase2.length).toBeGreaterThan(0);
+      expect(phase3.length).toBeGreaterThan(0);
+      for (const e of phase2) expect(e.phaseId).toBe("classify");
+      for (const e of phase3) expect(e.phaseId).toBe("classify-wrapped");
+      // The wrapped call is its own item with its own id.
+      const classifyIds = new Set(phase2.map((e) => e.id));
+      const wrappedIds = new Set(phase3.map((e) => e.id));
+      expect(classifyIds.size).toBe(1);
+      expect(wrappedIds.size).toBe(1);
+      expect([...wrappedIds][0]).not.toBe([...classifyIds][0]);
     });
 
     test("a pass-0 unit carries no leaf", async () => {
@@ -521,7 +648,13 @@ describe("threePhaseExtractor", () => {
       expect(result.fields.site.yearBuilt.value).toBeNull();
     });
 
-    test("a leaf whose bare classify hits unsupported and succeeds wrapped emits under one id with continuing attempts", async () => {
+    test("a bare classify that hits unsupported settles as done, and the wrapped retry is a new item at pass 3", async () => {
+      // Categories 2 + 5. Category 2: the wrapped fallback is its own phase —
+      // its own item, its own id, its own attempt numbering starting at 1; the
+      // pre-port pin (one id, continuing attempts) is the assertion this port
+      // exists to change. Category 5: the unsupported attempt's event moves
+      // from `error` to `done` — the call succeeded, and the unsupported fact
+      // stops being visible in the event stream, travelling only in notes.
       const singleLeafPatch = z.strictObject({
         hvac: z
           .strictObject({
@@ -555,14 +688,27 @@ describe("threePhaseExtractor", () => {
         maxRetries: 3,
         onUnit: (e) => events.push(e),
       });
-      await extractor.extract({ text: "the system is gas", annotations: {} });
+      const result = await extractor.extract({ text: "the system is gas", annotations: {} });
+
+      // The value still lands — the wrapped pass classified it.
+      expect(result.fields.hvac.fuel.value).toBe("Gas");
 
       const phase2 = events.filter((e) => e.pass === 2);
-      const ids = new Set(phase2.map((e) => e.id));
-      expect(ids.size).toBe(1);
-
-      const attempts = phase2.filter((e) => e.phase === "start").map((e) => e.attempt);
-      expect(attempts).toEqual([1, 2]);
+      const phase3 = events.filter((e) => e.pass === 3);
+      // Each request shape is one item with one id.
+      const classifyIds = new Set(phase2.map((e) => e.id));
+      const wrappedIds = new Set(phase3.map((e) => e.id));
+      expect(classifyIds.size).toBe(1);
+      expect(wrappedIds.size).toBe(1);
+      expect([...wrappedIds][0]).not.toBe([...classifyIds][0]);
+      // Each item's attempt numbering starts at 1 — no continuing numbers.
+      expect(phase2.filter((e) => e.phase === "start").map((e) => e.attempt)).toEqual([1]);
+      expect(phase3.filter((e) => e.phase === "start").map((e) => e.attempt)).toEqual([1]);
+      // The unsupported attempt settles as DONE, not error — no error event in
+      // either pass.
+      expect(phase2.map((e) => e.phase)).toEqual(["start", "done"]);
+      expect(phase3.map((e) => e.phase)).toEqual(["start", "done"]);
+      expect(events.filter((e) => e.phase === "error")).toHaveLength(0);
     });
 
     test("usage.calls equals the number of start events", async () => {
@@ -570,8 +716,14 @@ describe("threePhaseExtractor", () => {
       model.availabilityValue = "available";
       const transcript =
         "the system is gas efficiency is 82 percent notes need replacement built in 1950 easy access";
+      // Category 1 — phase-major ordering: every group's presence call, then
+      // every group's span call, then every classify. The assertion itself
+      // survives this fixture because nothing fails in it — under the port the
+      // equality holds only when no attempt failed (category 3: calls counts
+      // successful items, attempts count starts).
       model.sequence = [
         [json({ fuel: true, efficiency: true, notes: true })],
+        [json({ yearBuilt: true, access: true })],
         [
           json({
             fuel: "the system is gas",
@@ -579,11 +731,10 @@ describe("threePhaseExtractor", () => {
             notes: "notes need replacement",
           }),
         ],
+        [json({ yearBuilt: "built in 1950", access: "easy access" })],
         [json("Gas")],
         [json(82)],
         [json("notes need replacement")],
-        [json({ yearBuilt: true, access: true })],
-        [json({ yearBuilt: "built in 1950", access: "easy access" })],
         [json(1950)],
         [json("Easy")],
       ];
@@ -661,8 +812,13 @@ describe("threePhaseExtractor", () => {
           (cause: unknown) => cause,
         );
 
-      expect(error).toBeInstanceOf(ChatError);
-      expect((error as ChatError).kind).toBe("aborted");
+      // Category 4 — the rejection type on caller-abort paths changes: the
+      // pre-port code threw ChatError.aborted from its own pre-attempt check;
+      // ported, retryAsync's pre-attempt check throws core's CancellationError
+      // before the transport is reached — and an abort arriving between
+      // attempts AFTER a real failure rethrows that failure instead, so the
+      // concrete class is timing-dependent. Assert through isCancellation.
+      expect(isCancellation(error)).toBe(true);
       // No call was made, not even a doomed one: the abort short-circuits
       // before the transport is reached.
       expect(model.promptCallCount).toBe(0);
@@ -699,13 +855,289 @@ describe("threePhaseExtractor", () => {
         (cause: unknown) => cause,
       );
 
-      expect(error).toBeInstanceOf(ChatError);
-      expect((error as ChatError).kind).toBe("aborted");
+      // Category 4 — see the already-aborted test above: the concrete class of
+      // the rejection on an abort path is no longer pinned (it is timing-
+      // dependent), so assert through isCancellation.
+      expect(isCancellation(error)).toBe(true);
       // usage.calls is derived from start events (pinned elsewhere in this
       // file), so this is the "retries that never ran are not counted"
       // assertion: only the one attempt that actually started, no phantom
       // retries fired at an already-aborted signal.
       expect(events.filter((e) => e.phase === "start")).toHaveLength(1);
+    });
+
+    test("a caller abort DURING a classify call rejects — it does not resolve with nulled leaves", async () => {
+      // Added in Wave 6 — the live bug this port fixes: the pre-port classify
+      // path had NO cancellation check at all, so a transport abort arriving
+      // before the caller's signal flips became a null leaf with its span
+      // retained. The abort must land MID-call: a between-attempts abort
+      // rejects through retryAsync whether or not `run` forwards `ctx.signal`
+      // at all — so that version of the test passes against an implementation
+      // that drops the signal entirely, which is the regression worth catching.
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      // Phase-major: both presence calls, then the span, then classify — whose
+      // response streams slowly so the abort lands MID-call.
+      model.sequence = [
+        [json({ fuel: true, efficiency: false, notes: false })],
+        [json({ yearBuilt: false, access: false })],
+        [json({ fuel: "the system is gas" })],
+        ['"Gas', '" ', "again ", "still "],
+      ];
+      model.chunkDelayMs = 50;
+      const chat = new OnDeviceChat({ languageModel: model });
+      const events: PhaseUnit[] = [];
+      const extractor = threePhaseExtractor({
+        target,
+        chat,
+        maxRetries: 3,
+        onUnit: (e) => events.push(e),
+      });
+
+      const controller = new AbortController();
+      const run = extractor.extract(
+        { text: "the system is gas", annotations: {} },
+        { signal: controller.signal },
+      );
+      // The classify call is the fourth: wait until it is IN FLIGHT.
+      await vi.waitFor(() => expect(model.promptCallCount).toBe(4));
+      controller.abort();
+
+      const error: unknown = await run.then(
+        () => undefined,
+        (cause: unknown) => cause,
+      );
+
+      expect(isCancellation(error)).toBe(true);
+      // Only the four attempts that started — no phantom retries past the abort.
+      expect(events.filter((e) => e.phase === "start")).toHaveLength(4);
+    });
+
+    test("a transport aborted error during classify rejects even with the caller's signal un-fired", async () => {
+      // Added in Wave 6 — the other half of the live bug: a DOMException
+      // AbortError from the model itself is classified by OnDeviceChat as
+      // ChatError.aborted — the branded cancellation — while the caller's
+      // signal never fires. The pre-port classify path caught it, retried it
+      // to exhaustion, and resolved with a nulled leaf whose span was
+      // retained; ported, the narrow catch rethrows it, retryAsync stops on
+      // the brand, and the run rejects.
+      const singleLeafPatch = z.strictObject({
+        hvac: z
+          .strictObject({
+            fuel: z.enum(["Oil", "Gas"]).nullable().optional(),
+          })
+          .optional(),
+      });
+      const singleLeafSchema = enveloped(singleLeafPatch);
+      type SingleLeafValues = z.infer<typeof singleLeafPatch>;
+      const singleLeafTarget: ExtractionTarget<SingleLeafValues> = {
+        name: "transport-abort-test",
+        extractionSchema: singleLeafSchema,
+        instructions: "Extract hvac fields.",
+        examples: [],
+      };
+
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      model.sequence = [
+        [json({ fuel: true })],
+        [json({ fuel: "the system is gas" })],
+        new DOMException("the prompt was aborted", "AbortError"),
+      ];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const extractor = threePhaseExtractor({ target: singleLeafTarget, chat, maxRetries: 3 });
+
+      const error: unknown = await extractor
+        .extract({ text: "the system is gas", annotations: {} })
+        .then(
+          () => undefined,
+          (cause: unknown) => cause,
+        );
+
+      expect(isCancellation(error)).toBe(true);
+      // Three good calls plus the aborted one — no retry burned on an abort.
+      expect(model.promptCallCount).toBe(3);
+    });
+  });
+
+  describe("the on-device preset's tuning (Wave 6)", () => {
+    test("no backoff delay is taken between attempts — the preset retries immediately", async () => {
+      // Task 4's delay pin. ondevice-extraction-design.md records that backing
+      // off is wrong for a degenerate loop — "it should retry immediately" —
+      // and the engine's default is fullJitterDelay. The preset wires an
+      // immediately-resolving delay, so the ONLY timers a retrying run
+      // schedules are the transport's own (its 15 s per-call deadline, and the
+      // session holder's 30 s idle timer). A backoff creeping back in would
+      // schedule a timer below that deadline — base 1 s, first three windows
+      // all under 4 s — and fail this assertion.
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      // Phase-major: both presence calls, then the span — which degenerates
+      // once and succeeds on retry — then classify.
+      model.sequence = [
+        [json({ fuel: true, efficiency: false, notes: false })],
+        [json({ yearBuilt: false, access: false })],
+        ChatError.transport("span degenerated"),
+        [json({ fuel: "the system is gas" })],
+        [json("Gas")],
+      ];
+      const chat = new OnDeviceChat({ languageModel: model });
+
+      const delays: number[] = [];
+      const spy = vi.spyOn(globalThis, "setTimeout");
+      try {
+        const extractor = threePhaseExtractor({ target, chat, maxRetries: 3 });
+        const result = await extractor.extract({ text: "the system is gas", annotations: {} });
+        expect(result.fields.hvac.fuel.value).toBe("Gas");
+        // Read BEFORE mockRestore — restoring also resets the recorded calls.
+        for (const call of spy.mock.calls) {
+          const ms = call[1];
+          if (typeof ms === "number") delays.push(ms);
+        }
+      } finally {
+        spy.mockRestore();
+      }
+      // The retry really happened: 2 presence + span attempt 1 + span retry +
+      // classify = 5 transport calls.
+      expect(model.promptCallCount).toBe(5);
+      for (const ms of delays) {
+        expect(ms).toBeGreaterThanOrEqual(DEFAULT_DEVICE_PROMPT_DEADLINE_MS);
+      }
+      // Non-vacuous: at least the transport's deadline timers were scheduled.
+      expect(delays.length).toBeGreaterThanOrEqual(5);
+    });
+
+    test("the derived retry budget is the requested three at the fixture's scale", async () => {
+      // Task 4's ceiling pin, and it holds at THIS fixture's scale — two
+      // groups, one grounded leaf. The per-phase share is the remaining time
+      // divided by the phases left, so a dozen-plus grounded leaves would cut
+      // the classify phase's budget even with the 15 s device ceiling; the
+      // many-leaf test below pins that the starvation is then OBSERVABLE.
+      // Four attempts on one span call can only happen if the budget still
+      // derives to the requested 3 with the device-sized ceiling. The preset's
+      // signature does not carry onRetryBudget (it keeps target, chat,
+      // maxRetries, onUnit), so this drives the ENGINE with the same wiring
+      // the preset builds and observes the derivation there.
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      model.sequence = [
+        [json({ fuel: true, efficiency: false, notes: false })],
+        [json({ yearBuilt: false, access: false })],
+        ChatError.transport("span failure"),
+        ChatError.transport("span failure"),
+        ChatError.transport("span failure"),
+        [json({ fuel: "the system is gas" })],
+        [json("Gas")],
+      ];
+      const chat = new OnDeviceChat({ languageModel: model });
+
+      const budgetEvents: RetryBudget[] = [];
+      const extractor = phasedExtractor<Values>({
+        target,
+        phases: [
+          presencePhase<Values>({ groups, chat, model: chat.engine }),
+          spanPhase<Values>({ groups, chat, model: chat.engine }),
+          classifyPhase<Values>({ groups, chat, model: chat.engine }),
+          classifyWrappedPhase<Values>({ groups, chat, model: chat.engine }),
+        ],
+        concurrency: 1,
+        maxRetries: 3,
+        perCallCeilingMs: DEFAULT_DEVICE_PROMPT_DEADLINE_MS,
+        delay: () => Promise.resolve(),
+        onRetryBudget: (event) => budgetEvents.push(event),
+      });
+      const result = await extractor.extract({ text: "the system is gas", annotations: {} });
+
+      // The fourth attempt succeeded — the budget was not cut.
+      expect(result.fields.hvac?.fuel?.value).toBe("Gas");
+      expect(model.promptCallCount).toBe(7);
+      // onRetryBudget fires only when a budget was REDUCED: silence here means
+      // every phase derived to the requested 3.
+      expect(budgetEvents).toEqual([]);
+    });
+
+    test("a classify phase of many grounded leaves starves VISIBLY — onRetryBudget fires naming it", async () => {
+      // The deadline-slicing weakness the design names: the per-phase share is
+      // the remaining time divided by the phases left, so at a dozen-plus
+      // grounded leaves the share cuts the budget even with the 15 s ceiling.
+      // That is survivable, but it must not be silent — onRetryBudget is the
+      // evidence channel. The preset's signature does not carry onRetryBudget
+      // (it keeps target, chat, maxRetries, onUnit), so this drives the ENGINE
+      // with the same wiring the preset builds — the same four phases, the
+      // same device-sized ceiling — and observes the event there. The event
+      // carries no phase id; `batches` is what identifies the phase here,
+      // because only classify plans thirteen items (presence and span plan one
+      // each).
+      const manyPatch = z.strictObject({
+        house: z
+          .strictObject({
+            f0: z.string().nullable().optional(),
+            f1: z.string().nullable().optional(),
+            f2: z.string().nullable().optional(),
+            f3: z.string().nullable().optional(),
+            f4: z.string().nullable().optional(),
+            f5: z.string().nullable().optional(),
+            f6: z.string().nullable().optional(),
+            f7: z.string().nullable().optional(),
+            f8: z.string().nullable().optional(),
+            f9: z.string().nullable().optional(),
+            f10: z.string().nullable().optional(),
+            f11: z.string().nullable().optional(),
+            f12: z.string().nullable().optional(),
+          })
+          .optional(),
+      });
+      const manySchema = enveloped(manyPatch);
+      type ManyValues = z.infer<typeof manyPatch>;
+      const manyTarget: ExtractionTarget<ManyValues> = {
+        name: "many-leaf-test",
+        extractionSchema: manySchema,
+        instructions: "Extract the fields from the transcript.",
+        examples: [],
+      };
+
+      const model = new FakeLanguageModel();
+      model.availabilityValue = "available";
+      const transcript = Array.from({ length: 13 }, (_, i) => `q${i}`).join(" ");
+      model.sequence = [
+        [json(Object.fromEntries(Array.from({ length: 13 }, (_, i) => [`f${i}`, true])))],
+        [json(Object.fromEntries(Array.from({ length: 13 }, (_, i) => [`f${i}`, `q${i}`])))],
+        ...Array.from({ length: 13 }, (_, i) => [json(`v${i}`)]),
+      ];
+      const chat = new OnDeviceChat({ languageModel: model });
+      const groups = extractGroups(z.toJSONSchema(manySchema, { target: "draft-2020-12" }));
+
+      const budgetEvents: RetryBudget[] = [];
+      const extractor = phasedExtractor<ManyValues>({
+        target: manyTarget,
+        phases: [
+          presencePhase<ManyValues>({ groups, chat, model: chat.engine }),
+          spanPhase<ManyValues>({ groups, chat, model: chat.engine }),
+          classifyPhase<ManyValues>({ groups, chat, model: chat.engine }),
+          classifyWrappedPhase<ManyValues>({ groups, chat, model: chat.engine }),
+        ],
+        concurrency: 1,
+        maxRetries: 3,
+        perCallCeilingMs: DEFAULT_DEVICE_PROMPT_DEADLINE_MS,
+        delay: () => Promise.resolve(),
+        onRetryBudget: (event) => budgetEvents.push(event),
+      });
+      const result = await extractor.extract({ text: transcript, annotations: {} });
+
+      expect(result.fields.house?.f0?.value).toBe("v0");
+      expect(result.fields.house?.f12?.value).toBe("v12");
+
+      expect(budgetEvents).toHaveLength(1);
+      const event = budgetEvents[0]!;
+      // Thirteen batches is the classify phase — no other phase plans 13 items.
+      expect(event.batches).toBe(13);
+      // The share the engine derives for classify is the remaining 900 s over
+      // the TWO phases left (classify and wrapped) = 450 s; thirteen batches
+      // fit one retry each (13 × 31 s = 403 s) but not two (13 × 48 s =
+      // 624 s), so the requested 3 derives to 1 — a real cut, now observable.
+      expect(event.derived).toBe(1);
+      expect(event.requested).toBe(3);
+      expect(event.perCallCeilingMs).toBe(DEFAULT_DEVICE_PROMPT_DEADLINE_MS);
     });
   });
 });

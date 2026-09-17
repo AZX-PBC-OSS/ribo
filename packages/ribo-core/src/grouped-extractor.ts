@@ -192,7 +192,7 @@ interface GroupEntry {
  *      backoff, up to the derived budget. Emit a `GroupUnit` (`key`, `part`,
  *      `parts`, `attempt`) around each entry's `extract()` — the honest unit of
  *      the entry's work. An entry's own inner units (a `WholeUnit` from a
- *      single-shot call, a `GapFillUnit` from a wrapper) flow through whatever
+ *      single-shot call, a `PhaseUnit` from a wrapper) flow through whatever
  *      `onUnit` its own builder gave it.
  *   3. Merge the settled results by top-level key — one entry per key assigns
  *      directly; a partitioned group's pieces recombine with
@@ -420,7 +420,10 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
             onUnit?.({ id, unit: "group", phase: "start", attempt: attempt + 1, key, part, parts });
 
             try {
-              const result = await entry.extractor.extract(transcript, { signal: effectiveSignal });
+              const result = await entry.extractor.extract(transcript, {
+                ...options,
+                signal: effectiveSignal,
+              });
 
               // Sum what the entry reports — its calls and token totals. A
               // failed attempt's calls are the entry's business; this run's
