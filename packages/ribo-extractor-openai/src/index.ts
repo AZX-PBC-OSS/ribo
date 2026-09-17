@@ -73,6 +73,12 @@ export type { GapFillPhaseOptions } from "./gap-fill-phase.js";
 export { inventoryPhase, rosterNoteKey } from "./inventory-phase.js";
 export type { InventoryPhaseOptions } from "./inventory-phase.js";
 
+// The scoped-instance fill phase — the second phase of the port: one job per
+// `(group, piece, instance)`, recombined with `mergeGroupPieces`. Exported for
+// the same hand-assembly a host may want.
+export { fillPhase } from "./fill-phase.js";
+export type { FillPhaseOptions } from "./fill-phase.js";
+
 // The schema-retry combinator: wraps a base extractor with a bounded
 // self-correction loop that feeds a `SchemaParseError` back to the model as
 // conversation turns — the failed output as an assistant turn, the validation
@@ -103,8 +109,19 @@ export type { InventoryOptions } from "./inventory.js";
 // one fill call per current instance, with a scope block that names siblings and
 // excluded candidates. Exports the extractor, prompt assembly helpers, and the
 // generic roster/fill-scope types that the adapter's `buildFillInstructions` consumes.
-export { buildFillMessages, projectFillExample, scopedInstanceExtractor } from "./instance-fill.js";
-export type { FillScope, Roster, RosterCandidate, ScopedFillOptions } from "./instance-fill.js";
+// `PreparedGroup` is the per-piece shape the two scoped-instance phases take.
+export {
+  buildFillMessages,
+  projectFillExample,
+  scopedInstanceExtractor,
+} from "./instance-fill.js";
+export type {
+  FillScope,
+  PreparedGroup,
+  Roster,
+  RosterCandidate,
+  ScopedFillOptions,
+} from "./instance-fill.js";
 
 // The OpenAI-compatible chat transport and its options.
 export { openAiChat } from "./openai-chat.js";

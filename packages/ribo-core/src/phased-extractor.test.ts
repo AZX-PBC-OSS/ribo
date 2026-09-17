@@ -1111,7 +1111,7 @@ describe("phasedExtractor — the unit stream and the produces check", () => {
       merge: (draft) => ({ ...draft, fields: noteFields("done") }),
       describeItem: (item) => ({
         key: "hvac",
-        instance: (item as number) + 1,
+        instance: item + 1,
         instances: 3,
         part: 2,
         parts: 4,

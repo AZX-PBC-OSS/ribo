@@ -45,6 +45,7 @@ import type {
   Phase,
   PhaseDef,
   Roster,
+  RosterCandidate,
 } from "@azx/ribo-core";
 
 import type { PreparedGroup } from "./instance-fill.js";
@@ -57,7 +58,7 @@ import type { PreparedGroup } from "./instance-fill.js";
 export const rosterNoteKey: NoteKey<Roster> = noteKey("scoped-instance-roster");
 
 /** Options for {@link inventoryPhase} — the scoped-instance port's first half. */
-export interface InventoryPhaseOptions<V extends Record<string, unknown>, P = NoProvenance> {
+export interface InventoryPhaseOptions {
   /**
    * The house-wide inventory pass, called once with the transcript text. Must
    * return a {@link Roster}. Not wrapped, not retried — its failure fails the run.
@@ -83,9 +84,12 @@ interface InventoryItem {
  * the whole roster in `merge` — record stated-empty spans, seed empty collection
  * groups, and enforce the instance cap. See the file header for why `merge`
  * owns all of it.
+ *
+ * Nothing here reads the target, so `V` and `P` appear only on the returned
+ * phase — a host composing a phase list by hand passes them explicitly.
  */
 export function inventoryPhase<V extends Record<string, unknown>, P = NoProvenance>(
-  options: InventoryPhaseOptions<V, P>,
+  options: InventoryPhaseOptions,
 ): Phase<V, P> {
   const def: PhaseDef<V, P, InventoryItem, Roster> = {
     id: "inventory",
@@ -138,8 +142,10 @@ export function inventoryPhase<V extends Record<string, unknown>, P = NoProvenan
           continue;
         }
 
-        const current = rosterGroup.filter((c) => c.eligibility === "current");
-
+        // The cast is today's — `Array.isArray` cannot narrow a `readonly T[]`
+        // member out of the union, so the array side is claimed here.
+        const candidates = rosterGroup as readonly RosterCandidate[];
+        const current = candidates.filter((c) => c.eligibility === "current");
         if (current.length === 0) {
           fields[group.key] = [];
           continue;

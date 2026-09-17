@@ -1,6 +1,5 @@
 import { emptyDraft, enveloped } from "@azx/ribo-core";
 import type {
-  Enveloped,
   ExtractionTarget,
   PhaseContext,
   PhaseDraft,
@@ -49,7 +48,7 @@ function preparedGroup(key: string, isCollection: boolean): PreparedGroup {
     key,
     isCollection,
     schema,
-    jsonSchema: z.toJSONSchema(schema, { target: "draft-2020-12" }) as Record<string, unknown>,
+    jsonSchema: z.toJSONSchema(schema, { target: "draft-2020-12" }),
     name: `demo-${key}-fill`,
     context: `inventory demo "${key}"`,
   };

@@ -272,7 +272,7 @@ export function buildFillMessages<V extends Record<string, unknown>, P = NoProve
 }
 
 /** Build the {@link FillScope} for a collection group's current candidate. */
-function buildFillScope(
+export function buildFillScope(
   groupKey: string,
   rosterGroup: readonly RosterCandidate[],
   candidate: RosterCandidate,
@@ -289,7 +289,7 @@ function buildFillScope(
 }
 
 /** A placeholder scope for singleton groups that have no roster candidates. */
-function singletonFillScope(groupKey: string): FillScope {
+export function singletonFillScope(groupKey: string): FillScope {
   return {
     groupKey,
     positive: {
